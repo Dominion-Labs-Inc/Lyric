@@ -471,6 +471,140 @@ class CognitiveIngress:
             logger.debug("ingress: contradiction check failed: %s", error)
             return None
 
+    # ── held conditionals ────────────────────────────────────────────────────
+    # A conditional is not two facts and not an ISA edge: it asserts an
+    # IMPLICATION between two propositions and asserts NEITHER of them. It gets
+    # its own store, written only here — the authority that owns declarative
+    # admission — so nothing has to force it through admit_relation (which would
+    # assert the antecedent true) or stash it in a memory (which reasoning could
+    # only reach by fuzzy recall). Each side is kept in the SAME
+    # (subject, relation, object, polarity) parts a fact uses, so a rule's
+    # clauses render to the same atoms as the facts they range over.
+    _CONDITIONALS_DDL = """
+    CREATE TABLE IF NOT EXISTS unified.held_conditionals (
+        conditional_id  TEXT PRIMARY KEY,
+        ant_subject     TEXT NOT NULL,
+        ant_relation    TEXT NOT NULL,
+        ant_object      TEXT,
+        ant_positive    BOOLEAN NOT NULL DEFAULT TRUE,
+        cons_subject    TEXT NOT NULL,
+        cons_relation   TEXT NOT NULL,
+        cons_object     TEXT,
+        cons_positive   BOOLEAN NOT NULL DEFAULT TRUE,
+        surface         TEXT,
+        domain          TEXT NOT NULL DEFAULT 'language',
+        source_id       TEXT,
+        source_type     TEXT,
+        created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+    """
+
+    async def _ensure_conditionals_schema(self) -> None:
+        if getattr(self, "_cond_schema_ready", False):
+            return
+        from core.database import get_database_manager
+        db = self._db or get_database_manager()
+        await db.execute_query(self._CONDITIONALS_DDL, commit=True)
+        self._cond_schema_ready = True
+
+    @staticmethod
+    def _clause_key(prop: Dict[str, Any]) -> str:
+        neg = "" if prop.get("positive", True) else "not "
+        parts = [str(prop.get("subject") or ""), str(prop.get("relation") or ""),
+                 str(prop.get("obj") or "")]
+        return (neg + " ".join(p for p in parts if p)).strip()
+
+    async def admit_conditional(self, antecedent: Dict[str, Any],
+                                consequent: Dict[str, Any], *, surface: str,
+                                provenance: "Provenance",
+                                domain: str = "language") -> "Admission":
+        """Admit a taught conditional as a first-class HELD RULE, idempotently.
+
+        Both propositions pass the SAME admissibility gates a fact passes, so a
+        rule over an unrepresentable term refuses exactly as a fact would. The
+        implication is stored; neither side is asserted as true.
+        """
+        from core.database import get_database_manager
+
+        result = Admission(
+            proposition=f"if {self._clause_key(antecedent)} then "
+                        f"{self._clause_key(consequent)}",
+            surface=surface)
+
+        prepared = {}
+        for tag, prop in (("antecedent", antecedent), ("consequent", consequent)):
+            subj = normalize_term(prop.get("subject") or "")
+            obj = normalize_term(prop.get("obj")) if prop.get("obj") else None
+            rel = " ".join(str(prop.get("relation") or "").replace("_", " ").split())
+            if not subj:
+                result.refusals.append(f"{tag} has no subject")
+                return result
+            if not rel:
+                result.refusals.append(f"{tag} has no relation")
+                return result
+            for name, term in (("subject", subj), ("object", obj)):
+                if not term:
+                    continue
+                ok, why = admissible(term)
+                if not ok:
+                    result.refusals.append(f"{tag} {name} {term!r} not admitted: {why}")
+                    return result
+            ok, why = admissible_relation(rel)
+            if not ok:
+                result.refusals.append(f"{tag} relation {rel!r} not admitted: {why}")
+                return result
+            prepared[tag] = (subj, rel, obj, bool(prop.get("positive", True)))
+
+        (a_s, a_r, a_o, a_p) = prepared["antecedent"]
+        (c_s, c_r, c_o, c_p) = prepared["consequent"]
+        cid = hashlib.sha256(
+            f"cond|{a_s}|{a_r}|{a_o}|{a_p}|{c_s}|{c_r}|{c_o}|{c_p}|{domain}"
+            .encode()).hexdigest()[:16]
+        if cid in self._seen:
+            result.already_present = True
+            result.admitted = True
+            return result
+        try:
+            await self._ensure_conditionals_schema()
+            db = self._db or get_database_manager()
+            await db.execute_query(
+                """INSERT INTO unified.held_conditionals
+                   (conditional_id, ant_subject, ant_relation, ant_object,
+                    ant_positive, cons_subject, cons_relation, cons_object,
+                    cons_positive, surface, domain, source_id, source_type)
+                   VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+                   ON CONFLICT (conditional_id) DO NOTHING""",
+                (cid, a_s, a_r, a_o, a_p, c_s, c_r, c_o, c_p, surface, domain,
+                 provenance.source_id, provenance.source_type), commit=True)
+            self._seen.add(cid)
+            result.evidence_id = f"cond_{cid}"
+            result.admitted = True
+        except Exception as error:
+            result.refusals.append(f"held-conditional store failed: {error}")
+            logger.warning("ingress: held-conditional store failed: %s", error)
+        return result
+
+    async def held_conditionals(self, domain: Optional[str] = None
+                                ) -> List[Dict[str, Any]]:
+        """The conditionals the substrate has been told, from the authoritative
+        store — for the reasoner to consume as held rules (never re-parsed from
+        surface text or recalled by similarity)."""
+        from core.database import get_database_manager
+        try:
+            await self._ensure_conditionals_schema()
+            db = self._db or get_database_manager()
+            if domain:
+                rows = await db.execute_query(
+                    "SELECT * FROM unified.held_conditionals WHERE domain = $1",
+                    (domain,), fetch_all=True)
+            else:
+                rows = await db.execute_query(
+                    "SELECT * FROM unified.held_conditionals", fetch_all=True)
+            return [dict(r) for r in (rows or [])]
+        except Exception as error:
+            logger.warning("ingress: reading held conditionals failed: %s", error)
+            return []
+
 
 _ingress: Optional[CognitiveIngress] = None
 

@@ -11752,6 +11752,44 @@ class Conversation:
                 "I have no derived way to read a sentence yet, so I will not "
                 "guess at what you told me"))]
 
+        # A CONDITIONAL is a held RULE, not a relation: the derived reader cannot
+        # read it, and admit_relation would wrongly assert its antecedent true.
+        # It is read by the sentence reader and admitted to the conditional store
+        # through the SAME authority (cognitive_ingress) that owns declarative
+        # admission — a first-class held rule, not a memory or a mangled ISA edge.
+        from core.semantics.sentence_reader import SentenceReader as _SentenceReader
+        from core.semantics.cognitive_ingress import (Provenance as _Provenance,
+                                                      get_cognitive_ingress)
+        _sr = _SentenceReader()
+        _cond = _sr._parse_statement(sentence)
+        if _cond is not None and _cond.get("kind") == "conditional":
+            ant = _sr.clause_parts(_cond["antecedent"])
+            con = _sr.clause_parts(_cond["consequent"])
+            if not ant or not con:
+                return [Acquired(sentence, detail=(
+                    "I read that as a conditional, but a side of it is not a "
+                    "single proposition I can hold"))]
+            admission = await get_cognitive_ingress().admit_conditional(
+                ant, con, surface=sentence,
+                provenance=_Provenance(producer="conversation", source_id="you",
+                                       source_type=EvidenceSourceType.USER_SUPPLIED.name),
+                domain="conversation")
+            if admission.admitted:
+                if self._emit is not None:
+                    try:
+                        await self._emit(SelfEvent(
+                            SelfEventType.EVIDENCE_ADMITTED,
+                            payload={"kind": "conditional", "surface": sentence,
+                                     "domain": "conversation"},
+                            origin="conversation.teach_conditional"))
+                    except Exception as _e:
+                        logger.warning("EVIDENCE_ADMITTED (conditional) emit failed: %s", _e)
+                return [Acquired(sentence, description="a rule", relations=(),
+                                 stored=True, detail="held as a conditional rule",
+                                 memory_id=admission.evidence_id)]
+            return [Acquired(sentence, detail=("; ".join(admission.refusals)
+                             or "I could not hold that conditional"))]
+
         # READ IT TYPED. The reader recognises the surface and the typer names
         # the RELATION -- "made of" -> made_of, not a bare "is". The concept
         # graph then holds a TYPED edge the relation algebra can reason over,
@@ -12072,6 +12110,22 @@ class Conversation:
             # TOLD, not asked. Store it before answering, so the reply is made
             # out of a store that already contains what was just said.
             acquired = await self.teach(sentence)
+
+            # A CONDITIONAL was held as a RULE, not a fact. Say so and stop:
+            # resolving the rule sentence as if its words were concepts to look
+            # up produces noise ("I hold nothing for: if, then, ...") and, worse,
+            # reads as if the antecedent had been asserted. The rule is held; the
+            # reply reflects exactly that.
+            if any(a.stored and "conditional rule" in (a.detail or "")
+                   for a in acquired):
+                understanding = Understanding(sentence=sentence, asked=False,
+                                              acquired=acquired)
+                understanding.reply = "Noted — I'll hold that as a rule."
+                self._turns.append(Turn(said=sentence, asked=False,
+                                        subject=self._last_subject,
+                                        reply=understanding.reply))
+                self._last_reply = understanding.reply
+                return understanding
 
         resolved = await self.resolve(sentence)
 

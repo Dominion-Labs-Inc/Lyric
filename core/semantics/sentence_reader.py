@@ -435,6 +435,28 @@ class SentenceReader:
         atom = self._atom(node["subject"], node["prop"])
         return f"~{atom}" if node["negated"] else atom
 
+    def clause_parts(self, node: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """A clause as (subject, relation, object, positive) parts — the form a
+        held conditional stores each side in, so a rule's clause and a stand-alone
+        fact are stored the same way and later render to the same atom. A copular
+        fact carries the relation "is" (dropped at atom time); an action carries
+        its verb; a locative carries its preposition. Returns None for a clause
+        that is not a single proposition (a conjunction, an unsupported reading)."""
+        kind = (node or {}).get("kind")
+        if kind == "fact":
+            return {"subject": node["subject"], "relation": "is",
+                    "obj": node["prop"], "positive": not node.get("negated", False)}
+        if kind == "sv":
+            return {"subject": node["subject"], "relation": node["verb"],
+                    "obj": None, "positive": True}
+        if kind == "svo":
+            return {"subject": node["subject"], "relation": node["verb"],
+                    "obj": node["object"], "positive": True}
+        if kind == "relation":
+            return {"subject": node["subject"], "relation": node["preposition"],
+                    "obj": node["object"], "positive": not node.get("negated", False)}
+        return None
+
     def render_clause(self, node: Dict[str, Any]) -> Optional[str]:
         """One clause as a single signed atom, or None if it is not a single
         proposition (a conjunction is two, an unsupported reading is none).
