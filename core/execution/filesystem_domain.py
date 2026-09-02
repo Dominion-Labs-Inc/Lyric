@@ -131,34 +131,45 @@ class FilesystemWorld:
     def propose_actions(self) -> List[Fact]:
         """Candidate MOVE_FILE actions to try, grounded in what is observed.
 
-        Both kinds the learner needs:
-          - moves whose file really is where the action says (these succeed and
-            teach the effect),
-          - moves whose file is NOT in the named source (these fail and teach
-            that the location precondition is necessary).
-        A file is never proposed to move to the directory it already occupies.
+        Ordered as a per-file ROUND TRIP, executed in sequence against the LIVE
+        world, so the learner sees what it needs to induce a GENERAL operator --
+        MOVE_FILE(file, src, dst) with the precondition FILE_IN(file, src) -- not
+        a direction-specific one. Per file, in order:
+          1. a counter-move FROM a directory the file is NOT in (fails while the
+             file still sits in `here`: a negative contradicting the source
+             precondition),
+          2. a real move `here -> other` (succeeds: the effect, one direction),
+          3. the return move `other -> here` (succeeds, now that step 2 put the
+             file in `other`: the effect in the OPPOSITE direction).
+        Steps 2 and 3 give positives in BOTH directions, so `src`/`dst` vary
+        across the successes and induction generalises them to variables instead
+        of freezing the one direction it was shown. Step 1 and step 3 are the
+        same action shape (`other -> here`) with the file absent vs present in
+        `other`, an exact contrastive pair that isolates FILE_IN(file, src) as
+        the necessary precondition. Without the return move the successes are all
+        one-directional and the learner correctly, but uselessly, hardcodes the
+        directories; without the negative the precondition is never contradicted
+        and induction stalls at `multiple_hypotheses`.
         """
         facts = self.observe() or frozenset()
-        located = {(f.args[0], f.args[1]) for f in facts
-                   if f.predicate == PREDICATE and len(f.args) == 2}
-        files = sorted({file for file, _ in located})
+        located = sorted({(f.args[0], f.args[1]) for f in facts
+                          if f.predicate == PREDICATE and len(f.args) == 2})
         dirs = self.dirs()
 
         candidates: List[Fact] = []
-        # Real moves: the file is where we say, destination is a different dir.
-        for file, here in sorted(located):
-            for dst in dirs:
-                if dst != here:
-                    candidates.append(Fact("MOVE_FILE", (file, here, dst)))
-        # Counter-moves: the file is NOT in the named source directory.
-        for file in files:
-            here = next(h for f, h in located if f == file)
-            for wrong in dirs:
-                if wrong != here:
-                    for dst in dirs:
-                        if dst != wrong:
-                            candidates.append(Fact("MOVE_FILE", (file, wrong, dst)))
-                            break
+        for file, here in located:
+            others = [d for d in dirs if d != here]
+            if not others:
+                continue  # nowhere to move it; it can teach nothing here
+            other = others[0]
+            # 1. NEGATIVE: move it FROM a dir it is not in (fails now, while the
+            #    file is still in `here`) -- and the SAME shape as step 3, which
+            #    succeeds once the file is there: the contrastive pair.
+            candidates.append(Fact("MOVE_FILE", (file, other, here)))
+            # 2. POSITIVE out: here -> other.
+            candidates.append(Fact("MOVE_FILE", (file, here, other)))
+            # 3. POSITIVE back: other -> here (valid after step 2 moved it).
+            candidates.append(Fact("MOVE_FILE", (file, other, here)))
         return candidates
 
 

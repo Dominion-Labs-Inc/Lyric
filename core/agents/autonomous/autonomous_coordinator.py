@@ -163,6 +163,17 @@ class SelfEventType(Enum):
     #: constitutional re-check: after changing itself, the self verifies it has not
     #: drifted out of alignment.
     SELF_MODIFIED = "self_modified"
+    #: A model-free planning attempt could not reach a goal and the domain
+    #: authority diagnosed WHY — a typed EpistemicDeficit (its `to_dict` in the
+    #: payload, with `domain` and the target predicate). Emitted from the
+    #: completion seam so the self reacts by trying to CLOSE the gap through the
+    #: learning authority (explore→induce, or transfer), not merely by feeding
+    #: appraisal the measurement. Closing also moves the belief authority: the
+    #: ignorance is registered as a known-unknown and resolved ONLY on a close
+    #: verified against the world. Deferred — exploration runs off the acting hot
+    #: path. The diagnosis stays appraisal's to weigh; this reaction only acts on
+    #: it when the disposition and the deficit KIND both allow.
+    DEFICIT_DIAGNOSED = "deficit_diagnosed"
 
 
 @dataclass
@@ -423,6 +434,18 @@ class AutonomousCoordinator:
         # drift, so the self verifies it has not drifted. Deferred, off the hot path.
         self.on(SelfEventType.SELF_MODIFIED, self._react_self_modified,
                 name="self_modified_realign", mode="deferred", priority=55)
+
+        # DEFICIT — a substrate planning failure the domain authority diagnosed as
+        # a learnable gap is CLOSED here, reactively. The diagnosis is appraisal's
+        # measurement (it owns the disposition); this reaction acts on it only when
+        # the disposition favours it AND the deficit is one the substrate can
+        # self-close, running the learning operation THROUGH the learning authority
+        # and moving the belief authority as it goes — resolving the known-unknown
+        # only on a close verified against the world. Deferred: exploration is
+        # expensive and runs on the drain worker, never an acting slot (the
+        # two-budget rule the induction reaction also honours).
+        self.on(SelfEventType.DEFICIT_DIAGNOSED, self._react_close_deficit,
+                name="close_deficit", mode="deferred", priority=35)
 
         # Directive System - High-level guidance for the Singleton
         self.directive_system = DirectiveSystem()
@@ -4206,6 +4229,182 @@ class AutonomousCoordinator:
             except Exception as e:
                 logger.warning("routing job %s outcome to learning failed: %s", job_id, e)
 
+    async def _react_close_deficit(self, event: SelfEvent) -> None:
+        """Close a diagnosed epistemic deficit — reactively, model-free, and only
+        when it is honestly closeable.
+
+        The domain authority DIAGNOSED the gap (a measurement it owns) and
+        appraisal owns the DISPOSITION; this reaction is where the substrate ACTS
+        on both. It never re-decides the diagnosis and never fakes a close:
+
+          1. Register the ignorance with the belief authority as a known-unknown —
+             the substrate records THAT it does not know, before trying to.
+          2. If the disposition escalates (a failure attributed to an external
+             blocker) or the deficit is not one the substrate can self-close (a
+             concept/binding/observation gap ESCALATEs; a proved world constraint
+             DISENGAGEs), surface it honestly and leave the known-unknown open.
+             No exploration is burned.
+          3. Otherwise run the learning operation the deficit calls for THROUGH
+             the learning authority (`address_deficit` → explore records/enqueues,
+             or transfer → `admit_projection`), then drain the always-online
+             induction so any operator whose demonstrations it just gathered is
+             induced. Learning — not the acting that fed it — is what moves
+             competence, so the drain is the step that can close the gap.
+          4. Verify the close against the WORLD, not a flag: the gap is closed
+             only when an executable operator now PRODUCES the target predicate.
+             On genuine closure, resolve the known-unknown (the belief authority
+             records the new knowledge) and emit COMPETENCE_CHANGED. A transfer
+             lands a CANDIDATE — a hypothesis to validate, not a finished
+             capability — so it advances the gap but does NOT resolve the belief.
+             Exploration that did not yet yield an executable operator leaves the
+             known-unknown open: an honest "not yet", never a green flag.
+
+        Runs on the drain worker (deferred), so exploration never steals an acting
+        slot. Every failure is logged with its honest reason and never coerced to
+        a success.
+        """
+        payload = event.payload or {}
+        raw = payload.get("deficit")
+        if not isinstance(raw, dict):
+            logger.warning("[DEFICIT] event carried no deficit dict; nothing to close")
+            return
+
+        from core.integration.universal_domain_master import (
+            EpistemicDeficit, LearningOperation, get_universal_domain_master)
+        deficit = EpistemicDeficit.from_dict(raw)
+        domain = deficit.domain_id
+        predicate = deficit.target_predicate
+        op = deficit.operation
+
+        # (1) Belief authority: register the ignorance (idempotent per domain+question).
+        unknown_id = self._register_deficit_unknown(deficit)
+
+        # (2) Disposition + closeability gate. Appraisal owns the call; we consume it.
+        directive = self.disposition()
+        self_closeable = op in (
+            LearningOperation.LEARN_OPERATOR, LearningOperation.VALIDATE_CAUSE,
+            LearningOperation.PROBE, LearningOperation.ACHIEVE_PREREQUISITE,
+            LearningOperation.TRANSFER_RELATION)
+        if directive.should_escalate or not self_closeable:
+            self.stats["deficits_escalated"] = self.stats.get("deficits_escalated", 0) + 1
+            logger.info(
+                "[DEFICIT] %s/%s in %s not self-closed (%s): %s — known-unknown left open",
+                deficit.deficit_type.value, predicate, domain, op.value,
+                "escalated by disposition" if directive.should_escalate
+                else deficit.remedy_reason)
+            return
+
+        # (3) Run the learning operation THROUGH the learning authority.
+        self.stats["deficit_close_attempts"] = self.stats.get("deficit_close_attempts", 0) + 1
+        try:
+            outcome = await get_universal_domain_master().address_deficit(deficit)
+        except Exception as e:
+            raise_if_structural(e, "autonomous_coordinator._react_close_deficit")
+            logger.warning("[DEFICIT] address_deficit for %s in %s raised: %s",
+                           predicate, domain, e)
+            return
+        if not outcome.get("ran"):
+            logger.info("[DEFICIT] %s in %s did not run (%s) — known-unknown left open",
+                        predicate, domain, outcome.get("reason", "no reason given"))
+            return
+
+        # A transfer lands a CANDIDATE (RELATION_GAP → CAUSAL_GAP): a hypothesis to
+        # validate, not a finished capability. Honest partial progress — never a
+        # resolved belief.
+        if op is LearningOperation.TRANSFER_RELATION:
+            self.stats["deficits_advanced"] = self.stats.get("deficits_advanced", 0) + 1
+            logger.info("[DEFICIT] transferred a candidate relation for %s in %s; "
+                        "gap advanced to a hypothesis to validate — known-unknown left open",
+                        predicate, domain)
+            return
+
+        # Explore only RECORDS and enqueues signatures; draining the always-online
+        # induction is what can turn them into an executable operator. The learning
+        # authority is the single owner of that step.
+        await self.learning.drain_pending_induction(limit=50)
+
+        # (4) Verify against the world: closed IFF an executable operator now
+        # produces the target predicate.
+        if not await self._deficit_is_closed(domain, predicate):
+            logger.info("[DEFICIT] explored %s in %s but no executable producer yet "
+                        "— known-unknown left open (honest 'not yet')", predicate, domain)
+            return
+
+        # Genuine closure: move the belief authority and announce the competence change.
+        if unknown_id is not None:
+            try:
+                from core.reasoning.bayesian_uncertainty import get_bayesian_uncertainty
+                get_bayesian_uncertainty().resolve_known_unknown(
+                    unknown_id,
+                    {"answer": f"learned an executable operator producing "
+                               f"{predicate} in {domain}"})
+            except Exception as e:
+                logger.warning("[DEFICIT] closed %s in %s but resolving the belief "
+                               "failed: %s", predicate, domain, e)
+        self.stats["deficits_closed"] = self.stats.get("deficits_closed", 0) + 1
+        logger.info("✅ [DEFICIT] closed %s in %s: an executable operator now "
+                    "produces it; belief resolved", predicate, domain)
+        await self.emit(SelfEvent(
+            SelfEventType.COMPETENCE_CHANGED,
+            payload={"domain_id": domain, "learned": True,
+                     "cause": "deficit_closed", "predicate": predicate},
+            origin="_react_close_deficit"))
+
+    def _register_deficit_unknown(self, deficit) -> Optional[str]:
+        """Record a diagnosed deficit as a known-unknown with the belief authority,
+        idempotently. Returns the unknown's id (reusing an already-open one for the
+        same ignorance — a resolved unknown is deleted from the store, so presence
+        means unresolved), or None if the belief authority could not record it. On
+        None the close still runs; it simply cannot resolve a belief it never
+        registered (logged, not faked)."""
+        domain = deficit.domain_id
+        question = (f"how to produce {deficit.target_predicate} in {domain}"
+                    if deficit.target_predicate
+                    else f"how to resolve a {deficit.deficit_type.value} in {domain}")
+        try:
+            from core.reasoning.bayesian_uncertainty import get_bayesian_uncertainty
+            unc = get_bayesian_uncertainty()
+            existing = next(
+                (u for u in unc.known_unknowns.values()
+                 if u.question == question and u.domain == domain),
+                None)
+            if existing is not None:
+                return existing.unknown_id
+            unknown = unc.register_known_unknown(
+                question=question, domain=domain,
+                blocking_factors=[deficit.deficit_type.value],
+                required_info=([deficit.remedy_reason]
+                               if deficit.operation.name in ("TRANSFER_RELATION", "ESCALATE")
+                               else []))
+            return unknown.unknown_id
+        except Exception as e:
+            logger.warning("[DEFICIT] could not register known-unknown for %s in %s: %s",
+                           deficit.target_predicate, domain, e)
+            return None
+
+    async def _deficit_is_closed(self, domain_id: str,
+                                 predicate: Optional[str]) -> bool:
+        """The world's own answer to whether a learnable gap is closed: an
+        executable operator now PRODUCES the target predicate. This is what an
+        OPERATOR_GAP means (nothing produced it) and its closure (something does),
+        read from the rule store the learning authority writes — not a success flag
+        returned by the operation that would like to have closed it. With no
+        localised predicate (an unlocalised PROBE) the honest proxy is that the
+        domain gained at least one executable operator."""
+        from core.learning.rule_store import get_rule_store
+        try:
+            executable = await get_rule_store().executable_rules(domain_id=domain_id)
+        except Exception as e:
+            logger.warning("[DEFICIT] could not read executable rules for %s: %s",
+                           domain_id, e)
+            return False
+        if predicate:
+            return any(
+                any(getattr(f, "predicate", None) == predicate
+                    for f in stored.rule.effects.add)
+                for stored in executable)
+        return bool(executable)
+
     def _mark_reflection_due(self, reason: str) -> None:
         """Pull the self-observation tiers forward — reflect BECAUSE something
         just failed, rather than waiting out the interval. The tiers live on the
@@ -7707,6 +7906,25 @@ class AutonomousCoordinator:
                 except Exception as db_error:
                     logger.warning(f"Failed to record task completion to database: {db_error}")
             else:
+                # A substrate planning failure carries a typed deficit: the domain
+                # authority already diagnosed WHY the goal was unreachable. That IS
+                # the substrate's own model-free re-derive — so emit it to the
+                # close-deficit reaction (which acts only if the disposition and the
+                # deficit KIND allow) and suppress the LLM diagnostic below for it.
+                # Emitted once per task (the flag) so bounded retries don't
+                # re-explore the same gap every attempt.
+                _deficit = result.get("deficit") if isinstance(result, dict) else None
+                if _deficit and not (task.metadata or {}).get("deficit_closure_emitted"):
+                    if task.metadata is None:
+                        task.metadata = {}
+                    task.metadata["deficit_closure_emitted"] = True
+                    await self.emit(SelfEvent(
+                        SelfEventType.DEFICIT_DIAGNOSED,
+                        payload={"task_id": task.id,
+                                 "domain": _deficit.get("domain_id"),
+                                 "deficit": _deficit},
+                        origin="_execute_and_validate_task"))
+
                 # Retry or fail
                 if task.retry_count < task.max_retries:
                     logger.warning(f"🔄 Task failed validation, retrying: {task.id}")
@@ -7782,7 +8000,7 @@ class AutonomousCoordinator:
                             'attempt': task.retry_count,
                         }
                         self.stats["external_blocker_escalations"] += 1
-                    elif not _is_already_diag:
+                    elif not _is_already_diag and not _deficit:
                         import uuid as _uuid
                         from .shared_types import Task as _Task, TaskType as _TT, Priority as _P, TaskSource as _TS
                         import os as _os

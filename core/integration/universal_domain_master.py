@@ -322,6 +322,22 @@ class EpistemicDeficit:
             "evidence": self.evidence,
         }
 
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "EpistemicDeficit":
+        """Rebuild a deficit from its `to_dict` form so a consumer that received
+        only the serialised measurement (the executor result carries `deficit` as
+        a dict) can run the closure against the live object. The derived
+        properties -- operation, opportunity, attribution -- recompute from the
+        type, so only the stored fields are carried; the derived keys in the dict
+        are ignored rather than trusted."""
+        return cls(
+            domain_id=data["domain_id"],
+            deficit_type=DeficitType(data["deficit_type"]),
+            target_predicate=data.get("target_predicate"),
+            confidence=data.get("confidence", 1.0),
+            evidence=dict(data.get("evidence") or {}),
+        )
+
 
 class UniversalDomainMaster:
     """
