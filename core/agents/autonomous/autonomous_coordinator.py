@@ -11542,7 +11542,14 @@ class Conversation:
                 query=f"{subject} is {obj}", context=premises))
             if not (result.metadata or {}).get("verified"):
                 return []
-            support = self._support_used(premises, result.reasoning_steps)
+            # Prefer the reasoning's OWN chain (robin → bird → … → animal) as the
+            # reason, so a derived yes/no says the hops it walked. Falls back to
+            # the premise-citation matching for reasoners that mark premises.
+            chain = (result.metadata or {}).get("chain") or []
+            if len(chain) >= 2:
+                support = (" → ".join(chain),)
+            else:
+                support = self._support_used(premises, result.reasoning_steps)
             claim = f"{subject} is {obj}".replace("_", " ")
             # X IS Y is proved: "yes" when the question affirmed it, "no" when it
             # denied it (the negation is false, and the reason is that X IS Y).
@@ -12187,6 +12194,44 @@ class Conversation:
                     asking.append(f"I don't hold {item.label} yet; looking it up "
                                   f"found nothing, so I'll run a more targeted search.")
 
+        # ANSWER THE QUESTION FIRST — before reciting a memory about the subject
+        # or taking the not-known early exit below. A DERIVED answer (reasoned
+        # over the concept graph) must not be dropped just because the subject
+        # itself resolved to nothing quotable: the question got an answer, and
+        # that is what to say. Acquisition/contradiction lines gathered above are
+        # kept, then the answer — with the chain it was proved from — is stated.
+        if understanding.answers:
+            for answer in understanding.answers:
+                derived = bool(answer.conclusion or answer.support)
+                because = ((" because " + " and ".join(answer.support))
+                           if answer.support else "")
+                if derived:
+                    claim = answer.conclusion or (
+                        f"{answer.about} {answer.relation} "
+                        + ", ".join(answer.others))
+                    if answer.verdict is True:
+                        lines.append(f"Yes — {claim}{because}.")
+                    elif answer.verdict is False:
+                        lines.append(f"No — {claim}{because}.")
+                    else:
+                        lines.append(f"{claim[:1].upper()}{claim[1:]}{because}.")
+                elif answer.verdict is True:
+                    lines.append(f"Yes — {answer.about} {answer.relation} "
+                                 + ", ".join(answer.others) + ".")
+                elif answer.verdict is False:
+                    lines.append(f"No — I was told {answer.about} "
+                                 f"{answer.relation} "
+                                 + ", ".join(answer.others) + ".")
+                else:
+                    lines.append(f"{answer.about} — {answer.relation}: "
+                                 + ", ".join(answer.others))
+            accounted = understanding.spoken_for()
+            unanswered = [r.phrase for r in unknown
+                          if not any(same_stem(r.phrase, w) for w in accounted)]
+            if unanswered:
+                lines.append("I hold nothing for: " + ", ".join(unanswered))
+            return "\n".join(lines)
+
         # Recite a memory only if it is a CLAIM worth saying back. Pre-readability
         # records are reader-oriented prose -- "Query: ... Answer: ...",
         # "Learning: ... — a; b; c" -- that recite as noise; a record that is not
@@ -12222,47 +12267,6 @@ class Conversation:
                     + (", and looking it up turned up nothing, "
                        if tried else "; ")
                     + "so I'll run a more targeted search.")
-
-        # ANSWER THE QUESTION IF ONE WAS ASKED, rather than reciting the
-        # concept it was about.
-        if understanding.answers:
-            for answer in understanding.answers:
-                # A DERIVED answer carries its conclusion and the premises it was
-                # proved from, so it reads as a reason, not an assertion to take
-                # on trust. A DIRECT answer is composed from the stored relation.
-                derived = bool(answer.conclusion or answer.support)
-                because = ((" because " + " and ".join(answer.support))
-                           if answer.support else "")
-                if derived:
-                    claim = answer.conclusion or (
-                        f"{answer.about} {answer.relation} "
-                        + ", ".join(answer.others))
-                    if answer.verdict is True:
-                        lines.append(f"Yes — {claim}{because}.")
-                    elif answer.verdict is False:
-                        # The question DENIED what the substrate proved true, so
-                        # the answer is no -- and the reason is that it IS the case.
-                        lines.append(f"No — {claim}{because}.")
-                    else:  # open question: the derived conclusion IS the answer
-                        lines.append(f"{claim[:1].upper()}{claim[1:]}{because}.")
-                elif answer.verdict is True:
-                    lines.append(f"Yes — {answer.about} {answer.relation} "
-                                 + ", ".join(answer.others) + ".")
-                elif answer.verdict is False:
-                    # The store holds the DENIAL. Said as such, because "no"
-                    # alone reads the same as never having been told.
-                    lines.append(f"No — I was told {answer.about} "
-                                 f"{answer.relation} "
-                                 + ", ".join(answer.others) + ".")
-                else:
-                    lines.append(f"{answer.about} — {answer.relation}: "
-                                 + ", ".join(answer.others))
-            accounted = understanding.spoken_for()
-            unanswered = [r.phrase for r in unknown
-                          if not any(same_stem(r.phrase, w) for w in accounted)]
-            if unanswered:
-                lines.append("I hold nothing for: " + ", ".join(unanswered))
-            return "\n".join(lines)
 
         for item in known:
             where = f" ({item.domain})" if item.domain else ""

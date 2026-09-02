@@ -1997,8 +1997,21 @@ class NeuralSymbolicBridge:
         yes = ans.verdict == TRUE
         steps = [f"concept graph: {subj} -{relation.value}-> {obj} is "
                  f"{ans.verdict} ({ans.basis})"]
-        if getattr(ans, "derivation", None) is not None:
-            steps.append(str(ans.derivation))
+        # The actual hops the derivation walked, as a readable chain
+        # (robin -> bird -> vertebrate -> animal), so a caller can SHOW the
+        # reasoning rather than a raw dataclass repr. The ordered nodes are also
+        # carried in metadata["chain"] for callers that want to render it their
+        # own way. A single-edge (directly observed) answer has no chain to show.
+        chain_nodes: List[str] = []
+        derivation = getattr(ans, "derivation", None)
+        path = getattr(derivation, "path", None) if derivation is not None else None
+        if path:
+            chain_nodes = [str(path[0].subject).replace("_", " ")] + \
+                          [str(edge.obj).replace("_", " ") for edge in path]
+        if len(chain_nodes) >= 2:
+            steps.append("chain: " + " → ".join(chain_nodes))
+        elif derivation is not None:
+            steps.append(str(derivation))
         return ReasoningResult(
             answer=f"{'Yes' if yes else 'No'}: {subj} {relation.value} {obj}",
             confidence=0.95 if ans.basis == "observed" else 0.85,
@@ -2012,6 +2025,7 @@ class NeuralSymbolicBridge:
                 "model_required": False,
                 "model_available": self._model_available(),
                 "route": ["substrate", "concept_graph", ans.verdict],
+                "chain": chain_nodes,
             },
         )
 
