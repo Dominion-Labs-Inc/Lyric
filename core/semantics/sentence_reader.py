@@ -79,6 +79,15 @@ class SentenceReader:
         rf"^is\s+{_DETERMINER}(?P<subject>[\w'-]+)\s+(?P<prop>.+?)\s*\?*$",
         re.IGNORECASE,
     )
+    #: "Does the tank overflow?" / "Do the pumps run?" — a yes/no question about
+    #: an ACTION, the counterpart of `_QUESTION` for the copular form. Without it
+    #: only "is X Y?" could be asked, so an action consequent could be proved but
+    #: never queried.
+    _DOES_QUESTION = re.compile(
+        rf"^(?:does|do|did)\s+{_DETERMINER}(?P<subject>[\w'-]+)\s+(?P<verb>[\w'-]+)"
+        rf"(?:\s+(?:(?:a|an|the)\s+)?(?P<object>[\w'-]+))?\s*\?*$",
+        re.IGNORECASE,
+    )
     def _normalize(self, phrase: str) -> str:
         """Reduce a phrase to a snake_case atom fragment.
 
@@ -119,7 +128,14 @@ class SentenceReader:
             consequent = self._parse_statement(match.group("consequent"))
             if not antecedent or not consequent:
                 return None
-            if antecedent["kind"] != "fact" or consequent["kind"] != "fact":
+            # A conditional relates two CLAIMS, and a claim need not be copular:
+            # "if the pump runs then the tank overflows" has an action on each
+            # side. Both sides need only be readable to a single atom (fact,
+            # action, or relation); an unrepresentable side (an existential, a
+            # bare preposition) still refuses, because a rule over something the
+            # grammar cannot carry is not a rule it can reason with.
+            if self.render_clause(antecedent) is None or \
+                    self.render_clause(consequent) is None:
                 return None
             return {"kind": "conditional", "antecedent": antecedent, "consequent": consequent}
 
@@ -370,6 +386,17 @@ class SentenceReader:
                 "negated": False,
                 "genericity": reading.genericity.value,
             }
+        # "Does the tank overflow?" — an action question. Rendered by the same
+        # action renderer as its declarative form, so the goal atom matches a
+        # consequent like "the tank overflows".
+        match = self._DOES_QUESTION.match(text.strip())
+        if match:
+            verb = match.group("verb").lower()
+            groups = match.groupdict()
+            if groups.get("object"):
+                return {"kind": "svo", "subject": match.group("subject"),
+                        "verb": verb, "object": groups["object"]}
+            return {"kind": "sv", "subject": match.group("subject"), "verb": verb}
         return self._parse_statement(text)
     def _render_relation(self, node) -> str:
         """`the valve is in the pump` -> valve_in_pump (or ~valve_in_pump).
@@ -396,7 +423,10 @@ class SentenceReader:
         related.
         """
         subject = self._singular(self._normalize(node["subject"]))
-        verb = self._normalize(node["verb"])
+        # Singularise the verb too, so 3rd-person agreement does not split an
+        # atom: "the tank overflows" and "does the tank overflow?" must name the
+        # same proposition (tank_overflow), or a provable goal reads as unmet.
+        verb = self._singular(self._normalize(node["verb"]))
         if node["kind"] == "sv":
             return f"{subject}_{verb}"
         obj = self._singular(self._normalize(node["object"]))
@@ -404,3 +434,20 @@ class SentenceReader:
     def _render_fact(self, node: Dict[str, Any]) -> str:
         atom = self._atom(node["subject"], node["prop"])
         return f"~{atom}" if node["negated"] else atom
+
+    def render_clause(self, node: Dict[str, Any]) -> Optional[str]:
+        """One clause as a single signed atom, or None if it is not a single
+        proposition (a conjunction is two, an unsupported reading is none).
+
+        The one place that maps a clause of ANY readable kind — fact, action,
+        relation — onto the atom the solver reasons over, so a conditional's
+        sides render the same way a standalone claim does rather than assuming
+        both are copular facts."""
+        kind = (node or {}).get("kind")
+        if kind == "fact":
+            return self._render_fact(node)
+        if kind in ("svo", "sv"):
+            return self._render_action(node)
+        if kind == "relation":
+            return self._render_relation(node)
+        return None  # conjunction (two atoms), universal, or unsupported

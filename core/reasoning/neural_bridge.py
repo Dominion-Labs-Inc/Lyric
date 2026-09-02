@@ -553,8 +553,11 @@ class DeterministicExtractor(IFormalizer):
                 premises.extend(self._reader._render_conjunction(node))
 
             elif node["kind"] == "conditional":
-                antecedent = self._reader._render_fact(node["antecedent"])
-                consequent = self._reader._render_fact(node["consequent"])
+                # Render each side by its OWN kind (fact / action / relation),
+                # not as a copular fact — a conditional's clauses are ordinary
+                # claims and can be actions ("the tank overflows").
+                antecedent = self._reader.render_clause(node["antecedent"])
+                consequent = self._reader.render_clause(node["consequent"])
                 premises.append(f"({antecedent}) -> ({consequent})")
 
             elif node["kind"] == "universal":
@@ -2227,10 +2230,38 @@ class NeuralSymbolicBridge:
             verified = False
             confidence = proof.confidence
         else:
-            answer = f"Not entailed by the premises: {formalization.statement}"
-            reason = REASON_SUBSTRATE_REFUTED
-            verified = False
-            confidence = proof.confidence
+            # A goal the premises do not entail may still be DECIDED: its
+            # negation can follow (modus tollens — "if P then Q; not Q" settles
+            # "not P"). Prove the negation before reporting a non-entailment, so
+            # a definite No is a verified answer rather than an "unknown"-looking
+            # "not entailed". Only trusted premises can carry a verified verdict.
+            negated_goal = (formalization.statement[1:]
+                            if formalization.statement.startswith("~")
+                            else f"~{formalization.statement}")
+            neg_proof = None
+            if premises_trusted:
+                try:
+                    neg_proof = await get_proof_engine().prove_theorem(
+                        Theorem(theorem_id=f"symbolic_neg_{uuid.uuid4().hex[:8]}",
+                                statement=negated_goal,
+                                premises=list(formalization.premises),
+                                logic_type=LogicType.PROPOSITIONAL),
+                        timeout=self.SYMBOLIC_PROOF_TIMEOUT)
+                except Exception as _neg_e:
+                    logger.debug("negation proof attempt failed: %s", _neg_e)
+            if neg_proof is not None and getattr(neg_proof, "proved", False):
+                reasoning_steps = [
+                    f"{s.step_number}. {s.statement}  [{s.justification}]"
+                    for s in neg_proof.steps]
+                answer = f"Disproved: {formalization.statement} (its negation follows)"
+                reason = REASON_SUBSTRATE_VERIFIED
+                verified = True
+                confidence = neg_proof.confidence
+            else:
+                answer = f"Not entailed by the premises: {formalization.statement}"
+                reason = REASON_SUBSTRATE_REFUTED
+                verified = False
+                confidence = proof.confidence
 
         return ReasoningResult(
             answer=answer,
