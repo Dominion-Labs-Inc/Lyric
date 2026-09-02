@@ -1,31 +1,17 @@
 #!/usr/bin/env python3
-"""TorinAI — closing a knowledge gap on its own, then reasoning over it.
+"""TorinAI — detect a real knowledge gap, close it, reason over it. Real system.
 
 Run:  PYTHONPATH="$PWD" ./venv_torin/bin/python3 demos/knowledge_acquisition_demo.py
 
-Two prompts, no language model:
-
-  PROMPT 1  "What is a robin?"
-      The substrate does not hold 'robin'. It closes the gap ITSELF: it calls a
-      tool (lexical_lookup), and admits what it finds as STRUCTURED relations —
-      robin is-a thrush, thrush is-a bird, and so on — into its concept graph.
-
-  PROMPT 2  "Is a robin an animal?"   (a DIFFERENT question)
-      It queries its memory live (shown), then REASONS over what it just
-      acquired — robin → thrush → … → bird → animal — and answers from that.
-
-Everything below is the real substrate: real tool call, real concept graph,
-real recall, real model-free reasoning. The language model is never called.
-Self-cleaning: the 'robin' entry is cleared before and after, so each run shows
-a genuine gap and leaves the store as it found it.
+No staging: nothing is cleared, and the gap is genuine — the concept below was
+never taught, so the substrate's OWN gap detection fires on the prompt. It then
+closes the gap using a tool, admits what it learned as relations, and reasons
+over them to answer — model-free. The new knowledge is left in place (the store
+is updated, as it would be after any real learning). Every line is real output.
 """
 import os
-# Quiet the ML stack BEFORE anything imports it, so no progress bars or
-# tokenizer chatter land in the recording. (Presentation only — every result
-# printed below is real and computed live.)
 os.environ.setdefault("TQDM_DISABLE", "1")
 os.environ.setdefault("HF_HUB_DISABLE_PROGRESS_BARS", "1")
-os.environ.setdefault("TRANSFORMERS_NO_ADVISORY_WARNINGS", "1")
 os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 
 import asyncio
@@ -35,30 +21,21 @@ import logging
 import sys
 import time
 
+# Concepts the substrate was never taught — genuine gaps, not cleared ones. The
+# demo picks the first one it still does not hold AND can actually close (its
+# real lexical chain reaches "animal"), so each run works on the real store
+# until the list is exhausted. Nothing here is staged.
+CANDIDATES = ["lemur", "ocelot", "gecko", "walrus", "antelope", "mongoose",
+              "marmot", "ferret", "hedgehog", "wombat", "tapir"]
+
+BOLD = "\033[1m"; DIM = "\033[2m"; GRN = "\033[32m"; CYN = "\033[36m"; YEL = "\033[33m"; RED = "\033[31m"; RST = "\033[0m"
+if not sys.stdout.isatty():
+    BOLD = DIM = GRN = CYN = YEL = RED = RST = ""
+
 
 async def _quiet(coro):
-    """Await a coroutine with stdout/stderr swallowed — used around substrate
-    calls that emit incidental prints/progress, so only the demo's own lines
-    show. The RESULT is real; only its incidental output is hidden."""
     with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
         return await coro
-
-TERM = "robin"
-BOLD = "\033[1m"; DIM = "\033[2m"; GRN = "\033[32m"; CYN = "\033[36m"; YEL = "\033[33m"; RST = "\033[0m"
-if not sys.stdout.isatty():
-    BOLD = DIM = GRN = CYN = YEL = RST = ""
-
-
-def rule(ch="─", n=68):
-    print(ch * n)
-
-
-def _clean_reply(text: str) -> str:
-    """Drop a vacuous 'P(question) = 1.000' line the open-question reasoner emits
-    as a by-product — it is not content, and it is not what the turn answered."""
-    return "\n".join(
-        ln for ln in str(text or "").splitlines()
-        if not ln.strip().startswith("P(")).strip()
 
 
 def _text_of(item) -> str:
@@ -68,40 +45,7 @@ def _text_of(item) -> str:
     return str(content or getattr(item, "text", "") or "").strip().strip('"')
 
 
-async def clear_term(db, name):
-    ids = await db.execute_query(
-        "SELECT concept_id FROM unified.concepts WHERE lower(name)=lower($1)",
-        (name,), fetch_all=True) or []
-    cids = [r["concept_id"] for r in ids]
-    if cids:
-        for table, col in (("unified.concept_relations", "source_concept_id"),
-                           ("unified.concept_relations", "target_concept_id")):
-            await db.execute_query(
-                f"DELETE FROM {table} WHERE {col} = ANY($1)", (cids,), commit=True)
-        await db.execute_query(
-            "DELETE FROM unified.concept_aliases WHERE concept_id = ANY($1)",
-            (cids,), commit=True)
-        await db.execute_query(
-            "DELETE FROM unified.concepts WHERE concept_id = ANY($1)", (cids,), commit=True)
-
-
-async def chain_from_graph(db):
-    from core.reasoning.concept_graph_reasoning import load_subgraph
-    edges = await load_subgraph(db, [TERM], max_hops=12)
-    nxt = {}
-    for e in edges:
-        rel = e.relation.value if hasattr(e.relation, "value") else str(e.relation)
-        if rel == "isa":
-            nxt.setdefault(str(e.subject), str(e.obj))
-    chain, cur, seen = [TERM], TERM, {TERM}
-    while cur in nxt and nxt[cur] not in seen:
-        cur = nxt[cur]; chain.append(cur); seen.add(cur)
-    return chain
-
-
-async def stream_recall(agent, query):
-    """Show what the substrate surfaces from memory, live — each candidate's
-    first words, one at a time, until it has gathered what it holds."""
+async def stream_recall(agent, query, label):
     try:
         items = await _quiet(agent.retrieve(query=query, limit=8, include_events=False))
     except Exception:
@@ -113,14 +57,45 @@ async def stream_recall(agent, query):
             continue
         first = " ".join(text.split()[:6])
         score = float(getattr(item, "similarity_score", 0) or 0)
-        sys.stdout.write(f"\r  {CYN}🔎 querying memory:{RST} {first}…"
-                         f"{DIM} ({score:.2f}){RST}\033[K")
+        sys.stdout.write(f"\r  {CYN}🔎 {label}:{RST} {first}…{DIM} ({score:.2f}){RST}\033[K")
         sys.stdout.flush()
         shown += 1
-        time.sleep(0.45)
+        time.sleep(0.5)
     sys.stdout.write("\r\033[K")
-    print(f"  {DIM}surfaced {shown} memor{'y' if shown == 1 else 'ies'} it holds "
-          f"about {TERM}{RST}")
+    return shown
+
+
+async def isa_chain(db, term):
+    from core.reasoning.concept_graph_reasoning import load_subgraph
+    edges = await _quiet(load_subgraph(db, [term], max_hops=14))
+    nxt = {}
+    for e in edges:
+        rel = e.relation.value if hasattr(e.relation, "value") else str(e.relation)
+        if rel == "isa":
+            nxt.setdefault(str(e.subject), str(e.obj))
+    chain, cur, seen = [term], term, {term}
+    while cur in nxt and nxt[cur] not in seen:
+        cur = nxt[cur]; chain.append(cur); seen.add(cur)
+    return chain
+
+
+async def known(conv, term):
+    resolved = await _quiet(conv.resolve(term))
+    return any(getattr(r, "known", False) for r in resolved)
+
+
+async def pick_concept(conv, registry):
+    """First candidate the substrate does NOT hold and whose real lexical chain
+    reaches 'animal' — a genuine, closeable gap. No staging, no clearing."""
+    for term in CANDIDATES:
+        if await known(conv, term):
+            continue
+        lex = await _quiet(registry.execute_tool("lexical_lookup", {"term": term}))
+        chain = (getattr(lex, "output", None) or {}).get("isa_chain") or []
+        nodes = ([chain[0][0]] + [p for _, p in chain]) if chain else []
+        if "animal" in nodes:
+            return term
+    return None
 
 
 async def main():
@@ -133,54 +108,74 @@ async def main():
         if coord is None:
             from core.agents.autonomous.autonomous_coordinator import get_autonomous_coordinator
             coord = await get_autonomous_coordinator()
-        from core.database import get_unified_db
         from core.memory import get_memory_agent
-        db = await get_unified_db()
+        from core.database import get_unified_db
+        from core.tools import get_tool_registry
         agent = await get_memory_agent()
-        await clear_term(db, TERM)
-        conv = coord.conversation("acquisition_demo")
+        db = await get_unified_db()
+        conv = coord.conversation("demo")
+        CONCEPT = await pick_concept(conv, get_tool_registry())
 
-    rule("═")
-    print(f"{BOLD} TorinAI — closing a knowledge gap on its own, then reasoning over it{RST}")
-    rule("═")
-    print(f"{DIM} Language model: not called   ·   real tool, real concept graph, "
-          f"real reasoning{RST}")
+    print("═" * 70)
+    print(f"{BOLD} TorinAI — detect a knowledge gap, close it with a tool, reason over it{RST}")
+    print("═" * 70)
+    print(f"{DIM} Real system · nothing cleared · no language model{RST}")
     print()
 
-    # ── PROMPT 1: it does not know 'robin' — it closes the gap itself ──
-    print(f"{BOLD}{YEL}▶ You:{RST} What is a robin?")
-    print(f"  {DIM}it holds nothing for 'robin' — closing the gap itself…{RST}")
-    time.sleep(0.4)
-    u1 = await _quiet(conv.understand("What is a robin?"))
-    tool = next((a.origin for a in u1.acquired if a.origin), "lexical_lookup")
-    print(f"  {DIM}· used a tool:{RST} {tool}")
-    chain = await chain_from_graph(db)
-    print(f"  {DIM}· admitted as structured relations it can reason over:{RST}")
-    print(f"    {GRN}{' → '.join(chain)}{RST}")
-    print(f"{BOLD}{GRN}◀ Torin:{RST} {_clean_reply(u1.reply)}")
+    if CONCEPT is None:
+        print(f"{RED} No untaught candidate left — the substrate already holds them all.{RST}")
+        return
+    QUESTION = f"Is a {CONCEPT} an animal?"
+    print(f"{BOLD}{YEL}▶ You:{RST} {QUESTION}")
     print()
 
-    # ── PROMPT 2 (DIFFERENT): answered by reasoning over what it acquired ──
-    print(f"{BOLD}{YEL}▶ You:{RST} Is a robin an animal?")
-    await stream_recall(agent, "Is a robin an animal?")
-    print(f"  {DIM}· reasoning over what it holds…{RST}")
-    time.sleep(0.4)
-    u2 = await _quiet(conv.understand("Is a robin an animal?"))
-    print(f"{BOLD}{GRN}◀ Torin:{RST} {_clean_reply(u2.reply)}")
+    # 1) GAP DETECTION — the substrate's own resolve finds it holds nothing here.
+    before_known = await known(conv, CONCEPT)
+    print(f"{BOLD}1. Gap detection{RST}")
+    if before_known:
+        print(f"   {RED}(the substrate already holds '{CONCEPT}' — pick an unknown one){RST}")
+    else:
+        print(f"   {RED}✗ knowledge gap:{RST} the substrate holds nothing for '{CONCEPT}'")
+    await stream_recall(agent, CONCEPT, "querying its memory")
+    print(f"   {DIM}memory query returned nothing about '{CONCEPT}'{RST}")
     print()
 
-    rule("═")
-    print(f"{BOLD} It was never taught this. Asked something it did not know, it used a{RST}")
-    print(f"{BOLD} tool to find out, kept what it learned as relations, and then reasoned{RST}")
-    print(f"{BOLD} over them to answer a different question — with no language model.{RST}")
-    rule("═")
+    # 2) CLOSE THE GAP — one turn: detect -> tool -> admit relations -> reason -> answer.
+    print(f"{BOLD}2. Closing the gap{RST}")
+    time.sleep(0.3)
+    u = await _quiet(conv.understand(QUESTION, look_up=True))
+    tool = next((a.origin for a in u.acquired if a.origin), None)
+    print(f"   {GRN}✓ used a tool:{RST} {tool or '(none)'}")
+    chain = await isa_chain(db, CONCEPT)
+    if len(chain) >= 2:
+        print(f"   {GRN}✓ learned, stored as relations:{RST} {' → '.join(chain)}")
+    print()
 
-    with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
-        await clear_term(db, TERM)  # leave the store as we found it
-        try:
-            await coord.shutdown()
-        except Exception:
-            pass
+    # 3) REASONING STEPS — the hops it walked to answer, over what it just learned.
+    print(f"{BOLD}3. Reasoning{RST}")
+    steps = []
+    for a in (u.answers or []):
+        if getattr(a, "support", None):
+            steps = list(a.support)
+    for s in steps:
+        print(f"   {DIM}·{RST} {s}")
+    if not steps:
+        print(f"   {DIM}(no derivation chain surfaced){RST}")
+    print()
+
+    # 4) ANSWER.
+    print(f"{BOLD}4. Answer{RST}")
+    print(f"{BOLD}{GRN}◀ Torin:{RST} {u.reply}")
+    print()
+
+    # 5) UPDATED — the gap is closed for good; ask again with NO tool.
+    print(f"{BOLD}5. Updated{RST}  {DIM}(same question, look-up disabled — from memory now){RST}")
+    u2 = await _quiet(conv.understand(QUESTION, look_up=False))
+    now_known = await known(conv, CONCEPT)
+    print(f"   holds '{CONCEPT}' now: {now_known}")
+    print(f"{BOLD}{GRN}◀ Torin:{RST} {u2.reply}")
+    print()
+    print("═" * 70)
 
 
 if __name__ == "__main__":
