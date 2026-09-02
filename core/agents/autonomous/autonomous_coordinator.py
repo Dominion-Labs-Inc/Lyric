@@ -10759,6 +10759,10 @@ FUNCTION_WORDS = frozenset({
     "that", "this", "it", "does", "do", "did", "what", "which", "how", "why",
     "when", "where", "who", "can", "will", "would", "should",
     "tell", "me", "you", "i", "please", "about", "there", "any", "some",
+    # Logical connectives are STRUCTURE, not concepts. Without them here, a
+    # conditional's "if"/"then" were resolved as content and reported as
+    # unknown ("I hold nothing for: if, then") — grammar mistaken for a gap.
+    "if", "then", "else", "unless", "so",
 })
 
 #: Longest phrase considered as a single concept name.
