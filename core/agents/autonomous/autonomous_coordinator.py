@@ -11436,6 +11436,23 @@ class Conversation:
                 out.append(str(premise))
         return tuple(out)
 
+    @staticmethod
+    def _grounded(result, support) -> bool:
+        """Whether a reasoning result actually DECIDED the proposition, rather
+        than reporting a belief that happens to share a word with it.
+
+        Grounded = the concept graph walked a chain for it, OR premises it used
+        were cited (`support`). The learned-inference belief path returns a bare
+        "P(claim) = x" on word overlap and flags itself `verified`; that is a
+        related belief, not a proof of THIS claim, so it is not grounds to assert
+        an answer. Keeping this here, at the point a result becomes a spoken
+        answer, is where an ungrounded 'verified' would otherwise become a
+        fabricated yes/no."""
+        if str(getattr(result, "answer", "") or "").startswith("P("):
+            return False
+        route = (getattr(result, "metadata", None) or {}).get("route") or []
+        return bool(support) or ("concept_graph" in route)
+
     async def _held_premises(self, sentence, resolved, harvest) -> List[str]:
         """Everything the substrate HOLDS about the topic, as premise sentences.
 
@@ -11550,6 +11567,14 @@ class Conversation:
                 support = (" → ".join(chain),)
             else:
                 support = self._support_used(premises, result.reasoning_steps)
+            # GROUNDING GUARD. A yes/no verdict must rest on the substrate's OWN
+            # knowledge of THIS proposition — a concept-graph chain or premises it
+            # actually used. The belief path reports `verified` when a stored
+            # belief merely SHARES A WORD with the query ("animal"), which is not
+            # grounds to assert X IS Y. Ungrounded ⇒ no verdict: the turn reports
+            # the gap honestly instead of a fabricated yes.
+            if not self._grounded(result, support):
+                return []
             claim = f"{subject} is {obj}".replace("_", " ")
             # X IS Y is proved: "yes" when the question affirmed it, "no" when it
             # denied it (the negation is false, and the reason is that X IS Y).
@@ -11561,6 +11586,10 @@ class Conversation:
         if not (result.metadata or {}).get("verified") or not result.answer:
             return []
         support = self._support_used(premises, result.reasoning_steps)
+        # Same grounding guard for an open question: a word-overlap belief (its
+        # answer is a bare "P(claim) = x") is not an answer to "what is X".
+        if not self._grounded(result, support):
+            return []
         return [Answer(about="", relation="", others=(), verdict=None,
                        support=support, conclusion=self._render_atom(result.answer))]
 
