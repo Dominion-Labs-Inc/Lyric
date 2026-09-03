@@ -50,6 +50,7 @@ def test_generation_produces_a_verified_improvement():
                 difficulty="easy", risk_level="low",
                 context={"issues": ["hot loop rebuilds a list; latency elevated"]})
             eff.remedy_family = RemedyFamily.EFFICIENCY
+            eff.function = "collect"  # generation is function-granular
             eff_out = await eng._generate_improvements([eff], ImprovementScope.MINOR, {})
 
             # 3) META target -> skipped, not crashed

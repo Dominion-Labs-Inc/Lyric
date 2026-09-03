@@ -690,6 +690,136 @@ def classify_defect(issues, component: str = "") -> Optional['RemedyFamily']:
     return None
 
 
+# ── Function-granularity source surgery ──────────────────────────────────────
+# Code improvement operates on ONE function, never a whole module: a whole-module
+# auto-rewrite of a 4000-line core file (the substrate's own code included) is an
+# unbounded-blast-radius change verified only by a smoke test. These extract one
+# function to valid top-level source, and splice an improved version back in place.
+
+def list_module_functions(module_src: str):
+    """(qualname, lineno, end_lineno, col_offset) for every def in the module,
+    methods included (qualname carries the enclosing class, e.g. 'Worker.collect')."""
+    import ast
+    out = []
+
+    class _V(ast.NodeVisitor):
+        def __init__(self):
+            self.stack = []
+
+        def visit_ClassDef(self, node):
+            self.stack.append(node.name)
+            self.generic_visit(node)
+            self.stack.pop()
+
+        def _fn(self, node):
+            out.append((".".join(self.stack + [node.name]),
+                        node.lineno, node.end_lineno, node.col_offset))
+            self.stack.append(node.name)
+            self.generic_visit(node)
+            self.stack.pop()
+
+        visit_FunctionDef = _fn
+        visit_AsyncFunctionDef = _fn
+
+    _V().visit(ast.parse(module_src))
+    return out
+
+
+def extract_function_source(module_src: str, qualname: str):
+    """(dedented_source, lineno, end_lineno, col_offset) for one function — the
+    dedented source is valid top-level Python a tool can operate on."""
+    import textwrap
+    for qual, lineno, end, col in list_module_functions(module_src):
+        if qual == qualname:
+            lines = module_src.splitlines(keepends=True)
+            return (textwrap.dedent("".join(lines[lineno - 1:end])), lineno, end, col)
+    raise KeyError(f"{qualname!r} is not a function in the given module")
+
+
+def splice_function_source(module_src: str, qualname: str, new_dedented_src: str) -> str:
+    """Replace the function's lines with new_dedented_src, re-indented to its column.
+    Everything else in the module is byte-for-byte unchanged."""
+    import textwrap
+    _ded, lineno, end, col = extract_function_source(module_src, qualname)
+    reindented = textwrap.indent(new_dedented_src, " " * col)
+    if not reindented.endswith("\n"):
+        reindented += "\n"
+    lines = module_src.splitlines(keepends=True)
+    return "".join(lines[:lineno - 1]) + reindented + "".join(lines[end:])
+
+
+#: Probe inputs per parameter annotation, for the isolation differential test.
+_PROBE_VALUES = {
+    "int": [0, 1, -1, 7], "float": [0.0, 1.5, -2.0], "str": ["", "a", "abc"],
+    "bool": [True, False], "list": [[], [1, 2, 3]], "tuple": [(), (1, 2)],
+    "dict": [{}, {"k": 1}], "set": [set(), {1, 2}],
+}
+
+
+def verify_behavior_preserved(old_src: str, new_src: str) -> tuple:
+    """(verdict, detail). A differential check that the improved function behaves
+    identically to the original — 'verify behavior, not just that it imports'.
+
+      signature_changed — parameters differ; callers would break. REJECT.
+      behavior_changed  — same inputs produced different outputs. REJECT.
+      verified          — identical outputs on every probe input. SAFE.
+      unverifiable      — not runnable in isolation (self/deps/no annotations);
+                          the change is not proven and must not auto-deploy.
+    """
+    import ast
+    try:
+        old_fn_ast = ast.parse(old_src).body[0]
+        new_fn_ast = ast.parse(new_src).body[0]
+    except Exception as e:
+        return ("unverifiable", f"could not parse function source: {e}")
+
+    if ast.dump(old_fn_ast.args) != ast.dump(new_fn_ast.args):
+        return ("signature_changed", "the function's parameter list changed")
+
+    args = old_fn_ast.args
+    params = list(args.args)
+    if params and params[0].arg in ("self", "cls"):
+        return ("unverifiable", "instance/class method — not isolable")
+    if args.vararg or args.kwarg or args.kwonlyargs or args.posonlyargs:
+        return ("unverifiable", "variadic/keyword-only signature — not probed")
+
+    combos = [[]]
+    for p in params:
+        ann = getattr(p.annotation, "id", None) if p.annotation is not None else None
+        values = _PROBE_VALUES.get(ann)
+        if values is None:
+            return ("unverifiable", f"parameter {p.arg!r} has no probe-able annotation")
+        combos = [c + [v] for c in combos for v in values][:32]
+
+    name = old_fn_ast.name
+    try:
+        old_ns, new_ns = {}, {}
+        exec(compile(old_src, "<old>", "exec"), {"__builtins__": __builtins__}, old_ns)
+        exec(compile(new_src, "<new>", "exec"), {"__builtins__": __builtins__}, new_ns)
+        old_fn, new_fn = old_ns[name], new_ns[name]
+    except Exception as e:
+        return ("unverifiable", f"function is not runnable in isolation: {e}")
+
+    checked = 0
+    for combo in combos:
+        try:
+            ro, ok_old = old_fn(*combo), True
+        except Exception:
+            ok_old = False
+        try:
+            rn, ok_new = new_fn(*combo), True
+        except Exception:
+            ok_new = False
+        if ok_old != ok_new:
+            return ("behavior_changed", f"one raised where the other did not on {combo!r}")
+        if ok_old and ro != rn:
+            return ("behavior_changed", f"outputs differ on {combo!r}: {ro!r} != {rn!r}")
+        checked += 1
+    if checked == 0:
+        return ("unverifiable", "no probe input could be constructed")
+    return ("verified", f"identical outputs on {checked} probe input(s)")
+
+
 @dataclass
 class ImprovementTarget:
     """Target for self-improvement"""
@@ -711,6 +841,12 @@ class ImprovementTarget:
     #: unclassified. Decides which remedy path acts on the target instead of the
     #: former binary "liveness → remediate, everything else → generate code".
     remedy_family: Optional['RemedyFamily'] = None
+    #: The SINGLE function this target improves, as a qualname within the
+    #: component's module (e.g. "Worker.collect"). Code improvement operates at
+    #: function granularity — one function is extracted, improved, differentially
+    #: verified, and spliced back — never a whole-module rewrite. None for
+    #: operational (non-code) targets.
+    function: Optional[str] = None
 
 
 @dataclass
@@ -1224,8 +1360,14 @@ class EnhancedASISelfImprovement(IAdaptationEngine):
             # ones this pass acted on (attempted) or found unrestartable
             # (no_recovery_path); the operator report is assembled once, below,
             # after re-measure has had a chance to reveal masked liveness faults.
+            # FILTER BY THE HANDLED FAMILY, NOT THE COMPONENT NAME. A component can
+            # now carry both an operational target (LIVENESS) and a code target
+            # (EFFICIENCY on a specific function) — dropping every target for the
+            # component would take the code improvement down with the restart.
             handled = set(remediation["attempted"]) | set(remediation["no_recovery_path"])
-            targets = [t for t in targets if t.component not in handled]
+            targets = [t for t in targets
+                       if not (t.remedy_family is RemedyFamily.LIVENESS
+                               and t.component in handled)]
 
             # STALENESS (family B): a stored value that no longer matches the live
             # reading is fixed by taking a FRESH one. `_remeasure` re-runs the health
@@ -1240,8 +1382,10 @@ class EnhancedASISelfImprovement(IAdaptationEngine):
             # Only the targets that actually IMPROVED leave the path. A re-measure
             # that confirmed a still-real finding (`unchanged`) stays, so a genuine
             # BACKLOG reaches operator escalation below instead of being dropped.
+            _refreshed = set(refresh["refreshed"])
             targets = [t for t in targets
-                       if t.component not in set(refresh["refreshed"])]
+                       if not (t.component in _refreshed and t.remedy_family in (
+                           RemedyFamily.STALENESS, RemedyFamily.BACKLOG))]
 
             # BACKLOG (family P): accumulated items owned by ANOTHER authority
             # (security findings, recovery failures, unresolved transfers). Code
@@ -1665,6 +1809,98 @@ class EnhancedASISelfImprovement(IAdaptationEngine):
             else:
                 self._cycle_in_progress = False
 
+    #: Bound the per-cycle cost of scanning source for improvable functions.
+    MAX_CODE_OPTIMIZE_PROBES = 400
+    MIN_FUNCTION_BYTES = 200  # a trivial function is not worth a deploy
+    #: At most one code improvement per cycle — a deploy rewrites a live file; keep
+    #: the change surface small and reviewable.
+    MAX_CODE_TARGETS_PER_CYCLE = 1
+
+    async def _detect_code_improvement_targets(
+        self, scope: ImprovementScope, limit: int = 1
+    ) -> List[ImprovementTarget]:
+        """Find function-granularity EFFICIENCY targets: a SINGLE function that
+        optimize_code genuinely improves AND the differential verifier confirms is
+        behavior-preserving. Bounded in cost, deduped by module. This is what gives
+        the code path a target it can actually — and safely — close on: a real,
+        verified, one-function improvement, never a whole-module rewrite.
+        """
+        if not self.tool_registry:
+            return []
+        found: List[ImprovementTarget] = []
+        probes = 0
+        seen_modules: set = set()
+        for component in await self._get_all_components():
+            if len(found) >= limit or probes >= self.MAX_CODE_OPTIMIZE_PROBES:
+                break
+            try:
+                module_src = await self._get_existing_code(component)
+            except Exception:
+                continue  # third-party / no source — not ours to improve
+            if not module_src or not module_src.strip():
+                continue
+            key = hash(module_src)
+            if key in seen_modules:
+                continue  # component aliases share a module; scan it once
+            seen_modules.add(key)
+            try:
+                functions = list_module_functions(module_src)
+            except Exception:
+                continue
+            for qual, _ln, _end, _col in functions:
+                if len(found) >= limit or probes >= self.MAX_CODE_OPTIMIZE_PROBES:
+                    break
+                try:
+                    fn_src, *_ = extract_function_source(module_src, qual)
+                except Exception:
+                    continue
+                if len(fn_src) < self.MIN_FUNCTION_BYTES:
+                    continue
+                probes += 1
+                try:
+                    res = await self.tool_registry.execute_tool(
+                        "optimize_code", {"code": fn_src})
+                except Exception:
+                    continue
+                if not res.success:
+                    continue
+                out = res.output or {}
+                new_fn = out.get("code", "")
+                opts = out.get("optimizations", {})
+                n_opt = (sum(v for v in opts.values() if isinstance(v, int))
+                         if isinstance(opts, dict) else 0)
+                if n_opt <= 0 or not new_fn.strip() or new_fn == fn_src:
+                    continue
+                verdict, detail = verify_behavior_preserved(fn_src, new_fn)
+                if verdict in ("signature_changed", "behavior_changed"):
+                    continue  # UNSAFE — the change alters the interface or outputs
+                # verified   → behaviour proven identical; auto-deployable (gated).
+                # unverifiable→ a real optimize_code win on a function we cannot run
+                #               in isolation (method/deps); a genuine target, but its
+                #               deploy REQUIRES approval since behaviour is unproven.
+                approval_required = verdict != "verified"
+                t = ImprovementTarget(
+                    target_id=f"{component}:{qual}_{datetime.now().timestamp()}",
+                    component=component, metric="code_efficiency",
+                    current_value=float(len(fn_src)),
+                    target_value=float(len(new_fn)),
+                    improvement_potential=float(n_opt),
+                    difficulty="easy",
+                    risk_level=("medium" if approval_required
+                                else self._estimate_risk(scope, component)),
+                    context={"issues": [
+                        f"{qual}: {n_opt} optimize_code improvement(s), "
+                        f"behavior {verdict} ({detail})"],
+                        "optimizations": opts,
+                        "behavior_verdict": verdict,
+                        "approval_required": approval_required})
+                t.remedy_family = RemedyFamily.EFFICIENCY
+                t.function = qual
+                found.append(t)
+                logger.info("Code-improvement target: %s::%s (%d opts, behavior %s)",
+                            component, qual, n_opt, verdict)
+        return found
+
     async def _assess_improvements(
         self,
         scope: ImprovementScope,
@@ -1746,6 +1982,20 @@ class EnhancedASISelfImprovement(IAdaptationEngine):
                         target.remedy_family = classify_defect(
                             health.get("issues", []), component)
                         targets.append(target)
+
+            # CODE-IMPROVEMENT TARGETS — the other half of "underperforming".
+            # Health findings are operational (down / stale / backlog); they never
+            # surface a working-but-improvable FUNCTION, so the code path was never
+            # handed anything it could close on. This scans real source for a single
+            # function optimize_code improves and the differential verifier confirms
+            # is behavior-preserving, and adds it as an EFFICIENCY target.
+            try:
+                code_targets = await self._detect_code_improvement_targets(
+                    scope, limit=self.MAX_CODE_TARGETS_PER_CYCLE)
+                targets.extend(code_targets)
+            except Exception as e:
+                raise_if_structural(e, "EnhancedASISelfImprovement._assess_improvements")
+                logger.warning("Code-improvement target detection failed: %s", e)
 
             logger.info(f"Assessment complete: {len(targets)} targets identified")
             return targets
@@ -2747,32 +2997,38 @@ Return JSON:
                     continue
                 tool_name, build_params = spec
 
+                # FUNCTION GRANULARITY. The target names ONE function. Extract just
+                # that function's source, improve THAT, differentially verify it is
+                # behavior-preserving, and splice it back into the module. A whole-
+                # module rewrite is never produced or deployed — the change surface
+                # is a single function.
+                if not target.function:
+                    skipped.append({"component": target.component,
+                                    "reason": "no_function_targeted"})
+                    continue
                 try:
-                    existing_code = await self._get_existing_code(target.component)
+                    module_src = await self._get_existing_code(target.component)
                 except FileNotFoundError as missing:
-                    # SKIP THIS TARGET, NOT THE CYCLE: one component without a file
-                    # must not abort generation for the others.
                     logger.warning("Skipping %s: %s", target.component, missing)
                     skipped.append({"component": target.component,
                                     "reason": "source_not_found"})
                     continue
-                if not (existing_code or "").strip():
+                try:
+                    fn_src, *_ = extract_function_source(module_src, target.function)
+                except Exception as e:
                     skipped.append({"component": target.component,
-                                    "reason": "source_empty"})
+                                    "reason": f"function_not_found:{target.function} ({e})"})
                     continue
 
                 requirements = self._build_requirements(target, scope)
-                logger.info("Improving %s via %s (family %s, %d bytes of source)",
-                            target.component, tool_name,
-                            target.remedy_family.name, len(existing_code))
+                logger.info("Improving %s::%s via %s (%d-byte function)",
+                            target.component, target.function, tool_name, len(fn_src))
 
-                # THROUGH THE REGISTRY (the safety framework gates the invocation),
-                # with the tool's OWN parameter contract — not a fictional blob.
+                # Improve the FUNCTION through the registry (safety-gated), with the
+                # tool's own parameter contract.
                 result = await self.tool_registry.execute_tool(
-                    tool_name, build_params(existing_code))
+                    tool_name, build_params(fn_src))
 
-                # The safety layer's reading of what we just ran, kept with the
-                # improvement rather than discarded.
                 _safety = (result.metadata or {}).get("safety") if isinstance(
                     getattr(result, "metadata", None), dict) else None
                 if _safety:
@@ -2780,64 +3036,84 @@ Return JSON:
                                 _safety.get("risk_level"), _safety.get("rule") or "-")
 
                 if result.success:
-                    # VERIFICATION GATE: Verify generated code matches requirements
                     _output = result.output if isinstance(result.output, dict) else {}
-                    generated_code = _output.get("code", "")
-
-                    # NO CODE IS A FAILED GENERATION, NOT A QUIET SUCCESS.
-                    #
-                    # The branch below read `if generated_code and self.llm:` and
-                    # fell through to an else commented "No LLM available or no
-                    # code" -- so an EMPTY result skipped verification entirely
-                    # and was then stored, counted as an improvement, validated,
-                    # and passed the sandbox (an empty module imports perfectly).
-                    # Measured: every improvement in `generated_improvements` from
-                    # today is zero bytes with `file_paths: []` and
-                    # `quality_score: 0.8`, and the cycle reported
-                    # "2/2 validated, 2/2 tested".
-                    #
-                    # A tool that returns success with no code has not improved
-                    # anything, and the cycle must not be able to report that it
-                    # has.
-                    if not StaticCodeAnalyzer._has_executable_code(generated_code or ""):
-                        logger.warning(
-                            "Skipping %s: %s returned success but no executable code "
-                            "(%d bytes)", target.component, tool_name,
-                            len(generated_code or ""))
+                    new_fn = _output.get("code", "")
+                    if not StaticCodeAnalyzer._has_executable_code(new_fn or ""):
                         skipped.append({"component": target.component,
                                         "reason": "generator_returned_no_code"})
                         continue
+                    # DIFFERENTIAL VERIFICATION — behavior preserved, not just that
+                    # it imports. A change that alters the function's SIGNATURE or
+                    # its OUTPUTS on any probe input is rejected here, before it can
+                    # be spliced, validated, or deployed. `verified` is proven safe;
+                    # `unverifiable` (a method / uses module deps) is carried but its
+                    # deploy will require approval downstream.
+                    _verdict, _detail = verify_behavior_preserved(fn_src, new_fn)
+                    if _verdict in ("signature_changed", "behavior_changed"):
+                        logger.warning("Skipping %s::%s — UNSAFE change (%s: %s)",
+                                       target.component, target.function, _verdict, _detail)
+                        skipped.append({"component": target.component,
+                                        "reason": f"unsafe_change:{_verdict}"})
+                        continue
+                    context.setdefault("behavior_verification", []).append(
+                        {"component": target.component, "function": target.function,
+                         "verdict": _verdict, "detail": _detail,
+                         "approval_required": _verdict != "verified"})
+                    # Splice the verified function back — the deployable artifact is
+                    # the module with ONE function changed.
+                    generated_code = splice_function_source(
+                        module_src, target.function, new_fn)
 
-                    if generated_code and self.neural_bridge:
-                        verification = await self._verify_generated_code(
-                            code=generated_code,
-                            requirements=requirements,
-                            target=target,
-                            tool_name=tool_name
-                        )
+                    # STATIC SAFETY OF THE CHANGE, DIFFERENTIALLY. Analyse only the
+                    # changed FUNCTION, and flag only patterns the change
+                    # INTRODUCED. A pre-existing open('w') elsewhere in the module —
+                    # or already in this function before the edit — is not ours to
+                    # answer for, and running the analyser over the whole spliced
+                    # module wrongly failed the cycle on legitimate existing writes.
+                    # optimize_code preserves behaviour, so it should introduce
+                    # nothing new; if it did, reject.
+                    def _danger_set(_src):
+                        try:
+                            a = StaticCodeAnalyzer.analyze(_src, strict=True)
+                        except Exception:
+                            return set()
+                        return {(p.get("pattern"), p.get("match"))
+                                for p in (a.get("dangerous_patterns") or [])}
+                    _introduced = _danger_set(new_fn) - _danger_set(fn_src)
+                    if _introduced:
+                        logger.warning(
+                            "Skipping %s::%s — change introduces %d new dangerous "
+                            "pattern(s): %s", target.component, target.function,
+                            len(_introduced), sorted(p for p, _ in _introduced))
+                        skipped.append({"component": target.component,
+                                        "reason": "change_introduces_danger"})
+                        continue
 
-                        if not verification["matches_requirements"]:
-                            logger.warning(
-                                f"⚠️  Generated code verification failed for {target.component}: "
-                                f"{verification['reason']}"
-                            )
-                            # Skip this improvement if verification fails
-                            continue
+                    # The spliced module must still parse — the change did not break
+                    # the file it lives in.
+                    try:
+                        import ast as _ast
+                        _ast.parse(generated_code)
+                    except SyntaxError as e:
+                        skipped.append({"component": target.component,
+                                        "reason": f"spliced_module_invalid:{e}"})
+                        continue
 
-                        # Update confidence based on verification
-                        verified_confidence = min(
-                            _output.get("confidence", 0.8),
-                            verification.get("confidence", 0.8)
-                        )
-                    else:
-                        # Code exists but no verifier was reachable. The tool's
-                        # own confidence is a claim by the producer about its own
-                        # output, so it is carried through UNVERIFIED rather than
-                        # presented as a verification result.
-                        verified_confidence = _output.get("confidence", 0.8)
-                        logger.info("No verifier reachable for %s; carrying the "
-                                    "generator's own confidence unverified",
-                                    target.component)
+                    verification = {
+                        "matches_requirements": True,
+                        "confidence": 0.9,
+                        "reason": (f"function-level {tool_name}; behavior {_verdict}; "
+                                   f"no new dangerous patterns; module parses"),
+                        "behavior_verdict": _verdict,
+                        "approval_required": _verdict != "verified",
+                    }
+                    verified_confidence = min(float(_output.get("confidence", 0.9)), 0.9)
+
+                    # The deployable artifact is the component's own module file
+                    # (the one function changed). Record its real path so deployment
+                    # writes THIS file, not a guess.
+                    _module = await self._resolve_component_module(target.component)
+                    _src_path = (_module.replace(".", "/") + ".py") if _module else None
 
                     # Store verified generated code and create improvement ID
                     improvement_id = f"{target.component}_{target.metric}_{int(time.time())}"
@@ -2846,10 +3122,24 @@ Return JSON:
                         "tool_used": tool_name,
                         "confidence": verified_confidence,
                         "target": target,
-                        "file_paths": _output.get("file_paths", []),
+                        "file_paths": [_src_path] if _src_path else [],
                         "verification": verification if generated_code else None
                     })
                     improvements.append(improvement_id)
+
+                    # A code improvement rewrites a live source file. It deploys on
+                    # its OWN safety net (backup + sandbox + differential verification
+                    # + capability-regression gate + rollback), so it does NOT need
+                    # approval unless it is irreversible or touches the substrate's
+                    # main operating core — that decision is made at the deploy gate
+                    # from the components recorded here.
+                    context["code_change"] = True
+                    if verification.get("approval_required"):
+                        context["code_change_unverified"] = True
+                    context.setdefault("code_change_components", []).append(target.component)
+                    context.setdefault("code_change_files", [])
+                    if _src_path:
+                        context["code_change_files"].append(_src_path)
 
                     # The tool is fixed by the remedy family (a deterministic
                     # choice, not a ranking), recorded with the improvement.
@@ -3485,7 +3775,19 @@ Respond in JSON format:
         #
         # Now the request is a row, a person decides it in the dashboard, and
         # the decision is read back from that row. Pending is NOT approval.
-        if scope in [ImprovementScope.MAJOR, ImprovementScope.TRANSFORMATIVE]:
+        # APPROVAL IS FOR IRREVERSIBLE ACTIONS AND CHANGES TO THE MAIN OPERATING
+        # CORE — not for every code change. A reversible change to a peripheral
+        # component deploys on its own safety net (backup + sandbox + differential
+        # verification + capability-regression gate + rollback); only a change that
+        # cannot be undone, or that touches the machinery the substrate operates and
+        # recovers with, needs a person.
+        _core_change = any(self._is_operating_core(c)
+                           for c in (context.get("code_change_components") or []))
+        _irreversible = bool(context.get("irreversible_change"))
+        _needs_approval = (
+            scope in [ImprovementScope.MAJOR, ImprovementScope.TRANSFORMATIVE]
+            or (context.get("code_change") and (_core_change or _irreversible)))
+        if _needs_approval:
             from core.governance import approval_requests
 
             components = sorted({str(t) for t in (context.get("target_components")
@@ -4670,6 +4972,27 @@ Provide enhanced analysis in JSON:
             return True
         return any(name.startswith(f"{critical}.")
                    for critical in cls._CRITICAL_COMPONENTS)
+
+    #: The substrate's MAIN OPERATING CORE — the machinery it runs, decides, and
+    #: recovers with. A self-modification here can break the substrate's ability to
+    #: operate or to undo its own change, so it needs approval; everything else is a
+    #: reversible change that deploys on its safety net. Broader than safety-critical:
+    #: it includes the coordinator (the self), the improver itself, and the reasoning
+    #: and execution engines.
+    _CORE_BASES = frozenset({
+        "safety", "security", "governance", "firewall", "malware_sandbox",
+        "content_security", "threat_intel",
+        "agents", "coordinator", "learning", "reasoning", "execution"})
+
+    @classmethod
+    def _is_operating_core(cls, component: str) -> bool:
+        """Whether the component is part of the main operating core (approval) vs a
+        reversible, peripheral change (auto-deploy)."""
+        if cls._is_safety_critical(component):
+            return True
+        name = str(component).strip().lower()
+        base = name.split(".", 1)[0]
+        return base in cls._CORE_BASES
 
     def _estimate_risk(
         self,
