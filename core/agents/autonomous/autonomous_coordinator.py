@@ -11415,8 +11415,18 @@ class Conversation:
             # Matching the OBJECT answers what was actually asked, and polarity
             # decides the verdict -- so "is a kestrel a fish" against a stored
             # `is not fish` answers NO from evidence rather than from silence.
+            #
+            # Match against the asked OBJECT, never the SUBJECT. The subject is
+            # `item.phrase`; leaving its stem in the match set let a stored
+            # relation whose OBJECT resembles the subject answer the wrong
+            # question -- "is a salmon a bird?" matched salmon's `is salmonid`
+            # because `salmonid` stems to `salmon`, and said "Yes" about `bird`.
+            subject_stems = {w for w in tokenize(item.phrase)
+                             if w not in FUNCTION_WORDS}
+            object_stems = {w for w in asked_stems
+                            if not any(same_stem(w, sw) for sw in subject_stems)}
             for relation, other in item.relations:
-                if any(same_stem(str(other), word) for word in asked_stems):
+                if any(same_stem(str(other), word) for word in object_stems):
                     denied = relation.startswith("not ") or relation == "is not"
                     answers.append(Answer(item.phrase, relation, (str(other),),
                                           verdict=not denied))
