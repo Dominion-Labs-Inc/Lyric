@@ -1866,7 +1866,9 @@ Provide analysis in JSON format:
         elif scope == ImprovementScope.MAJOR and difficulty == "easy":
             difficulty = "medium"
 
-        reason = "inference queue busy" if queue_depth > 0 else "neural bridge unavailable"
+        # Why the heuristic ran: no reasoner, or the reasoned path fell through.
+        reason = ("neural bridge unavailable" if not use_reasoner
+                  else "reasoned assessment unusable")
         logger.info(
             f"Heuristic assessment ({reason}): {component} "
             f"current={current_score:.1f} → target={target_value:.1f} "
@@ -2536,6 +2538,10 @@ Return JSON:
                 outcome["not_applicable"].append(target.component)
                 continue
 
+            # Restart reason = the liveness finding itself (target is LIVENESS).
+            _issues = [str(i) for i in (target.context or {}).get("issues", [])]
+            reason = _issues[0] if _issues else f"{target.component} is not running"
+
             # Sub-components are addressed by their own id; the restart handler
             # is keyed on the subsystem, so both forms are tried.
             keys = [target.component]
@@ -2549,7 +2555,7 @@ Return JSON:
             for key in keys:
                 try:
                     if not await recovery.execute_recovery_action(
-                            key, "restart_component", {"reason": liveness[0],
+                            key, "restart_component", {"reason": reason,
                                                        "source": "asi_improvement_cycle"}):
                         continue
 
@@ -2572,7 +2578,7 @@ Return JSON:
                         outcome["recovered"].append(target.component)
                         logger.info(
                             "✅ RECOVERED %s: %.0f -> %.0f (%s)",
-                            target.component, before, after["health_score"], liveness[0][:60])
+                            target.component, before, after["health_score"], reason[:60])
                         acted = True
                         break
                     logger.info(
