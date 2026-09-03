@@ -273,6 +273,10 @@ class AutonomousCoordinator:
         # itself (`self.learning.initialized`), which is what "was it wired?"
         # actually asks.
         self.learning = get_learning_authority()
+        #: When on, a user reply carries the full derivation (say()'s chain) for
+        #: diagnosing; off (default) a user gets a plain sentence. Toggled with
+        #: set_reply_debug(); a switch, so we can turn evidence back on to trace.
+        self.reply_debug = False
         self._adaptive_types_registered = False
         # (was `_pending_decision_id` — a single slot shared across selections.
         # Removed: a decision id now travels in a per-call sink to the task it
@@ -8422,6 +8426,14 @@ class AutonomousCoordinator:
         logger.info(f"👤 User request accepted: {task.id} ({src.value}, {pri.name})")
         return {"success": True, "task_id": task.id, "source": src.value, "priority": pri.name}
 
+    def set_reply_debug(self, on: bool) -> bool:
+        """Switch user-facing reply detail. On: replies carry the full derivation
+        chain (say()) for diagnosing. Off (default): a plain sentence. Returns the
+        new state."""
+        self.reply_debug = bool(on)
+        logger.info("reply_debug %s", "ON" if self.reply_debug else "OFF")
+        return self.reply_debug
+
     async def _request_kind(self, message: str, session: str) -> str:
         """Asking, telling, or a job to do.
 
@@ -8445,8 +8457,9 @@ class AutonomousCoordinator:
         Returns None when nothing could be assembled, so the caller falls
         through to the work path rather than replying with an apology.
         """
+        conv = self.conversation(session)
         try:
-            understanding = await self.conversation(session).understand(message)
+            understanding = await conv.understand(message)
         except Exception as error:
             logger.warning("could not answer from what is held: %s", error)
             return None
@@ -8495,7 +8508,13 @@ class AutonomousCoordinator:
             # Never let a memory failure swallow an answer that was produced.
             logger.warning("exchange NOT remembered: %s", error)
 
-        return {"success": True, "kind": "question", "answer": understanding.reply,
+        # A USER gets a plain sentence, not the derivation chain say() shows for
+        # introspection — unless reply_debug is switched on, which surfaces the
+        # full chain for diagnosing. Falls back to the composed reply when there
+        # is no verdict to state (a taught-back note, an asked-back question).
+        answer_text = (understanding.reply if self.reply_debug
+                       else (conv.natural_reply(understanding) or understanding.reply))
+        return {"success": True, "kind": "question", "answer": answer_text,
                 "learned": [a.label for a in understanding.acquired if a.stored],
                 "closed_open_memory": closed, "source": "substrate"}
 
@@ -11911,6 +11930,64 @@ class Conversation:
                                 reply=understanding.reply,
                                 memories=admitted_memories))
         return understanding
+
+    @staticmethod
+    def _article(word: str) -> str:
+        w = str(word).strip().lower()
+        return "an" if w[:1] in "aeiou" else "a"
+
+    #: Copular relations render as "a X is a Y" — the polarity is carried by the
+    #: yes/no, so a denial's CLAIM is still the affirmative it denies.
+    _COPULA_RELATIONS = ("not isa", "is not", "isa", "is", "are", "was", "were",
+                         "be", "has property", "instance of")
+
+    @classmethod
+    def _natural_claim(cls, text: str) -> str:
+        """A stored claim as a plain AFFIRMATIVE phrase. A copular relation
+        (is/isa/has_property, and their negated forms) renders "a X is a{n} Y"
+        with the articles a person says; a verb or multi-word claim is left as
+        prose. Negation is dropped here because the yes/no already carries it."""
+        t = str(text).replace("_", " ").strip()
+        rels = "|".join(re.escape(r) for r in cls._COPULA_RELATIONS)
+        m = re.fullmatch(rf"([\w'-]+)\s+(?:{rels})\s+(.+)", t)
+        if m:
+            subj, obj = m.group(1), m.group(2).strip()
+            # Article from the object's first word, so "living thing" reads
+            # "a living thing" rather than a bare "living thing".
+            return (f"{cls._article(subj)} {subj} is "
+                    f"{cls._article(obj.split()[0])} {obj}")
+        return t
+
+    @classmethod
+    def natural_reply(cls, understanding: "Understanding") -> Optional[str]:
+        """A plain, user-facing reply: the verdict and the claim, NO derivation
+        chain. `say()` shows the reasoning (robin → bird → animal), which is
+        right for introspection but reads as debug output to a person — a user
+        request wants a sentence. Duplicate answers (a stored fact and the same
+        fact re-derived) collapse to one. Returns None when there is no
+        verdict/derived answer to state, so the caller keeps the composed reply
+        (a taught-back note, an asked-back question)."""
+        answers = getattr(understanding, "answers", None)
+        if not answers:
+            return None
+        seen: set = set()
+        out: List[str] = []
+        for a in answers:
+            claim = a.conclusion or (f"{a.about} {a.relation} "
+                                     + ", ".join(a.others))
+            claim = cls._natural_claim(claim)
+            if not claim.strip():
+                continue
+            if a.verdict is True:
+                sentence = f"Yes, {claim}."
+            elif a.verdict is False:
+                sentence = f"No, {claim}."
+            else:
+                sentence = f"{claim[:1].upper()}{claim[1:]}."
+            if sentence.lower() not in seen:
+                seen.add(sentence.lower())
+                out.append(sentence)
+        return " ".join(out) if out else None
 
     @staticmethod
     def say(understanding: "Understanding") -> str:
