@@ -585,8 +585,7 @@ class AutonomousCoordinator:
             self.memory = None
 
         # === MEMORY QUERY AGENTS ===
-        # Specialized agents for querying and summarizing different memory systems
-        # MySQL is PRIMARY storage (hot/cold tiers)
+        # Specialized agents for querying and summarizing memory (PostgreSQL store).
         # Canonical MemoryInjector, injected by main.py after construction. The
         # coordinator must not build its own — one mechanism, one owner.
         self.memory_injector = None

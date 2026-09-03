@@ -796,16 +796,22 @@ class SystemWatchdog:
 
             # Component-specific restart logic
             if component == "database":
-                from core.database.mysql_manager import get_mysql_manager
-                db_manager = get_mysql_manager()
-                await db_manager.reconnect()
-                return True
+                # TorinAI runs on Postgres; reconnect via the real manager
+                # (close + re-initialize), matching RecoveryManager's db path.
+                from core.database import get_database_manager
+                db = get_database_manager()
+                try:
+                    if hasattr(db, "close"):
+                        await db.close()
+                except Exception:
+                    pass
+                return bool(await db.initialize()) if hasattr(db, "initialize") else False
 
             elif component == "memory":
-                from core.memory.memory_manager import get_memory_manager
-                memory_manager = get_memory_manager()
-                # Clear cache to free memory
-                await memory_manager.clear_cache()
+                # Memory has no process to restart; relieve pressure by evicting
+                # stale cache entries via the memory agent.
+                from core.agents.memory_agent import get_memory_agent
+                await (await get_memory_agent()).cleanup_cache()
                 return True
 
             elif component == "learning":
@@ -831,9 +837,9 @@ class SystemWatchdog:
             logger.info(f"Clearing cache for: {component}")
 
             if component == "memory":
-                from core.memory.memory_manager import get_memory_manager
-                memory_manager = get_memory_manager()
-                await memory_manager.clear_cache()
+                # The cache lives on the memory agent; cleanup_cache evicts stale entries.
+                from core.agents.memory_agent import get_memory_agent
+                await (await get_memory_agent()).cleanup_cache()
                 return True
 
             return False

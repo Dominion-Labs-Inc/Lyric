@@ -275,7 +275,7 @@ class MonitoringCoordinator:
             )
 
     async def _check_database_health(self):
-        """Check MySQL database health"""
+        """Check database health (PostgreSQL)"""
         import time
 
         try:
@@ -424,7 +424,7 @@ class MonitoringCoordinator:
                     'total_queries': total_queries,
                     'avg_query_time_ms': round(avg_query_time, 2),
                     'cache_size': cache_size,
-                    'mysql_available': mem_metrics.get('mysql_available', False),
+                    'postgres_available': mem_metrics.get('postgres_available', False),
                     'embedding_available': mem_metrics.get('embedding_available', False)
                 },
                 last_check=datetime.now(),
