@@ -145,3 +145,70 @@ def get_lexicon() -> Lexicon:
     if _lexicon is None:
         _lexicon = Lexicon()
     return _lexicon
+
+
+#: A copular complement's word class is decided by its DETERMINER: "a device" is
+#: a kind (NOUN), "red" with no article is a property (ADJECTIVE). Only the
+#: relations that copular readings produce use this rule; every other relation
+#: takes a thing (NOUN) as its object.
+_ARTICLES = ("a", "an", "the")
+#: Both the surface copula (from a clause's parts: "is"/"are") and the typed
+#: relations a copular reading crystallizes into — either way, the determiner
+#: decides kind vs property.
+_COPULAR_TYPES = frozenset({"is", "are", "be", "isa", "is_a",
+                            "instance_of", "has_property", "member_of"})
+
+
+def _single_token(term: str) -> Optional[str]:
+    """The lexical head to record a class for, or None when the term is not a
+    single word — a compound ("external_source") is not one part of speech, so
+    recording a class for it would be a guess."""
+    head = str(term or "").strip().lower()
+    return head if head.isalpha() else None
+
+
+def _has_article(sentence: str, word: str) -> bool:
+    """Whether `word` appears in the surface right after a/an/the — the signal
+    that a copular complement names a kind rather than a property."""
+    import re
+    toks = re.findall(r"[\w'-]+", str(sentence).lower())
+    head = str(word or "").split("_")[0].lower()
+    return any(t == head and i and toks[i - 1] in _ARTICLES
+               for i, t in enumerate(toks))
+
+
+def observe_proposition(sentence: str, subject: str, relation: str, obj: str,
+                        *, source: str = "taught") -> int:
+    """Record the word classes a read proposition IMPLIES, so teaching a fact
+    also teaches the reader the parts of speech it needs to read the next
+    sentence.
+
+    This is the write side the lexicon was built for and never had a caller:
+    `propose`/`confirm` existed, nothing fed them, so teaching nine words left
+    every unseen word unreadable however many facts were taught. The subject of
+    a predication is a thing (NOUN); a copular complement behind an article is a
+    kind (NOUN) and one without is a property (ADJECTIVE); the object of any
+    other relation is a thing (NOUN). These are PROPOSALS — a later sentence that
+    depends on one confirms it, one that fails refutes it — so a wrong guess is
+    correctable, not cemented. Returns how many were recorded."""
+    lex = get_lexicon()
+    proposed = 0
+
+    def _record(term: str, word_class: str) -> None:
+        nonlocal proposed
+        head = _single_token(term)
+        if head:
+            lex.propose(head, word_class, source)
+            proposed += 1
+
+    _record(subject, NOUN)
+    if obj:
+        rel = str(relation).strip().lower().replace(" ", "_")
+        if rel in _COPULAR_TYPES:
+            _record(obj, NOUN if _has_article(sentence, obj) else ADJECTIVE)
+        else:
+            _record(obj, NOUN)
+
+    if proposed:
+        lex.save()
+    return proposed

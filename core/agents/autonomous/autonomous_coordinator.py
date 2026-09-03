@@ -11838,6 +11838,16 @@ class Conversation:
                 return [Acquired(sentence, detail=(
                     "I read that as a conditional, but a side of it is not a "
                     "single proposition I can hold"))]
+            # A conditional's clauses teach parts of speech too — record them so
+            # the words in a rule are known the next time they appear bare.
+            from core.semantics.lexicon import observe_proposition
+            for _clause in (ant, con):
+                try:
+                    observe_proposition(sentence, _clause["subject"],
+                                        _clause["relation"], _clause.get("obj"),
+                                        source="taught")
+                except Exception as _wc:
+                    logger.debug("word-class observation (conditional) failed: %s", _wc)
             admission = await get_cognitive_ingress().admit_conditional(
                 ant, con, surface=sentence,
                 provenance=_Provenance(producer="conversation", source_id="you",
@@ -11883,12 +11893,23 @@ class Conversation:
                 "I could not read that sentence with what I have been taught "
                 "about sentences"))]
 
+        from core.semantics.lexicon import observe_proposition
+
         acquired: List[Acquired] = []
         for typed in readings:
             positive = typed.polarity != "denies"
             # The canonical TYPED relation name is what is stored, so the edge
             # carries its semantics (transitivity, inverse, ...) not just a verb.
             relation = typed.relation.relation.value
+            # TEACHING A FACT ALSO TEACHES THE READER ITS PARTS OF SPEECH. Record
+            # the word classes this proposition implies, so the next sentence
+            # using these words can be read at all — the preschool bootstrap the
+            # lexicon was built for and never had a caller for.
+            try:
+                observe_proposition(sentence, typed.subject, relation, typed.obj,
+                                    source="taught")
+            except Exception as _wc:
+                logger.debug("word-class observation failed: %s", _wc)
             acquired.append(await self._ingest(
                 label=typed.subject, description="",
                 relations=((relation, typed.obj,
