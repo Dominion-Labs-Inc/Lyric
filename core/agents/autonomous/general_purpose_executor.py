@@ -854,14 +854,21 @@ class GeneralPurposeExecutor:
             logger.info("[substrate-tools] %s not granted to task %s (allowed=%s); refused",
                         tool_name, task.id, allowed)
             return None
+        import time
+        _t0 = time.perf_counter()
         try:
             result = await self.tool_registry.execute_tool(tool_name, params)
         except Exception as e:
             logger.debug("[substrate-tools] %s raised: %s", tool_name, e)
             # The tool did not execute: no control established over the world.
+            _ms = int((time.perf_counter() - _t0) * 1000)
             await self._appraise_tool_outcome(task, executed=False, succeeded=False)
             await self._observe_tool_belief(tool_name, params, None, success=False)
+            await self._record_tool_metrics(task, tool_name, executed=False,
+                                            success=False, latency_ms=_ms,
+                                            failure_reason=str(e))
             return None
+        _ms = int((time.perf_counter() - _t0) * 1000)
         if not getattr(result, "success", None):
             # The tool executed but reported failure — we can act, this route is
             # wrong. Felt as a poor outcome with control intact (replan, not
@@ -869,11 +876,16 @@ class GeneralPurposeExecutor:
             await self._appraise_tool_outcome(task, executed=True, succeeded=False)
             await self._observe_tool_belief(tool_name, params,
                                             getattr(result, "output", None), success=False)
+            await self._record_tool_metrics(task, tool_name, executed=True,
+                                            success=False, latency_ms=_ms,
+                                            failure_reason=str(getattr(result, "error", "") or "tool reported failure"))
             return None
         logger.info("[substrate-tools] task %s executed model-free via %s", task.id, tool_name)
         await self._appraise_tool_outcome(task, executed=True, succeeded=True)
         await self._observe_tool_belief(tool_name, params,
                                         getattr(result, "output", None), success=True)
+        await self._record_tool_metrics(task, tool_name, executed=True,
+                                        success=True, latency_ms=_ms)
         return {
             "success": True,
             "model_free": True,
@@ -925,6 +937,29 @@ class GeneralPurposeExecutor:
             )
         except Exception as e:
             logger.warning("substrate tool-outcome appraisal update failed: %s", e)
+
+    async def _record_tool_metrics(self, task: "Task", tool_name: str, *,
+                                   executed: bool, success: bool,
+                                   latency_ms: int,
+                                   failure_reason: Optional[str] = None) -> None:
+        """The FOURTH consumer of the post-tool seam (beside appraisal, beliefs,
+        and learning-evidence): report the run's METRICS — success/failure and
+        latency, attributed to the task — to the tool-metrics owner
+        (AdaptiveToolLearning), the one collector `get_learning_metrics`
+        summarizes. The engine gives off metrics; the learning pipeline collects
+        them. Guarded: the owner is injected by main.py and absent standalone, and
+        a recording fault is never fatal to execution."""
+        owner = getattr(self, "adaptive_tool_learning", None)
+        if owner is None:
+            return
+        try:
+            await owner.record_tool_run(
+                task_id=getattr(task, "id", "") or "",
+                task_description=getattr(task, "description", "") or "",
+                tool_name=tool_name, success=success, executed=executed,
+                latency_ms=latency_ms, failure_reason=failure_reason)
+        except Exception as e:
+            logger.debug("tool-metrics recording skipped: %s", e)
 
     async def _observe_tool_belief(self, tool_name: str, params: Dict[str, Any],
                                    output: Any, *, success: bool) -> None:

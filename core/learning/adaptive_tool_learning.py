@@ -328,6 +328,22 @@ class ToolUsageRecorder:
         # None, record_usage() silently returned and tool_usage_history stayed
         # empty, which starved the affinity scorer that reads it.
         self.db_manager = db_manager or _default_db_manager()
+        self._schema_ready = False
+
+    async def _ensure_schema(self) -> None:
+        """Millisecond latency lives in its own column. `execution_time_seconds`
+        is an INTEGER, so a sub-second tool run (most of them) rounds to 0 — the
+        one measurement that made per-tool latency unreadable. Added idempotently
+        so an existing table gains it without a separate migration step."""
+        if self._schema_ready or not self.db_manager:
+            return
+        try:
+            await self.db_manager.execute_query(
+                "ALTER TABLE tool_usage_history "
+                "ADD COLUMN IF NOT EXISTS latency_ms INTEGER", commit=True)
+            self._schema_ready = True
+        except Exception as e:
+            logger.debug("tool_usage_history latency_ms ensure failed: %s", e)
 
     async def record_usage(
         self,
@@ -343,7 +359,8 @@ class ToolUsageRecorder:
         iterations_count: Optional[int] = None,
         failure_reason: Optional[str] = None,
         selection_score: Optional[float] = None,
-        selection_reason: Optional[str] = None
+        selection_reason: Optional[str] = None,
+        latency_ms: Optional[int] = None
     ):
         """
         Record tool usage outcome to database.
@@ -380,6 +397,7 @@ class ToolUsageRecorder:
             import uuid
             import json
 
+            await self._ensure_schema()
             usage_id = str(uuid.uuid4())
 
             # asyncpg uses $N placeholders, not %s, and there is no
@@ -391,11 +409,11 @@ class ToolUsageRecorder:
                     tool_categories_used, tool_names_used,
                     success, outcome_quality, confidence,
                     execution_time_seconds, iterations_count, failure_reason,
-                    selection_score, selection_reason,
+                    selection_score, selection_reason, latency_ms,
                     started_at, completed_at
                 ) VALUES (
                     $1, $2, $3, $4::intent_type, $5::jsonb, $6::jsonb,
-                    $7, $8, $9, $10, $11, $12, $13, $14, NOW(), NOW()
+                    $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW(), NOW()
                 )
             """
 
@@ -413,7 +431,8 @@ class ToolUsageRecorder:
                 iterations_count or 1,
                 failure_reason,
                 selection_score,
-                selection_reason
+                selection_reason,
+                latency_ms
             )
 
             await self.db_manager.execute_query(query, params, commit=True)

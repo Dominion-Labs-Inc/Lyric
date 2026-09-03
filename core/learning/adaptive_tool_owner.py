@@ -403,6 +403,89 @@ class AdaptiveToolLearning:
         for c in categories or ():
             cache.pop((intent.value, c), None)
 
+    async def record_tool_run(self, *, task_id: str, task_description: str,
+                              tool_name: str, success: bool, executed: bool = True,
+                              latency_ms: Optional[int] = None,
+                              failure_reason: Optional[str] = None) -> None:
+        """Record ONE tool run the ENGINE executed, for the tool-metrics history.
+
+        The engine (`general_purpose_executor._run_tool`) runs a handler-bound
+        tool with no selection snapshot, so this is the seam for RAW per-run
+        metrics — success/failure and latency per tool, attributed to the task —
+        distinct from `observe()`, which assigns credit to a prior `select()`
+        decision. It feeds the SAME `tool_usage_history` the affinity scorer
+        reads and `status()` summarizes, so there is no parallel tool-metrics
+        store. Isolated: a recording fault never blocks execution."""
+        intent, _confidence = self.classifier.classify(task_description or tool_name)
+        self._episodes_observed += 1
+        try:
+            secs = (int(round(latency_ms / 1000.0))
+                    if latency_ms is not None else None)
+            await self.recorder.record_usage(
+                task_id=task_id,
+                task_description=task_description or "",
+                intent_type=intent,
+                tool_categories_used=[],
+                tool_names_used=[tool_name],
+                success=bool(success),
+                execution_time_seconds=secs,
+                latency_ms=latency_ms,
+                failure_reason=(failure_reason if not success else None),
+            )
+            self._writes_confirmed += 1
+            self._last_write_at = datetime.now()
+            self._last_write_error = None
+        except Exception as e:
+            self._last_write_error = str(e)
+            logger.debug("record_tool_run failed for %s: %s", tool_name, e)
+
+    async def metrics_summary(self, *, top: int = 10) -> Dict[str, Any]:
+        """The tool metrics collected, for the learning pipeline's readout —
+        overall and per tool: runs, success rate, average latency. Sourced from
+        `tool_usage_history`, the one store the engine's per-run records land in,
+        so this is a summary of the collector, not a second one."""
+        if not self.db:
+            return {"available": False, "reason": "no database"}
+        try:
+            overall = await self.db.execute_query(
+                "SELECT count(*) AS runs, "
+                "sum(CASE WHEN success THEN 1 ELSE 0 END) AS successes, "
+                "avg(latency_ms) AS avg_latency_ms FROM tool_usage_history",
+                fetch_all=True)
+            per_tool = await self.db.execute_query(
+                "SELECT t.tool AS tool, count(*) AS runs, "
+                "sum(CASE WHEN h.success THEN 1 ELSE 0 END) AS successes, "
+                "avg(h.latency_ms) AS avg_latency_ms "
+                "FROM tool_usage_history h, "
+                "jsonb_array_elements_text(h.tool_names_used) AS t(tool) "
+                "GROUP BY t.tool ORDER BY runs DESC LIMIT $1", (top,),
+                fetch_all=True)
+        except Exception as e:
+            return {"available": False, "error": str(e)}
+        o = (overall or [{}])[0]
+        runs = int(o.get("runs") or 0)
+        succ = int(o.get("successes") or 0)
+
+        def _rate(s, n):
+            return round(s / n, 3) if n else None
+
+        def _ms(v):
+            return round(float(v), 1) if v is not None else None
+
+        return {
+            "available": True,
+            "runs": runs,
+            "successes": succ,
+            "success_rate": _rate(succ, runs),
+            "avg_latency_ms": _ms(o.get("avg_latency_ms")),
+            "by_tool": [
+                {"tool": r["tool"], "runs": int(r["runs"]),
+                 "success_rate": _rate(int(r["successes"]), int(r["runs"])),
+                 "avg_latency_ms": _ms(r["avg_latency_ms"])}
+                for r in (per_tool or [])
+            ],
+        }
+
     async def status(self) -> Dict[str, Any]:
         """Cold start and broken must not look the same."""
         rows = None

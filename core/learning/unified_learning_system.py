@@ -1218,8 +1218,23 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
             "this_process": dict(self.system_metrics),
             "recorded_experiences": recorded,
             "knowledge_base": await self.knowledge_base_size(),
+            # TOOL METRICS the engine emits per run — success rate and latency,
+            # per tool — from the one collector (AdaptiveToolLearning /
+            # tool_usage_history). Surfaced here so "what has it learned" includes
+            # how its tools actually perform, not just what it holds.
+            "tool_usage": await self._tool_usage_metrics(),
         }
-    
+
+    async def _tool_usage_metrics(self) -> Optional[Dict[str, Any]]:
+        """The tool-metrics summary from the owner, or None if unavailable.
+        Read through the owner (the single collector), never a second query."""
+        try:
+            from core.learning.adaptive_tool_owner import get_adaptive_tool_learning
+            return await get_adaptive_tool_learning().metrics_summary()
+        except Exception as error:
+            logger.debug("tool-usage metrics unavailable: %s", error)
+            return None
+
     async def get_learning_state(self) -> Dict[str, Any]:
         """Get current learning system state for self-improvement analysis"""
         return {
