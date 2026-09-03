@@ -1245,26 +1245,30 @@ class EnhancedASISelfImprovement(IAdaptationEngine):
             targets = [t for t in targets
                        if t.component not in set(refresh["attempted"])]
 
-            # ROUTE BY FAMILY. Code generation is the remedy for CODE_DEFECT only.
-            # Every OTHER classified family (staleness, config, wiring, …) has no
-            # generator-based fix — sending it to codegen is what produced the empty
-            # cycles behind the low success rate. Until each family's own remedy is
-            # built, those targets are recorded honestly as awaiting a remedy, never
-            # dumped into a generator that cannot fix them.
-            awaiting = [t for t in targets
-                        if t.remedy_family is not RemedyFamily.CODE_DEFECT]
-            if awaiting:
+            # SPECIFIC REMEDY FIRST, THEN THE GENERAL IMPROVER — NO WHITELIST.
+            #
+            # A/B were handled above by the remedy that FITS them (restart,
+            # re-measure), because for those code generation is the wrong tool.
+            # Everything that remains flows to the general improver: the substrate
+            # is NOT limited to families with a hand-coded remedy — there is
+            # nowhere it may not attempt an improvement. The one invariant is
+            # "improvement, never degradation", and it is enforced DOWNSTREAM, not
+            # by refusing to try: the sandbox test hard-gate blocks a broken
+            # change, the capability-regression hard-gate blocks a degrading one,
+            # and the safe deployer stages/rolls back. A generation that produces
+            # nothing is recorded honestly (never a false success), not churned.
+            #
+            # The family is kept for visibility and priority; it does not gate.
+            if targets:
                 by_family: Dict[str, List[str]] = {}
-                for t in awaiting:
+                for t in targets:
                     fam = t.remedy_family.name if t.remedy_family else "UNCLASSIFIED"
                     by_family.setdefault(fam, []).append(t.component)
-                cycle.metadata["awaiting_remedy"] = by_family
+                cycle.metadata["general_improvement_targets"] = by_family
                 logger.info(
-                    "%d target(s) classified to families with no built remedy yet "
-                    "(NOT sent to code generation): %s", len(awaiting),
+                    "%d target(s) → general improver after specific remedies: %s",
+                    len(targets),
                     ", ".join(f"{k}:{len(v)}" for k, v in sorted(by_family.items())))
-            targets = [t for t in targets
-                       if t.remedy_family is RemedyFamily.CODE_DEFECT]
 
             if not targets:
                 cycle.phase = ImprovementPhase.EVALUATION
@@ -1272,14 +1276,11 @@ class EnhancedASISelfImprovement(IAdaptationEngine):
                 cycle.success_rate = 1.0 if acted else 0.0
                 cycle.end_time = datetime.now()
                 cycle.duration_sec = (cycle.end_time - cycle.start_time).total_seconds()
-                cycle.metadata["early_exit_reason"] = (
-                    "all_targets_remediated" if acted and not awaiting
-                    else "no_code_defect_targets")
+                cycle.metadata["early_exit_reason"] = "all_targets_handled_by_specific_remedy"
                 logger.info(
-                    "✅ Cycle complete without generation: %d recovered, "
-                    "%d refreshed, %d awaiting a remedy",
-                    len(remediation["recovered"]), len(refresh["refreshed"]),
-                    len(awaiting))
+                    "✅ Cycle complete via specific remedies: %d recovered, "
+                    "%d refreshed (nothing left for the general improver)",
+                    len(remediation["recovered"]), len(refresh["refreshed"]))
                 self.cycles.append(cycle)
                 await self._persist_cycle(cycle)
                 return cycle
