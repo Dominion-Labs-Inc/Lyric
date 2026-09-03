@@ -4770,10 +4770,20 @@ Requirements:
             """SELECT count(*)                                   AS total_cycles,
                       count(*) FILTER (WHERE success_rate > 0.7)  AS successful_cycles,
                       COALESCE(sum(deployed_count), 0)            AS total_deployed,
-                      COALESCE(avg(duration_sec), 0.0)            AS avg_duration
+                      COALESCE(avg(duration_sec), 0.0)            AS avg_duration,
+                      -- RECENT window: a lifetime average is dominated by old,
+                      -- pre-fix cycles and by long-dormant periods, so it stops
+                      -- describing CURRENT self-improvement. Health should read
+                      -- recent behaviour; the lifetime figures stay for the record.
+                      count(*) FILTER (
+                          WHERE started_at > NOW() - INTERVAL '7 days')            AS recent_cycles,
+                      count(*) FILTER (
+                          WHERE started_at > NOW() - INTERVAL '7 days'
+                            AND success_rate > 0.7)                                AS recent_successful
                FROM unified.improvement_cycles""", fetch_all=True)
         row = rows[0] if rows else {}
         total = int(row.get("total_cycles") or 0)
+        recent = int(row.get("recent_cycles") or 0)
 
         components = await db.execute_query(
             """SELECT count(DISTINCT component) AS n
@@ -4793,6 +4803,12 @@ Requirements:
             "total_improvements_deployed": int(row.get("total_deployed") or 0),
             "avg_cycle_duration": float(row.get("avg_duration") or 0.0),
             "components_improved": int((components[0]["n"] if components else 0) or 0),
+            # Recent behaviour (last 7 days). recent_success_rate is None when the
+            # loop has not run recently — "not exercised", which is a different
+            # fact from "always fails" and must not be read as a failure.
+            "recent_cycles": recent,
+            "recent_success_rate": (int(row.get("recent_successful") or 0) / recent)
+                                   if recent else None,
         }
 
     def get_statistics(self) -> Dict[str, Any]:

@@ -2132,18 +2132,29 @@ class HealthMonitor:
             asi_stats = await asi.get_persisted_statistics()
 
             metrics['asi_total_cycles'] = asi_stats.get('total_cycles', 0)
-            rate = asi_stats.get('success_rate')
-            self._record_rate(metrics, 'asi_success_rate',
-                              None if rate is None else round(rate, 3),
-                              metrics.get('asi_total_cycles'))
             metrics['asi_improvements_deployed'] = asi_stats.get('total_improvements_deployed', 0)
             metrics['asi_avg_cycle_duration_sec'] = round(asi_stats.get('avg_cycle_duration', 0.0), 1)
             metrics['asi_components_improved'] = asi_stats.get('components_improved', 0)
 
-            if (metrics['asi_total_cycles'] > 5
-                    and metrics.get('asi_success_rate') is not None
-                    and metrics['asi_success_rate'] < 0.3):
-                issues.append(f"Low ASI improvement success rate: {metrics['asi_success_rate']:.0%} over {metrics['asi_total_cycles']} cycles")
+            # HEALTH READS RECENT BEHAVIOUR, NOT A LIFETIME AVERAGE. The lifetime
+            # success rate is dominated by old pre-fix cycles and by long-dormant
+            # periods, so a 6% frozen from a burst 10+ days ago was pinning learning
+            # health today. The success-rate SIGNAL and the low-rate ISSUE are
+            # gated on the loop having actually run recently; when it hasn't, the
+            # rate is not-applicable (not a failure) and the dormancy is recorded
+            # as an informational metric, not an issue that tanks the score.
+            recent_cycles = asi_stats.get('recent_cycles', 0) or 0
+            recent_rate = asi_stats.get('recent_success_rate')
+            metrics['asi_recent_cycles'] = recent_cycles
+            metrics['asi_recently_exercised'] = recent_cycles > 0
+            self._record_rate(
+                metrics, 'asi_success_rate',
+                None if recent_rate is None else round(recent_rate, 3),
+                recent_cycles)
+            if (recent_cycles > 5 and recent_rate is not None and recent_rate < 0.3):
+                issues.append(
+                    f"Low ASI improvement success rate: {recent_rate:.0%} over "
+                    f"{recent_cycles} recent cycles")
 
         except Exception as _asi_err:
             metrics['asi_available'] = False
