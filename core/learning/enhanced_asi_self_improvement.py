@@ -585,6 +585,99 @@ class ImprovementScope(Enum):
     TRANSFORMATIVE = "transformative"  # Capability expansion, requires human approval
 
 
+class RemedyFamily(Enum):
+    """The remedy that fixes a defect — the axis a self-repair class is defined
+    on (see the Self-Repair Taxonomy). A target's family decides which remedy
+    path acts on it, so a finding is no longer sent blindly to code generation.
+    Letters are stable identifiers."""
+    LIVENESS = "A"          # restart · re-run · re-arm            (remedy: RecoveryManager — EXISTS)
+    STALENESS = "B"         # re-measure · refresh · recompute
+    CADENCE = "N"           # re-schedule · adjust rhythm
+    CONFIG = "D"            # propose δ · shadow · keep/revert
+    CONSISTENCY = "E"       # align representation across a seam
+    EFFICIENCY = "I"        # remove redundant / ill-placed work
+    OBSERVABILITY = "J"     # emit the missing signal
+    WIRING = "C"            # connect · remove · reconcile
+    VERIFICATION = "F"      # close claimed-vs-true
+    STRUCTURAL = "L"        # consolidate to one path
+    CAPABILITY_GAP = "G"    # acquire or build what's missing
+    KNOWLEDGE = "H"         # populate · dedup · re-file · link
+    CODE_DEFECT = "K"       # teacher proposes · world verifies    (remedy: generation — EXISTS)
+    GOVERNANCE = "M"        # keep the self aligned with its rules
+    META = "O"              # improve the improver
+
+
+#: Issue-text markers per family, matched case-folded against a health finding.
+#: This GENERALISES the former `_LIVENESS_ISSUE_MARKERS` (now the family-A entry):
+#: one marker table, not a binary "liveness vs write-code". Ordered matching
+#: (`_CLASSIFY_ORDER`) resolves a finding that trips more than one.
+_REMEDY_MARKERS = {
+    RemedyFamily.LIVENESS: (
+        'is not running', 'not alive', 'is inactive', 'not initialized',
+        'not attached', 'reports it is not running', 'not started',
+        'stalled', 'has crashed', 'watchdog'),
+    RemedyFamily.WIRING: (
+        'no module named', 'modulenotfounderror', 'not registered',
+        'no consumer', 'never called', 'no caller', 'not connected',
+        'not wired', 'phantom', 'dangling import', 'no handler',
+        'zero callers'),
+    RemedyFamily.VERIFICATION: (
+        'not verified', 'unverified', 'false success', 'fabricated',
+        'without verification', 'self-certifying'),
+    RemedyFamily.CONSISTENCY: (
+        'scale mismatch', 'enum-vs-string', 'polarity', 'schema drift',
+        'unit mismatch', 'vocabulary mismatch'),
+    RemedyFamily.STALENESS: (
+        'stale', 'against a baseline', 'capability regression',
+        'regression (', 'not refreshed', 'out of date', 'frozen'),
+    RemedyFamily.OBSERVABILITY: (
+        'no evidence', 'zero coverage', 'coverage 0', 'not measured',
+        'never written', 'no signal'),
+    RemedyFamily.META: (
+        'asi improvement success rate', 'self-improvement success',
+        'improvement cycle'),
+    RemedyFamily.CONFIG: (
+        'threshold', 'below required', 'too low', 'too high', 'rate limit',
+        'timeout', 'misconfigured'),
+    RemedyFamily.EFFICIENCY: (
+        'latency', 'backlog', 'high memory', 'slow ', 'leak'),
+}
+
+#: First match wins. Specific/structural families are tried before the broad
+#: ones, so "ModuleNotFoundError" reads as WIRING (a phantom reference) rather
+#: than CODE_DEFECT, and "regression against a baseline" as STALENESS (re-measure)
+#: rather than a code change.
+_CLASSIFY_ORDER = (
+    RemedyFamily.LIVENESS, RemedyFamily.WIRING, RemedyFamily.VERIFICATION,
+    RemedyFamily.CONSISTENCY, RemedyFamily.META, RemedyFamily.STALENESS,
+    RemedyFamily.OBSERVABILITY, RemedyFamily.EFFICIENCY, RemedyFamily.CONFIG,
+)
+
+#: Only an explicit code-fault signal routes a finding to CODE_DEFECT (and thus
+#: to code generation). Everything else that matched nothing is left UNCLASSIFIED
+#: — flagged honestly, never dumped into a generator that cannot fix it.
+_CODE_DEFECT_MARKERS = (
+    'traceback', 'exception', 'stack trace', 'assertionerror', 'typeerror',
+    'keyerror', 'attributeerror', 'raised ', 'crash in',
+)
+
+
+def classify_defect(issues, component: str = "") -> Optional['RemedyFamily']:
+    """Classify a health finding into the remedy family that can fix it, or None
+    when nothing matches — which is HONEST: an unclassified finding is flagged for
+    an operator, not blindly sent to code generation. Pure and model-free: it
+    reads the issue text the health checks already emit."""
+    text = " ".join(str(i) for i in (issues or [])).lower()
+    if not text.strip():
+        return None
+    for family in _CLASSIFY_ORDER:
+        if any(m in text for m in _REMEDY_MARKERS[family]):
+            return family
+    if any(m in text for m in _CODE_DEFECT_MARKERS):
+        return RemedyFamily.CODE_DEFECT
+    return None
+
+
 @dataclass
 class ImprovementTarget:
     """Target for self-improvement"""
@@ -602,6 +695,10 @@ class ImprovementTarget:
     # Metadata
     identified_at: datetime = field(default_factory=datetime.now)
     context: Dict[str, Any] = field(default_factory=dict)
+    #: The remedy family this defect belongs to (classify_defect), or None when
+    #: unclassified. Decides which remedy path acts on the target instead of the
+    #: former binary "liveness → remediate, everything else → generate code".
+    remedy_family: Optional['RemedyFamily'] = None
 
 
 @dataclass
@@ -1134,14 +1231,41 @@ class EnhancedASISelfImprovement(IAdaptationEngine):
                     "operational, not a code defect; not sent to generation",
                     len(unrecovered), ", ".join(unrecovered))
             targets = [t for t in targets if t.component not in attempted]
+
+            # ROUTE BY FAMILY. Code generation is the remedy for CODE_DEFECT only.
+            # Every OTHER classified family (staleness, config, wiring, …) has no
+            # generator-based fix — sending it to codegen is what produced the empty
+            # cycles behind the low success rate. Until each family's own remedy is
+            # built, those targets are recorded honestly as awaiting a remedy, never
+            # dumped into a generator that cannot fix them.
+            awaiting = [t for t in targets
+                        if t.remedy_family is not RemedyFamily.CODE_DEFECT]
+            if awaiting:
+                by_family: Dict[str, List[str]] = {}
+                for t in awaiting:
+                    fam = t.remedy_family.name if t.remedy_family else "UNCLASSIFIED"
+                    by_family.setdefault(fam, []).append(t.component)
+                cycle.metadata["awaiting_remedy"] = by_family
+                logger.info(
+                    "%d target(s) classified to families with no built remedy yet "
+                    "(NOT sent to code generation): %s", len(awaiting),
+                    ", ".join(f"{k}:{len(v)}" for k, v in sorted(by_family.items())))
+            targets = [t for t in targets
+                       if t.remedy_family is RemedyFamily.CODE_DEFECT]
+
             if not targets:
                 cycle.phase = ImprovementPhase.EVALUATION
                 cycle.success_rate = 1.0 if remediation["recovered"] else 0.0
                 cycle.end_time = datetime.now()
                 cycle.duration_sec = (cycle.end_time - cycle.start_time).total_seconds()
-                cycle.metadata["early_exit_reason"] = "all_targets_remediated"
-                logger.info("✅ Cycle complete via remediation: %d component(s) recovered",
-                            len(remediation["recovered"]))
+                cycle.metadata["early_exit_reason"] = (
+                    "all_targets_remediated"
+                    if remediation["recovered"] and not awaiting
+                    else "no_code_defect_targets")
+                logger.info(
+                    "✅ Cycle complete without generation: %d recovered, "
+                    "%d awaiting a remedy", len(remediation["recovered"]),
+                    len(awaiting))
                 self.cycles.append(cycle)
                 await self._persist_cycle(cycle)
                 return cycle
@@ -1561,6 +1685,11 @@ class EnhancedASISelfImprovement(IAdaptationEngine):
                                      "issues": health.get("issues", []),
                                      "status": health.get("status")}
                         )
+                        # Classify the defect by the remedy that fixes it, so the
+                        # cycle routes it to the right path instead of defaulting
+                        # everything non-liveness to code generation.
+                        target.remedy_family = classify_defect(
+                            health.get("issues", []), component)
                         targets.append(target)
 
             logger.info(f"Assessment complete: {len(targets)} targets identified")
@@ -2211,15 +2340,6 @@ Return JSON:
                 f"target selection unavailable ({type(e).__name__}: {e}); "
                 f"refusing to select improvement targets without it") from e
 
-    #: A degradation whose cause is "this is not running" is fixed by starting
-    #: it, not by writing code. These are the phrases HealthMonitor emits for
-    #: exactly that condition (see _failures_reported_as_metrics and the
-    #: explicit issues in the individual checks).
-    _LIVENESS_ISSUE_MARKERS = (
-        'is not running', 'not alive', 'is inactive', 'not initialized',
-        'not attached', 'reports it is not running',
-    )
-
     #: How long a health reading stays current. Beyond this the component is
     #: treated as unmeasured rather than as whatever it last was.
     HEALTH_READING_MAX_AGE_SEC = 900
@@ -2348,10 +2468,12 @@ Return JSON:
             return outcome
 
         for target in targets:
-            issues = [str(i).lower() for i in (target.context or {}).get("issues", [])]
-            liveness = [i for i in issues
-                        if any(marker in i for marker in self._LIVENESS_ISSUE_MARKERS)]
-            if not liveness:
+            # ONE classifier decides "is this a liveness defect", not a second
+            # marker scan here: the family was set at assessment. (Fallback to a
+            # fresh classify for a target built without one.)
+            family = target.remedy_family or classify_defect(
+                (target.context or {}).get("issues", []), target.component)
+            if family is not RemedyFamily.LIVENESS:
                 outcome["not_applicable"].append(target.component)
                 continue
 
