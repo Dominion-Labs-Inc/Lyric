@@ -2419,7 +2419,10 @@ class HealthMonitor:
 
             stats = await get_audit_worker().get_statistics()
             active = int(stats.get('active_findings', 0) or 0)
-            critical = int(stats.get('critical_findings', 0) or 0)
+            # The CURRENT unresolved-critical count, not the lifetime cumulative
+            # `critical_findings` — reading that reported "5202 unresolved" from a
+            # counter that only ever grows, while the live backlog was empty.
+            critical = int(stats.get('active_critical_findings', 0) or 0)
             resolution = float(stats.get('resolution_rate', 0.0) or 0.0)  # 0-100
             metrics['audit_monitoring_active'] = bool(stats.get('monitoring_active', False))
             metrics['audit_total_audits'] = int(stats.get('total_audits', 0) or 0)

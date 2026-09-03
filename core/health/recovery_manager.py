@@ -319,6 +319,16 @@ class RecoveryManager:
     #: A restart path is only listed once the accessor and the method have been
     #: confirmed to exist on the live object.
 
+    #: Keys `_restart_component` can act on WITHOUT a registered handler, via its
+    #: built-in branches. Shared with `can_restart` so the "is there a path?"
+    #: answer stays identical to what `_restart_component` will actually attempt.
+    _BUILTIN_RESTART_KEYS = frozenset({
+        "monitoring", "monitoring_coordinator", "monitor",
+        "health", "health_monitor",
+        "security", "security_controller", "security_system",
+        "db", "database", "postgres", "postgresql",
+    })
+
     def _register_builtin_restart_handlers(self) -> int:
         """Register the verified restart paths so recovery can act, not just report."""
         import importlib
@@ -424,6 +434,17 @@ class RecoveryManager:
         except Exception as e:
             logger.warning("VERIFY %s failed to determine health: %s", component, e)
             return False
+
+    def can_restart(self, component: str) -> bool:
+        """Whether a restart PATH exists for this component — a registered handler
+        or a built-in branch. Read-only: attempts nothing.
+
+        This lets a caller tell "no authorized recovery exists" (there is nothing
+        to try) apart from "the restart was attempted and failed", so it does not
+        keep re-issuing an action that has no implementation. Mirrors exactly what
+        `_restart_component` will act on."""
+        key = (component or "").strip().lower()
+        return key in self._restart_handlers or key in self._BUILTIN_RESTART_KEYS
 
     async def execute_recovery_action(
         self,
@@ -741,7 +762,7 @@ class RecoveryManager:
 
         # 2) Built-in restart targets
         try:
-            if component_key in {"monitoring", "monitoring_coordinator", "monitor"}:
+            if component_key in {"monitoring", "monitoring_coordinator", "monitor"}:  # noqa: keys mirrored in _BUILTIN_RESTART_KEYS
                 from core.health.monitoring_coordinator import get_monitoring_coordinator
 
                 coordinator = get_monitoring_coordinator()

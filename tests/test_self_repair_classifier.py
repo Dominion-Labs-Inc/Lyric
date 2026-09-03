@@ -29,6 +29,18 @@ from core.learning.enhanced_asi_self_improvement import (
      RemedyFamily.CODE_DEFECT),
     (["queue backlog growing; high memory"],
      RemedyFamily.EFFICIENCY),
+    # Evidence classes that USED to fall through as UNCLASSIFIED (and so reached a
+    # code generator that could not act on them) — now classified by evidence:
+    (["2 critical service(s) down"],
+     RemedyFamily.LIVENESS),
+    (["9 knowledge transfer(s) stored but none loaded into the registry — "
+      "transfer history is invisible to the running system"],
+     RemedyFamily.WIRING),
+    (["824 unrecovered failure(s) active",
+      "824 failure(s) escalated beyond automatic recovery"],
+     RemedyFamily.BACKLOG),
+    (["5202 unresolved CRITICAL security finding(s)"],
+     RemedyFamily.BACKLOG),
 ])
 def test_classifies_real_findings(issues, expected):
     assert classify_defect(issues) is expected

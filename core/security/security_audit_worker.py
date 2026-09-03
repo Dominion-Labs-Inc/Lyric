@@ -2199,12 +2199,22 @@ class SecurityAuditWorker:
         return report
 
     async def get_statistics(self) -> Dict[str, Any]:
-        """Get audit statistics"""
+        """Get audit statistics.
+
+        `self.stats['critical_findings']`/`['total_findings']` are LIFETIME
+        cumulative counters (incremented every audit). They describe history, not
+        the current backlog, so they must never be read as "unresolved now".
+        `active_findings`/`active_critical_findings` are the CURRENT unresolved
+        counts, taken from the live finding set — that is what a health check
+        asking "is there an open backlog?" needs.
+        """
         active_findings = await self.get_active_findings()
+        active_critical = await self.get_active_findings(severity=AuditSeverity.CRITICAL)
 
         return {
             **self.stats,
             'active_findings': len(active_findings),
+            'active_critical_findings': len(active_critical),
             'resolution_rate': (
                 self.stats['resolved_findings'] / self.stats['total_findings'] * 100
                 if self.stats['total_findings'] > 0 else 100.0

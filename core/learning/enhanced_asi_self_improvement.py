@@ -605,6 +605,10 @@ class RemedyFamily(Enum):
     CODE_DEFECT = "K"       # teacher proposes · world verifies    (remedy: generation — EXISTS)
     GOVERNANCE = "M"        # keep the self aligned with its rules
     META = "O"              # improve the improver
+    BACKLOG = "P"           # accumulated unresolved items owned by another
+    #                         authority — drain via that owner, or escalate to an
+    #                         operator when it is beyond automatic handling.
+    #                         NEVER code generation.
 
 
 #: Issue-text markers per family, matched case-folded against a health finding.
@@ -615,12 +619,18 @@ _REMEDY_MARKERS = {
     RemedyFamily.LIVENESS: (
         'is not running', 'not alive', 'is inactive', 'not initialized',
         'not attached', 'reports it is not running', 'not started',
-        'stalled', 'has crashed', 'watchdog'),
+        'stalled', 'has crashed', 'watchdog', 'service(s) down',
+        'services down', 'service down'),
     RemedyFamily.WIRING: (
         'no module named', 'modulenotfounderror', 'not registered',
         'no consumer', 'never called', 'no caller', 'not connected',
         'not wired', 'phantom', 'dangling import', 'no handler',
-        'zero callers'),
+        'zero callers', 'stored but none loaded', 'none loaded into the registry',
+        'invisible to the running system'),
+    RemedyFamily.BACKLOG: (
+        'unrecovered failure', 'escalated beyond automatic recovery',
+        'unresolved critical', 'security finding', 'active finding',
+        'none resolved', 'unresolved backlog'),
     RemedyFamily.VERIFICATION: (
         'not verified', 'unverified', 'false success', 'fabricated',
         'without verification', 'self-certifying'),
@@ -650,7 +660,8 @@ _REMEDY_MARKERS = {
 _CLASSIFY_ORDER = (
     RemedyFamily.LIVENESS, RemedyFamily.WIRING, RemedyFamily.VERIFICATION,
     RemedyFamily.CONSISTENCY, RemedyFamily.META, RemedyFamily.STALENESS,
-    RemedyFamily.OBSERVABILITY, RemedyFamily.EFFICIENCY, RemedyFamily.CONFIG,
+    RemedyFamily.BACKLOG, RemedyFamily.OBSERVABILITY, RemedyFamily.EFFICIENCY,
+    RemedyFamily.CONFIG,
 )
 
 #: Only an explicit code-fault signal routes a finding to CODE_DEFECT (and thus
@@ -1207,30 +1218,13 @@ class EnhancedASISelfImprovement(IAdaptationEngine):
             for component in remediation["recovered"]:
                 cycle.improvements_deployed.append(f"recovered:{component}")
 
-            # AN OPERATIONAL FINDING IS NEVER A CODE FINDING.
-            #
-            # Only `recovered` was removed, so a component whose restart was
-            # ATTEMPTED AND FAILED fell through to planning and then to code
-            # generation. A remedy failing does not make a different remedy
-            # correct: "the content security scanner is not running" is not
-            # answered by writing a new function, whether or not the restart
-            # worked. That is why every target reaching generation in the last
-            # run was a liveness issue.
-            #
-            # Liveness targets leave the improvement path entirely. The ones
-            # that recovered are improvements; the ones that did not are
-            # recorded as needing operational attention, which is a real
-            # finding and not a silent drop.
-            recovered = set(remediation["recovered"])
-            attempted = set(remediation["attempted"])
-            unrecovered = sorted(attempted - recovered)
-            if unrecovered:
-                cycle.metadata["needs_operator"] = unrecovered
-                logger.warning(
-                    "%d component(s) are down and could not be restarted: %s — "
-                    "operational, not a code defect; not sent to generation",
-                    len(unrecovered), ", ".join(unrecovered))
-            targets = [t for t in targets if t.component not in attempted]
+            # A LIVENESS target leaves the improvement path whatever its verdict:
+            # code generation cannot answer "the scanner is not running". Drop the
+            # ones this pass acted on (attempted) or found unrestartable
+            # (no_recovery_path); the operator report is assembled once, below,
+            # after re-measure has had a chance to reveal masked liveness faults.
+            handled = set(remediation["attempted"]) | set(remediation["no_recovery_path"])
+            targets = [t for t in targets if t.component not in handled]
 
             # STALENESS (family B): a stored value that no longer matches the live
             # reading is fixed by taking a FRESH one. `_remeasure` re-runs the health
@@ -1242,8 +1236,64 @@ class EnhancedASISelfImprovement(IAdaptationEngine):
             cycle.metadata["staleness_refresh"] = refresh
             for component in refresh["refreshed"]:
                 cycle.improvements_deployed.append(f"refreshed:{component}")
+            # Only the targets that actually IMPROVED leave the path. A re-measure
+            # that confirmed a still-real finding (`unchanged`) stays, so a genuine
+            # BACKLOG reaches operator escalation below instead of being dropped.
             targets = [t for t in targets
-                       if t.component not in set(refresh["attempted"])]
+                       if t.component not in set(refresh["refreshed"])]
+
+            # Re-measure can REVEAL a liveness fault the phantom evidence had
+            # masked — security_audit's "scanner not running" hid behind a phantom
+            # backlog; health_system's "watchdog not running" behind a failure
+            # count. Assessment-time remediation has already run, so these are
+            # REPORTED on their current evidence, not restarted inline: restarting a
+            # has-path component (e.g. the watchdog) is the recovery system's own
+            # continuous job, and the improvement cycle must not start long-running
+            # loops mid-assessment. Split by whether an in-process path even exists.
+            try:
+                from core.health.recovery_manager import get_recovery_manager
+                _recovery = get_recovery_manager()
+            except Exception:
+                _recovery = None
+            live_no_path, live_has_path = [], []
+            for t in (t for t in targets if t.remedy_family is RemedyFamily.LIVENESS):
+                base = t.component.split(".", 1)[0]
+                has = bool(_recovery) and (_recovery.can_restart(t.component)
+                                           or _recovery.can_restart(base))
+                (live_has_path if has else live_no_path).append(t.component)
+            targets = [t for t in targets
+                       if t.remedy_family is not RemedyFamily.LIVENESS]
+
+            # BACKLOG (family P): accumulated items owned by ANOTHER authority
+            # (security findings, recovery failures). Code generation cannot drain
+            # them; escalate to an operator and remove from the improver.
+            backlog = sorted(t.component for t in targets
+                             if t.remedy_family is RemedyFamily.BACKLOG)
+            targets = [t for t in targets
+                       if t.remedy_family is not RemedyFamily.BACKLOG]
+
+            # THE OPERATOR REPORT, one place, every verdict honest and distinct:
+            #   restart_failed   — a restart path exists but did not restore health
+            #                      (RECOVERY_FAILED / ran-but-ineffective, this pass)
+            #   no_recovery_path — nothing to attempt; needs its launcher/operator
+            #                      (NO_AUTHORIZED_RECOVERY_EXISTS)
+            #   restart_pending  — down with a restart path, but surfaced after this
+            #                      pass; the recovery watchdog owns restarting it
+            #   backlog          — owned by another authority; drain or escalate
+            needs_operator = {
+                "restart_failed": sorted(
+                    set(remediation["failed"]) | set(remediation["ineffective"])),
+                "no_recovery_path": sorted(
+                    set(remediation["no_recovery_path"]) | set(live_no_path)),
+                "restart_pending": sorted(live_has_path),
+                "backlog": backlog,
+            }
+            needs_operator = {k: v for k, v in needs_operator.items() if v}
+            if needs_operator:
+                cycle.metadata["needs_operator"] = needs_operator
+                logger.warning(
+                    "Operational, not code defects (not sent to generation): %s",
+                    "; ".join(f"{k}={v}" for k, v in needs_operator.items()))
 
             # SPECIFIC REMEDY FIRST, THEN THE GENERAL IMPROVER — NO WHITELIST.
             #
@@ -2452,24 +2502,31 @@ Return JSON:
     async def _refresh_stale_targets(
         self, targets: List[ImprovementTarget]
     ) -> Dict[str, Any]:
-        """Remedy for STALENESS (family B): re-measure so the stored value becomes
-        current.
+        """Re-measure for STALENESS (family B) and the first pass for BACKLOG (P).
 
-        A stale reading — a value the store holds that no longer matches the live
-        one (a baseline frozen from an earlier, degraded moment) — is not fixed by
-        writing code; it is fixed by taking a fresh reading. `_remeasure` re-runs
-        the component's health check and PERSISTS the result, so the stale value is
-        overwritten with the current one. The re-measure is both the action and its
-        own verification: the reading it returns IS the now-current stored value,
-        and it returns None (a failure, recorded — never a silent skip) when the
-        component cannot be measured at all.
+        A finding read from the PERSISTED store can be a phantom — a count or a
+        baseline captured at an earlier, degraded moment that no longer matches the
+        live reading (e.g. a security backlog counted from a lifetime cumulative
+        that is now zero). It is not fixed by writing code; it is fixed by taking a
+        fresh reading. `_remeasure` re-runs the live check and PERSISTS it, so the
+        stale value is overwritten with the current one — the action and its own
+        verification in one.
+
+        A re-measure is counted as an IMPROVEMENT only when the fresh reading is
+        actually HIGHER than the value that flagged the target. Re-confirming a
+        genuinely degraded component (a real backlog that is still there) is not an
+        improvement and is never reported as one — it is returned as `unchanged`,
+        so the cycle can escalate a real BACKLOG to an operator instead of claiming
+        it healed. `None` means unmeasurable (a failure, recorded — never a silent
+        skip).
         """
         outcome: Dict[str, Any] = {"attempted": [], "refreshed": [],
-                                   "failed": [], "not_applicable": []}
+                                   "unchanged": [], "failed": [],
+                                   "not_applicable": []}
         for target in targets:
             family = target.remedy_family or classify_defect(
                 (target.context or {}).get("issues", []), target.component)
-            if family is not RemedyFamily.STALENESS:
+            if family not in (RemedyFamily.STALENESS, RemedyFamily.BACKLOG):
                 outcome["not_applicable"].append(target.component)
                 continue
             outcome["attempted"].append(target.component)
@@ -2478,19 +2535,36 @@ Return JSON:
             except Exception as e:
                 raise_if_structural(
                     e, "EnhancedASISelfImprovement._refresh_stale_targets")
-                logger.warning("stale re-measure failed for %s: %s",
+                logger.warning("re-measure failed for %s: %s",
                                target.component, e)
                 outcome["failed"].append(target.component)
                 continue
             if fresh is None:
                 outcome["failed"].append(target.component)
-                logger.info("stale target %s could not be re-measured",
-                            target.component)
+                logger.info("target %s could not be re-measured", target.component)
                 continue
-            outcome["refreshed"].append(target.component)
-            logger.info("Refreshed stale reading for %s → %s (%.1f)",
-                        target.component, fresh.get("status"),
-                        fresh.get("health_score", 0.0))
+            if fresh["health_score"] > target.current_value:
+                outcome["refreshed"].append(target.component)
+                logger.info("Refreshed stale reading for %s → %s (%.1f, was %.1f)",
+                            target.component, fresh.get("status"),
+                            fresh["health_score"], target.current_value)
+            else:
+                # A CURRENT finding, not stale — but the fresh evidence may DIFFER
+                # from what assessment read (a phantom backlog can mask a real
+                # liveness fault: "5208 unresolved" hid "scanner is not running").
+                # Adopt the fresh issues and RE-CLASSIFY so downstream routing acts
+                # on current truth, not the stale evidence that named the family.
+                _prev = target.current_value
+                target.current_value = fresh["health_score"]
+                (target.context or {})["issues"] = fresh["issues"]
+                target.remedy_family = classify_defect(
+                    fresh["issues"], target.component)
+                outcome["unchanged"].append(target.component)
+                logger.info("Re-measured %s: still %.1f (was %.1f) — current "
+                            "finding, re-classified %s", target.component,
+                            fresh["health_score"], _prev,
+                            target.remedy_family.name if target.remedy_family
+                            else "UNCLASSIFIED")
         return outcome
 
     async def _remediate_targets(
@@ -2510,7 +2584,14 @@ Return JSON:
         one. A cycle that only ever emits failures has no way to show that
         anything got better.
         """
+        # Distinct verdicts, not one "failed" bucket:
+        #   recovered        — restart ran and health improved (verified)
+        #   failed           — a restart path exists but the action never succeeded
+        #   ineffective      — restart ran, but health did not improve (wrong remedy)
+        #   no_recovery_path — nothing to attempt; needs an owning launcher/operator
+        # Conflating these makes the cycle re-issue an impossible restart forever.
         outcome = {"attempted": [], "recovered": [], "failed": [],
+                   "ineffective": [], "no_recovery_path": [],
                    "not_applicable": [], "remediation_available": True}
 
         try:
@@ -2549,52 +2630,69 @@ Return JSON:
                 keys.append(target.component.split(".", 1)[1])
                 keys.append(target.component.split(".", 1)[0])
 
+            # NO AUTHORIZED RECOVERY is not RECOVERY FAILED. When no key has a
+            # restart path there is nothing to attempt — reporting it as "failed"
+            # would have the cycle re-issue an impossible restart every run.
+            # content_security/safety are started by an external launcher, not
+            # restartable in-process, and land here honestly.
+            restartable = [k for k in keys if recovery.can_restart(k)]
+            if not restartable:
+                outcome["no_recovery_path"].append(target.component)
+                logger.info(
+                    "No in-process restart path for %s (%s); not attempted — "
+                    "needs its owning launcher/operator, not code generation",
+                    target.component, reason[:80])
+                continue
+
             outcome["attempted"].append(target.component)
             before = target.current_value
-            acted = False
-            for key in keys:
+            recovered = False
+            ran_ineffective = False
+            for key in restartable:
                 try:
-                    if not await recovery.execute_recovery_action(
-                            key, "restart_component", {"reason": reason,
-                                                       "source": "asi_improvement_cycle"}):
-                        continue
-
-                    # THE RESTART RETURNING TRUE IS NOT EVIDENCE.
-                    #
-                    # A handler reports that its start call did not raise. That
-                    # is not the same as the subsystem being up: restarting the
-                    # LLM returned True while its inference worker stayed dead,
-                    # so the cycle recorded a recovery, moved on, and then
-                    # failed in planning against the same dead worker. Recovery
-                    # is confirmed by RE-MEASURING, through the health path that
-                    # detected the fault in the first place.
-                    after = await self._remeasure(target.component)
-                    if after is None:
-                        logger.warning(
-                            "Restart of %s reported success but the component has no "
-                            "measurement; not counted as recovered", target.component)
-                        continue
-                    if after["health_score"] > before:
-                        outcome["recovered"].append(target.component)
-                        logger.info(
-                            "✅ RECOVERED %s: %.0f -> %.0f (%s)",
-                            target.component, before, after["health_score"], reason[:60])
-                        acted = True
-                        break
-                    logger.info(
-                        "Restart of %s reported success but health did not improve "
-                        "(%.0f -> %.0f); not counted as recovered",
-                        target.component, before, after["health_score"])
+                    ok = await recovery.execute_recovery_action(
+                        key, "restart_component",
+                        {"reason": reason, "source": "asi_improvement_cycle"})
                 except Exception as e:
                     raise_if_structural(e, "EnhancedASISelfImprovement._remediate_targets")
-                    logger.debug("Restart of %s failed: %s", key, e)
-            if not acted:
-                outcome["failed"].append(target.component)
+                    logger.debug("Restart of %s raised: %s", key, e)
+                    continue
+                if not ok:
+                    continue
+                # The restart returning True is not evidence: a start call that
+                # did not raise is not a subsystem that came up. Confirm by
+                # RE-MEASURING through the health path that detected the fault.
+                after = await self._remeasure(target.component)
+                if after is None:
+                    logger.warning(
+                        "Restart of %s reported success but the component has no "
+                        "measurement; not counted as recovered", target.component)
+                    continue
+                if after["health_score"] > before:
+                    outcome["recovered"].append(target.component)
+                    logger.info(
+                        "✅ RECOVERED %s: %.0f -> %.0f (%s)",
+                        target.component, before, after["health_score"], reason[:60])
+                    recovered = True
+                    break
+                ran_ineffective = True
+                logger.info(
+                    "Restart of %s ran but health did not improve (%.0f -> %.0f)",
+                    target.component, before, after["health_score"])
+            if not recovered:
+                # RAN-BUT-INEFFECTIVE (restart is the wrong remedy here) is a
+                # different verdict from FAILED (the restart action never
+                # succeeded): the caller must not treat "wrong remedy" as "the
+                # mechanism is broken".
+                outcome["ineffective" if ran_ineffective else "failed"].append(
+                    target.component)
 
         logger.info(
-            "Remediation: %d attempted, %d recovered, %d failed, %d not applicable",
-            len(outcome["attempted"]), len(outcome["recovered"]),
-            len(outcome["failed"]), len(outcome["not_applicable"]))
+            "Remediation: %d recovered, %d failed, %d ineffective, "
+            "%d no-recovery-path, %d not applicable",
+            len(outcome["recovered"]), len(outcome["failed"]),
+            len(outcome["ineffective"]), len(outcome["no_recovery_path"]),
+            len(outcome["not_applicable"]))
         return outcome
 
     async def _generate_improvements(
