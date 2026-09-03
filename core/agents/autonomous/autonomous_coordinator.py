@@ -6925,20 +6925,24 @@ class AutonomousCoordinator:
                 }
             )
 
+            # improvements_deployed is a LIST (recovered:/refreshed:/generated ids),
+            # not a count — comparing it to an int crashed the autonomous curiosity
+            # path right after the cycle ran.
+            _deployed = list(result.improvements_deployed or [])
             logger.info(f"📊 Curiosity optimization complete: "
-                        f"{result.improvements_deployed} deployed, "
+                        f"{len(_deployed)} deployed ({_deployed}), "
                         f"{result.success_rate:.0%} success rate")
 
-            if self.slack_notifier and result.improvements_deployed > 0:
+            if self.slack_notifier and len(_deployed) > 0:
                 await self.slack_notifier.send_notification(
                     title="🔬 Curiosity-Driven Optimization",
                     message=(
                         f"**Triggered by:** High curiosity ({dims.get('curiosity', 0):.2f})\n"
-                        f"**Improvements Deployed:** {result.improvements_deployed}\n"
+                        f"**Improvements Deployed:** {len(_deployed)} ({', '.join(_deployed)})\n"
                         f"**Success Rate:** {result.success_rate:.0%}"
                     ),
                     severity="info",
-                    metadata={"trigger": "curiosity", "improvements": result.improvements_deployed}
+                    metadata={"trigger": "curiosity", "improvements": _deployed}
                 )
 
             # SELF-PROPOSE directives from real measured signals, then let the
