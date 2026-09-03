@@ -31,11 +31,25 @@ _SUBGRAPH_SQL = (
     "WHERE c1.name = ANY($1)")
 
 
+def _typed_edge(row) -> "Tuple[Optional[Edge], bool]":
+    """A row -> (typed Edge, is_denied), or (None, _) for an untyped/legacy
+    relation. The ingress stores the relation with spaces ("has part") and the
+    polarity as "positive"/"negative"; both are decoded here so the one
+    vocabulary lives in one place."""
+    rel = _BY_VALUE.get(str(row["rel"]).strip().replace(" ", "_"))
+    if rel is None:
+        return None, False                     # untyped/legacy edge: no inference
+    denied = str(row.get("pol") or "positive") == "negative"
+    return Edge(row["subj"], rel, row["obj"]), denied
+
+
 async def load_subgraph(db, roots: Sequence[str], *, max_hops: int = 6
                         ) -> List[Edge]:
-    """Typed edges reachable from `roots`, breadth-first to `max_hops`. Only edges
-    whose relation names a known type are returned; the rest are skipped so an
-    untyped edge cannot be walked to a conclusion."""
+    """Typed POSITIVE edges reachable from `roots`, breadth-first to `max_hops`.
+    Only edges whose relation names a known type are returned; untyped edges are
+    skipped so they cannot be walked to a conclusion. A DENIED edge ("X is not a
+    Y") is not a positive fact and is excluded here — `load_denials` returns those
+    for `answer` to turn into an explicit FALSE."""
     edges: List[Edge] = []
     seen_nodes: set = set()
     frontier = [str(r) for r in roots]
@@ -47,20 +61,30 @@ async def load_subgraph(db, roots: Sequence[str], *, max_hops: int = 6
         seen_nodes.update(frontier)
         nxt: List[str] = []
         for row in rows:
-            # The ingress stores the relation with spaces ("has part"); the type
-            # value is underscore-form ("has_part"). Map back before typing.
-            rel = _BY_VALUE.get(str(row["rel"]).strip().replace(" ", "_"))
-            if rel is None:
-                continue                       # untyped/legacy edge: no inference
-            # A denied edge is not a positive fact; skip it here (negatives are
-            # passed separately to `answer`).
-            if str(row.get("pol") or "affirms") == "denies":
+            edge, denied = _typed_edge(row)
+            if edge is None or denied:
                 continue
-            edges.append(Edge(row["subj"], rel, row["obj"]))
-            if row["obj"] not in seen_nodes:
-                nxt.append(row["obj"])
+            edges.append(edge)
+            if edge.obj not in seen_nodes:
+                nxt.append(edge.obj)
         frontier = nxt
     return edges
+
+
+async def load_denials(db, roots: Sequence[str]) -> List[Edge]:
+    """The DENIED typed edges asserted directly about `roots` — "X is NOT a Y".
+
+    These are what let `answer` distinguish FALSE (an explicit denial) from
+    UNKNOWN (never told). Not traversed: a denial is a fact about its own
+    subject, not a link to walk onward."""
+    rows = await db.execute_query(
+        _SUBGRAPH_SQL, ([str(r) for r in roots],), fetch_all=True) or []
+    out: List[Edge] = []
+    for row in rows:
+        edge, denied = _typed_edge(row)
+        if edge is not None and denied:
+            out.append(edge)
+    return out
 
 
 async def answer_over_graph(db, subject: str, relation: SemanticRelation, obj: str,
@@ -70,11 +94,18 @@ async def answer_over_graph(db, subject: str, relation: SemanticRelation, obj: s
 
     Query terms are normalised the SAME way the ingress normalised them on the
     way in (plural->singular, etc.), so "flippers" matches the stored "flipper".
-    Without this a query would miss its own taught fact on a surface variation."""
+    Without this a query would miss its own taught fact on a surface variation.
+
+    An explicit DENIAL ("a kestrel is not a fish") makes the query FALSE, not
+    UNKNOWN — the denied edges are loaded and handed to `answer` alongside the
+    positive ones. Without this, a taught denial was silently read as its own
+    affirmation (a false positive)."""
     from core.semantics.cognitive_ingress import normalize_term
     subject, obj = normalize_term(subject), normalize_term(obj)
     edges = await load_subgraph(db, [subject], max_hops=max_hops)
-    return answer(subject, relation, obj, edges, context_licenses=context_licenses)
+    negatives = await load_denials(db, [subject])
+    return answer(subject, relation, obj, edges,
+                  context_licenses=context_licenses, negatives=negatives)
 
 
-__all__ = ["load_subgraph", "answer_over_graph"]
+__all__ = ["load_subgraph", "load_denials", "answer_over_graph"]
