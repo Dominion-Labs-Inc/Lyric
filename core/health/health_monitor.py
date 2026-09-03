@@ -352,8 +352,8 @@ class HealthMonitor:
                              'description': 'Ports, env loading, notifications, chunking',
                              'monitoring_enabled': True},
         'api_surface':      {'type': 'integration', 'category': 'surface',
-                             'module': 'core.api.thinking_state_api',
-                             'description': 'API surfaces: thinking-state, device auth, key attestation',
+                             'module': 'core.api.device_auth',
+                             'description': 'API surfaces: device auth, key attestation',
                              'monitoring_enabled': True},
         'tools':            {'type': 'capability', 'category': 'action',
                              'module': 'core.tools.tool_registry',
@@ -1779,8 +1779,7 @@ class HealthMonitor:
         'optimization': ('core.optimization.optimizers',),
         'utils':        ('core.utils.port_manager', 'core.utils.env_loader',
                          'core.utils.notification_publisher', 'core.utils.research_chunker'),
-        'api_surface':  ('core.api.thinking_state_api', 'core.api.device_auth',
-                         'core.api.key_attestation'),
+        'api_surface':  ('core.api.device_auth', 'core.api.key_attestation'),
     }
 
     async def _check_library_health(self, package: str) -> tuple[Dict[str, Any], List[str]]:
