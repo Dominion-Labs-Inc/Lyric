@@ -1083,7 +1083,21 @@ class HealthMonitor:
             if key in not_applicable:
                 continue
             if value is None:
-                unknown.append(key)
+                # A None is MISSING EVIDENCE only for a SIGNAL we tried to read.
+                #  * a None `*_rate` is an UNDEFINED rate (no observations) — the
+                #    idle-but-working case this evaluator already refuses to
+                #    penalise (see above) — so it is not-applicable, not missing;
+                #  * a None LIVENESS bool is a signal that could not be read, so it
+                #    stays unknown and lowers coverage honestly;
+                #  * anything else is an INFORMATIONAL field (active_session,
+                #    last_evaluation, error) — not a health signal at all, so it
+                #    must not dilute coverage. Counting every None held an alive,
+                #    healthy security controller at 0.33 coverage (DEGRADED)
+                #    because two idle sub-probe fields happened to be None.
+                if key.endswith('_rate'):
+                    continue
+                if key.endswith(self._LIVENESS_SUFFIXES) or key in self._BARE_LIVENESS:
+                    unknown.append(key)
                 continue
             if isinstance(value, bool):
                 # `accessible` and `initialized` carry no suffix but are the
@@ -2344,15 +2358,36 @@ class HealthMonitor:
             # Get security statistics
             stats = await security.get_statistics()
 
+            # LIVENESS. The check emitted only a level STRING and plain integer
+            # counts — none of which the evaluator can read as a signal — so
+            # security graded UNKNOWN at 0.0 coverage however well it was running.
+            # The controller responding is a real liveness reading; named *_active
+            # so the evaluator measures it (and gates on it when down).
+            metrics['security_controller_active'] = True
+
+            total = int(stats.get('total_requests', 0) or 0)
             metrics['security_level'] = stats.get('security_level', 'unknown')
-            metrics['blocked_requests'] = stats.get('blocked_requests', 0)
-            metrics['security_violations'] = stats.get('security_violations', 0)
+            metrics['total_requests'] = total
+            metrics['blocked_requests'] = int(stats.get('blocked_requests', 0) or 0)
+            metrics['security_violations'] = int(stats.get('security_violations', 0) or 0)
+
+            # QUALITY. Violations per request — a cost-rate (lower is better).
+            # Undefined until a request is processed; _record_rate marks it
+            # not-applicable so an idle-but-live controller reaches full coverage
+            # instead of being held below HEALTHY forever.
+            self._record_rate(
+                metrics, 'security_violation_rate',
+                (metrics['security_violations'] / total) if total else None,
+                total)
 
             # Check for security issues
             if metrics['security_violations'] > 100:
                 issues.append("High number of security violations")
 
         except Exception as e:
+            # The controller could not be read — a real liveness failure, not an
+            # empty reading; recorded as down so the evaluator can gate on it.
+            metrics['security_controller_active'] = False
             issues.append(f"Security health check error: {str(e)}")
             metrics['error'] = str(e)
 
