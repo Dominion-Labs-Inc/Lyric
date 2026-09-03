@@ -169,7 +169,6 @@ from .learning_tools import (
     ProfilePerformanceTool,
     AnalyzeCausalFeedbackTool,
     MonitorDataDriftTool,
-    TriggerSelfImprovementTool,
     register_learning_tools
 )
 
@@ -483,7 +482,6 @@ __all__ = [
     'ProfilePerformanceTool',
     'AnalyzeCausalFeedbackTool',
     'MonitorDataDriftTool',
-    'TriggerSelfImprovementTool',
     'register_learning_tools',
 
     # Code generation tools

@@ -6915,7 +6915,7 @@ class AutonomousCoordinator:
             logger.info(f"   Competence: {dims.get('competence', 0):.2f}")
             logger.info("=" * 80)
 
-            result = await self.asi_self_improvement.run_improvement_cycle(
+            result = await self.learning.run_self_improvement_cycle(
                 scope=ImprovementScope.MINOR,
                 target_components=[],
                 context={
@@ -9996,7 +9996,7 @@ The substrate must realign with its constitutional responsibilities immediately.
                     logger.info(f"🔧 RECURRING FAILURE → Triggering ASI code repair for {component}")
                     from core.learning import ImprovementScope
                     try:
-                        result = await self.asi_self_improvement.run_improvement_cycle(
+                        result = await self.learning.run_self_improvement_cycle(
                             scope=ImprovementScope.MODERATE,  # Moderate scope for fixes
                             target_components=[component],
                             context={
@@ -10033,7 +10033,7 @@ The substrate must realign with its constitutional responsibilities immediately.
                     scope = scope_map.get(degradation_severity, ImprovementScope.MINOR)
 
                     try:
-                        result = await self.asi_self_improvement.run_improvement_cycle(
+                        result = await self.learning.run_self_improvement_cycle(
                             scope=scope,
                             target_components=[component],
                             context={

@@ -3743,7 +3743,6 @@ def _register_default_tools():
             ExtractLessonsLearnedTool, GenerateHypothesisTool,
             BenchmarkLearningSystemsTool, VisualizeLearningProgressTool,
             IdentifySkillGapsTool, RecommendTrainingTool, MonitorDataDriftTool,
-            TriggerSelfImprovementTool
         )
         _register_tool_lazy(ProfilePerformanceTool)
         _register_tool_lazy(AnalyzeCausalFeedbackTool)
@@ -3755,7 +3754,6 @@ def _register_default_tools():
         _register_tool_lazy(IdentifySkillGapsTool)
         _register_tool_lazy(RecommendTrainingTool)
         _register_tool_lazy(MonitorDataDriftTool)
-        _register_tool_lazy(TriggerSelfImprovementTool)
         logger.info("✅ Registered 12 learning & analysis tools (lazy)")
     except ImportError as e:
         logger.warning(f"Could not register learning tools: {e}")

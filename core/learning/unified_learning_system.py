@@ -2216,6 +2216,27 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
             except Exception as error:
                 logger.debug("learning fan-out (domain emit) failed: %s", error)
 
+    async def run_self_improvement_cycle(self, scope=None, target_components=None,
+                                         context=None):
+        """Run one self-improvement cycle THROUGH the learning authority.
+
+        Self-improvement is a KIND of learning — the substrate learning to repair
+        itself — so it runs through this one authority as its own method, not as a
+        separate engine reached directly or through a tool. The ASI engine is an
+        INTERNAL collaborator this authority owns (like the meta-learner and the
+        rule inducer), injected at startup as `_asi_self_improvement`; every caller
+        reaches it here, never around it."""
+        engine = getattr(self, "_asi_self_improvement", None)
+        if engine is None:
+            logger.warning("self-improvement requested but no engine is wired "
+                           "into the learning authority")
+            return None
+        kwargs = {"target_components": target_components or [],
+                  "context": context or {}}
+        if scope is not None:
+            kwargs["scope"] = scope
+        return await engine.run_improvement_cycle(**kwargs)
+
     async def record_demonstration(self, example, *, domain_id: str) -> bool:
         """Keep one executed demonstration; do NOT induce here.
 

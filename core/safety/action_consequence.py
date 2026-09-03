@@ -211,7 +211,6 @@ _TOOL_CONSEQUENCE: Dict[str, Tuple[ActionClass, str]] = {
     "splunk_search": (ActionClass.EXECUTE, "PARTIALLY_REVERSIBLE"),
     "static_security_analysis": (ActionClass.EXECUTE, "PARTIALLY_REVERSIBLE"),
     "transaction_wrapper": (ActionClass.EXECUTE, "PARTIALLY_REVERSIBLE"),
-    "triggerselfimprovement": (ActionClass.EXECUTE, "PARTIALLY_REVERSIBLE"),
     "upload_file": (ActionClass.EXECUTE, "PARTIALLY_REVERSIBLE"),
     "websocket_connect": (ActionClass.EXECUTE, "PARTIALLY_REVERSIBLE"),
 
