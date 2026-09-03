@@ -2155,6 +2155,16 @@ class HealthMonitor:
                 1 for r in regressed if r.get("severity") == "CRITICAL")
 
             for regression in regressed:
+                # SELF-REFERENCE BREAKS THE LOOP. This IS the learning/ASI check,
+                # and it records its own health as `learning.health_score`. Counting
+                # that back as an issue makes learning's low score its own cause: a
+                # dip is filed as a regression, the regression is read here as an
+                # issue, the issue holds the score down, and it can never recover.
+                # The self metric is skipped; every OTHER component's regression is
+                # still ASI's to answer for (that is what this check is for).
+                if (regression.get("component_name") == "learning"
+                        and regression.get("metric_name") == "health_score"):
+                    continue
                 if regression.get("severity") in ("CRITICAL", "HIGH"):
                     issues.append(
                         f"Capability regression ({regression['severity']}): "
