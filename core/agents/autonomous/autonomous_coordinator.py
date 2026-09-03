@@ -6929,9 +6929,23 @@ class AutonomousCoordinator:
             # not a count — comparing it to an int crashed the autonomous curiosity
             # path right after the cycle ran.
             _deployed = list(result.improvements_deployed or [])
-            logger.info(f"📊 Curiosity optimization complete: "
-                        f"{len(_deployed)} deployed ({_deployed}), "
-                        f"{result.success_rate:.0%} success rate")
+            # Be honest about WHAT deployed: a restart/re-measure is maintenance,
+            # not an improvement, and an aborted cycle is not a 0%-success cycle —
+            # it did not finish. Reporting them the same way is what made
+            # "1 deployed, 0% success" read as nonsense.
+            _maintenance = [d for d in _deployed
+                            if str(d).startswith(("recovered:", "refreshed:"))]
+            _improvements = [d for d in _deployed if d not in _maintenance]
+            _aborted = (result.metadata or {}).get("error")
+            if _aborted:
+                logger.info("📊 Curiosity optimization ABORTED before completion "
+                            "(%s): %d maintenance action(s) done, no improvement "
+                            "deployed", str(_aborted)[:120], len(_maintenance))
+            else:
+                logger.info("📊 Curiosity optimization complete: %d improvement(s) "
+                            "deployed, %d maintenance action(s), %.0f%% success",
+                            len(_improvements), len(_maintenance),
+                            result.success_rate * 100)
 
             if self.slack_notifier and len(_deployed) > 0:
                 await self.slack_notifier.send_notification(

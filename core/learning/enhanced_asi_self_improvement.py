@@ -3472,26 +3472,57 @@ Respond in JSON format:
             logger.error(f"🛑 HARD GATE FAILED: Validation error: {e}")
             raise RuntimeError(f"UpgradeValidator error: {e}. Self-improvement cycle ABORTED.")
 
+    async def _verify_module_imports_locally(self, code: str) -> tuple:
+        """(ok, errors) — does the spliced module still import cleanly WITH the real
+        project available? A code improvement edits an in-project module that does
+        `from core… import …`, so importability can only be tested with the project
+        on the path. Run in a SUBPROCESS (isolated from the live process) against the
+        real repo — not Docker: a single-file container has no `core`, which is why
+        the Docker gate returned "No module named 'core'" and falsely blocked every
+        real edit."""
+        import tempfile, subprocess, sys
+        from pathlib import Path
+        repo_root = str(Path(__file__).resolve().parents[2])
+        tmp = None
+        try:
+            with tempfile.NamedTemporaryFile("w", suffix=".py", delete=False) as tf:
+                tf.write(code or "")
+                tmp = tf.name
+            probe = (
+                "import sys, importlib.util\n"
+                f"sys.path.insert(0, {repo_root!r})\n"
+                f"spec = importlib.util.spec_from_file_location('_candidate', {tmp!r})\n"
+                "m = importlib.util.module_from_spec(spec)\n"
+                "spec.loader.exec_module(m)\n"
+                "print('IMPORTED_OK')\n")
+            proc = subprocess.run([sys.executable, "-c", probe],
+                                  capture_output=True, text=True,
+                                  timeout=180, cwd=repo_root)
+            if proc.returncode == 0:
+                return True, []
+            return False, [((proc.stderr or proc.stdout).strip() or "import failed")[:500]]
+        except subprocess.TimeoutExpired:
+            return False, ["module import check timed out"]
+        except Exception as e:
+            return False, [f"{type(e).__name__}: {e}"]
+        finally:
+            if tmp:
+                try:
+                    import os as _os
+                    _os.unlink(tmp)
+                except Exception:
+                    pass
+
     async def _test_improvements(
         self,
         improvements: List[str],
         context: Dict[str, Any]
     ) -> List[str]:
-        """Phase 5: Test improvements in sandbox - HARD GATE (blocks failing tests)"""
+        """Phase 5: Verify each improved module still imports cleanly WITH the real
+        project on the path (local subprocess, isolated) — HARD GATE."""
         tested = []
 
         try:
-            # HARD GATE: Sandbox REQUIRED
-            from core.learning.upgrade_sandbox import get_upgrade_sandbox
-            sandbox = get_upgrade_sandbox()
-
-            if not sandbox:
-                logger.error("🛑 HARD GATE FAILED: Sandbox not available")
-                raise RuntimeError(
-                    "UpgradeSandbox is REQUIRED for self-improvement. "
-                    "Cannot deploy untested code."
-                )
-
             for improvement_id in improvements:
                 # Get code
                 code = await self._get_generated_code(improvement_id)
@@ -3537,10 +3568,12 @@ Respond in JSON format:
                             f"({len(code.get('code') or '')} bytes). Refusing to record "
                             f"a passed sandbox test for an empty module.")
 
-                    result = await sandbox.run_code(
-                        code["code"],
-                        entry_point=None,      # import-only: see run_code
-                    )
+                    # IMPORT THE SPLICED MODULE LOCALLY, WITH THE REAL REPO ON THE
+                    # PATH — not Docker. See _verify_module_imports_locally.
+                    from types import SimpleNamespace
+                    _ok, _errs = await self._verify_module_imports_locally(
+                        code.get("code") or "")
+                    result = SimpleNamespace(success=_ok, errors=_errs)
 
                     # HARD GATE: Tests must pass
                     if result.success and not result.errors:
