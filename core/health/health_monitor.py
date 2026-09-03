@@ -1627,7 +1627,10 @@ class HealthMonitor:
         'learning': {
             'causal_analyzer':     ('core.learning.causal_feedback_analyzer', 'get_causal_analyzer', 'get_statistics'),
             'meta_learner':        ('core.learning.meta_learning', 'get_meta_learner', 'get_statistics'),
-            'interaction_learner': ('core.learning.interaction_meta_learning', 'get_interaction_learner', 'get_statistics'),
+            # 'interaction_learner' removed: it probed core.learning.interaction_meta_learning,
+            # a module that was never built (only a stale comment in meta_learning.py named it).
+            # A health probe against a phantom subsystem fails with ModuleNotFoundError every
+            # cycle and pinned learning health at 0 — a false negative, not a real regression.
         },
         'memory': {
             'embedding_service':   ('core.memory.utils.embedding_service', 'get_embedding_service', 'get_metrics'),
