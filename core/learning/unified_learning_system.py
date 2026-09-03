@@ -2083,6 +2083,124 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
         return await self.store.record_induction(
             result, examples, domain_id=domain_id, rule_kind=rule_kind)
 
+    # ── The one door for TOLD knowledge ──────────────────────────────────────
+    #
+    # Every KIND of learning is a method on this authority, and each fans out to
+    # the SAME systems, so nothing that depends on learning has to reach a second
+    # door: a fact and a rule both update REASONING (the concept graph the
+    # reasoner chains over), BELIEFS (a posterior), the LEXICON (parts of speech),
+    # the DOMAIN (crystallization, via the emitted event), MEMORY (a recallable
+    # claim, through the ingress), and METRICS. Callers stop reaching into the
+    # ingress / belief system / lexicon directly and come here.
+
+    async def learn_fact(self, subject: str, relation: str, obj: Optional[str],
+                         *, positive: bool = True, surface: Optional[str] = None,
+                         provenance: Any = None, domain: str = "conversation",
+                         description: str = "", word_class_of: Any = None,
+                         emit: Any = None) -> Any:
+        """Learn a TOLD declarative fact ("a robin is a bird"), fanning out to
+        every system that depends on learning. Returns the ingress `Admission`,
+        so a caller keeps the same contract it had when it called the ingress."""
+        from core.semantics.cognitive_ingress import (get_cognitive_ingress,
+                                                      Provenance)
+        surface = surface or " ".join(
+            str(p) for p in (subject, relation, obj) if p)
+        prov = provenance or Provenance(producer="learning", source_id="you",
+                                        source_type="USER_SUPPLIED")
+        # REASONING (+ MEMORY): the concept graph is the knowledge store the
+        # reasoner walks; the ingress also stores the recallable claim.
+        admission = await get_cognitive_ingress().admit_relation(
+            subject=subject, relation=relation, obj=obj, surface=surface,
+            provenance=prov, positive=positive, description=description,
+            domain=domain, word_class_of=word_class_of)
+        if admission.admitted:
+            await self._fan_out_learning(
+                surface=surface, claim=" ".join(
+                    str(p) for p in (subject, relation, obj) if p),
+                clauses=[(subject, relation, obj)], positive=positive,
+                domain=domain,
+                emit=emit, emit_payload={"subject": subject, "relation": relation,
+                                         "obj": obj, "domain": domain})
+        return admission
+
+    async def learn_rule(self, antecedent: Dict[str, Any],
+                         consequent: Dict[str, Any], *, surface: str,
+                         provenance: Any = None, domain: str = "conversation",
+                         emit: Any = None) -> Any:
+        """Learn a TOLD conditional ("if the valve is closed then the tank
+        overflows") as a held rule, fanning out the same way a fact does — the
+        rule lands in the held-conditional store the reasoner chains over, its
+        clauses feed the lexicon, its implication moves a posterior, the domain
+        crystallizes, and it is counted. Returns the ingress `Admission`."""
+        from core.semantics.cognitive_ingress import (get_cognitive_ingress,
+                                                      Provenance)
+        prov = provenance or Provenance(producer="learning", source_id="you",
+                                        source_type="USER_SUPPLIED")
+        admission = await get_cognitive_ingress().admit_conditional(
+            antecedent, consequent, surface=surface, provenance=prov, domain=domain)
+        if admission.admitted:
+            claim = (f"if {antecedent.get('subject')} {antecedent.get('relation')} "
+                     f"{antecedent.get('obj') or ''} then "
+                     f"{consequent.get('subject')} {consequent.get('relation')} "
+                     f"{consequent.get('obj') or ''}")
+            await self._fan_out_learning(
+                surface=surface, claim=" ".join(claim.split()),
+                clauses=[(antecedent.get("subject"), antecedent.get("relation"),
+                          antecedent.get("obj")),
+                         (consequent.get("subject"), consequent.get("relation"),
+                          consequent.get("obj"))],
+                positive=True, domain=domain, emit=emit,
+                emit_payload={"kind": "conditional", "surface": surface,
+                              "domain": domain})
+        return admission
+
+    def learn_word(self, word: str, word_class: str, *,
+                   source: str = "taught") -> Any:
+        """Learn a WORD's part of speech — the one door for lexical acquisition."""
+        from core.semantics.lexicon import get_lexicon
+        lex = get_lexicon()
+        entry = lex.propose(word, word_class, source)
+        lex.save()
+        self.system_metrics["total_learning_sessions"] = \
+            self.system_metrics.get("total_learning_sessions", 0) + 1
+        return entry
+
+    async def _fan_out_learning(self, *, surface: str, claim: str,
+                                clauses: List[tuple], positive: bool,
+                                domain: str, emit: Any,
+                                emit_payload: Dict[str, Any]) -> None:
+        """The shared fan-out every learn_* method runs after admission, so a
+        fact and a rule touch the SAME systems: LEXICON, BELIEFS, METRICS, and
+        the DOMAIN (via the emitted event). Each arm is isolated — one failing
+        never rolls back what already landed, and never breaks the caller."""
+        from core.semantics.lexicon import observe_proposition
+        from core.reasoning.bayesian_uncertainty import get_uncertainty_system
+        # LEXICON: teaching teaches parts of speech.
+        for (subj, rel, obj) in clauses:
+            if not subj or not rel:
+                continue
+            try:
+                observe_proposition(surface, subj, rel, obj, source="taught")
+            except Exception as error:
+                logger.debug("learning fan-out (lexicon) failed: %s", error)
+        # BELIEFS: a taught claim moves a posterior.
+        try:
+            get_uncertainty_system().observe_claim(
+                claim, domain=domain, supports=positive, source="taught")
+        except Exception as error:
+            logger.debug("learning fan-out (beliefs) failed: %s", error)
+        # METRICS: the learning is counted.
+        self.system_metrics["total_learning_sessions"] = \
+            self.system_metrics.get("total_learning_sessions", 0) + 1
+        # DOMAIN: crystallize the taught domain, via the substrate's event when
+        # one is wired (deferred, off the reply path); a standalone caller with
+        # no emitter simply skips it (the idle domain tier remains the backstop).
+        if emit is not None:
+            try:
+                await emit(emit_payload)
+            except Exception as error:
+                logger.debug("learning fan-out (domain emit) failed: %s", error)
+
     async def record_demonstration(self, example, *, domain_id: str) -> bool:
         """Keep one executed demonstration; do NOT induce here.
 

@@ -271,7 +271,30 @@ class BayesianUncertaintySystem:
         
         logger.debug(f"Created belief: {claim} (prior={prior:.3f})")
         return belief
-    
+
+    def observe_claim(self, claim: str, domain: str = "language", *,
+                      supports: bool = True, quality: float = 0.9,
+                      source: str = "taught") -> BayesianBelief:
+        """Find-or-create the belief for a claim and record one observation of it.
+
+        `update_belief` needs an existing belief and `create_belief` mints a new
+        id every call, so neither answers "record that I was TOLD this"
+        idempotently. This is that entry — the one door a learning method uses to
+        move a belief: the first telling creates the belief (its prior reflects
+        the telling), each later telling reinforces or contradicts the SAME
+        belief, so a taught fact moves a posterior instead of spawning parallel
+        beliefs about the same claim."""
+        key = " ".join(str(claim).strip().lower().split())
+        existing_id = next(
+            (bid for bid, b in self.beliefs.items()
+             if " ".join(str(b.claim).strip().lower().split()) == key), None)
+        evidence = {"quality": quality, "source": source}
+        if existing_id is None:
+            prior = quality if supports else (1.0 - quality)
+            return self.create_belief(claim=claim, domain=domain, prior=prior,
+                                      evidence=evidence)
+        return self.update_belief(existing_id, evidence, evidence_supports=supports)
+
     def update_belief(
         self,
         belief_id: str,

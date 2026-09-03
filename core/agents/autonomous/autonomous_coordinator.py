@@ -3610,6 +3610,7 @@ class AutonomousCoordinator:
         conversation held before they existed picks them up on next use."""
         conversation = get_conversation(session, db=db)
         conversation._emit = self.emit
+        conversation._learning = self.learning
         conversation._disposition = self.disposition
         return conversation
 
@@ -11043,6 +11044,14 @@ class Conversation:
         #: conversation is used standalone (a script, a test) -- teaching still
         #: admits, it just does not wake a reaction.
         self._emit = emit
+        #: The LEARNING AUTHORITY (UnifiedLearningSystem), injected by the
+        #: coordinator that owns this conversation. Teaching goes THROUGH it —
+        #: `learn_fact`/`learn_rule` — so a taught proposition fans out to every
+        #: system that depends on learning (reasoning, beliefs, lexicon, domain,
+        #: memory, metrics) from one place, instead of this reaching into the
+        #: ingress directly. None when standalone: it falls back to the authority
+        #: singleton, so teaching still goes through the one path.
+        self._learning = None
         #: The substrate's DISPOSITION read, injected by the coordinator that
         #: owns this conversation, so a reply can be informed by self-state (the
         #: BehaviorArbiter's current directive). None when standalone -- the
@@ -11083,6 +11092,28 @@ class Conversation:
             from core.domain.concept_identity import ConceptIdentityService
             self._identity = ConceptIdentityService(self._db)
         return self._db, self._identity
+
+    def _learning_authority(self):
+        """The one learning path teaching goes through. Injected by the owning
+        coordinator; a standalone conversation falls back to the singleton, so
+        teaching never routes around the authority."""
+        if self._learning is not None:
+            return self._learning
+        from core.learning.unified_learning_system import get_learning_authority
+        return get_learning_authority()
+
+    def _evidence_emitter(self):
+        """A payload->emit callback the learning authority triggers the domain
+        reaction with, or None when this conversation has no emitter. Wraps the
+        substrate's `emit` so the authority need not know the event type — the
+        domain fan-out lives in the learning method, the transport stays here."""
+        if self._emit is None:
+            return None
+
+        async def _emit_evidence(payload):
+            await self._emit(SelfEvent(SelfEventType.EVIDENCE_ADMITTED,
+                                       payload=payload, origin="learning"))
+        return _emit_evidence
 
     async def _concept(self, concept_id: str) -> Dict[str, Any]:
         db, _ = await self._services()
@@ -11676,8 +11707,7 @@ class Conversation:
         on every successful write. Every sentence anyone taught reported back
         as not stored while the row went in.
         """
-        from core.semantics.cognitive_ingress import (Provenance,
-                                                      get_cognitive_ingress)
+        from core.semantics.cognitive_ingress import Provenance
 
         if not relations:
             return Acquired(label, description, (), source_id, False,
@@ -11686,33 +11716,22 @@ class Conversation:
         relation, obj = relations[0][0], relations[0][1]
         positive = len(relations[0]) < 3 or str(relations[0][2]) != "negative"
 
-        admission = await get_cognitive_ingress().admit_relation(
-            subject=label, relation=relation, obj=obj, surface=content,
+        # THROUGH THE LEARNING AUTHORITY, not around it. `learn_fact` admits to
+        # the concept graph AND fans the learning out to beliefs, the lexicon,
+        # the domain (via the emitter), memory, and metrics — the one path every
+        # kind of learning takes, so nothing here reaches the ingress directly.
+        admission = await self._learning_authority().learn_fact(
+            subject=label, relation=relation, obj=obj, positive=positive,
+            surface=content,
             provenance=Provenance(producer="conversation", source_id=source_id,
                                   source_type=source_type.name),
-            positive=positive, description=description, domain=domain)
+            description=description, domain=domain, emit=self._evidence_emitter())
 
         detail = "; ".join(admission.refusals)
         if admission.contradicts:
             detail = (f"this contradicts what I was told before"
                       f"{'; ' + detail if detail else ''}")
 
-        # A newly admitted proposition is a self-event: it may have completed a
-        # taught-concept cluster the domain authority should crystallize. Emit it
-        # so that reaction fires now, off the reply path, instead of waiting for
-        # the idle tier. Only on a real admission (not a refusal or a duplicate),
-        # and only when this conversation was given the substrate's emitter
-        # (standalone use has none -- teaching still admits, it just does not
-        # wake a reaction). Isolated: a failing emit never breaks the reply.
-        if admission.admitted and self._emit is not None:
-            try:
-                await self._emit(SelfEvent(
-                    SelfEventType.EVIDENCE_ADMITTED,
-                    payload={"subject": label, "relation": relation,
-                             "obj": obj, "domain": domain},
-                    origin="conversation._ingest"))
-            except Exception as error:
-                logger.warning("EVIDENCE_ADMITTED emit failed: %s", error)
         # ONE SHAPE FOR EVERY READER. `relations` arrives from the reader as
         # (relation, object) or (relation, object, polarity), and `Acquired`
         # declares Tuple[Tuple[str, str], ...]. `say()` unpacked exactly two and
@@ -11823,12 +11842,12 @@ class Conversation:
 
         # A CONDITIONAL is a held RULE, not a relation: the derived reader cannot
         # read it, and admit_relation would wrongly assert its antecedent true.
-        # It is read by the sentence reader and admitted to the conditional store
-        # through the SAME authority (cognitive_ingress) that owns declarative
-        # admission — a first-class held rule, not a memory or a mangled ISA edge.
+        # It is read by the sentence reader and learned as a held RULE through the
+        # LEARNING AUTHORITY (`learn_rule`), the same one door a fact takes — so a
+        # rule fans out to the lexicon, beliefs, the domain, and metrics exactly
+        # as a fact does, instead of this reaching into the ingress directly.
         from core.semantics.sentence_reader import SentenceReader as _SentenceReader
-        from core.semantics.cognitive_ingress import (Provenance as _Provenance,
-                                                      get_cognitive_ingress)
+        from core.semantics.cognitive_ingress import Provenance as _Provenance
         _sr = _SentenceReader()
         _cond = _sr._parse_statement(sentence)
         if _cond is not None and _cond.get("kind") == "conditional":
@@ -11838,31 +11857,12 @@ class Conversation:
                 return [Acquired(sentence, detail=(
                     "I read that as a conditional, but a side of it is not a "
                     "single proposition I can hold"))]
-            # A conditional's clauses teach parts of speech too — record them so
-            # the words in a rule are known the next time they appear bare.
-            from core.semantics.lexicon import observe_proposition
-            for _clause in (ant, con):
-                try:
-                    observe_proposition(sentence, _clause["subject"],
-                                        _clause["relation"], _clause.get("obj"),
-                                        source="taught")
-                except Exception as _wc:
-                    logger.debug("word-class observation (conditional) failed: %s", _wc)
-            admission = await get_cognitive_ingress().admit_conditional(
+            admission = await self._learning_authority().learn_rule(
                 ant, con, surface=sentence,
                 provenance=_Provenance(producer="conversation", source_id="you",
                                        source_type=EvidenceSourceType.USER_SUPPLIED.name),
-                domain="conversation")
+                domain="conversation", emit=self._evidence_emitter())
             if admission.admitted:
-                if self._emit is not None:
-                    try:
-                        await self._emit(SelfEvent(
-                            SelfEventType.EVIDENCE_ADMITTED,
-                            payload={"kind": "conditional", "surface": sentence,
-                                     "domain": "conversation"},
-                            origin="conversation.teach_conditional"))
-                    except Exception as _e:
-                        logger.warning("EVIDENCE_ADMITTED (conditional) emit failed: %s", _e)
                 return [Acquired(sentence, description="a rule", relations=(),
                                  stored=True, detail="held as a conditional rule",
                                  memory_id=admission.evidence_id)]
@@ -11893,23 +11893,14 @@ class Conversation:
                 "I could not read that sentence with what I have been taught "
                 "about sentences"))]
 
-        from core.semantics.lexicon import observe_proposition
-
         acquired: List[Acquired] = []
         for typed in readings:
             positive = typed.polarity != "denies"
             # The canonical TYPED relation name is what is stored, so the edge
             # carries its semantics (transitivity, inverse, ...) not just a verb.
+            # `_ingest` -> `learn_fact` records the parts of speech (the lexicon
+            # fan-out), so teaching a fact still teaches the reader its words.
             relation = typed.relation.relation.value
-            # TEACHING A FACT ALSO TEACHES THE READER ITS PARTS OF SPEECH. Record
-            # the word classes this proposition implies, so the next sentence
-            # using these words can be read at all — the preschool bootstrap the
-            # lexicon was built for and never had a caller for.
-            try:
-                observe_proposition(sentence, typed.subject, relation, typed.obj,
-                                    source="taught")
-            except Exception as _wc:
-                logger.debug("word-class observation failed: %s", _wc)
             acquired.append(await self._ingest(
                 label=typed.subject, description="",
                 relations=((relation, typed.obj,
