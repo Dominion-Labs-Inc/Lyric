@@ -41,6 +41,10 @@ from core.learning.enhanced_asi_self_improvement import (
      RemedyFamily.BACKLOG),
     (["5202 unresolved CRITICAL security finding(s)"],
      RemedyFamily.BACKLOG),
+    (["5 knowledge transfer(s) unresolved for over 7 days — target domains never "
+      "accrued enough outcome evidence to judge them; the transfer validation "
+      "loop is not closing"],
+     RemedyFamily.BACKLOG),
 ])
 def test_classifies_real_findings(issues, expected):
     assert classify_defect(issues) is expected

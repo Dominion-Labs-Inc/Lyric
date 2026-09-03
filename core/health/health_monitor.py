@@ -1965,7 +1965,11 @@ class HealthMonitor:
                             WHERE verified IS FALSE) AS refuted,
                           (SELECT count(*) FROM unified.knowledge_transfers) AS transfers,
                           (SELECT count(*) FROM unified.knowledge_transfers
-                            WHERE success IS NULL) AS unresolved""",
+                            WHERE success IS NULL) AS unresolved,
+                          (SELECT count(*) FROM unified.knowledge_transfers
+                            WHERE success IS NULL
+                              AND created_at < NOW() - INTERVAL '7 days')
+                            AS unresolved_stale""",
                 fetch_all=True)
             row = stored[0]
             metrics['domain_mappings_stored'] = int(row['mappings'])
@@ -1973,6 +1977,7 @@ class HealthMonitor:
             metrics['domain_mappings_refuted'] = int(row['refuted'])
             metrics['domain_transfers_stored'] = int(row['transfers'])
             metrics['domain_transfers_unresolved'] = int(row['unresolved'])
+            metrics['domain_transfers_unresolved_stale'] = int(row['unresolved_stale'])
 
             if metrics['domain_populated'] == 0:
                 issues.append('No domain holds any concept — cross-domain '
@@ -1980,14 +1985,22 @@ class HealthMonitor:
             if metrics['domain_learned_concepts'] == 0:
                 issues.append('No learned concepts — the domain layer holds only '
                               'the projected universal level')
-            # Transfers are written by the learning path but never loaded back,
-            # so the in-memory registry cannot see its own history.
-            if metrics['domain_transfers_stored'] > 0 and \
-                    stats['knowledge_transfers'] == 0:
+            # Transfers ARE read back and resolved from unified.knowledge_transfers
+            # by the coordinator's resolution loop (unresolved_transfers →
+            # resolve_knowledge_transfer): 3 of 9 carry a verdict here. The
+            # in-memory registry dict is a WRITE-ONLY cache nothing reads, so its
+            # emptiness does not mean the history is invisible — the old finding
+            # measured the wrong thing. The real signal is a transfer that stays
+            # unresolved for a LONG time: its target domain never accrued the
+            # before/after outcome evidence needed to judge whether it helped, so
+            # the validation loop is not closing. A freshly-created transfer that is
+            # still gathering evidence is NOT flagged.
+            if metrics['domain_transfers_unresolved_stale'] > 0:
                 issues.append(
-                    f"{metrics['domain_transfers_stored']} knowledge transfer(s) "
-                    f"stored but none loaded into the registry — transfer history "
-                    f"is invisible to the running system")
+                    f"{metrics['domain_transfers_unresolved_stale']} knowledge "
+                    f"transfer(s) unresolved for over 7 days — target domains never "
+                    f"accrued enough outcome evidence to judge them; the transfer "
+                    f"validation loop is not closing")
 
         except Exception as e:
             metrics['domain_available'] = False

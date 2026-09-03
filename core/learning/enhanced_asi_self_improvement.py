@@ -630,7 +630,8 @@ _REMEDY_MARKERS = {
     RemedyFamily.BACKLOG: (
         'unrecovered failure', 'escalated beyond automatic recovery',
         'unresolved critical', 'security finding', 'active finding',
-        'none resolved', 'unresolved backlog'),
+        'none resolved', 'unresolved backlog', 'unresolved for over',
+        'validation loop is not closing'),
     RemedyFamily.VERIFICATION: (
         'not verified', 'unverified', 'false success', 'fabricated',
         'without verification', 'self-certifying'),
@@ -1242,50 +1243,27 @@ class EnhancedASISelfImprovement(IAdaptationEngine):
             targets = [t for t in targets
                        if t.component not in set(refresh["refreshed"])]
 
-            # Re-measure can REVEAL a liveness fault the phantom evidence had
-            # masked — security_audit's "scanner not running" hid behind a phantom
-            # backlog; health_system's "watchdog not running" behind a failure
-            # count. Assessment-time remediation has already run, so these are
-            # REPORTED on their current evidence, not restarted inline: restarting a
-            # has-path component (e.g. the watchdog) is the recovery system's own
-            # continuous job, and the improvement cycle must not start long-running
-            # loops mid-assessment. Split by whether an in-process path even exists.
-            try:
-                from core.health.recovery_manager import get_recovery_manager
-                _recovery = get_recovery_manager()
-            except Exception:
-                _recovery = None
-            live_no_path, live_has_path = [], []
-            for t in (t for t in targets if t.remedy_family is RemedyFamily.LIVENESS):
-                base = t.component.split(".", 1)[0]
-                has = bool(_recovery) and (_recovery.can_restart(t.component)
-                                           or _recovery.can_restart(base))
-                (live_has_path if has else live_no_path).append(t.component)
-            targets = [t for t in targets
-                       if t.remedy_family is not RemedyFamily.LIVENESS]
-
             # BACKLOG (family P): accumulated items owned by ANOTHER authority
-            # (security findings, recovery failures). Code generation cannot drain
-            # them; escalate to an operator and remove from the improver.
+            # (security findings, recovery failures, unresolved transfers). Code
+            # generation cannot drain them; escalate to an operator and remove them
+            # from the improver.
             backlog = sorted(t.component for t in targets
                              if t.remedy_family is RemedyFamily.BACKLOG)
             targets = [t for t in targets
                        if t.remedy_family is not RemedyFamily.BACKLOG]
 
-            # THE OPERATOR REPORT, one place, every verdict honest and distinct:
+            # THE OPERATOR REPORT, one place, every verdict honest and distinct
+            # (liveness was classified on LIVE evidence at assessment and handled by
+            # remediation above, so its verdicts come straight from there):
             #   restart_failed   — a restart path exists but did not restore health
-            #                      (RECOVERY_FAILED / ran-but-ineffective, this pass)
+            #                      (RECOVERY_FAILED / ran-but-ineffective)
             #   no_recovery_path — nothing to attempt; needs its launcher/operator
             #                      (NO_AUTHORIZED_RECOVERY_EXISTS)
-            #   restart_pending  — down with a restart path, but surfaced after this
-            #                      pass; the recovery watchdog owns restarting it
             #   backlog          — owned by another authority; drain or escalate
             needs_operator = {
                 "restart_failed": sorted(
                     set(remediation["failed"]) | set(remediation["ineffective"])),
-                "no_recovery_path": sorted(
-                    set(remediation["no_recovery_path"]) | set(live_no_path)),
-                "restart_pending": sorted(live_has_path),
+                "no_recovery_path": sorted(remediation["no_recovery_path"]),
                 "backlog": backlog,
             }
             needs_operator = {k: v for k, v in needs_operator.items() if v}
@@ -1723,8 +1701,14 @@ class EnhancedASISelfImprovement(IAdaptationEngine):
                     components = await self._rank_by_recorded_health(components)
 
                 for component in components[:self.MAX_ASSESSMENT_CANDIDATES]:
-                    # Get current metrics
-                    health = await self._get_component_health(component)
+                    # A FRESH reading, measured now — not a value cached at init
+                    # that a later state change left stale. This is what closes the
+                    # phantom: `_get_component_health` returned "5221 unresolved
+                    # CRITICAL" (a pid-live but content-stale row) while a live
+                    # re-measure reads "scanner is not running" — the real fault.
+                    # Assessing on the stale row mis-classified the target and sent
+                    # the cycle chasing a backlog that no longer exists.
+                    health = await self._live_component_health(component)
 
                     if health and health["health_score"] < 90:  # Below 90% health
                         # Use Unified LLM to analyze improvement opportunity
@@ -2549,22 +2533,12 @@ Return JSON:
                             target.component, fresh.get("status"),
                             fresh["health_score"], target.current_value)
             else:
-                # A CURRENT finding, not stale — but the fresh evidence may DIFFER
-                # from what assessment read (a phantom backlog can mask a real
-                # liveness fault: "5208 unresolved" hid "scanner is not running").
-                # Adopt the fresh issues and RE-CLASSIFY so downstream routing acts
-                # on current truth, not the stale evidence that named the family.
-                _prev = target.current_value
-                target.current_value = fresh["health_score"]
-                (target.context or {})["issues"] = fresh["issues"]
-                target.remedy_family = classify_defect(
-                    fresh["issues"], target.component)
+                # A CURRENT finding, not stale: re-measuring confirmed the same
+                # value. It stays for downstream routing (a real BACKLOG reaches
+                # operator escalation), never counted as an improvement.
                 outcome["unchanged"].append(target.component)
-                logger.info("Re-measured %s: still %.1f (was %.1f) — current "
-                            "finding, re-classified %s", target.component,
-                            fresh["health_score"], _prev,
-                            target.remedy_family.name if target.remedy_family
-                            else "UNCLASSIFIED")
+                logger.info("Re-measured %s: still %.1f — a current finding",
+                            target.component, fresh["health_score"])
         return outcome
 
     async def _remediate_targets(
@@ -4563,6 +4537,27 @@ Provide enhanced analysis in JSON:
             return float(value) if value is not None else float("inf")
 
         return sorted(components, key=lambda c: (score_of(c), c))
+
+    async def _live_component_health(
+        self, component: str
+    ) -> Optional[Dict[str, Any]]:
+        """A reading taken NOW, so assessment classifies on current truth.
+
+        `_remeasure` drives the same health check in THIS process and PERSISTS the
+        result, so the stored row also becomes current. A component the manifest
+        cannot measure falls back to the stored reading (via `_get_component_health`)
+        rather than vanishing from assessment — "unmeasurable" is not "healthy".
+        """
+        fresh = await self._remeasure(component)
+        if fresh is not None:
+            return {
+                "health_score": float(fresh["health_score"]),
+                "status": fresh.get("status"),
+                "last_check": datetime.now().isoformat(),
+                "issues": list(fresh.get("issues") or []),
+                "remeasured": True,
+            }
+        return await self._get_component_health(component)
 
     async def _get_component_health(
         self,
