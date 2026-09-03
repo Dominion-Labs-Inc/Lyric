@@ -1374,6 +1374,50 @@ class ImprovementMonitor:
                     if row.get(column) is not None:
                         row[column] = float(row[column])
 
+            # VERIFY EACH DEGRADATION AGAINST THE COMPONENT'S CURRENT LIVE READING
+            # (in-memory, no re-measure). A degrading row is only a real capability
+            # regression when BOTH hold now:
+            #   • the live value is still meaningfully below the baseline — else the
+            #     row is STALE (health_system recovered to 100 but the row still
+            #     holds a 46.67 written in a bad moment), and
+            #   • the current finding is NOT operational — a liveness/backlog dip
+            #     (safety "not initialized", "unrecovered failures") is handled by
+            #     remediation / the owning authority, not lost capability.
+            # Without this every operational dip logged as a CRITICAL capability
+            # regression on every init-only run, forever.
+            try:
+                from core.health.health_monitor import get_health_monitor
+                _live = get_health_monitor().component_health or {}
+            except Exception:
+                _live = {}
+            _OPERATIONAL_MARKERS = (
+                "is not running", "not initialized", "not started", "not attached",
+                "reports it is not running", "is inactive", "has crashed", "stalled",
+                "service(s) down", "services down", "unrecovered failure",
+                "escalated beyond automatic recovery", "unresolved")
+
+            def _is_capability_regression(row) -> bool:
+                comp = row["component_name"]
+                rec = _live.get(comp) or _live.get(f"{comp}.{comp}")
+                if rec is None:
+                    # No current reading to confirm the degradation against. An
+                    # UNVERIFIABLE regression is not a CRITICAL one — the row may be
+                    # stale (a value written in a bad moment, since recovered). Do
+                    # not scream capability loss on a figure we cannot corroborate.
+                    return False
+                baseline = row["baseline_value"]
+                cur = (getattr(rec, "metrics", {}) or {}).get("_health_score")
+                cur = float(cur) * 100.0 if cur is not None else None
+                if cur is not None and baseline and baseline > 0 and \
+                        ((baseline - cur) / baseline) * 100.0 <= IMPROVEMENT_TREND_PCT:
+                    return False  # not actually below baseline now — stale row
+                text = " ".join(str(i) for i in (getattr(rec, "issues", None) or [])).lower()
+                if any(m in text for m in _OPERATIONAL_MARKERS):
+                    return False  # a liveness/backlog fault, not lost capability
+                return True
+
+            regressions = [r for r in regressions if _is_capability_regression(r)]
+
             regressions.sort(
                 key=lambda r: (
                     ((r["baseline_value"] - r["last_cycle_value"]) / r["baseline_value"])

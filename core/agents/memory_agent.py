@@ -1561,7 +1561,11 @@ class MemoryAgent(IMemoryConsolidation):
                 'confidence_score': updated_confidence,
                 'tags': merged_tags,
                 'reasoning_trace': merged_trace,
-                'access_count': existing_memory.access_count + 1,
+                # update_memory treats access_count as an INCREMENT; a merge is one
+                # more access. Passing the running total here made each merge add
+                # the count to itself — doubling it, and overflowing int64 at ~63
+                # merges (the "$3 out of int64 range" update failures).
+                'access_count': 1,
                 'last_accessed': datetime.now(),
                 'metadata': {
                     **existing_memory.metadata,
@@ -1926,8 +1930,10 @@ class MemoryAgent(IMemoryConsolidation):
                 if update_access:
                     memory.access_count += 1
                     memory.last_accessed = datetime.now()
+                    # update_memory INCREMENTS access_count by the value passed, so
+                    # this is 1, not the running total (which it would add to itself).
                     await self.postgres_storage.update_memory(memory_id, {
-                        "access_count": memory.access_count,
+                        "access_count": 1,
                         "last_accessed": memory.last_accessed
                     })
 

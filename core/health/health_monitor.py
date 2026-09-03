@@ -1309,6 +1309,24 @@ class HealthMonitor:
         # An EXISTING baseline is always updated, because a genuine fall to
         # zero is exactly the regression this is here to catch.
         if score is not None:
+            # AN OPERATIONALLY-FAULTED READING IS NOT A CAPABILITY DATUM. health_score
+            # is an OPERATIONAL score; when it is depressed by a liveness fault
+            # (safety at 0 = "framework not initialized"; watchdog "not running") or
+            # a backlog (health_system at 46 = "820 unrecovered failures"), that is
+            # handled by remediation / the owning authority — not a capability
+            # regression. Feeding such a reading to the long-term baseline degraded
+            # it against a fault that has nothing to do with capability and flagged
+            # CRITICAL "capability regressions" on every init-only run, forever.
+            # Capability is tracked only from an operationally-clean reading.
+            _issue_text = " ".join(str(i) for i in (health.issues or [])).lower()
+            _operational = any(m in _issue_text for m in (
+                "is not running", "not initialized", "not started", "not attached",
+                "reports it is not running", "is inactive", "has crashed", "stalled",
+                "service(s) down", "services down",
+                "unrecovered failure", "escalated beyond automatic recovery",
+                "unresolved"))
+            if _operational:
+                return True
             try:
                 from core.learning.improvement_monitor import get_improvement_monitor
 
