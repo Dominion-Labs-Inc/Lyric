@@ -2276,10 +2276,13 @@ class AutonomousCoordinator:
                           thinking_state: Optional[Dict[str, Any]] = None,
                           decision_factors: Optional[Dict[str, Any]] = None,
                           reasoning_trace: Optional[List[str]] = None) -> Optional[str]:
-        """Store a memory with RICH METADATA to the memory agent
+        """Store a memory with RICH METADATA to the memory agent.
 
-        CRITICAL: reasoning_trace must contain REAL LLM reasoning steps, not fake traces.
-        If no real reasoning trace is available, pass None or empty list.
+        reasoning_trace must be the substrate's REAL reasoning steps (the
+        neural-symbolic bridge's derivation), never a fabricated trace. If none
+        is available, pass None or an empty list. The memory agent stamps the
+        self's live appraisal (emotions + interoception) onto the memory, so the
+        cognitive context of the moment is recorded without being passed here.
         """
         try:
             # Extract event type from content
@@ -2340,6 +2343,10 @@ class AutonomousCoordinator:
             from core.memory import get_memory_agent
             memory_agent = await get_memory_agent()
 
+            # emotional_context is NOT passed a placeholder here. The memory agent
+            # fills it from the live appraisal — the real feelings of the moment —
+            # for every memory; sending {"autonomous_confidence": importance} would
+            # override that truth with one number under a misleading name.
             success, memory_id = await memory_agent.store_memory(
                 memory_type=memory_type,
                 content=narrative,
@@ -2350,7 +2357,6 @@ class AutonomousCoordinator:
                 system_state=system_state_data,
                 decision_factors=enriched_decision_factors,
                 reasoning_trace=reasoning_trace or [],
-                emotional_context={"autonomous_confidence": importance}
             )
 
             if success:

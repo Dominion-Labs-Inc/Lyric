@@ -667,6 +667,40 @@ class MemoryAgent(IMemoryConsolidation):
             if _appraisal is not None:
                 appraisal_snapshot = _appraisal.to_dict()
                 appraisal_snapshot["captured_at"] = datetime.now().isoformat()
+
+                # THE SELF STAMPS ITS OWN STATE ON EVERY MEMORY IT FORMS, not
+                # just coordinator-initiated ones. emotional_context and
+                # system_state were populated only by the coordinator's rich
+                # store_memory (~10% of writes) and left empty otherwise; here
+                # they are FILLED FROM THE SAME LIVE APPRAISAL for any caller that
+                # did not supply them — the real feelings (eagerness/doubt/…) in
+                # place of the {"autonomous_confidence"} placeholder, and the
+                # interoceptive variables as system_state. A caller that passes
+                # its own richer value keeps it. None-valued fields are dropped,
+                # and nothing is invented when a variable was never measured.
+                def _present(d):
+                    return {k: v for k, v in d.items() if v is not None} or None
+                if not emotional_context:
+                    emotional_context = _present({
+                        "valence": getattr(_appraisal, "valence", None),
+                        "eagerness": getattr(_appraisal, "eagerness", None),
+                        "doubt": getattr(_appraisal, "doubt", None),
+                        "frustration": getattr(_appraisal, "frustration", None),
+                        "satisfaction": getattr(_appraisal, "satisfaction", None),
+                    })
+                if not system_state:
+                    system_state = _present({
+                        "activation": getattr(_appraisal, "activation", None),
+                        "confidence": getattr(_appraisal, "confidence", None),
+                        "controllability": getattr(_appraisal, "controllability", None),
+                        "progress": getattr(_appraisal, "progress", None),
+                        "competence": getattr(_appraisal, "competence", None),
+                        "goal_congruence": getattr(_appraisal, "goal_congruence", None),
+                        "agency": getattr(_appraisal, "agency", None),
+                        "risk": getattr(_appraisal, "risk", None),
+                        "epistemic_opportunity": getattr(
+                            _appraisal, "epistemic_opportunity", None),
+                    })
             else:
                 appraisal_snapshot = None
         except Exception as e:
