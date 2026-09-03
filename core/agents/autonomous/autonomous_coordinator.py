@@ -11455,7 +11455,28 @@ class Conversation:
         if str(getattr(result, "answer", "") or "").startswith("P("):
             return False
         route = (getattr(result, "metadata", None) or {}).get("route") or []
-        return bool(support) or ("concept_graph" in route)
+        # concept_graph walked a chain; held_rules PROVED it from taught rules +
+        # taught facts (a real Z3 derivation, not a word-overlap belief).
+        return bool(support) or ("concept_graph" in route) or ("held_rules" in route)
+
+    @staticmethod
+    def _affirmed(answer: str) -> Optional[bool]:
+        """Whether the reasoner AFFIRMED the affirmative proposition it was asked.
+
+        The reasoner reports its verdict in the answer text, and a yes/no reply
+        must follow THAT verdict — not merely the polarity of the question. A
+        stored denial makes the affirmative come back disproved ("No: …" from the
+        graph, "Disproved: …" from the solver), and reading only the question's
+        polarity would turn that disproof back into a "Yes". Returns True when the
+        affirmative holds, False when it is disproved, and None when the reasoner
+        did not decide it (so the caller asserts nothing)."""
+        text = str(answer or "").strip()
+        if text.startswith(("Proved", "Yes", "Entailed")):
+            return True
+        if text.startswith(("Disproved", "No:", "No ", "No,")):
+            return False
+        # "Not entailed …", "Undecided …", anything else: no decision.
+        return None
 
     async def _held_premises(self, sentence, resolved, harvest) -> List[str]:
         """Everything the substrate HOLDS about the topic, as premise sentences.
@@ -11539,14 +11560,50 @@ class Conversation:
         causal, open "what/why") is handed to the reasoner as-is; it formalises
         the query and derives the conclusion.
         """
-        premises = await self._held_premises(sentence, resolved, harvest)
-        if not premises:
-            return []
-
         from core.reasoning.neural_bridge import (ReasoningRequest,
                                                   get_neural_bridge)
         from core.semantics import derived_reader
+        from core.semantics.sentence_reader import SentenceReader
         bridge = get_neural_bridge()
+
+        premises = await self._held_premises(sentence, resolved, harvest)
+
+        # ACTION YES/NO — "does the tank overflow?". SentenceReader reads the
+        # auxiliary correctly (derived_reader mis-reads "does" as the subject),
+        # and the reasoner decides it over HELD RULES + HELD FACTS pulled from
+        # their own authorities — so a taught rule ("if the valve is closed then
+        # the tank overflows") firing on a taught fact ("the valve is closed")
+        # answers it. This runs BEFORE the premises guard because the answer can
+        # come from a rule even when the subject holds no stand-alone fact.
+        _sr = SentenceReader()
+        _goal = _sr._parse_goal(sentence)
+        if _goal and _goal.get("kind") in ("sv", "svo"):
+            result = await bridge.reason(ReasoningRequest(
+                query=sentence, context=premises))
+            if not (result.metadata or {}).get("verified") or not result.answer:
+                return []
+            chain = (result.metadata or {}).get("chain") or []
+            support = ((" → ".join(chain),) if len(chain) >= 2
+                       else self._support_used(premises, result.reasoning_steps))
+            if not self._grounded(result, support):
+                return []
+            affirmed = self._affirmed(result.answer)
+            if affirmed is None:
+                return []  # reasoner did not decide it — assert nothing
+            parts = _sr.clause_parts(_goal) or {}
+            claim = (chain[-1] if chain else " ".join(
+                str(p) for p in (parts.get("subject"), parts.get("relation"),
+                                 parts.get("obj")) if p))
+            # An action question is affirmative, so its verdict IS whether the
+            # action holds; polarity flipping is only for copular "is X not Y".
+            verdict = affirmed if parts.get("positive", True) else (not affirmed)
+            return [Answer(about=str(parts.get("subject") or ""),
+                           relation=str(parts.get("relation") or ""),
+                           others=((str(parts["obj"]),) if parts.get("obj") else ()),
+                           verdict=verdict, support=support, conclusion=claim)]
+
+        if not premises:
+            return []
 
         try:
             reading = derived_reader.read(sentence)
@@ -11579,11 +11636,19 @@ class Conversation:
             # the gap honestly instead of a fabricated yes.
             if not self._grounded(result, support):
                 return []
+            # FOLLOW THE REASONER'S VERDICT, not just the question's polarity. The
+            # affirmative "X is Y" may have been PROVED or DISPROVED (a stored
+            # denial disproves it); a yes/no must reflect which. Reading polarity
+            # alone would turn a disproof back into a "Yes".
+            affirmed = self._affirmed(result.answer)
+            if affirmed is None:
+                return []  # the affirmative was neither proved nor disproved
             claim = f"{subject} is {obj}".replace("_", " ")
-            # X IS Y is proved: "yes" when the question affirmed it, "no" when it
-            # denied it (the negation is false, and the reason is that X IS Y).
+            # "Yes" iff (affirmative holds) matches how the question asked it:
+            # affirmed + affirming question, or disproved + denying question.
+            verdict = (affirmed == (polarity == "affirms"))
             return [Answer(about=subject, relation="is", others=(obj,),
-                           verdict=(polarity == "affirms"),
+                           verdict=verdict,
                            support=support, conclusion=claim)]
 
         result = await bridge.reason(ReasoningRequest(query=sentence, context=premises))

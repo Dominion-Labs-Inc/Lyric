@@ -473,3 +473,47 @@ class SentenceReader:
         if kind == "relation":
             return self._render_relation(node)
         return None  # conjunction (two atoms), universal, or unsupported
+
+    #: Relations whose atom DROPS the relation, so the copula/classifier and the
+    #: property become one predicate: `X is Y`, `X isa Y`, `X has_property Y` all
+    #: name `x_y`. These are exactly the relations a bare copular fact is typed
+    #: as, so a rule clause stored with the surface `is` and a stand-alone fact
+    #: stored in the graph as `isa`/`has_property` render to the SAME atom.
+    _COPULAR_RELATIONS = frozenset({
+        "is", "are", "was", "were", "be", "been",
+        "isa", "is_a", "instance_of", "has_property",
+    })
+
+    def clause_atom(self, subject: str, relation: str,
+                    obj: Optional[str] = None, positive: bool = True
+                    ) -> Optional[str]:
+        """The signed atom for a clause given its STRUCTURED parts, without
+        re-reading any surface English.
+
+        This is the one vocabulary the reasoner formalizes held rules AND held
+        facts into: a held conditional's stored clause parts and a concept-graph
+        edge both pass through here, so `valve is closed` (a taught rule's
+        antecedent) and `valve isa closed` (the graph's fact) become the same
+        atom `valve_closed` and the rule fires. It reproduces exactly what
+        `_render_fact` / `_render_action` / `_render_relation` produce, so an
+        atom built from parts equals the atom built from a parsed node.
+
+        Returns None when the parts are not a single representable proposition
+        (missing subject/relation, or a copular clause with no complement)."""
+        subject = (subject or "").strip()
+        rel = (relation or "").strip()
+        if not subject or not rel:
+            return None
+        obj = (obj or "").strip() or None
+        if rel.lower().replace(" ", "_") in self._COPULAR_RELATIONS:
+            if not obj:
+                return None  # a copular clause needs a complement to classify
+            atom = self._atom(subject, obj)              # subject_prop, copula dropped
+        elif obj is None:
+            atom = (f"{self._singular(self._normalize(subject))}_"
+                    f"{self._singular(self._normalize(rel))}")
+        else:
+            atom = (f"{self._singular(self._normalize(subject))}_"
+                    f"{self._singular(self._normalize(rel))}_"
+                    f"{self._singular(self._normalize(obj))}")
+        return atom if positive else f"~{atom}"

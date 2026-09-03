@@ -2032,6 +2032,140 @@ class NeuralSymbolicBridge:
             },
         )
 
+    async def _answer_over_held_rules(
+        self, request: ReasoningRequest
+    ) -> Optional[ReasoningResult]:
+        """Answer a question by CHAINING the rules the substrate was TAUGHT.
+
+        Held conditionals live in the ingress authority (`held_conditionals`),
+        never re-parsed from surface text; held facts live in the concept graph.
+        Both are read in their STRUCTURED form and rendered to ONE atom
+        vocabulary by the reader — the same renderer the rule was stored through
+        — so a fact `valve isa closed` and a rule antecedent `valve is closed`
+        become the same atom `valve_closed`, and Z3 fires the rule. This is how
+        a taught rule ("if the valve is closed then the tank overflows") plus a
+        taught fact ("the valve is closed") answers "does the tank overflow?"
+        with a real proof, model-free.
+
+        Returns None (honest fall-through) when no taught rule bears on the
+        query, when no held fact fires one, or when the rules do not decide it —
+        never a guess, and it reaches each store through its own authority
+        rather than around it.
+        """
+        try:
+            from core.semantics.cognitive_ingress import get_cognitive_ingress
+            from core.reasoning.concept_graph_reasoning import load_subgraph
+            from core.database import get_database_manager
+        except Exception as e:
+            logger.debug("held-rule deps unavailable: %s", e)
+            return None
+
+        reader = SentenceReader()
+        goal_node = reader._parse_goal(str(request.query))
+        goal_parts = reader.clause_parts(goal_node) if goal_node else None
+        if not goal_parts:
+            return None  # not a single-clause question this path can carry
+        goal_atom = reader.clause_atom(**goal_parts)
+        if not goal_atom:
+            return None
+
+        conds = await get_cognitive_ingress().held_conditionals()
+        if not conds:
+            return None  # the substrate was taught no rules
+
+        def _unsigned(atom: str) -> str:
+            return atom.lstrip("~")
+
+        implications: List[str] = []
+        rule_atoms: set = set()          # unsigned atoms any rule speaks of
+        subjects: set = {reader._normalize(goal_parts["subject"])}
+        for c in conds:
+            ant_atom = reader.clause_atom(
+                c.get("ant_subject"), c.get("ant_relation"),
+                c.get("ant_object"), bool(c.get("ant_positive", True)))
+            cons_atom = reader.clause_atom(
+                c.get("cons_subject"), c.get("cons_relation"),
+                c.get("cons_object"), bool(c.get("cons_positive", True)))
+            if not ant_atom or not cons_atom:
+                continue
+            implications.append(f"({ant_atom}) -> ({cons_atom})")
+            for atom, subj in ((ant_atom, c.get("ant_subject")),
+                               (cons_atom, c.get("cons_subject"))):
+                rule_atoms.add(_unsigned(atom))
+                if subj:
+                    subjects.add(reader._normalize(subj))
+        if not implications:
+            return None
+
+        # A taught rule bears on the question only if the goal is in a rule's
+        # vocabulary. Otherwise no rule can decide it: fall through untouched.
+        if _unsigned(goal_atom) not in rule_atoms:
+            return None
+
+        # HELD FACTS from the concept-graph authority, rendered to the SAME atom
+        # vocabulary. Only facts that speak to a rule (or the goal) are asserted,
+        # so unrelated knowledge never enters this proof.
+        try:
+            db = get_database_manager()
+            if not getattr(db, "initialized", False):
+                await db.initialize()
+            edges = await load_subgraph(
+                db, sorted(s for s in subjects if s), max_hops=1)
+        except Exception as e:
+            logger.debug("held-rule fact load failed: %s", e)
+            return None
+
+        wanted = rule_atoms | {_unsigned(goal_atom)}
+        fact_atoms: List[str] = []
+        for edge in (edges or []):
+            rel = edge.relation.value if hasattr(edge.relation, "value") \
+                else str(edge.relation)
+            atom = reader.clause_atom(str(edge.subject), rel, str(edge.obj), True)
+            if atom and _unsigned(atom) in wanted:
+                fact_atoms.append(atom)
+        if not fact_atoms:
+            return None  # nothing held fires any rule — honestly not decided here
+
+        premises = list(dict.fromkeys(fact_atoms + implications))
+        formalization = Formalization(
+            statement=goal_atom, premises=premises, source="held_rules",
+            succeeded=True, requires_model=False)
+
+        result = await self._symbolic_reasoning(request, formalization=formalization)
+        if not (result.metadata or {}).get("verified"):
+            return None  # the rules do not decide it: let other routes try
+
+        # Make the proof groundable and showable on the conversation path: mark
+        # the route and surface the fired rule as a readable chain.
+        md = dict(result.metadata or {})
+        md["route"] = ["substrate", "held_rules", "proved"]
+        chain = self._held_rule_chain(reader, conds, goal_atom)
+        if chain:
+            md["chain"] = chain
+        result.metadata = md
+        return result
+
+    @staticmethod
+    def _held_rule_chain(reader: "SentenceReader", conds: List[Dict[str, Any]],
+                         goal_atom: str) -> List[str]:
+        """A readable two-node chain for the rule whose consequent is the goal —
+        `["valve is closed", "the tank overflows"]` — so a proof over taught
+        rules can SHOW which rule fired, not just that one did."""
+        goal = goal_atom.lstrip("~")
+        for c in conds:
+            cons_atom = reader.clause_atom(
+                c.get("cons_subject"), c.get("cons_relation"),
+                c.get("cons_object"), bool(c.get("cons_positive", True)))
+            if cons_atom and cons_atom.lstrip("~") == goal:
+                ant = " ".join(str(p) for p in (
+                    c.get("ant_subject"), c.get("ant_relation"),
+                    c.get("ant_object")) if p)
+                cons = " ".join(str(p) for p in (
+                    c.get("cons_subject"), c.get("cons_relation"),
+                    c.get("cons_object")) if p)
+                return [ant, cons]
+        return []
+
     async def _substrate_solvers(
         self,
         request: ReasoningRequest
@@ -2069,6 +2203,17 @@ class NeuralSymbolicBridge:
         graph_answer = await self._answer_over_concept_graph(request)
         if graph_answer is not None:
             return graph_answer
+
+        # HELD RULES over held facts. A taught conditional ("if the valve is
+        # closed then the tank overflows") fires when a taught fact ("the valve
+        # is closed") satisfies its antecedent — both read from their own
+        # authorities into one atom vocabulary and decided by Z3. Tried after the
+        # single-fact graph lookup (which settles direct ISA questions) and
+        # before the string formalizer, so rule-chained questions the graph
+        # cannot answer alone are decided here, model-free.
+        rule_answer = await self._answer_over_held_rules(request)
+        if rule_answer is not None:
+            return rule_answer
 
         try:
             formalization = await self._get_deterministic_formalizer().formalize(
