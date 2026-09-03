@@ -1232,6 +1232,19 @@ class EnhancedASISelfImprovement(IAdaptationEngine):
                     len(unrecovered), ", ".join(unrecovered))
             targets = [t for t in targets if t.component not in attempted]
 
+            # STALENESS (family B): a stored value that no longer matches the live
+            # reading is fixed by taking a FRESH one. `_remeasure` re-runs the health
+            # check and PERSISTS it, overwriting the stale value with the current one
+            # — so the re-measure is both the action and its own verification.
+            # Refreshed components are improvements, exactly like recoveries; ones
+            # that could not be re-measured are recorded, not silently dropped.
+            refresh = await self._refresh_stale_targets(targets)
+            cycle.metadata["staleness_refresh"] = refresh
+            for component in refresh["refreshed"]:
+                cycle.improvements_deployed.append(f"refreshed:{component}")
+            targets = [t for t in targets
+                       if t.component not in set(refresh["attempted"])]
+
             # ROUTE BY FAMILY. Code generation is the remedy for CODE_DEFECT only.
             # Every OTHER classified family (staleness, config, wiring, …) has no
             # generator-based fix — sending it to codegen is what produced the empty
@@ -1255,16 +1268,17 @@ class EnhancedASISelfImprovement(IAdaptationEngine):
 
             if not targets:
                 cycle.phase = ImprovementPhase.EVALUATION
-                cycle.success_rate = 1.0 if remediation["recovered"] else 0.0
+                acted = bool(remediation["recovered"] or refresh["refreshed"])
+                cycle.success_rate = 1.0 if acted else 0.0
                 cycle.end_time = datetime.now()
                 cycle.duration_sec = (cycle.end_time - cycle.start_time).total_seconds()
                 cycle.metadata["early_exit_reason"] = (
-                    "all_targets_remediated"
-                    if remediation["recovered"] and not awaiting
+                    "all_targets_remediated" if acted and not awaiting
                     else "no_code_defect_targets")
                 logger.info(
                     "✅ Cycle complete without generation: %d recovered, "
-                    "%d awaiting a remedy", len(remediation["recovered"]),
+                    "%d refreshed, %d awaiting a remedy",
+                    len(remediation["recovered"]), len(refresh["refreshed"]),
                     len(awaiting))
                 self.cycles.append(cycle)
                 await self._persist_cycle(cycle)
@@ -2431,6 +2445,50 @@ Return JSON:
         return {"health_score": float(score),
                 "status": record.status.value,
                 "issues": list(record.issues or [])}
+
+    async def _refresh_stale_targets(
+        self, targets: List[ImprovementTarget]
+    ) -> Dict[str, Any]:
+        """Remedy for STALENESS (family B): re-measure so the stored value becomes
+        current.
+
+        A stale reading — a value the store holds that no longer matches the live
+        one (a baseline frozen from an earlier, degraded moment) — is not fixed by
+        writing code; it is fixed by taking a fresh reading. `_remeasure` re-runs
+        the component's health check and PERSISTS the result, so the stale value is
+        overwritten with the current one. The re-measure is both the action and its
+        own verification: the reading it returns IS the now-current stored value,
+        and it returns None (a failure, recorded — never a silent skip) when the
+        component cannot be measured at all.
+        """
+        outcome: Dict[str, Any] = {"attempted": [], "refreshed": [],
+                                   "failed": [], "not_applicable": []}
+        for target in targets:
+            family = target.remedy_family or classify_defect(
+                (target.context or {}).get("issues", []), target.component)
+            if family is not RemedyFamily.STALENESS:
+                outcome["not_applicable"].append(target.component)
+                continue
+            outcome["attempted"].append(target.component)
+            try:
+                fresh = await self._remeasure(target.component)
+            except Exception as e:
+                raise_if_structural(
+                    e, "EnhancedASISelfImprovement._refresh_stale_targets")
+                logger.warning("stale re-measure failed for %s: %s",
+                               target.component, e)
+                outcome["failed"].append(target.component)
+                continue
+            if fresh is None:
+                outcome["failed"].append(target.component)
+                logger.info("stale target %s could not be re-measured",
+                            target.component)
+                continue
+            outcome["refreshed"].append(target.component)
+            logger.info("Refreshed stale reading for %s → %s (%.1f)",
+                        target.component, fresh.get("status"),
+                        fresh.get("health_score", 0.0))
+        return outcome
 
     async def _remediate_targets(
         self,
