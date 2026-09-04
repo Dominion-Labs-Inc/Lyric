@@ -2138,6 +2138,57 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
                                          "obj": obj, "domain": domain})
         return admission
 
+    async def learn_facts(self, facts, *, provenance: Any = None,
+                          domain: str = "conversation", fan_out: bool = True,
+                          remember: bool = True,
+                          progress: Any = None) -> Dict[str, int]:
+        """Teach MANY declarative facts through the ONE path, at lexicon scale.
+
+        Same authority as `learn_fact` — every relation is admitted through the
+        cognitive ingress (the concept graph the reasoner walks) — but the fan-out
+        to beliefs / lexicon / domain / metrics happens ONCE over the whole batch
+        of admitted clauses, not once per fact. Teaching a whole taxonomy fact by
+        fact re-runs that fan-out tens of thousands of times; this keeps the single
+        owner and its admission checks while making a reference-sized teach
+        practical. Returns {admitted, already, refused, total}.
+        """
+        from core.semantics.cognitive_ingress import (get_cognitive_ingress,
+                                                      Provenance)
+        prov = provenance or Provenance(producer="learning", source_id="you",
+                                        source_type="USER_SUPPLIED")
+        ingress = get_cognitive_ingress()
+        counts = {"admitted": 0, "already": 0, "refused": 0, "total": 0}
+        admitted_clauses = []
+        for subject, relation, obj in facts:
+            counts["total"] += 1
+            surface = " ".join(str(p) for p in (subject, relation, obj) if p)
+            try:
+                admission = await ingress.admit_relation(
+                    subject=subject, relation=relation, obj=obj, surface=surface,
+                    provenance=prov, positive=True, domain=domain,
+                    remember=remember)
+            except Exception:
+                counts["refused"] += 1
+                continue
+            if getattr(admission, "admitted", False):
+                counts["admitted"] += 1
+                admitted_clauses.append((subject, relation, obj))
+            elif getattr(admission, "already_present", False):
+                counts["already"] += 1
+            else:
+                counts["refused"] += 1
+            if progress and counts["total"] % 1000 == 0:
+                progress(counts)
+        # Fan out ONCE over everything that was newly admitted.
+        if fan_out and admitted_clauses:
+            await self._fan_out_learning(
+                surface=f"{len(admitted_clauses)} taught facts",
+                claim=f"{len(admitted_clauses)} taught facts",
+                clauses=admitted_clauses, positive=True, domain=domain,
+                emit=None, emit_payload={"kind": "bulk_facts", "domain": domain,
+                                         "count": len(admitted_clauses)})
+        return counts
+
     async def learn_rule(self, antecedent: Dict[str, Any],
                          consequent: Dict[str, Any], *, surface: str,
                          provenance: Any = None, domain: str = "conversation",
@@ -2180,6 +2231,38 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
             self.system_metrics.get("total_learning_sessions", 0) + 1
         return entry
 
+    def learn_words(self, words, *, source: str = "taught",
+                    authoritative: bool = False) -> Dict[str, int]:
+        """Teach MANY words' parts of speech through the one door, saving ONCE.
+
+        `learn_word` writes the whole lexicon to disk on every call; teaching a
+        reference vocabulary that way rewrites the file tens of thousands of
+        times. This proposes every (word, class) and persists once at the end,
+        the lexical-scale counterpart of `learn_facts`. A class outside
+        NOUN/ADJECTIVE/VERB is counted as refused rather than raising, so one bad
+        row never aborts a batch. `authoritative` lets a trusted lexical source's
+        POS tag correct an earlier unconfirmed guess (never a read-confirmed
+        one). Returns {proposed, already, refused, total}."""
+        from core.semantics.lexicon import get_lexicon, CLASSES
+        lex = get_lexicon()
+        counts = {"proposed": 0, "already": 0, "refused": 0, "total": 0}
+        for word, word_class in words:
+            counts["total"] += 1
+            head = str(word or "").strip().lower()
+            if not head or word_class not in CLASSES:
+                counts["refused"] += 1
+                continue
+            existing = lex.entry(head)
+            lex.propose(head, word_class, source, authoritative=authoritative)
+            if existing is not None and existing.word_class == word_class:
+                counts["already"] += 1
+            else:
+                counts["proposed"] += 1
+        lex.save()
+        self.system_metrics["total_learning_sessions"] = \
+            self.system_metrics.get("total_learning_sessions", 0) + 1
+        return counts
+
     async def _fan_out_learning(self, *, surface: str, claim: str,
                                 clauses: List[tuple], positive: bool,
                                 domain: str, emit: Any,
@@ -2188,16 +2271,25 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
         fact and a rule touch the SAME systems: LEXICON, BELIEFS, METRICS, and
         the DOMAIN (via the emitted event). Each arm is isolated — one failing
         never rolls back what already landed, and never breaks the caller."""
-        from core.semantics.lexicon import observe_proposition
+        from core.semantics.lexicon import observe_proposition, get_lexicon
         from core.reasoning.bayesian_uncertainty import get_uncertainty_system
-        # LEXICON: teaching teaches parts of speech.
+        # LEXICON: teaching teaches parts of speech. Persist ONCE over the whole
+        # batch -- observe_proposition writes the lexicon to disk per call, and a
+        # reference-sized teach would rewrite that file once per clause.
+        lexicon_touched = 0
         for (subj, rel, obj) in clauses:
             if not subj or not rel:
                 continue
             try:
-                observe_proposition(surface, subj, rel, obj, source="taught")
+                lexicon_touched += observe_proposition(
+                    surface, subj, rel, obj, source="taught", save=False)
             except Exception as error:
                 logger.debug("learning fan-out (lexicon) failed: %s", error)
+        if lexicon_touched:
+            try:
+                get_lexicon().save()
+            except Exception as error:
+                logger.debug("learning fan-out (lexicon save) failed: %s", error)
         # BELIEFS: a taught claim moves a posterior.
         try:
             get_uncertainty_system().observe_claim(

@@ -247,6 +247,40 @@ def _reduce_verb(word: str) -> str:
     return word
 
 
+def deinflect_verb(word: str) -> set:
+    """Candidate base forms of an inflected verb: `chased` -> {chase, chas}.
+
+    A lexicon built from a catalogue holds base forms -- `chase`, not `chased` --
+    and a catalogue also files some inflected forms as nouns (`burns`, `chased`).
+    So a verb standing in a sentence is often a word the reader knows only as the
+    wrong class, or not at all. This proposes the base forms to CHECK against the
+    lexicon; the reader keeps the base only if it is a known VERB, so a genuine
+    noun ending in -s never becomes a verb by spelling alone.
+
+    Rules, not a model: undo -s/-es/-ies, -ed, -ing, and the doubled consonant
+    the suffix leaves. It over-proposes on purpose -- every candidate still has
+    to be a verb the substrate was taught before it is believed.
+    """
+    w = (word or "").strip().lower()
+    if not w or not w.isalpha():
+        return set()
+    out = {w}
+    if w.endswith("ies") and len(w) > 4:
+        out.add(w[:-3] + "y")
+    if w.endswith("es") and len(w) > 3:
+        out.add(w[:-2])
+    if w.endswith("s") and len(w) > 2:
+        out.add(w[:-1])
+    for ending in ("ed", "ing"):
+        if w.endswith(ending) and len(w) > len(ending) + 1:
+            stem = w[: -len(ending)]
+            out.add(stem)
+            out.add(stem + "e")                       # chased -> chase, baking -> bake
+            undoubled = _DOUBLED.sub(r"\1", stem)     # stopped -> stop, running -> run
+            out.add(undoubled)
+    return out
+
+
 def canonical_label(label: str) -> str:
     """The identity-bearing form of a DOCUMENT-DERIVED label.
 

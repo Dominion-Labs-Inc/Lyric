@@ -80,13 +80,29 @@ class Lexicon:
         return list(self._entries.values())
 
     # ── writing ─────────────────────────────────────────────────────────────
-    def propose(self, word: str, word_class: str, source: str) -> Entry:
-        """Record a claim. Proposing does not make it true."""
+    def propose(self, word: str, word_class: str, source: str,
+                *, authoritative: bool = False) -> Entry:
+        """Record a claim. Proposing does not make it true.
+
+        `authoritative` marks a source the world already vouches for -- a
+        hand-built lexical resource's own POS tag, as against a reader's guess.
+        When it conflicts with an entry that is only PROPOSED (never attested by
+        a sentence reading), it REPLACES it: an unconfirmed guess yielding to a
+        better source is a correction, not the erasure of real evidence. It
+        never overrides a CONFIRMED entry -- there the world itself attested, and
+        that outranks any catalogue.
+        """
         if word_class not in CLASSES:
             raise ValueError(f"unknown word class {word_class!r}; expected {CLASSES}")
         key = word.lower()
         existing = self._entries.get(key)
         if existing and existing.word_class != word_class:
+            if authoritative and existing.status == PROPOSED:
+                entry = Entry(word=key, word_class=word_class, source=source)
+                entry.evidence.append(
+                    f"corrected from {existing.word_class} ({existing.source})")
+                self._entries[key] = entry
+                return entry
             # A second, different proposal does not overwrite the first: two
             # sources disagreeing is information, and silently taking the later
             # one would erase it.
@@ -178,7 +194,7 @@ def _has_article(sentence: str, word: str) -> bool:
 
 
 def observe_proposition(sentence: str, subject: str, relation: str, obj: str,
-                        *, source: str = "taught") -> int:
+                        *, source: str = "taught", save: bool = True) -> int:
     """Record the word classes a read proposition IMPLIES, so teaching a fact
     also teaches the reader the parts of speech it needs to read the next
     sentence.
@@ -209,6 +225,6 @@ def observe_proposition(sentence: str, subject: str, relation: str, obj: str,
         else:
             _record(obj, NOUN)
 
-    if proposed:
+    if proposed and save:
         lex.save()
     return proposed

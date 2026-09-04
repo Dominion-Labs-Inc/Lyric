@@ -259,13 +259,21 @@ class CognitiveIngress:
                              positive: bool = True,
                              description: str = "",
                              domain: str = "language",
-                             word_class_of=None) -> Admission:
+                             word_class_of=None,
+                             remember: bool = True) -> Admission:
         """Admit a proposition already split into its parts.
 
         The atom form (`cup_in_cabinet`) is one way to say a proposition and a
         lossy one -- a multi-word subject cannot survive it. A caller that
         already knows the seams passes them straight through rather than
         encoding them into a string for this to decode again.
+
+        `remember=False` admits the fact into the concept graph WITHOUT storing a
+        recallable episode. A reference taxonomy is knowledge, not something the
+        substrate was told in a conversation, and embedding tens of thousands of
+        `X isa Y` episodes is both slow and beside the point -- the graph is
+        where that knowledge is reasoned over. Ordinary teaching keeps the
+        episode (the default), so "what did you tell me" still has an answer.
         """
         from core.domain.concept_ingestion import EvidenceSourceType
 
@@ -284,12 +292,14 @@ class CognitiveIngress:
         self._seen.add(key)
         return await self._admit_parts(
             subject, relation, obj, positive, surface, provenance,
-            source_type, key, result, word_class_of, description, domain)
+            source_type, key, result, word_class_of, description, domain,
+            remember)
 
     async def _admit_parts(self, subject, relation, obj, positive, surface,
                            provenance, source_type, key, result,
                            word_class_of=None, description: str = "",
-                           domain: str = "language") -> Admission:
+                           domain: str = "language",
+                           remember: bool = True) -> Admission:
         """The one admission. Every caller funnels here."""
         from core.domain.concept_ingestion import EvidenceEnvelope
 
@@ -371,7 +381,7 @@ class CognitiveIngress:
                            result.proposition, error)
 
         result.memories = await self._remember(
-            result.proposition, surface, provenance, result)
+            result.proposition, surface, provenance, result) if remember else 0
         result.aliases_bound = await self._bind_aliases(terms, provenance)
         result.polarity = "positive" if positive else "negative"
         result.contradicts = await self._contradiction_check(

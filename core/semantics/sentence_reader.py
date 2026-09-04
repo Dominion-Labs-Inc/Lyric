@@ -65,6 +65,19 @@ class SentenceReader:
     _SV = re.compile(
         rf"^{_DETERMINER}(?P<subject>[\w'-]+)\s+(?P<verb>[\w'-]+)$",
         re.IGNORECASE)
+    #: `the battle happened in 1066`, `water flows through the pipe`. An action
+    #: with a prepositional phrase -- a subject, a verb, and the thing the verb
+    #: reaches THROUGH a preposition. The copular locative (`the cup is in the
+    #: box`) is already read above; this is its lexical-verb counterpart, and it
+    #: is where a date or a number most naturally appears in a sentence ("in
+    #: 1066", "on 2026-08-26"). The object admits digits, dots, slashes and
+    #: hyphens so a literal survives, and runs to at most three words.
+    _SVO_PREP = re.compile(
+        rf"^{_DETERMINER}(?P<subject>[\w'-]+)\s+(?P<verb>[\w'-]+)\s+"
+        rf"(?P<prep>in|on|at|by|under|inside|above|below|near|behind|through|"
+        rf"over|during|into|onto|from|to)\s+"
+        rf"(?:(?:a|an|the)\s+)?(?P<object>[\w./'-]+(?:\s+[\w./'-]+){{0,2}})$",
+        re.IGNORECASE)
     _UNIVERSAL = re.compile(
         r"^(?:all|every)\s+(?P<p>[\w\s'-]+?)\s+(?:are|is)\s+(?P<q>[\w\s'-]+)$",
         re.IGNORECASE,
@@ -165,6 +178,20 @@ class SentenceReader:
         if match:
             return self._read_copular(match, negated=False)
 
+        # An action reaching its object through a preposition. Tried before the
+        # bare SVO/SV, since "battle happened in 1066" has a prepositional phrase
+        # where SVO expects a single object. The verb is anchored the same way
+        # as SVO -- a known VERB, or a known NOUN subject standing before it --
+        # so nothing is read from an all-unknown sentence. The relation carries
+        # the verb AND the preposition ("happened in"), which is what tells
+        # `flows through` apart from `flows into`.
+        match = self._SVO_PREP.match(sentence)
+        if match:
+            if self._reads_as_verb(match.group("subject"), match.group("verb").lower()):
+                return {"kind": "svo", "subject": match.group("subject"),
+                        "verb": f"{match.group('verb').lower()} {match.group('prep').lower()}",
+                        "object": match.group("object")}
+
         # SVO / SV last, and only when the LEXICON identifies the verb.
         #
         # Tried after the copular forms because "the vault is locked" also
@@ -177,27 +204,8 @@ class SentenceReader:
             if not match:
                 continue
             verb = match.group("verb").lower()
-            verb_class = _word_class(verb)
-            if verb_class not in (None, "VERB"):
-                continue        # a known noun or adjective is not the action
-
-            if verb_class is None:
-                # THE KNOWN WORDS AROUND IT IDENTIFY THE VERB.
-                #
-                # Requiring the verb's class BEFORE parsing made a verb
-                # unlearnable: to read "the tank pushes water" you needed to
-                # know `pushes`, and the only way to learn `pushes` is to read a
-                # sentence using it. Measured: with the spelling guess removed,
-                # every verb exposure sentence stopped reading and all three
-                # verbs stayed undecided.
-                #
-                # The anchor is the subject. When the thing the sentence is
-                # about is a known NOUN, the word standing after it is the
-                # action -- which is how a learner meets a new verb. No anchor,
-                # no reading: this never guesses from an all-unknown sentence.
-                subject_class = _word_class(match.group("subject"))
-                if subject_class != "NOUN":
-                    continue
+            if not self._reads_as_verb(match.group("subject"), verb):
+                continue
             groups = match.groupdict()
             if kind == "svo":
                 return {"kind": "svo", "subject": groups["subject"],
@@ -205,6 +213,32 @@ class SentenceReader:
             return {"kind": "sv", "subject": groups["subject"], "verb": verb}
 
         return None
+    def _reads_as_verb(self, subject: str, verb: str) -> bool:
+        """Whether the word in the verb slot may be read as the action.
+
+        A KNOWN VERB is one. A known ADJECTIVE never is. A word whose de-inflected
+        form is a known VERB is one too -- `chased` reads as the verb `chase`
+        even though a catalogue also files `chased` as a noun -- which is what
+        lets a sentence built from taught base forms read without teaching every
+        tense. A known NOUN that is NOT an inflected verb is not the action.
+
+        THE KNOWN WORDS AROUND IT IDENTIFY THE VERB. A word with no class at all
+        is read as the verb only when the subject is a known NOUN: the thing the
+        sentence is about anchors the word after it as the action, which is how a
+        learner meets a new verb. No anchor, no reading -- this never guesses
+        from an all-unknown sentence."""
+        cls = _word_class(verb)
+        if cls == "VERB":
+            return True
+        if cls == "ADJECTIVE":
+            return False
+        from core.semantics.lexical_normalization import deinflect_verb
+        if any(_word_class(base) == "VERB" for base in deinflect_verb(verb)):
+            return True
+        if cls == "NOUN":
+            return False
+        return _word_class(subject) == "NOUN"
+
     def _read_copular(self, match, *, negated: bool) -> Dict[str, Any]:
         """Classify a copular sentence BEFORE deciding how to represent it.
 
