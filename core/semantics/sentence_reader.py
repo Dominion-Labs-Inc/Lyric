@@ -461,6 +461,24 @@ class SentenceReader:
                 return {"kind": "svo", "subject": match.group("subject"),
                         "verb": verb, "object": groups["object"]}
             return {"kind": "sv", "subject": match.group("subject"), "verb": verb}
+        # A WH question is OPEN -- the unknown is the answer, not the subject.
+        # "what is (a) X?" asks X's class; "what eats plankton?" names a relation
+        # and its object with the subject unknown. Extracted so gap detection and
+        # the open reasoner have the relation to work with; the yes/no machinery
+        # does not apply. why/how/when/where carry no single relation to lift and
+        # fall through to the statement reader.
+        wh = re.match(r"(?i)^(?:what|which|who|whom)\s+(?P<rest>.+?)\s*\??\s*$", text.strip())
+        if wh:
+            rest = wh.group("rest").strip()
+            cop = re.match(r"(?i)^(?:is|are)\s+(?:an?\s+|the\s+)?(?P<x>.+)$", rest)
+            if cop:
+                return {"kind": "open", "subject": cop.group("x").strip(),
+                        "relation": "is", "obj": None}
+            parts = rest.split(None, 1)
+            if len(parts) == 2:
+                return {"kind": "open", "subject": None,
+                        "relation": parts[0].lower(), "obj": parts[1].strip()}
+            return None
         return self._parse_statement(text)
     def _render_relation(self, node) -> str:
         """`the valve is in the pump` -> valve_in_pump (or ~valve_in_pump).
@@ -610,6 +628,9 @@ class SentenceReader:
         if kind == "relation":
             return {"subject": node["subject"], "relation": node["preposition"],
                     "obj": node["object"], "positive": not node.get("negated", False)}
+        if kind == "open":                       # a WH question: subject may be unknown
+            return {"subject": node.get("subject"), "relation": node.get("relation"),
+                    "obj": node.get("obj"), "positive": True}
         return None
 
     def render_clause(self, node: Dict[str, Any]) -> Optional[str]:
