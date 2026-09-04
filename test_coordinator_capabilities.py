@@ -20,10 +20,10 @@ async def test_capability_based_discovery():
     print("TEST: Autonomous Coordinator - Capability-Based Tool Discovery")
     print("="*80)
 
-    from core.agents.autonomous.general_purpose_executor import GeneralPurposeExecutor
+    from core.agents.autonomous.autonomous_coordinator import AutonomousCoordinator
     from core.tools import get_tool_registry
 
-    executor = GeneralPurposeExecutor()
+    executor = AutonomousCoordinator()
     # Set tool_registry directly for testing (normally set in initialize())
     executor.tool_registry = get_tool_registry()
 
@@ -112,10 +112,10 @@ async def test_keyword_vs_capability_comparison():
     print("COMPARISON: Keyword Matching vs Capability-Based Discovery")
     print("="*80)
 
-    from core.agents.autonomous.general_purpose_executor import GeneralPurposeExecutor
+    from core.agents.autonomous.autonomous_coordinator import AutonomousCoordinator
     from core.tools import get_tool_registry
 
-    executor = GeneralPurposeExecutor()
+    executor = AutonomousCoordinator()
     # Set tool_registry directly for testing (normally set in initialize())
     executor.tool_registry = get_tool_registry()
 

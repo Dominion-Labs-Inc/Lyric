@@ -917,9 +917,12 @@ class WebSearchTool(Tool):
         super().__init__()
         self.name = "web_search"
         self.description = (
-            "Search the live web using DuckDuckGo. Returns ranked results with "
-            "title, URL, and snippet for each hit. Use for current events, "
-            "research, documentation lookup, and real-world data."
+            "Look up what something is on the live web. Answers 'what is X', "
+            "finds the definition, meaning, or classification of an unfamiliar "
+            "term, word, concept, person, place, or entity, and closes a "
+            "knowledge gap about anything the substrate does not already hold. "
+            "Searches DuckDuckGo and returns ranked results (title, URL, snippet) "
+            "for current events, research, documentation, and real-world facts."
         )
         self.category = ToolCategory.NETWORK
         self.safety_level = ToolSafety.SAFE
@@ -997,6 +1000,26 @@ class WebSearchTool(Tool):
 
             if results is None:
                 return ToolResult(success=False, output=None, error="Search returned no results")
+
+            # CLEAN CONTENT for the top hit. A DuckDuckGo snippet drops the spaces
+            # around highlighted terms ("the Klein four-group is anabelian group")
+            # and prepends a date, so a reader cannot parse it. The article's own
+            # text, fetched and tag-stripped, is clean and canonical -- so the top
+            # result also carries `content`, the WHOLE readable page, which is what
+            # a caller should read rather than the snippet. The substrate is not a
+            # language model: it reads text deterministically and has no token
+            # budget, so the page is fetched in full, not truncated to a window.
+            if results and search_type == "text":
+                try:
+                    top_url = results[0].get("url", "")
+                    if top_url:
+                        fetched = await WebFetchTool().execute(url=top_url, extract="text", max_chars=200000)
+                        text = (getattr(fetched, "output", None) or {}).get("text", "") \
+                            if getattr(fetched, "success", False) else ""
+                        if text:
+                            results[0]["content"] = text
+                except Exception as _e:
+                    logger.debug("web_search top-hit content fetch skipped: %s", _e)
 
             return ToolResult(
                 success=True,
@@ -1118,11 +1141,13 @@ class WebFetchTool(Tool):
             ToolParameter(
                 name="max_chars",
                 type="number",
-                description="Maximum characters of text to return (default 8000)",
+                description=("Maximum characters of text to return. The substrate is "
+                             "not a language model and has no token budget, so the "
+                             "default returns the whole page; lower it only to sample."),
                 required=False,
-                default=8000,
+                default=200000,
                 min_value=500,
-                max_value=50000
+                max_value=5000000
             )
         ]
 
@@ -1188,10 +1213,18 @@ class WebFetchTool(Tool):
             if extract in ("text", "all"):
                 # Prefer <article> or <main>, fall back to <body>
                 body = soup.find("article") or soup.find("main") or soup.body
-                if body:
-                    text = " ".join(body.get_text(separator=" ", strip=True).split())
-                else:
-                    text = " ".join(soup.get_text(separator=" ", strip=True).split())
+                root = body or soup
+                # BY PARAGRAPH, not one flat get_text. A flat extraction glues a
+                # sidebar/navbox with no sentence boundary onto the lead ("Abelian
+                # variety Elliptic curve v t e In mathematics, the Klein four-group
+                # is an abelian group…"), so a reader sees one unparseable run.
+                # Pulling the block elements keeps each real paragraph a clean unit
+                # and drops the between-block glue.
+                blocks = root.find_all(["p", "li", "h1", "h2", "h3", "h4", "blockquote", "dd", "dt"])
+                parts = [" ".join(b.get_text(separator=" ", strip=True).split()) for b in blocks]
+                parts = [p for p in parts if p]
+                text = "\n".join(parts) if parts else \
+                    " ".join(root.get_text(separator=" ", strip=True).split())
                 result_data["text"] = text[:max_chars]
                 result_data["char_count"] = len(text)
                 result_data["truncated"] = len(text) > max_chars

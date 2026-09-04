@@ -17,7 +17,7 @@ sys.path.insert(0, str(tests_dir))
 
 from test_base import TestBase
 from core.services.unified_llm import get_llm_service
-from core.agents.autonomous.general_purpose_executor import GeneralPurposeExecutor
+from core.agents.autonomous.autonomous_coordinator import AutonomousCoordinator
 from core.agents.autonomous.shared_types import Task, TaskType, Priority
 
 
@@ -66,8 +66,8 @@ class CodeAnalysisToolsTests(TestBase):
         print("\n[SETUP] Loading LLM...")
         self.llm = get_llm_service()
         await self.llm.initialize()
-        self.executor = GeneralPurposeExecutor(torin_brain=self.llm)
-        await self.executor.initialize()
+        self.executor = AutonomousCoordinator(teacher_model=self.llm)
+        await self.executor.initialize_execution_faculty()
         print("✓ LLM loaded and executor initialized")
 
     async def teardown_llm(self):

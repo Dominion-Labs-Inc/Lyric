@@ -22,7 +22,7 @@ from pathlib import Path
 import pytest
 import pytest_asyncio
 
-from core.agents.autonomous.general_purpose_executor import GeneralPurposeExecutor
+from core.agents.autonomous.autonomous_coordinator import AutonomousCoordinator
 from core.agents.autonomous.shared_types import Task, TaskType
 from core.execution.effect_verification import (
     EffectVerdict, Polarity, RuntimeOutcome, ToolObservation, verify_effects,
@@ -149,7 +149,7 @@ def task_for(rule_id, operator):
 @pytest.mark.asyncio
 async def test_the_observation_comes_from_the_world_not_the_prediction(world_and_rule):
     world, _, stored = world_and_rule
-    result = await GeneralPurposeExecutor().execute_task(
+    result = await AutonomousCoordinator().execute_task(
         task_for(stored.rule_id, "SBMOVE(z, HALL, LAB)"))
 
     assert result["runtime_outcome"] == RuntimeOutcome.CONFIRMATION.value
@@ -167,7 +167,7 @@ async def test_a_world_that_moves_the_wrong_way_contradicts(world_and_rule):
     # The tool succeeds, but sends the agent somewhere the rule did not predict.
     get_binding_registry().register(DOMAIN, world.binding(destination_override="VAULT"))
 
-    result = await GeneralPurposeExecutor().execute_task(
+    result = await AutonomousCoordinator().execute_task(
         task_for(stored.rule_id, "SBMOVE(z, HALL, LAB)"))
 
     assert result["runtime_outcome"] == RuntimeOutcome.CONTRADICTION.value
@@ -181,7 +181,7 @@ async def test_a_world_that_moves_the_wrong_way_contradicts(world_and_rule):
 async def test_an_unobservable_world_is_indeterminate_not_confirmation(world_and_rule):
     """Execution occurred; whether the model held cannot be established."""
     world, _, stored = world_and_rule
-    executor = GeneralPurposeExecutor()
+    executor = AutonomousCoordinator()
 
     original = world.observe
     calls = {"n": 0}
@@ -207,7 +207,7 @@ async def test_absent_preconditions_prevent_any_tool_call(world_and_rule):
     """Authorization is re-checked against the OBSERVED world, and a refusal
     must not touch it."""
     world, _, stored = world_and_rule
-    result = await GeneralPurposeExecutor().execute_task(
+    result = await AutonomousCoordinator().execute_task(
         task_for(stored.rule_id, "SBMOVE(z, LAB, VAULT)"))  # z is in HALL
 
     assert result["success"] is False
@@ -229,7 +229,7 @@ async def test_a_rule_demoted_after_planning_does_not_execute(world_and_rule):
         "UPDATE unified.learned_rules SET epistemic_status = $1 WHERE rule_id = $2",
         (EpistemicStatus.SUPPORTED.value, stored.rule_id))
 
-    result = await GeneralPurposeExecutor().execute_task(
+    result = await AutonomousCoordinator().execute_task(
         task_for(stored.rule_id, "SBMOVE(z, HALL, LAB)"))
 
     # It fails CLOSED. Falling through to the model would let a step the
@@ -246,7 +246,7 @@ async def test_two_steps_compose_through_the_real_world(world_and_rule):
     """Step B must be authorized from the OBSERVED S1, not the planner's
     predicted S1."""
     world, _, stored = world_and_rule
-    executor = GeneralPurposeExecutor()
+    executor = AutonomousCoordinator()
 
     first = await executor.execute_task(task_for(stored.rule_id, "SBMOVE(z, HALL, LAB)"))
     assert first["runtime_outcome"] == RuntimeOutcome.CONFIRMATION.value
@@ -268,7 +268,7 @@ async def test_the_second_step_survives_a_restart(world_and_rule):
     for B is recovered from persistence and re-derived from the world."""
     world, _, stored = world_and_rule
 
-    first = await GeneralPurposeExecutor().execute_task(
+    first = await AutonomousCoordinator().execute_task(
         task_for(stored.rule_id, "SBMOVE(z, HALL, LAB)"))
     assert first["runtime_outcome"] == RuntimeOutcome.CONFIRMATION.value
 
@@ -276,7 +276,7 @@ async def test_the_second_step_survives_a_restart(world_and_rule):
                 if r.rule_id == stored.rule_id]
     assert reloaded, "the rule did not survive to authorize the second step"
 
-    second = await GeneralPurposeExecutor().execute_task(
+    second = await AutonomousCoordinator().execute_task(
         task_for(stored.rule_id, "SBMOVE(z, LAB, VAULT)"))
     assert second["runtime_outcome"] == RuntimeOutcome.CONFIRMATION.value
     assert (world.root / "VAULT" / "z").exists()
@@ -383,7 +383,7 @@ async def test_the_executor_itself_closes_the_loop(locked_world):
                             "grounded_operator": "SBMOVE(z, HALL, LAB)",
                             "domain_id": DOMAIN})
 
-    result = await GeneralPurposeExecutor().execute_task(task)
+    result = await AutonomousCoordinator().execute_task(task)
 
     assert result["runtime_outcome"] == RuntimeOutcome.CONTRADICTION.value
     assert result["attribution"] == Attribution.RULE_EVIDENCE.value
@@ -415,12 +415,12 @@ async def test_a_refuted_rule_stops_being_operational_knowledge(locked_world):
         await store.executable_rules(domain_id=DOMAIN), state, goal)
     assert before.operators, "the rule should be operational before the contradiction"
 
-    await GeneralPurposeExecutor().execute_task(task)
+    await AutonomousCoordinator().execute_task(task)
 
     after = ground_for_problem(
         await store.executable_rules(domain_id=DOMAIN), state, goal)
     assert after.operators == [], "planning still offers a refuted rule"
-    retry = await GeneralPurposeExecutor().execute_task(task)
+    retry = await AutonomousCoordinator().execute_task(task)
     assert retry["success"] is False
     assert "refuted" in retry["refused"]
 
@@ -438,7 +438,7 @@ async def test_torin_does_not_invent_the_condition_it_was_never_taught(locked_wo
                 provenance={"learned_rule_id": stored.rule_id,
                             "grounded_operator": "SBMOVE(z, HALL, LAB)",
                             "domain_id": DOMAIN})
-    await GeneralPurposeExecutor().execute_task(task)
+    await AutonomousCoordinator().execute_task(task)
 
     rules = await store.load(domain_id=DOMAIN)
     assert len(rules) == 1, "a replacement hypothesis was invented from one observation"
@@ -491,7 +491,7 @@ def test_encounter_driven_domain_install_from_a_workspace_task():
             "domain_id": domain_id, "workspace_root": str(root),
             "goal_conditions": conds})
 
-    ex = GeneralPurposeExecutor()
+    ex = AutonomousCoordinator()
     domain = "test_encounter_fs"
     unregister_explorable_domain(domain)
 

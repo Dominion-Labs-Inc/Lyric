@@ -134,7 +134,7 @@ def test_every_caller_of_the_recorder_says_why_the_task_ended():
 
     source = (Path(__file__).resolve().parents[1]
               / "core" / "agents" / "autonomous"
-              / "general_purpose_executor.py").read_text()
+              / "autonomous_coordinator.py").read_text()
 
     calls = [m.start() for m in re.finditer(r"await self\._record_tool_usage_outcome\(",
                                             source)]
@@ -175,7 +175,7 @@ def test_the_ranking_snapshot_is_actually_captured():
     below its top candidate" signal could not fire once."""
     source = (Path(__file__).resolve().parents[1]
               / "core" / "agents" / "autonomous"
-              / "general_purpose_executor.py").read_text()
+              / "autonomous_coordinator.py").read_text()
     assert "self._last_ranked_tools = " in source, (
         "the ranking snapshot has a reader but no writer again"
     )

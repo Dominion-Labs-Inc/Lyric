@@ -409,7 +409,7 @@ class AdaptiveToolLearning:
                               failure_reason: Optional[str] = None) -> None:
         """Record ONE tool run the ENGINE executed, for the tool-metrics history.
 
-        The engine (`general_purpose_executor._run_tool`) runs a handler-bound
+        The engine (`autonomous_coordinator._run_tool`) runs a handler-bound
         tool with no selection snapshot, so this is the seam for RAW per-run
         metrics — success/failure and latency per tool, attributed to the task —
         distinct from `observe()`, which assigns credit to a prior `select()`

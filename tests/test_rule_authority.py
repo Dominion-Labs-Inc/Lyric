@@ -27,7 +27,7 @@ from uuid import uuid4
 import pytest
 import pytest_asyncio
 
-from core.agents.autonomous.general_purpose_executor import GeneralPurposeExecutor
+from core.agents.autonomous.autonomous_coordinator import AutonomousCoordinator
 from core.agents.autonomous.planning_engine import PlanningEngine
 from core.agents.autonomous.shared_types import (
     Plan, Priority, Task, TaskStatus, TaskType, SystemState,
@@ -126,7 +126,7 @@ async def test_a_runtime_contradiction_writes_a_durable_authority_event(locked):
     task.provenance["plan_id"] = "plan_probe"
     task.provenance["goal_id"] = "goal_probe"
 
-    await GeneralPurposeExecutor().execute_task(task)
+    await AutonomousCoordinator().execute_task(task)
 
     events = await authority_history(store.db(), stored.rule_id)
     withdrawal = [e for e in events if e.lost_authority]
@@ -180,7 +180,7 @@ async def test_a_transition_to_the_same_status_is_not_an_event(locked):
 async def test_draining_is_once_only(locked):
     """Two consumers must not both act on the same withdrawal."""
     _, store, stored = locked
-    await GeneralPurposeExecutor().execute_task(
+    await AutonomousCoordinator().execute_task(
         task_for(stored.rule_id, "MOVE(z, HALL, LAB)"))
 
     pending = await pending_authority_changes(store.db())
@@ -198,7 +198,7 @@ async def test_the_event_outlives_the_object_that_wrote_it(locked):
     """Durability is the reason this is an event and not a method call: a
     consumer that was not running at the time must still find it."""
     _, store, stored = locked
-    await GeneralPurposeExecutor().execute_task(
+    await AutonomousCoordinator().execute_task(
         task_for(stored.rule_id, "MOVE(z, HALL, LAB)"))
 
     fresh = RuleStore()
@@ -286,7 +286,7 @@ async def test_a_plan_standing_on_a_refuted_rule_is_withdrawn(locked, engine):
     _, store, stored = locked
     plan = await _plan_on(engine, stored.rule_id, "goal_a")
 
-    await GeneralPurposeExecutor().execute_task(
+    await AutonomousCoordinator().execute_task(
         task_for(stored.rule_id, "MOVE(z, HALL, LAB)"))
     report = await engine.consume_rule_authority_changes()
 
@@ -304,7 +304,7 @@ async def test_completed_work_is_not_retracted(locked, engine):
     _, store, stored = locked
     plan = await _plan_on(engine, stored.rule_id, "goal_b")
 
-    await GeneralPurposeExecutor().execute_task(
+    await AutonomousCoordinator().execute_task(
         task_for(stored.rule_id, "MOVE(z, HALL, LAB)"))
     await engine.consume_rule_authority_changes()
 
@@ -322,7 +322,7 @@ async def test_a_queued_step_does_not_run_because_its_predecessor_finished(locke
     assert plan.tasks[1].id in {t.id for t in runnable_before}, \
         "step two should be dispatchable while the rule is validated"
 
-    await GeneralPurposeExecutor().execute_task(
+    await AutonomousCoordinator().execute_task(
         task_for(stored.rule_id, "MOVE(z, HALL, LAB)"))
 
     runnable_after = await engine.get_next_tasks(SystemState())
@@ -337,7 +337,7 @@ async def test_invalidation_does_not_spread_to_other_rules(locked, engine):
     affected = await _plan_on(engine, stored.rule_id, "goal_d")
     unrelated = await _plan_on(engine, "rule_someone_else", "goal_e")
 
-    await GeneralPurposeExecutor().execute_task(
+    await AutonomousCoordinator().execute_task(
         task_for(stored.rule_id, "MOVE(z, HALL, LAB)"))
     report = await engine.consume_rule_authority_changes()
 
@@ -353,7 +353,7 @@ async def test_a_second_pass_finds_nothing_left_to_do(locked, engine):
     _, store, stored = locked
     await _plan_on(engine, stored.rule_id, "goal_f")
 
-    await GeneralPurposeExecutor().execute_task(
+    await AutonomousCoordinator().execute_task(
         task_for(stored.rule_id, "MOVE(z, HALL, LAB)"))
     first = await engine.consume_rule_authority_changes()
     second = await engine.consume_rule_authority_changes()
@@ -392,7 +392,7 @@ async def _appraise_one_execution(world, store, stored, operator="MOVE(z, HALL, 
     previous = appraisal_module._appraisal_system
     appraisal_module._appraisal_system = AppraisalSystem()
     try:
-        result = await GeneralPurposeExecutor().execute_task(
+        result = await AutonomousCoordinator().execute_task(
             task_for(stored.rule_id, operator))
         return result, appraisal_module._appraisal_system.current_state
     finally:
@@ -506,7 +506,7 @@ async def test_a_confirmed_rule_does_not_ask_for_replanning():
     previous = appraisal_module._appraisal_system
     appraisal_module._appraisal_system = AppraisalSystem()
     try:
-        result = await GeneralPurposeExecutor().execute_task(
+        result = await AutonomousCoordinator().execute_task(
             task_for(stored.rule_id, "MOVE(z, HALL, LAB)"))
         state = appraisal_module._appraisal_system.current_state
     finally:
@@ -542,7 +542,7 @@ async def test_a_goal_whose_route_was_withdrawn_is_replanned(locked, engine):
     plan = await _plan_on(engine, stored.rule_id, "goal_h")
     goal_id = plan.goal_id
 
-    await GeneralPurposeExecutor().execute_task(
+    await AutonomousCoordinator().execute_task(
         task_for(stored.rule_id, "MOVE(z, HALL, LAB)"))
     await engine.consume_rule_authority_changes()
     assert plan.status == "invalidated"

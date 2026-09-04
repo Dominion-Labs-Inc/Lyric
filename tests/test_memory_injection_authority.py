@@ -13,7 +13,7 @@ Torin had THREE independent answers to "should prior context enter cognition":
 
   1. MemoryInjectionPolicy.decide()          consulted only by the coordinator
   2. MemoryInjector._should_search_memories() its own keyword/complexity gate
-  3. GeneralPurposeExecutor task-start block  NO gate at all, hardcoded
+  3. AutonomousCoordinator task-start block  NO gate at all, hardcoded
                                               min_similarity=0.7, limit=3
 
 They did not agree, and the disagreement was not theoretical — see

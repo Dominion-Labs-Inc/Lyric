@@ -153,7 +153,7 @@ async def main():
     try:
         from core.services.unified_llm import get_llm_service
         from core.tools.tool_registry import get_tool_registry
-        from core.agents.autonomous.general_purpose_executor import GeneralPurposeExecutor
+        from core.agents.autonomous.autonomous_coordinator import AutonomousCoordinator
         from core.agents.autonomous.shared_types import Task, TaskType, Priority
 
         llm = get_llm_service()
@@ -164,11 +164,11 @@ async def main():
         results["total_tools"] = len(tools)
         print(f"✓ Found {len(tools)} tools")
 
-        executor = GeneralPurposeExecutor(torin_brain=llm)
-        await executor.initialize()
+        executor = AutonomousCoordinator(teacher_model=llm)
+        await executor.initialize_execution_faculty()
         print("✓ Executor initialized with LLM")
 
-        logging.getLogger('core.agents.autonomous.general_purpose_executor').setLevel(logging.WARNING)
+        logging.getLogger('core.agents.autonomous.autonomous_coordinator').setLevel(logging.WARNING)
 
     except Exception as e:
         print(f"✗ FATAL: {e}")

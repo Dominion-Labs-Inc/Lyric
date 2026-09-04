@@ -27,7 +27,7 @@ from types import SimpleNamespace
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
-from core.agents.autonomous.general_purpose_executor import GeneralPurposeExecutor  # noqa: E402
+from core.agents.autonomous.autonomous_coordinator import AutonomousCoordinator  # noqa: E402
 from core.database.unified_database_postgres import get_unified_database  # noqa: E402
 from core.model_policy import assert_model_free, model_telemetry  # noqa: E402
 from experiments.e2e_world import FilesystemWorld, ITEM  # noqa: E402
@@ -54,7 +54,7 @@ async def main() -> int:
                     "domain_id": DOMAIN, "plan_id": None, "goal_id": None},
     )
 
-    executor = GeneralPurposeExecutor()
+    executor = AutonomousCoordinator()
     result = await executor._try_substrate_execution(task)
     if result is None:
         print("ABORT: the substrate path did not engage")

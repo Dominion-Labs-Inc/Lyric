@@ -61,7 +61,7 @@ class ToolIntegrationTests(TestBase):
     async def setup(self):
         """Initialize test environment"""
         from core.tools.tool_registry import get_tool_registry
-        from core.agents.autonomous.general_purpose_executor import GeneralPurposeExecutor
+        from core.agents.autonomous.autonomous_coordinator import AutonomousCoordinator
 
         # Create test output directory
         os.makedirs(self.test_output_dir, exist_ok=True)
@@ -70,8 +70,8 @@ class ToolIntegrationTests(TestBase):
         self.registry = get_tool_registry()
 
         # Initialize executor
-        self.executor = GeneralPurposeExecutor()
-        await self.executor.initialize()
+        self.executor = AutonomousCoordinator()
+        await self.executor.initialize_execution_faculty()
 
     async def cleanup(self):
         """Clean up test files"""

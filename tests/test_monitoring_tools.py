@@ -18,14 +18,14 @@ async def main():
     print("\n[SETUP] Loading LLM...")
     from core.services.unified_llm import get_llm_service
     from core.tools.tool_registry import get_tool_registry
-    from core.agents.autonomous.general_purpose_executor import GeneralPurposeExecutor
+    from core.agents.autonomous.autonomous_coordinator import AutonomousCoordinator
     from core.agents.autonomous.shared_types import Task, TaskType, Priority
 
     llm = get_llm_service()
     await llm.initialize()
     tool_registry = get_tool_registry()
-    executor = GeneralPurposeExecutor(torin_brain=llm)
-    await executor.initialize()
+    executor = AutonomousCoordinator(teacher_model=llm)
+    await executor.initialize_execution_faculty()
     print("✓ LLM loaded and executor initialized")
 
     monitoring_tools = [

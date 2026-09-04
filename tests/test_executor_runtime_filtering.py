@@ -2,7 +2,7 @@
 """Unit tests for executor runtime preflight + tool filtering.
 
 These tests are intentionally lightweight (no LLM calls) and validate that
-`GeneralPurposeExecutor`:
+`AutonomousCoordinator`:
 - filters Slack tools when Slack is not configured
 - filters Slack API tools when only webhooks are configured
 - enforces a minimum observable action for extrinsic JSON tasks
@@ -43,16 +43,16 @@ def _unconfigured_executor():
     os.environ, so the test was really asserting against whatever survived
     that mutation.)
     """
-    from core.agents.autonomous.general_purpose_executor import GeneralPurposeExecutor
+    from core.agents.autonomous.autonomous_coordinator import AutonomousCoordinator
 
-    executor = GeneralPurposeExecutor(torin_brain=object())
+    executor = AutonomousCoordinator(teacher_model=object())
     executor._env_loaded = True
     executor._dotenv_values = {}
     return executor
 
 
 def test_filters_all_slack_tools_when_unconfigured(monkeypatch):
-    from core.agents.autonomous.general_purpose_executor import GeneralPurposeExecutor
+    from core.agents.autonomous.autonomous_coordinator import AutonomousCoordinator
 
     _clear_slack_env(monkeypatch)
 
@@ -71,7 +71,7 @@ def test_filters_all_slack_tools_when_unconfigured(monkeypatch):
 
 
 def test_filters_slack_api_tools_without_bot_token(monkeypatch):
-    from core.agents.autonomous.general_purpose_executor import GeneralPurposeExecutor
+    from core.agents.autonomous.autonomous_coordinator import AutonomousCoordinator
 
     _clear_slack_env(monkeypatch)
     monkeypatch.setenv("SLACK_WEBHOOK_URL", "https://example.invalid/webhook")

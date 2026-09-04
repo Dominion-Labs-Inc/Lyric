@@ -29,7 +29,7 @@ import pytest
 import pytest_asyncio
 
 from core.agents.autonomous.execution_plan_adapter import state_plan_to_tasks
-from core.agents.autonomous.general_purpose_executor import GeneralPurposeExecutor
+from core.agents.autonomous.autonomous_coordinator import AutonomousCoordinator
 from core.agents.autonomous.shared_types import Goal, Priority, Task, TaskType
 from core.execution.effect_verification import RuntimeOutcome
 from core.execution.operator_binding import get_binding_registry
@@ -242,7 +242,7 @@ async def test_a_program_is_planned_and_run_over_values_that_did_not_exist_yet(t
         # the world and that is where the later steps read it from.
         if index == 2:
             task = restarted(task)
-        outcome = await GeneralPurposeExecutor().execute_task(task)
+        outcome = await AutonomousCoordinator().execute_task(task)
         executed.append(outcome)
         assert outcome["success"] is True, outcome
         assert outcome["runtime_outcome"] == RuntimeOutcome.CONFIRMATION.value
@@ -279,21 +279,21 @@ async def test_a_file_that_is_not_a_number_stops_the_program_rather_than_inventi
     _, result = plan_for(world, rules, Fact("WRITTEN", ("34",)))
     tasks = tasks_for(result, Fact("WRITTEN", ("34",)))
 
-    read = await GeneralPurposeExecutor().execute_task(tasks[0])
+    read = await AutonomousCoordinator().execute_task(tasks[0])
     assert read["success"] is True
     assert Fact("TEXT", ("hello",)) in world.observe()
 
     # The rule predicted the number register would hold what the text held.
     # It does not, because `hello` is not a number -- and the substrate finds
     # that out from the world rather than from the tool, which succeeded.
-    parse = await GeneralPurposeExecutor().execute_task(tasks[1])
+    parse = await AutonomousCoordinator().execute_task(tasks[1])
     assert parse["runtime_outcome"] == RuntimeOutcome.CONTRADICTION.value
     assert parse["success"] is False
     assert not [f for f in world.observe() if f.predicate == "NUMBER"]
 
     # And the step that would have computed with it refuses, naming what is
     # missing rather than proceeding on a value nothing produced.
-    multiply = await GeneralPurposeExecutor().execute_task(tasks[2])
+    multiply = await AutonomousCoordinator().execute_task(tasks[2])
     assert multiply["success"] is False
     assert "does not hold in the observed world" in multiply["refused"]
     assert not [f for f in world.observe() if f.predicate == "PRODUCT"]

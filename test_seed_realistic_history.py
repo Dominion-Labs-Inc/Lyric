@@ -83,9 +83,9 @@ async def seed_realistic_history(motivation_system):
     # ========================================================================
     print("📊 Seeding component performance baselines...")
 
-    # Based on observed failures: general_purpose_executor and slack_notifier are problematic
+    # Based on observed failures: autonomous_coordinator and slack_notifier are problematic
     component_baselines = {
-        'general_purpose_executor': {
+        'autonomous_coordinator': {
             'epistemic_uncertainty': 0.72,  # High uncertainty - tool selection issues
             'impact_radius': 0.85,          # High impact - core execution
             'performance_degradation': 0.60, # Moderate degradation
@@ -129,7 +129,7 @@ async def seed_realistic_history(motivation_system):
 
     # Simulate degrading performance for problematic components
     metric_history = {
-        'general_purpose_executor': [
+        'autonomous_coordinator': [
             {'epistemic_uncertainty': 0.45, 'performance_degradation': 0.30},  # 5 iterations ago
             {'epistemic_uncertainty': 0.55, 'performance_degradation': 0.40},  # 4 iterations ago
             {'epistemic_uncertainty': 0.62, 'performance_degradation': 0.50},  # 3 iterations ago
@@ -210,7 +210,7 @@ async def seed_realistic_history(motivation_system):
     print("=" * 80)
     print()
     print("Key patterns seeded:")
-    print("  - general_purpose_executor: Rising uncertainty (0.45 → 0.72)")
+    print("  - autonomous_coordinator: Rising uncertainty (0.45 → 0.72)")
     print("  - slack_notifier: Degrading performance (0.60 → 0.75)")
     print("  - Tool sequence repetition detected (potential loop)")
     print("  - Monitoring theme heavily explored (8x)")

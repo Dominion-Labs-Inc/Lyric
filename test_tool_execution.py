@@ -290,16 +290,16 @@ Choose the appropriate tool and respond with the JSON format."""
         results["failed"] += 1
         print(f"✗ FAIL: {e}")
 
-    # Test 9: Test general_purpose_executor import
-    print("\n[TEST 9] Testing GeneralPurposeExecutor import...")
+    # Test 9: Test autonomous_coordinator import
+    print("\n[TEST 9] Testing AutonomousCoordinator import...")
     try:
-        from core.agents.autonomous.general_purpose_executor import GeneralPurposeExecutor
-        executor = GeneralPurposeExecutor(torin_brain=llm)
-        await executor.initialize()
+        from core.agents.autonomous.autonomous_coordinator import AutonomousCoordinator
+        executor = AutonomousCoordinator(teacher_model=llm)
+        await executor.initialize_execution_faculty()
 
         executor_active = getattr(executor, 'active', getattr(executor, 'initialized', 'Unknown'))
         results["tests"].append({
-            "name": "GeneralPurposeExecutor import",
+            "name": "AutonomousCoordinator import",
             "status": "PASS",
             "details": f"Executor status: {executor_active}"
         })
@@ -307,7 +307,7 @@ Choose the appropriate tool and respond with the JSON format."""
         print(f"✓ PASS: Executor initialized (status: {executor_active})")
     except Exception as e:
         results["tests"].append({
-            "name": "GeneralPurposeExecutor import",
+            "name": "AutonomousCoordinator import",
             "status": "FAIL",
             "error": str(e)
         })
@@ -329,7 +329,7 @@ Choose the appropriate tool and respond with the JSON format."""
 
         # Enable debug logging
         import logging
-        logging.getLogger('core.agents.autonomous.general_purpose_executor').setLevel(logging.INFO)
+        logging.getLogger('core.agents.autonomous.autonomous_coordinator').setLevel(logging.INFO)
 
         result = await executor.execute_task(simple_task)
 

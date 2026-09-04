@@ -33,7 +33,7 @@ Test suites:
   direct    -- tool functions execute with known inputs (bypasses LLM entirely)
   llm       -- model emits a correctly-named tool call for a minimal prompt
   roundtrip -- LLM calls tool → registry executes → result fed back → model summarises
-  task      -- full GeneralPurposeExecutor end-to-end agentic loop
+  task      -- full AutonomousCoordinator end-to-end agentic loop
   upgrade   -- LIVE SELF-UPGRADE CYCLE (8 phases):
                  1. Research (≥5 searches) — find a real breakthrough or best practice
                  2. Internal analysis — read own code, identify the target gap
@@ -123,8 +123,8 @@ DIAG_TESTS: List[Dict[str, Any]] = [
     {
         "id":     "search_code_class",
         "tool":   "grep_search",
-        "args":   {"pattern": "class GeneralPurposeExecutor", "path": "core", "is_regex": False, "file_pattern": "*.py"},
-        "prompt": "Search the codebase for 'class GeneralPurposeExecutor'.",
+        "args":   {"pattern": "class AutonomousCoordinator", "path": "core", "is_regex": False, "file_pattern": "*.py"},
+        "prompt": "Search the codebase for 'class AutonomousCoordinator'.",
         "verify": lambda r: isinstance(r.get("matches"), list),
     },
     {
@@ -481,7 +481,7 @@ async def suite_round_trip(llm, registry, tool_schemas: List[Dict],
 
 # =============================================================================
 # SECTION 7: SUITE 5 -- FULL TASK EXECUTION
-# Drives the real GeneralPurposeExecutor end-to-end.
+# Drives the real AutonomousCoordinator end-to-end.
 # Diagnoses: capability inference, tool selection, agentic loop, completion.
 # =============================================================================
 
@@ -1119,12 +1119,12 @@ async def main() -> None:
 
         await llm.shutdown()
 
-    # Task suite: GeneralPurposeExecutor (LLM + registry + neural bridge +
+    # Task suite: AutonomousCoordinator (LLM + registry + neural bridge +
     # context manager + memory agent with loops suppressed — no DB, no Slack)
     # EnhancedASISelfImprovement is injected directly (no AutonomousCoordinator —
     # the coordinator's 20+ subsystem init blows out llama.cpp memory on MPS).
     if args.suite in ("task", "upgrade", "import", "all"):
-        log.info("\nInitialising GeneralPurposeExecutor+EnhancedASI for task suite...")
+        log.info("\nInitialising AutonomousCoordinator+EnhancedASI for task suite...")
         log.info("  Boots: LLM, ToolRegistry, NeuralBridge, ContextManager, MemoryAgent")
         log.info("  Injected: EnhancedASISelfImprovement (Validator/Sandbox/Deployer)")
         log.info("  Suppressed: DB, Slack, background cognitive loops, memory capture")
@@ -1135,15 +1135,15 @@ async def main() -> None:
         if args.suite == "import":
             log.info("  MODE: Import Repair Cycle — find broken imports, fix them, verify all pass")
         try:
-            from core.agents.autonomous.general_purpose_executor import GeneralPurposeExecutor
+            from core.agents.autonomous.autonomous_coordinator import AutonomousCoordinator
             from core.learning.enhanced_asi_self_improvement import EnhancedASISelfImprovement
-            task_executor = GeneralPurposeExecutor()
+            task_executor = AutonomousCoordinator()
             # Inject EnhancedASI BEFORE initialize() so it's live when the task runs.
             # This wires UpgradeValidator/UpgradeSandbox/SafeUpgradeDeployer hard-abort
             # gates that are otherwise completely bypassed in bare-executor mode.
             _asi = EnhancedASISelfImprovement()
-            await task_executor.initialize()
-            log.info("OK  GeneralPurposeExecutor+EnhancedASI ready  (asi=%s)",
+            await task_executor.initialize_execution_faculty()
+            log.info("OK  AutonomousCoordinator+EnhancedASI ready  (asi=%s)",
                      _asi.__class__.__name__)
             await suite_task_execution(task_executor, diag, suite=args.suite)
         except Exception as e:

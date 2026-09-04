@@ -372,7 +372,16 @@ class SentenceReader:
                     "reason": "a noun cannot be a property",
                     "genericity": "n/a", "cue": f"{prop} is a known noun"}
 
-        reading = classify_genericity(subject, prop, determiner)
+        # A MODIFIED NOUN-PHRASE complement still names a kind by its head noun.
+        # The genericity classifier only reads a bare "a/an NOUN" as denoting a
+        # kind, so "X is an electrical component" was dropped as ambiguous and
+        # the definitional sentence read as nothing. Classify by the head, but
+        # keep the FULL class name (minus any elaborating tail) as the predicate
+        # -- so "abelian group" survives and is never flattened to "group".
+        class_np = self._head_np(prop)
+        head = self._np_head(prop)
+        classify_prop = f"a {head}" if head else class_np
+        reading = classify_genericity(subject, classify_prop, determiner)
 
         if reading.genericity is Genericity.GENERIC_KIND:
             # A claim about a KIND. `_normalize` strips the complement's
@@ -380,7 +389,7 @@ class SentenceReader:
             return {
                 "kind": "universal",
                 "p": subject,
-                "q": prop,
+                "q": class_np,
                 "negated": negated,
                 "genericity": reading.genericity.value,
                 "cue": reading.cue,
@@ -391,7 +400,7 @@ class SentenceReader:
             return {
                 "kind": "fact",
                 "subject": subject,
-                "prop": prop,
+                "prop": class_np,
                 "negated": negated,
                 "genericity": reading.genericity.value,
                 "cue": reading.cue,
@@ -536,7 +545,9 @@ class SentenceReader:
         in turn."""
         out: List[Dict[str, Any]] = []
         seen = set()
-        for sentence in re.split(r"(?<=[.!?])\s+", str(text).strip()):
+        # A newline ends a unit too: extracted text arrives one paragraph/heading
+        # per line, and a heading or list item often carries no full stop.
+        for sentence in re.split(r"(?<=[.!?])\s+|\n+", str(text).strip()):
             for clause in self._decompose(sentence):
                 node = self._parse_statement(clause)
                 if not node:
@@ -560,12 +571,36 @@ class SentenceReader:
     #: integers", "field of fractions").
     _NP_TAIL = re.compile(
         r"(?i)(?:,|\s+(?:with|which|that|whose|having|where|containing|used|so|"
-        r"in which|such that|defined|consisting|equipped|denoted|written)\b)")
+        r"in which|such that|defined|consisting|equipped|denoted|written|"
+        r"relating|representing|describing|comprising|connecting|linking|"
+        r"formed|based|derived|introduced|invented|characterized)\b)")
 
     def _head_np(self, phrase: str) -> str:
         """The head noun phrase of a complement -- the class -- without the
         relative/prepositional tail that elaborates rather than names it."""
         return self._NP_TAIL.split(str(phrase), 1)[0].strip() or str(phrase).strip()
+
+    def _np_head(self, phrase: str) -> Optional[str]:
+        """The HEAD noun of a determiner-led noun-phrase complement, or None if
+        `phrase` is not one. "an electrical component" -> "component";
+        "a non-linear two-terminal electrical component relating charge" ->
+        "component". A determiner marks the complement as naming a KIND (an NP),
+        which is what separates it from a bare adjective property ("mechanically
+        flexible", no determiner -> None). English NP heads are final, so after
+        dropping the elaborating tail the head is the last word of the core.
+
+        Used ONLY to decide representability: the genericity classifier
+        recognises a bare "a/an NOUN" as denoting a kind but drops a MODIFIED NP
+        as ambiguous, so a definitional "X is an electrical component" read as
+        nothing. The full class name is kept for the stored fact -- the head is
+        never substituted for it -- so "abelian group" is not flattened to
+        "group"."""
+        core = self._head_np(phrase)
+        m = re.match(r"(?i)^(?:a|an|the)\s+(.+)$", core)
+        if not m:
+            return None
+        words = m.group(1).split()
+        return words[-1] if words else None
 
     def _decompose(self, sentence: str) -> List[str]:
         """Split one sentence into simple clauses that share the subject.

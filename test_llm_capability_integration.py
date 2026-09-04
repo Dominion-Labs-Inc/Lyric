@@ -178,11 +178,11 @@ async def test_llm_with_capability_discovery():
     print("TEST 3: End-to-End LLM + Capability Discovery")
     print("="*80)
 
-    from core.agents.autonomous.general_purpose_executor import GeneralPurposeExecutor
+    from core.agents.autonomous.autonomous_coordinator import AutonomousCoordinator
     from core.tools import get_tool_registry
 
-    executor = GeneralPurposeExecutor()
-    await executor.initialize()
+    executor = AutonomousCoordinator()
+    await executor.initialize_execution_faculty()
 
     # Real-world task scenarios
     test_scenarios = [
@@ -241,11 +241,11 @@ async def test_llm_tool_execution_with_capabilities():
     print("TEST 4: LLM Tool Execution via Capability System")
     print("="*80)
 
-    from core.agents.autonomous.general_purpose_executor import GeneralPurposeExecutor
+    from core.agents.autonomous.autonomous_coordinator import AutonomousCoordinator
     from core.agents.autonomous.shared_types import Task, TaskType, Priority, TaskSource
 
-    executor = GeneralPurposeExecutor()
-    await executor.initialize()
+    executor = AutonomousCoordinator()
+    await executor.initialize_execution_faculty()
 
     # Create a simple task that requires capability-based tool selection
     task = Task(
@@ -301,11 +301,11 @@ async def test_context_matching_accuracy():
     print("TEST 5: Context Matching Accuracy")
     print("="*80)
 
-    from core.agents.autonomous.general_purpose_executor import GeneralPurposeExecutor
+    from core.agents.autonomous.autonomous_coordinator import AutonomousCoordinator
     from core.tools import get_tool_registry
 
-    executor = GeneralPurposeExecutor()
-    await executor.initialize()
+    executor = AutonomousCoordinator()
+    await executor.initialize_execution_faculty()
 
     # Similar tasks should get similar tool sets
     similar_task_groups = [

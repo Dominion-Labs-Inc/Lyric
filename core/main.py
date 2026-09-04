@@ -1330,12 +1330,9 @@ class TorinAISystem:
                     from core.database import get_database_manager
 
                     _atl = get_adaptive_tool_learning(get_database_manager())
+                    # Execution is the coordinator's own faculty now; the tool-metrics
+                    # owner is set directly on it.
                     self.autonomous_coordinator.adaptive_tool_learning = _atl
-                    if getattr(self.autonomous_coordinator, "executor", None):
-                        self.autonomous_coordinator.executor.adaptive_tool_learning = _atl
-                        # The attribute both halves were gating on. Present now,
-                        # so the writer is reachable.
-                        self.autonomous_coordinator.executor.db_manager = get_database_manager()
                     _st = await _atl.status()
                     logger.info(
                         f"✓ Adaptive tool learning connected — mode={_st['mode']} "

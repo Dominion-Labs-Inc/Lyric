@@ -211,11 +211,11 @@ async def test_llm_security_task_execution():
     print("TEST 4: LLM Security Task Execution")
     print("="*80)
 
-    from core.agents.autonomous.general_purpose_executor import GeneralPurposeExecutor
+    from core.agents.autonomous.autonomous_coordinator import AutonomousCoordinator
     from core.agents.autonomous.shared_types import Task, TaskType, Priority, TaskSource
 
-    executor = GeneralPurposeExecutor()
-    await executor.initialize()
+    executor = AutonomousCoordinator()
+    await executor.initialize_execution_faculty()
 
     task = Task(
         id="test_security_001",

@@ -25,6 +25,7 @@ from .singleton_constitution import DriftSeverity
 from .perception_manager import PerceptionManager
 from .planning_engine import PlanningEngine
 from core.learning.unified_learning_system import get_learning_authority
+from core.learning.performance_profiler import profile_performance
 from .directive_system import DirectiveSystem
 from .runtime_governance import get_runtime_governance
 from .coordinator_config import CoordinatorConfig, get_default_config
@@ -484,7 +485,6 @@ class AutonomousCoordinator:
 
         # === EVENT-DRIVEN TASK EXECUTION ===
         from core.agents.autonomous.queue_authority import get_queue_authority
-        from core.agents.autonomous.general_purpose_executor import GeneralPurposeExecutor
 
         # The substrate does NOT own the queue. It is a WORKER: it draws work
         # from the ONE queue authority and does it, through its substrate-only,
@@ -498,7 +498,15 @@ class AutonomousCoordinator:
             "max_parallel": int(self.config.get("max_parallel_tasks", 3)),
             "job_timeout_seconds": self.config.get("task_timeout_seconds", 3600.0),
         })
-        self.executor = GeneralPurposeExecutor(teacher_model)
+        # EXECUTION is the self's own faculty, not a delegate agent. The state the
+        # former GeneralPurposeExecutor held lives here now; the methods it defined
+        # are the coordinator's own (below). No model handle -- substrate-only.
+        from core.database import TorinUnifiedDatabase
+        self.db = TorinUnifiedDatabase()
+        self.tool_registry = None
+        self._env_loaded = False
+        self._dotenv_values = None
+        self.completed_tasks: Dict[str, Any] = {}
         # Completion is verified by the TaskCompletionValidator (system property,
         # reality-checked). The legacy SuccessValidator (self-attestation over the
         # result dict) was retired 2026-08-28 — it rubber-stamped fabricated
@@ -780,6 +788,11 @@ class AutonomousCoordinator:
             "predictions_made": 0,
             "domain_integrations": 0,
             "registered_agents": 0,
+            # execution-faculty counters (absorbed from the former executor)
+            "tasks_executed": 0,
+            "tasks_successful": 0,
+            "tasks_failed": 0,
+            "by_type": {},
             # Reactive-faculty counters (honest metrics, surfaced via get_status).
             # motivation_refreshes_reactive: refreshes driven by COMPETENCE_CHANGED
             #   (vs the %5 poll); motivation_refresh_errors: refreshes that actually
@@ -858,7 +871,6 @@ class AutonomousCoordinator:
             modules = [
                 ("Perception Manager", self.perception),
                 ("Planning Engine", self.planning),
-                ("Execution Controller", self.executor),
                 # Learning is the SubstrateLearning authority — stateless over its
                 # stores, so it has no initialize() step (see Self.initialize).
                 ("Intrinsic Motivation System", self.intrinsic_motivation),
@@ -885,11 +897,9 @@ class AutonomousCoordinator:
             if self.monitoring_coordinator and hasattr(self.learning, 'set_monitoring_coordinator'):
                 self.learning.set_monitoring_coordinator(self.monitoring_coordinator)
 
-            # Initialize executor
-            if not await self.executor.initialize():
-                logger.error("Failed to initialize General Purpose Executor")
+            # Initialize the EXECUTION FACULTY (absorbed from the former executor).
+            if not await self.initialize_execution_faculty():
                 return False
-            logger.info("✅ General Purpose Executor initialized")
 
             # Initialize Directive System
             logger.info("=" * 80)
@@ -3868,7 +3878,7 @@ class AutonomousCoordinator:
             # Get module statuses
             perception_status = await self.perception.get_statistics()
             planning_status = await self.planning.get_planning_status()
-            execution_status = await self.executor.get_execution_status()
+            execution_status = await self.get_status()
             learning_insights = await self.learning.metrics()
             intrinsic_motivation_stats = await self.intrinsic_motivation.get_statistics()
             memory_stats = self.memory.stats.copy()
@@ -7628,7 +7638,7 @@ class AutonomousCoordinator:
             if (task.metadata or {}).get("drive") in ("competence", "confidence"):
                 result = await self._execute_drive_goal(task)
             else:
-                result = await self.executor.execute_task(task)
+                result = await self.execute_task(task)
 
             # ================================================================
             # COMPLETION PROTOCOL: Check if executor already verified
@@ -9500,7 +9510,7 @@ The substrate must realign with its constitutional responsibilities immediately.
     async def _check_task_completions(self):
         """Check for task completions and update system state"""
         try:
-            execution_status = await self.executor.get_execution_status()
+            execution_status = await self.get_status()
 
             # Get completed tasks from execution controller
             completed_count = execution_status.get("completed_tasks", 0)
@@ -9513,8 +9523,8 @@ The substrate must realign with its constitutional responsibilities immediately.
             for task_id in list(self.system_state.active_tasks):
                 # Check with execution controller if task completed
                 # Completed tasks are moved from running_tasks to completed_tasks
-                if task_id in self.executor.completed_tasks:
-                    completed_task = self.executor.completed_tasks[task_id]
+                if task_id in self.completed_tasks:
+                    completed_task = self.completed_tasks[task_id]
 
                     # Verify it actually completed successfully
                     if completed_task.status == TaskStatus.COMPLETED:
@@ -9577,7 +9587,7 @@ The substrate must realign with its constitutional responsibilities immediately.
                     self.system_state.active_tasks.remove(task_id)
                     
                     # Only count successful completions
-                    task = self.executor.completed_tasks[task_id]
+                    task = self.completed_tasks[task_id]
                     if task.status == TaskStatus.COMPLETED:
                         self.stats["tasks_completed"] += 1
 
@@ -9863,7 +9873,6 @@ The substrate must realign with its constitutional responsibilities immediately.
         modules = [
             ("Learning Adapter", self.learning),
             ("Intrinsic Motivation System", self.intrinsic_motivation),
-            ("Execution Controller", self.executor),
             ("Planning Engine", self.planning),
             ("Perception Manager", self.perception)
         ]
@@ -10362,6 +10371,995 @@ The substrate must realign with its constitutional responsibilities immediately.
 
 
 # Convenience function for external use
+
+    # ==== EXECUTION FACULTY (absorbed from GeneralPurposeExecutor: the self
+    # executes its own tasks; there is no separate executor agent) ====
+
+    async def initialize_execution_faculty(self) -> bool:
+        """Bring up just the tool-execution faculty: connect the tool registry
+        and the database. Substrate-only, no model handle. Called by the full
+        initialize(), and usable on its own to exercise execute_task() without
+        standing up the whole coordinator lifecycle.
+        """
+        try:
+            from core.tools.tool_registry import get_tool_registry
+            self.tool_registry = get_tool_registry()
+            tool_count = len(self.tool_registry.tool_factories) + len(self.tool_registry.tools)
+            logger.info(f"Execution faculty: {tool_count} tools available")
+            import os as _exec_os
+            if not _exec_os.environ.get("TORIN_SHADOW_MODE"):
+                try:
+                    await self.db.initialize()
+                except Exception as _dbe:
+                    logger.warning(f"Execution DB init (non-critical): {_dbe}")
+            logger.info("✅ Execution faculty initialized")
+            return True
+        except Exception as _exe:
+            logger.error(f"Failed to initialize execution faculty: {_exe}")
+            return False
+
+    def _ensure_dotenv_loaded(self) -> None:
+        """Read TorinAI's .env files for runtime integration checks, WITHOUT
+        mutating the process environment.
+
+        This previously called load_dotenv(), which writes every key in
+        .env.production into os.environ for the life of the process. Two things
+        followed. An operator who unset SLACK_BOT_TOKEN to disable Slack had it
+        put back by the first integration check, so the executor's answer to
+        "is Slack configured" could not be influenced by the environment it was
+        actually running in. And the write was global: every other component
+        thereafter saw variables that were never in the environment, attributed
+        to nobody.
+
+        Same failure as the POSTGRES_* one, same remedy: read the file into a
+        dict and resolve with explicit precedence, so the file informs the
+        answer instead of silently becoming the environment.
+        """
+        if self._env_loaded:
+            return
+        self._env_loaded = True
+
+        try:
+            from pathlib import Path
+            from dotenv import dotenv_values
+
+            base = Path(__file__).resolve()
+            # Walk up until we find TorinAI root (has core/)
+            for _ in range(6):
+                if (base / "core").is_dir():
+                    break
+                base = base.parent
+
+            env_prod = base / ".env.production"
+            env_fallback = base / ".env"
+            if env_prod.exists():
+                self._dotenv_values = dict(dotenv_values(env_prod))
+            elif env_fallback.exists():
+                self._dotenv_values = dict(dotenv_values(env_fallback))
+        except Exception:
+            # Dotenv is optional; if missing, runtime checks fall back to os.environ
+            return
+
+    def _config_value(self, key: str) -> Optional[str]:
+        """Resolve one setting: process environment first, then the .env file.
+
+        A variable present in the environment wins, including when a launcher
+        set it deliberately. One that is absent falls back to the file. Nothing
+        here writes to os.environ, so asking a question never changes the
+        answer for whoever asks next.
+        """
+        import os
+        value = os.environ.get(key)
+        if value is not None:
+            return value
+        self._ensure_dotenv_loaded()
+        return (self._dotenv_values or {}).get(key)
+
+
+    def _observe_world(self, domain_id: str) -> Optional[List[str]]:
+        """The world the substrate will plan against, read now from the domain.
+
+        Returns the observed facts as strings, or None when the world cannot be
+        read -- which is not the same as an empty world. Planning against a
+        world that was never observed would authorise a plan on a state that
+        does not exist, so an unreadable world stops the substrate path here
+        rather than letting it proceed on an assumption.
+        """
+        from core.execution.operator_binding import get_binding_registry
+
+        observed = get_binding_registry().observe_world(domain_id)
+        if observed is None:
+            return None
+        return sorted(str(fact) for fact in observed)
+
+    def _derive_goal_spec(self, task: Task) -> Optional[Dict[str, Any]]:
+        """Turn a task into a state goal the planner can search, or decline.
+
+        A state goal is (domain, goal_conditions, observed world). The goal
+        conditions come from what the task declares -- its provenance for a task
+        authored as a state goal, nothing read out of prose. The world is
+        observed, not carried: a `world_state` recorded when the task was
+        created is planning-time state, and the state that governs execution is
+        the one observed now.
+
+        Returns None, honestly, when the task carries no state goal or its world
+        cannot be read. A None here is the substrate saying "not mine yet"; it
+        never becomes a guessed goal.
+        """
+        provenance = getattr(task, "provenance", None) or {}
+
+        # A task already carrying a grounded operator is a plan STEP, not a
+        # goal to plan -- that is _execute_grounded_operator's work, not this.
+        if provenance.get("grounded_operator"):
+            return None
+
+        raw_conditions = provenance.get("goal_conditions")
+        domain_id = provenance.get("domain_id")
+        if not raw_conditions or not domain_id:
+            return None
+
+        # The conditions must parse as facts, or they are not a state goal the
+        # search can reason over. A malformed condition declines the whole task
+        # rather than silently dropping the part that failed.
+        from core.learning.rule_induction import Fact
+
+        goal_conditions: List[str] = []
+        for condition in raw_conditions:
+            try:
+                goal_conditions.append(str(Fact.parse(str(condition))))
+            except ValueError as exc:
+                logger.info("goal derivation declined task %s: condition %r does "
+                            "not parse: %s", task.id, condition, exc)
+                return None
+
+        # ENCOUNTER-DRIVEN DOMAIN INSTALL. A task that declares a filesystem
+        # workspace is the substrate WORKING in that domain for the first time;
+        # install it now (idempotently, scoped to the declared directory) so the
+        # world below is observable and the domain becomes explorable from here
+        # on — the wire that was missing entirely in production. No workspace
+        # declared ⇒ nothing installed; a domain already installed ⇒ no-op.
+        workspace_root = provenance.get("workspace_root")
+        if workspace_root:
+            from core.execution.filesystem_domain import ensure_filesystem_domain
+            ensure_filesystem_domain(domain_id, workspace_root)
+
+        world_state = self._observe_world(domain_id)
+        if world_state is None:
+            logger.info("goal derivation declined task %s: the world of domain "
+                        "%r could not be observed", task.id, domain_id)
+            return None
+
+        return {
+            "domain_id": domain_id,
+            "goal_conditions": goal_conditions,
+            "world_state": world_state,
+        }
+
+    # ==================================================================
+    # SUBSTRATE-FIRST DRIVE — Phase 2: plan a state goal and execute it
+    #
+    # Where _execute_grounded_operator runs one already-grounded operator, this
+    # takes a task that names a STATE to reach, plans a sequence of learned
+    # operators to reach it, and drives that sequence through the same verified
+    # single-operator path. The substrate decides the steps; no model is asked
+    # what to do. When the goal cannot be planned it says so -- UNREACHABLE or
+    # INDETERMINATE -- and does not fall to generation.
+    # ==================================================================
+
+    async def _get_planning_engine(self):
+        """The substrate's planner, created once and kept.
+
+        Planning a state goal is the substrate choosing a sequence of its own
+        learned operators. One engine is held so the goals and plans it creates
+        persist across the tasks the executor drives, rather than a fresh engine
+        forgetting them each call.
+        """
+        engine = getattr(self, "_planning_engine", None)
+        if engine is None:
+            from core.agents.autonomous.planning_engine import PlanningEngine
+            engine = PlanningEngine(self.config)
+            if not await engine.initialize():
+                logger.error("planning engine failed to initialize; the "
+                             "substrate cannot plan state goals")
+                return None
+            self._planning_engine = engine
+        return engine
+
+    async def _drive_substrate_goal(self, task: Task) -> Optional[Dict[str, Any]]:
+        """Plan a state goal over learned operators and execute it, model-free.
+
+        Returns None to decline -- the task names no state goal, or the planner
+        is unavailable -- leaving what comes next to the caller. Otherwise the
+        substrate owns the goal and the result says what happened: it reached
+        the goal, proved it unreachable, or stopped at the step that diverged.
+
+        The world is re-observed for authorization by each step (inside
+        _execute_grounded_operator) and once more at the end to decide success.
+        A plan that ran cleanly while the world did not reach the goal is not a
+        success -- the world decides, not the plan's account of itself.
+        """
+        spec = self._derive_goal_spec(task)
+        if spec is None:
+            return None
+
+        engine = await self._get_planning_engine()
+        if engine is None:
+            return None
+
+        from core.reasoning.temporal_reasoning import PlanningStatus
+
+        domain_id = spec["domain_id"]
+        goal = await engine.create_goal(
+            f"[substrate goal] {task.description}"[:200], task.priority,
+            state_conditions=spec["goal_conditions"])
+        if goal is None:
+            return None
+
+        outcome = await engine.plan_for_goal(
+            goal.id, {"world_state": spec["world_state"], "domain_id": domain_id})
+
+        if outcome.status is not PlanningStatus.PLAN_FOUND:
+            # Honest inability. UNREACHABLE is a proof about the world;
+            # INDETERMINATE is Torin not (yet) knowing enough of its own
+            # repertoire. Neither is a reason to ask a model to guess -- but the
+            # substrate can go further than "I cannot": the domain authority
+            # diagnoses WHAT kind of knowledge is missing (operator, concept,
+            # causal link, binding, prerequisite, observation, or none learnable).
+            # The diagnosis is a MEASUREMENT, not a decision: it feeds the
+            # AppraisalSystem, which owns the disposition (explore / replan /
+            # disengage). Until now a planning failure fed appraisal nothing, so
+            # the substrate's own inability never reached its disposition.
+            from core.integration.universal_domain_master import get_universal_domain_master
+
+            deficit = await get_universal_domain_master().diagnose_deficit(
+                domain_id, spec["goal_conditions"], spec["world_state"], outcome)
+            try:
+                from core.agents.autonomous.appraisal import get_appraisal_system
+                get_appraisal_system().update(
+                    outcome_quality=0.0,
+                    self_initiated=(
+                        getattr(getattr(task, 'source', None), 'value', None) == 'autonomous'),
+                    **deficit.appraisal_signals(),
+                )
+            except Exception as e:
+                # Disposition is not allowed to decide whether the planning
+                # result is returned; the deficit is already diagnosed.
+                logger.warning("substrate planning-failure appraisal update failed: %s", e)
+            return {
+                'success': False,
+                'task_id': task.id,
+                'execution_path': 'substrate_plan',
+                'model_free': True,
+                'domain_id': domain_id,
+                'goal_conditions': spec["goal_conditions"],
+                'planning_status': outcome.status.value,
+                'operators_considered': outcome.operators_considered,
+                'grounding_complete': outcome.grounding_complete,
+                'error': f"substrate could not plan the goal: {outcome.reason}",
+                'reason': outcome.reason,
+                'deficit': deficit.to_dict(),
+            }
+
+        # The proved chain, run in dependency order. Each step goes through the
+        # same verified path a single operator takes; the plan's provenance
+        # already carries what that path needs.
+        step_results: List[Optional[Dict[str, Any]]] = []
+        for step in outcome.plan.tasks:
+            result = await self._execute_grounded_operator(step)
+            step_results.append(result)
+            if result is None:
+                return {
+                    'success': False, 'task_id': task.id,
+                    'execution_path': 'substrate_plan', 'model_free': True,
+                    'domain_id': domain_id,
+                    'error': "a plan step did not present as a grounded operator",
+                    'steps': step_results,
+                }
+            if not result.get('success'):
+                # A step refused (authority not established now) or the world
+                # did not move as the rule predicted. The drive stops at the
+                # step that diverged, not somewhere downstream of it.
+                return {
+                    'success': False, 'task_id': task.id,
+                    'execution_path': 'substrate_plan', 'model_free': True,
+                    'domain_id': domain_id,
+                    'goal_conditions': spec["goal_conditions"],
+                    'stopped_at': step.description,
+                    'error': f"step {step.description} did not confirm: "
+                             f"{result.get('refused') or result.get('runtime_outcome')}",
+                    'steps': step_results,
+                }
+
+        # Every step confirmed. Success is the RE-OBSERVED world holding the
+        # goal, not the fact that the steps ran. Re-observing the goal-state IS
+        # the verification — stronger and model-free — so the verdict is stated
+        # here rather than left for a generator-policing protocol to guess.
+        final_world = set(self._observe_world(domain_id) or [])
+        reached = all(cond in final_world for cond in spec["goal_conditions"])
+        return {
+            'success': reached,
+            'verification_state': 'verified' if reached else 'failed',
+            'completion_score': 1.0 if reached else 0.0,
+            'task_id': task.id,
+            'execution_path': 'substrate_plan',
+            'model_free': True,
+            'domain_id': domain_id,
+            'goal_conditions': spec["goal_conditions"],
+            'steps_executed': len(step_results),
+            'goal_reached': reached,
+            'steps': step_results,
+        }
+
+    @profile_performance("autonomous_coordinator", "execute_task")
+    async def _execute_grounded_operator(self, task: Task) -> Optional[Dict[str, Any]]:
+        """Execute deterministically when the substrate holds the authority to.
+
+        Returns None to fall through to model-backed execution. Every authority
+        condition is re-established HERE against current state, not inherited
+        from the plan, because planning-time authorization goes stale:
+
+            t0  rule VALIDATED, plan generated
+            t1  rule REFUTED by new evidence
+            t2  task executes
+
+        "The plan already authorized it" is not an argument at t2. The same
+        applies to the world: the planner proved applicability in a simulated
+        state, and the state governing execution is the observed one.
+        """
+        provenance = getattr(task, "provenance", None) or {}
+        rule_id = provenance.get("learned_rule_id")
+        operator_name = provenance.get("grounded_operator")
+        if not rule_id or not operator_name:
+            return None
+
+        from core.execution.effect_verification import (
+            AttributionContext, RuntimeOutcome, ToolObservation, attribute, verify_effects)
+        from core.execution.operator_binding import get_binding_registry
+        from core.learning.rule_induction import (Fact, RuleEffects, is_variable,
+                                                  resolve_outputs)
+        from core.reasoning.unification import match_literal
+        from core.learning.rule_store import (
+            get_rule_store, record_runtime_evidence)
+
+        def refuse(reason: str) -> Dict[str, Any]:
+            """A task built on a learned rule fails closed; it never falls
+            through to the model.
+
+            Past this point the task IS a grounded operator -- its description
+            is `MOVE(z,HALL,LAB)`, authorised by rule R. If the substrate
+            cannot establish that authority now, handing the step to a model to
+            interpret would substitute generation for the proof the plan was
+            built on, and the plan would appear to proceed on authority that
+            had already been withdrawn.
+            """
+            logger.info("substrate path refused task %s: %s", task.id, reason)
+            return {
+                'success': False,
+                'task_id': task.id,
+                'execution_path': 'substrate',
+                'model_free': True,
+                'learned_rule_id': rule_id,
+                'operator': operator_name,
+                'refused': reason,
+                'error': f"substrate authority not established: {reason}",
+            }
+
+        domain = provenance.get("domain_id")
+        stored = next((r for r in await get_rule_store().load(domain_id=domain)
+                       if r.rule_id == rule_id), None)
+        if stored is None:
+            return refuse(f"rule {rule_id} is no longer in the store")
+        if not stored.is_executable:
+            return refuse(f"rule {rule_id} is {stored.status.value}, not validated")
+
+        rule = stored.rule
+        if rule.action is None:
+            return refuse("rule records no action")
+
+        try:
+            action = Fact.parse(operator_name)
+        except ValueError as e:
+            return refuse(f"operator {operator_name!r} does not parse: {e}")
+        if action.signature != rule.action.signature:
+            return refuse(f"{action.predicate}/{action.arity} does not match the rule's action")
+
+        bindings: Dict[str, str] = {}
+        for slot, value in zip(rule.action.args, action.args):
+            if is_variable(slot):
+                if bindings.setdefault(slot, value) != value:
+                    return refuse(f"{operator_name} is not an instance of {rule.action}")
+            elif slot != value:
+                return refuse(f"{operator_name} is not an instance of {rule.action}")
+
+        binding = get_binding_registry().get(domain or "", action.predicate)
+        if binding is None:
+            return refuse(f"no tool bound to {action.predicate} in domain {domain!r}")
+
+        before = binding.observe()
+        if before is None:
+            return refuse("the world could not be read before acting")
+
+        # THE OBSERVED WORLD DECIDES THE BINDING, NOT THE PLAN.
+        #
+        # Substituting only what the operator's NAME carries leaves every other
+        # precondition variable free, and a fact with a variable in it is in no
+        # world -- so a rule whose preconditions bind anything the action does
+        # not name refused every time, reported as "preconditions absent". The
+        # plan does record its own bindings, and trusting them would be
+        # inheriting planning-time state, which this method exists not to do.
+        #
+        # So the preconditions are matched against the world as it is now.
+        # Nothing is loosened: a precondition that does not hold still refuses,
+        # and it now refuses with the literal that failed.
+        candidates = [bindings]
+        for literal in sorted(rule.preconditions, key=str):
+            candidates = [extended for candidate in candidates
+                          for extended in match_literal(literal, before, candidate)]
+            if not candidates:
+                return refuse(
+                    f"precondition {literal.substitute(bindings)} does not hold in "
+                    f"the observed world")
+        if len(candidates) > 1:
+            return refuse(
+                f"{operator_name} matches the observed world in {len(candidates)} "
+                f"ways; which instance to act on is not determined")
+        bindings = candidates[0]
+
+        # A value the action computes is computed now, from what the world was
+        # just observed to hold.
+        resolved = resolve_outputs(rule, bindings)
+        if resolved is None:
+            return refuse(
+                "a value this action produces has no result on the observed terms")
+        bindings = resolved
+
+        # Authorized. Safety and governance are enforced inside execute_tool,
+        # which is the single evaluation point for every tool call.
+        from core.tools import get_tool_registry
+
+        # TOOL SCOPING (operator path). An agent may drive only the tools
+        # the substrate granted it, even through a validated learned operator.
+        # None = the substrate's own work (unrestricted).
+        _allowed = getattr(task, "allowed_tools", None)
+        if _allowed is not None and binding.tool_name not in _allowed:
+            return refuse(
+                f"tool {binding.tool_name!r} was not granted to this agent")
+
+        observation_id = f"obs_{uuid.uuid4().hex[:12]}"
+        # The world is read before and after under a concurrency guard: if
+        # another substrate execution in this domain overlapped the act, a
+        # mismatch is not this rule's to answer for. The guard serializes
+        # nothing -- the act still runs concurrently; it only remembers the
+        # overlap so attribution can be honest about it.
+        from core.execution.effect_verification import concurrent_execution_guard
+        with concurrent_execution_guard(domain) as _overlapped:
+            result = await get_tool_registry().execute_tool(
+                binding.tool_name, binding.parameters(action.args))
+            after = binding.observe()
+            interfered = _overlapped()
+        observation = ToolObservation(
+            observation_id=observation_id,
+            tool_name=binding.tool_name,
+            invoked=True,
+            tool_reported_success=bool(getattr(result, "success", False)),
+            observed=after is not None,
+            facts=after if after is not None else frozenset(),
+            before=before,
+            error=getattr(result, "error", None),
+            raw={"output": getattr(result, "output", None)},
+        )
+        # An effect still carrying a variable is one the rule declared it could
+        # not predict. It is still checked -- against what the action CHANGED,
+        # which is what `ToolObservation.before` is for.
+        evidence = verify_effects(rule.effects.substitute(bindings), observation,
+                                  rule_id=rule_id, operator=operator_name)
+
+        # Attribution is built from what THIS method independently established
+        # on the way to authorizing the call. Each flag was a gate above; none
+        # is asserted on trust.
+        #
+        # `external_interference` means KNOWN interference. The executor still
+        # cannot prove a quiet world in general, but it CAN know when another
+        # substrate execution in the same domain overlapped this act -- and then
+        # a mismatch is not attributable to this rule. Defaulting to False when
+        # no overlap was seen keeps single-task and cross-domain learning intact;
+        # the guard raises it only for a real, observed concurrent overlap, so a
+        # correct rule is never revised because another task happened to run.
+        attribution, why = attribute(evidence, AttributionContext(
+            preconditions_observed=True,      # checked against `before`
+            rule_validated_at_execution=True,  # status re-read above
+            action_matches_rule=True,          # signature + instance check
+            arguments_verified=True,           # built from the parsed operator
+            invocation_occurred=True,
+            observer_available=after is not None,
+            post_state_observed=after is not None,
+            external_interference=interfered,
+        ))
+        revised_status = await record_runtime_evidence(
+            get_rule_store(), evidence, attribution, why,
+            task_id=task.id,
+            plan_id=provenance.get("plan_id"),
+            goal_id=provenance.get("goal_id"),
+        )
+
+        logger.info("substrate execution %s: %s (%s) — %s",
+                    operator_name, evidence.outcome.value, attribution.value,
+                    evidence.detail)
+
+        await self._appraise_substrate_execution(task, evidence, attribution, observation)
+        await self._record_execution_demonstration(
+            domain=domain, action=action, before=before, after=after,
+            observation_id=observation_id, evidence=evidence)
+
+        # Surface the substrate's OWN verdict so the coordinator trusts a
+        # world-confirmed success instead of discounting it as unverified. This
+        # is not self-attestation: `success` here is verify_effects against the
+        # re-observed before/after world. A CONTRADICTION is an honest failure
+        # (the rule was refuted); an INDETERMINATE outcome stays unverified —
+        # "could not tell" must not be recorded as "failed".
+        if evidence.outcome is RuntimeOutcome.CONFIRMATION:
+            _verification_state, _completion_score = 'verified', 1.0
+        elif evidence.outcome is RuntimeOutcome.CONTRADICTION:
+            _verification_state, _completion_score = 'failed', 0.0
+        else:
+            _verification_state, _completion_score = None, None
+        return {
+            # Success means the world changed as the rule predicted. A tool that
+            # returned cleanly while the world did not move is the case where
+            # the action model is wrong and the substrate must find out.
+            'success': evidence.outcome is RuntimeOutcome.CONFIRMATION,
+            'verification_state': _verification_state,
+            'completion_score': _completion_score,
+            'task_id': task.id,
+            'execution_path': 'substrate',
+            'model_free': True,
+            'learned_rule_id': rule_id,
+            'operator': operator_name,
+            'runtime_outcome': evidence.outcome.value,
+            'attribution': attribution.value,
+            'rule_status_after': revised_status.value if revised_status else None,
+            'observation_id': observation_id,
+            'effects': [
+                {'effect': str(v.predicted_effect), 'polarity': v.polarity.value,
+                 'verdict': v.verdict.value, 'detail': v.detail}
+                for v in evidence.verifications
+            ],
+            'detail': evidence.detail,
+        }
+
+    async def _record_execution_demonstration(
+        self, *, domain, action, before, after, observation_id, evidence,
+    ) -> None:
+        """File one executed action as a demonstration the learner can use.
+
+        THIS IS THE ONLY PLACE THE SUBSTRATE OBSERVES ITS OWN STATE TRANSITIONS.
+        `before`, the action invoked and `after` are all read from the world a
+        few lines above, so this is the one point in real work that produces the
+        before/action/after triple induction needs. Until it was wired, the
+        learner could only generalize from demonstrations a TEACHER supplied,
+        and every concept a projected rule contributed was confined to a taught
+        domain -- which is why cross-domain transfer had exactly one source
+        domain to draw on.
+
+        `training_example_from_runtime` was built for this and had no callers.
+
+        NOT recorded when the world could not be read afterwards, and NOT
+        recorded for an INDETERMINATE outcome. A demonstration carries a
+        verdict, and an unlabelled one defaults to positive -- which would file
+        "we could not tell" as "the action worked".
+        """
+        from core.execution.effect_verification import RuntimeOutcome
+
+        if after is None:
+            logger.info(
+                "%s: world unreadable after acting; no demonstration recorded "
+                "(an unobserved after-state is not an empty one)", observation_id)
+            return
+        if evidence.outcome is RuntimeOutcome.INDETERMINATE:
+            logger.info(
+                "%s: outcome indeterminate; no demonstration recorded — an "
+                "unlabelled example would be induced from as a positive",
+                observation_id)
+            return
+        if not domain:
+            logger.warning(
+                "%s: no domain on the executed rule; a concept must belong "
+                "somewhere and inventing a domain here is how one topic "
+                "acquired 21", observation_id)
+            return
+
+        from core.domain.concept_ingestion import EvidenceSourceType
+        from core.domain.evidence_producers import submit_demonstration
+        from core.learning.rule_store import training_example_from_runtime
+
+        example = training_example_from_runtime(
+            before=before, action=action, after=after,
+            evidence_id=observation_id,
+            positive=evidence.outcome is RuntimeOutcome.CONFIRMATION)
+
+        # THE OPERATOR-LEARNING PATHWAY. Independent of concept ingestion below:
+        # this keeps the executed transition so the substrate's plannable
+        # repertoire can grow from its own experience. It only RECORDS here --
+        # induction is a hypothesis search whose cost grows with the richness of
+        # the observed state, far too expensive to run inline, so the
+        # always-online learner re-induces off the hot path. The concept path
+        # records the transition's structure for cross-domain matching; this
+        # records the operator's own evidence. One failing must not lose the
+        # other, so they are separate blocks.
+        try:
+            from core.learning.unified_learning_system import get_learning_authority
+            recorded = await get_learning_authority().record_demonstration(
+                example, domain_id=domain)
+            logger.info(
+                "%s: demonstration %s for operator learning (%s)",
+                observation_id, "kept" if recorded else "already held",
+                "positive" if example.positive else "negative")
+        except Exception as e:
+            from core.capability import raise_if_structural
+            raise_if_structural(e, "general_purpose_executor.record_demonstration")
+            logger.error(
+                "%s executed but its demonstration could not be kept: %s: %s",
+                observation_id, type(e).__name__, e)
+
+        try:
+            result = await submit_demonstration(
+                example, domain_id=domain,
+                source_type=EvidenceSourceType.TASK_ARTIFACT,
+                producer="substrate_execution",
+                source_id=f"{domain}:{action.predicate}")
+        except Exception as e:
+            # Loud, never swallowed: the tool ran and the world moved, so
+            # failing the execution over a projection defect would lose the
+            # real result. A silent pass would make a broken projection
+            # indistinguishable from an action with nothing to project.
+            logger.error(
+                "%s executed but its demonstration could not be recorded: %s: %s",
+                observation_id, type(e).__name__, e)
+            return
+
+        if not result.read_successfully:
+            logger.error(
+                "%s: demonstration recorded but unreadable as structure: %s",
+                observation_id, result.extraction_failures)
+            return
+        logger.info(
+            "%s: demonstration recorded (%s) -> %d concept(s) accepted",
+            observation_id,
+            "positive" if example.positive else "negative", result.accepted)
+
+    async def _appraise_substrate_execution(
+        self, task: "Task", evidence, attribution, observation
+    ) -> None:
+        """Report a substrate execution to appraisal, in measured signals only.
+
+        This is the learned-rule counterpart to `_appraise_tool_outcome`: both
+        feed the one whole-self appraisal authority so acting — proved or raw —
+        moves disposition, including when the proof turns out wrong. That is the
+        one outcome disposition most needs.
+
+        Two signals that look like one are kept apart deliberately:
+
+            action_success_rate   did the action execute?     (the tool ran)
+            outcome_quality       was the prediction right?   (the world moved)
+
+        A refuted rule is the case where the first is 1.0 and the second is 0.0
+        -- the tool worked perfectly and the model was wrong. Collapsing them
+        would read as "we cannot affect the world", which is escalation, when
+        the truth is "we still have control and this route is wrong", which is
+        replanning.
+
+        Signals with no measurement here are omitted rather than defaulted, so
+        nothing invented reaches the appraisal.
+        """
+        from core.agents.autonomous.appraisal import get_appraisal_system
+        from core.execution.effect_verification import RuntimeOutcome, outcome_class_for
+
+        if evidence.outcome is RuntimeOutcome.CONFIRMATION:
+            quality = 1.0
+        elif evidence.outcome is RuntimeOutcome.CONTRADICTION:
+            quality = 0.0
+        else:
+            quality = None   # nothing was established; do not score it
+
+        try:
+            get_appraisal_system().update(
+                outcome_quality=quality,
+                outcome_class=outcome_class_for(evidence, attribution),
+                action_success_rate=(
+                    1.0 if observation.tool_reported_success else 0.0),
+                # The substrate authorises exactly one operator per step, so
+                # there was no choice among options. Reporting otherwise would
+                # inflate agency, which feeds replan pressure directly.
+                options_considered=1,
+                self_initiated=(
+                    getattr(getattr(task, 'source', None), 'value', None) == 'autonomous'),
+            )
+        except Exception as e:
+            # Disposition is not allowed to decide whether the execution result
+            # is returned. The evidence is already durable at this point.
+            logger.warning("substrate appraisal update failed: %s", e)
+
+    async def _run_tool(self, tool_name: str, params: Dict[str, Any], task: Task) -> Optional[Dict[str, Any]]:
+        """Execute one named tool and return a substrate result, or None.
+
+        Every outcome is felt: the tool path reports to the SAME whole-self
+        appraisal the learned-rule path uses, so a failing tool raises the
+        substrate's own caution/avoidance and a run of failures restrains the
+        whole self through those existing emotions (appraisal blends over time —
+        no per-tool cooldown). Discipline lives in the self, not a counter.
+        """
+        # TOOL SCOPING. `task.allowed_tools` is None for the substrate's own work
+        # (every tool), and a list for an agent the substrate deployed
+        # with a granted subset. A copy of the self may reach ONLY what it was
+        # granted; a tool outside the grant is refused here, honestly, before it
+        # runs — the substrate decides what its copies can touch.
+        allowed = getattr(task, "allowed_tools", None)
+        if allowed is not None and tool_name not in allowed:
+            logger.info("[substrate-tools] %s not granted to task %s (allowed=%s); refused",
+                        tool_name, task.id, allowed)
+            return None
+        import time
+        _t0 = time.perf_counter()
+        try:
+            result = await self.tool_registry.execute_tool(tool_name, params)
+        except Exception as e:
+            logger.debug("[substrate-tools] %s raised: %s", tool_name, e)
+            # The tool did not execute: no control established over the world.
+            _ms = int((time.perf_counter() - _t0) * 1000)
+            await self._appraise_tool_outcome(task, executed=False, succeeded=False)
+            await self._observe_tool_belief(tool_name, params, None, success=False)
+            await self._record_tool_metrics(task, tool_name, executed=False,
+                                            success=False, latency_ms=_ms,
+                                            failure_reason=str(e))
+            return None
+        _ms = int((time.perf_counter() - _t0) * 1000)
+        if not getattr(result, "success", None):
+            # The tool executed but reported failure — we can act, this route is
+            # wrong. Felt as a poor outcome with control intact (replan, not
+            # escalation), accumulating toward avoidance if it keeps happening.
+            await self._appraise_tool_outcome(task, executed=True, succeeded=False)
+            await self._observe_tool_belief(tool_name, params,
+                                            getattr(result, "output", None), success=False)
+            await self._record_tool_metrics(task, tool_name, executed=True,
+                                            success=False, latency_ms=_ms,
+                                            failure_reason=str(getattr(result, "error", "") or "tool reported failure"))
+            return None
+        logger.info("[substrate-tools] task %s executed model-free via %s", task.id, tool_name)
+        await self._appraise_tool_outcome(task, executed=True, succeeded=True)
+        await self._observe_tool_belief(tool_name, params,
+                                        getattr(result, "output", None), success=True)
+        await self._record_tool_metrics(task, tool_name, executed=True,
+                                        success=True, latency_ms=_ms)
+        return {
+            "success": True,
+            "model_free": True,
+            "tool": tool_name,
+            "output": getattr(result, "output", None),
+            "task_id": task.id,
+            "method": "substrate_tool",
+        }
+
+    async def _appraise_tool_outcome(self, task: "Task", *, executed: bool,
+                                     succeeded: bool) -> None:
+        """Report a raw substrate tool outcome to the whole-self appraisal.
+
+        The tool-path counterpart to `_appraise_substrate_execution` (which
+        serves the learned-rule path). It feeds only what was actually measured,
+        and the attribution is the honest STRUCTURAL read of the observed
+        outcome — not a guess:
+          • executed and succeeded    → SUCCESS            (approach engages)
+          • executed but failed clean → STRATEGY_FAILURE   (the chosen approach,
+              which the substrate controls, is the fault → the self replans)
+          • could not execute at all  → EXECUTION_FAILURE  (the action itself
+              failed → the self cannot act here: escalation/avoidance)
+        Appraisal owns the emotional/behavioural response; this only reports.
+        The outcome_class here drives appraisal's attribution only — it is not
+        routed to meta-learning credit, so it moves no posteriors. Isolated: a
+        fault here is logged, never fatal to execution.
+        """
+        try:
+            from core.agents.autonomous.appraisal import get_appraisal_system
+            from core.learning.meta_learning import OutcomeClass
+            if succeeded:
+                outcome_class = OutcomeClass.SUCCESS
+            elif executed:
+                outcome_class = OutcomeClass.STRATEGY_FAILURE
+            else:
+                outcome_class = OutcomeClass.EXECUTION_FAILURE
+            get_appraisal_system().update(
+                outcome_quality=1.0 if succeeded else 0.0,
+                # "the tool ran" is distinct from "the outcome was right": an
+                # executed-but-failed call keeps controllability (replan); a call
+                # that could not execute lowers it (escalation/avoidance).
+                action_success_rate=1.0 if executed else 0.0,
+                outcome_class=outcome_class,
+                # One handler binds exactly one tool per type — no choice among
+                # options; reporting otherwise would inflate agency.
+                options_considered=1,
+                self_initiated=(
+                    getattr(getattr(task, 'source', None), 'value', None) == 'autonomous'),
+            )
+        except Exception as e:
+            logger.warning("substrate tool-outcome appraisal update failed: %s", e)
+
+    async def _record_tool_metrics(self, task: "Task", tool_name: str, *,
+                                   executed: bool, success: bool,
+                                   latency_ms: int,
+                                   failure_reason: Optional[str] = None) -> None:
+        """The FOURTH consumer of the post-tool seam (beside appraisal, beliefs,
+        and learning-evidence): report the run's METRICS — success/failure and
+        latency, attributed to the task — to the tool-metrics owner
+        (AdaptiveToolLearning), the one collector `get_learning_metrics`
+        summarizes. The engine gives off metrics; the learning pipeline collects
+        them. Guarded: the owner is injected by main.py and absent standalone, and
+        a recording fault is never fatal to execution."""
+        owner = getattr(self, "adaptive_tool_learning", None)
+        if owner is None:
+            return
+        try:
+            await owner.record_tool_run(
+                task_id=getattr(task, "id", "") or "",
+                task_description=getattr(task, "description", "") or "",
+                tool_name=tool_name, success=success, executed=executed,
+                latency_ms=latency_ms, failure_reason=failure_reason)
+        except Exception as e:
+            logger.debug("tool-metrics recording skipped: %s", e)
+
+    async def _observe_tool_belief(self, tool_name: str, params: Dict[str, Any],
+                                   output: Any, *, success: bool) -> None:
+        """The THIRD consumer of the post-tool observation seam (beside
+        appraisal and learning-evidence): fold what the tool OBSERVED into the
+        belief graph, ROUTED THROUGH THE REASONING AUTHORITY. This is the
+        substrate learning about its own capabilities from experience; the belief
+        changes surface/resolve unstable regions that drive the epistemic
+        exploration loop (intrinsic_motivation._generate_epistemic_goals). One
+        seam, one observed outcome — never a parallel observation. Isolated: a
+        fault here is logged, never fatal to execution."""
+        try:
+            from core.reasoning.neural_bridge import get_neural_bridge
+            await get_neural_bridge().observe_tool_result(tool_name, params, output, success)
+        except Exception as e:
+            logger.debug("tool-belief observation skipped: %s", e)
+
+    async def _execute_via_tool_handler(self, task: Task) -> Optional[Dict[str, Any]]:
+        """Execute a task through an EXPLICIT, correct type→tool handler, model-free.
+
+        There is no blind "top-ranked tool" dispatch here: a naive binding of the
+        task description to whatever tool ranked first produced false successes
+        (an analysis task "completed" by creating a directory named after the
+        code). A handler is added only for a TaskType whose tool and argument
+        binding are known-correct, and it declines (None) otherwise, leaving the
+        task to whatever comes next. Nothing here consults a model.
+        """
+        # TaskType -> a handler proven correct for that type. Extended one
+        # verified type at a time; every entry is tested to run model-free
+        # without faking success.
+        handlers = {
+            TaskType.RESEARCH: self._handle_research,
+        }
+        handler = handlers.get(task.type)
+        if handler is None:
+            return None
+        return await handler(task)
+
+    async def _handle_research(self, task: Task) -> Optional[Dict[str, Any]]:
+        """A RESEARCH task runs the substrate's ONE knowledge loop, not a bare
+        web search.
+
+        The loop lives on this substrate's own conversation
+        (`understand`): it queries what is already held, reasons over it
+        (neural bridge + held rules), and ONLY on a genuine gap researches the
+        web -- verifying the finding names the topic before reading it into the
+        store through the learning authority. A research task is that loop asked
+        about its topic. The former handler called web_search and returned the
+        raw hits, so a topic the substrate already knew was searched anyway, a
+        finding was never read into knowledge, and reasoning never ran. That was
+        the acting path bypassing memory, reasoning, and learning; there is no
+        separate research faculty to bypass them from now.
+        """
+        desc = task.description.strip()
+        topic = re.sub(r"^(?:research|look\s+up|find\s+out\s+about|investigate|study)\s+",
+                       "", desc, flags=re.IGNORECASE).strip() or desc
+        query = desc if Conversation.is_question(desc) else f"what is {topic}?"
+
+        try:
+            conversation = self.conversation(session=f"research:{task.id}")
+            understanding = await conversation.understand(query)
+        except Exception as error:
+            logger.warning(f"research loop failed for {task.id}: {error}")
+            return None
+
+        learned = [a for a in understanding.acquired if getattr(a, "stored", False)]
+        # Complete only if the loop actually answered (from memory or reasoning)
+        # or learned something new. Nothing answered and nothing learned is a
+        # genuine gap -- declined here, reported honestly upstream, never faked.
+        if not understanding.answered and not learned:
+            return None
+
+        return {
+            "success": True,
+            "model_free": True,
+            "task_id": task.id,
+            "task_type": task.type.name,
+            "method": "conversation.understand",
+            "answer": understanding.reply,
+            "learned": [a.label for a in learned],
+            "output": {"answer": understanding.reply,
+                       "learned": [a.label for a in learned]},
+        }
+
+    async def execute_task(self, task: Task) -> Dict[str, Any]:
+        """
+        Execute a task, substrate-first.
+
+        A task carrying a grounded operator from a VALIDATED learned rule is
+        already proved: the substrate knows what to do and why. That runs
+        deterministically here, with no model consulted. Everything else falls
+        through to model-backed execution, where the model acts as a proposer
+        for work the substrate cannot yet do itself.
+
+        This mirrors neural_bridge._substrate_solvers, which has routed reasoning
+        this way all along. Execution previously went straight to the model
+        unconditionally, so a step the substrate could prove was still decided
+        by generation.
+
+        Args:
+            task: Task to execute
+
+        Returns:
+            Dict with execution results
+        """
+        if self.tool_registry is None:
+            await self.initialize_execution_faculty()
+
+        substrate = await self._execute_grounded_operator(task)
+        if substrate is not None:
+            return substrate
+
+        # A task that names a STATE to reach is planned over learned operators
+        # and driven to completion here, still with no model consulted. Where
+        # the single-operator path runs one proved step, this proves and runs a
+        # whole sequence. It declines (None) only when the task carries no state
+        # goal, and then execution falls through as before.
+        driven = await self._drive_substrate_goal(task)
+        if driven is not None:
+            return driven
+
+        # A task whose work maps to a tool the substrate can invoke model-free —
+        # the ranker picks the tool, and its inputs bind from the task without
+        # generation — runs here. Declines (None) when no tool's arguments can be
+        # bound without a model, leaving what comes next unchanged.
+        tooled = await self._execute_via_tool_handler(task)
+        if tooled is not None:
+            return tooled
+
+        # SUBSTRATE-ONLY. The three paths above are the substrate's own
+        # model-free execution. If none handled the task, the substrate cannot
+        # YET do it — reported as an HONEST GAP, never delegated to a model.
+        # The model path that used to follow here (self.llm /
+        # _execute_task_with_tools) is retired; the capability is closed by
+        # building a per-type substrate handler, not by generation.
+        return {
+            'success': False,
+            'model_free': True,
+            'verification_state': 'failed',
+            'error': (f"no substrate handler for a {task.type.name} task yet; the "
+                      f"substrate declined all model-free paths and the model is "
+                      f"not a fallback"),
+            'task_id': task.id,
+            'task_type': task.type.name,
+        }
+
+    async def get_status(self) -> Dict[str, Any]:
+        """Get executor status."""
+        return {
+            'active': self.active,
+            'model_free': True,  # substrate-only executor; holds no model
+            'stats': self.stats.copy(),
+        }
+
+
+
 async def create_autonomous_system(config: Optional[Dict[str, Any]] = None, teacher_model=None) -> AutonomousCoordinator:
     """
     Create an autonomous system coordinator (without initializing).
@@ -11550,29 +12548,36 @@ class Conversation:
 
 
     async def look_up(self, phrase: str) -> Optional[Acquired]:
-        """It did not know the word. Go and find out on the WEB, now.
+        """It did not know the word. Go and find out on the WEB, now, and READ
+        what is found into a fact.
 
         A word the substrate could know from a lexical database it already knows:
         the whole of WordNet is taught into the concept store, so the taxonomy is
         consulted directly, not through a tool. `look_up` is therefore the path
         for a GENUINE gap -- a word the store does not hold -- and a genuine gap
-        is answered by real research (Wikipedia/web), whose finding is admitted
-        through the learning authority so the next question about it is answered
-        from the store. (A former `lexical_lookup` tool wrapped WordNet as if it
-        were the outside world; it was removed once WordNet became knowledge in
-        the store rather than a thing to call.)
+        is answered by real research whose finding is READ into a classification
+        and admitted through the learning authority, so the next question about
+        it is answered from the store.
+
+        It reads through the ONE web_search tool (which fetches the top page's
+        clean text), not a search-snippet API: a snippet is truncated glue that
+        does not read into a fact, which is why this used to pass NO relation to
+        `_ingest` and therefore never actually learned -- it stored a description
+        nobody could later reason over. Now it reads the fetched lead into
+        `subject isa <class>` and admits THAT.
         """
-        import json
         import re as _re
 
         from core.domain.concept_ingestion import EvidenceSourceType
+        from core.semantics.cognitive_ingress import admissible, normalize_term
+        from core.semantics.sentence_reader import SentenceReader
         from core.tools import get_tool_registry
 
         registry = get_tool_registry()
 
         try:
             result = await registry.execute_tool(
-                "conduct_research", {"topic": phrase, "max_sources": 3})
+                "web_search", {"query": f"what is {phrase}", "max_results": 5})
         except Exception as error:
             return Acquired(phrase, origin="research", detail=f"research failed: {error}")
         if not getattr(result, "success", False):
@@ -11580,44 +12585,68 @@ class Conversation:
                             detail=f"research declined: {getattr(result, 'error', '')}")
 
         output = getattr(result, "output", None) or {}
-        description, source = "", ""
-        for item in output.get("raw_results", []):
-            if item.get("source") != "Wikipedia":
-                continue
-            try:
-                hits = json.loads(item.get("data") or "{}").get("query", {}).get("search", [])
-            except Exception:
-                continue
-            # THE FIRST HIT IS NOT AN ANSWER, IT IS THE CLOSEST THING THE INDEX
-            # HAD. A search engine always returns its best row; taking it
-            # unchecked is accepting a result without verifying it answered
-            # anything. Asked what spots unusual behaviour in data, this took
-            # Wikipedia's top hit for `spots unusual behaviour` -- an article on
-            # animal sexual behaviour -- and STORED it as the meaning of the
-            # phrase. A wrong fact written into the store outlives the turn that
-            # invented it and is indistinguishable afterwards from one that was
-            # learned.
-            #
-            # An article is about the phrase when its TITLE names the phrase.
-            # Every content word, by stem, so `load balancer` accepts `Load
-            # balancing (computing)` and `spots unusual behaviour` accepts
-            # nothing that only shares `behaviour`. Where no hit passes, it
-            # declines and the reply asks -- which is the honest end of a
-            # lookup that found nothing, and the one the caller already handles.
-            match = next((h for h in hits if _titles(phrase, h.get("title", ""))), None)
-            if match is None:
-                continue
-            description = _re.sub(r"<[^>]+>", "", match.get("snippet", "")).strip()
-            source = item.get("url", "")
-            break
-
-        if not description:
+        hits = output.get("results") if isinstance(output, dict) else None
+        if not hits:
             return Acquired(phrase, origin="research",
                             detail="research returned nothing that describes it")
-        return await self._ingest(
-            label=phrase, description=description, relations=(),
-            source_type=EvidenceSourceType.RESEARCH_FINDING,
-            source_id=source or "research", content=description, domain="researched")
+
+        # THE FIRST HIT IS NOT AN ANSWER, IT IS THE CLOSEST THING THE INDEX HAD.
+        # A page is about the phrase when its TITLE names the phrase -- every
+        # content word, by stem. Taking the top row unchecked once stored an
+        # article on animal behaviour as the meaning of "spots unusual behaviour
+        # in data"; a wrong fact written to the store is indistinguishable
+        # afterwards from a learned one. So: the first title-matching page, and
+        # from its clean lead the first classification whose subject IS the
+        # phrase. Where nothing passes, it declines honestly and the reply asks.
+        want = normalize_term(phrase)
+        reader = SentenceReader()
+        for hit in hits:
+            if not _titles(phrase, hit.get("title", "")):
+                continue
+            content = hit.get("content") or hit.get("snippet") or ""
+            if not content:
+                continue
+            # A definitional lead wedges a parenthetical (an IPA gloss, a
+            # portmanteau note) between the subject and its "is a ...":
+            # "A memristor ( ... ) is a component". Strip parentheticals so the
+            # classification reads. Read the lead sentence first -- the defining
+            # one -- then the whole page if the lead did not parse.
+            clean = _re.sub(r"\([^()]*\)", " ", content)
+            lead = _re.split(r"(?<=[.!?])\s+", clean.strip(), maxsplit=1)[0]
+            fact = None
+            for span in (lead, clean):
+                fact = next(
+                    (f for f in reader.read_all(span)
+                     if f.get("obj")
+                     and str(f.get("relation", "")).lower() in ("is", "are", "isa")
+                     and normalize_term(f["subject"]) == want), None)
+                if fact is not None:
+                    break
+            if fact is None:
+                continue
+            # The store holds NAMES, not clauses: a definitional NP off the web
+            # ("a non-linear two-terminal electrical component") is longer than a
+            # name may be. Reduce it to the WIDEST head-ward class the store will
+            # admit -- deferring to `admissible`, the shape authority, rather than
+            # guessing the cap -- so the genus is kept ("electrical component")
+            # and only the differentia the store cannot hold is dropped. A short
+            # class ("an abelian group") is already admissible and passes whole.
+            obj = re.sub(r"(?i)^(?:a|an|the)\s+", "", str(fact["obj"])).strip()
+            words = obj.split()
+            klass = next((" ".join(words[i:]) for i in range(len(words))
+                          if admissible(normalize_term(" ".join(words[i:])))[0]), None)
+            if not klass:
+                continue
+            source = hit.get("url") or "research"
+            description = lead.strip()[:400] or content[:400]
+            return await self._ingest(
+                label=phrase, description=description,
+                relations=[("isa", klass)],
+                source_type=EvidenceSourceType.RESEARCH_FINDING,
+                source_id=source, content=description, domain="researched")
+
+        return Acquired(phrase, origin="research",
+                        detail="research returned nothing that describes it")
 
     @staticmethod
     def is_question(sentence: str) -> bool:

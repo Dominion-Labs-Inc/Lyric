@@ -15,7 +15,7 @@ from dotenv import load_dotenv
 load_dotenv(project_root / ".env")
 
 from core.services.unified_llm import get_llm_service
-from core.agents.autonomous.general_purpose_executor import GeneralPurposeExecutor
+from core.agents.autonomous.autonomous_coordinator import AutonomousCoordinator
 from core.agents.autonomous.shared_types import Task, TaskType, Priority
 
 DESKTOP_PATH = Path.home() / "Desktop" / "TorinAI_Generated_Docs"
@@ -33,8 +33,8 @@ async def main():
     print("[SETUP] Loading LLM...")
     llm = get_llm_service()
     await llm.initialize()
-    executor = GeneralPurposeExecutor(torin_brain=llm)
-    await executor.initialize()
+    executor = AutonomousCoordinator(teacher_model=llm)
+    await executor.initialize_execution_faculty()
     print("✓ LLM loaded and executor initialized\n")
 
     # PHASE 1: COMPREHENSIVE RESEARCH

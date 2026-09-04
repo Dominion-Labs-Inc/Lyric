@@ -993,7 +993,6 @@ class SecurityAuditWorker:
                 'core/security/security_audit_worker.py',
                 'core/governance/unified_governance_trigger_system.py',
                 'core/agents/autonomous/autonomous_coordinator.py',
-                'core/agents/autonomous/general_purpose_executor.py',
                 'core/agents/autonomous/task_queue.py',
                 'core/health/health_monitor.py',
                 'core/safety/commitment_contract_manager.py',

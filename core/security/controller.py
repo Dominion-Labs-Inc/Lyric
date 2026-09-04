@@ -109,7 +109,12 @@ class SecurityController:
 
         # Database connection pool for persisting security data (uses TorinUnifiedDatabase)
         self.db_pool = None  # Using TorinUnifiedDatabase instead of direct connection pool
-        self._db_init_task = asyncio.create_task(self._initialize_database())
+        try:
+            self._db_init_task = asyncio.create_task(self._initialize_database())
+        except RuntimeError:
+            # Constructed outside a running event loop (synchronous/test context).
+            # Defer DB init until a running loop exists rather than crashing.
+            self._db_init_task = None
 
         logger.info(f"Security policies active: {self.policies}")
 
