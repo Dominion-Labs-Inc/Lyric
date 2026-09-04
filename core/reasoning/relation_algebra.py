@@ -213,7 +213,14 @@ def answer(subject: str, relation: SemanticRelation, obj: str,
     false. FALSE is returned only when an explicit negative (a denied
     observation) contradicts it -- absence of evidence is not evidence of
     absence."""
-    if any(n.subject == subject and n.relation is relation and n.obj == obj
+    # A denial refutes the query if it sits on the subject OR on ANY class the
+    # subject belongs to (by ISA subsumption): "no mammal is a bird" (mammal
+    # is-not bird) plus "rex isa mammal" makes "is rex a bird?" FALSE, not
+    # UNKNOWN. Subsumption is ISA/INSTANCE_OF, independent of the queried
+    # relation, so a denied property inherits to instances too.
+    subject_classes = {subject} | {e.obj for e in edges
+                                   if e.relation in (ISA, INSTANCE_OF)}
+    if any(n.relation is relation and n.obj == obj and n.subject in subject_classes
            for n in negatives):
         return Answer(FALSE, OBSERVED)
     if (subject, relation, obj) in {(e.subject, e.relation, e.obj) for e in edges}:

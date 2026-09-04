@@ -646,11 +646,14 @@ class SentenceReader:
             return [{"subject": subj, "relation": "is", "obj": p, "positive": True}
                     for p in node.get("properties", [])]
         # A generic ("a whale is a mammal") reads as a UNIVERSAL; for knowledge
-        # extraction that is the ISA edge whale->mammal. clause_parts deliberately
+        # extraction that is the ISA edge whale->mammal. A NEGATED universal ("no
+        # mammal is a bird") is the disjointness edge mammal-/->bird, kept as a
+        # negative ISA so the reasoner can refute an instance: rex isa mammal and
+        # mammal is-not a bird ⊢ rex is not a bird. clause_parts deliberately
         # leaves universals to the formal side, so read_all lifts the edge here.
-        if (node or {}).get("kind") == "universal" and not node.get("negated"):
+        if (node or {}).get("kind") == "universal":
             return [{"subject": node["p"], "relation": "is", "obj": node["q"],
-                     "positive": True}]
+                     "positive": not node.get("negated", False)}]
         cp = self.clause_parts(node)
         if not cp:
             return []

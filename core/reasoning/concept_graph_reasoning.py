@@ -103,7 +103,12 @@ async def answer_over_graph(db, subject: str, relation: SemanticRelation, obj: s
     from core.semantics.cognitive_ingress import normalize_term
     subject, obj = normalize_term(subject), normalize_term(obj)
     edges = await load_subgraph(db, [subject], max_hops=max_hops)
-    negatives = await load_denials(db, [subject])
+    # Denials on the subject AND on every class it belongs to, so an inherited
+    # disjointness refutes an instance: "no mammal is a bird" is a denial on
+    # `mammal`, and `rex isa mammal`, so "is rex a bird?" is FALSE. The ISA
+    # closure is exactly the subject plus the objects the positive edges reach.
+    denial_roots = {subject} | {e.obj for e in edges}
+    negatives = await load_denials(db, sorted(denial_roots))
     return answer(subject, relation, obj, edges,
                   context_licenses=context_licenses, negatives=negatives)
 
