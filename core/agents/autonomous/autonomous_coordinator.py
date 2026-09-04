@@ -11256,14 +11256,13 @@ class Conversation:
         """
         from core.reasoning.neural_bridge import (ReasoningRequest,
                                                   get_neural_bridge)
-        from core.semantics import derived_reader
         from core.semantics.sentence_reader import SentenceReader
         bridge = get_neural_bridge()
 
         premises = await self._held_premises(sentence, resolved, harvest)
 
         # ACTION YES/NO — "does the tank overflow?". SentenceReader reads the
-        # auxiliary correctly (derived_reader mis-reads "does" as the subject),
+        # auxiliary correctly,
         # and the reasoner decides it over HELD RULES + HELD FACTS pulled from
         # their own authorities — so a taught rule ("if the valve is closed then
         # the tank overflows") firing on a taught fact ("the valve is closed")
@@ -11299,10 +11298,14 @@ class Conversation:
         if not premises:
             return []
 
-        try:
-            reading = derived_reader.read(sentence)
-        except Exception:
-            reading = None
+        # Read the question with the ONE reader (sentence_reader, `_sr` above): a
+        # yes/no "is X (a) Y?" yields (subject, object, polarity); anything else
+        # yields nothing and drops to the open branch below.
+        _g = _sr._parse_goal(sentence)
+        _cp = _sr.clause_parts(_g) if _g else None
+        reading = ((_cp["subject"], _cp["obj"],
+                    "affirms" if _cp.get("positive", True) else "denies")
+                   if _cp and _cp.get("obj") else None)
 
         # A WH-question ("what/why/how/who causes X") is OPEN, not a yes/no about
         # a subject named "what" -- the reader can mis-parse it as a copula, so it
@@ -11430,15 +11433,16 @@ class Conversation:
         from core.domain.domain_registry import get_domain_registry
         from core.integration.universal_domain_master import \
             get_universal_domain_master
-        from core.semantics import derived_reader
+        from core.semantics.sentence_reader import SentenceReader
 
-        typed = derived_reader.read_typed(sentence)
-        relation = None
-        if typed is not None and getattr(typed, "relation", None) is not None:
-            try:
-                relation = typed.relation.relation.value
-            except Exception:
-                relation = None
+        # The RELATION comes from the ONE reader. A question it can read yields
+        # (subject, relation, object); one it cannot yields nothing, and with no
+        # relation there is nothing to localize -- honest, no guess.
+        _sr = SentenceReader()
+        goal = _sr._parse_goal(sentence)
+        parts = _sr.clause_parts(goal) if goal else None
+        relation = (str(parts.get("relation")).strip().lower()
+                    if parts and parts.get("relation") else None)
         if not relation:
             return None
 
@@ -11473,38 +11477,20 @@ class Conversation:
     # admitted in exactly one place: core.semantics.cognitive_ingress.
 
     async def teach(self, sentence: str) -> List[Acquired]:
-        """You told it something. Read it with the DERIVED reading, then admit.
+        """You told it something. Read it with the ONE reader, then admit.
 
-        This used to guess. It walked in from both ends looking for runs of
-        words that already named something, and when the subject was new --
-        which is the whole point of being taught -- nothing in the store could
-        say where the phrases ended, so it asked a model to find the seams.
-
-        That is what filled the concept store with junk. `you` and
-        `which_lines_belong_to_which_block` became entities; `a function
-        count_o` became a relation. Every one of them came from a guess made
-        because no reading was available.
-
-        A reading IS available. `procedure_synthesis` derives one from
-        sentence/meaning pairs, it generalizes to sentences whose every content
-        word is new, and it needs no model. It was never registered, so nothing
-        could reach it. Now it is consulted first, and where it declines this
-        declines too -- a sentence that cannot be read has not told you
-        anything, and admitting a guess about it is worse than admitting
-        nothing.
+        The reader is `sentence_reader` -- the SAME reader the query path uses,
+        so a fact taught reads the same way it does when later asked about, and a
+        multi-word subject ("the Klein four-group is an abelian group") is read
+        identically on both sides. It never guesses at a sentence it cannot read:
+        a sentence that does not read has told you nothing, and admitting a guess
+        about it is worse than admitting nothing.
         """
         from core.domain.concept_ingestion import EvidenceSourceType
-        from core.semantics import derived_reader
 
-        registered, why = derived_reader.ensure_registered()
-        if not registered:
-            logger.warning("no derived reading available: %s", why)
-            return [Acquired(sentence, detail=(
-                "I have no derived way to read a sentence yet, so I will not "
-                "guess at what you told me"))]
-
-        # A CONDITIONAL is a held RULE, not a relation: the derived reader cannot
-        # read it, and admit_relation would wrongly assert its antecedent true.
+        # A CONDITIONAL is a held RULE, not a relation: it is read by the sentence
+        # reader and learned as a held RULE, and admit_relation would wrongly assert
+        # its antecedent true.
         # It is read by the sentence reader and learned as a held RULE through the
         # LEARNING AUTHORITY (`learn_rule`), the same one door a fact takes — so a
         # rule fans out to the lexicon, beliefs, the domain, and metrics exactly
@@ -11532,41 +11518,31 @@ class Conversation:
             return [Acquired(sentence, detail=("; ".join(admission.refusals)
                              or "I could not hold that conditional"))]
 
-        # READ IT TYPED. The reader recognises the surface and the typer names
-        # the RELATION -- "made of" -> made_of, not a bare "is". The concept
-        # graph then holds a TYPED edge the relation algebra can reason over,
-        # instead of one undifferentiated "is" edge that poisons inference.
-        #
         # A sentence may carry MORE THAN ONE proposition -- a relative clause
-        # ("a robin, which is small, is a bird") or a conjunction ("the vault is
-        # cold and heavy") states two -- so every proposition it states is read
-        # and admitted, not just the first. `read_all` returns one typed reading
-        # per proposition (already dropping any it could not construct).
-        readings = derived_reader.read_all(sentence)
+        # ("the okapi, which is a mammal, is a herbivore") or a conjunction ("the
+        # vault is cold and heavy") states two -- so `read_all` returns every
+        # proposition it can read (already dropping any it cannot), and each is
+        # admitted, not just the first.
+        readings = _sr.read_all(sentence)
         if not readings:
-            # Distinguish "unreadable" from "words known, construction not": a
-            # whole-sentence read that came back asking to be taught the
-            # construction says the more specific thing.
-            probe = derived_reader.read_typed(sentence)
-            if probe is not None and probe.needs_construction is not None:
-                return [Acquired(sentence, detail=(
-                    "I recognise the words but not this sentence construction "
-                    "yet; I will not guess at a relation I cannot name"))]
             return [Acquired(sentence, detail=(
                 "I could not read that sentence with what I have been taught "
                 "about sentences"))]
 
         acquired: List[Acquired] = []
-        for typed in readings:
-            positive = typed.polarity != "denies"
-            # The canonical TYPED relation name is what is stored, so the edge
-            # carries its semantics (transitivity, inverse, ...) not just a verb.
-            # `_ingest` -> `learn_fact` records the parts of speech (the lexicon
-            # fan-out), so teaching a fact still teaches the reader its words.
-            relation = typed.relation.relation.value
+        for part in readings:
+            obj = part.get("obj")
+            if not obj:
+                continue  # an intransitive reading (subject + verb) forms no edge
+            rel = str(part.get("relation") or "").strip().lower()
+            # A copular predication is an ISA edge -- stored TYPED (`isa`) so the
+            # graph carries kind semantics (transitivity), not an undifferentiated
+            # "is" that poisons inference; any other relation keeps its own name.
+            relation = "isa" if rel in ("is", "are") else rel
+            positive = part.get("positive", True)
             acquired.append(await self._ingest(
-                label=typed.subject, description="",
-                relations=((relation, typed.obj,
+                label=part["subject"], description="",
+                relations=((relation, obj,
                             "positive" if positive else "negative"),),
                 source_type=EvidenceSourceType.USER_SUPPLIED, source_id="you",
                 content=sentence, domain="conversation"))

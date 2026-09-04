@@ -2023,23 +2023,34 @@ class NeuralSymbolicBridge:
         this path. This is how the reasoning authority reaches the concept graph
         (it had no live caller before)."""
         try:
-            from core.semantics.derived_reader import read_typed
             from core.reasoning.concept_graph_reasoning import answer_over_graph
             from core.reasoning.relation_algebra import TRUE, FALSE, UNKNOWN
         except Exception as e:
             logger.debug("concept-graph deps unavailable: %s", e)
             return None
-        # Read the query into a TYPED (subject, relation, object). read_typed
-        # declines (None) when the sentence is not a relational reading, and sets
-        # needs_construction when it could not bind the construction — both are
-        # honest "not this path", not failures.
-        tr = read_typed(request.query)
-        if tr is None or tr.needs_construction is not None or tr.relation is None:
+        # ONE reader, no fallback. The query is read by the SAME reader the
+        # teaching path uses (`sentence_reader`), so a multi-word subject reads at
+        # query time exactly as it did when learned -- "the Klein four-group is an
+        # abelian group" is teachable and "is the Klein four-group a solvable
+        # group?" is answerable, symmetrically. A copular "is/are (a) Y" question
+        # is an ISA query; any other relation is mapped to its typed name, and a
+        # relation the graph's algebra does not type is an honest "not this path".
+        from core.semantics.sentence_reader import SentenceReader
+        from core.semantics.relation_types import SemanticRelation as _SR
+        _sr = SentenceReader()
+        goal = _sr._parse_goal(request.query)
+        cp = _sr.clause_parts(goal) if goal else None
+        if not cp or not cp.get("obj"):
             return None
-        subj, obj = tr.subject, tr.obj
-        relation = getattr(tr.relation, "relation", None)  # TypedRelation → SemanticRelation
-        if relation is None:
-            return None  # untyped relation licenses no inference
+        subj, obj = cp["subject"], cp["obj"]
+        rel_surface = str(cp.get("relation", "")).strip().lower().replace(" ", "_")
+        if rel_surface in ("is", "are", "isa", "is_a"):
+            relation = _SR.ISA
+        else:
+            try:
+                relation = _SR(rel_surface)
+            except ValueError:
+                return None
         try:
             from core.database import get_database_manager
             db = get_database_manager()

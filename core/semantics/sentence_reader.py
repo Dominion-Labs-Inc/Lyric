@@ -45,12 +45,20 @@ class SentenceReader:
     _ARTICLES = ("a ", "an ", "the ")
     _DETERMINER = r"(?:(?P<det>a|an|the)\s+)?"
     _COPULA = r"(?:is|are)"
+    #: A subject may be a MULTI-WORD name, not just one token: "the Klein
+    #: four-group", "the exponential function", "Kubernetes" (a brand), "New
+    #: York". Up to four space-separated tokens (each may carry an internal
+    #: hyphen), matched non-greedily so it stops at the copula -- the copula is
+    #: the boundary between a subject phrase and what is said of it. The
+    #: four-word cap mirrors the store's admissibility (a longer run is a clause,
+    #: not a name).
+    _SUBJ = r"(?P<subject>[\w'-]+(?:\s+[\w'-]+){0,3}?)"
     _FACT = re.compile(
-        rf"^{_DETERMINER}(?P<subject>[\w'-]+)\s+{_COPULA}\s+(?P<prop>.+)$",
+        rf"^{_DETERMINER}{_SUBJ}\s+{_COPULA}\s+(?P<prop>.+)$",
         re.IGNORECASE,
     )
     _NEGATED_FACT = re.compile(
-        rf"^{_DETERMINER}(?P<subject>[\w'-]+)\s+{_COPULA}\s+not\s+(?P<prop>.+)$",
+        rf"^{_DETERMINER}{_SUBJ}\s+{_COPULA}\s+not\s+(?P<prop>.+)$",
         re.IGNORECASE,
     )
     _SVO = re.compile(
@@ -89,7 +97,7 @@ class SentenceReader:
         r"^if\s+(?P<antecedent>.+?)[,]?\s+then\s+(?P<consequent>.+)$", re.IGNORECASE
     )
     _QUESTION = re.compile(
-        rf"^is\s+{_DETERMINER}(?P<subject>[\w'-]+)\s+(?P<prop>.+?)\s*\?*$",
+        rf"^is\s+{_DETERMINER}{_SUBJ}\s+(?P<prop>.+?)\s*\?*$",
         re.IGNORECASE,
     )
     #: "Does the tank overflow?" / "Do the pumps run?" — a yes/no question about
@@ -409,17 +417,39 @@ class SentenceReader:
         individual; "Is a robin an animal?" asks about a KIND, and the two need
         different formalizations -- see `formalize`.
         """
-        match = self._QUESTION.match(text.strip())
-        if match:
-            reading = classify_genericity(match.group("subject"), match.group("prop"),
-                                          match.groupdict().get("det"))
-            return {
-                "kind": "fact",
-                "subject": match.group("subject"),
-                "prop": match.group("prop"),
-                "negated": False,
-                "genericity": reading.genericity.value,
-            }
+        # "Is X a Y?" with X and Y possibly MULTI-WORD ("is the Klein four-group a
+        # solvable group?"). Two non-greedy regex groups cannot split a multi-word
+        # subject from a multi-word complement, so the split is done here: the
+        # complement is what follows the LAST determiner (`a solvable group`), and
+        # the subject is everything before it; with no complement-determiner
+        # ("is the exponential function continuous?") the complement is the final
+        # token. The subject's OWN determiner still decides genericity.
+        qm = re.match(r"(?i)^(?:is|are)\s+(.+?)\s*\??\s*$", text.strip())
+        if qm:
+            body = qm.group(1).strip()
+            subj_det_m = re.match(r"(?i)^(a|an|the)\s+", body)
+            subj_det = subj_det_m.group(1) if subj_det_m else None
+            if subj_det_m:
+                body = body[subj_det_m.end():]
+            complement_dets = list(re.finditer(r"(?i)\s+(?:a|an|the)\s+", body))
+            if complement_dets:
+                cut = complement_dets[-1]
+                # keep the complement's determiner IN the prop ("an animal"), the
+                # form genericity classifies against -- stripping it changed
+                # "is a robin an animal?" from a kind-goal to ambiguous.
+                subject, prop = body[:cut.start()].strip(), body[cut.start():].strip()
+            else:
+                parts = body.rsplit(None, 1)
+                subject, prop = (parts[0].strip(), parts[1].strip()) if len(parts) == 2 else (body, "")
+            if subject and prop:
+                reading = classify_genericity(subject, prop, subj_det)
+                return {
+                    "kind": "fact",
+                    "subject": subject,
+                    "prop": prop,
+                    "negated": False,
+                    "genericity": reading.genericity.value,
+                }
         # "Does the tank overflow?" — an action question. Rendered by the same
         # action renderer as its declarative form, so the goal atom matches a
         # consequent like "the tank overflows".
@@ -468,6 +498,97 @@ class SentenceReader:
     def _render_fact(self, node: Dict[str, Any]) -> str:
         atom = self._atom(node["subject"], node["prop"])
         return f"~{atom}" if node["negated"] else atom
+
+    #: Words that join clauses/complements and end a subordinate insertion.
+    _COORD = re.compile(r"\s+and\s+|\s+or\s+", re.IGNORECASE)
+    _RELATIVE = re.compile(r"(?i)^(which|who|that|whose)\s+(.+)$")
+
+    def read_all(self, text: str) -> List[Dict[str, Any]]:
+        """Every simple proposition a possibly-COMPLEX sentence carries, as a list
+        of (subject, relation, obj, positive) parts.
+
+        A real sentence packs several claims: "the okapi, which is a mammal, is a
+        herbivore" states two, "a whale is a mammal and a vertebrate" two more.
+        This decomposes the sentence into simple clauses -- splitting relative
+        clauses and appositives set off by commas (the subject carries into each),
+        and coordinated complements -- then reads each with the ordinary
+        single-clause reader. It never guesses structure it cannot see: a segment
+        that does not read is dropped, not forced, so a tangled sentence yields
+        the claims it can and no invented ones. Multiple sentences are read each
+        in turn."""
+        out: List[Dict[str, Any]] = []
+        seen = set()
+        for sentence in re.split(r"(?<=[.!?])\s+", str(text).strip()):
+            for clause in self._decompose(sentence):
+                node = self._parse_statement(clause)
+                if not node:
+                    continue
+                for cp in self._expand_conjuncts(node):
+                    key = (cp.get("subject", "").lower(), str(cp.get("relation", "")).lower(),
+                           str(cp.get("obj") or "").lower(), cp.get("positive", True))
+                    if key not in seen:
+                        seen.add(key)
+                        out.append(cp)
+        return out
+
+    def _decompose(self, sentence: str) -> List[str]:
+        """Split one sentence into simple clauses that share the subject.
+
+        `HEAD, INSERT, TAIL` where INSERT is a relative clause ("which is a
+        mammal") or an appositive ("a mammal") becomes the main clause
+        `HEAD TAIL` plus a claim about HEAD from INSERT. Everything else is
+        returned as-is for the single-clause reader to handle (including its own
+        conjunction handling)."""
+        s = sentence.strip().rstrip(".!?")
+        # strip a leading discourse opener: "In mathematics, X is a Y" -> "X is a Y"
+        s = re.sub(r"(?i)^(in|within|in the field of|in the study of)\s+[\w\s-]+?,\s+(?=(?:the |a |an )?[\w'-])", "", s, count=1)
+        m = re.match(
+            r"^(?P<head>(?:the |a |an )?[\w'-]+(?:\s+[\w'-]+){0,3}),\s+(?P<insert>.+?),\s+(?P<tail>.+)$",
+            s, re.IGNORECASE)
+        if not m:
+            # Coordinated copular complement: "HEAD is a mammal and a vertebrate"
+            # -> "HEAD is a mammal", "HEAD is a vertebrate". Split only the part
+            # after the copula, and only when it is not a negation (a negated
+            # conjunction is genuinely ambiguous and the single-clause reader
+            # already refuses it).
+            cop = re.match(r"(?i)^(?P<lhs>.+?\s+(?:is|are))\s+(?P<comp>.+?(?:\s+and\s+|\s+or\s+).+)$", s)
+            if cop and " not " not in f" {s.lower()} ":
+                comps = [c.strip() for c in self._COORD.split(cop.group("comp")) if c.strip()]
+                if len(comps) >= 2:
+                    return [f"{cop.group('lhs')} {c}" for c in comps]
+            return [s]
+        head, insert, tail = m.group("head").strip(), m.group("insert").strip(), m.group("tail").strip()
+        clauses = [f"{head} {tail}"]                       # main: "the okapi is a herbivore"
+        rel = self._RELATIVE.match(insert)
+        if rel:
+            clauses.append(f"{head} {rel.group(2)}")       # "the okapi is a mammal"
+        elif re.match(r"(?i)^(a|an|the)\s+", insert) or _word_class(insert.split()[0]) == "NOUN":
+            clauses.append(f"{head} is {insert}")          # appositive: "the okapi is a small mammal"
+        return clauses
+
+    def _expand_conjuncts(self, node: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """One clause node -> its atomic (subject, relation, obj) parts, splitting
+        a coordinated complement: "is a mammal and a vertebrate" -> two facts. A
+        conjunction node (single-word properties) is expanded the same way."""
+        if (node or {}).get("kind") == "conjunction":
+            subj = node["subject"]
+            return [{"subject": subj, "relation": "is", "obj": p, "positive": True}
+                    for p in node.get("properties", [])]
+        # A generic ("a whale is a mammal") reads as a UNIVERSAL; for knowledge
+        # extraction that is the ISA edge whale->mammal. clause_parts deliberately
+        # leaves universals to the formal side, so read_all lifts the edge here.
+        if (node or {}).get("kind") == "universal" and not node.get("negated"):
+            return [{"subject": node["p"], "relation": "is", "obj": node["q"],
+                     "positive": True}]
+        cp = self.clause_parts(node)
+        if not cp:
+            return []
+        obj = cp.get("obj")
+        if obj and self._COORD.search(obj):
+            pieces = [re.sub(r"(?i)^(a|an|the)\s+", "", p.strip()).strip()
+                      for p in self._COORD.split(obj)]
+            return [{**cp, "obj": p} for p in pieces if p]
+        return [cp]
 
     def clause_parts(self, node: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """A clause as (subject, relation, object, positive) parts — the form a
