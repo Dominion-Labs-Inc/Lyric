@@ -91,6 +91,72 @@ _MATH = [
     # Measure and probability -- one-directional where the converse fails.
     ("random variable", "independent", "uncorrelated"),
     ("random variable", "almost surely constant", "uncorrelated"),
+    ("random variable", "bounded", "integrable"),
+    ("random variable", "integrable", "finite expectation"),
+    ("random variable", "gaussian", "absolutely continuous"),
+    ("measure", "probability measure", "finite measure"),
+    ("measure", "finite measure", "sigma finite"),
+    ("real function", "simple", "measurable"),
+
+    # Real analysis -- absolute continuity, bounded variation, convexity.
+    ("real function", "real analytic", "smooth"),
+    ("real function", "lipschitz", "absolutely continuous"),
+    ("real function", "absolutely continuous", "uniformly continuous"),
+    ("real function", "absolutely continuous", "bounded variation"),
+    ("real function", "convex on open interval", "continuous"),
+    ("real function", "monotonic", "differentiable almost everywhere"),
+
+    # Point-set topology -- separation and countability (own subject/lattice).
+    ("topological space", "metrizable", "hausdorff"),
+    ("topological space", "metrizable", "normal"),
+    ("topological space", "metrizable", "regular"),
+    ("topological space", "metrizable", "paracompact"),
+    ("topological space", "metrizable", "first countable"),
+    ("topological space", "compact hausdorff", "normal"),
+    ("topological space", "compact hausdorff", "regular"),
+    ("topological space", "discrete", "metrizable"),
+    ("topological space", "second countable", "first countable"),
+    ("topological space", "second countable", "separable"),
+    ("topological space", "path connected", "connected"),
+    ("topological space", "compact", "limit point compact"),
+
+    # Number systems -- the containment chain.
+    ("number", "natural", "integer"),
+    ("number", "integer", "rational"),
+    ("number", "rational", "real"),
+    ("number", "rational", "algebraic"),
+    ("number", "real", "complex"),
+    ("number", "algebraic", "complex"),
+    ("number", "prime", "natural"),
+    ("number", "prime", "integer"),
+
+    # Linear algebra -- more matrix classes.
+    ("matrix", "identity", "diagonal"),
+    ("matrix", "scalar", "diagonal"),
+    ("matrix", "diagonal", "triangular"),
+    ("matrix", "diagonal", "symmetric"),
+    ("matrix", "diagonal", "normal"),
+    ("matrix", "permutation", "orthogonal"),
+    ("matrix", "orthogonal", "unitary"),
+    ("matrix", "real symmetric", "normal"),
+    ("matrix", "involutory", "invertible"),
+    ("matrix", "idempotent", "diagonalizable"),
+    ("matrix", "nilpotent", "singular"),
+
+    # Abstract algebra -- solvability ladder, more rings and fields, modules.
+    ("group", "abelian", "nilpotent"),
+    ("group", "nilpotent", "solvable"),
+    ("group", "finite p group", "nilpotent"),
+    ("group", "trivial", "cyclic"),
+    ("ring", "field", "euclidean domain"),
+    ("ring", "division ring", "simple ring"),
+    ("ring", "boolean ring", "commutative ring"),
+    ("field", "finite", "perfect"),
+    ("field", "algebraically closed", "perfect"),
+    ("field", "algebraically closed", "infinite"),
+    ("module", "vector space", "free"),
+    ("module", "free", "projective"),
+    ("module", "projective", "flat"),
 ]
 
 # ── COMPUTER SCIENCE ───────────────────────────────────────────────────────
@@ -145,6 +211,56 @@ _CS = [
     ("sorting algorithm", "quicksort", "comparison sort"),
     ("sorting algorithm", "comparison sort", "omega n log n"),
     ("sorting algorithm", "merge sort", "stable"),
+    ("sorting algorithm", "insertion sort", "comparison sort"),
+    ("sorting algorithm", "bubble sort", "comparison sort"),
+    ("sorting algorithm", "heapsort", "n log n"),
+    ("sorting algorithm", "merge sort", "n log n"),
+    ("sorting algorithm", "counting sort", "stable"),
+
+    # Complexity -- the space and time hierarchy (all true inclusions).
+    ("decision problem", "in logspace", "in nlogspace"),
+    ("decision problem", "in logspace", "in p"),
+    ("decision problem", "in nlogspace", "in p"),
+    ("decision problem", "in conp", "in pspace"),
+    ("decision problem", "in exptime", "in expspace"),
+    ("decision problem", "decidable", "recursively enumerable"),
+
+    # Automata -- machine subsumption.
+    ("automaton", "deterministic finite", "finite"),
+    ("automaton", "deterministic finite", "nondeterministic finite"),
+    ("automaton", "deterministic pushdown", "pushdown"),
+    ("automaton", "finite", "pushdown"),
+
+    # Type theory and rewriting -- normalization.
+    ("calculus", "simply typed lambda calculus", "strongly normalizing"),
+    ("calculus", "system f", "strongly normalizing"),
+    ("calculus", "strongly normalizing", "weakly normalizing"),
+    ("calculus", "strongly normalizing", "terminating"),
+
+    # Cryptography -- security reductions (one direction).
+    ("hash function", "collision resistant", "second preimage resistant"),
+
+    # Distributed systems -- consistency-model strength.
+    ("consistency model", "strict serializable", "serializable"),
+    ("consistency model", "strict serializable", "linearizable"),
+    ("consistency model", "linearizable", "sequentially consistent"),
+    ("consistency model", "sequentially consistent", "causally consistent"),
+
+    # Graphs -- more classes.
+    ("graph", "tree", "planar"),
+    ("graph", "forest", "planar"),
+    ("graph", "outerplanar", "planar"),
+    ("graph", "path", "tree"),
+    ("graph", "star", "tree"),
+    ("graph", "cycle", "connected"),
+    ("graph", "cycle", "eulerian"),
+    ("graph", "complete bipartite", "bipartite"),
+
+    # Data structures -- more shapes and their guarantees.
+    ("data structure", "binary heap", "complete binary tree"),
+    ("data structure", "complete binary tree", "logarithmic height"),
+    ("data structure", "b tree", "logarithmic height"),
+    ("data structure", "sorted array", "logarithmic search"),
 ]
 
 THEOREMS = _MATH + _CS

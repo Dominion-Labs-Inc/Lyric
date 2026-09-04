@@ -227,3 +227,6 @@ core/reasoning/apikey.json
 config/active_defense_config.json
 *credentials*.json
 *secret*.json
+
+# Regenerable Wikidata fetch cache (re-create with teach_graduate_wikidata.py --fetch)
+scripts/graduate_wikidata_edges.json
