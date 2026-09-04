@@ -542,12 +542,30 @@ class SentenceReader:
                 if not node:
                     continue
                 for cp in self._expand_conjuncts(node):
-                    key = (cp.get("subject", "").lower(), str(cp.get("relation", "")).lower(),
+                    # A CLASSIFICATION names a KIND, not a paragraph. "an abelian
+                    # group with four elements, in which each element ..." is the
+                    # class `abelian group` plus elaboration; the post-modifier is
+                    # dropped so the edge is a chainable class, not a clause.
+                    if str(cp.get("relation", "")).lower() in ("is", "are") and cp.get("obj"):
+                        cp["obj"] = self._head_np(cp["obj"])
+                    key = (str(cp.get("subject") or "").lower(), str(cp.get("relation", "")).lower(),
                            str(cp.get("obj") or "").lower(), cp.get("positive", True))
                     if key not in seen:
                         seen.add(key)
                         out.append(cp)
         return out
+
+    #: Post-modifiers that continue a description but are not part of a class
+    #: NAME. `of` is deliberately absent -- it belongs to names ("ring of
+    #: integers", "field of fractions").
+    _NP_TAIL = re.compile(
+        r"(?i)(?:,|\s+(?:with|which|that|whose|having|where|containing|used|so|"
+        r"in which|such that|defined|consisting|equipped|denoted|written)\b)")
+
+    def _head_np(self, phrase: str) -> str:
+        """The head noun phrase of a complement -- the class -- without the
+        relative/prepositional tail that elaborates rather than names it."""
+        return self._NP_TAIL.split(str(phrase), 1)[0].strip() or str(phrase).strip()
 
     def _decompose(self, sentence: str) -> List[str]:
         """Split one sentence into simple clauses that share the subject.
