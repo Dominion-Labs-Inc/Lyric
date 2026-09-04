@@ -11574,16 +11574,17 @@ class Conversation:
 
 
     async def look_up(self, phrase: str) -> Optional[Acquired]:
-        """It did not know the word. Go and find out, now.
+        """It did not know the word. Go and find out on the WEB, now.
 
-        Two ways in, tried in order of what the substrate can DO with what comes
-        back. First a structured kind-of lookup (`lexical_lookup`): its edges are
-        admitted as ISA relations, so the concept enters the graph as something
-        the substrate can REASON over transitively (robin -> ... -> animal), not
-        just a description it can echo. Only if that finds nothing does it fall
-        back to prose research, which it can store and repeat but not reason from.
-        Either way the next question about it is answered from the store, and the
-        turn can say where it came from.
+        A word the substrate could know from a lexical database it already knows:
+        the whole of WordNet is taught into the concept store, so the taxonomy is
+        consulted directly, not through a tool. `look_up` is therefore the path
+        for a GENUINE gap -- a word the store does not hold -- and a genuine gap
+        is answered by real research (Wikipedia/web), whose finding is admitted
+        through the learning authority so the next question about it is answered
+        from the store. (A former `lexical_lookup` tool wrapped WordNet as if it
+        were the outside world; it was removed once WordNet became knowledge in
+        the store rather than a thing to call.)
         """
         import json
         import re as _re
@@ -11592,34 +11593,6 @@ class Conversation:
         from core.tools import get_tool_registry
 
         registry = get_tool_registry()
-
-        # ── STRUCTURED FIRST: acquire the kind-of chain and ADMIT each edge as a
-        #    relation, so a looked-up concept becomes reasoning-ready, not inert
-        #    prose. This is what connects "it used a tool to find out" to "it can
-        #    now reason over what it found".
-        try:
-            lex = await registry.execute_tool("lexical_lookup", {"term": phrase})
-        except Exception as error:
-            lex = None
-            logger.debug("lexical_lookup raised for %r: %s", phrase, error)
-        if lex is not None and getattr(lex, "success", False):
-            chain = (getattr(lex, "output", None) or {}).get("isa_chain") or []
-            gloss = (getattr(lex, "output", None) or {}).get("gloss") or ""
-            first: Optional[Acquired] = None
-            for edge in chain:
-                child, parent = edge[0], edge[1]
-                acquired = await self._ingest(
-                    label=child,
-                    description=(gloss if child == phrase else ""),
-                    relations=(("isa", parent),),
-                    source_type=EvidenceSourceType.RESEARCH_FINDING,
-                    source_id="lexical_lookup",
-                    content=f"{child} is a kind of {parent}",
-                    domain="researched")
-                if first is None:
-                    first = acquired
-            if first is not None and first.stored:
-                return first
 
         try:
             result = await registry.execute_tool(

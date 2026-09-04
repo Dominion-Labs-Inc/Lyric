@@ -84,16 +84,14 @@ async def known(conv, term):
     return any(getattr(r, "known", False) for r in resolved)
 
 
-async def pick_concept(conv, registry):
-    """First candidate the substrate does NOT hold and whose real lexical chain
-    reaches 'animal' — a genuine, closeable gap. No staging, no clearing."""
+async def pick_concept(conv):
+    """First candidate the substrate does NOT already hold — a genuine gap to
+    close. (The whole of WordNet is now taught into the store, so these common
+    animals are typically already known; a genuine gap today is a word WordNet
+    itself lacks, which `look_up` closes via web research. This demo predates
+    that teach and needs a rewrite around a real remaining gap.)"""
     for term in CANDIDATES:
-        if await known(conv, term):
-            continue
-        lex = await _quiet(registry.execute_tool("lexical_lookup", {"term": term}))
-        chain = (getattr(lex, "output", None) or {}).get("isa_chain") or []
-        nodes = ([chain[0][0]] + [p for _, p in chain]) if chain else []
-        if "animal" in nodes:
+        if not await known(conv, term):
             return term
     return None
 
@@ -110,11 +108,10 @@ async def main():
             coord = await get_autonomous_coordinator()
         from core.memory import get_memory_agent
         from core.database import get_unified_db
-        from core.tools import get_tool_registry
         agent = await get_memory_agent()
         db = await get_unified_db()
         conv = coord.conversation("demo")
-        CONCEPT = await pick_concept(conv, get_tool_registry())
+        CONCEPT = await pick_concept(conv)
 
     print("═" * 70)
     print(f"{BOLD} TorinAI — detect a knowledge gap, close it with a tool, reason over it{RST}")

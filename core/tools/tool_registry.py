@@ -3192,13 +3192,6 @@ def _register_default_tools():
         logger.warning(f"Could not register base filesystem tools: {e}")
 
     try:
-        from .lexical_tools import LexicalLookupTool
-        _register_tool_lazy(LexicalLookupTool)
-        logger.info("✅ Registered 1 lexical tool (lazy)")
-    except ImportError as e:
-        logger.warning(f"Could not register lexical tool: {e}")
-
-    try:
         from .execution_tools import (
             RunPythonTool, RunShellCommandTool, ExecuteSandboxTool,
             ListProcessesTool, KillProcessTool, StartServiceTool,
