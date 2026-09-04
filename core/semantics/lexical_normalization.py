@@ -152,7 +152,18 @@ def canonical_term(label: str) -> str:
 
     This is the part that is genuinely common: lowercase, punctuation,
     determiners, plurals. Nothing about documents.
+
+    A NUMBER OR DATE IS IDENTITY-STABLE ON ITS OWN TERMS. `1530s` is a decade,
+    not a plural of `1530`, and `3.14` is one number, not `314`. Singularising
+    and stripping punctuation off a literal invents a different thing, so a
+    recognised literal keeps its own canonical form and the grammar below never
+    touches it.
     """
+    from core.semantics.literals import classify_literal
+    literal = classify_literal(label)
+    if literal is not None:
+        return literal.canonical
+
     s = normalise(label).replace("-", "_")
     s = re.sub(r"_+", "_", s).strip("_")
 
@@ -243,6 +254,11 @@ def canonical_label(label: str) -> str:
     out of a document: structural prefixes, trailing acronym restatements and
     generic category tails.
     """
+    from core.semantics.literals import classify_literal
+    literal = classify_literal(label)
+    if literal is not None:
+        return literal.canonical
+
     s = normalise(label).replace("-", "_")
     s = re.sub(r"_+", "_", s).strip("_")
 

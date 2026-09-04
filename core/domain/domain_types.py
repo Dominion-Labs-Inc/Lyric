@@ -49,6 +49,12 @@ class ConceptType(Enum):
     CONSTRAINT = "constraint"
     GOAL = "goal"
     METHOD = "method"
+    #: A number names a quantity and a date names a point in time. Neither is an
+    #: ENTITY -- a decade is not a kind of thing the way a bird is -- so a
+    #: recognised literal is filed under its own type rather than mis-classed or
+    #: refused as "a bare number that names no thing".
+    QUANTITY = "quantity"
+    TEMPORAL = "temporal"
 
 
 class ConceptDimension(Enum):

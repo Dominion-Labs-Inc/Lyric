@@ -116,6 +116,13 @@ def admissible(term: str) -> Tuple[bool, str]:
     cleaned = term.strip().strip(".,;:!?").lower()
     if not cleaned:
         return False, "empty"
+    # A NUMBER OR A DATE NAMES A THING -- a quantity, a point in time. The store
+    # holds it as a typed literal, so a recognised numeral or date is admitted
+    # here rather than refused as "a bare number that names no thing". A run of
+    # digits that is NOT a well-formed literal still falls through to refusal.
+    from core.semantics.literals import classify_literal
+    if classify_literal(cleaned) is not None:
+        return True, ""
     words = [w for w in cleaned.replace("_", " ").split() if w]
     if not words:
         return False, "empty"
@@ -307,19 +314,32 @@ class CognitiveIngress:
             result.refusals.append(f"relation {relation!r} not admitted: {why}")
             return result
 
+        from core.semantics.literals import classify_literal
+
         terms = [t for t in (subject, obj) if t]
         concepts = []
         for term in terms:
-            kind = "entity"
-            if word_class_of:
+            attributes: Dict[str, Any] = {}
+            literal = classify_literal(term)
+            if literal is not None:
+                # A number or date is filed under its own type, carrying the
+                # parsed value so a later stage can compare dates or count -- not
+                # just hold the surface string.
+                kind = literal.concept_type
+                attributes = {"literal_type": literal.kind,
+                              "literal_value": str(literal.value)}
+            elif word_class_of:
                 got = word_class_of(term)
                 kind = {"NOUN": "entity", "ADJECTIVE": "property",
                         "VERB": "process"}.get(got or "", "entity")
+            else:
+                kind = "entity"
             concepts.append({
                 "label": term,
                 "kind": kind,
                 "domains": [domain],
                 "description": description or f"met in use: {surface!r}",
+                "attributes": attributes,
             })
         if obj:
             concepts[0]["relationships"] = [

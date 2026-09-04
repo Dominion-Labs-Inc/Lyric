@@ -717,15 +717,22 @@ class ConceptResolver:
         return _lexical.canonical_label(label)
 
     def reject_reason(self, candidate: ConceptCandidate) -> Optional[str]:
+        # A recognised number or date is a typed literal, not a mis-read word:
+        # the "too short", "placeholder word" and "bare number" tests are about
+        # words and do not apply to it. It still needs a domain, checked below.
+        from core.semantics.literals import classify_literal
+        is_literal = (candidate.concept_kind in (ConceptType.QUANTITY, ConceptType.TEMPORAL)
+                      or classify_literal(candidate.label) is not None)
         norm = self.canonical_label(candidate.label)
-        if len(norm) < self.MIN_LABEL_LEN:
-            return f"label {candidate.label!r} too short after normalisation"
-        if len(norm) > self.MAX_LABEL_LEN:
-            return f"label {candidate.label!r} exceeds {self.MAX_LABEL_LEN} chars"
-        if norm in self._NON_CONCEPTS or self._singularise(norm) in self._NON_CONCEPTS:
-            return f"{norm!r} is a placeholder word, not a concept"
-        if norm.isdigit():
-            return f"{norm!r} is a bare number"
+        if not is_literal:
+            if len(norm) < self.MIN_LABEL_LEN:
+                return f"label {candidate.label!r} too short after normalisation"
+            if len(norm) > self.MAX_LABEL_LEN:
+                return f"label {candidate.label!r} exceeds {self.MAX_LABEL_LEN} chars"
+            if norm in self._NON_CONCEPTS or self._singularise(norm) in self._NON_CONCEPTS:
+                return f"{norm!r} is a placeholder word, not a concept"
+            if norm.isdigit():
+                return f"{norm!r} is a bare number"
         if not candidate.domain_candidates:
             return f"{norm!r} has no domain; a concept must belong somewhere"
         return None
