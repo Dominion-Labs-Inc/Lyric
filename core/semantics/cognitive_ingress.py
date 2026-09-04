@@ -597,7 +597,7 @@ class CognitiveIngress:
         try:
             await self._ensure_conditionals_schema()
             db = self._db or get_database_manager()
-            await db.execute_query(
+            status = await db.execute_query(
                 """INSERT INTO unified.held_conditionals
                    (conditional_id, ant_subject, ant_relation, ant_object,
                     ant_positive, cons_subject, cons_relation, cons_object,
@@ -609,6 +609,11 @@ class CognitiveIngress:
             self._seen.add(cid)
             result.evidence_id = f"cond_{cid}"
             result.admitted = True
+            # ON CONFLICT DO NOTHING inserts 0 rows when the rule is already held
+            # (a re-teach in a fresh process, where the in-memory _seen is empty).
+            # Report that honestly rather than counting it as newly taught.
+            if isinstance(status, str) and status.split()[-1] == "0":
+                result.already_present = True
         except Exception as error:
             result.refusals.append(f"held-conditional store failed: {error}")
             logger.warning("ingress: held-conditional store failed: %s", error)
