@@ -1202,14 +1202,34 @@ class ConceptIngestionService:
             return False
         return None
 
-    async def relink_dangling_edges(self) -> int:
+    async def relink_dangling_edges(self, created: Optional[Sequence["ConceptIdentity"]] = None) -> int:
         """Attach edges whose target has since been learned.
 
         A concept mentioned before it was learned leaves a dangling edge. When
         it arrives, the edge must connect — otherwise the graph's topology
         depends on ingestion ORDER, and two runs over the same corpus produce
         different structures.
+
+        SCOPED TO WHAT JUST ARRIVED. Given the concepts created by one ingest,
+        this attaches only the edges that were waiting for THEM -- one indexed
+        UPDATE per new concept. The unscoped full scan re-resolved every dangling
+        target on every ingest, and a reference taxonomy leaves tens of thousands
+        of edges permanently dangling (a parent label like `reptile_family` that
+        is never itself a child), so that scan grew without bound and made a bulk
+        teach quadratic. The full pass (created=None) remains for the periodic
+        backstop, where surfaces that differ from a concept's canonical name are
+        reconciled.
         """
+        if created is not None:
+            linked = 0
+            for identity in created:
+                res = await self.db().execute_query(
+                    "UPDATE unified.concept_relations SET target_concept_id = $1 "
+                    "WHERE target_surface = $2 AND target_concept_id IS NULL",
+                    (identity.concept_id, identity.name), commit=True)
+                linked += int(res) if isinstance(res, int) else 0
+            return linked
+
         rows = await self.db().execute_query(
             "SELECT DISTINCT target_surface FROM unified.concept_relations "
             "WHERE target_concept_id IS NULL", fetch_all=True) or []
@@ -1491,6 +1511,7 @@ class ConceptIngestionService:
 
         roots = await self._root_evidence_ids(envelope.evidence_id)
 
+        created_identities: List[ConceptIdentity] = []
         for cand in candidates:
             reason = self.resolver.reject_reason(cand)
             if reason:
@@ -1500,11 +1521,16 @@ class ConceptIngestionService:
             created, promoted = await self._persist(identity, cand, envelope, roots)
             await self._record_relations(identity, cand, envelope)
             (result.created if created else result.reinforced).append(identity.concept_id)
+            if created:
+                created_identities.append(identity)
             if promoted:
                 result.promoted.append((identity.concept_id, promoted))
 
-        # Targets named before their concept existed can now attach.
-        await self.relink_dangling_edges()
+        # Targets named before their concept existed can now attach -- scoped to
+        # the concepts THIS ingest created, so the pass is one indexed update per
+        # new concept rather than a re-scan of every dangling edge in the graph.
+        if created_identities:
+            await self.relink_dangling_edges(created_identities)
 
         logger.info(
             "Ingested %s: %d candidate(s) -> %d created, %d reinforced, "
