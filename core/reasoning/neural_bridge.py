@@ -1958,6 +1958,60 @@ class NeuralSymbolicBridge:
                 "route": list(route),
             })
 
+    #: "is a X a Y?" with multi-word X and Y ("is a lie group a group?"). The
+    #: typed reader handles single-word subjects; a subclass question about a
+    #: multi-word technical term needs its own shallow parse to reach the
+    #: sense-exact taxonomy.
+    _SUBCLASS_Q = None  # compiled lazily below
+
+    async def _answer_over_sense_taxonomy(
+        self, request: ReasoningRequest
+    ) -> Optional[ReasoningResult]:
+        """Answer a subclass question SENSE-EXACTLY from the QID-keyed graduate
+        taxonomy, before the name-keyed concept graph can cross a homonym.
+
+        Returns a Yes only on a real QID subclass chain. When both terms are
+        technical concepts but no chain exists, returns None so the query falls
+        through to the OTHER routes -- never into the name-keyed graph, where the
+        collective sense of a word like "group" would answer instead. A term the
+        taxonomy does not hold is common-sense and left entirely to the concept
+        graph."""
+        import re
+        if NeuralSymbolicBridge._SUBCLASS_Q is None:
+            NeuralSymbolicBridge._SUBCLASS_Q = re.compile(
+                r"^\s*(?:is|are)\s+(?:an?\s+|the\s+)?(?P<child>.+?)\s+"
+                r"(?:an?\s+|the\s+)(?P<parent>.+?)\s*\??\s*$", re.IGNORECASE)
+        m = NeuralSymbolicBridge._SUBCLASS_Q.match(str(request.query))
+        if not m:
+            return None
+        child, parent = m.group("child").strip(), m.group("parent").strip()
+        try:
+            from core.database import get_database_manager
+            from core.reasoning.sense_taxonomy import is_subclass
+            db = get_database_manager()
+            if not getattr(db, "initialized", False):
+                await db.initialize()
+            sense = await is_subclass(db, child, parent)
+        except Exception as e:
+            logger.debug("sense-taxonomy query failed: %s", e)
+            return None
+        if not sense.recognized:
+            return None                       # common-sense: let the concept graph decide
+        if sense.verdict != "true":
+            return None                       # technical but no chain: never cross senses
+        return ReasoningResult(
+            answer=f"Yes: {child} is a kind of {parent}",
+            confidence=0.97,
+            reasoning_steps=[f"sense-exact taxonomy: every {child} is a {parent} "
+                             f"(Wikidata QID subclass chain, no sense crossing)"],
+            mode_used=ReasoningMode.CROSS_DOMAIN,
+            metadata={"verified": True, "formalized": True,
+                      KEY_SUBSTRATE_FORMALIZED: True,
+                      "reason": REASON_DERIVED_BY_KIND,
+                      "model_required": False,
+                      "model_available": self._model_available(),
+                      "route": ["substrate", "sense_taxonomy", "true"]})
+
     async def _answer_over_concept_graph(
         self, request: ReasoningRequest
     ) -> Optional[ReasoningResult]:
@@ -1991,6 +2045,33 @@ class NeuralSymbolicBridge:
             db = get_database_manager()
             if not getattr(db, "initialized", False):
                 await db.initialize()
+            # SENSE-EXACT FIRST for a subclass question. The concept graph is
+            # keyed by NAME, so a walk about the algebraic "group" can cross into
+            # the collective "group" (one node, two senses) and conclude a Turing
+            # machine is a group. When BOTH terms name concepts in the QID-keyed
+            # graduate taxonomy, that sense-exact graph decides it and the
+            # name-keyed walk is BYPASSED (a true chain answers Yes; no chain
+            # falls through to the other routes rather than into the homonym).
+            # A term the technical taxonomy does not hold is common-sense, and the
+            # name-keyed graph handles it as before (ocelot -> animal).
+            if relation.value in ("isa", "instance_of"):
+                from core.reasoning.sense_taxonomy import is_subclass
+                sense = await is_subclass(db, subj, obj)
+                if sense.recognized:
+                    if sense.verdict == "true":
+                        return ReasoningResult(
+                            answer=f"Yes: {subj} is a kind of {obj}",
+                            confidence=0.97, reasoning_steps=[
+                                f"sense-exact taxonomy: {subj} is a {obj} "
+                                f"(Wikidata QID subclass chain, no sense crossing)"],
+                            mode_used=ReasoningMode.CROSS_DOMAIN,
+                            metadata={"verified": True, "formalized": True,
+                                      KEY_SUBSTRATE_FORMALIZED: True,
+                                      "reason": REASON_DERIVED_BY_KIND,
+                                      "model_required": False,
+                                      "model_available": self._model_available(),
+                                      "route": ["substrate", "sense_taxonomy", "true"]})
+                    return None  # both technical, no chain: do NOT cross senses
             ans = await answer_over_graph(db, subj, relation, obj)
         except Exception as e:
             logger.debug("concept-graph query failed: %s", e)
@@ -2200,6 +2281,13 @@ class NeuralSymbolicBridge:
         # substrate answer over stored knowledge — precise and model-free. UNKNOWN
         # falls through honestly (the substrate was never told and can't derive
         # it). The bridge decides this path by the query's own shape.
+        # SENSE-EXACT technical subclass first: a QID-keyed answer that cannot
+        # cross a homonym ("is a Turing machine a group?" -> no), before the
+        # name-keyed concept graph runs.
+        sense_answer = await self._answer_over_sense_taxonomy(request)
+        if sense_answer is not None:
+            return sense_answer
+
         graph_answer = await self._answer_over_concept_graph(request)
         if graph_answer is not None:
             return graph_answer
