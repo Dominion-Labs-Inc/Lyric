@@ -154,8 +154,16 @@ def _destructive(before: FrozenSet[Fact], after: FrozenSet[Fact],
     A register may be set from its unset value (a bind) or grown so the new
     value still carries the old (an extend). Replacing a committed value with
     one that does not build on it is destructive -- the wasted earlier write is
-    the redundant path that makes trace choice ambiguous. Cursors are exempt."""
+    the redundant path that makes trace choice ambiguous. Cursors are exempt.
+
+    An extend is textual for a symbolic value ("a" -> "a_b") and NUMERIC for a
+    counter or accumulator: TALLY commits A := A_PLUS_ONE, ACCUM commits A :=
+    A_PLUS_HEAD. The new value was COMPUTED by the machine and is present as
+    another register's value in `before`, so committing it is a derived extend,
+    not a wasteful overwrite -- without this, every accumulation past the first
+    reads as destructive and no counting or summing procedure can be found."""
     rb, ra = _registers(before), _registers(after)
+    computed_before = set(rb.values())
     for pred, old in rb.items():
         if pred in cursors:
             continue
@@ -167,6 +175,8 @@ def _destructive(before: FrozenSet[Fact], after: FrozenSet[Fact],
         old_tokens = "_".join(old).split("_")
         new_tokens = "_".join(new).split("_")
         if all(tok in new_tokens for tok in old_tokens):
+            continue
+        if new in computed_before:
             continue
         return True
     return False
