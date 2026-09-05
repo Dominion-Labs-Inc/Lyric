@@ -1081,6 +1081,15 @@ class HealthMonitor:
            the same number computed from ten.
         """
         criticality = self._classify_criticality(component)
+        # A COGNITIVE component's success rate is an OUTCOME, not liveness. A
+        # learning/reasoning loop that succeeds 80% of the time (rejecting the
+        # rest as not beneficial) is discriminating, not unwell -- so its
+        # `*_success_rate` is informational here and the genuinely-low case is
+        # left to the check's own calibrated issue threshold, not the generic 0.9
+        # HEALTHY bar. Infrastructure/security success rates (a DB query rate) DO
+        # signal liveness and stay scored.
+        is_cognitive = self.COMPONENT_MANIFEST.get(
+            component.split('.', 1)[0], {}).get('type') == 'cognitive'
 
         # Normalised signals from what the checks already emit. Nothing is
         # invented: booleans are liveness, *_rate is already 0-1, and anything
@@ -1129,6 +1138,8 @@ class HealthMonitor:
                     if not value and criticality == 'critical':
                         gate_failures.append(key)
             elif key.endswith('_rate') and isinstance(value, (int, float)):
+                if is_cognitive and key.endswith('_success_rate'):
+                    continue  # cognitive outcome, informational (see is_cognitive)
                 # POLARITY IS NOT UNIFORM. success_rate and convergence_rate are
                 # better when high; failure_rate, error_rate, threat_rate and
                 # violation_rate are better when LOW. Treating every *_rate as
@@ -2175,6 +2186,14 @@ class HealthMonitor:
         try:
             from core.learning.enhanced_asi_self_improvement import get_asi_self_improvement
             asi = get_asi_self_improvement()
+            # LIVENESS ANCHOR. Learning's health is graded on whether it is UP and
+            # running, not on how often its experiments succeed (a cognitive
+            # success rate is an outcome, informational — see evaluate). Without a
+            # liveness signal, excluding the success rates left the component with
+            # nothing to score and it graded UNKNOWN. `_available` is a recognised
+            # liveness signal; the except path sets it False if the ASI faculty
+            # cannot be reached at all.
+            metrics['asi_available'] = True
             # THE DURABLE RECORD, not this process's memory. `get_statistics()`
             # counts an in-process list, and the monitor builds a fresh
             # singleton on every check, so it reported 0 cycles while
