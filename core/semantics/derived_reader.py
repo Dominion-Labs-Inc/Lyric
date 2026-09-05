@@ -198,8 +198,114 @@ def _learn_instructions(authority):
     return operators, ""
 
 
+#: Bump only if the persisted shape must be invalidated for a reason the source
+#: hash below cannot see. The source hash already invalidates the cache on ANY
+#: change to the modules the derivation depends on.
+_CACHE_VERSION = 1
+
+#: Modules whose bytes fingerprint the derivation. If the evidence (all of which
+#: lives in derived_reader.py) or the algorithm changes, the key changes and the
+#: cache is silently re-derived rather than trusted.
+_CACHE_SOURCES = (
+    "core/semantics/derived_reader.py",
+    "core/semantics/sentence_machine.py",
+    "core/learning/procedure_synthesis.py",
+    "core/execution/procedure.py",
+    "core/learning/rule_induction.py",
+)
+
+
+def _cache_path():
+    from pathlib import Path
+    return Path(__file__).resolve().parents[2] / "runtime" / "derived_reading.pkl"
+
+
+def _cache_key() -> str:
+    """Fingerprint of everything the derivation depends on: the version marker
+    plus the bytes of every source module. A change to the evidence OR the
+    synthesis code changes this, so a stale procedure is never rehydrated."""
+    import hashlib
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[2]
+    h = hashlib.sha256(str(_CACHE_VERSION).encode())
+    for rel in _CACHE_SOURCES:
+        try:
+            h.update(root.joinpath(rel).read_bytes())
+        except OSError:
+            return ""  # cannot fingerprint the sources -> never cache
+    return h.hexdigest()
+
+
+def _build_reading(procedures, *, cached: bool):
+    """Assemble the DerivedReading from procedures -- the ONE place both the
+    fresh derivation and the rehydrated cache build it, so a loaded reading is
+    identical to a freshly derived one."""
+    from core.semantics.reading_registry import DerivedReading
+    return DerivedReading(
+        name="subject_object_polarity",
+        procedure=_Unanimous(procedures),
+        machine=SentenceMachine,
+        budget=budget,
+        provenance=(f"derived from {len(TAUGHT)} sentence/meaning pairs via "
+                    f"procedure_synthesis over {len(INSTRUCTIONS)} induced "
+                    f"instructions; {len(procedures)} procedure(s) fit and must "
+                    f"agree; no model" + (" (rehydrated from cache)" if cached else "")))
+
+
+def _load_cached_procedures():
+    """The persisted procedures IF one was saved for exactly this code+evidence,
+    else None. Any problem -- missing file, key mismatch, unpicklable, wrong
+    shape -- returns None so the caller re-derives. A bad cache can never become
+    a wrong reader; the worst case is the pre-cache behaviour of deriving."""
+    import pickle
+    key = _cache_key()
+    if not key:
+        return None
+    path = _cache_path()
+    try:
+        if not path.exists():
+            return None
+        with open(path, "rb") as fh:
+            blob = pickle.load(fh)
+    except Exception as error:
+        logger.warning("derived-reading cache unreadable, will re-derive: %s", error)
+        return None
+    if not isinstance(blob, dict) or blob.get("key") != key:
+        return None  # stale: code or evidence changed since it was written
+    procedures = blob.get("procedures")
+    return tuple(procedures) if procedures else None
+
+
+def _persist_procedures(procedures) -> None:
+    """Save the derived procedures for the current code+evidence. Best-effort:
+    a failure to write is logged and the process runs exactly as before."""
+    import pickle
+    key = _cache_key()
+    if not key:
+        return
+    path = _cache_path()
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_suffix(".pkl.tmp")
+        with open(tmp, "wb") as fh:
+            pickle.dump({"key": key, "procedures": tuple(procedures)}, fh,
+                        protocol=pickle.HIGHEST_PROTOCOL)
+        tmp.replace(path)  # atomic: a reader never sees a half-written cache
+        logger.info("derived reading cached to %s", path)
+    except Exception as error:
+        logger.warning("derived-reading cache not written (will re-derive next "
+                       "boot): %s", error)
+
+
 def derive() -> Tuple[Optional[object], str]:
     """Derive the reading procedure. Once per process, then cached.
+
+    PERSISTED ACROSS BOOTS. The derivation is a minutes-long combinatorial
+    search; re-running it every process start is pure waste. On success the
+    result is written to `runtime/derived_reading.pkl`, keyed by a hash of the
+    evidence and the synthesis source, and a matching cache is rehydrated in
+    milliseconds instead. The cache is fail-safe: any mismatch or read error
+    re-derives, so it can only ever save time, never change the reading.
 
     Returns (DerivedReading, "") or (None, why). A failure is REPORTED, never
     swallowed into a silent fallback -- if this cannot be derived, the caller
@@ -209,10 +315,17 @@ def derive() -> Tuple[Optional[object], str]:
         if _state["derived"]:
             return _state["reading"], _state["why"]
 
+        # FAST PATH: a derivation persisted for exactly this code+evidence.
+        cached = _load_cached_procedures()
+        if cached:
+            reading = _build_reading(cached, cached=True)
+            _state.update(derived=True, reading=reading, why="")
+            logger.info("derived reading rehydrated from cache (no synthesis)")
+            return reading, ""
+
         from core.learning.unified_learning_system import get_learning_authority
         from core.learning.procedure_synthesis import IOExample, SynthesisStatus
         from core.learning.rule_induction import Fact
-        from core.semantics.reading_registry import DerivedReading
 
         authority = get_learning_authority()
         try:
@@ -253,16 +366,10 @@ def derive() -> Tuple[Optional[object], str]:
         # not determine it.
         procedures = tuple(result.procedures)
 
-        reading = DerivedReading(
-            name="subject_object_polarity",
-            procedure=_Unanimous(procedures),
-            machine=SentenceMachine,
-            budget=budget,
-            provenance=(f"derived from {len(TAUGHT)} sentence/meaning pairs via "
-                        f"procedure_synthesis over {len(INSTRUCTIONS)} induced "
-                        f"instructions; {len(procedures)} procedure(s) fit and "
-                        f"must agree; no model"),
-        )
+        # Persist for next boot BEFORE building the reading, so the minutes-long
+        # search is paid once ever, not once per process.
+        _persist_procedures(procedures)
+        reading = _build_reading(procedures, cached=False)
         _state.update(derived=True, reading=reading, why="")
         return reading, ""
 

@@ -437,11 +437,24 @@ class HealthMonitor:
         self.check_interval = self.config.get('check_interval', 30)  # seconds
 
         # Thresholds
+        #
+        # MEMORY IS GRADED ON THE SUBSTRATE, NOT THE MACHINE. This monitor grades
+        # the substrate layer (set_scope("substrate")); its memory health must
+        # reflect what the substrate's OWN process tree uses, not system-wide RAM.
+        # The old system-wide 90% "critical" was calibrated for a ~36GB model held
+        # in RAM as the center of intelligence -- that model is gone (the LLM is a
+        # barely-optional teacher path now), so a busy Mac (other apps' memory) no
+        # longer means the substrate is unwell. `substrate_memory_*` grade the
+        # substrate process tree's RSS as a % of total RAM: only a genuine
+        # substrate runaway trips them. The system-wide `memory_*` values are kept
+        # for the informational metric/history only, no longer for the verdict.
         self.thresholds = {
             'cpu_warning': 70.0,
             'cpu_critical': 90.0,
             'memory_warning': 75.0,
             'memory_critical': 90.0,
+            'substrate_memory_warning': 55.0,
+            'substrate_memory_critical': 75.0,
             'disk_warning': 80.0,
             'disk_critical': 95.0,
             'error_rate_warning': 0.05,  # 5%
@@ -496,10 +509,18 @@ class HealthMonitor:
                     self.scope, len(self._monitored_components))
 
     async def initialize(self):
-        """Initialize health monitor (registers components, starts monitoring)"""
+        """Build the health monitor: register components ONLY — do NOT start the loop.
+
+        Starting the monitoring loop here ran full component health sweeps (each
+        firing an improvement-monitor cycle) CONCURRENTLY with the rest of
+        startup — from PHASE 7 through the coordinator and security phases —
+        starving the init phases behind it on the event loop. The loop belongs
+        in system start(): the watchdog (system_watchdog.start → start_monitoring,
+        idempotent) brings it up AFTER initialization completes. Build in
+        initialize(), run loops in start().
+        """
         await self.sync_component_registry()
-        await self.start_monitoring()
-        logger.info("HealthMonitor started")
+        logger.info("HealthMonitor built (monitoring starts after init, via watchdog)")
 
     #: Where core/ lives, for structural discovery.
     CORE_ROOT = Path(__file__).resolve().parents[1]
@@ -3468,6 +3489,26 @@ class HealthMonitor:
             memory = psutil.virtual_memory()
             disk = psutil.disk_usage('/')
 
+            # THE SUBSTRATE'S OWN memory footprint (this process + its children),
+            # as a % of total RAM. This -- not system-wide RAM -- is what the
+            # substrate's memory health is graded on, so other apps on the machine
+            # can never make the substrate report unwell. Best-effort: a child that
+            # vanishes or denies access is skipped, never fatal.
+            substrate_bytes = 0
+            try:
+                _proc = psutil.Process()
+                substrate_bytes = _proc.memory_info().rss
+                for _child in _proc.children(recursive=True):
+                    try:
+                        substrate_bytes += _child.memory_info().rss
+                    except (psutil.NoSuchProcess, psutil.AccessDenied):
+                        continue
+            except Exception:
+                substrate_bytes = 0
+            substrate_memory_percent = round(
+                (substrate_bytes / memory.total * 100.0) if memory.total else 0.0, 1)
+            substrate_memory_gb = round(substrate_bytes / (1024 ** 3), 2)
+
             # Network check
             net_io = psutil.net_io_counters()
             network_active = (net_io.bytes_sent > 0 and net_io.bytes_recv > 0)
@@ -3499,10 +3540,15 @@ class HealthMonitor:
             elif cpu_percent > self.thresholds['cpu_warning']:
                 issues.append(f"WARNING: CPU at {cpu_percent}%")
 
-            if memory.percent > self.thresholds['memory_critical']:
-                issues.append(f"CRITICAL: Memory at {memory.percent}%")
-            elif memory.percent > self.thresholds['memory_warning']:
-                issues.append(f"WARNING: Memory at {memory.percent}%")
+            # Graded on the SUBSTRATE's footprint, not the machine's (see the
+            # threshold note). The message names it explicitly so a reader never
+            # mistakes it for system-wide RAM again.
+            if substrate_memory_percent > self.thresholds['substrate_memory_critical']:
+                issues.append(f"CRITICAL: Substrate memory at {substrate_memory_percent}% "
+                              f"({substrate_memory_gb}GB)")
+            elif substrate_memory_percent > self.thresholds['substrate_memory_warning']:
+                issues.append(f"WARNING: Substrate memory at {substrate_memory_percent}% "
+                              f"({substrate_memory_gb}GB)")
 
             if disk.percent > self.thresholds['disk_critical']:
                 issues.append(f"CRITICAL: Disk at {disk.percent}%")
@@ -3529,11 +3575,21 @@ class HealthMonitor:
             elif cpu_percent > self.thresholds.get('cpu_warning', 80):
                 components['cpu'] = {'status': 'degraded', 'cpu_percent': cpu_percent, 'issues': [f'High CPU: {cpu_percent}%']}
 
-            # Synthetic: RAM
-            if memory.percent > self.thresholds.get('memory_critical', 95):
-                components['memory'] = {'status': 'critical', 'memory_percent': memory.percent, 'issues': [f'Memory at {memory.percent}%']}
-            elif memory.percent > self.thresholds.get('memory_warning', 85):
-                components['memory'] = {'status': 'degraded', 'memory_percent': memory.percent, 'issues': [f'High memory: {memory.percent}%']}
+            # Synthetic: RAM — the SUBSTRATE's footprint, not the machine's.
+            # `memory_percent` (system-wide) is reported alongside for context, but
+            # the status verdict is the substrate's own tree.
+            if substrate_memory_percent > self.thresholds.get('substrate_memory_critical', 75):
+                components['memory'] = {'status': 'critical',
+                                        'substrate_memory_percent': substrate_memory_percent,
+                                        'substrate_memory_gb': substrate_memory_gb,
+                                        'memory_percent': memory.percent,
+                                        'issues': [f'Substrate memory at {substrate_memory_percent}% ({substrate_memory_gb}GB)']}
+            elif substrate_memory_percent > self.thresholds.get('substrate_memory_warning', 55):
+                components['memory'] = {'status': 'degraded',
+                                        'substrate_memory_percent': substrate_memory_percent,
+                                        'substrate_memory_gb': substrate_memory_gb,
+                                        'memory_percent': memory.percent,
+                                        'issues': [f'High substrate memory: {substrate_memory_percent}% ({substrate_memory_gb}GB)']}
 
             # Synthetic: Disk
             if disk.percent > self.thresholds.get('disk_critical', 95):
@@ -3556,7 +3612,9 @@ class HealthMonitor:
                 'status': overall_status.value,
                 'timestamp': datetime.now().isoformat(),
                 'cpu_percent': cpu_percent,
-                'memory_percent': memory.percent,
+                'memory_percent': memory.percent,  # system-wide, informational only
+                'substrate_memory_percent': substrate_memory_percent,  # what the verdict grades
+                'substrate_memory_gb': substrate_memory_gb,
                 'disk_percent': disk.percent,
                 'network_active': network_active,
                 'process_count': process_count,

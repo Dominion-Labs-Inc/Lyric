@@ -1287,18 +1287,16 @@ class NeuralSymbolicBridge:
             except Exception as e:
                 logger.error("reasoning subsystem ownership wiring failed: %s", e)
 
-            # Derive the subject-object reading from its teacher pairs and put
-            # it in the registry -- an explicit, once-per-process step (idempotent,
-            # cached), NOT a side effect of formalizing, so an empty registry
-            # still means "nothing was derived". This is what makes the derived
-            # reader non-empty at runtime; model-free via procedure_synthesis.
-            try:
-                from core.semantics.derived_reader import ensure_registered
-                ok, why = ensure_registered()
-                if not ok:
-                    logger.warning("derived reading not registered: %s", why)
-            except Exception as e:
-                logger.warning("derived reading registration skipped: %s", e)
+            # The subject-object derived reading is NOT built here. Its derivation
+            # is a combinatorial policy search (procedure_synthesis._search_policies)
+            # that runs for MINUTES and pegs a core; on the init path -- sync OR in
+            # a background thread -- it starved every later startup phase through the
+            # GIL and, when synchronous, froze the boot outright. It is not needed
+            # for the substrate to come up (the live reader is SentenceReader), so it
+            # is deferred to AFTER startup: `SystemManager.start()` kicks off
+            # `derived_reader.ensure_registered()` once, off the boot path. The
+            # registry reports an honest empty until that finishes. See
+            # core/main.py (post `mark_startup_complete`).
 
             # Restore measured reasoning difficulty from the durable store, and
             # register its periodic flush on the queue authority (cadence lives

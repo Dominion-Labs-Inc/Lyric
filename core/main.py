@@ -1767,6 +1767,33 @@ class TorinAISystem:
                 if mc and hasattr(mc, 'mark_startup_complete'):
                     mc.mark_startup_complete()
 
+            # DERIVED READING — off the boot path, ONCE, after everything is up.
+            # Its derivation is a minutes-long procedure_synthesis search; run on
+            # the init path (sync OR in a thread) it starved — or froze — startup
+            # through the GIL. The system is now fully running, so the one-time
+            # cost is paid in a background daemon thread that blocks no init phase.
+            # Fire and forget; the reading registry is honestly empty until it
+            # completes. FOLLOW-UP: persist the derived reading and rehydrate it on
+            # boot (like schemas) so it is derived once EVER, not once per boot.
+            try:
+                import threading as _threading
+                from core.semantics.derived_reader import ensure_registered as _ensure_reading
+
+                def _derive_reading_once():
+                    try:
+                        ok, why = _ensure_reading()
+                        if ok:
+                            logger.info("✓ derived reading registered (post-startup)")
+                        else:
+                            logger.warning("derived reading not registered: %s", why)
+                    except Exception as _e:
+                        logger.warning("derived reading registration skipped: %s", _e)
+
+                _threading.Thread(target=_derive_reading_once,
+                                  name="derived-reading", daemon=True).start()
+            except Exception as _e:
+                logger.warning("derived reading post-startup kickoff skipped: %s", _e)
+
         except Exception as e:
             logger.error(f"Service startup failed: {e}", exc_info=True)
             raise
