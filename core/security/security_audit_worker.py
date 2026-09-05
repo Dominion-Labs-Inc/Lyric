@@ -987,7 +987,12 @@ class SecurityAuditWorker:
             )
             baseline_path = torin_root / 'data' / 'file_integrity_baseline.json'
 
-            # Core files that must not be tampered with
+            # Core files that must not be tampered with. Keep this in step with
+            # the codebase: a file listed here but deliberately removed (e.g. a
+            # dissolved module) turns into a perpetual "missing" finding and a
+            # remediation task that can never succeed. commitment_contract_manager
+            # was removed (its role moved to the safety framework), so it is not
+            # tracked here any longer.
             critical_files = [
                 'core/security/controller.py',
                 'core/security/security_audit_worker.py',
@@ -995,7 +1000,6 @@ class SecurityAuditWorker:
                 'core/agents/autonomous/autonomous_coordinator.py',
                 'core/agents/autonomous/task_queue.py',
                 'core/health/health_monitor.py',
-                'core/safety/commitment_contract_manager.py',
             ]
 
             def sha256_file(path: str) -> str:
@@ -1020,9 +1024,28 @@ class SecurityAuditWorker:
                 with open(baseline_path, 'r') as f:
                     baseline = json.load(f)
 
-                for rel, expected_hash in baseline.items():
+                reconciled = False
+                # Snapshot: the baseline may be reconciled (an authorised removal)
+                # while iterating, so iterate a copy of its items.
+                for rel, expected_hash in list(baseline.items()):
                     abs_path = torin_root / rel
                     if not abs_path.exists():
+                        if rel not in critical_files:
+                            # AN AUTHORISED REMOVAL, NOT A THREAT. The file is gone
+                            # AND it is no longer a tracked critical file (a
+                            # dissolved module, e.g. the general-purpose executor).
+                            # Reconcile the baseline to the current trusted set
+                            # instead of flagging it missing every cycle -- which
+                            # spawned a remediation task that could never restore
+                            # it, failed, retried, and permanently blocked a
+                            # fingerprint, on every boot. A file STILL in
+                            # critical_files but gone IS a real deletion and still
+                            # flags below.
+                            baseline.pop(rel, None)
+                            reconciled = True
+                            logger.info("[FileIntegrity] dropped removed file from "
+                                        "baseline (no longer critical): %s", rel)
+                            continue
                         findings.append(SecurityAuditFinding(
                             finding_id=(
                                 f"integrity_missing_{rel.replace('/', '_')}"
@@ -1098,6 +1121,14 @@ class SecurityAuditWorker:
                                         "authorised deployment that records provenance."
                                     )
                                 ))
+
+                # Persist any authorised removals so the baseline stops carrying
+                # files that no longer exist -- the fix is durable, not per-run.
+                if reconciled:
+                    with open(baseline_path, 'w') as f:
+                        json.dump(baseline, f, indent=2)
+                    logger.info("[FileIntegrity] baseline reconciled to current "
+                                "trusted set (%d files)", len(baseline))
 
         except Exception as e:
             self._note_scan_degraded("File integrity", e)

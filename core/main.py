@@ -1735,10 +1735,15 @@ class TorinAISystem:
                 await self.audit_worker.start_monitoring()
                 logger.info("✓ Security monitoring started")
 
-            # Start system watchdog (also starts the health monitoring loop)
-            if self.system_watchdog:
+            # Start system watchdog (also starts the health monitoring loop).
+            # TORIN_NO_WATCHDOG=1 keeps it off — for a supervised-restart-free
+            # startup where every failure stays visible instead of being auto-
+            # recovered (diagnostic runs).
+            if self.system_watchdog and os.getenv("TORIN_NO_WATCHDOG") != "1":
                 await self.system_watchdog.start()
                 logger.info("✓ System watchdog started")
+            elif self.system_watchdog:
+                logger.warning("⏭️  System watchdog DISABLED (TORIN_NO_WATCHDOG=1)")
 
             # Start backup scheduler ONLY if no guardian owns it. Backups are a
             # system (always-on) concern now owned by the guardian; the substrate
