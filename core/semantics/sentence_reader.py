@@ -61,13 +61,28 @@ class SentenceReader:
         rf"^{_DETERMINER}{_SUBJ}\s+{_COPULA}\s+not\s+(?P<prop>.+)$",
         re.IGNORECASE,
     )
+    #: Subject and verb stay single tokens (the verb is anchored by the lexicon
+    #: below), but the OBJECT may be a short noun phrase, not just one word:
+    #: "a farmer has twelve sheep", "she bought 12 apples", "the pump moves cold
+    #: water". Up to four tokens (digits allowed, so a quantity survives), an
+    #: optional leading determiner or number kept inside the object. Still
+    #: anchored on a known verb, so an all-unknown run reads as nothing.
     _SVO = re.compile(
         rf"^{_DETERMINER}(?P<subject>[\w'-]+)\s+(?P<verb>[\w'-]+)\s+"
-        rf"(?:(?:a|an|the)\s+)?(?P<object>[\w'-]+)$", re.IGNORECASE)
-    _PREPOSITIONS = ("in", "on", "under", "inside", "above", "below",
-                     "near", "behind")
+        rf"(?:(?:a|an|the)\s+)?(?P<object>[\w'-]+(?:\s+[\w'-]+){{0,3}})$", re.IGNORECASE)
+    #: Prepositions that name a RELATION between two things when they stand
+    #: after the copula ("X is PREP Y"). Spatial AND temporal/associative: "at
+    #: noon", "before dawn", "over the river", "by Tolkien" are relations, not
+    #: classes -- restricting this to spatial prepositions filed "the meeting is
+    #: at noon" as the class `at_noon`. `to`/`from`/`into`/`onto` are left OUT on
+    #: purpose: "the goal is to win" is an infinitive, not a locative, and reading
+    #: it as `goal --to--> win` is worse than not reading it.
+    _PREPOSITIONS = ("in", "on", "at", "by", "under", "inside", "outside",
+                     "above", "below", "over", "near", "behind", "beside",
+                     "within", "atop", "beneath", "among", "around", "through",
+                     "before", "after", "during")
     _PREPOSITIONAL = re.compile(
-        r"^(?P<prep>in|on|under|inside|above|below|near|behind)\s+"
+        rf"^(?P<prep>{'|'.join(_PREPOSITIONS)})\s+"
         r"(?:(?:a|an|the)\s+)?(?P<object>[\w'-]+(?:\s+[\w'-]+)*)$",
         re.IGNORECASE)
     _SV = re.compile(
@@ -109,6 +124,14 @@ class SentenceReader:
         rf"(?:\s+(?:(?:a|an|the)\s+)?(?P<object>[\w'-]+))?\s*\?*$",
         re.IGNORECASE,
     )
+    #: A statement is never an interrogative. A trailing '?' or a leading WH /
+    #: auxiliary opener marks a question, which `_parse_goal` handles -- the
+    #: statement reader must refuse it so "What is a memristor?" is never stored
+    #: as the fact `what isa memristor`. Declaratives never open with these.
+    _INTERROGATIVE = re.compile(
+        r"(?i)^(?:what|where|who|whom|whose|why|when|which|how|"
+        r"is|are|was|were|do|does|did|can|could|will|would|should|has|have|had)\b")
+
     def _normalize(self, phrase: str) -> str:
         """Reduce a phrase to a snake_case atom fragment.
 
@@ -141,6 +164,11 @@ class SentenceReader:
         """Classify one sentence, or return None if it is outside the slice."""
         sentence = text.strip().rstrip(".")
         if not sentence:
+            return None
+
+        # A QUESTION is not a statement: refuse it here so it is never read as a
+        # fact (see `_INTERROGATIVE`). The query path reads it through `_parse_goal`.
+        if text.strip().endswith("?") or self._INTERROGATIVE.match(sentence):
             return None
 
         match = self._CONDITIONAL.match(sentence)
@@ -470,6 +498,22 @@ class SentenceReader:
                 return {"kind": "svo", "subject": match.group("subject"),
                         "verb": verb, "object": groups["object"]}
             return {"kind": "sv", "subject": match.group("subject"), "verb": verb}
+        # "How many X ...?" -- a COUNT question: the unknown is a quantity. Parsed
+        # so the counted kind (and any trailing relation) is available; the
+        # substrate answers it only where it can enumerate, otherwise honest gap.
+        hm = re.match(r"(?i)^how\s+many\s+(?P<x>[\w'-]+(?:\s+[\w'-]+){0,3}?)"
+                      r"(?:\s+(?P<rest>.+?))?\s*\??\s*$", text.strip())
+        if hm:
+            return {"kind": "count", "target": hm.group("x").strip(),
+                    "rest": (hm.group("rest") or "").strip() or None, "obj": None}
+        # "Where/When is X?" -- a locative or temporal query: the unknown is the
+        # place or time X stands in, so it is an OPEN goal keyed on that relation.
+        wq = re.match(r"(?i)^(?P<w>where|when)\s+(?:is|are|was|were)\s+"
+                      r"(?:an?\s+|the\s+)?(?P<x>.+?)\s*\??\s*$", text.strip())
+        if wq:
+            rel = "location" if wq.group("w").lower() == "where" else "time"
+            return {"kind": "open", "subject": wq.group("x").strip(),
+                    "relation": rel, "obj": None}
         # A WH question is OPEN -- the unknown is the answer, not the subject.
         # "what is (a) X?" asks X's class; "what eats plankton?" names a relation
         # and its object with the subject unknown. Extracted so gap detection and

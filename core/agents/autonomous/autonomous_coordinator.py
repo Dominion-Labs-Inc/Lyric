@@ -11417,6 +11417,30 @@ FUNCTION_WORDS = frozenset({
     "if", "then", "else", "unless", "so",
 })
 
+#: The stored relation labels a WHERE / WHEN question is answered from. The
+#: reader parses "where is X?" to the abstract relation `location` and "when is
+#: X?" to `time`; the store holds the CONCRETE preposition the fact was taught
+#: with ("the cup is in the box" -> `in`), so answering a locative/temporal
+#: question means reading any relation of the right FAMILY off the subject. The
+#: two families overlap (`at`/`on`/`in`/`by` are both), which is correct -- "the
+#: meeting is at noon" and "the cup is at the door" both use `at`.
+LOCATIVE_RELATIONS = frozenset({
+    "in", "on", "at", "by", "under", "inside", "outside", "above", "below",
+    "over", "near", "behind", "beside", "within", "atop", "beneath", "among",
+    "around", "through"})
+TEMPORAL_RELATIONS = frozenset({"at", "by", "on", "in", "before", "after",
+                                "during"})
+
+#: Words that carry a COUNT, so a "how many …?" question can read the quantity
+#: off a stored fact ("a spider has eight legs" -> `has eight_leg`). A digit
+#: counts too; this is only for the spelled-out forms the reader keeps whole.
+NUMBER_WORDS = frozenset({
+    "zero", "one", "two", "three", "four", "five", "six", "seven", "eight",
+    "nine", "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen",
+    "sixteen", "seventeen", "eighteen", "nineteen", "twenty", "thirty",
+    "forty", "fifty", "sixty", "seventy", "eighty", "ninety", "hundred",
+    "thousand", "million", "billion"})
+
 #: Longest phrase considered as a single concept name.
 MAX_PHRASE = 4
 
@@ -12049,9 +12073,68 @@ class Conversation:
         question and a label on a concept share a stem.
         """
         from core.semantics.sentence_machine import tokenize
+        from core.semantics.sentence_reader import SentenceReader
 
         asked_stems = {w for w in tokenize(sentence) if w not in FUNCTION_WORDS}
         answers: List[Answer] = []
+
+        # WHERE / WHEN / HOW-MANY are answered off a RELATION FAMILY, not by
+        # object-word overlap. "where is the cup?" names no object to match --
+        # its answer is whatever place-relation the cup stands in ("in the box").
+        # The reader parses these to an `open` locative/temporal goal or a `count`
+        # goal; here the concrete relation is read off the resolved subject. An
+        # honest gap (no such relation held) returns [] and the turn says so --
+        # it does not fall through to the object-overlap loop, which would only
+        # mis-match. Statements never parse to these kinds, so this is inert
+        # unless a question was actually asked.
+        goal = SentenceReader()._parse_goal(sentence)
+        gkind = (goal or {}).get("kind")
+        if gkind == "open" and (goal or {}).get("relation") in ("location", "time"):
+            spatial = goal["relation"] == "location"
+            family = LOCATIVE_RELATIONS if spatial else TEMPORAL_RELATIONS
+            subj_stems = {w for w in tokenize(str(goal.get("subject") or ""))
+                          if w not in FUNCTION_WORDS}
+            for item in resolved:
+                if not item.known:
+                    continue
+                item_stems = {w for w in tokenize(item.phrase)
+                              if w not in FUNCTION_WORDS}
+                if subj_stems and not any(same_stem(a, b) for a in subj_stems
+                                          for b in item_stems):
+                    continue
+                for relation, other in item.relations:
+                    head = relation.replace("_", " ").split()
+                    if head and head[0].lower() in family:
+                        # A place takes an article ("in the box"); a time does
+                        # not ("at noon", not "at the noon").
+                        art = "the " if spatial else ""
+                        answers.append(Answer(
+                            item.phrase, relation, (str(other),), verdict=None,
+                            conclusion=f"the {item.phrase} is {relation} "
+                                       f"{art}{str(other).replace('_', ' ')}"))
+            return answers
+        if gkind == "count":
+            target_stems = {stem(w) for w in tokenize(str(goal.get("target") or ""))
+                            if w not in FUNCTION_WORDS}
+            for item in resolved:
+                if not item.known:
+                    continue
+                for relation, other in item.relations:
+                    # The store singularises and underscores an object
+                    # ("eight legs" -> `eight_leg`); split it so the numeral and
+                    # the counted kind read as their own tokens again.
+                    otoks = tokenize(str(other).replace("_", " "))
+                    counted = any(t.isdigit() or t in NUMBER_WORDS for t in otoks)
+                    on_target = (not target_stems
+                                 or any(same_stem(t, ts) for t in otoks
+                                        for ts in target_stems))
+                    if counted and on_target:
+                        answers.append(Answer(
+                            item.phrase, relation, (str(other),), verdict=None,
+                            conclusion=f"the {item.phrase} {relation} "
+                                       f"{str(other).replace('_', ' ')}"))
+            return answers
+
         for item in resolved:
             if not item.known:
                 continue
