@@ -381,8 +381,20 @@ class AnalogyDiscovery:
         self.concepts[domain][name] = concept
         self.stats['concepts_indexed'] += 1
 
-        # Persist to database
-        await self._persist_concept(concept)
+        # Persist THROUGH THE ONE AUTHORITY, not a direct INSERT. A concept the
+        # analogy engine registers is a knowledge write like any other, so it
+        # goes through UnifiedLearningSystem.learn_concept -> the ingress ->
+        # concept_ingestion (identity, aliases, domain membership) + fan-out,
+        # exactly as a taught concept does. The old `_persist_concept` raw
+        # `INSERT INTO unified.concepts` was the last concept-write bypass.
+        from core.learning.unified_learning_system import \
+            get_unified_learning_system
+        from core.semantics.cognitive_ingress import Provenance
+        await get_unified_learning_system().learn_concept(
+            name, domain=domain, description=description,
+            relationships=list(concept.relationships or []),
+            provenance=Provenance(producer="analogy_discovery", source_id="analogy",
+                                  source_type="IMPORTED_KNOWLEDGE"))
 
         return concept
 
@@ -857,59 +869,10 @@ class AnalogyDiscovery:
     # Database Persistence
     # ==================================================================================
 
-    async def _persist_concept(
-        self,
-        concept: Concept
-    ) -> bool:
-        """Persist concept to database"""
-        try:
-            if not self.db:
-                return False
-
-            # Concept carries no concept_id field, so reading one raised
-            # AttributeError before the query ever ran and every concept write
-            # failed silently. Domain+name is the natural key and keeps the
-            # upsert idempotent across restarts.
-            concept_id = f"{concept.domain}:{concept.name}"
-
-            await self.db.execute_query(
-                """
-                INSERT INTO unified.concepts
-                    (concept_id, name, domain, description, attributes,
-                     relationships, functions, processes, context, examples, created_at)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
-                ON CONFLICT (concept_id) DO UPDATE SET
-                    description = EXCLUDED.description,
-                    attributes = EXCLUDED.attributes,
-                    relationships = EXCLUDED.relationships,
-                    functions = EXCLUDED.functions,
-                    processes = EXCLUDED.processes,
-                    context = EXCLUDED.context,
-                    examples = EXCLUDED.examples,
-                    updated_at = NOW()
-                """,
-                params=(
-                    concept_id,
-                    concept.name,
-                    concept.domain,
-                    concept.description,
-                    # These columns are JSONB; str() produced Python reprs with
-                    # single quotes, which are not valid JSON.
-                    _json.dumps(concept.attribute_values or concept.attributes or []),
-                    _json.dumps([list(r) for r in (concept.relationships or [])]),
-                    _json.dumps(concept.functions or []),
-                    _json.dumps(concept.processes or []),
-                    concept.context or "",
-                    _json.dumps(concept.examples or []),
-                ),
-                commit=True,
-            )
-
-            return True
-
-        except Exception as e:
-            logger.error(f"Failed to persist concept: {e}")
-            return False
+    # _persist_concept REMOVED. A concept the engine registers is now written
+    # through UnifiedLearningSystem.learn_concept (see _add_concept) -- the ONE
+    # authority -- rather than a raw `INSERT INTO unified.concepts` that skipped
+    # identity resolution, aliases, domain membership, and every fan-out.
 
     async def _persist_analogy(
         self,

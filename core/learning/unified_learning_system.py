@@ -2189,6 +2189,37 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
                                          "count": len(admitted_clauses)})
         return counts
 
+    async def learn_concept(self, name: str, *, domain: str = "conversation",
+                            description: str = "", relationships: Any = None,
+                            provenance: Any = None, emit: Any = None) -> list:
+        """Learn a CONCEPT -- a node and its relationships -- through the ONE path.
+
+        A concept with edges is admitted per edge (subject = `name`, each fanning
+        out); a concept with none is admitted as a bare node so it still exists in
+        the graph. This is the method a discoverer of concepts (e.g. analogy)
+        calls INSTEAD of writing `unified.concepts` directly, so a derived concept
+        goes through the same ingress, identity resolution, aliasing, domain
+        membership, and fan-out as a taught one. `relationships` is an iterable of
+        (relation, object) pairs. Returns the per-edge admissions."""
+        rels = [tuple(r) for r in (relationships or []) if r and len(tuple(r)) >= 2]
+        admissions = []
+        if rels:
+            first = True
+            for rel, obj in ((r[0], r[1]) for r in rels):
+                admissions.append(await self.learn_fact(
+                    name, str(rel), (str(obj) if obj is not None else None),
+                    provenance=provenance, domain=domain,
+                    description=(description if first else ""), emit=emit))
+                first = False
+        else:
+            # Bare node: a valid relation is required by the ingress even though
+            # no edge is created when the object is None, so `is` names the copula
+            # and the admission is the node alone.
+            admissions.append(await self.learn_fact(
+                name, "is", None, provenance=provenance, domain=domain,
+                description=description, emit=emit))
+        return admissions
+
     async def learn_rule(self, antecedent: Dict[str, Any],
                          consequent: Dict[str, Any], *, surface: str,
                          provenance: Any = None, domain: str = "conversation",
