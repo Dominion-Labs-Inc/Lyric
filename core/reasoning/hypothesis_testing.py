@@ -289,8 +289,8 @@ class HypothesisTestingSystem:
         # Create belief in uncertainty system
         if self.uncertainty:
             try:
-                from core.reasoning.bayesian_uncertainty import get_uncertainty_system
-                uncertainty = get_uncertainty_system()
+                from core.learning.unified_learning_system import get_unified_learning_system
+                uncertainty = get_unified_learning_system()  # one authority
                 uncertainty.create_belief(
                     claim=claim,
                     domain=domain,
@@ -754,12 +754,14 @@ class HypothesisTestingSystem:
         if self.uncertainty:
             try:
                 from core.reasoning.bayesian_uncertainty import get_uncertainty_system
-                uncertainty = get_uncertainty_system()
-                
+                from core.learning.unified_learning_system import get_unified_learning_system
+                uncertainty = get_uncertainty_system()  # reads
+                _auth = get_unified_learning_system()    # belief WRITE authority
+
                 # Find belief for this hypothesis
                 for belief_id, belief in uncertainty.beliefs.items():
                     if belief.claim == hypothesis.claim:
-                        uncertainty.update_belief(
+                        _auth.update_belief(
                             belief_id=belief_id,
                             evidence={
                                 'type': evidence_type.value,

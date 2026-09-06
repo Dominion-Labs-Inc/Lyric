@@ -1192,7 +1192,9 @@ class AbstractionPipeline:
     async def _create_belief_from_schema(self, schema: ProbabilisticSchema):
         """Create Bayesian belief from schema"""
         claim = f"Pattern: {schema.condition} → {schema.outcome}"
-        belief = self.beliefs.create_belief(
+        # Belief write through the one authority (delegates to the belief store).
+        from core.learning.unified_learning_system import get_unified_learning_system
+        belief = get_unified_learning_system().create_belief(
             claim=claim,
             domain="induced_schema",
             prior=schema.probability,

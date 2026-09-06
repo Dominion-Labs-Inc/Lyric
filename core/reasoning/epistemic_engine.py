@@ -168,7 +168,7 @@ class EpistemicEngine:
             return None
 
     # ------------------------------------------------------------------
-    # Public: apply LLM output
+    # Public: apply substrate input
     # ------------------------------------------------------------------
 
     async def apply_reasoning_output(
@@ -209,6 +209,11 @@ class EpistemicEngine:
 
         async with self._lock:
             unc = self._uncertainty()
+            # Belief WRITES go through the one authority; other ops (relationships,
+            # reads) stay on the substrate handle.
+            from core.learning.unified_learning_system import \
+                get_unified_learning_system
+            auth = get_unified_learning_system()
 
             # Per-belief cumulative delta tracker — anti-farming control.
             # Each belief contributes at most ONE mutation record per call,
@@ -238,11 +243,11 @@ class EpistemicEngine:
                     )
                     # Still create the belief for future evidence to act on,
                     # but do not count it as a mutation.
-                    unc.create_belief(claim, domain, prior=prior)
+                    auth.create_belief(claim, domain, prior=prior)
                 else:
                     # entropy_before = 1.0 (max) — claim didn't exist.
                     entropy_before = 1.0
-                    belief = unc.create_belief(claim, domain, prior=prior)
+                    belief = auth.create_belief(claim, domain, prior=prior)
                     newly_created_ids.add(belief.belief_id)
                     entropy_after = belief.entropy  # H(prior)
                     delta = entropy_before - entropy_after
@@ -292,13 +297,13 @@ class EpistemicEngine:
                 if source_belief is None:
                     # New belief — apply same information threshold.
                     if abs(confidence - 0.5) <= PRIOR_INFORMATION_THRESHOLD:
-                        source_belief = unc.create_belief(
+                        source_belief = auth.create_belief(
                             claim, domain, prior=confidence
                         )
                         # No mutation: prior too close to neutral
                     else:
                         entropy_before = 1.0
-                        source_belief = unc.create_belief(
+                        source_belief = auth.create_belief(
                             claim, domain, prior=confidence
                         )
                         newly_created_ids.add(source_belief.belief_id)
@@ -315,7 +320,7 @@ class EpistemicEngine:
                         "description": evidence_text,
                     }
                     supports = relation_str in ("SUPPORTS", "IMPLIES")
-                    updated = unc.update_belief(
+                    updated = auth.update_belief(
                         source_belief.belief_id,
                         evidence=evidence,
                         evidence_supports=supports,
@@ -338,7 +343,7 @@ class EpistemicEngine:
                 if target_claim and source_belief is not None:
                     target_belief = self._find_belief(target_claim)
                     if target_belief is None:
-                        target_belief = unc.create_belief(
+                        target_belief = auth.create_belief(
                             target_claim, domain, prior=0.5
                         )
                     rel_type = self._parse_relation(relation_str)

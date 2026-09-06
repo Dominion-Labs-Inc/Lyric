@@ -662,7 +662,9 @@ class UniversalDomainMaster:
         existing = next((b for b in unc.beliefs.values()
                          if b.claim == claim and b.domain == domain_id), None)
         if existing is None:
-            existing = unc.create_belief(claim, domain=domain_id, prior=0.5)
+            from core.learning.unified_learning_system import get_unified_learning_system
+            existing = get_unified_learning_system().create_belief(
+                claim, domain=domain_id, prior=0.5)
             # Durable, not fire-and-forget: competence decides what the substrate
             # explores after a restart, so it must actually reach the store.
             await unc.flush_belief(existing.belief_id)
@@ -699,7 +701,8 @@ class UniversalDomainMaster:
         await self._ensure_domain_for_capability(domain_id)
         unc = self._uncertainty()
         belief = await self.ensure_competence_belief(domain_id)
-        unc.update_belief(
+        from core.learning.unified_learning_system import get_unified_learning_system
+        get_unified_learning_system().update_belief(
             belief.belief_id, {"source": "operator_learning", "quality": quality},
             evidence_supports=learned)
         # Flush the update durably -- a competence change that only lives in

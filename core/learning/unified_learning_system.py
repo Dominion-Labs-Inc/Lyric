@@ -2294,6 +2294,33 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
             self.system_metrics.get("total_learning_sessions", 0) + 1
         return counts
 
+    def create_belief(self, claim: str, domain: str, prior: float = 0.5,
+                      evidence: Any = None, *, source: str = "derived") -> Any:
+        """Record a belief THROUGH the one authority.
+
+        A belief is a knowledge write like any other: a reasoning conclusion, a
+        taught fact, and a perception all move the SAME belief store, so they
+        enter by one door instead of each reaching the substrate directly. This
+        delegates to the belief substrate (bayesian_uncertainty) and tags the
+        source, so `create_belief` on the authority and on the substrate return
+        the identical object -- the reasoners keep their contract, the writes
+        gain one owner. Beliefs are revisable: what is created today `update_belief`
+        can move tomorrow."""
+        from core.reasoning.bayesian_uncertainty import get_uncertainty_system
+        ev = dict(evidence) if isinstance(evidence, dict) else {}
+        ev.setdefault("source", source)
+        return get_uncertainty_system().create_belief(
+            claim, domain, prior=prior, evidence=ev)
+
+    def update_belief(self, belief_id: str, evidence: Dict[str, Any],
+                      evidence_supports: bool = True) -> Any:
+        """Revise a held belief THROUGH the one authority (see create_belief).
+        A Bayesian update on the single belief store -- what was believed can
+        change as evidence arrives."""
+        from core.reasoning.bayesian_uncertainty import get_uncertainty_system
+        return get_uncertainty_system().update_belief(
+            belief_id, evidence, evidence_supports=evidence_supports)
+
     async def fan_out_ingested(self, result: Any, *, domain: str = "researched",
                                surface: str = "") -> int:
         """Run the learning fan-out over what an ingestion ALREADY admitted.

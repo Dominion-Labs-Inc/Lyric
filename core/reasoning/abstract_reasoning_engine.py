@@ -1861,10 +1861,12 @@ class ProbabilisticReasoningStrategy(ReasoningStrategy):
             return []
 
         engine = self.engine
+        from core.learning.unified_learning_system import get_unified_learning_system
+        _auth = get_unified_learning_system()  # belief WRITES through one authority
         conclusions: List[ReasoningConclusion] = []
 
         for target in context.target_conclusions:
-            belief = engine.create_belief(
+            belief = _auth.create_belief(
                 claim=str(target), domain=str(context.domain or "general"),
                 prior=0.5)   # maximum uncertainty: nothing is assumed
             steps = ["prior 0.50 (no assumption made)"]
@@ -1873,7 +1875,7 @@ class ProbabilisticReasoningStrategy(ReasoningStrategy):
                 text = str(getattr(premise, "statement", "") or "").lower()
                 weight = float(getattr(premise, "confidence", 1.0) or 1.0)
                 supports = not any(n in f" {text} " for n in self.NEGATORS)
-                belief = engine.update_belief(
+                belief = _auth.update_belief(
                     belief_id=belief.belief_id,
                     evidence={"claim": text, "quality": weight,
                               "source": "premise"},
