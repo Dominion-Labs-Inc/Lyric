@@ -200,6 +200,12 @@ class IngestionResult:
     #: prevent elsewhere. A caller must be able to tell an empty observation
     #: from a broken extractor.
     extraction_failures: List[Tuple[str, str]] = field(default_factory=list)
+    #: The (subject, relation, object, positive) edges this ingestion actually
+    #: admitted. The counts above are totals; this is the content, so a caller
+    #: (e.g. an evidence producer) can run the SAME learning fan-out -- lexicon,
+    #: beliefs -- over exactly what was written, instead of only the concept graph.
+    admitted_relations: List[Tuple[str, str, Optional[str], bool]] = \
+        field(default_factory=list)
 
     @property
     def accepted(self) -> int:
@@ -1133,8 +1139,11 @@ class ConceptIngestionService:
         identity: ConceptIdentity,
         candidate: ConceptCandidate,
         envelope: EvidenceEnvelope,
-    ) -> None:
-        """Persist edges with canonical endpoints where they resolve."""
+    ) -> List[Tuple[str, str, Optional[str], bool]]:
+        """Persist edges with canonical endpoints where they resolve, and return
+        the (subject, relation, object, positive) triples admitted, so the caller
+        can fan them out to the lexicon and beliefs."""
+        admitted: List[Tuple[str, str, Optional[str], bool]] = []
         for edge in candidate.relationships:
             relation, surface = edge[0], edge[1]
             # An extractor that knows nothing of polarity emits a 2-tuple, and
@@ -1158,6 +1167,9 @@ class ConceptIngestionService:
                  str(surface), envelope.evidence_id, candidate.extractor, polarity),
                 commit=True,
             )
+            admitted.append((identity.name, str(relation), str(surface),
+                             polarity == "positive"))
+        return admitted
 
     async def contradictions(self, concept_id: Optional[str] = None) -> List[Dict[str, Any]]:
         """Triples asserted BOTH ways, with the evidence behind each side.
@@ -1519,7 +1531,8 @@ class ConceptIngestionService:
                 continue
             identity = await self.resolve_identity(cand)
             created, promoted = await self._persist(identity, cand, envelope, roots)
-            await self._record_relations(identity, cand, envelope)
+            result.admitted_relations.extend(
+                await self._record_relations(identity, cand, envelope))
             (result.created if created else result.reinforced).append(identity.concept_id)
             if created:
                 created_identities.append(identity)

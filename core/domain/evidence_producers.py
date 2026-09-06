@@ -36,6 +36,29 @@ from .concept_ingestion import (
 logger = logging.getLogger(__name__)
 
 
+async def _ingest_and_learn(service: Any, envelope: "EvidenceEnvelope", *,
+                            domain: str) -> "IngestionResult":
+    """Ingest through the ONE write path, then fan the admitted relations out to
+    the lexicon and beliefs via the learning authority.
+
+    A produced fact (research, tool capability, perception) landed the concept
+    graph but nothing else -- so its words were never learned and it never moved
+    a belief. This closes that gap without a second write path: it ingests as
+    before, then hands `IngestionResult.admitted_relations` to
+    UnifiedLearningSystem.fan_out_ingested, which runs the SAME fan-out a taught
+    fact does. Every observation moves a posterior; what it believes today it can
+    revise tomorrow. Isolated -- a fan-out failure never fails the production."""
+    result = await service.ingest(envelope)
+    try:
+        from core.learning.unified_learning_system import \
+            get_unified_learning_system
+        await get_unified_learning_system().fan_out_ingested(
+            result, domain=domain, surface=getattr(envelope, "content", "") or "")
+    except Exception as error:
+        logger.debug("evidence fan-out skipped (%s): %s", domain, error)
+    return result
+
+
 def _stable_id(prefix: str, *parts: str) -> str:
     """Deterministic evidence id.
 
@@ -211,7 +234,7 @@ async def submit_research_result(
             },
         )
         source_ids.append(eid)
-        results.append(await service.ingest(envelope))
+        results.append(await _ingest_and_learn(service, envelope, domain=domain))
 
     if not source_ids:
         logger.warning(
@@ -224,7 +247,7 @@ async def submit_research_result(
     #    their ids and resolves to their roots rather than adding one of its own.
     synthesis = str(output.get("synthesis") or "").strip()
     if synthesis:
-        results.append(await service.ingest(EvidenceEnvelope(
+        results.append(await _ingest_and_learn(service, EvidenceEnvelope(
             evidence_id=_stable_id("ev_synthesis", topic, request_id or "", *source_ids),
             source_type=EvidenceSourceType.MEMORY_RETROSPECTIVE,
             source_id=f"synthesis:{topic}",
@@ -232,7 +255,7 @@ async def submit_research_result(
             content=synthesis,
             structured_data={"domain": domain, "statements": _statements(synthesis)},
             derived_from=tuple(source_ids),
-        )))
+        ), domain=domain))
 
     total = sum(r.accepted for r in results)
     logger.info(
@@ -337,7 +360,7 @@ async def submit_learned_rule(
         },
         derived_from=roots,
     )
-    return await service.ingest(envelope)
+    return await _ingest_and_learn(service, envelope, domain=domain or "researched")
 
 
 async def submit_demonstration(
@@ -418,7 +441,7 @@ async def submit_demonstration(
         "removes " + ", ".join(str(f) for f in sorted(effects.delete, key=str)) if effects.delete else "",
     )))
 
-    return await service.ingest(EvidenceEnvelope(
+    return await _ingest_and_learn(service, EvidenceEnvelope(
         evidence_id=evidence_id,
         source_type=source_type,
         source_id=source_id or f"{domain_id}:{evidence_id}",
@@ -428,7 +451,7 @@ async def submit_demonstration(
             "observation": observation,
             "positive": bool(getattr(example, "positive", True)),
         },
-    ))
+    ), domain=domain_id)
 
 
 async def submit_tool_capability(tool, *, domain: str = "tools") -> "IngestionResult":
@@ -469,7 +492,7 @@ async def submit_tool_capability(tool, *, domain: str = "tools") -> "IngestionRe
 
     service = get_concept_ingestion_service()
     await service._ready()
-    return await service.ingest(EvidenceEnvelope(
+    return await _ingest_and_learn(service, EvidenceEnvelope(
         evidence_id=_stable_id("toolcap", name),
         source_type=EvidenceSourceType.IMPORTED_KNOWLEDGE,
         source_id=f"tool:{name}",
@@ -486,7 +509,7 @@ async def submit_tool_capability(tool, *, domain: str = "tools") -> "IngestionRe
             "optional": optional,
             "provides": provides,
         }},
-    ))
+    ), domain=domain)
 
 
 #: Invocation SHAPES already submitted in this process. A tool called ten
@@ -532,7 +555,7 @@ async def submit_tool_invocation(
 
     service = get_concept_ingestion_service()
     await service._ready()
-    return await service.ingest(EvidenceEnvelope(
+    return await _ingest_and_learn(service, EvidenceEnvelope(
         evidence_id=_stable_id("toolobs", name, ",".join(supplied), str(bool(succeeded))),
         source_type=EvidenceSourceType.TOOL_OBSERVATION,
         source_id=f"tool:{name}",
@@ -545,7 +568,7 @@ async def submit_tool_invocation(
             "required": supplied,
             "provides": [f"{name}_{'succeeded' if succeeded else 'failed'}"],
         }},
-    ))
+    ), domain=category)
 
 
 async def submit_perception(
@@ -583,11 +606,11 @@ async def submit_perception(
 
     service = get_concept_ingestion_service()
     await service._ready()
-    return await service.ingest(EvidenceEnvelope(
+    return await _ingest_and_learn(service, EvidenceEnvelope(
         evidence_id=_stable_id("percept", source, data_type, subject, state),
         source_type=EvidenceSourceType.PERCEPTION,
         source_id=f"{source}:{data_type}",
         producer=str(source),
         content=f"{subject} observed as {state or 'unspecified'} via {source}",
         structured_data={"concepts": concepts},
-    ))
+    ), domain=domain)

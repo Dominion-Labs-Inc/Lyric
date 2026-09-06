@@ -2294,14 +2294,59 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
             self.system_metrics.get("total_learning_sessions", 0) + 1
         return counts
 
+    async def fan_out_ingested(self, result: Any, *, domain: str = "researched",
+                               surface: str = "") -> int:
+        """Run the learning fan-out over what an ingestion ALREADY admitted.
+
+        A producer that writes through `concept_ingestion.ingest` directly
+        (research, a tool capability, a perception) lands the concept graph but
+        skips the lexicon and beliefs. This closes that gap WITHOUT a second
+        write path: it takes the `IngestionResult.admitted_relations` and runs
+        them through the SAME `_fan_out_learning` every learn_* method uses, so
+        the vocabulary is learned and every observation moves a posterior. Idempotent
+        and isolated -- a producer never fails because a fan-out arm did. Returns
+        the number of relations fanned out."""
+        rels = getattr(result, "admitted_relations", None) or []
+        n = 0
+        for (subj, rel, obj, positive) in rels:
+            if not subj or not rel:
+                continue
+            claim = " ".join(str(p) for p in (subj, rel, obj) if p)
+            try:
+                await self._fan_out_learning(
+                    surface=surface or claim, claim=claim,
+                    clauses=[(subj, rel, obj)], positive=bool(positive),
+                    domain=domain, emit=None,
+                    emit_payload={"kind": "ingested", "domain": domain,
+                                  "subject": subj, "relation": rel, "obj": obj},
+                    save_lexicon=False)  # bulk stream: accumulate, flush later
+                n += 1
+            except Exception as error:
+                logger.debug("fan_out_ingested arm failed for %r: %s",
+                             claim, error)
+        return n
+
     async def _fan_out_learning(self, *, surface: str, claim: str,
                                 clauses: List[tuple], positive: bool,
                                 domain: str, emit: Any,
-                                emit_payload: Dict[str, Any]) -> None:
+                                emit_payload: Dict[str, Any],
+                                save_lexicon: bool = True) -> None:
         """The shared fan-out every learn_* method runs after admission, so a
         fact and a rule touch the SAME systems: LEXICON, BELIEFS, METRICS, and
         the DOMAIN (via the emitted event). Each arm is isolated — one failing
-        never rolls back what already landed, and never breaks the caller."""
+        never rolls back what already landed, and never breaks the caller.
+
+        BELIEFS ARE UNIVERSAL AND REVISABLE. Every write is an observation that
+        moves a posterior -- a tool capability, a perception, a research finding,
+        a taught fact all update what the substrate holds to be true, and what it
+        believes today it can revise tomorrow. So there is no "this kind does not
+        touch beliefs": everything does.
+
+        `save_lexicon=False` updates the lexicon in memory but does NOT flush it
+        to disk -- the shared 14MB file must not be rewritten once per item in a
+        bulk stream (e.g. registering hundreds of tool capabilities at startup).
+        The in-memory entries accumulate on the singleton and persist on the next
+        flush (a conversational `learn_fact` saves the whole file)."""
         from core.semantics.lexicon import observe_proposition, get_lexicon
         from core.reasoning.bayesian_uncertainty import get_uncertainty_system
         # LEXICON: teaching teaches parts of speech. Persist ONCE over the whole
@@ -2316,7 +2361,7 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
                     surface, subj, rel, obj, source="taught", save=False)
             except Exception as error:
                 logger.debug("learning fan-out (lexicon) failed: %s", error)
-        if lexicon_touched:
+        if lexicon_touched and save_lexicon:
             try:
                 get_lexicon().save()
             except Exception as error:
