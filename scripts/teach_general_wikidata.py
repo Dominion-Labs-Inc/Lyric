@@ -43,7 +43,7 @@ GENERAL_ROOTS = {
     "Q729": "animal", "Q5113": "bird", "Q152": "fish", "Q7377": "mammal",
     "Q1390": "insect", "Q10908": "amphibian", "Q10811": "reptile",
     "Q756": "plant", "Q10884": "tree", "Q506": "flower", "Q764": "fungus",
-    "Q16521": "taxon", "Q2095": "food", "Q3314483": "fruit", "Q11004": "vegetable",
+    "Q2095": "food", "Q3314483": "fruit", "Q11004": "vegetable",
     "Q40050": "drink", "Q154": "alcoholic beverage", "Q10943": "cheese",
     "Q42889": "vehicle", "Q1229765": "watercraft", "Q11436": "aircraft",
     "Q11344": "chemical element", "Q11173": "chemical compound",
@@ -62,8 +62,12 @@ GENERAL_ROOTS = {
     "Q735": "art", "Q8142": "currency", "Q47574": "unit of measurement",
     "Q634": "planet", "Q523": "star", "Q6999": "astronomical object",
     "Q17444909": "mathematical object", "Q1445650": "holiday",
-    "Q1656682": "event", "Q43229": "organization", "Q4936952": "anatomical structure",
+    "Q4936952": "anatomical structure",
 }
+# Deliberately NOT roots: organization (Q43229), event (Q1656682), taxon (Q16521) —
+# these are named-entity trees (every company, every species), not English
+# vocabulary; they are the worst timeout offenders and the wrong scope. Common
+# creatures/plants already come in under animal/plant.
 
 # English language arts roots — parts of speech, literary forms, figures of speech,
 # poetry, grammar, rhetoric.
@@ -89,23 +93,59 @@ def _sparql(query):
     return json.loads(text, strict=False)["results"]["bindings"]
 
 
-def _root_edges(qid, limit=40000):
-    """(child_label, parent_label) P279 edges in this root's closure, child
-    notable (has an English Wikipedia article), both English-labeled."""
+def _closure(qid, limit=40000):
+    """(child,parent) notable P279 edges in qid's closure. Returns (edges, capped):
+    capped=True means the result hit `limit` and is truncated. Raises on transport
+    error (504, truncated JSON) so the caller can chunk."""
     q = """SELECT DISTINCT ?cl ?pl WHERE {
       ?child wdt:P279* wd:%s . ?child wdt:P279 ?parent .
       ?article schema:about ?child ; schema:isPartOf <https://en.wikipedia.org/> .
       ?child rdfs:label ?cl . FILTER(LANG(?cl)="en")
       ?parent rdfs:label ?pl . FILTER(LANG(?pl)="en")
     } LIMIT %d""" % (qid, limit)
+    rows = _sparql(q)
+    return [(r["cl"]["value"], r["pl"]["value"]) for r in rows], len(rows) >= limit
+
+
+def _children(qid):
+    """Direct subclass QIDs of qid (fast, anchored)."""
+    q = "SELECT ?c WHERE { ?c wdt:P279 wd:%s }" % qid
+    try:
+        return [r["c"]["value"].rsplit("/", 1)[-1] for r in _sparql(q)]
+    except Exception:
+        return []
+
+
+def _root_edges(qid, limit=40000, depth=0):
+    """Notable P279 closure edges under qid, ROBUST to the endpoint's 60s limit:
+    try the whole closure; if it 504s / truncates / hits the cap, chunk by direct
+    children and union each child's closure (recursing up to 2 levels). A single
+    dead sub-branch is skipped, never the whole root."""
     for attempt in range(3):
         try:
-            return [(r["cl"]["value"], r["pl"]["value"]) for r in _sparql(q)]
+            edges, capped = _closure(qid, limit)
+            if not capped or depth >= 2:
+                return edges
+            break  # capped and we can still chunk deeper
         except Exception as e:
             if attempt == 2:
-                print(f"    root {qid} FAILED: {str(e)[:70]}", flush=True)
-                return []
+                if depth >= 2:
+                    print(f"    {qid} FAILED (depth {depth}): {str(e)[:60]}", flush=True)
+                    return []
+                break  # fall through to chunking
             time.sleep(5 * (attempt + 1))
+    # Chunk: this root is too big for one query — split by its direct children.
+    kids = _children(qid)
+    if not kids:
+        return []
+    print(f"    chunking {qid} -> {len(kids)} children", flush=True)
+    acc, seen = [], set()
+    for kid in kids:
+        for c, p in _root_edges(kid, limit, depth + 1):
+            key = (c.lower(), p.lower())
+            if key not in seen:
+                seen.add(key); acc.append((c, p))
+    return acc
 
 
 def _fetch_group(roots, limit):
