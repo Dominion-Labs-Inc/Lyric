@@ -2079,7 +2079,16 @@ class NeuralSymbolicBridge:
                                       "model_available": self._model_available(),
                                       "route": ["substrate", "sense_taxonomy", "true"]})
                     return None  # both technical, no chain: do NOT cross senses
-            ans = await answer_over_graph(db, subj, relation, obj)
+            # Bound the common-sense closure. The name-keyed graph conflates
+            # homonyms (biological "system" vs abstract "system", "worker" the
+            # person vs the ant), so a long transitive isa walk drifts across
+            # senses into false positives (dog->...->plan_of_action->plant,
+            # piano->...->worker->insect->animal). Real common-sense isa is
+            # short; capping the hops makes the reasoner ABSTAIN on long,
+            # sense-crossing chains instead of affirming them. Verified: kills
+            # dog->plant / piano->animal / salmon->tree while keeping robin->
+            # animal, dog->animal, shark->fish, etc.
+            ans = await answer_over_graph(db, subj, relation, obj, max_hops=4)
         except Exception as e:
             logger.debug("concept-graph query failed: %s", e)
             return None

@@ -1,0 +1,1305 @@
+{
+  "experiment": "KNOW-50",
+  "purpose": "50 taught-knowledge questions on the real substrate; display reasoned answer AND held belief",
+  "run_at": "2026-09-08T17:10:28.509816+00:00",
+  "summary": {
+    "total": 50,
+    "answered": 42,
+    "refused_or_unknown": 8,
+    "correct": 37,
+    "accuracy_over_answered": 0.881,
+    "accuracy_over_all": 0.74,
+    "true_qs_correct": 37,
+    "true_qs": 40,
+    "false_qs_correct": 0,
+    "false_qs": 10,
+    "direct_beliefs_held": 28,
+    "model_calls_total": 0
+  },
+  "results": [
+    {
+      "n": 1,
+      "q": "is a robin a bird?",
+      "subject": "robin",
+      "object": "bird",
+      "expected": true,
+      "verdict": false,
+      "correct": false,
+      "answer": "No: robin isa a bird",
+      "confidence": 0.95,
+      "mode": "ReasoningMode.CROSS_DOMAIN",
+      "reason": "derived_by_kind",
+      "route": [
+        "reason_about",
+        "neural_bridge",
+        "ReasoningMode.CROSS_DOMAIN",
+        "derived_by_kind"
+      ],
+      "derived_by": null,
+      "model_calls": 0,
+      "belief": {
+        "held": true,
+        "claim": "robin isa bird",
+        "posterior": 0.9995,
+        "domain": "conversation"
+      }
+    },
+    {
+      "n": 2,
+      "q": "is a sparrow a bird?",
+      "subject": "sparrow",
+      "object": "bird",
+      "expected": true,
+      "verdict": false,
+      "correct": false,
+      "answer": "No: sparrow isa a bird",
+      "confidence": 0.95,
+      "mode": "ReasoningMode.CROSS_DOMAIN",
+      "reason": "derived_by_kind",
+      "route": [
+        "reason_about",
+        "neural_bridge",
+        "ReasoningMode.CROSS_DOMAIN",
+        "derived_by_kind"
+      ],
+      "derived_by": null,
+      "model_calls": 0,
+      "belief": {
+        "held": true,
+        "claim": "sparrow isa bird",
+        "posterior": 0.9995,
+        "domain": "conversation"
+      }
+    },
+    {
+      "n": 3,
+      "q": "is an eagle a bird?",
+      "subject": "eagle",
+      "object": "bird",
+      "expected": true,
+      "verdict": false,
+      "correct": false,
+      "answer": "No: eagle isa a bird",
+      "confidence": 0.95,
+      "mode": "ReasoningMode.CROSS_DOMAIN",
+      "reason": "derived_by_kind",
+      "route": [
+        "reason_about",
+        "neural_bridge",
+        "ReasoningMode.CROSS_DOMAIN",
+        "derived_by_kind"
+      ],
+      "derived_by": null,
+      "model_calls": 0,
+      "belief": {
+        "held": true,
+        "claim": "eagle isa bird",
+        "posterior": 0.9995,
+        "domain": "conversation"
+      }
+    },
+    {
+      "n": 4,
+      "q": "is a salmon a fish?",
+      "subject": "salmon",
+      "object": "fish",
+      "expected": true,
+      "verdict": true,
+      "correct": true,
+      "answer": "Yes: salmon isa a fish",
+      "confidence": 0.95,
+      "mode": "ReasoningMode.CROSS_DOMAIN",
+      "reason": "derived_by_kind",
+      "route": [
+        "reason_about",
+        "neural_bridge",
+        "ReasoningMode.CROSS_DOMAIN",
+        "derived_by_kind"
+      ],
+      "derived_by": null,
+      "model_calls": 0,
+      "belief": {
+        "held": true,
+        "claim": "salmon isa fish",
+        "posterior": 0.9995,
+        "domain": "conversation"
+      }
+    },
+    {
+      "n": 5,
+      "q": "is a trout a fish?",
+      "subject": "trout",
+      "object": "fish",
+      "expected": true,
+      "verdict": true,
+      "correct": true,
+      "answer": "Yes: trout isa a fish",
+      "confidence": 0.95,
+      "mode": "ReasoningMode.CROSS_DOMAIN",
+      "reason": "derived_by_kind",
+      "route": [
+        "reason_about",
+        "neural_bridge",
+        "ReasoningMode.CROSS_DOMAIN",
+        "derived_by_kind"
+      ],
+      "derived_by": null,
+      "model_calls": 0,
+      "belief": {
+        "held": false
+      }
+    },
+    {
+      "n": 6,
+      "q": "is a shark a fish?",
+      "subject": "shark",
+      "object": "fish",
+      "expected": true,
+      "verdict": true,
+      "correct": true,
+      "answer": "Yes: shark isa a fish",
+      "confidence": 0.95,
+      "mode": "ReasoningMode.CROSS_DOMAIN",
+      "reason": "derived_by_kind",
+      "route": [
+        "reason_about",
+        "neural_bridge",
+        "ReasoningMode.CROSS_DOMAIN",
+        "derived_by_kind"
+      ],
+      "derived_by": null,
+      "model_calls": 0,
+      "belief": {
+        "held": true,
+        "claim": "shark isa fish",
+        "posterior": 0.9995,
+        "domain": "conversation"
+      }
+    },
+    {
+      "n": 7,
+      "q": "is an oak a tree?",
+      "subject": "oak",
+      "object": "tree",
+      "expected": true,
+      "verdict": true,
+      "correct": true,
+      "answer": "Yes: oak isa a tree",
+      "confidence": 0.95,
+      "mode": "ReasoningMode.CROSS_DOMAIN",
+      "reason": "derived_by_kind",
+      "route": [
+        "reason_about",
+        "neural_bridge",
+        "ReasoningMode.CROSS_DOMAIN",
+        "derived_by_kind"
+      ],
+      "derived_by": null,
+      "model_calls": 0,
+      "belief": {
+        "held": true,
+        "claim": "oak isa tree",
+        "posterior": 0.9926,
+        "domain": "general"
+      }
+    },
+    {
+      "n": 8,
+      "q": "is a pine a tree?",
+      "subject": "pine",
+      "object": "tree",
+      "expected": true,
+      "verdict": true,
+      "correct": true,
+      "answer": "Yes: pine isa a tree",
+      "confidence": 0.85,
+      "mode": "ReasoningMode.CROSS_DOMAIN",
+      "reason": "derived_by_kind",
+      "route": [
+        "reason_about",
+        "neural_bridge",
+        "ReasoningMode.CROSS_DOMAIN",
+        "derived_by_kind"
+      ],
+      "derived_by": null,
+      "model_calls": 0,
+      "belief": {
+        "held": false
+      }
+    },
+    {
+      "n": 9,
+      "q": "is a maple a tree?",
+      "subject": "maple",
+      "object": "tree",
+      "expected": true,
+      "verdict": true,
+      "correct": true,
+      "answer": "Yes: maple isa a tree",
+      "confidence": 0.85,
+      "mode": "ReasoningMode.CROSS_DOMAIN",
+      "reason": "derived_by_kind",
+      "route": [
+        "reason_about",
+        "neural_bridge",
+        "ReasoningMode.CROSS_DOMAIN",
+        "derived_by_kind"
+      ],
+      "derived_by": null,
+      "model_calls": 0,
+      "belief": {
+        "held": false
+      }
+    },
+    {
+      "n": 10,
+      "q": "is a rose a flower?",
+      "subject": "rose",
+      "object": "flower",
+      "expected": true,
+      "verdict": true,
+      "correct": true,
+      "answer": "Yes: rose isa a flower",
+      "confidence": 0.95,
+      "mode": "ReasoningMode.CROSS_DOMAIN",
+      "reason": "derived_by_kind",
+      "route": [
+        "reason_about",
+        "neural_bridge",
+        "ReasoningMode.CROSS_DOMAIN",
+        "derived_by_kind"
+      ],
+      "derived_by": null,
+      "model_calls": 0,
+      "belief": {
+        "held": true,
+        "claim": "rose isa flower",
+        "posterior": 0.9926,
+        "domain": "general"
+      }
+    },
+    {
+      "n": 11,
+      "q": "is a tulip a flower?",
+      "subject": "tulip",
+      "object": "flower",
+      "expected": true,
+      "verdict": true,
+      "correct": true,
+      "answer": "Yes: tulip isa a flower",
+      "confidence": 0.95,
+      "mode": "ReasoningMode.CROSS_DOMAIN",
+      "reason": "derived_by_kind",
+      "route": [
+        "reason_about",
+        "neural_bridge",
+        "ReasoningMode.CROSS_DOMAIN",
+        "derived_by_kind"
+      ],
+      "derived_by": null,
+      "model_calls": 0,
+      "belief": {
+        "held": false
+      }
+    },
+    {
+      "n": 12,
+      "q": "is a daisy a flower?",
+      "subject": "daisy",
+      "object": "flower",
+      "expected": true,
+      "verdict": true,
+      "correct": true,
+      "answer": "Yes: daisy isa a flower",
+      "confidence": 0.95,
+      "mode": "ReasoningMode.CROSS_DOMAIN",
+      "reason": "derived_by_kind",
+      "route": [
+        "reason_about",
+        "neural_bridge",
+        "ReasoningMode.CROSS_DOMAIN",
+        "derived_by_kind"
+      ],
+      "derived_by": null,
+      "model_calls": 0,
+      "belief": {
+        "held": true,
+        "claim": "daisy isa flower",
+        "posterior": 0.9926,
+        "domain": "general"
+      }
+    },
+    {
+      "n": 13,
+      "q": "is a hammer a tool?",
+      "subject": "hammer",
+      "object": "tool",
+      "expected": true,
+      "verdict": true,
+      "correct": true,
+      "answer": "Yes: hammer isa a tool",
+      "confidence": 0.95,
+      "mode": "ReasoningMode.CROSS_DOMAIN",
+      "reason": "derived_by_kind",
+      "route": [
+        "reason_about",
+        "neural_bridge",
+        "ReasoningMode.CROSS_DOMAIN",
+        "derived_by_kind"
+      ],
+      "derived_by": null,
+      "model_calls": 0,
+      "belief": {
+        "held": true,
+        "claim": "hammer isa tool",
+        "posterior": 0.9926,
+        "domain": "general"
+      }
+    },
+    {
+      "n": 14,
+      "q": "is a wrench a tool?",
+      "subject": "wrench",
+      "object": "tool",
+      "expected": true,
+      "verdict": true,
+      "correct": true,
+      "answer": "Yes: wrench isa a tool",
+      "confidence": 0.95,
+      "mode": "ReasoningMode.CROSS_DOMAIN",
+      "reason": "derived_by_kind",
+      "route": [
+        "reason_about",
+        "neural_bridge",
+        "ReasoningMode.CROSS_DOMAIN",
+        "derived_by_kind"
+      ],
+      "derived_by": null,
+      "model_calls": 0,
+      "belief": {
+        "held": false
+      }
+    },
+    {
+      "n": 15,
+      "q": "is a screwdriver a tool?",
+      "subject": "screwdriver",
+      "object": "tool",
+      "expected": true,
+      "verdict": true,
+      "correct": true,
+      "answer": "Yes: screwdriver isa a tool",
+      "confidence": 0.95,
+      "mode": "ReasoningMode.CROSS_DOMAIN",
+      "reason": "derived_by_kind",
+      "route": [
+        "reason_about",
+        "neural_bridge",
+        "ReasoningMode.CROSS_DOMAIN",
+        "derived_by_kind"
+      ],
+      "derived_by": null,
+      "model_calls": 0,
+      "belief": {
+        "held": true,
+        "claim": "screwdriver isa tool",
+        "posterior": 0.9926,
+        "domain": "general"
+      }
+    },
+    {
+      "n": 16,
+      "q": "is a violin a musical instrument?",
+      "subject": "violin",
+      "object": "musical instrument",
+      "expected": true,
+      "verdict": true,
+      "correct": true,
+      "answer": "Yes: violin isa a musical instrument",
+      "confidence": 0.85,
+      "mode": "ReasoningMode.CROSS_DOMAIN",
+      "reason": "derived_by_kind",
+      "route": [
+        "reason_about",
+        "neural_bridge",
+        "ReasoningMode.CROSS_DOMAIN",
+        "derived_by_kind"
+      ],
+      "derived_by": null,
+      "model_calls": 0,
+      "belief": {
+        "held": false
+      }
+    },
+    {
+      "n": 17,
+      "q": "is a piano a musical instrument?",
+      "subject": "piano",
+      "object": "musical instrument",
+      "expected": true,
+      "verdict": true,
+      "correct": true,
+      "answer": "Yes: piano isa a musical instrument",
+      "confidence": 0.85,
+      "mode": "ReasoningMode.CROSS_DOMAIN",
+      "reason": "derived_by_kind",
+      "route": [
+        "reason_about",
+        "neural_bridge",
+        "ReasoningMode.CROSS_DOMAIN",
+        "derived_by_kind"
+      ],
+      "derived_by": null,
+      "model_calls": 0,
+      "belief": {
+        "held": false
+      }
+    },
+    {
+      "n": 18,
+      "q": "is a guitar a musical instrument?",
+      "subject": "guitar",
+      "object": "musical instrument",
+      "expected": true,
+      "verdict": true,
+      "correct": true,
+      "answer": "Yes: guitar isa a musical instrument",
+      "confidence": 0.85,
+      "mode": "ReasoningMode.CROSS_DOMAIN",
+      "reason": "derived_by_kind",
+      "route": [
+        "reason_about",
+        "neural_bridge",
+        "ReasoningMode.CROSS_DOMAIN",
+        "derived_by_kind"
+      ],
+      "derived_by": null,
+      "model_calls": 0,
+      "belief": {
+        "held": false
+      }
+    },
+    {
+      "n": 19,
+      "q": "is a copper a metal?",
+      "subject": "copper",
+      "object": "metal",
+      "expected": true,
+      "verdict": true,
+      "correct": true,
+      "answer": "Yes: copper isa a metal",
+      "confidence": 0.95,
+      "mode": "ReasoningMode.CROSS_DOMAIN",
+      "reason": "derived_by_kind",
+      "route": [
+        "reason_about",
+        "neural_bridge",
+        "ReasoningMode.CROSS_DOMAIN",
+        "derived_by_kind"
+      ],
+      "derived_by": null,
+      "model_calls": 0,
+      "belief": {
+        "held": true,
+        "claim": "copper isa metal",
+        "posterior": 0.9926,
+        "domain": "general"
+      }
+    },
+    {
+      "n": 20,
+      "q": "is an iron a metal?",
+      "subject": "iron",
+      "object": "metal",
+      "expected": true,
+      "verdict": true,
+      "correct": true,
+      "answer": "Yes: iron isa a metal",
+      "confidence": 0.95,
+      "mode": "ReasoningMode.CROSS_DOMAIN",
+      "reason": "derived_by_kind",
+      "route": [
+        "reason_about",
+        "neural_bridge",
+        "ReasoningMode.CROSS_DOMAIN",
+        "derived_by_kind"
+      ],
+      "derived_by": null,
+      "model_calls": 0,
+      "belief": {
+        "held": true,
+        "claim": "iron isa metal",
+        "posterior": 0.9926,
+        "domain": "general"
+      }
+    },
+    {
+      "n": 21,
+      "q": "is a gold a metal?",
+      "subject": "gold",
+      "object": "metal",
+      "expected": true,
+      "verdict": true,
+      "correct": true,
+      "answer": "Yes: gold isa a metal",
+      "confidence": 0.95,
+      "mode": "ReasoningMode.CROSS_DOMAIN",
+      "reason": "derived_by_kind",
+      "route": [
+        "reason_about",
+        "neural_bridge",
+        "ReasoningMode.CROSS_DOMAIN",
+        "derived_by_kind"
+      ],
+      "derived_by": null,
+      "model_calls": 0,
+      "belief": {
+        "held": true,
+        "claim": "gold isa metal",
+        "posterior": 0.9926,
+        "domain": "general"
+      }
+    },
+    {
+      "n": 22,
+      "q": "is a car a vehicle?",
+      "subject": "car",
+      "object": "vehicle",
+      "expected": true,
+      "verdict": true,
+      "correct": true,
+      "answer": "Yes: car isa a vehicle",
+      "confidence": 0.95,
+      "mode": "ReasoningMode.CROSS_DOMAIN",
+      "reason": "derived_by_kind",
+      "route": [
+        "reason_about",
+        "neural_bridge",
+        "ReasoningMode.CROSS_DOMAIN",
+        "derived_by_kind"
+      ],
+      "derived_by": null,
+      "model_calls": 0,
+      "belief": {
+        "held": true,
+        "claim": "car isa vehicle",
+        "posterior": 0.9926,
+        "domain": "general"
+      }
+    },
+    {
+      "n": 23,
+      "q": "is a truck a vehicle?",
+      "subject": "truck",
+      "object": "vehicle",
+      "expected": true,
+      "verdict": true,
+      "correct": true,
+      "answer": "Yes: truck isa a vehicle",
+      "confidence": 0.95,
+      "mode": "ReasoningMode.CROSS_DOMAIN",
+      "reason": "derived_by_kind",
+      "route": [
+        "reason_about",
+        "neural_bridge",
+        "ReasoningMode.CROSS_DOMAIN",
+        "derived_by_kind"
+      ],
+      "derived_by": null,
+      "model_calls": 0,
+      "belief": {
+        "held": false
+      }
+    },
+    {
+      "n": 24,
+      "q": "is a bicycle a vehicle?",
+      "subject": "bicycle",
+      "object": "vehicle",
+      "expected": true,
+      "verdict": true,
+      "correct": true,
+      "answer": "Yes: bicycle isa a vehicle",
+      "confidence": 0.95,
+      "mode": "ReasoningMode.CROSS_DOMAIN",
+      "reason": "derived_by_kind",
+      "route": [
+        "reason_about",
+        "neural_bridge",
+        "ReasoningMode.CROSS_DOMAIN",
+        "derived_by_kind"
+      ],
+      "derived_by": null,
+      "model_calls": 0,
+      "belief": {
+        "held": true,
+        "claim": "bicycle isa vehicle",
+        "posterior": 0.9995,
+        "domain": "general"
+      }
+    },
+    {
+      "n": 25,
+      "q": "is an apple a fruit?",
+      "subject": "apple",
+      "object": "fruit",
+      "expected": true,
+      "verdict": true,
+      "correct": true,
+      "answer": "Yes: apple isa a fruit",
+      "confidence": 0.95,
+      "mode": "ReasoningMode.CROSS_DOMAIN",
+      "reason": "derived_by_kind",
+      "route": [
+        "reason_about",
+        "neural_bridge",
+        "ReasoningMode.CROSS_DOMAIN",
+        "derived_by_kind"
+      ],
+      "derived_by": null,
+      "model_calls": 0,
+      "belief": {
+        "held": true,
+        "claim": "apple isa fruit",
+        "posterior": 0.9995,
+        "domain": "general"
+      }
+    },
+    {
+      "n": 26,
+      "q": "is a banana a fruit?",
+      "subject": "banana",
+      "object": "fruit",
+      "expected": true,
+      "verdict": true,
+      "correct": true,
+      "answer": "Yes: banana isa a fruit",
+      "confidence": 0.95,
+      "mode": "ReasoningMode.CROSS_DOMAIN",
+      "reason": "derived_by_kind",
+      "route": [
+        "reason_about",
+        "neural_bridge",
+        "ReasoningMode.CROSS_DOMAIN",
+        "derived_by_kind"
+      ],
+      "derived_by": null,
+      "model_calls": 0,
+      "belief": {
+        "held": false
+      }
+    },
+    {
+      "n": 27,
+      "q": "is an orange a fruit?",
+      "subject": "orange",
+      "object": "fruit",
+      "expected": true,
+      "verdict": true,
+      "correct": true,
+      "answer": "Yes: orange isa a fruit",
+      "confidence": 0.95,
+      "mode": "ReasoningMode.CROSS_DOMAIN",
+      "reason": "derived_by_kind",
+      "route": [
+        "reason_about",
+        "neural_bridge",
+        "ReasoningMode.CROSS_DOMAIN",
+        "derived_by_kind"
+      ],
+      "derived_by": null,
+      "model_calls": 0,
+      "belief": {
+        "held": true,
+        "claim": "orange isa fruit",
+        "posterior": 0.9926,
+        "domain": "general"
+      }
+    },
+    {
+      "n": 28,
+      "q": "is a dog a mammal?",
+      "subject": "dog",
+      "object": "mammal",
+      "expected": true,
+      "verdict": true,
+      "correct": true,
+      "answer": "Yes: dog isa a mammal",
+      "confidence": 0.95,
+      "mode": "ReasoningMode.CROSS_DOMAIN",
+      "reason": "derived_by_kind",
+      "route": [
+        "reason_about",
+        "neural_bridge",
+        "ReasoningMode.CROSS_DOMAIN",
+        "derived_by_kind"
+      ],
+      "derived_by": null,
+      "model_calls": 0,
+      "belief": {
+        "held": true,
+        "claim": "dog isa mammal",
+        "posterior": 0.9995,
+        "domain": "conversation"
+      }
+    },
+    {
+      "n": 29,
+      "q": "is a cat a mammal?",
+      "subject": "cat",
+      "object": "mammal",
+      "expected": true,
+      "verdict": true,
+      "correct": true,
+      "answer": "Yes: cat isa a mammal",
+      "confidence": 0.95,
+      "mode": "ReasoningMode.CROSS_DOMAIN",
+      "reason": "derived_by_kind",
+      "route": [
+        "reason_about",
+        "neural_bridge",
+        "ReasoningMode.CROSS_DOMAIN",
+        "derived_by_kind"
+      ],
+      "derived_by": null,
+      "model_calls": 0,
+      "belief": {
+        "held": true,
+        "claim": "cat isa mammal",
+        "posterior": 0.9995,
+        "domain": "conversation"
+      }
+    },
+    {
+      "n": 30,
+      "q": "is a whale a mammal?",
+      "subject": "whale",
+      "object": "mammal",
+      "expected": true,
+      "verdict": true,
+      "correct": true,
+      "answer": "Yes: whale isa a mammal",
+      "confidence": 0.95,
+      "mode": "ReasoningMode.CROSS_DOMAIN",
+      "reason": "derived_by_kind",
+      "route": [
+        "reason_about",
+        "neural_bridge",
+        "ReasoningMode.CROSS_DOMAIN",
+        "derived_by_kind"
+      ],
+      "derived_by": null,
+      "model_calls": 0,
+      "belief": {
+        "held": true,
+        "claim": "whale isa mammal",
+        "posterior": 0.9926,
+        "domain": "conversation"
+      }
+    },
+    {
+      "n": 31,
+      "q": "is a dolphin a mammal?",
+      "subject": "dolphin",
+      "object": "mammal",
+      "expected": true,
+      "verdict": true,
+      "correct": true,
+      "answer": "Yes: dolphin isa a mammal",
+      "confidence": 0.95,
+      "mode": "ReasoningMode.CROSS_DOMAIN",
+      "reason": "derived_by_kind",
+      "route": [
+        "reason_about",
+        "neural_bridge",
+        "ReasoningMode.CROSS_DOMAIN",
+        "derived_by_kind"
+      ],
+      "derived_by": null,
+      "model_calls": 0,
+      "belief": {
+        "held": false
+      }
+    },
+    {
+      "n": 32,
+      "q": "is a poodle a dog?",
+      "subject": "poodle",
+      "object": "dog",
+      "expected": true,
+      "verdict": true,
+      "correct": true,
+      "answer": "Yes: poodle isa a dog",
+      "confidence": 0.95,
+      "mode": "ReasoningMode.CROSS_DOMAIN",
+      "reason": "derived_by_kind",
+      "route": [
+        "reason_about",
+        "neural_bridge",
+        "ReasoningMode.CROSS_DOMAIN",
+        "derived_by_kind"
+      ],
+      "derived_by": null,
+      "model_calls": 0,
+      "belief": {
+        "held": true,
+        "claim": "poodle isa dog",
+        "posterior": 0.9926,
+        "domain": "general"
+      }
+    },
+    {
+      "n": 33,
+      "q": "is a bee an insect?",
+      "subject": "bee",
+      "object": "insect",
+      "expected": true,
+      "verdict": true,
+      "correct": true,
+      "answer": "Yes: bee isa an insect",
+      "confidence": 0.95,
+      "mode": "ReasoningMode.CROSS_DOMAIN",
+      "reason": "derived_by_kind",
+      "route": [
+        "reason_about",
+        "neural_bridge",
+        "ReasoningMode.CROSS_DOMAIN",
+        "derived_by_kind"
+      ],
+      "derived_by": null,
+      "model_calls": 0,
+      "belief": {
+        "held": true,
+        "claim": "bee isa insect",
+        "posterior": 1.0,
+        "domain": "conversation"
+      }
+    },
+    {
+      "n": 34,
+      "q": "is an ant an insect?",
+      "subject": "ant",
+      "object": "insect",
+      "expected": true,
+      "verdict": true,
+      "correct": true,
+      "answer": "Yes: ant isa an insect",
+      "confidence": 0.95,
+      "mode": "ReasoningMode.CROSS_DOMAIN",
+      "reason": "derived_by_kind",
+      "route": [
+        "reason_about",
+        "neural_bridge",
+        "ReasoningMode.CROSS_DOMAIN",
+        "derived_by_kind"
+      ],
+      "derived_by": null,
+      "model_calls": 0,
+      "belief": {
+        "held": true,
+        "claim": "ant isa insect",
+        "posterior": 1.0,
+        "domain": "conversation"
+      }
+    },
+    {
+      "n": 35,
+      "q": "is a spider an animal?",
+      "subject": "spider",
+      "object": "animal",
+      "expected": true,
+      "verdict": true,
+      "correct": true,
+      "answer": "Yes: spider isa an animal",
+      "confidence": 0.95,
+      "mode": "ReasoningMode.CROSS_DOMAIN",
+      "reason": "derived_by_kind",
+      "route": [
+        "reason_about",
+        "neural_bridge",
+        "ReasoningMode.CROSS_DOMAIN",
+        "derived_by_kind"
+      ],
+      "derived_by": null,
+      "model_calls": 0,
+      "belief": {
+        "held": true,
+        "claim": "spider isa animal",
+        "posterior": 0.9926,
+        "domain": "general"
+      }
+    },
+    {
+      "n": 36,
+      "q": "is a carrot a vegetable?",
+      "subject": "carrot",
+      "object": "vegetable",
+      "expected": true,
+      "verdict": true,
+      "correct": true,
+      "answer": "Yes: carrot isa a vegetable",
+      "confidence": 0.95,
+      "mode": "ReasoningMode.CROSS_DOMAIN",
+      "reason": "derived_by_kind",
+      "route": [
+        "reason_about",
+        "neural_bridge",
+        "ReasoningMode.CROSS_DOMAIN",
+        "derived_by_kind"
+      ],
+      "derived_by": null,
+      "model_calls": 0,
+      "belief": {
+        "held": true,
+        "claim": "carrot isa vegetable",
+        "posterior": 0.9926,
+        "domain": "general"
+      }
+    },
+    {
+      "n": 37,
+      "q": "is a lettuce a vegetable?",
+      "subject": "lettuce",
+      "object": "vegetable",
+      "expected": true,
+      "verdict": true,
+      "correct": true,
+      "answer": "Yes: lettuce isa a vegetable",
+      "confidence": 0.95,
+      "mode": "ReasoningMode.CROSS_DOMAIN",
+      "reason": "derived_by_kind",
+      "route": [
+        "reason_about",
+        "neural_bridge",
+        "ReasoningMode.CROSS_DOMAIN",
+        "derived_by_kind"
+      ],
+      "derived_by": null,
+      "model_calls": 0,
+      "belief": {
+        "held": true,
+        "claim": "lettuce isa vegetable",
+        "posterior": 0.9926,
+        "domain": "general"
+      }
+    },
+    {
+      "n": 38,
+      "q": "is an oak a plant?",
+      "subject": "oak",
+      "object": "plant",
+      "expected": true,
+      "verdict": true,
+      "correct": true,
+      "answer": "Yes: oak isa a plant",
+      "confidence": 0.95,
+      "mode": "ReasoningMode.CROSS_DOMAIN",
+      "reason": "derived_by_kind",
+      "route": [
+        "reason_about",
+        "neural_bridge",
+        "ReasoningMode.CROSS_DOMAIN",
+        "derived_by_kind"
+      ],
+      "derived_by": null,
+      "model_calls": 0,
+      "belief": {
+        "held": true,
+        "claim": "oak isa plant",
+        "posterior": 0.9926,
+        "domain": "general"
+      }
+    },
+    {
+      "n": 39,
+      "q": "is a wine a beverage?",
+      "subject": "wine",
+      "object": "beverage",
+      "expected": true,
+      "verdict": true,
+      "correct": true,
+      "answer": "Yes: wine isa a beverage",
+      "confidence": 0.95,
+      "mode": "ReasoningMode.CROSS_DOMAIN",
+      "reason": "derived_by_kind",
+      "route": [
+        "reason_about",
+        "neural_bridge",
+        "ReasoningMode.CROSS_DOMAIN",
+        "derived_by_kind"
+      ],
+      "derived_by": null,
+      "model_calls": 0,
+      "belief": {
+        "held": false
+      }
+    },
+    {
+      "n": 40,
+      "q": "is a beer a beverage?",
+      "subject": "beer",
+      "object": "beverage",
+      "expected": true,
+      "verdict": true,
+      "correct": true,
+      "answer": "Yes: beer isa a beverage",
+      "confidence": 0.95,
+      "mode": "ReasoningMode.CROSS_DOMAIN",
+      "reason": "derived_by_kind",
+      "route": [
+        "reason_about",
+        "neural_bridge",
+        "ReasoningMode.CROSS_DOMAIN",
+        "derived_by_kind"
+      ],
+      "derived_by": null,
+      "model_calls": 0,
+      "belief": {
+        "held": true,
+        "claim": "beer isa beverage",
+        "posterior": 0.9995,
+        "domain": "general"
+      }
+    },
+    {
+      "n": 41,
+      "q": "is a hammer a bird?",
+      "subject": "hammer",
+      "object": "bird",
+      "expected": false,
+      "verdict": null,
+      "correct": false,
+      "answer": "",
+      "confidence": 0.0,
+      "mode": "ReasoningMode.SYMBOLIC",
+      "reason": "unsupported_input",
+      "route": [
+        "reason_about",
+        "neural_bridge",
+        "ReasoningMode.SYMBOLIC",
+        "unsupported_input"
+      ],
+      "derived_by": null,
+      "model_calls": 0,
+      "belief": {
+        "held": false
+      }
+    },
+    {
+      "n": 42,
+      "q": "is a salmon a tree?",
+      "subject": "salmon",
+      "object": "tree",
+      "expected": false,
+      "verdict": null,
+      "correct": false,
+      "answer": "",
+      "confidence": 0.0,
+      "mode": "ReasoningMode.SYMBOLIC",
+      "reason": "unsupported_input",
+      "route": [
+        "reason_about",
+        "neural_bridge",
+        "ReasoningMode.SYMBOLIC",
+        "unsupported_input"
+      ],
+      "derived_by": null,
+      "model_calls": 0,
+      "belief": {
+        "held": false
+      }
+    },
+    {
+      "n": 43,
+      "q": "is a copper an animal?",
+      "subject": "copper",
+      "object": "animal",
+      "expected": false,
+      "verdict": true,
+      "correct": false,
+      "answer": "Yes: copper isa an animal",
+      "confidence": 0.85,
+      "mode": "ReasoningMode.CROSS_DOMAIN",
+      "reason": "derived_by_kind",
+      "route": [
+        "reason_about",
+        "neural_bridge",
+        "ReasoningMode.CROSS_DOMAIN",
+        "derived_by_kind"
+      ],
+      "derived_by": null,
+      "model_calls": 0,
+      "belief": {
+        "held": false
+      }
+    },
+    {
+      "n": 44,
+      "q": "is a violin a vehicle?",
+      "subject": "violin",
+      "object": "vehicle",
+      "expected": false,
+      "verdict": null,
+      "correct": false,
+      "answer": "",
+      "confidence": 0.0,
+      "mode": "ReasoningMode.SYMBOLIC",
+      "reason": "unsupported_input",
+      "route": [
+        "reason_about",
+        "neural_bridge",
+        "ReasoningMode.SYMBOLIC",
+        "unsupported_input"
+      ],
+      "derived_by": null,
+      "model_calls": 0,
+      "belief": {
+        "held": false
+      }
+    },
+    {
+      "n": 45,
+      "q": "is a rose a fish?",
+      "subject": "rose",
+      "object": "fish",
+      "expected": false,
+      "verdict": null,
+      "correct": false,
+      "answer": "",
+      "confidence": 0.0,
+      "mode": "ReasoningMode.SYMBOLIC",
+      "reason": "unsupported_input",
+      "route": [
+        "reason_about",
+        "neural_bridge",
+        "ReasoningMode.SYMBOLIC",
+        "unsupported_input"
+      ],
+      "derived_by": null,
+      "model_calls": 0,
+      "belief": {
+        "held": false
+      }
+    },
+    {
+      "n": 46,
+      "q": "is a car a fruit?",
+      "subject": "car",
+      "object": "fruit",
+      "expected": false,
+      "verdict": null,
+      "correct": false,
+      "answer": "",
+      "confidence": 0.0,
+      "mode": "ReasoningMode.SYMBOLIC",
+      "reason": "unsupported_input",
+      "route": [
+        "reason_about",
+        "neural_bridge",
+        "ReasoningMode.SYMBOLIC",
+        "unsupported_input"
+      ],
+      "derived_by": null,
+      "model_calls": 0,
+      "belief": {
+        "held": false
+      }
+    },
+    {
+      "n": 47,
+      "q": "is a dog a plant?",
+      "subject": "dog",
+      "object": "plant",
+      "expected": false,
+      "verdict": null,
+      "correct": false,
+      "answer": "",
+      "confidence": 0.0,
+      "mode": "ReasoningMode.SYMBOLIC",
+      "reason": "unsupported_input",
+      "route": [
+        "reason_about",
+        "neural_bridge",
+        "ReasoningMode.SYMBOLIC",
+        "unsupported_input"
+      ],
+      "derived_by": null,
+      "model_calls": 0,
+      "belief": {
+        "held": false
+      }
+    },
+    {
+      "n": 48,
+      "q": "is an apple a tool?",
+      "subject": "apple",
+      "object": "tool",
+      "expected": false,
+      "verdict": true,
+      "correct": false,
+      "answer": "Yes: apple isa a tool",
+      "confidence": 0.85,
+      "mode": "ReasoningMode.CROSS_DOMAIN",
+      "reason": "derived_by_kind",
+      "route": [
+        "reason_about",
+        "neural_bridge",
+        "ReasoningMode.CROSS_DOMAIN",
+        "derived_by_kind"
+      ],
+      "derived_by": null,
+      "model_calls": 0,
+      "belief": {
+        "held": false
+      }
+    },
+    {
+      "n": 49,
+      "q": "is a piano an animal?",
+      "subject": "piano",
+      "object": "animal",
+      "expected": false,
+      "verdict": null,
+      "correct": false,
+      "answer": "",
+      "confidence": 0.0,
+      "mode": "ReasoningMode.SYMBOLIC",
+      "reason": "unsupported_input",
+      "route": [
+        "reason_about",
+        "neural_bridge",
+        "ReasoningMode.SYMBOLIC",
+        "unsupported_input"
+      ],
+      "derived_by": null,
+      "model_calls": 0,
+      "belief": {
+        "held": false
+      }
+    },
+    {
+      "n": 50,
+      "q": "is an oak a metal?",
+      "subject": "oak",
+      "object": "metal",
+      "expected": false,
+      "verdict": null,
+      "correct": false,
+      "answer": "",
+      "confidence": 0.0,
+      "mode": "ReasoningMode.SYMBOLIC",
+      "reason": "unsupported_input",
+      "route": [
+        "reason_about",
+        "neural_bridge",
+        "ReasoningMode.SYMBOLIC",
+        "unsupported_input"
+      ],
+      "derived_by": null,
+      "model_calls": 0,
+      "belief": {
+        "held": false
+      }
+    }
+  ]
+}
