@@ -235,3 +235,6 @@ scripts/sense_taxonomy_edges.json
 # LaTeX build artifacts
 *.aux
 *.out
+
+# regenerable Wikidata teach cache (data dump)
+scripts/general_wikidata_edges.json
