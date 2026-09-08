@@ -2092,6 +2092,39 @@ class NeuralSymbolicBridge:
         except Exception as e:
             logger.debug("concept-graph query failed: %s", e)
             return None
+        if ans.verdict == UNKNOWN and relation.value in ("isa", "instance_of"):
+            # The cleaned, bounded concept graph could not derive it. Before
+            # abstaining, consult the belief store: a fact TAUGHT and held at high
+            # posterior answers the query even when no short graph chain exists
+            # (e.g. "copper isa metal", believed 0.99, whose clean WordNet chain
+            # is longer than the hop bound). A claim that was never taught has no
+            # such belief, so this restores recall on taught facts WITHOUT
+            # reintroducing confabulation on the unsupported.
+            try:
+                import re as _re
+                _s = _re.sub(r'^(?:a|an|the)\s+', '', str(subj).strip(), flags=_re.I)
+                _o = _re.sub(r'^(?:a|an|the)\s+', '', str(obj).strip(), flags=_re.I)
+                brows = await db.execute_query(
+                    "SELECT posterior_probability AS p FROM unified.beliefs "
+                    "WHERE lower(claim) = $1 ORDER BY posterior_probability DESC LIMIT 1",
+                    (f"{_s} isa {_o}".lower(),), fetch_all=True) or []
+                if brows:
+                    p = float(brows[0]["p"] or 0.0)
+                    if p >= 0.9 or p <= 0.1:
+                        held_yes = p >= 0.9
+                        return ReasoningResult(
+                            answer=f"{'Yes' if held_yes else 'No'}: {subj} isa {obj}",
+                            confidence=round(p if held_yes else 1.0 - p, 3),
+                            reasoning_steps=[f"belief: {subj} isa {obj} held at "
+                                             f"{p:.3f} (taught)"],
+                            mode_used=ReasoningMode.CROSS_DOMAIN,
+                            metadata={"verified": True, "reason": REASON_DERIVED_BY_KIND,
+                                      "model_required": False,
+                                      "model_available": self._model_available(),
+                                      "route": ["substrate", "belief", "held"]})
+            except Exception as e:
+                logger.debug("belief consult failed: %s", e)
+            return None  # not taught, not derivable — honest fall-through
         if ans.verdict == UNKNOWN:
             return None  # never told, not derivable — honest fall-through
         yes = ans.verdict == TRUE
