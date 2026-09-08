@@ -46,8 +46,7 @@ GENERAL_ROOTS = {
     "Q2095": "food", "Q3314483": "fruit", "Q11004": "vegetable",
     "Q40050": "drink", "Q154": "alcoholic beverage", "Q10943": "cheese",
     "Q42889": "vehicle", "Q1229765": "watercraft", "Q11436": "aircraft",
-    "Q11344": "chemical element", "Q11173": "chemical compound",
-    "Q79529": "chemical substance", "Q214609": "material",
+    "Q11344": "chemical element", "Q214609": "material",
     "Q34770": "language", "Q34379": "musical instrument", "Q188451": "music genre",
     "Q12136": "disease", "Q12140": "medication", "Q8386": "drug",
     "Q39546": "tool", "Q11019": "machine", "Q7397": "software", "Q8366": "algorithm",
@@ -116,32 +115,38 @@ def _children(qid):
         return []
 
 
-def _root_edges(qid, limit=40000, depth=0):
-    """Notable P279 closure edges under qid, ROBUST to the endpoint's 60s limit:
-    try the whole closure; if it 504s / truncates / hits the cap, chunk by direct
-    children and union each child's closure (recursing up to 2 levels). A single
-    dead sub-branch is skipped, never the whole root."""
+# A node with more direct subclasses than this is an ENTITY EXPLOSION (every
+# individual compound/species/etc.), not a vocabulary category — never chunk it.
+MAX_CHUNK_CHILDREN = 3000
+
+
+def _root_edges(qid, limit=40000):
+    """Notable P279 closure edges under qid. Plain closure first (handles the
+    normal roots, accepting a 40k truncation for the big-but-tractable ones like
+    food/vehicle). Only if the closure 504s/truncates do we fall back to ONE
+    bounded level of chunk-by-child — and we REFUSE to chunk an entity explosion
+    (>MAX_CHUNK_CHILDREN direct children). No recursion: bounded query count."""
     for attempt in range(3):
         try:
-            edges, capped = _closure(qid, limit)
-            if not capped or depth >= 2:
-                return edges
-            break  # capped and we can still chunk deeper
+            edges, _capped = _closure(qid, limit)
+            return edges  # a truncated 40k slice is fine for vocabulary
         except Exception as e:
             if attempt == 2:
-                if depth >= 2:
-                    print(f"    {qid} FAILED (depth {depth}): {str(e)[:60]}", flush=True)
-                    return []
-                break  # fall through to chunking
+                break
             time.sleep(5 * (attempt + 1))
-    # Chunk: this root is too big for one query — split by its direct children.
     kids = _children(qid)
-    if not kids:
+    if not kids or len(kids) > MAX_CHUNK_CHILDREN:
+        why = "entity explosion" if kids else "no children"
+        print(f"    {qid} SKIPPED (closure failed; {len(kids):,} children — {why})", flush=True)
         return []
-    print(f"    chunking {qid} -> {len(kids)} children", flush=True)
+    print(f"    chunking {qid} -> {len(kids)} children (one level)", flush=True)
     acc, seen = [], set()
     for kid in kids:
-        for c, p in _root_edges(kid, limit, depth + 1):
+        try:
+            e, _c = _closure(kid, limit)
+        except Exception:
+            e = []
+        for c, p in e:
             key = (c.lower(), p.lower())
             if key not in seen:
                 seen.add(key); acc.append((c, p))
@@ -158,6 +163,7 @@ def _fetch_group(roots, limit):
             seen.add((c.lower(), p.lower()))
         out.extend([c, p] for c, p in fresh)
         print(f"  {name:24} +{len(fresh):5} (root total {len(edges)})", flush=True)
+        time.sleep(1)  # be gentle on the public endpoint — fewer load-induced 504s
     return out
 
 
