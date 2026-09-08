@@ -179,6 +179,10 @@ class BayesianUncertaintySystem:
         
         # Bayesian beliefs
         self.beliefs: Dict[str, BayesianBelief] = {}
+        # O(1) find-by-claim for observe_claim. Was a linear scan over every
+        # belief -- O(n) per call, O(n^2) across a teaching run -- the root cause
+        # of multi-hour teaching stalls. Kept in sync at every add/load/delete.
+        self._claim_index: Dict[str, str] = {}
 
         # Writes that could not reach the DB yet (not initialized). Exposed in
         # get_statistics() so a degraded-persistence window is a visible number
@@ -268,6 +272,7 @@ class BayesianUncertaintySystem:
         # belief with initial evidence always failed -- the belief was only
         # added to self.beliefs on the line after the update attempt.
         self.beliefs[belief_id] = belief
+        self._claim_index[self._claim_key(belief.claim)] = belief_id
         self.stats['beliefs_tracked'] += 1
 
         if evidence:
@@ -278,6 +283,11 @@ class BayesianUncertaintySystem:
         
         logger.debug(f"Created belief: {claim} (prior={prior:.3f})")
         return belief
+
+    @staticmethod
+    def _claim_key(claim: Any) -> str:
+        """Normalized key a claim is indexed and matched by."""
+        return " ".join(str(claim).strip().lower().split())
 
     def observe_claim(self, claim: str, domain: str = "language", *,
                       supports: bool = True, quality: float = 0.9,
@@ -291,10 +301,10 @@ class BayesianUncertaintySystem:
         the telling), each later telling reinforces or contradicts the SAME
         belief, so a taught fact moves a posterior instead of spawning parallel
         beliefs about the same claim."""
-        key = " ".join(str(claim).strip().lower().split())
-        existing_id = next(
-            (bid for bid, b in self.beliefs.items()
-             if " ".join(str(b.claim).strip().lower().split()) == key), None)
+        key = self._claim_key(claim)
+        existing_id = self._claim_index.get(key)
+        if existing_id is not None and existing_id not in self.beliefs:
+            existing_id = None  # stale index entry -> treat as new
         evidence = {"quality": quality, "source": source}
         if existing_id is None:
             prior = quality if supports else (1.0 - quality)
@@ -982,6 +992,7 @@ class BayesianUncertaintySystem:
             entropy=self._calculate_entropy(0.7)
         )
         self.beliefs[belief_id] = belief
+        self._claim_index[self._claim_key(belief.claim)] = belief_id
         self.stats['beliefs_tracked'] += 1
         self._save_belief(belief)
         
@@ -1515,6 +1526,7 @@ class BayesianUncertaintySystem:
                         last_updated=row["last_updated"] if row["last_updated"] else datetime.now(),
                     )
                     self.beliefs[b.belief_id] = b
+                    self._claim_index[self._claim_key(b.claim)] = b.belief_id
                     self.stats["beliefs_tracked"] += 1
                     loaded += 1
                 except Exception as row_err:
@@ -1583,6 +1595,7 @@ class BayesianUncertaintySystem:
                     # "0 decayed" actually meant "the method crashed").
                     _evidence_count = len(belief.evidence_for) + len(belief.evidence_against)
                     if 0.45 <= decayed_prob <= 0.55 and _evidence_count < 3:
+                        self._claim_index.pop(self._claim_key(belief.claim), None)
                         del self.beliefs[belief_id]
                         # DURABLE: the belief was dropped from memory, so drop its
                         # row too — otherwise load_from_db resurrects it.
