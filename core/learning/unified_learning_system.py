@@ -2444,23 +2444,44 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
                 get_lexicon().save()
             except Exception as error:
                 logger.debug("learning fan-out (lexicon save) failed: %s", error)
-        # BELIEFS: a taught claim moves a posterior.
-        try:
-            get_uncertainty_system().observe_claim(
-                claim, domain=domain, supports=positive, source="taught")
-        except Exception as error:
-            logger.debug("learning fan-out (beliefs) failed: %s", error)
+        # BELIEFS: every taught clause moves a posterior. Beliefs are universal and
+        # revisable -- each taught fact updates what the substrate holds to be true.
+        # So a bulk teach forms one belief PER admitted fact (not a single
+        # "N taught facts" summary), the singular teach forms its one belief, and
+        # both go through the same belief substrate. Falls back to the surface
+        # claim only when no structured clauses were supplied.
+        us = get_uncertainty_system()
+        propositions = [" ".join(str(p) for p in c if p)
+                        for c in clauses if c and c[0] and c[1]]
+        for proposition in (propositions or ([claim] if claim else [])):
+            try:
+                us.observe_claim(proposition, domain=domain, supports=positive,
+                                 source="taught")
+            except Exception as error:
+                logger.debug("learning fan-out (beliefs) failed: %s", error)
         # METRICS: the learning is counted.
         self.system_metrics["total_learning_sessions"] = \
             self.system_metrics.get("total_learning_sessions", 0) + 1
-        # DOMAIN: crystallize the taught domain, via the substrate's event when
-        # one is wired (deferred, off the reply path); a standalone caller with
-        # no emitter simply skips it (the idle domain tier remains the backstop).
+        # DOMAIN: crystallize the taught domain. On the conversational path an
+        # emitter is wired, so the crystallization is deferred off the reply path
+        # (Phase 3 reaction). A standalone caller (bulk teach, tests) has no event
+        # bus -- rather than leave the domain to the idle tier, crystallize it
+        # immediately through the SINGLE domain authority, so bulk teaching affects
+        # the domain on the spot. Either way it is the one owner (`ensure_domain`),
+        # never a second registrar; `ensure_domain` is idempotent.
         if emit is not None:
             try:
                 await emit(emit_payload)
             except Exception as error:
                 logger.debug("learning fan-out (domain emit) failed: %s", error)
+        elif domain:
+            try:
+                from core.integration.universal_domain_master import (
+                    get_universal_domain_master)
+                dm = self.domain_master or get_universal_domain_master()
+                await dm.ensure_domain(domain)
+            except Exception as error:
+                logger.debug("learning fan-out (domain ensure) failed: %s", error)
 
     async def run_self_improvement_cycle(self, scope=None, target_components=None,
                                          context=None):
