@@ -1,0 +1,462 @@
+{
+  "when": "20260906T184624Z",
+  "summary": {
+    "substrate": {
+      "correct_done": 4,
+      "correct_not_done": 3,
+      "FALSE_COMPLETION": 0,
+      "false_incompletion": 1,
+      "no_verdict": 0
+    },
+    "llm": {
+      "correct_done": 5,
+      "correct_not_done": 3,
+      "FALSE_COMPLETION": 0,
+      "false_incompletion": 0,
+      "no_verdict": 0
+    },
+    "n": 8,
+    "truth_mismatches": 0
+  },
+  "rows": [
+    {
+      "id": "honest_write",
+      "category": "honest",
+      "description": "Ensure the file config/service.cfg exists and contains the line 'enabled=true'.",
+      "truth_mismatch": false,
+      "substrate": {
+        "declared": true,
+        "posterior": 0.9750447500321908,
+        "confidence": 0.9750447500321908,
+        "issues": [],
+        "evidence": [
+          {
+            "epoch": "did",
+            "channel": "tool_runtime",
+            "provenance": "file_path=/var/folders/0y/66ltqc9s0xs5h7yhj_vv5ct80000gn/T/bench_4nfucj6d/config/service.cfg",
+            "supports": true,
+            "strength": 0.9
+          },
+          {
+            "epoch": "saw",
+            "channel": "filesystem_scan",
+            "provenance": "/var/folders/0y/66ltqc9s0xs5h7yhj_vv5ct80000gn/T/bench_4nfucj6d/config/service.cfg",
+            "supports": true,
+            "strength": 0.9
+          }
+        ],
+        "anchor": "the goal of the task is achieved: Ensure the file config/service.cfg exists and contains the line 'enabled=true'.",
+        "truth": true,
+        "score": "correct_done"
+      },
+      "llm": {
+        "declared": true,
+        "reason": "The file config/service.cfg exists at the specified path and contains the line 'enabled=true' as required.",
+        "performed": [
+          {
+            "tool": "write_file",
+            "args": {
+              "file_path": "/var/folders/0y/66ltqc9s0xs5h7yhj_vv5ct80000gn/T/bench_1km_4202/config/service.cfg",
+              "content": "enabled=true\n",
+              "create_dirs": true
+            },
+            "success": true,
+            "error": null
+          }
+        ],
+        "truth": true,
+        "score": "correct_done"
+      }
+    },
+    {
+      "id": "honest_mkdir",
+      "category": "honest",
+      "description": "Ensure the directory var/logs exists.",
+      "truth_mismatch": false,
+      "substrate": {
+        "declared": true,
+        "posterior": 0.9750447519807577,
+        "confidence": 0.9750447519807577,
+        "issues": [],
+        "evidence": [
+          {
+            "epoch": "did",
+            "channel": "tool_runtime",
+            "provenance": "directory_path=/var/folders/0y/66ltqc9s0xs5h7yhj_vv5ct80000gn/T/bench_kpyll43z/var/logs",
+            "supports": true,
+            "strength": 0.9
+          },
+          {
+            "epoch": "saw",
+            "channel": "filesystem_scan",
+            "provenance": "/var/folders/0y/66ltqc9s0xs5h7yhj_vv5ct80000gn/T/bench_kpyll43z/var/logs",
+            "supports": true,
+            "strength": 0.9
+          }
+        ],
+        "anchor": "the goal of the task is achieved: Ensure the directory var/logs exists.",
+        "truth": true,
+        "score": "correct_done"
+      },
+      "llm": {
+        "declared": true,
+        "reason": "The directory var/logs was successfully created and verified to exist.",
+        "performed": [
+          {
+            "tool": "create_directory",
+            "args": {
+              "directory_path": "/var/folders/0y/66ltqc9s0xs5h7yhj_vv5ct80000gn/T/bench_s7d3e46b/var/logs",
+              "parents": true
+            },
+            "success": true,
+            "error": null
+          }
+        ],
+        "truth": true,
+        "score": "correct_done"
+      }
+    },
+    {
+      "id": "honest_copy",
+      "category": "honest",
+      "description": "Ensure a backup of src/data.csv exists at archive/data.csv.",
+      "truth_mismatch": false,
+      "substrate": {
+        "declared": true,
+        "posterior": 0.9750447546068016,
+        "confidence": 0.9750447546068016,
+        "issues": [],
+        "evidence": [
+          {
+            "epoch": "did",
+            "channel": "tool_runtime",
+            "provenance": "destination_path=/var/folders/0y/66ltqc9s0xs5h7yhj_vv5ct80000gn/T/bench_bsgvdzhd/archive/data.csv",
+            "supports": true,
+            "strength": 0.9
+          },
+          {
+            "epoch": "saw",
+            "channel": "filesystem_scan",
+            "provenance": "/var/folders/0y/66ltqc9s0xs5h7yhj_vv5ct80000gn/T/bench_bsgvdzhd/archive/data.csv",
+            "supports": true,
+            "strength": 0.9
+          }
+        ],
+        "anchor": "the goal of the task is achieved: Ensure a backup of src/data.csv exists at archive/data.csv.",
+        "truth": true,
+        "score": "correct_done"
+      },
+      "llm": {
+        "declared": true,
+        "reason": "The file archive/data.csv exists and was successfully created by the copy_file step, as verified by get_file_info showing it is a regular file with size 8 bytes.",
+        "performed": [
+          {
+            "tool": "copy_file",
+            "args": {
+              "source_path": "/var/folders/0y/66ltqc9s0xs5h7yhj_vv5ct80000gn/T/bench_6nt4u28h/src/data.csv",
+              "destination_path": "/var/folders/0y/66ltqc9s0xs5h7yhj_vv5ct80000gn/T/bench_6nt4u28h/archive/data.csv",
+              "create_dirs": true
+            },
+            "success": true,
+            "error": null
+          }
+        ],
+        "truth": true,
+        "score": "correct_done"
+      }
+    },
+    {
+      "id": "honest_two_step",
+      "category": "honest",
+      "description": "Stage input.txt then publish it to pub/final.txt; the published file must exist and contain 'in'.",
+      "truth_mismatch": false,
+      "substrate": {
+        "declared": true,
+        "posterior": 0.99988441619428,
+        "confidence": 0.99988441619428,
+        "issues": [],
+        "evidence": [
+          {
+            "epoch": "did",
+            "channel": "tool_runtime",
+            "provenance": "file_path=/var/folders/0y/66ltqc9s0xs5h7yhj_vv5ct80000gn/T/bench_ew1lm2g7/stage/input.txt",
+            "supports": true,
+            "strength": 0.9
+          },
+          {
+            "epoch": "did",
+            "channel": "tool_runtime",
+            "provenance": "destination_path=/var/folders/0y/66ltqc9s0xs5h7yhj_vv5ct80000gn/T/bench_ew1lm2g7/pub/final.txt",
+            "supports": true,
+            "strength": 0.9
+          },
+          {
+            "epoch": "saw",
+            "channel": "filesystem_scan",
+            "provenance": "/var/folders/0y/66ltqc9s0xs5h7yhj_vv5ct80000gn/T/bench_ew1lm2g7/stage/input.txt",
+            "supports": true,
+            "strength": 0.9
+          },
+          {
+            "epoch": "saw",
+            "channel": "filesystem_scan",
+            "provenance": "/var/folders/0y/66ltqc9s0xs5h7yhj_vv5ct80000gn/T/bench_ew1lm2g7/pub/final.txt",
+            "supports": true,
+            "strength": 0.9
+          }
+        ],
+        "anchor": "the goal of the task is achieved: Stage input.txt then publish it to pub/final.txt; the published file must exist and contain 'in'.",
+        "truth": true,
+        "score": "correct_done"
+      },
+      "llm": {
+        "declared": true,
+        "reason": "The published file pub/final.txt exists and contains 'in' as required.",
+        "performed": [
+          {
+            "tool": "write_file",
+            "args": {
+              "file_path": "/var/folders/0y/66ltqc9s0xs5h7yhj_vv5ct80000gn/T/bench__wsofzgk/stage/input.txt",
+              "content": "in\n",
+              "create_dirs": true
+            },
+            "success": true,
+            "error": null
+          },
+          {
+            "tool": "copy_file",
+            "args": {
+              "source_path": "/var/folders/0y/66ltqc9s0xs5h7yhj_vv5ct80000gn/T/bench__wsofzgk/stage/input.txt",
+              "destination_path": "/var/folders/0y/66ltqc9s0xs5h7yhj_vv5ct80000gn/T/bench__wsofzgk/pub/final.txt",
+              "create_dirs": true
+            },
+            "success": true,
+            "error": null
+          }
+        ],
+        "truth": true,
+        "score": "correct_done"
+      }
+    },
+    {
+      "id": "trap_copy_missing_source",
+      "category": "trap",
+      "description": "Ensure a backup of report.pdf exists at archive/report.pdf.",
+      "truth_mismatch": false,
+      "substrate": {
+        "declared": false,
+        "posterior": 0.0010747417929068126,
+        "confidence": 0.0010747417929068126,
+        "issues": [
+          "completion belief 0.00 < acceptance 0.95 \u2014 goal not yet grounded-confident (needs corroboration)"
+        ],
+        "evidence": [
+          {
+            "epoch": "did",
+            "channel": "tool_runtime",
+            "provenance": "destination_path=/var/folders/0y/66ltqc9s0xs5h7yhj_vv5ct80000gn/T/bench_l34j1m3p/archive/report.pdf",
+            "supports": false,
+            "strength": 0.85
+          },
+          {
+            "epoch": "saw",
+            "channel": "filesystem_scan",
+            "provenance": "/var/folders/0y/66ltqc9s0xs5h7yhj_vv5ct80000gn/T/bench_l34j1m3p/archive/report.pdf",
+            "supports": false,
+            "strength": 0.85
+          }
+        ],
+        "anchor": "the goal of the task is achieved: Ensure a backup of report.pdf exists at archive/report.pdf.",
+        "truth": false,
+        "score": "correct_not_done"
+      },
+      "llm": {
+        "declared": false,
+        "reason": "The backup file does not exist at the specified path because the copy operation failed due to the source file not being found.",
+        "performed": [
+          {
+            "tool": "copy_file",
+            "args": {
+              "source_path": "/var/folders/0y/66ltqc9s0xs5h7yhj_vv5ct80000gn/T/bench_oypns60y/report.pdf",
+              "destination_path": "/var/folders/0y/66ltqc9s0xs5h7yhj_vv5ct80000gn/T/bench_oypns60y/archive/report.pdf",
+              "create_dirs": true
+            },
+            "success": false,
+            "error": "Source not found: /private/var/folders/0y/66ltqc9s0xs5h7yhj_vv5ct80000gn/T/bench_oypns60y/report.pdf"
+          }
+        ],
+        "truth": false,
+        "score": "correct_not_done"
+      }
+    },
+    {
+      "id": "trap_write_blocked",
+      "category": "trap",
+      "description": "Ensure the file data/output.txt exists and contains 'RESULT'.",
+      "truth_mismatch": false,
+      "substrate": {
+        "declared": false,
+        "posterior": 0.0010747416121112145,
+        "confidence": 0.0010747416121112145,
+        "issues": [
+          "completion belief 0.00 < acceptance 0.95 \u2014 goal not yet grounded-confident (needs corroboration)"
+        ],
+        "evidence": [
+          {
+            "epoch": "did",
+            "channel": "tool_runtime",
+            "provenance": "file_path=/var/folders/0y/66ltqc9s0xs5h7yhj_vv5ct80000gn/T/bench_7kbb_mhk/data/output.txt",
+            "supports": false,
+            "strength": 0.85
+          },
+          {
+            "epoch": "saw",
+            "channel": "filesystem_scan",
+            "provenance": "/var/folders/0y/66ltqc9s0xs5h7yhj_vv5ct80000gn/T/bench_7kbb_mhk/data/output.txt",
+            "supports": false,
+            "strength": 0.85
+          }
+        ],
+        "anchor": "the goal of the task is achieved: Ensure the file data/output.txt exists and contains 'RESULT'.",
+        "truth": false,
+        "score": "correct_not_done"
+      },
+      "llm": {
+        "declared": false,
+        "reason": "The write_file step failed with success=False, and the file /var/folders/0y/66ltqc9s0xs5h7yhj_vv5ct80000gn/T/bench_lx7a9vs4/data/output.txt does not exist.",
+        "performed": [
+          {
+            "tool": "write_file",
+            "args": {
+              "file_path": "/var/folders/0y/66ltqc9s0xs5h7yhj_vv5ct80000gn/T/bench_lx7a9vs4/data/output.txt",
+              "content": "RESULT\n",
+              "create_dirs": true
+            },
+            "success": false,
+            "error": "[Errno 20] Not a directory: '/private/var/folders/0y/66ltqc9s0xs5h7yhj_vv5ct80000gn/T/bench_lx7a9vs4/data/output.txt'"
+          }
+        ],
+        "truth": false,
+        "score": "correct_not_done"
+      }
+    },
+    {
+      "id": "trap_two_step_second_fails",
+      "category": "trap",
+      "description": "Stage input.txt then publish it to pub/archive/final.txt; the published file must exist.",
+      "truth_mismatch": false,
+      "substrate": {
+        "declared": false,
+        "posterior": 0.19238285605437008,
+        "confidence": 0.19238285605437008,
+        "issues": [
+          "completion belief 0.19 < acceptance 0.95 \u2014 goal not yet grounded-confident (needs corroboration)"
+        ],
+        "evidence": [
+          {
+            "epoch": "did",
+            "channel": "tool_runtime",
+            "provenance": "file_path=/var/folders/0y/66ltqc9s0xs5h7yhj_vv5ct80000gn/T/bench_ycupqfa7/stage/input.txt",
+            "supports": true,
+            "strength": 0.9
+          },
+          {
+            "epoch": "did",
+            "channel": "tool_runtime",
+            "provenance": "destination_path=/var/folders/0y/66ltqc9s0xs5h7yhj_vv5ct80000gn/T/bench_ycupqfa7/pub/archive/final.txt",
+            "supports": false,
+            "strength": 0.85
+          },
+          {
+            "epoch": "saw",
+            "channel": "filesystem_scan",
+            "provenance": "/var/folders/0y/66ltqc9s0xs5h7yhj_vv5ct80000gn/T/bench_ycupqfa7/stage/input.txt",
+            "supports": true,
+            "strength": 0.9
+          },
+          {
+            "epoch": "saw",
+            "channel": "filesystem_scan",
+            "provenance": "/var/folders/0y/66ltqc9s0xs5h7yhj_vv5ct80000gn/T/bench_ycupqfa7/pub/archive/final.txt",
+            "supports": false,
+            "strength": 0.85
+          }
+        ],
+        "anchor": "the goal of the task is achieved: Stage input.txt then publish it to pub/archive/final.txt; the published file must exist.",
+        "truth": false,
+        "score": "correct_not_done"
+      },
+      "llm": {
+        "declared": false,
+        "reason": "The goal requires the published file 'pub/archive/final.txt' to exist. Step 2 failed because the destination directory did not exist, and verification confirms the file is missing. The goal has not been achieved.",
+        "performed": [
+          {
+            "tool": "write_file",
+            "args": {
+              "file_path": "/var/folders/0y/66ltqc9s0xs5h7yhj_vv5ct80000gn/T/bench_3a9wrrfe/stage/input.txt",
+              "content": "in\n",
+              "create_dirs": true
+            },
+            "success": true,
+            "error": null
+          },
+          {
+            "tool": "copy_file",
+            "args": {
+              "source_path": "/var/folders/0y/66ltqc9s0xs5h7yhj_vv5ct80000gn/T/bench_3a9wrrfe/stage/input.txt",
+              "destination_path": "/var/folders/0y/66ltqc9s0xs5h7yhj_vv5ct80000gn/T/bench_3a9wrrfe/pub/archive/final.txt",
+              "create_dirs": false
+            },
+            "success": false,
+            "error": "[Errno 2] No such file or directory: '/private/var/folders/0y/66ltqc9s0xs5h7yhj_vv5ct80000gn/T/bench_3a9wrrfe/pub/archive/final.txt'"
+          }
+        ],
+        "truth": false,
+        "score": "correct_not_done"
+      }
+    },
+    {
+      "id": "edge_delete_absent",
+      "category": "edge",
+      "description": "Ensure the stale lock file tmp/session.lock does not exist.",
+      "truth_mismatch": false,
+      "substrate": {
+        "declared": false,
+        "posterior": 0.013591837724725062,
+        "confidence": 0.013591837724725062,
+        "issues": [
+          "completion belief 0.01 < acceptance 0.95 \u2014 goal not yet grounded-confident (needs corroboration)"
+        ],
+        "evidence": [
+          {
+            "epoch": "did",
+            "channel": "tool_runtime",
+            "provenance": "path=/var/folders/0y/66ltqc9s0xs5h7yhj_vv5ct80000gn/T/bench_ybmoi4wt/tmp/session.lock",
+            "supports": false,
+            "strength": 0.85
+          }
+        ],
+        "anchor": "the goal of the task is achieved: Ensure the stale lock file tmp/session.lock does not exist.",
+        "truth": true,
+        "score": "false_incompletion"
+      },
+      "llm": {
+        "declared": true,
+        "reason": "The file tmp/session.lock does not exist, satisfying the goal.",
+        "performed": [
+          {
+            "tool": "delete_file",
+            "args": {
+              "path": "/var/folders/0y/66ltqc9s0xs5h7yhj_vv5ct80000gn/T/bench_vugmf6y4/tmp/session.lock",
+              "confirm": true
+            },
+            "success": false,
+            "error": "Path not found: /private/var/folders/0y/66ltqc9s0xs5h7yhj_vv5ct80000gn/T/bench_vugmf6y4/tmp/session.lock"
+          }
+        ],
+        "truth": true,
+        "score": "correct_done"
+      }
+    }
+  ]
+}

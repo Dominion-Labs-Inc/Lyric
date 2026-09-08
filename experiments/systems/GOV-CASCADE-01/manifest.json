@@ -1,0 +1,128 @@
+{
+  "experiment": "GOV-CASCADE-01",
+  "question": "Does one injected error contaminate authority over derivation depth (Proposition 7(ii)), and does the independence discipline bound it?",
+  "run_at": "2026-09-07T06:02:39.353925+00:00",
+  "coordinator_driven": [
+    "system.autonomous_coordinator.learning.create_belief",
+    "system.autonomous_coordinator.learning.update_belief",
+    "system.autonomous_coordinator.learning.get_belief",
+    "system.autonomous_coordinator._independent_groundings (Evidence collapse)"
+  ],
+  "acceptance_bar": 0.95,
+  "chain_depth": 6,
+  "grounding_strength": 0.9,
+  "model": {
+    "policy": "model-free by construction",
+    "note": "no inference invoked; belief updates and the lineage collapse are symbolic"
+  },
+  "SEG": {
+    "per_claim": [
+      {
+        "depth": 1,
+        "confirmations": 1,
+        "independent_groundings": 1,
+        "posterior": 0.7242,
+        "authoritative": false
+      },
+      {
+        "depth": 2,
+        "confirmations": 2,
+        "independent_groundings": 1,
+        "posterior": 0.7242,
+        "authoritative": false
+      },
+      {
+        "depth": 3,
+        "confirmations": 3,
+        "independent_groundings": 1,
+        "posterior": 0.7242,
+        "authoritative": false
+      },
+      {
+        "depth": 4,
+        "confirmations": 4,
+        "independent_groundings": 1,
+        "posterior": 0.7242,
+        "authoritative": false
+      },
+      {
+        "depth": 5,
+        "confirmations": 5,
+        "independent_groundings": 1,
+        "posterior": 0.7242,
+        "authoritative": false
+      },
+      {
+        "depth": 6,
+        "confirmations": 6,
+        "independent_groundings": 1,
+        "posterior": 0.7242,
+        "authoritative": false
+      }
+    ],
+    "contamination_by_depth": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "authoritative_total": 0
+  },
+  "UNIFORM": {
+    "per_claim": [
+      {
+        "depth": 1,
+        "confirmations": 1,
+        "independent_groundings": 1,
+        "posterior": 0.7242,
+        "authoritative": false
+      },
+      {
+        "depth": 2,
+        "confirmations": 2,
+        "independent_groundings": 2,
+        "posterior": 0.975,
+        "authoritative": true
+      },
+      {
+        "depth": 3,
+        "confirmations": 3,
+        "independent_groundings": 3,
+        "posterior": 0.9983,
+        "authoritative": true
+      },
+      {
+        "depth": 4,
+        "confirmations": 4,
+        "independent_groundings": 4,
+        "posterior": 0.9999,
+        "authoritative": true
+      },
+      {
+        "depth": 5,
+        "confirmations": 5,
+        "independent_groundings": 5,
+        "posterior": 1.0,
+        "authoritative": true
+      },
+      {
+        "depth": 6,
+        "confirmations": 6,
+        "independent_groundings": 6,
+        "posterior": 1.0,
+        "authoritative": true
+      }
+    ],
+    "contamination_by_depth": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5
+    ],
+    "authoritative_total": 5
+  }
+}

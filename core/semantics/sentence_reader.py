@@ -44,7 +44,10 @@ class SentenceReader:
 
     _ARTICLES = ("a ", "an ", "the ")
     _DETERMINER = r"(?:(?P<det>a|an|the)\s+)?"
-    _COPULA = r"(?:is|are)"
+    #: `am` is included so a first-person self-statement reads ("I am a plumber").
+    #: It is unambiguous — `am` only ever follows a first-person subject — so it
+    #: never changes how a world fact reads.
+    _COPULA = r"(?:is|are|am)"
     #: A subject may be a MULTI-WORD name, not just one token: "the Klein
     #: four-group", "the exponential function", "Kubernetes" (a brand), "New
     #: York". Up to four space-separated tokens (each may carry an internal

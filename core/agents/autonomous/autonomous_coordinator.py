@@ -190,6 +190,80 @@ class SelfEvent:
     origin: str = ""
 
 
+@dataclass
+class Evidence:
+    """One piece of evidence for a completion proposition.
+
+    Completion is not "how many mechanisms reported success" but "how many
+    INDEPENDENT ways does the substrate have to know the goal is true." So each
+    item carries not just strength but its epistemic provenance, and the belief
+    update compounds only across GENUINELY independent causal pathways:
+
+      - `epoch` — DID (the intervention's own report that it produced the effect)
+        vs SAW (a fresh, post-intervention measurement of the resulting world).
+      - `observation_channel` — how it was observed (tool_runtime, filesystem_scan,
+        reasoning, memory…). DID all comes through the action-runtime channel.
+      - `causal_lineage` — the causal pathway. Two items sharing a lineage are
+        correlated (the same underlying event/observation) and must NOT compound;
+        they collapse to their strongest member. Different lineage → independent.
+      - `derived` — true when this item is COMPUTED from other evidence (e.g. an
+        aggregate 'verified' verdict = the AND of tool successes). Derived evidence
+        is never an independent confirmation; it is dropped before compounding.
+    """
+    proposition: str
+    polarity: bool                 # True = supports the proposition, False = against
+    strength: float                # [0,1]
+    provenance_key: str            # the underlying source/resource it depends on
+    observation_channel: str       # tool_runtime | filesystem_scan | reasoning | memory
+    causal_lineage: str            # the causal pathway; DID and SAW must differ
+    epoch: str                     # "did" | "saw"
+    derived: bool = False
+
+
+#: Tools that INTERVENE on a resource whose resulting state SAW re-observes fresh.
+#: Observation-only tools (read_file/list_directory/calculate_checksum) change
+#: nothing, so they carry no SAW target. Maps tool -> the arg naming the resource.
+#: The intended STATE of that resource is presence by default, or absence for the
+#: tools in `_TOOL_WANTS_ABSENT` below — a removal's satisfied state is that the
+#: resource is GONE, so SAW/DID score it by the opposite polarity.
+_INTERVENTION_TARGET_ARG = {
+    "write_file": "file_path",
+    "atomic_write_file": "file_path",
+    "create_file": "file_path",
+    "copy_file": "destination_path",
+    "move_file": "destination_path",
+    "create_directory": "directory_path",
+    "delete_file": "path",
+}
+
+#: Tools whose intended effect is that the target NO LONGER EXISTS. For these,
+#: SAW confirms the goal by observing ABSENCE, and a "failure" whose cause is that
+#: the target was already gone has in fact ACHIEVED the intent (see
+#: `_did_intent_achieved`). Everything else in `_INTERVENTION_TARGET_ARG` wants
+#: presence.
+_TOOL_WANTS_ABSENT = {"delete_file"}
+
+#: Error fragments that mean the removal target was already absent — so the
+#: intended absence holds even though the tool reported failure.
+_ALREADY_ABSENT_SIGNALS = ("not found", "no such", "does not exist", "cannot find")
+
+#: Args, in priority order, that name the RESOURCE a tool acted on — used as the
+#: DID causal-lineage anchor so multiple tools against the SAME resource collapse
+#: to one causal event.
+_RESOURCE_ARGS = ("destination_path", "file_path", "directory_path", "path",
+                  "source_path", "url", "endpoint", "host")
+
+
+def _tool_resource(tool: str, args: Dict[str, Any]) -> str:
+    """A stable resource key for a tool call — what it acted on."""
+    args = args or {}
+    for k in _RESOURCE_ARGS:
+        v = args.get(k)
+        if v:
+            return f"{k}={v}"
+    return f"tool={tool}"
+
+
 class AutonomousCoordinator:
     """
     Main coordinator that orchestrates perception, planning, execution, and learning
@@ -507,10 +581,13 @@ class AutonomousCoordinator:
         self._env_loaded = False
         self._dotenv_values = None
         self.completed_tasks: Dict[str, Any] = {}
-        # Completion is verified by the TaskCompletionValidator (system property,
-        # reality-checked). The legacy SuccessValidator (self-attestation over the
-        # result dict) was retired 2026-08-28 — it rubber-stamped fabricated
-        # completions. There is one completion authority now.
+        # ONE completion authority: `_execute_and_validate_task` decides "done"
+        # from the `verification_state` each execution handler set by RE-OBSERVING
+        # its real effect (a tool's real success, an operator that became
+        # executable, an answer actually learned) — never a self-attested success
+        # flag. The old validators (TaskCompletionValidator and the legacy
+        # SuccessValidator, which rubber-stamped fabricated completions over the
+        # result dict) are DELETED; there is no separate completion protocol.
         self._idle_count = 0
 
         # === EXPLORATION LOOP STATE ===
@@ -770,8 +847,10 @@ class AutonomousCoordinator:
         self.slack_notifier = get_slack_notifier()
         logger.info("✅ Slack notifier integrated into autonomous coordinator")
 
-        # Registered external agents
-        self.registered_agents: Dict[str, Any] = {}
+        # Agent authority (the factory, core/agents/agents.py) — bound by
+        # main.py after init. The self deploys agents of self through it
+        # (deploy_agent / await_agent / collect_agent_findings / pending_agents).
+        self.agent_coordinator: Any = None
         
         # Coordination state
         self.coordination_task: Optional[asyncio.Task] = None
@@ -787,7 +866,6 @@ class AutonomousCoordinator:
             "cross_domain_operations": 0,
             "predictions_made": 0,
             "domain_integrations": 0,
-            "registered_agents": 0,
             # execution-faculty counters (absorbed from the former executor)
             "tasks_executed": 0,
             "tasks_successful": 0,
@@ -1292,97 +1370,66 @@ class AutonomousCoordinator:
             else:
                 logger.info("ℹ️  Periodic performance assessment safety net disabled in config")
     
-    def register_agent(self, agent_name: str, agent_instance: Any,
-                      capabilities: Optional[List[str]] = None) -> bool:
+    # ── Agents of self — deploying bounded copies of the substrate ─────────
+    #
+    # The substrate can deploy an AGENT OF SELF: a lightweight copy of itself,
+    # scoped to one task and to a permitted subset of tools, run through this
+    # coordinator's OWN execution faculty. Deployment is NOT tied to conversation
+    # — the self may deploy an agent from any faculty (a knowledge gap, an idle
+    # investigation, a long-running watch), await one, or reconcile findings
+    # later. The AGENT AUTHORITY (`self.agent_coordinator`, core/agents/agents.py)
+    # is the one owner of deployment bookkeeping and the await-queue; this surface
+    # is the self's verb over it. Allowance is the self's (`agent_allowance`),
+    # enforced by the authority at deploy.
+
+    def deploy_agent(self, description: str, *,
+                     reasoning_type: Any = ReasoningType.DEDUCTIVE,
+                     allowed_tools: Optional[List[str]] = None,
+                     task_type: Any = None,
+                     actor: Optional[str] = None,
+                     parameters: Optional[Dict[str, Any]] = None) -> Optional[str]:
+        """Deploy an agent of self for `description`, scoped to `allowed_tools`
+        (None = the substrate's full toolset; a list = a scoped grant).
+
+        Returns the agent's NAME (its handle — a memorable slug like
+        `wandering-otter`) to `await_agent`/`collect_agent_findings` later, or None
+        on an honest refusal — the agent authority isn't bound, or the reasoning
+        type's allowance is full. The agent runs in the background on the
+        queue authority's budget; the self need not wait, so a slow or long-lived
+        agent never blocks the caller.
         """
-        Register an external agent with the autonomous system
+        factory = self.agent_coordinator
+        if factory is None:
+            logger.warning("deploy_agent refused: agent authority not bound")
+            return None
+        return factory.deploy(
+            description, reasoning_type=reasoning_type, allowed_tools=allowed_tools,
+            task_type=task_type, actor=actor, parameters=parameters)
 
-        Args:
-            agent_name: Unique name for the agent
-            agent_instance: The agent instance to register
-            capabilities: List of capabilities the agent provides
+    async def await_agent(self, deployment_id: str) -> Optional[Dict[str, Any]]:
+        """Block until one deployed agent returns, then hand back its findings (or
+        an honest error). None if the id is unknown or no authority is bound."""
+        factory = self.agent_coordinator
+        if factory is None:
+            return None
+        return await factory.await_findings(deployment_id)
 
-        Returns:
-            True if registration successful
-        """
-        try:
-            if agent_name in self.registered_agents:
-                logger.warning(f"Agent '{agent_name}' already registered, replacing...")
+    def collect_agent_findings(self) -> List[Dict[str, Any]]:
+        """Take every agent that has come back since the last collect, WITHOUT
+        blocking — so the self can keep working and reconcile findings when it
+        checks. Still-running agents keep running. Empty if no authority is bound."""
+        factory = self.agent_coordinator
+        if factory is None:
+            return []
+        return factory.collect_ready()
 
-            self.registered_agents[agent_name] = {
-                "instance": agent_instance,
-                "capabilities": capabilities or [],
-                "registered_at": datetime.now(),
-                "status": "active"
-            }
+    def pending_agents(self) -> List[str]:
+        """Deployment ids of agents of self still running (empty if none bound)."""
+        factory = self.agent_coordinator
+        if factory is None:
+            return []
+        return factory.pending()
 
-            self.stats["registered_agents"] = len(self.registered_agents)
-
-            # Log agent registration
-            self.log_db.log_coordination(
-                coordinator_type='autonomous',
-                action='agent_registration',
-                agent_id=agent_name,
-                status='registered',
-                result=f'Registered with {len(capabilities or [])} capabilities',
-                metadata={'capabilities': capabilities or [], 'total_agents': len(self.registered_agents)}
-            )
-
-            logger.info(f"✅ Registered agent: {agent_name} with {len(capabilities or [])} capabilities")
-            return True
-
-        except Exception as e:
-            logger.error(f"Failed to register agent {agent_name}: {e}")
-
-            # Log registration failure
-            import traceback
-            self.log_db.log_error(
-                error_type=type(e).__name__,
-                error_message=str(e),
-                module='autonomous_coordinator',
-                function='register_agent',
-                stack_trace=traceback.format_exc(),
-                context={'agent_name': agent_name, 'capabilities': capabilities}
-            )
-            return False
-    
-    def unregister_agent(self, agent_name: str) -> bool:
-        """Unregister an external agent"""
-        try:
-            if agent_name in self.registered_agents:
-                del self.registered_agents[agent_name]
-                self.stats["registered_agents"] = len(self.registered_agents)
-
-                # Log agent unregistration
-                self.log_db.log_coordination(
-                    coordinator_type='autonomous',
-                    action='agent_unregistration',
-                    agent_id=agent_name,
-                    status='unregistered',
-                    result='Successfully unregistered',
-                    metadata={'total_agents': len(self.registered_agents)}
-                )
-
-                logger.info(f"Unregistered agent: {agent_name}")
-                return True
-            else:
-                logger.warning(f"Agent '{agent_name}' not found for unregistration")
-                return False
-        except Exception as e:
-            logger.error(f"Failed to unregister agent {agent_name}: {e}")
-
-            # Log unregistration failure
-            import traceback
-            self.log_db.log_error(
-                error_type=type(e).__name__,
-                error_message=str(e),
-                module='autonomous_coordinator',
-                function='unregister_agent',
-                stack_trace=traceback.format_exc(),
-                context={'agent_name': agent_name}
-            )
-            return False
-    
     #: Selections retained when measuring how much of the exploration budget
     #: has been spent.
     EXPLORATION_WINDOW = 50
@@ -1673,7 +1720,6 @@ class AutonomousCoordinator:
             "core/security/security_audit_worker.py",
             "core/governance/unified_governance_trigger_system.py",
             "core/agents/autonomous/autonomous_coordinator.py",
-            "core/agents/autonomous/general_purpose_executor.py",
             "core/agents/autonomous/task_queue.py",
             "core/health/health_monitor.py",
             "core/safety/commitment_contract_manager.py",
@@ -1897,17 +1943,6 @@ class AutonomousCoordinator:
                 ", ".join(f"{o['field']}:{o['concepts']} (maturity={o.get('maturity')})"
                           for o in summary.get("outcomes", [])))
 
-    def get_registered_agents(self) -> Dict[str, Any]:
-        """Get all registered agents and their status"""
-        return {
-            name: {
-                "capabilities": info["capabilities"],
-                "registered_at": info["registered_at"].isoformat(),
-                "status": info["status"]
-            }
-            for name, info in self.registered_agents.items()
-        }
-    
     async def process_input(self, source: str, data_type: str, content: Dict[str, Any]) -> Optional[str]:
         """Process external input and potentially create goals"""
         if not self.active:
@@ -2462,7 +2497,7 @@ class AutonomousCoordinator:
             from core.governance.governance_block_schema import TaskOutcomeRecord
             from core.memory.utils.interfaces import MemoryType
 
-            domain = self._infer_domain_from_task(task)
+            domain = self._completion_domain(task)
 
             record = TaskOutcomeRecord(
                 task_id=str(getattr(task, "id", "unknown")),
@@ -2475,6 +2510,12 @@ class AutonomousCoordinator:
                 timestamp=datetime.now(),
                 result_summary=result_summary,
                 failure_reason=failure_reason,
+                # The DID/SAW groundings the completion judgment rested on — stored
+                # WITH the outcome so recall returns WHAT evidence made it so, not
+                # just the label. `confidence` above is the completion belief's
+                # posterior; emotion/attitude/beliefs/system-state are stamped
+                # centrally by the one memory pipeline (memory_agent.store_memory).
+                evidence=(task.metadata or {}).get("completion_evidence"),
             )
 
             meta_content = {
@@ -2482,6 +2523,27 @@ class AutonomousCoordinator:
                 "schema": "task_outcome_v1",
                 **record.to_dict(),
             }
+            # METHOD: the tool_plan this task used (tools + args), stored so a
+            # later failure can recall what approach SUCCEEDED on a similar task and
+            # retry with it instead of blindly re-running the one that failed.
+            _plan = ((task.metadata or {}).get("parameters") or {}).get("tool_plan")
+            if _plan:
+                meta_content["method"] = _plan
+            # CAUSAL REMEDY: if a method change FIXED a prior failure to reach this
+            # success, record the conditional rule {when: the tools that were
+            # failing, use: the arg change, expect: success}. Future failures match
+            # on the WHEN and transfer the fix — conditional, not semantic.
+            _struct = (task.metadata or {}).get("retry_method_structured")
+            if outcome == "success" and _struct:
+                _last_failed = []
+                for _h in ((task.metadata or {}).get("failure_history") or [])[-1:]:
+                    _last_failed = sorted({ft.get("tool") for ft in (_h.get("failed_tools") or [])
+                                           if ft.get("tool")})
+                meta_content["causal_rules"] = [{
+                    "when": {"failed_tools": _last_failed},
+                    "use": _struct,
+                    "expect": "goal achieved",
+                }]
 
             # Store with importance based on outcome
             importance = 0.7 if outcome == "success" else 0.9  # Failures are MORE important for learning
@@ -3177,6 +3239,25 @@ class AutonomousCoordinator:
         through its own faculties, so this reflects the reasoning faculty's
         presence."""
         return self.neural_bridge is not None
+
+    def agent_allowance(self, reasoning_type: Any) -> int:
+        """How many agents-of-self a reasoning kind warrants running in parallel.
+
+        This is the SELF's decision, not the reasoning faculty's: the coordinator
+        is the one that reasons and deploys copies of itself, so it owns how much
+        parallel copying a kind of thinking justifies. The reasoning faculty only
+        supplies the grounded MEASUREMENT (`reasoning_difficulty` — how costly the
+        kind is here, from real latency); the self translates that into an
+        allowance. Harder/costlier thinking earns more parallel copies. No flat
+        cap. Falls back to the moderate default if reasoning isn't up yet."""
+        difficulty = 1.0
+        if self.neural_bridge is not None:
+            try:
+                difficulty = float(self.neural_bridge.reasoning_difficulty(reasoning_type))
+            except Exception:
+                difficulty = 1.0
+        # difficulty 1.0 -> 2 agents, 2.0 -> 4, 2.5 -> 5, clamped [2, 6].
+        return max(2, min(6, round(2.0 * difficulty)))
 
     async def reason_about(self, question: str, context: Optional[Dict[str, Any]] = None,
                           reasoning_type: ReasoningType = ReasoningType.DEDUCTIVE):
@@ -7509,10 +7590,443 @@ class AutonomousCoordinator:
     # not a second mechanism that independently launches optimization.
 
 
+    #: The prior for a freshly-minted completion belief — LOW, meaning "the goal
+    #: does not yet hold." Evidence must EARN the rise to done; a fresh
+    #: observation would otherwise start near its own quality (verified), so a
+    #: single success would read as complete. Minting low forces accumulation.
+    COMPLETION_PRIOR = 0.15
+
+    def _completion_domain(self, task) -> str:
+        """A TASK-SPECIFIC domain for completion beliefs, their outcome memories,
+        and recall — the OPERATION the task performs, so completions bucket by what
+        the task DOES (all `write_file` tasks together, distinct from `copy_file`,
+        research, etc.) instead of a broad linguistic category. Recall then scopes
+        to genuinely-similar operations. Falls back to the general domain inference
+        when the task declares no tools."""
+        params = (task.metadata or {}).get("parameters") or {}
+        plan = params.get("tool_plan")
+        if plan is None and params.get("tool"):
+            plan = [{"tool": params["tool"]}]
+        tools = sorted({(s or {}).get("tool") for s in (plan or []) if (s or {}).get("tool")})
+        if tools:
+            return "op:" + "+".join(tools)
+        return self._infer_domain_from_task(task)
+
+    def _derive_completion_anchor(self, task) -> str:
+        """The completion proposition `G` for a task — HYBRID authorship.
+
+        Planner-supplied when the goal is explicit (`provenance["goal_conditions"]`,
+        or state conditions read from the description); reader-authored from the
+        task's own stated intent otherwise. Always a concrete claim the belief
+        system can hold and re-observation can confirm. Faithful to intent: the
+        authored form IS the task's stated goal as a proposition — never a
+        fabricated criterion. Re-observation grounds either form, so a loosely
+        authored anchor still cannot reach done without real confirming evidence.
+        """
+        prov = getattr(task, "provenance", None) or {}
+        conds = prov.get("goal_conditions")
+        if not conds:
+            try:
+                conds = self.extract_state_conditions(getattr(task, "description", "") or "")
+            except Exception:
+                conds = None
+        if conds:
+            joined = " and ".join(str(c).strip() for c in conds if str(c).strip())
+            if joined:
+                return f"the goal holds: {joined}"
+        desc = (getattr(task, "description", "") or "").strip()
+        if desc:
+            return f"the goal of the task is achieved: {desc}"
+        return f"task {getattr(task, 'id', '?')} is complete"
+
+    def _mint_completion_belief(self, task, anchor: str):
+        """Create the task's completion belief at the LOW prior, in the task's OWN
+        domain, through the one learning authority. Stashes the belief id and the
+        anchor on the task so the evidence updates and the completion decision all
+        move the SAME belief. Returns the belief (or None if the authority is
+        unavailable — the caller then falls back to the legacy decision, never a
+        fake completion)."""
+        try:
+            domain = self._completion_domain(task)
+            belief = self.learning.create_belief(
+                anchor, domain=domain, prior=self.COMPLETION_PRIOR, source="completion")
+        except Exception as e:
+            logger.warning("could not mint completion belief for %s: %s",
+                           getattr(task, "id", "?"), e)
+            return None
+        if task.metadata is None:
+            task.metadata = {}
+        task.metadata["completion_belief_id"] = belief.belief_id
+        task.metadata["completion_anchor"] = anchor
+        return belief
+
+    #: Acceptance for DONE — the substrate must be STRONGLY confident the goal
+    #: holds. NOT the belief system's ordinary 0.7 "confident-true" line: a task is
+    #: only DEFENSIBLY complete at >= 0.95, raised toward 0.99 by the self's
+    #: standing caution. Verified against the belief math: one strong observation
+    #: reaches ~0.72, so a single signal NEVER completes — DONE demands
+    #: CORROBORATION (>= 2 independent grounded confirmations), and any real
+    #: failure among the effects holds the belief below the bar.
+    COMPLETION_ACCEPT = 0.95
+    COMPLETION_ACCEPT_MAX = 0.99
+
+    #: Evidence strengths (calibrated against the belief math): each real EFFECT (a
+    #: succeeded tool, a learned+stored fact) and the handler's re-observation
+    #: verdict are strong grounded confirmations; a failed effect / non-verified
+    #: state / no result is strong evidence AGAINST; a bare success flag with no
+    #: re-observation is WEAK (cannot approach the bar even accumulated).
+    _EV_EFFECT = 0.9
+    _EV_VERIFIED = 0.9
+    _EV_AGAINST = 0.85
+    _EV_DECLARED = 0.3
+
+    async def _observe_completion_evidence(self, task, result) -> None:
+        """Move the completion belief on INDEPENDENT groundings only.
+
+        Completion is "how many independent ways does the substrate know the goal
+        is true," not "how many mechanisms reported success." So we gather DID
+        evidence (the intervention's own report, through the action-runtime
+        channel) and SAW evidence (a FRESH, post-intervention re-observation of the
+        world), drop derived items, collapse correlated ones (same causal lineage)
+        to their strongest, and feed ONE belief update per genuinely-independent
+        grounding. A task that only ACTED (DID ≈ 0.72) has one grounding and cannot
+        reach the bar — the high threshold itself forces the fresh SAW that
+        compounds to done. Isolated; never fabricates. Groundings are stashed on
+        the task for audit and for the outcome memory."""
+        belief_id = (task.metadata or {}).get("completion_belief_id")
+        if not belief_id:
+            return
+        try:
+            evidence = self._gather_did_evidence(task, result)
+            evidence += await self._saw_reobserve(task, result)
+            groundings = self._independent_groundings(evidence)
+            for g in groundings:
+                self.learning.update_belief(
+                    belief_id,
+                    {"quality": g.strength,
+                     "source": f"{g.epoch}:{g.observation_channel}:{g.provenance_key}"},
+                    evidence_supports=g.polarity)
+            if task.metadata is None:
+                task.metadata = {}
+            task.metadata["completion_evidence"] = [
+                {"epoch": g.epoch, "channel": g.observation_channel,
+                 "provenance": g.provenance_key, "supports": g.polarity,
+                 "strength": round(g.strength, 3)} for g in groundings]
+            # The completion belief is decision-critical: persist its post-evidence
+            # state DURABLY (awaited, committed) so a completion — or a reversal
+            # where SAW contradicted DID — survives a restart, not fire-and-forget.
+            await self.learning.flush_belief(belief_id)
+        except Exception as e:
+            logger.warning("completion-evidence update failed for %s: %s",
+                           getattr(task, 'id', '?'), e)
+
+    def _gather_did_evidence(self, task, result) -> List["Evidence"]:
+        """DID — the intervention's OWN report that it produced the effect, through
+        the action-runtime channel. Multiple tools against the SAME resource are
+        consequences of one causal event (same lineage → they collapse). The
+        aggregate 'verified' verdict is DERIVED from the tool successes, so it is
+        emitted derived=True and dropped before compounding."""
+        if not isinstance(result, dict):
+            return []
+        prop = (task.metadata or {}).get("completion_anchor", "goal")
+        ev: List["Evidence"] = []
+        tools = result.get("tools_run") or []
+        if tools:
+            for r in tools:
+                if not isinstance(r, dict) or not r.get("tool"):
+                    continue
+                # Score the intervention by whether it achieved its INTENDED
+                # target-state, not the raw success flag: a removal that "fails"
+                # because the target was already gone has achieved the absence.
+                achieved = self._did_intent_achieved(r)
+                res = r.get("resource") or f"tool:{r.get('tool')}"
+                ev.append(Evidence(prop, achieved, self._EV_EFFECT if achieved else self._EV_AGAINST,
+                                   res, "tool_runtime", f"did:{res}", "did"))
+            # the aggregate verdict is the AND of the above — derived, never counted.
+            ev.append(Evidence(prop, result.get("verification_state") == "verified",
+                               self._EV_VERIFIED, "aggregate", "tool_runtime",
+                               "did:aggregate", "did", derived=True))
+            return ev
+        # No granular effects: the handler's report IS the single DID grounding.
+        vs = result.get("verification_state")
+        method = result.get("method", "handler")
+        if vs == "verified":
+            ev.append(Evidence(prop, True, self._EV_VERIFIED, f"handler:{method}",
+                               "handler_report", f"did:{method}:{task.id}", "did"))
+        elif vs in ("failed", "blocked", "in_progress", "partially_complete"):
+            ev.append(Evidence(prop, False, self._EV_AGAINST, f"handler:{method}",
+                               "handler_report", f"did:{method}:{task.id}", "did"))
+        elif result.get("success") is True:
+            ev.append(Evidence(prop, True, self._EV_DECLARED, "declared",
+                               "handler_report", f"did:declared:{task.id}", "did"))
+        else:
+            ev.append(Evidence(prop, False, self._EV_AGAINST, "no_result",
+                               "handler_report", f"did:none:{task.id}", "did"))
+        return ev
+
+    def _did_intent_achieved(self, r: Dict[str, Any]) -> bool:
+        """Did this tool call achieve its INTENDED target-state? For most tools
+        that is plain success. For a removal (wants-absent), success OR a failure
+        whose cause is that the target was already gone both leave the target
+        absent — so the intent is met. A removal blocked with the target still
+        present (e.g. permission denied) is NOT achieved."""
+        ok = bool(r.get("success"))
+        if not ok and r.get("tool") in _TOOL_WANTS_ABSENT:
+            err = str(r.get("error") or "").lower()
+            return any(sig in err for sig in _ALREADY_ABSENT_SIGNALS)
+        return ok
+
+    async def _saw_reobserve(self, task, result) -> List["Evidence"]:
+        """SAW — a FRESH, independent measurement of the resulting world state,
+        taken AFTER the intervention, that does NOT consume the action's cached
+        result or the derived verdict (distinct causal lineage from DID → it
+        compounds). Observes the filesystem (a fresh existence check of each
+        intervention target) and learned-knowledge persistence (a fresh retrieval
+        by claim). A goal with no independently-observable state yields no SAW —
+        and then the task cannot reach done on DID alone, the honest consequence."""
+        import os
+        if not isinstance(result, dict):
+            return []
+        prop = (task.metadata or {}).get("completion_anchor", "goal")
+        saw: List["Evidence"] = []
+        seen = set()
+        for r in (result.get("tools_run") or []):
+            if not isinstance(r, dict):
+                continue
+            target = r.get("intervention_target")
+            if not target or target in seen:
+                continue
+            seen.add(target)
+            try:
+                exists = os.path.exists(target)  # FRESH syscall — not the tool's report
+            except Exception:
+                continue
+            # Polarity: a removal's satisfied state is that the target is GONE, so
+            # absence is support and presence is against — the mirror of a
+            # present-goal. Read from the operation, not the description.
+            wants_absent = r.get("tool") in _TOOL_WANTS_ABSENT
+            achieved = (not exists) if wants_absent else exists
+            saw.append(Evidence(prop, achieved, self._EV_EFFECT if achieved else self._EV_AGAINST,
+                                target, "filesystem_scan", f"saw:filesystem:{target}", "saw"))
+        for fact in (result.get("learned") or [])[:3]:
+            held = self._saw_memory_holds(fact)
+            if held is None:
+                continue
+            saw.append(Evidence(prop, held, self._EV_EFFECT if held else self._EV_AGAINST,
+                                f"fact:{fact}", "memory", f"saw:memory:{fact}", "saw"))
+        return saw
+
+    def _saw_memory_holds(self, claim: str) -> Optional[bool]:
+        """Fresh independent retrieval: is `claim` actually held in the store now?
+        True/False, or None when it cannot be checked (then not counted as SAW).
+        A distinct channel from the reasoning that produced the answer."""
+        try:
+            belief = self.learning.belief_for_claim(claim)
+        except Exception:
+            return None
+        if belief is None:
+            return None
+        return float(getattr(belief, "posterior_probability", 0.0)) >= 0.5
+
+    def _independent_groundings(self, evidence) -> List["Evidence"]:
+        """Reduce raw evidence to INDEPENDENT groundings: drop derived items, group
+        by causal_lineage (correlated evidence shares a lineage), and keep one
+        representative per group — the strongest. Only these compound in the belief
+        update, so correlated evidence can never multiply into false confidence."""
+        by_lineage: Dict[str, "Evidence"] = {}
+        for e in evidence:
+            if e.derived:
+                continue
+            cur = by_lineage.get(e.causal_lineage)
+            if cur is None or e.strength > cur.strength:
+                by_lineage[e.causal_lineage] = e
+        return list(by_lineage.values())
+
+    def _decide_completion(self, task, result, verify_bar: float):
+        """DONE from the substrate's completion belief: has its posterior reached
+        the DEFENSIBLE acceptance (>= 0.95, raised toward 0.99 by caution)? Returns
+        (is_complete, confidence, issues). If the belief is unavailable (mint
+        failed), decide honestly from the handler's re-observation ('verified'
+        only) — never a fabricated pass."""
+        belief_id = (task.metadata or {}).get("completion_belief_id")
+        belief = self.learning.get_belief(belief_id) if belief_id else None
+        if belief is None:
+            vs = result.get('verification_state') if isinstance(result, dict) else None
+            if vs == 'verified':
+                return True, 0.85, []
+            declared_ok = isinstance(result, dict) and result.get('success') is True
+            return declared_ok, (0.5 if declared_ok else 0.0), (
+                ['completion belief unavailable; honoured at success flag only']
+                if declared_ok else
+                [(result.get('error') if isinstance(result, dict) else None) or 'not verified'])
+        posterior = float(belief.posterior_probability)
+        caution = (verify_bar / 0.85) if verify_bar > 0 else 0.0
+        accept = self.COMPLETION_ACCEPT + (self.COMPLETION_ACCEPT_MAX - self.COMPLETION_ACCEPT) * caution
+        if posterior + 1e-9 >= accept:
+            return True, posterior, []
+        return False, posterior, [
+            f"completion belief {posterior:.2f} < acceptance {accept:.2f} — "
+            f"goal not yet grounded-confident (needs corroboration)"]
+
+    def _extract_task_outcome(self, m) -> Optional[Dict[str, Any]]:
+        """Pull the task-outcome record + its evidence + the beliefs of the moment
+        out of a recalled memory, wherever the one pipeline placed them (the
+        content dict, or `thinking_state.raw_event`). None if it is not a
+        task-outcome memory."""
+        src = None
+        c = getattr(m, "content", None)
+        if isinstance(c, dict) and c.get("event") == "task_outcome":
+            src = c
+        ts = getattr(m, "thinking_state", None) or {}
+        if src is None and isinstance(ts, dict) and isinstance(ts.get("raw_event"), dict) \
+                and ts["raw_event"].get("event") == "task_outcome":
+            src = ts["raw_event"]
+        if not isinstance(src, dict):
+            return None
+        return {
+            "task_id": src.get("task_id"),
+            "task_description": src.get("task_description"),
+            "outcome": src.get("outcome"),
+            "confidence": src.get("confidence"),
+            "evidence": src.get("evidence"),          # the DID/SAW groundings
+            "method": src.get("method"),              # the tool_plan used
+            "causal_rules": src.get("causal_rules"),  # {when, use, expect} remedies
+            "failure_reason": src.get("failure_reason"),
+            "result_summary": src.get("result_summary"),
+            "beliefs": (ts.get("belief_state") or {}).get("relevant_beliefs"),
+        }
+
+    async def _recall_similar_task_experience(self, task, limit: int = 5) -> Dict[str, Any]:
+        """Recall past experience with SIMILAR tasks before acting — outcome, the
+        DID/SAW evidence (what worked / what didn't), and the domain beliefs of the
+        moment. So the substrate approaches a task informed by its own history
+        instead of blind: if it has done something like this before, it knows what
+        happened and why. Queries the ONE memory store for task-outcome memories,
+        ranked by similarity to this task's description and scoped to its domain.
+        Returns {} when nothing similar is recalled — never invents experience."""
+        try:
+            domain = self._completion_domain(task)
+            tags = ["task_outcome"] + ([f"domain_{domain}"] if domain else [])
+            mems = await self.memory.search_memories(
+                query_text=getattr(task, "description", "") or "",
+                tags=tags, memory_type=MemoryType.META, max_results=limit)
+            if isinstance(mems, tuple):
+                mems = mems[1]
+        except Exception as e:
+            logger.debug("recall similar-task experience failed: %s", e)
+            return {}
+
+        recalled = [r for r in (self._extract_task_outcome(m) for m in (mems or [])) if r]
+        recalled = [r for r in recalled if r.get("task_id") != getattr(task, "id", None)]
+        # DEDUP so multiple memories of the SAME event (or the same task recalled
+        # more than once) do not bias retrieval — keep one per task_id, and one per
+        # (outcome, method-signature) so re-runs of one approach count once.
+        _seen = set()
+        _deduped = []
+        for r in recalled:
+            import json as _json
+            sig = (r.get("task_id"),
+                   r.get("outcome"),
+                   _json.dumps(r.get("method"), sort_keys=True, default=str))
+            if sig in _seen:
+                continue
+            _seen.add(sig)
+            _deduped.append(r)
+        recalled = _deduped
+        if not recalled:
+            return {}
+        successes = [r for r in recalled if r.get("outcome") == "success"]
+        failures = [r for r in recalled if r.get("outcome") == "failure"]
+        # What worked / didn't: the grounded evidence provenance from past
+        # successes vs failures — the substrate's own record of which approach held.
+        worked = sorted({g.get("provenance") for r in successes
+                         for g in (r.get("evidence") or []) if g.get("supports")} - {None})
+        failed = sorted({g.get("provenance") for r in failures
+                         for g in (r.get("evidence") or []) if not g.get("supports")} - {None})
+        return {
+            "recalled": recalled,
+            "successes": len(successes),
+            "failures": len(failures),
+            "what_worked": worked[:10],
+            "what_failed": failed[:10],
+        }
+
+    def _select_retry_method(self, task, recalled, current_failed_tools=None
+                             ) -> Optional[Tuple[List[Dict[str, Any]], str, List[Dict[str, Any]]]]:
+        """Pick a DIFFERENT method for the retry — CONDITIONALLY, from experience.
+
+        Preference, most-principled first:
+          1) CAUSAL REMEDY — a recalled rule ``{when: <tools that were failing>,
+             use: <arg change>}`` whose WHEN matches the tools failing NOW. This is
+             condition-matched transfer ("when write_file fails, use
+             create_dirs=True"), learned from a fix that actually WORKED — not
+             semantic description similarity.
+          2) SEMANTIC — otherwise, adopt the config args a similar SUCCESS used for
+             the same tool.
+        Either way the change is only the APPROACH (config args like create_dirs,
+        mode, recursive); this task's OWN targets (paths/urls) and DATA payload are
+        never touched. Returns ``(new_plan, change_summary, structured_changes)`` or
+        None when experience offers no different approach (then the substrate does
+        not thrash — the diagnostic re-derive path handles it, or it fails
+        honestly)."""
+        if not isinstance(recalled, dict):
+            return None
+        current = ((task.metadata or {}).get("parameters") or {}).get("tool_plan")
+        if not current:
+            return None
+        exclude = set(_RESOURCE_ARGS) | {"content", "data", "body", "text", "payload"}
+
+        # 1) CAUSAL REMEDIES whose WHEN (tools that were failing) matches what is
+        #    failing now — condition-matched, deduped by (tool, arg).
+        cur_failed = set(current_failed_tools or [])
+        remedy: Dict[str, Dict[str, Any]] = {}
+        for r in recalled.get("recalled", []):
+            for rule in (r.get("causal_rules") or []):
+                when_tools = set((rule.get("when") or {}).get("failed_tools") or [])
+                if cur_failed and when_tools and (when_tools & cur_failed):
+                    for ch in (rule.get("use") or []):
+                        t, a, v = ch.get("tool"), ch.get("arg"), ch.get("value")
+                        if t and a and a not in exclude:
+                            remedy.setdefault(t, {})[a] = v
+
+        # 2) SEMANTIC winning config args per tool, from recalled SUCCESS methods.
+        winning: Dict[str, Dict[str, Any]] = {}
+        for r in recalled.get("recalled", []):
+            if r.get("outcome") != "success":
+                continue
+            for step in (r.get("method") or []):
+                t = (step or {}).get("tool")
+                args = (step or {}).get("args") or {}
+                if t:
+                    winning.setdefault(t, {}).update(
+                        {k: v for k, v in args.items() if k not in exclude})
+
+        source = "causal-remedy" if remedy else "recalled-success"
+        changed, structured, new_plan = [], [], []
+        for step in current:
+            t = (step or {}).get("tool")
+            args = dict((step or {}).get("args") or {})
+            # A matched remedy for THIS tool wins; else the semantic winning args.
+            apply = remedy.get(t) or winning.get(t, {})
+            for k, v in apply.items():
+                if k in exclude or args.get(k) == v:
+                    continue
+                args[k] = v
+                changed.append(f"{t}.{k}={v}")
+                structured.append({"tool": t, "arg": k, "value": v})
+            new_plan.append({"tool": t, "args": args})
+        if not changed:
+            return None
+        return new_plan, f"[{source}] " + ", ".join(changed), structured
+
     async def _execute_and_validate_task(self, task):
         """Execute a task through the substrate's own executor (no model in the
-        acting path — the LLM is teacher/helper only), then validate the result
-        against the completion protocol before it counts as done."""
+        acting path — the LLM is teacher/helper only), then DECIDE completion from
+        the substrate's own COMPLETION BELIEF: a belief `G` ("the goal holds")
+        anchored to the task's intent, minted low and moved by the real evidence
+        execution produced (re-observation, tool effects, gap-state). Done when the
+        belief reaches the self's acceptance band (raised by caution). The one
+        completion authority; there is no separate completion-protocol validator."""
         # Bind this task's remediation contract for the duration of the task.
         # A ContextVar, so concurrently-running tasks cannot see each other's
         # authority. No contract => unconstrained, exactly as before.
@@ -7635,61 +8149,51 @@ class AutonomousCoordinator:
             # to learn; it has one correct, deterministic substrate action, so it
             # is routed to the dedicated handler rather than interpreted as a
             # free-form task by the general executor.
+            # RECALL before acting: what happened on SIMILAR tasks before — their
+            # outcome, the DID/SAW evidence (what worked / what didn't), and the
+            # domain beliefs of the moment. Stashed on the task so the approach (and,
+            # on failure, the different-method retry) is informed by real history,
+            # not blind. Empty when nothing similar is recalled.
+            _recalled = await self._recall_similar_task_experience(task)
+            if _recalled:
+                if task.metadata is None:
+                    task.metadata = {}
+                task.metadata["recalled_experience"] = _recalled
+                logger.info("🧠 Recalled %d similar task(s) for %s: %d ok, %d failed"
+                            + (" — approaches that worked before: %s" if _recalled.get("what_worked") else "%s"),
+                            len(_recalled.get("recalled", [])), task.id,
+                            _recalled.get("successes", 0), _recalled.get("failures", 0),
+                            _recalled.get("what_worked") or "")
+
+            # Mint the task's COMPLETION BELIEF (low prior — "the goal does not yet
+            # hold") before acting, anchored to the task's goal/intent (hybrid
+            # authorship), so execution's real evidence moves it toward or away
+            # from done through the one learning authority.
+            _completion_anchor = self._derive_completion_anchor(task)
+            self._mint_completion_belief(task, _completion_anchor)
+
             if (task.metadata or {}).get("drive") in ("competence", "confidence"):
                 result = await self._execute_drive_goal(task)
             else:
                 result = await self.execute_task(task)
 
             # ================================================================
-            # COMPLETION PROTOCOL: Check if executor already verified
-            # The general_purpose_executor now uses TaskCompletionValidator
-            # If verification passed there, we trust it. Otherwise fallback.
+            # COMPLETION DECISION — the substrate's OWN belief, the one authority.
+            # Not a handler verdict: the substrate moves its completion belief on
+            # the real evidence execution produced (a re-observed effect is strong
+            # support; a bare success flag is weak; an explicit non-verified state
+            # or no result is evidence against), then judges DONE by whether that
+            # belief reached the self's acceptance band (raised by caution).
+            # `verification_state` is EVIDENCE here, never the decision — a
+            # fabricated or empty success cannot cross the band from the low prior.
             # ================================================================
-            verification_state = result.get('verification_state') if isinstance(result, dict) else None
-            completion_score = result.get('completion_score') if isinstance(result, dict) else None
-            
-            if verification_state == 'verified':
-                # Verified by the completion protocol — but the substrate's own
-                # doubt can raise the standard of proof above what "verified"
-                # cleared. When untroubled (_verify_bar 0.0) this is the old
-                # behaviour: any verified result is accepted. Under doubt the bar
-                # rises, and a thinly-verified result is held short of "done" —
-                # not a failure, an unmet standard the substrate must earn past.
-                _score = completion_score if completion_score is not None else 0.85
-                if _score + 1e-9 < _verify_bar:
-                    is_complete = False
-                    confidence = _score
-                    issues = [f"held under doubt: verified score {_score:.2f} < required {_verify_bar:.2f}"]
-                    logger.info(
-                        f"🔎 Task {task.id} verified@{_score:.2f} but the substrate's doubt "
-                        f"raises the bar to {_verify_bar:.2f} — more evidence needed before done")
-                else:
-                    is_complete = True
-                    confidence = _score
-                    issues = []
-                    logger.info(f"✅ Task {task.id} verified by completion protocol (score={_score:.3f})")
-            elif verification_state in ['in_progress', 'failed', 'blocked', 'partially_complete']:
-                # Verification explicitly failed
-                is_complete = False
-                confidence = completion_score or 0.0
-                issues = result.get('issues', []) if isinstance(result, dict) else []
-                logger.warning(f"❌ Task {task.id} verification state: {verification_state}")
+            await self._observe_completion_evidence(task, result)
+            is_complete, confidence, issues = self._decide_completion(task, result, _verify_bar)
+            if is_complete:
+                logger.info(f"✅ Task {task.id} done — completion belief {confidence:.3f} "
+                            f"(grounded, past the self's acceptance)")
             else:
-                # No completion-protocol result (verification_state absent/'legacy').
-                # The retired SuccessValidator rubber-stamped here: it validated the
-                # result DICT (self-attestation), not the world, and returned
-                # complete=True for a fabricated completion (proven by test — a
-                # claimed-but-missing artifact passed). We do NOT re-introduce
-                # self-attestation. An unverified result is honoured only at its own
-                # explicit success flag, with capped confidence and flagged as
-                # UNVERIFIED — never trusted as a system-verified completion.
-                declared_ok = isinstance(result, dict) and result.get('success') is True
-                is_complete = declared_ok
-                confidence = 0.5 if declared_ok else 0.0
-                issues = (['completion not verified by the completion protocol']
-                          if declared_ok
-                          else [(result.get('error') if isinstance(result, dict) else None)
-                                or 'task produced no verified completion'])
+                logger.info(f"🔎 Task {task.id} not done — {issues[0] if issues else 'under-confident'}")
 
             # Uncertainty reduction gate: for autonomous exploration tasks, verify the
             # target component's epistemic_uncertainty actually decreased post-execution.
@@ -7985,11 +8489,11 @@ class AutonomousCoordinator:
                     if task.metadata is None:
                         task.metadata = {}
                     _failure_history = task.metadata.get('failure_history', [])
-                    _tool_results_for_history = (result or {}).get('tool_results', [])
+                    _tool_results_for_history = (result or {}).get('tools_run', [])
                     _failed_tools_for_history = [
                         {'tool': r['tool'], 'error': str(r.get('error', r.get('result', '')))[:300]}
                         for r in _tool_results_for_history
-                        if isinstance(r, dict) and not r.get('success', True)
+                        if isinstance(r, dict) and r.get('tool') and not r.get('success', True)
                     ]
                     _failure_history.append({
                         'attempt': task.retry_count,
@@ -8000,6 +8504,27 @@ class AutonomousCoordinator:
                     })
                     task.metadata['failure_history'] = _failure_history
                     logger.info(f"📋 Stored failure context for retry (attempt {task.retry_count}): {len(issues or [])} issues, {len(_failed_tools_for_history)} failed tools")
+
+                    # MEMORY-INFORMED DIFFERENT-METHOD RETRY (the failure line).
+                    # Do not blindly re-run the method that just failed: if recalled
+                    # experience shows a SIMILAR task SUCCEEDED with a different
+                    # approach, adopt it for the retry (keeping this task's own
+                    # targets). This is the substrate using what it has learned
+                    # works. Skipped on escalation — an external blocker is not fixed
+                    # by changing the method.
+                    if not _directive.should_escalate:
+                        _cur_failed = [r.get('tool') for r in ((result or {}).get('tools_run') or [])
+                                       if isinstance(r, dict) and r.get('tool') and not r.get('success')]
+                        _picked = self._select_retry_method(
+                            task, (task.metadata or {}).get("recalled_experience"), _cur_failed)
+                        if _picked:
+                            _new_plan, _change, _structured = _picked
+                            task.metadata.setdefault("parameters", {})["tool_plan"] = _new_plan
+                            task.metadata["retry_method_changed"] = _change
+                            task.metadata["retry_method_structured"] = _structured
+                            logger.info(
+                                "🔁 Task %s retrying with a DIFFERENT method learned "
+                                "from experience: %s", task.id, _change)
 
                     requeue_success = await self.task_queue.requeue_task(task.id)
 
@@ -11111,7 +11636,12 @@ The substrate must realign with its constitutional responsibilities immediately.
             await self._record_tool_metrics(task, tool_name, executed=False,
                                             success=False, latency_ms=_ms,
                                             failure_reason=str(e))
-            return None
+            # Carry the real failure reason back (not None): completion's DID
+            # channel reads it to tell an intended effect that was already met
+            # (e.g. a removal of an already-absent file) from a genuine failure.
+            return {"success": False, "model_free": True, "tool": tool_name,
+                    "output": None, "error": str(e),
+                    "task_id": task.id, "method": "substrate_tool"}
         _ms = int((time.perf_counter() - _t0) * 1000)
         if not getattr(result, "success", None):
             # The tool executed but reported failure — we can act, this route is
@@ -11120,10 +11650,16 @@ The substrate must realign with its constitutional responsibilities immediately.
             await self._appraise_tool_outcome(task, executed=True, succeeded=False)
             await self._observe_tool_belief(tool_name, params,
                                             getattr(result, "output", None), success=False)
+            _err = str(getattr(result, "error", "") or "tool reported failure")
             await self._record_tool_metrics(task, tool_name, executed=True,
                                             success=False, latency_ms=_ms,
-                                            failure_reason=str(getattr(result, "error", "") or "tool reported failure"))
-            return None
+                                            failure_reason=_err)
+            # Return the tool's OWN error (not None): the DID channel reads it to
+            # recognise an intended effect already satisfied — e.g. a removal that
+            # "failed" only because the target was already gone.
+            return {"success": False, "model_free": True, "tool": tool_name,
+                    "output": getattr(result, "output", None), "error": _err,
+                    "task_id": task.id, "method": "substrate_tool"}
         logger.info("[substrate-tools] task %s executed model-free via %s", task.id, tool_name)
         await self._appraise_tool_outcome(task, executed=True, succeeded=True)
         await self._observe_tool_belief(tool_name, params,
@@ -11221,52 +11757,128 @@ The substrate must realign with its constitutional responsibilities immediately.
         except Exception as e:
             logger.debug("tool-belief observation skipped: %s", e)
 
-    async def _execute_via_tool_handler(self, task: Task) -> Optional[Dict[str, Any]]:
-        """Execute a task through an EXPLICIT, correct type→tool handler, model-free.
+    async def _execute_operation(self, task: Task) -> Optional[Dict[str, Any]]:
+        """The ONE operation path for EVERY task — no per-TaskType handler switch.
 
-        There is no blind "top-ranked tool" dispatch here: a naive binding of the
-        task description to whatever tool ranked first produced false successes
-        (an analysis task "completed" by creating a directory named after the
-        code). A handler is added only for a TaskType whose tool and argument
-        binding are known-correct, and it declines (None) otherwise, leaving the
-        task to whatever comes next. Nothing here consults a model.
+        A task is executed by the substrate performing the operation it declares
+        or implies, model-free. Routing is by the NATURE of the work (content),
+        never a hardcoded `{TaskType: handler}` table:
+
+          (a) DECLARED TOOL WORK — the task names the tool(s) to run (an agent's
+              defined toolset, or the substrate's own plan). Each runs through the
+              real `_run_tool` (scoped by `allowed_tools`, appraised, metered).
+              This is what lets the substrate deploy an agent with a defined set
+              of tools and have it actually execute them.
+          (b) A QUESTION / KNOWLEDGE REQUEST — answered through the substrate's
+              ONE knowledge loop (`understand`): memory → reason → gap → learn.
+              Research is not a special case here; it is just a task that reads as
+              a knowledge request.
+
+        Declines (None) only when the task is neither — leaving the honest gap.
+        Nothing here consults a model; success is never faked.
         """
-        # TaskType -> a handler proven correct for that type. Extended one
-        # verified type at a time; every entry is tested to run model-free
-        # without faking success.
-        handlers = {
-            TaskType.RESEARCH: self._handle_research,
-        }
-        handler = handlers.get(task.type)
-        if handler is None:
+        tooled = await self._execute_declared_tools(task)
+        if tooled is not None:
+            return tooled
+        answered = await self._answer_via_knowledge_loop(task)
+        if answered is not None:
+            return answered
+        return None
+
+    async def _execute_declared_tools(self, task: Task) -> Optional[Dict[str, Any]]:
+        """Run the tool(s) a task DECLARES, model-free, each through `_run_tool`.
+
+        The declaration rides in the task's parameters (where the factory puts an
+        agent's deploy parameters): `metadata["parameters"]["tool_plan"]` is a list
+        of ``{"tool": name, "args": {...}}`` steps, or a single ``{"tool", "args"}``.
+        Each step runs through the real tool path — so `allowed_tools` scoping,
+        appraisal, belief, and metrics all apply, and a step's success is the
+        tool's REAL success (a refused, raised, or failure-reporting tool is a
+        failed step, never faked).
+
+        Declines (None) when the task declares no tools, leaving the next path to
+        try. Returns an honest aggregate otherwise: success only if EVERY declared
+        tool executed successfully, with a per-tool breakdown either way.
+        """
+        params = (task.metadata or {}).get("parameters") or {}
+        plan = params.get("tool_plan")
+        if plan is None and params.get("tool"):
+            plan = [{"tool": params["tool"], "args": params.get("args", {})}]
+        if not plan:
             return None
-        return await handler(task)
 
-    async def _handle_research(self, task: Task) -> Optional[Dict[str, Any]]:
-        """A RESEARCH task runs the substrate's ONE knowledge loop, not a bare
-        web search.
+        results: List[Dict[str, Any]] = []
+        all_ok = True
+        for step in plan:
+            tool = (step or {}).get("tool")
+            args = (step or {}).get("args") or {}
+            if not tool:
+                all_ok = False
+                results.append({"tool": None, "success": False,
+                                "error": "step declared no tool"})
+                continue
+            outcome = await self._run_tool(tool, args, task)
+            ok = outcome is not None and outcome.get("success") is True
+            all_ok = all_ok and ok
+            # Provenance for completion evidence: `resource` is the DID causal
+            # lineage (tools on the SAME resource collapse to one event);
+            # `intervention_target` is the world resource SAW re-observes fresh.
+            target_arg = _INTERVENTION_TARGET_ARG.get(tool)
+            results.append({
+                "tool": tool,
+                "success": ok,
+                "output": (outcome or {}).get("output") if ok else None,
+                # Prefer the tool's OWN error so DID can read an already-satisfied
+                # intent (e.g. removal of an already-absent target); the generic
+                # message stands in only when the step was refused before running.
+                "error": None if ok else
+                         ((outcome or {}).get("error")
+                          or "tool did not execute successfully (refused before running)"),
+                "resource": _tool_resource(tool, args),
+                "intervention_target": (args.get(target_arg) if target_arg else None),
+            })
 
-        The loop lives on this substrate's own conversation
-        (`understand`): it queries what is already held, reasons over it
-        (neural bridge + held rules), and ONLY on a genuine gap researches the
-        web -- verifying the finding names the topic before reading it into the
-        store through the learning authority. A research task is that loop asked
-        about its topic. The former handler called web_search and returned the
-        raw hits, so a topic the substrate already knew was searched anyway, a
-        finding was never read into knowledge, and reasoning never ran. That was
-        the acting path bypassing memory, reasoning, and learning; there is no
-        separate research faculty to bypass them from now.
+        return {
+            "success": all_ok,
+            "model_free": True,
+            "verification_state": "verified" if all_ok else "failed",
+            "task_id": task.id,
+            "task_type": task.type.name,
+            "method": "declared_tools",
+            "tools_run": results,
+            "output": {"tools_run": results},
+        }
+
+    async def _answer_via_knowledge_loop(self, task: Task) -> Optional[Dict[str, Any]]:
+        """Answer a QUESTION / knowledge request through the substrate's ONE
+        knowledge loop (`understand`) — not a bare web search, and not gated on
+        TaskType.
+
+        The loop lives on this substrate's own conversation: it queries what is
+        already held, reasons over it (neural bridge + held rules), and ONLY on a
+        genuine gap researches the web -- verifying the finding names the topic
+        before reading it into the store through the learning authority. Routing
+        here is by CONTENT (is this a question / knowledge request?), so any task
+        that reads as one is answered this way; a pure action task with no
+        declared tool falls through to the honest gap instead of being answered
+        as if it were a question.
         """
         desc = task.description.strip()
+        is_knowledge = Conversation.is_question(desc) or bool(re.match(
+            r"^(?:research|look\s+up|find\s+out|investigate|study|explain|define|"
+            r"describe|summarize|tell\s+me\s+about)\b", desc, flags=re.IGNORECASE))
+        if not is_knowledge:
+            return None
+
         topic = re.sub(r"^(?:research|look\s+up|find\s+out\s+about|investigate|study)\s+",
                        "", desc, flags=re.IGNORECASE).strip() or desc
         query = desc if Conversation.is_question(desc) else f"what is {topic}?"
 
         try:
-            conversation = self.conversation(session=f"research:{task.id}")
+            conversation = self.conversation(session=f"knowledge:{task.id}")
             understanding = await conversation.understand(query)
         except Exception as error:
-            logger.warning(f"research loop failed for {task.id}: {error}")
+            logger.warning(f"knowledge loop failed for {task.id}: {error}")
             return None
 
         learned = [a for a in understanding.acquired if getattr(a, "stored", False)]
@@ -11279,6 +11891,11 @@ The substrate must realign with its constitutional responsibilities immediately.
         return {
             "success": True,
             "model_free": True,
+            # A knowledge task's goal is answered-or-learned; the loop returns here
+            # only when it genuinely did (memory/reasoning answered, or a fact was
+            # learned and stored). That IS the re-observed effect for this task, so
+            # it is verified evidence (corroborated further by each learned fact).
+            "verification_state": "verified",
             "task_id": task.id,
             "task_type": task.type.name,
             "method": "conversation.understand",
@@ -11325,11 +11942,11 @@ The substrate must realign with its constitutional responsibilities immediately.
         if driven is not None:
             return driven
 
-        # A task whose work maps to a tool the substrate can invoke model-free —
-        # the ranker picks the tool, and its inputs bind from the task without
-        # generation — runs here. Declines (None) when no tool's arguments can be
-        # bound without a model, leaving what comes next unchanged.
-        tooled = await self._execute_via_tool_handler(task)
+        # The ONE operation path for every task type (no per-type switch): run the
+        # tool(s) the task declares, or answer it through the knowledge loop if it
+        # reads as a question. Model-free; declines (None) when the task is
+        # neither, leaving the honest gap below unchanged.
+        tooled = await self._execute_operation(task)
         if tooled is not None:
             return tooled
 
@@ -11710,9 +12327,15 @@ def phrases(words: Sequence[str]) -> List[Tuple[int, int, str]]:
 class Conversation:
     """Reads a sentence and answers out of what the substrate holds."""
 
-    def __init__(self, db=None, identity=None, emit=None):
+    def __init__(self, db=None, identity=None, emit=None, session="default"):
         self._db = db
         self._identity = identity
+        #: WHO is being spoken with — the key for beliefs ABOUT the user (a
+        #: channel kept separate from world knowledge; see `_learn_about_user`).
+        #: The session is the available handle for the speaker; a first-class user
+        #: identity can refine it later without moving the store.
+        self._session = str(session)
+        self._user_beliefs_ready = False
         #: The substrate's event emitter, injected by the coordinator that owns
         #: this conversation (`conversation()`), so a taught proposition becomes
         #: a self-event the domain authority reacts to. None when the
@@ -11767,6 +12390,117 @@ class Conversation:
             from core.domain.concept_identity import ConceptIdentityService
             self._identity = ConceptIdentityService(self._db)
         return self._db, self._identity
+
+    # ---- beliefs ABOUT THE USER (the third channel, held here) --------------
+    # When the speaker tells the substrate about THEMSELVES ("I am a plumber",
+    # "my favourite colour is blue", "I prefer tea"), that is not a fact about
+    # the world. It must never enter the concept graph the reasoner walks (or a
+    # user could rewrite what the substrate knows about reality just by talking
+    # about themselves), and it is not true-or-false to verify — it is simply
+    # what this person said of themselves. So it lives in its own store, keyed to
+    # the speaker, free-flowing. This is part of the ONE conversation authority,
+    # not a separate pipeline.
+
+    @staticmethod
+    def _about_speaker(subject: str) -> bool:
+        """Is this proposition about the SPEAKER (first person) rather than the
+        world? "I", "me", or a "my …" possessive. SPEAKER_THEM already names the
+        first-person pronouns the conversation recognises."""
+        s = (subject or "").strip().lower()
+        return s in SPEAKER_THEM or s.startswith("my ")
+
+    async def _ensure_user_beliefs(self) -> None:
+        if self._user_beliefs_ready:
+            return
+        db, _ = await self._services()
+        await db.execute_query(
+            """
+            CREATE TABLE IF NOT EXISTS unified.user_beliefs (
+                speaker    TEXT NOT NULL,
+                subject    TEXT NOT NULL,
+                relation   TEXT NOT NULL,
+                object     TEXT,
+                polarity   TEXT NOT NULL DEFAULT 'positive',
+                surface    TEXT,
+                source     TEXT NOT NULL DEFAULT 'conversation',
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                PRIMARY KEY (speaker, subject, relation)
+            )
+            """,
+            commit=True,
+        )
+        self._user_beliefs_ready = True
+
+    async def _learn_about_user(self, subject: str, relation: str,
+                                obj: Optional[str], *, positive: bool = True,
+                                surface: str = "") -> "Acquired":
+        """Hold one belief about the speaker — NOT in the concept graph. Upserts
+        on (speaker, subject, relation) so a restated preference updates rather
+        than duplicates."""
+        db, _ = await self._services()
+        await self._ensure_user_beliefs()
+        await db.execute_query(
+            """
+            INSERT INTO unified.user_beliefs
+                (speaker, subject, relation, object, polarity, surface, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $6, now())
+            ON CONFLICT (speaker, subject, relation) DO UPDATE SET
+                object = EXCLUDED.object, polarity = EXCLUDED.polarity,
+                surface = EXCLUDED.surface, updated_at = now()
+            """,
+            (self._session, subject, relation, obj,
+             "positive" if positive else "negative", surface),
+            commit=True,
+        )
+        held = f"{subject} {relation} {obj}".strip()
+        return Acquired(surface or held, description="about you", relations=(),
+                        stored=True, detail="held as a belief about you, "
+                        "not as a fact about the world")
+
+    async def beliefs_about_user(self, limit: int = 50) -> List[Dict[str, Any]]:
+        """What the substrate believes about this speaker, most-recent first.
+        Read from the user store only — never the world concept graph."""
+        db, _ = await self._services()
+        await self._ensure_user_beliefs()
+        rows = await db.execute_query(
+            "SELECT subject, relation, object, polarity, surface, updated_at "
+            "FROM unified.user_beliefs WHERE speaker = $1 "
+            "ORDER BY updated_at DESC LIMIT $2",
+            (self._session, limit), fetch_all=True)
+        return [dict(r) for r in (rows or [])]
+
+    async def _admissible_world_fact(self, subject: str, relation: str,
+                                     obj: str, positive: bool):
+        """Real-time verification before a CHAT-asserted world fact is admitted.
+
+        Chat must not silently rewrite world knowledge, so a fact the substrate
+        ALREADY KNOWS to be false is refused rather than stored. The check reuses
+        the concept-graph reasoning (open-world): a FALSE verdict means an
+        explicit denial / inherited disjointness refutes it. Only ISA positives
+        are gated — that is the taxonomic knowledge a wrong override most damages,
+        and a DENIAL is left to pass because a denial is how a user CORRECTS the
+        store. A novel or merely-unproven fact passes: the substrate cannot refute
+        it, and refusing what it cannot disprove would be dishonest. Returns
+        (admissible, reason)."""
+        if relation != "isa" or not positive:
+            return True, ""
+        try:
+            from core.reasoning.concept_graph_reasoning import answer_over_graph
+            from core.reasoning.relation_algebra import FALSE
+            from core.semantics.relation_types import SemanticRelation
+            db, _ = await self._services()
+            o = obj.strip()
+            for art in ("a ", "an ", "the "):
+                if o.lower().startswith(art):
+                    o = o[len(art):]
+                    break
+            ans = await answer_over_graph(db, subject, SemanticRelation.ISA, o)
+            if getattr(ans, "verdict", None) == FALSE:
+                return False, "that contradicts what I already know"
+        except Exception as e:
+            # Verification unavailable -> do NOT fake a rejection; admit honestly.
+            logger.debug("world-fact verification skipped for %r: %s", subject, e)
+        return True, ""
 
     def _learning_authority(self):
         """The one learning path teaching goes through. Injected by the owning
@@ -12621,6 +13355,25 @@ class Conversation:
             # "is" that poisons inference; any other relation keeps its own name.
             relation = "isa" if rel in ("is", "are") else rel
             positive = part.get("positive", True)
+            # THIRD CHANNEL: if the speaker is telling the substrate about
+            # THEMSELVES, this is a belief about the user, not a fact about the
+            # world. Route it to the user store and do NOT admit it to the concept
+            # graph — chat about oneself must never rewrite world knowledge.
+            if self._about_speaker(part["subject"]):
+                acquired.append(await self._learn_about_user(
+                    part["subject"], relation, obj, positive=positive,
+                    surface=sentence))
+                continue
+            # VERIFICATION GATE: a world fact asserted in chat is checked against
+            # what the substrate already knows before it is admitted. One it knows
+            # to be false is refused, so chat cannot overwrite world knowledge.
+            _ok, _why = await self._admissible_world_fact(
+                part["subject"], relation, obj, positive)
+            if not _ok:
+                acquired.append(Acquired(sentence, detail=(
+                    f"I did not take that as a fact — {_why}. If I am wrong, "
+                    "correct me and I will weigh it.")))
+                continue
             acquired.append(await self._ingest(
                 label=part["subject"], description="",
                 relations=((relation, obj,
@@ -13269,7 +14022,7 @@ def get_conversation(session: str, *, db=None, identity=None) -> "Conversation":
     key = str(session)
     held = _conversations.get(key)
     if held is None:
-        held = Conversation(db=db, identity=identity)
+        held = Conversation(db=db, identity=identity, session=key)
         _conversations[key] = held
         while len(_conversations) > MAX_HELD_CONVERSATIONS:
             evicted, _ = _conversations.popitem(last=False)

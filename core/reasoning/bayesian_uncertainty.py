@@ -180,10 +180,17 @@ class BayesianUncertaintySystem:
         # Bayesian beliefs
         self.beliefs: Dict[str, BayesianBelief] = {}
 
-        # Writes discarded because the database was not initialized. Exposed in
-        # get_statistics() so "nothing persisted" is a visible number rather
-        # than a silent assumption.
+        # Writes that could not reach the DB yet (not initialized). Exposed in
+        # get_statistics() so a degraded-persistence window is a visible number
+        # rather than a silent assumption.
         self.persistence_drops: int = 0
+
+        # A persistent substrate must not LOSE a belief update if the DB is not
+        # ready — a correct reversal dropped here would silently disappear on
+        # restart. So un-writable updates are BUFFERED by belief_id (latest state
+        # wins; rows are upserted) and REPLAYED by `flush_pending_writes` once
+        # persistence is available (startup load, and every durable flush).
+        self._pending_writes: Dict[str, "BayesianBelief"] = {}
         
         # Known unknowns
         self.known_unknowns: Dict[str, KnownUnknown] = {}
@@ -778,6 +785,40 @@ class BayesianUncertaintySystem:
 
         return violations
 
+    def get_belief(self, belief_id: str) -> Optional["BayesianBelief"]:
+        """The held belief for an id, or None. The completion decision reads the
+        posterior off this to judge whether the goal is grounded-confident."""
+        return self.beliefs.get(belief_id)
+
+    def belief_for_claim(self, claim: str) -> Optional["BayesianBelief"]:
+        """The held belief whose claim matches (normalised), or None — a fresh
+        retrieval by proposition. Used by completion SAW to independently check
+        whether a learned claim is actually held in the store now."""
+        key = " ".join(str(claim).strip().lower().split())
+        for b in self.beliefs.values():
+            if " ".join(str(b.claim).strip().lower().split()) == key:
+                return b
+        return None
+
+    def beliefs_for_domain(self, domain: str, limit: int = 8) -> List[Dict[str, Any]]:
+        """The SPECIFIC beliefs held in a domain — claim + posterior, most-recently
+        moved first. Task outcomes (via the epistemic engine) and learning (via
+        observe_claim) both move these, so they ARE the substrate's accumulated
+        understanding of the domain. Used to stamp a memory with the pertinent
+        beliefs at the time it formed, not just an aggregate count."""
+        key = (domain or "").strip().lower()
+        if not key:
+            return []
+        items = [b for b in self.beliefs.values()
+                 if (getattr(b, "domain", "") or "").strip().lower() == key]
+        items.sort(key=lambda b: getattr(b, "last_updated", None) or datetime.min,
+                   reverse=True)
+        return [{"belief_id": b.belief_id, "claim": b.claim,
+                 "posterior": round(float(b.posterior_probability), 4),
+                 "updated_at": (b.last_updated.isoformat()
+                                if getattr(b, "last_updated", None) else None)}
+                for b in items[:limit]]
+
     def get_belief_uncertainty(self, belief_id: str) -> Dict[str, Any]:
         """Get comprehensive uncertainty information for a belief"""
         if belief_id not in self.beliefs:
@@ -1125,16 +1166,17 @@ class BayesianUncertaintySystem:
         """
         import json as _json
         if not self.unified_db.initialized:
-            # A silent return made a dropped write indistinguishable from a
-            # successful one: epistemic state was computed, assumed persisted,
-            # and lost. Count and surface it so missing persistence is
-            # observable rather than inferred.
+            # Do NOT drop the write — a persistent substrate must not lose a belief
+            # reversal. BUFFER the latest state per belief_id (rows are upserted)
+            # for replay by `flush_pending_writes` once the DB is up. Still counted
+            # and surfaced so the degraded window is observable, not silent.
+            self._pending_writes[belief.belief_id] = belief
             self.persistence_drops += 1
             if self.persistence_drops == 1 or self.persistence_drops % 50 == 0:
                 logger.warning(
-                    f"Epistemic persistence unavailable (database not "
-                    f"initialized): {self.persistence_drops} write(s) dropped. "
-                    f"This state will not survive a restart."
+                    f"Epistemic persistence not yet available (database "
+                    f"initializing): {self.persistence_drops} write(s) buffered "
+                    f"for replay; {len(self._pending_writes)} belief(s) pending."
                 )
             return False
         try:
@@ -1206,16 +1248,37 @@ class BayesianUncertaintySystem:
         except RuntimeError:
             pass  # No running loop (e.g. tests) — skip persistence
 
+    async def flush_pending_writes(self) -> int:
+        """Replay belief writes that were BUFFERED while the DB was unavailable, so
+        nothing is lost across the degraded window. Called once persistence is up
+        (startup load, and every durable flush). Writes the latest buffered state
+        per belief and keeps any that still fail, so a persistent failure never
+        drops silently. Returns the number persisted."""
+        if not self._pending_writes or not self.unified_db.initialized:
+            return 0
+        written = 0
+        for belief in list(self._pending_writes.values()):
+            if await self._write_belief_row(belief, commit=True):
+                self._pending_writes.pop(belief.belief_id, None)
+                written += 1
+        if written:
+            logger.info(
+                "Epistemic persistence: replayed %d buffered belief write(s); "
+                "%d still pending", written, len(self._pending_writes))
+        return written
+
     async def flush_belief(self, belief_id: str) -> bool:
         """Write a belief to unified.beliefs synchronously and committed, so it
         survives a real restart. For decision-critical beliefs that must not be
         lost to fire-and-forget -- competence beliefs are flushed on every
-        update by the domain authority."""
+        update by the domain authority, and a task's COMPLETION belief is flushed
+        once its evidence is in, so a completion (or its reversal) is durable."""
         belief = self.beliefs.get(belief_id)
         if belief is None:
             return False
         if not self.unified_db.initialized:
             await self.unified_db.initialize()
+        await self.flush_pending_writes()  # replay any backlog first
         return await self._write_belief_row(belief, commit=True)
 
     async def _delete_belief_row(self, belief_id: str) -> bool:
@@ -1460,6 +1523,9 @@ class BayesianUncertaintySystem:
             # Restore adaptive decay rates too, so reflection's volatility work
             # survives a restart rather than resetting to the 0.01 default.
             await self._load_domain_volatility()
+            # Persistence is up now — replay anything buffered before the DB was
+            # ready, so no early belief update is lost.
+            await self.flush_pending_writes()
         except Exception as e:
             logger.warning(f"load_from_db failed (non-fatal, starting with empty beliefs): {e}")
     

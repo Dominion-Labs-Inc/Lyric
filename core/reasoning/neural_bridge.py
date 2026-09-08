@@ -918,14 +918,12 @@ class NeuralSymbolicBridge:
         ratio = (cell["total_latency"] / cell["runs"]) / baseline
         return max(self._DIFFICULTY_MIN, min(self._DIFFICULTY_MAX, ratio))
 
-    def agent_allowance(self, reasoning_type: Any) -> int:
-        """How many agents-of-self a kind warrants in parallel — DERIVED from the
-        (now measured) difficulty: harder/costlier thinking earns more parallel
-        copies. The factory ASKS this; the reasoning authority owns it, and it is
-        grounded in behaviour, not a fixed table. No flat cap."""
-        difficulty = self.reasoning_difficulty(reasoning_type)
-        # difficulty 1.0 -> 2 agents, 2.0 -> 4, 2.5 -> 5, clamped [2, 6].
-        return max(2, min(6, round(2.0 * difficulty)))
+    # NOTE: how many agents-of-self a reasoning kind warrants in parallel (the
+    # AGENT ALLOWANCE) is NOT a reasoning fact and no longer lives here. It is a
+    # DEPLOYMENT decision owned by the coordinator (the self that does the
+    # reasoning and drives the deployment): `AutonomousCoordinator.agent_allowance`
+    # derives it from the measured `reasoning_difficulty` above. Reasoning owns the
+    # measurement; the self owns what to do with it.
 
     # ── Telemetry persistence (measured difficulty survives restart) ─────────
 

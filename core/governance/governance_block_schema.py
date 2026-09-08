@@ -112,6 +112,12 @@ class TaskOutcomeRecord:
     timestamp: datetime
     result_summary: str | None = None
     failure_reason: str | None = None
+    #: The INDEPENDENT groundings the completion judgment rested on — DID/SAW
+    #: evidence items ({epoch, channel, provenance, supports, strength}). Stored
+    #: WITH the outcome so a later memory query returns not just "a similar task
+    #: succeeded/failed" but WHAT evidence made it so — past experience with its
+    #: evidence.
+    evidence: List[Dict[str, Any]] | None = None
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "TaskOutcomeRecord":
@@ -172,6 +178,7 @@ class TaskOutcomeRecord:
             timestamp=timestamp,
             result_summary=data.get("result_summary"),
             failure_reason=data.get("failure_reason"),
+            evidence=data.get("evidence"),
         )
 
     def to_dict(self) -> Dict[str, Any]:
@@ -192,6 +199,8 @@ class TaskOutcomeRecord:
             payload["result_summary"] = self.result_summary
         if self.failure_reason is not None:
             payload["failure_reason"] = self.failure_reason
+        if self.evidence is not None:
+            payload["evidence"] = self.evidence
 
         return payload
 

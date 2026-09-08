@@ -31,6 +31,7 @@ Deployment model:
 
 import asyncio
 import logging
+import random
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -39,16 +40,53 @@ from typing import Any, Dict, List, Optional
 logger = logging.getLogger(__name__)
 
 
-# The per-reasoning-type agent ALLOWANCE is NOT the factory's to decide — how
-# hard a kind of thinking is, and so how many parallel copies it justifies, is a
-# reasoning question owned by the reasoning authority (NeuralSymbolicBridge).
-# The factory ASKS it (AgentCoordinator._allowance). The only reasoning fact the
-# factory keeps for itself is the bookkeeping key it counts active deployments
-# under:
+# The per-reasoning-type agent ALLOWANCE is NOT the factory's to decide, and it
+# is not the reasoning faculty's either — how many parallel copies of the self a
+# kind of thinking justifies is a DEPLOYMENT decision owned by the coordinator
+# (the self that reasons and deploys). The factory ASKS the coordinator
+# (`AutonomousCoordinator.agent_allowance`) and only ENFORCES the number at the
+# single deploy choke point. The one bookkeeping fact the factory keeps for
+# itself is the key it counts active deployments under:
 def _reasoning_key(reasoning_type: Any) -> str:
     """A ReasoningType enum, its value, or a bare string, as a lowercase key."""
     value = getattr(reasoning_type, "value", reasoning_type)
     return str(value or "").strip().lower()
+
+
+# ── agent names ───────────────────────────────────────────────────────────
+#
+# A deployed agent gets a short, memorable NAME as its handle — an
+# "adjective-noun" slug like `wandering-otter`, the way a plan or branch gets a
+# readable name — instead of an opaque `aos_3f9a…` id. The name IS the handle:
+# it's what the substrate awaits/collects under and what shows up in logs, so a
+# running fleet reads as names, not hashes. Kept unique among the agents
+# CURRENTLY active (that's all the await/collect bookkeeping keys on).
+_NAME_ADJECTIVES = (
+    "amber", "brave", "brisk", "clever", "cobalt", "crimson", "dapper", "eager",
+    "feral", "gilded", "hazy", "ivory", "jolly", "keen", "lucid", "mellow",
+    "nimble", "opal", "plucky", "quiet", "rustic", "sly", "spry", "stoic",
+    "sunny", "swift", "teal", "umber", "vivid", "wandering", "wily", "witty",
+    "zephyr", "bold", "canny", "dusky", "frosty", "lunar", "misty", "noble",
+)
+_NAME_NOUNS = (
+    "otter", "comet", "lantern", "falcon", "cinder", "willow", "harbor",
+    "marble", "thistle", "ember", "quartz", "badger", "meadow", "beacon",
+    "pebble", "sparrow", "cairn", "birch", "heron", "lynx", "maple", "nimbus",
+    "orchard", "raven", "sable", "tundra", "vireo", "walnut", "yarrow", "fox",
+    "wren", "sage", "flint", "grove", "kestrel", "moth", "reef", "silo", "cove",
+    "fern",
+)
+
+
+def _agent_name(taken: set) -> str:
+    """A memorable `adjective-noun` handle, unique among the given active names.
+    Adds a tiny suffix only if the space is somehow exhausted — never loops
+    forever, never returns a duplicate."""
+    for _ in range(64):
+        name = f"{random.choice(_NAME_ADJECTIVES)}-{random.choice(_NAME_NOUNS)}"
+        if name not in taken:
+            return name
+    return f"{random.choice(_NAME_ADJECTIVES)}-{random.choice(_NAME_NOUNS)}-{uuid.uuid4().hex[:4]}"
 
 
 # ── a deployment ────────────────────────────────────────────────────────────
@@ -73,10 +111,12 @@ class Deployment:
 class AgentCoordinator:
     """Deploys and tracks agents. The one authority for agents.
 
-    Holds a reference to the substrate's SHARED deputies (the executor above
-    all), bound by the substrate at wire time. An agent runs its task
-    through that same executor, scoped to the tools it was granted — it does not
-    build its own.
+    Holds a reference to the substrate's coordinator — the self, which IS the
+    execution faculty (there is no separate executor object) AND owns the agent
+    allowance. An agent runs its task through the coordinator's `execute_task`,
+    scoped to the tools it was granted; it builds no engines of its own. The
+    factory itself is thin: it accounts for running deployments and owns the
+    await-queue, nothing more.
     """
 
     def __init__(self, enable_monitoring: bool = True, enable_safety: bool = True):
@@ -85,15 +125,13 @@ class AgentCoordinator:
         self.initialized = False
         self.coordinator_id = f"agent_factory_{uuid.uuid4().hex[:8]}"
 
-        #: The substrate's ONE executor, shared by every agent. Bound by
-        #: the substrate (`bind_executor`); until then no agent can run and
-        #: `deploy` refuses honestly rather than building a second executor.
-        self._executor: Any = None
-
-        #: The reasoning authority (NeuralSymbolicBridge), which OWNS the
-        #: per-reasoning-type agent allowance. Fetched lazily; the factory ASKS
-        #: it (`_allowance`) rather than keeping its own numbers.
-        self._reasoning: Any = None
+        #: The substrate's coordinator (the self). It IS the execution faculty —
+        #: an agent's task runs through `coordinator.execute_task` — and it OWNS
+        #: the agent allowance (`coordinator.agent_allowance`). Bound by the
+        #: substrate at wire time (`bind_coordinator`); until then no agent can
+        #: run and `deploy` refuses honestly rather than building a second
+        #: execution path.
+        self._coordinator: Any = None
 
         #: The queue authority — the ONE owner of concurrency. Every agent runs
         #: as a background await-job on it (never the factory's own
@@ -126,22 +164,24 @@ class AgentCoordinator:
         logger.info("agent factory ready (%s)", self.coordinator_id)
         return True
 
-    def bind_executor(self, executor: Any) -> None:
-        """Share the substrate's ONE executor with the factory. Every deployed
-        agent runs its task through this — never a private copy."""
-        self._executor = executor
-        logger.info("agent factory bound to the shared executor")
+    def bind_coordinator(self, coordinator: Any) -> None:
+        """Bind the substrate's coordinator (the self) to the factory. Every
+        deployed agent runs its task through `coordinator.execute_task`, and the
+        allowance number comes from `coordinator.agent_allowance` — never a
+        private executor or a private allowance table."""
+        self._coordinator = coordinator
+        logger.info("agent factory bound to the coordinator (execution + allowance)")
 
     # ── allowance accounting ────────────────────────────────────────────────
 
     def _allowance(self, reasoning_type: Any) -> int:
-        """Ask the REASONING AUTHORITY how many copies this reasoning type
-        warrants. The factory does not decide this; the reasoning authority owns
-        how hard each kind of thinking is."""
-        if self._reasoning is None:
-            from core.reasoning.neural_bridge import get_neural_bridge
-            self._reasoning = get_neural_bridge()
-        return self._reasoning.agent_allowance(reasoning_type)
+        """Ask the COORDINATOR (the self) how many copies this reasoning type
+        warrants. The factory does not decide this and does not keep its own
+        numbers; the self — the one that reasons and deploys — owns the allowance.
+        Falls back to the moderate default before the coordinator is bound."""
+        if self._coordinator is None:
+            return 3
+        return self._coordinator.agent_allowance(reasoning_type)
 
     def _authority_handle(self):
         """The queue authority — the one owner of concurrency. Lazy so the
@@ -176,13 +216,14 @@ class AgentCoordinator:
         """Deploy an agent for `description`, scoped to `allowed_tools`
         (a list the substrate grants; None = unrestricted, the full toolset).
 
-        Returns a deployment_id to await/collect later, or None when the
-        reasoning type's allowance is already full (an honest refusal — the
-        substrate decides what to do, it is never silently queued or dropped) or
-        the shared executor is not bound yet.
+        Returns the agent's NAME (its handle — a memorable slug like
+        `wandering-otter`) to await/collect later, or None when the reasoning
+        type's allowance is already full (an honest refusal — the substrate
+        decides what to do, it is never silently queued or dropped) or the
+        coordinator is not bound yet.
         """
-        if self._executor is None:
-            logger.warning("deploy refused: no shared executor bound")
+        if self._coordinator is None:
+            logger.warning("deploy refused: no coordinator bound (no execution faculty)")
             self.metrics["refused"] += 1
             return None
         if not self.can_deploy(reasoning_type):
@@ -192,7 +233,7 @@ class AgentCoordinator:
             self.metrics["refused"] += 1
             return None
 
-        deployment_id = f"aos_{uuid.uuid4().hex[:12]}"
+        deployment_id = _agent_name(set(self._active))  # the agent's memorable handle
         key = _reasoning_key(reasoning_type)
         self._active[deployment_id] = Deployment(
             deployment_id=deployment_id, reasoning_type=key,
@@ -241,9 +282,10 @@ class AgentCoordinator:
 
     async def _run_agent(self, deployment_id, description, task_type, actor,
                          allowed_tools, parameters) -> Dict[str, Any]:
-        """An agent runs its task through the SHARED executor, scoped to
-        the tools it was granted. It carries no engines of its own; the executor,
-        and every authority beneath it, is the substrate's."""
+        """An agent runs its task through the COORDINATOR's execution faculty
+        (`execute_task` — the self IS the executor; there is no separate executor
+        object), scoped to the tools it was granted. It carries no engines of its
+        own; the coordinator, and every authority beneath it, is the substrate's."""
         from core.agents.autonomous.shared_types import (
             Task, TaskType, TaskSource, SUBSTRATE_ACTOR)
 
@@ -258,7 +300,7 @@ class AgentCoordinator:
             allowed_tools=(list(allowed_tools) if allowed_tools is not None else None),
             metadata={"agent": True, "parameters": parameters},
         )
-        result = await self._executor.execute_task(task)
+        result = await self._coordinator.execute_task(task)
         return result if isinstance(result, dict) else {"result": result}
 
     async def await_findings(self, deployment_id: str) -> Optional[Dict[str, Any]]:
@@ -325,8 +367,7 @@ class AgentCoordinator:
         return {
             "coordinator_id": self.coordinator_id,
             "initialized": self.initialized,
-            "executor_bound": self._executor is not None,
-            "reasoning_authority_bound": self._reasoning is not None,
+            "coordinator_bound": self._coordinator is not None,
             "running": len(self._active),
             "ready_uncollected": len(self._ready),
             **self.metrics,

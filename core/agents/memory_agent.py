@@ -646,6 +646,18 @@ class MemoryAgent(IMemoryConsolidation):
                     "calibrated_domains": _bstats.get("calibrated_domains"),
                     "captured_at": datetime.now().isoformat(),
                 })
+                # PER-MEMORY RELEVANT BELIEFS — not just the aggregate. Scope to
+                # this memory's domain (from a `domain_<x>` tag): the specific
+                # beliefs held there, claim + posterior. Task outcomes and learning
+                # both move these, so they are the substrate's accumulated
+                # understanding of the domain at the moment this memory formed.
+                _mem_domain = next((t[len("domain_"):] for t in (tags or [])
+                                    if isinstance(t, str) and t.startswith("domain_")), None)
+                if _mem_domain:
+                    _rel = _beliefs.beliefs_for_domain(_mem_domain, limit=8)
+                    if _rel:
+                        thinking_state["belief_state"]["domain"] = _mem_domain
+                        thinking_state["belief_state"]["relevant_beliefs"] = _rel
             except Exception as e:
                 logger.warning(f"Belief state snapshot failed: {type(e).__name__}: {e}")
 

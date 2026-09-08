@@ -1,0 +1,132 @@
+{
+  "experiment": "VERIFY-01",
+  "purpose": "fresh current-state verification of the unified coordinator pipelines",
+  "run_at": "2026-09-07T12:10:11.816673+00:00",
+  "findings": {
+    "reasoning_pipeline": {
+      "ok": true,
+      "queries": [
+        {
+          "q": "is a robin a bird",
+          "answer": "Yes: robin isa a bird",
+          "confidence": 0.95,
+          "mode": "ReasoningMode.CROSS_DOMAIN",
+          "reason": "derived_by_kind",
+          "route": [
+            "reason_about",
+            "neural_bridge",
+            "ReasoningMode.CROSS_DOMAIN",
+            "derived_by_kind"
+          ],
+          "model_calls": 0
+        },
+        {
+          "q": "is an ocelot an animal",
+          "answer": "Yes: ocelot isa an animal",
+          "confidence": 0.85,
+          "mode": "ReasoningMode.CROSS_DOMAIN",
+          "reason": "derived_by_kind",
+          "route": [
+            "reason_about",
+            "neural_bridge",
+            "ReasoningMode.CROSS_DOMAIN",
+            "derived_by_kind"
+          ],
+          "model_calls": 0
+        },
+        {
+          "q": "is a hammer a bird",
+          "answer": "",
+          "confidence": 0.0,
+          "mode": "ReasoningMode.SYMBOLIC",
+          "reason": "unsupported_input",
+          "route": [
+            "reason_about",
+            "neural_bridge",
+            "ReasoningMode.SYMBOLIC",
+            "unsupported_input"
+          ],
+          "model_calls": 0
+        }
+      ]
+    },
+    "execution_pipeline": {
+      "ok": true,
+      "task_type": "TaskType.ANALYSIS",
+      "success": true,
+      "verification_state": "verified",
+      "model_free": true,
+      "keys": [
+        "answer",
+        "learned",
+        "method",
+        "model_free",
+        "output",
+        "success",
+        "task_id",
+        "task_type",
+        "verification_state"
+      ],
+      "summary": "{'success': True, 'model_free': True, 'verification_state': 'verified', 'task_id': 'verify01_q', 'task_type': 'ANALYSIS', 'method': 'conversation.understand', 'answer': 'Yes \u2014 ocelot is an animal beca"
+    },
+    "cross_domain_pipeline": {
+      "ok": true,
+      "type": "dict",
+      "summary": "{'success': True, 'insights': [], 'confidence': None, 'mappings': 0, 'processing_time': 6.900066}"
+    },
+    "domain_pipeline": {
+      "ok": true,
+      "total_domains_db": 22,
+      "category_domains": 15,
+      "learned_domains": [
+        "domain_bird",
+        "domain_device",
+        "domain_general",
+        "domain_glindar",
+        "domain_insect",
+        "domain_language",
+        "domain_lexical"
+      ],
+      "has_universal_domain_master": true
+    },
+    "learning_and_beliefs": {
+      "ok": true,
+      "belief_prior": 0.15,
+      "belief_after_evidence": 0.724,
+      "belief_moved": true,
+      "learning_initialized": true,
+      "metrics_keys": [
+        "contributions_accepted",
+        "contributions_promoted_to_knowledge",
+        "contributions_seen",
+        "contributors"
+      ]
+    },
+    "intrinsic_motivation_pipeline": {
+      "ok": true,
+      "num_targets": 5,
+      "sample": [
+        "Design experiment to resolve uncertainty: Rain",
+        "Design experiment to resolve uncertainty: Rain",
+        "Design experiment to resolve uncertainty: rained(sky)",
+        "Design experiment to resolve uncertainty: rained(sky)",
+        "Design experiment to resolve uncertainty: rained"
+      ]
+    },
+    "memory_pipeline": {
+      "ok": true,
+      "memory_class": "MemoryAgent",
+      "stored": "None",
+      "retrieved_n": 1
+    }
+  },
+  "pipelines_ok": {
+    "reasoning_pipeline": true,
+    "execution_pipeline": true,
+    "cross_domain_pipeline": true,
+    "domain_pipeline": true,
+    "learning_and_beliefs": true,
+    "intrinsic_motivation_pipeline": true,
+    "memory_pipeline": true
+  }
+}

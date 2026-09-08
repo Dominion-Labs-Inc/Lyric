@@ -1,8 +1,9 @@
 # TorinAI
 
-**A persistent, model-optional cognitive architecture — a system that *derives*
-answers from evidence it holds, instead of *generating* text that looks like
-answers.**
+**A persistent cognitive substrate — a system that maintains and develops
+knowledge, memory, beliefs, learned operators, competence, and goals over time,
+and *derives* answers from evidence it holds instead of *generating* text that
+looks like answers.**
 
 TorinAI is a research codebase. It is large, so this README is written to get you
 oriented fast: what it is, how the pieces fit, which files matter, and how to run
@@ -21,10 +22,14 @@ simply assert. TorinAI is built the other way around:
   own honest arithmetic behind the number.
 - It can **say "I can't represent this"** — a real, distinct result, not a
   low-confidence guess.
-- It **runs without a language model.** A model, if you connect one, is only a
-  *teacher*: it can help read an input the system can't yet parse, or suggest a
-  candidate the system will then check itself. It is never required and never has
-  the final say.
+- It **uses no language model in its cognition.** Reasoning, learning, memory,
+  planning, action, and verification run on the substrate's own mechanisms. The
+  only component that can consult a model at all is a single teaching module —
+  essentially unused — and even there a model only proposes a candidate the
+  substrate then checks itself.
+- It is **one running system, not a model.** Reasoning, learning, memory, action,
+  domain modelling, intrinsic motivation, and a model of itself are all faculties
+  over one shared persistent state — see [ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 The system grows by being **taught**, not pre-trained — the trade it makes is
 reliability within what it knows, at the cost of coverage that has to be built up.
@@ -108,7 +113,7 @@ system to the file that owns it (sizes are approximate, to show weight).
 | **Scheduling** | The one owner of "what runs when" — recurring jobs, background work, awaits. | `core/agents/autonomous/queue_authority.py` | 960 |
 | **Health & recovery** | Monitors subsystems; drives diagnose → recover → verify on events. | `core/health/health_monitor.py` | 3,600 |
 | **Bring-up / orchestration** | Constructs and initializes the whole system; the entrypoint. | `core/main.py` | 2,100 |
-| **Teacher model (optional)** | The optional LLM service — used only for coverage. The system runs without it. | `core/services/unified_llm.py` | 3,000 |
+| **Teacher module (barely used)** | The one place a language model can even be consulted — a teacher policy that may propose a lesson. Essentially unused; the substrate's cognition never calls a model. | `core/learning/teacher_policy.py` | — |
 
 The reasoning subsystem has several more focused engines worth knowing:
 `advanced_proof_engine.py` (Z3/SMT proofs), `constraint_solver.py` (Z3 CSP),
@@ -214,15 +219,16 @@ being **measured**, not assumed.
 
 ---
 
-## The model is optional
+## Language models
 
-The system reasons, learns, and acts model-free on its core paths. If you connect
-a language model (`core/services/unified_llm.py`), it plays exactly one role: a
-**teacher** for *coverage* — reading an input the system can't yet parse, or
-proposing a candidate the system re-parses and checks. Model proposals carry no
-confidence of their own, rank below every derived conclusion, and are marked as
-proposals wherever they're stored. Disconnect it and the system still reasons — it
-just reads fewer kinds of input.
+The system's cognition uses no language model. Reasoning, learning, memory,
+planning, action, and verification all run on the substrate's own mechanisms and
+consult no model. The only component that *can* consult a language model at all is
+a single teaching module (`core/learning/teacher_policy.py`) — a teacher policy
+that may occasionally propose a candidate lesson the substrate then re-parses and
+checks — and in practice it is essentially unused. Any such proposal carries no
+confidence of its own, ranks below every derived conclusion, and is marked as a
+proposal. Remove it entirely and the substrate is unchanged.
 
 ---
 
@@ -339,8 +345,8 @@ same resolution as the capabilities:
   the system has been taught to represent.
 - **Some engines implement a reduced subset** of the theory they cite (documented
   honestly in `REASONING_PIPELINE.md` rather than glossed over).
-- **Model-optional doesn't mean feature-complete without a model** — a model still
-  widens the kinds of input the system can read.
+- **Coverage is built by teaching, not by a model** — the substrate's breadth grows
+  as it is taught to represent new kinds of input, not by adding a language model.
 
 Where you find a claim here, expect the code — and usually a test or a
 measurement — behind it. Where you find a limitation, expect it stated plainly.

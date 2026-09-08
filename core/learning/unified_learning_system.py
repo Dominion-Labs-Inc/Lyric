@@ -2307,8 +2307,17 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
         gain one owner. Beliefs are revisable: what is created today `update_belief`
         can move tomorrow."""
         from core.reasoning.bayesian_uncertainty import get_uncertainty_system
-        ev = dict(evidence) if isinstance(evidence, dict) else {}
-        ev.setdefault("source", source)
+        # Source is PROVENANCE, not evidence. Only tag+apply an observation when
+        # the caller actually supplied evidence; with no evidence the belief must
+        # stand at its prior (the belief substrate applies any non-empty evidence
+        # dict as a supporting observation, so a source-only dict would silently
+        # nudge every no-evidence belief up from its prior — e.g. a completion
+        # belief minted low would drift toward done before any real evidence).
+        if isinstance(evidence, dict) and evidence:
+            ev = dict(evidence)
+            ev.setdefault("source", source)
+        else:
+            ev = None
         return get_uncertainty_system().create_belief(
             claim, domain, prior=prior, evidence=ev)
 
@@ -2320,6 +2329,48 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
         from core.reasoning.bayesian_uncertainty import get_uncertainty_system
         return get_uncertainty_system().update_belief(
             belief_id, evidence, evidence_supports=evidence_supports)
+
+    def get_belief(self, belief_id: str) -> Any:
+        """The held belief for an id (or None) THROUGH the one authority — the
+        completion decision reads its posterior."""
+        from core.reasoning.bayesian_uncertainty import get_uncertainty_system
+        return get_uncertainty_system().get_belief(belief_id)
+
+    def belief_for_claim(self, claim: str) -> Any:
+        """A held belief matching a claim (or None) THROUGH the one authority — a
+        fresh retrieval by proposition, for completion SAW."""
+        from core.reasoning.bayesian_uncertainty import get_uncertainty_system
+        return get_uncertainty_system().belief_for_claim(claim)
+
+    def beliefs_for_domain(self, domain: str, limit: int = 8) -> Any:
+        """The specific beliefs held in a domain (claim + posterior) THROUGH the one
+        authority — for stamping a memory with its pertinent beliefs."""
+        from core.reasoning.bayesian_uncertainty import get_uncertainty_system
+        return get_uncertainty_system().beliefs_for_domain(domain, limit=limit)
+
+    async def flush_belief(self, belief_id: str) -> bool:
+        """Durably persist a belief (awaited, committed) THROUGH the one authority —
+        for decision-critical beliefs that MUST survive a restart, such as a task's
+        completion belief. Also replays any writes buffered while the DB was down."""
+        from core.reasoning.bayesian_uncertainty import get_uncertainty_system
+        return await get_uncertainty_system().flush_belief(belief_id)
+
+    def observe_claim(self, claim: str, domain: str = "language", *,
+                      supports: bool = True, quality: float = 0.9,
+                      source: str = "observed") -> Any:
+        """Record ONE observation of a claim THROUGH the one authority, idempotently.
+
+        The find-or-create-by-claim door (see create_belief): the first
+        observation of a claim mints its belief; each later observation moves the
+        SAME posterior, so repeated evidence about one claim reinforces or
+        contradicts a single belief instead of spawning parallels. This is the door
+        the COMPLETION belief uses -- the substrate observes "this task's goal
+        holds" as execution produces evidence, and the one belief accumulates
+        toward (or away from) done. Delegates to the belief substrate; beliefs are
+        revisable."""
+        from core.reasoning.bayesian_uncertainty import get_uncertainty_system
+        return get_uncertainty_system().observe_claim(
+            claim, domain, supports=supports, quality=quality, source=source)
 
     async def fan_out_ingested(self, result: Any, *, domain: str = "researched",
                                surface: str = "") -> int:

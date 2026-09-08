@@ -1279,21 +1279,24 @@ class TorinAISystem:
                     coordinator.recovery_manager = self.recovery_manager
                     logger.info("✓ Recovery Manager injected into coordinator")
 
-                # The agent factory. The substrate holds it so it can
-                # deploy copies of itself; the factory shares the substrate's ONE
-                # executor, bound after initialize() creates it (below).
+                # The agent authority (factory). The substrate holds it so it can
+                # deploy agents of self (deploy_agent/await_agent/…); the factory is
+                # bound back to the coordinator below, which IS the execution
+                # faculty and owns the allowance.
                 if getattr(self, 'agent_coordinator', None):
                     coordinator.agent_coordinator = self.agent_coordinator
-                    logger.info("✓ agent factory injected into coordinator")
+                    logger.info("✓ agent authority injected into coordinator")
 
                 await coordinator.initialize()
 
-                # Share the substrate's executor with the factory now that it
-                # exists, so a deployed agent runs through the same
-                # executor and authorities the substrate uses — not a private copy.
-                if getattr(self, 'agent_coordinator', None) and getattr(coordinator, 'executor', None):
-                    self.agent_coordinator.bind_executor(coordinator.executor)
-                    logger.info("✓ Shared executor bound to agent factory")
+                # Bind the coordinator (the self) to the factory now that it
+                # exists. The coordinator IS the execution faculty (there is no
+                # separate executor object) and owns the agent allowance, so a
+                # deployed agent runs through the same authorities the substrate
+                # uses — not a private copy.
+                if getattr(self, 'agent_coordinator', None):
+                    self.agent_coordinator.bind_coordinator(coordinator)
+                    logger.info("✓ Coordinator bound to agent factory (execution + allowance)")
 
                 return coordinator
 
