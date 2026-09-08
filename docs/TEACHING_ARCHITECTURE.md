@@ -216,6 +216,41 @@ back from the DB **after the final flush** — not from mid-run progress lines.
 
 ---
 
+## 7a. Source hygiene for the reasoning taxonomy (hard rules)
+
+The reasoner walks the concept graph's `isa` edges as a transitive closure. That
+graph is only as good as what is admitted into it, and one bad class of source
+poisons all downstream reasoning.
+
+- **Never admit crowd-sourced free text as reasoning `isa` edges.** Raw ConceptNet
+  `/r/IsA` includes assertions like `apple isa car`, `dog isa cuter_than_kid`,
+  `robin isa band` (Robin the singer). Admitted wholesale, these gave 450k `isa`
+  edges where a term's ancestor set exploded 45&#8594;681 over 1&#8211;4 hops, and
+  transitive `isa` became meaningless &#8212; the reasoner confabulated
+  (`dog isa plant` via `organism&#8594;system&#8594;plan_of_action&#8594;plant`).
+  The reasoning taxonomy must be a **curated** hypernymy (WordNet), not a crowd
+  graph. ConceptNet-style data, if kept at all, belongs in *beliefs*, never as
+  concept-graph edges the reasoner walks.
+- **Record provenance per edge.** The cleanup was expensive because
+  `concept_relations` recorded no source (WordNet vs ConceptNet both tag
+  `extractor='structured'`), so junk could not be selectively retracted &#8212;
+  it had to be separated by content against a WordNet reference set. Tag every
+  admitted edge with its source so a noisy source can be dropped in one query.
+- **Bound the common-sense closure.** Even on a clean graph, cap the `isa` walk
+  (currently 4 hops): real common-sense subclass chains are short, and a long walk
+  over any large name-keyed graph risks homonym drift. Abstain past the bound.
+- **Beliefs back-stop the bounded graph.** When the graph cannot derive an `isa`
+  within the bound, consult the belief store: a fact *taught* and held &#8805;0.99
+  answers it (e.g. `copper isa metal`). An untaught claim has no such belief, so
+  this restores recall WITHOUT reintroducing confabulation. (See
+  `neural_bridge._answer_over_concept_graph`.)
+
+These rules were learned the hard way; the audit that surfaced them is `KNOW-50`
+(`experiments/systems/KNOW-50`), which asks the live substrate taught-knowledge
+questions with answers withheld and displays what it reasons *and* what it
+believes. Result after the fix: 37/40 true correct, 100% of answered correct,
+0 confabulations, 0 model calls.
+
 ## 8. Critical files
 
 - `core/learning/unified_learning_system.py` — the one path (`learn_fact:2111`,
