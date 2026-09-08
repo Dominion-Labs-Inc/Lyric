@@ -238,3 +238,6 @@ scripts/sense_taxonomy_edges.json
 
 # regenerable Wikidata teach cache (data dump)
 scripts/general_wikidata_edges.json
+
+# bulk data dumps (downloaded, regenerable)
+data/bulk/
