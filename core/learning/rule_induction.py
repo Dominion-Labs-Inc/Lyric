@@ -59,6 +59,15 @@ VARIABLE_PREFIX = _VARIABLE_PREFIX
 
 _IDENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
+
+def predicate_name(text: str) -> str:
+    """A surface term as a valid rule-predicate identifier, or "" when it cannot
+    be one (e.g. it begins with a digit). Refused, never coerced into a wrong
+    name -- a feature that is not a usable predicate is simply not one."""
+    ident = re.sub(r"[^a-z0-9_]+", "_", str(text or "").strip().lower()).strip("_")
+    return ident if _IDENT.match(ident) else ""
+
+
 #: TERMS MAY BE NUMBERS. Arithmetic was deferred on purpose while relational
 #: induction was proved -- admitting typed terms and numeric sorts early would
 #: have given a failed induction test six possible explanations instead of one.
@@ -444,6 +453,9 @@ class InductionResult:
     supporting_evidence: List[str] = field(default_factory=list)
     contradicting_evidence: List[str] = field(default_factory=list)
     detail: str = ""
+    #: When several hypotheses stand, the case that would eliminate one of them.
+    #: An undetermined induction is not a dead end: it is a stated request.
+    deciding_request: Optional[str] = None
 
     @property
     def rule(self) -> Optional[CandidateRule]:
@@ -866,10 +878,20 @@ class RuleInducer:
             InductionStatus.RULE_LEARNED if len(surviving) == 1
             else InductionStatus.MULTIPLE_HYPOTHESES
         )
+        # A TIE NAMES THE DEMONSTRATION THAT BREAKS IT.
+        #
+        # "Several rules fit" is only half an answer: the learner knows exactly
+        # what it is missing, because the hypotheses disagree on a describable
+        # case. Saying so turns a dead end into one answerable request -- the
+        # difference between waiting for more examples and asking for the one
+        # that decides.
         detail = "" if len(surviving) == 1 else (
             f"{len(surviving)} rules explain these demonstrations equally well; "
             f"a demonstration separating them would decide"
         )
+        deciding = None if len(surviving) == 1 else self._separating_request(surviving)
+        if deciding:
+            detail = f"{detail}: {deciding}"
         return InductionResult(
             status=status,
             candidates=surviving,
@@ -878,7 +900,33 @@ class RuleInducer:
             supporting_evidence=self._ids(positives),
             contradicting_evidence=self._ids(negatives),
             detail=detail,
+            deciding_request=deciding,
         )
+
+    @staticmethod
+    def _separating_request(surviving: Sequence[CandidateRule]) -> Optional[str]:
+        """A case the surviving hypotheses disagree about, in words.
+
+        Each hypothesis accepts what satisfies its own body. A case satisfying
+        one body but missing a literal of another is accepted by the first and
+        refused by the second, so labelling it eliminates one of them. Reported
+        for the first such pair; with n hypotheses standing, one elimination is
+        progress and the next induction asks again.
+        """
+        def body(rule) -> List[str]:
+            return sorted(f.predicate for f in rule.preconditions)
+
+        for i, first in enumerate(surviving):
+            for second in surviving[i + 1:]:
+                for accept, refuse in ((first, second), (second, first)):
+                    missing = [p for p in body(refuse) if p not in body(accept)]
+                    if not missing:
+                        continue
+                    have = " and ".join(body(accept)) or "no stated feature"
+                    lacks = " and ".join(missing)
+                    return (f"an instance that is {have} but not {lacks} is accepted "
+                            f"by one hypothesis and refused by the other")
+        return None
 
     # -------------------------------------------------------------- internals
 

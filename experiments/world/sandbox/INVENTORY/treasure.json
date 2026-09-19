@@ -1,0 +1,15 @@
+{
+  "name": "treasure",
+  "kind": "relic",
+  "shape": "circle",
+  "color": "orange",
+  "size": "medium",
+  "properties": {},
+  "hidden_props": {
+    "value": 9000
+  },
+  "movable": true,
+  "inspected": false,
+  "dynamic": null,
+  "appearance": "_assets/treasure.png"
+}

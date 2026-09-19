@@ -14,7 +14,7 @@ Features:
 - Pre-execution blocking mode validation
 - Post-execution verification with violation severity classification
 - Violation tracking by category with metrics
-- Integration with Unified Governance Trigger System
+- Integration with the governance trigger engine
 """
 
 import logging

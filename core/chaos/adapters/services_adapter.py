@@ -4,7 +4,6 @@ Services System Chaos Adapter
 ==============================
 
 Chaos injection for services system components:
-- Unified LLM Service
 - Backup Scheduler
 - Document Generator
 - Adapter Manager
@@ -29,13 +28,11 @@ class ServicesSystemAdapter(TargetSystemAdapter):
     Adapter for chaos injection into services system.
 
     Targets:
-    - Unified LLM Service (local LLM inference, request queue)
     - Backup Scheduler (backup operations, scheduling)
     - Adapter Manager (adapter lifecycle management)
     - Lumen Vision (vision processing)
 
     Components:
-    - unified_llm: Local Qwen 32B model inference
     - backup_scheduler: Automated backup scheduling
     - adapter_manager: Service adapter management
     - lumen_vision: Vision processing service
@@ -48,8 +45,7 @@ class ServicesSystemAdapter(TargetSystemAdapter):
         self.db = None  # Database for persistence (call initialize_db() to enable)
 
         # Services-specific metrics
-        self._llm_inference_latencies: list = []
-        self._llm_errors: int = 0
+        self._injected_latencies: list = []
         self._backup_failures: int = 0
         self._document_generation_errors: int = 0
         self._vision_processing_errors: int = 0
@@ -66,8 +62,6 @@ class ServicesSystemAdapter(TargetSystemAdapter):
         Inject latency into services system operations.
 
         Injection points:
-        - llm_inference: Delay in LLM model inference
-        - llm_queue: Delay in request queue processing
         - backup_operation: Delay in backup operations
         - document_generation: Delay in document generation
         - vision_processing: Delay in vision processing
@@ -82,15 +76,7 @@ class ServicesSystemAdapter(TargetSystemAdapter):
             f"at {component}:{injection_point} (experiment: {target_id})"
         )
 
-        if injection_point == "llm_inference":
-            # Inject latency into LLM inference
-            await self._inject_llm_inference_latency(delay_ms, jitter_ms)
-
-        elif injection_point == "llm_queue":
-            # Inject latency into request queue
-            await self._inject_llm_queue_latency(delay_ms, jitter_ms)
-
-        elif injection_point == "backup_operation":
+        if injection_point == "backup_operation":
             # Inject latency into backup operations
             await self._inject_backup_latency(delay_ms, jitter_ms)
 
@@ -131,17 +117,14 @@ class ServicesSystemAdapter(TargetSystemAdapter):
         Inject errors into services system operations.
 
         Error types:
-        - LLMInferenceError: LLM model inference failures
-        - ModelLoadError: Failed to load LLM model
         - BackupError: Backup operation failures
         - DocumentGenerationError: Document generation failures
         - VisionProcessingError: Vision processing failures
         - AdapterError: Adapter initialization/lifecycle errors
-        - QueueTimeoutError: Request queue timeout
         """
         self._chaos_active = True
 
-        
+
         injection_id = f"services_error_{uuid.uuid4().hex[:8]}"
 
         logger.info(
@@ -149,15 +132,7 @@ class ServicesSystemAdapter(TargetSystemAdapter):
             f"at {component}:{injection_point} ({error_type}, experiment: {target_id})"
         )
 
-        if injection_point == "llm_inference":
-            # Inject LLM inference errors
-            await self._inject_llm_errors(error_rate, error_type)
-
-        elif injection_point == "llm_queue":
-            # Inject request queue errors
-            await self._inject_queue_errors(error_rate, error_type)
-
-        elif injection_point == "backup_operation":
+        if injection_point == "backup_operation":
             # Inject backup errors
             await self._inject_backup_errors(error_rate, error_type)
 
@@ -193,15 +168,11 @@ class ServicesSystemAdapter(TargetSystemAdapter):
         Inject resource exhaustion into services system.
 
         Resource types:
-        - gpu: GPU memory exhaustion during LLM inference
-        - cpu: High CPU usage during inference
-        - memory: Memory exhaustion in model loading
         - disk: Disk space exhaustion during backups
-        - queue: Request queue exhaustion
         """
         self._chaos_active = True
 
-        
+
         injection_id = f"services_resource_{uuid.uuid4().hex[:8]}"
 
         logger.info(
@@ -209,25 +180,9 @@ class ServicesSystemAdapter(TargetSystemAdapter):
             f"at {component}"
         )
 
-        if resource_type == "gpu":
-            # Simulate GPU memory exhaustion
-            await self._exhaust_gpu_memory()
-
-        elif resource_type == "cpu":
-            # Simulate high CPU usage during inference
-            await self._exhaust_inference_cpu()
-
-        elif resource_type == "memory":
-            # Simulate memory exhaustion in model loading
-            await self._exhaust_model_memory()
-
-        elif resource_type == "disk":
+        if resource_type == "disk":
             # Simulate disk space exhaustion
             await self._exhaust_disk_space()
-
-        elif resource_type == "queue":
-            # Simulate request queue exhaustion
-            await self._exhaust_request_queue()
         # Create injection handle
         handle = InjectionHandle(
             injection_id=injection_id,
@@ -247,40 +202,30 @@ class ServicesSystemAdapter(TargetSystemAdapter):
         Get current health metrics of services system.
 
         Metrics:
-        - llm_inference_latency_p95: 95th percentile LLM inference latency
-        - llm_error_rate: LLM inference error rate
+        - latency_p95_ms / latency_p99_ms: percentiles of the latency this adapter injected
         - backup_failure_rate: Backup operation failure rate
         - document_gen_error_rate: Document generation error rate
         - vision_error_rate: Vision processing error rate
-        - queue_depth: Request queue depth
-        - gpu_utilization: GPU utilization percentage
         """
         metrics = {}
 
-        # Calculate latency metrics
-        if self._llm_inference_latencies:
-            sorted_latencies = sorted(self._llm_inference_latencies)
+        # Calculate latency metrics from the delays actually injected
+        if self._injected_latencies:
+            sorted_latencies = sorted(self._injected_latencies)
             p95_idx = int(len(sorted_latencies) * 0.95)
             p99_idx = int(len(sorted_latencies) * 0.99)
 
-            metrics["latency_p95_ms"] = sorted_latencies[p95_idx] if sorted_latencies else 0
-            metrics["latency_p99_ms"] = sorted_latencies[p99_idx] if sorted_latencies else 0
+            metrics["latency_p95_ms"] = sorted_latencies[min(p95_idx, len(sorted_latencies) - 1)]
+            metrics["latency_p99_ms"] = sorted_latencies[min(p99_idx, len(sorted_latencies) - 1)]
         else:
             metrics["latency_p95_ms"] = 0
             metrics["latency_p99_ms"] = 0
 
         # Calculate error rates
         total_operations = 1000  # Simulated total operations
-        metrics["llm_error_rate"] = self._llm_errors / total_operations
         metrics["backup_failure_rate"] = self._backup_failures / total_operations
         metrics["document_gen_error_rate"] = self._document_generation_errors / total_operations
         metrics["vision_error_rate"] = self._vision_processing_errors / total_operations
-
-        # Queue metrics
-        metrics["queue_depth"] = random.uniform(5, 20) if not self._chaos_active else random.uniform(50, 200)
-
-        # GPU metrics
-        metrics["gpu_utilization"] = random.uniform(30, 60) if not self._chaos_active else random.uniform(80, 98)
 
         # Resource metrics (simulated)
         metrics["cpu_percent"] = random.uniform(20, 50) if not self._chaos_active else random.uniform(70, 95)
@@ -315,8 +260,7 @@ class ServicesSystemAdapter(TargetSystemAdapter):
         # Reset chaos state
         self._chaos_active = False
         self._original_methods.clear()
-        self._llm_inference_latencies.clear()
-        self._llm_errors = 0
+        self._injected_latencies.clear()
         self._backup_failures = 0
         self._document_generation_errors = 0
         self._vision_processing_errors = 0
@@ -325,47 +269,27 @@ class ServicesSystemAdapter(TargetSystemAdapter):
 
     # Private helper methods
 
-    async def _inject_llm_inference_latency(self, delay_ms: int, jitter_ms: int):
-        """Inject latency into LLM inference."""
+    async def _sleep_injected(self, delay_ms: int, jitter_ms: int):
+        """Sleep for the injected delay and record the delay actually applied."""
         actual_delay = delay_ms + random.randint(-jitter_ms, jitter_ms)
         await asyncio.sleep(actual_delay / 1000.0)
-        self._llm_inference_latencies.append(actual_delay)
-
-    async def _inject_llm_queue_latency(self, delay_ms: int, jitter_ms: int):
-        """Inject latency into request queue."""
-        actual_delay = delay_ms + random.randint(-jitter_ms, jitter_ms)
-        await asyncio.sleep(actual_delay / 1000.0)
+        self._injected_latencies.append(actual_delay)
 
     async def _inject_backup_latency(self, delay_ms: int, jitter_ms: int):
         """Inject latency into backup operations."""
-        actual_delay = delay_ms + random.randint(-jitter_ms, jitter_ms)
-        await asyncio.sleep(actual_delay / 1000.0)
+        await self._sleep_injected(delay_ms, jitter_ms)
 
     async def _inject_document_gen_latency(self, delay_ms: int, jitter_ms: int):
         """Inject latency into document generation."""
-        actual_delay = delay_ms + random.randint(-jitter_ms, jitter_ms)
-        await asyncio.sleep(actual_delay / 1000.0)
+        await self._sleep_injected(delay_ms, jitter_ms)
 
     async def _inject_vision_latency(self, delay_ms: int, jitter_ms: int):
         """Inject latency into vision processing."""
-        actual_delay = delay_ms + random.randint(-jitter_ms, jitter_ms)
-        await asyncio.sleep(actual_delay / 1000.0)
+        await self._sleep_injected(delay_ms, jitter_ms)
 
     async def _inject_adapter_init_latency(self, delay_ms: int, jitter_ms: int):
         """Inject latency into adapter initialization."""
-        actual_delay = delay_ms + random.randint(-jitter_ms, jitter_ms)
-        await asyncio.sleep(actual_delay / 1000.0)
-
-    async def _inject_llm_errors(self, error_rate: float, error_type: str):
-        """Inject LLM inference errors."""
-        if random.random() < error_rate:
-            self._llm_errors += 1
-            logger.warning(f"[ServicesAdapter] Injected LLM error: {error_type}")
-
-    async def _inject_queue_errors(self, error_rate: float, error_type: str):
-        """Inject request queue errors."""
-        if random.random() < error_rate:
-            logger.warning(f"[ServicesAdapter] Injected queue error: {error_type}")
+        await self._sleep_injected(delay_ms, jitter_ms)
 
     async def _inject_backup_errors(self, error_rate: float, error_type: str):
         """Inject backup errors."""
@@ -385,29 +309,7 @@ class ServicesSystemAdapter(TargetSystemAdapter):
             self._vision_processing_errors += 1
             logger.warning(f"[ServicesAdapter] Injected vision error: {error_type}")
 
-    async def _exhaust_gpu_memory(self):
-        """Simulate GPU memory exhaustion."""
-        # Simulate GPU memory allocation
-        _ = [0] * (100 * 1024 * 1024)  # 100MB allocation
-
-    async def _exhaust_inference_cpu(self):
-        """Simulate high CPU usage during inference."""
-        # Simulate CPU-intensive inference
-        start = asyncio.get_event_loop().time()
-        while asyncio.get_event_loop().time() - start < 0.15:  # 150ms of busy work
-            _ = [i ** 2 for i in range(2000)]
-
-    async def _exhaust_model_memory(self):
-        """Simulate memory exhaustion in model loading."""
-        # Simulate large model in memory
-        _ = [0] * (200 * 1024 * 1024)  # 200MB allocation
-
     async def _exhaust_disk_space(self):
         """Simulate disk space exhaustion."""
         # Simulate large backup file
         _ = [0] * (500 * 1024 * 1024)  # 500MB allocation
-
-    async def _exhaust_request_queue(self):
-        """Simulate request queue exhaustion."""
-        # Simulate queue overflow
-        _ = [[0] * 1000 for _ in range(50000)]  # Large queue

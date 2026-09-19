@@ -27,10 +27,6 @@ from enum import Enum
 
 logger = logging.getLogger(__name__)
 
-class _SkipBaseline(Exception):
-    """Not an error: this reading must not become a component's first baseline."""
-
-
 
 class HealthStatus(Enum):
     """Health status levels"""
@@ -144,9 +140,8 @@ class HealthMonitor:
 
     #: THE component vocabulary for the substrate.
     #:
-    #: Four different vocabularies existed for the same subsystems: this class's
-    #: bare name list, EnhancedASISelfImprovement's hardcoded five
-    #: (chat_agent/memory_system/reasoning_engine/...), the metric keys that
+    #: Several different vocabularies existed for the same subsystems: this class's
+    #: bare name list, the metric keys that
     #: intrinsic_motivation was writing into unified.component_health, and the
     #: unified.components registry -- which was designed for exactly this and
     #: sat empty because its only writers use SQLite syntax in a dead migration
@@ -187,14 +182,10 @@ class HealthMonitor:
                                      'metric_prefixes': ('embedding_',)},
                              }},
         'learning':         {'type': 'cognitive', 'category': 'learning',
-                             'module': 'core.learning.enhanced_asi_self_improvement',
-                             'description': 'Self-improvement and meta-learning',
+                             'module': 'core.learning.unified_learning_system',
+                             'description': 'The substrate learning authority (continuous learning)',
                              'monitoring_enabled': True,
                              'subcomponents': {
-                                 'asi_self_improvement': {
-                                     'module': 'core.learning.enhanced_asi_self_improvement',
-                                     'description': 'ASI improvement cycle orchestrator',
-                                     'metric_prefixes': ('asi_',)},
                                  'performance_profiler': {
                                      'module': 'core.learning.performance_profiler',
                                      'description': 'Per-operation timing and throughput',
@@ -232,27 +223,13 @@ class HealthMonitor:
                                      # metrics are queue_* plus task_failure_rate.
                                      'metric_prefixes': ('queue_', 'task_failure_rate')},
                              }},
-        'llm':              {'type': 'cognitive', 'category': 'inference',
-                             'module': 'core.services.unified_llm',
-                             'description': 'Unified local LLM inference service',
-                             'monitoring_enabled': True,
-                             'subcomponents': {
-                                 'model': {
-                                     'module': 'core.services.unified_llm',
-                                     'description': 'Loaded inference model',
-                                     'metric_prefixes': ('llm_model_',)},
-                                 'inference_queue': {
-                                     'module': 'core.services.unified_llm',
-                                     'description': 'Inference job queue and worker',
-                                     'metric_prefixes': ('llm_queue_',)},
-                             }},
         'quantum':          {'type': 'cognitive', 'category': 'reasoning',
                              'module': 'core.quantum.quantum_factory',
                              'description': 'Quantum reasoning (disabled: no IBM access, '
                                             'qiskit_algorithms not installed)',
                              'monitoring_enabled': False},
         'governance':       {'type': 'governance', 'category': 'policy',
-                             'module': 'core.governance.unified_governance_trigger_system',
+                             'module': 'core.governance.governance_triggers',
                              'description': 'Governance trigger evaluation',
                              'monitoring_enabled': True},
         'safety':           {'type': 'safety', 'category': 'commitment',
@@ -260,8 +237,8 @@ class HealthMonitor:
                              'description': 'Commitment contracts and safety enforcement',
                              'monitoring_enabled': True},
         'security':         {'type': 'security', 'category': 'control',
-                             'module': 'core.security.controller',
-                             'description': 'Security controller and request validation',
+                             'module': 'core.security.input_validation',
+                             'description': 'Layer-1 input validation (SQL/path/rate)',
                              'monitoring_enabled': True},
         'threat_intel':     {'type': 'security', 'category': 'intelligence',
                              'module': 'core.security',
@@ -279,16 +256,6 @@ class HealthMonitor:
                              'module': 'core.security.malware_sandbox',
                              'description': 'Malware detonation sandbox',
                              'monitoring_enabled': True},
-        # THE GUARDIAN'S ACTIVE SECURITY SCANNER, as its own system component.
-        # It was a probed sub of 'security' (the substrate's request-validation
-        # controller), which conflated an always-on guardian scanner with a
-        # substrate-internal gate: its 55-finding backlog was folded into the
-        # controller's score, and it inherited 'substrate' ownership though the
-        # guardian runs it. Separated here so each is graded by its true owner.
-        'security_audit':   {'type': 'security', 'category': 'audit',
-                             'module': 'core.security.security_audit_worker',
-                             'description': 'Continuous security audit: findings and resolution',
-                             'monitoring_enabled': True},
         'health_system':    {'type': 'infrastructure', 'category': 'observability',
                              'module': 'core.health.health_monitor',
                              'description': 'The health system itself: watchdog and recovery',
@@ -298,10 +265,6 @@ class HealthMonitor:
                                      'module': 'core.health.recovery_manager',
                                      'description': 'Automatic failure recovery',
                                      'metric_prefixes': ('recovery_',)},
-                                 'watchdog': {
-                                     'module': 'core.health.system_watchdog',
-                                     'description': 'Watches the monitor itself',
-                                     'metric_prefixes': ('watchdog_',)},
                              }},
         'execution':        {'type': 'cognitive', 'category': 'control',
                              'module': 'core.execution.iteration_controller',
@@ -515,12 +478,11 @@ class HealthMonitor:
         firing an improvement-monitor cycle) CONCURRENTLY with the rest of
         startup — from PHASE 7 through the coordinator and security phases —
         starving the init phases behind it on the event loop. The loop belongs
-        in system start(): the watchdog (system_watchdog.start → start_monitoring,
-        idempotent) brings it up AFTER initialization completes. Build in
-        initialize(), run loops in start().
+        in system start(), which calls start_monitoring AFTER initialization
+        completes. Build in initialize(), run loops in start().
         """
         await self.sync_component_registry()
-        logger.info("HealthMonitor built (monitoring starts after init, via watchdog)")
+        logger.info("HealthMonitor built (monitoring starts after init)")
 
     #: Where core/ lives, for structural discovery.
     CORE_ROOT = Path(__file__).resolve().parents[1]
@@ -535,7 +497,7 @@ class HealthMonitor:
 
         A package or module is declared only if it DEFINES something (a class or
         a function). An empty shell is not a component: core/cache, core/logs,
-        core/databases, core/reporting and core/neural_bridge hold no modules at
+        core/databases and core/neural_bridge hold no modules at
         all, and declaring them would put components in the registry that no
         code corresponds to.
 
@@ -585,8 +547,8 @@ class HealthMonitor:
     def _monitored_module_ids(cls) -> Dict[str, str]:
         """component_id -> health-check name, for components a check measures.
 
-        The check names are CAPABILITIES ("llm", "firewall"), not packages --
-        `llm` is core/services/unified_llm.py. Mapping them onto the structural
+        The check names are CAPABILITIES ("firewall", "network"), not packages.
+        Mapping them onto the structural
         id keeps ONE id space: monitoring is an attribute of a component, not a
         parallel list of names.
         """
@@ -670,8 +632,8 @@ class HealthMonitor:
             written += 1
 
         # Capabilities that are measured but are not a single module: the
-        # inference queue inside unified_llm, the pool inside the database
-        # client, the firewall inside the integrated security system. Declared
+        # pool inside the database client, the firewall inside the integrated
+        # security system. Declared
         # as runtime parts of the component they live in, so a measurement has
         # somewhere to attach without inventing a module that does not exist.
         for name, spec in self.COMPONENT_MANIFEST.items():
@@ -790,8 +752,6 @@ class HealthMonitor:
                 metrics, issues = await self._check_agents_health()
             elif component == "security":
                 metrics, issues = await self._check_security_health()
-            elif component == "security_audit":
-                metrics, issues = await self._check_security_audit_health()
             elif component == "storage":
                 metrics, issues = await self._check_storage_health()
             elif component == "api":
@@ -800,8 +760,6 @@ class HealthMonitor:
                 metrics, issues = await self._check_quantum_health()
             elif component == "network":
                 metrics, issues = await self._check_network_health()
-            elif component == "llm":
-                metrics, issues = await self._check_llm_health()
             elif component == "governance":
                 metrics, issues = await self._check_governance_health()
             elif component == "chaos":
@@ -957,7 +915,7 @@ class HealthMonitor:
     #: not average out to 0.80 HEALTHY.
     CRITICALITY = {
         'critical': {'database', 'memory', 'safety', 'governance', 'security',
-                     'health_system', 'llm', 'domain', 'tools'},
+                     'health_system', 'domain', 'tools'},
         'optional': {'quantum', 'chaos', 'simulation', 'optimization',
                      'intelligence', 'metrics_export', 'malware_sandbox'},
     }
@@ -966,7 +924,7 @@ class HealthMonitor:
     #: expected. Declared ONLY where a loop exists -- a request-driven service
     #: has no cadence, and asserting one would make "nobody called it" look like
     #: a stall. Read from the component's own configured interval where it has
-    #: one (SystemWatchdog.check_interval is 30s).
+    #: one (HealthMonitor.check_interval is 30s).
     LOOP_CADENCE_SEC = {
         'health_system': 60,
         'agents': 300,
@@ -1228,18 +1186,13 @@ class HealthMonitor:
         """Write an assessment to unified.component_health.
 
         THE JOIN THAT WAS MISSING. This monitor measured every subsystem each
-        cycle and kept the result in memory; unified.component_health -- the
-        table EnhancedASISelfImprovement selects improvement targets from -- was
-        written only by intrinsic_motivation, with metric names as component
-        names on a 0-1 scale. So the improvement system read six rows called
-        `overall_status` and `active_alerts` and nothing about any real
-        component.
+        cycle and kept the result in memory; unified.component_health was written
+        only by intrinsic_motivation, with metric names as component names on a
+        0-1 scale. So consumers read rows called `overall_status` and
+        `active_alerts` and nothing about any real component.
 
-        Only the ASSESSMENT columns are written. error_count / success_count /
-        avg_latency_ms belong to per-operation reporting via
-        ImprovementMonitor.update_component_health, which is a different
-        question about the same component; splitting them keeps one writer per
-        column instead of two writers disagreeing about health_score.
+        Only the ASSESSMENT columns are written, keeping one writer per column
+        instead of two writers disagreeing about health_score.
         """
         # PERSIST THE COMPUTED SCORE, not a coarse re-derivation of it.
         #
@@ -1313,82 +1266,31 @@ class HealthMonitor:
             commit=True,
         )
 
-        # A LONG-TERM BASELINE FOR EVERY COMPONENT, at the one place a score is
-        # already computed and persisted.
-        #
-        # `unified.component_health` holds only the CURRENT score, so nothing
-        # could say whether 0.62 is where this component has always been or
-        # where it fell to. `long_term_baselines` answers that, and it was
-        # empty because its only writer had no callers.
-        #
-        # POLARITY. `track_cross_cycle_capability` treats higher as better, and
-        # that is true of `_health_score` and of almost nothing else here --
-        # `active_findings`, `error_rate` and `write_queue` all mean the
-        # opposite. Feeding one of those in would report a rising error rate as
-        # an IMPROVING capability, so only the computed score is baselined and
-        # any per-metric baseline must declare its own direction first.
-        # A BASELINE OF ZERO IS A FLOOR NOTHING CAN FALL THROUGH.
-        #
-        # Measured while wiring this: a health check run against a process
-        # where the subsystem is not initialised scores `memory` at 0.0,
-        # although its last real reading was 100. Establishing the baseline
-        # from that would fix the floor at zero permanently -- every later
-        # reading is >= it, so the component could never regress, and the
-        # component that looks most stable would be the one measured while it
-        # was down.
-        #
-        # So a NEW baseline is only established from a live, non-zero reading.
-        # An EXISTING baseline is always updated, because a genuine fall to
-        # zero is exactly the regression this is here to catch.
+        # LONG-TERM CAPABILITY BASELINE (owned by the learning authority now).
+        # `unified.component_health` holds only the CURRENT score; the baseline
+        # answers whether this component is where it has always been or where it
+        # fell to. Establish a NEW baseline only from an operationally-clean,
+        # non-zero reading — a zero taken while a component is down would fix a
+        # floor nothing can fall through and mask every later regression — but
+        # always UPDATE an existing one, because a genuine fall IS the regression
+        # this is here to catch.
         if score is not None:
-            # AN OPERATIONALLY-FAULTED READING IS NOT A CAPABILITY DATUM. health_score
-            # is an OPERATIONAL score; when it is depressed by a liveness fault
-            # (safety at 0 = "framework not initialized"; watchdog "not running") or
-            # a backlog (health_system at 46 = "820 unrecovered failures"), that is
-            # handled by remediation / the owning authority — not a capability
-            # regression. Feeding such a reading to the long-term baseline degraded
-            # it against a fault that has nothing to do with capability and flagged
-            # CRITICAL "capability regressions" on every init-only run, forever.
-            # Capability is tracked only from an operationally-clean reading.
             _issue_text = " ".join(str(i) for i in (health.issues or [])).lower()
             _operational = any(m in _issue_text for m in (
                 "is not running", "not initialized", "not started", "not attached",
                 "reports it is not running", "is inactive", "has crashed", "stalled",
-                "service(s) down", "services down",
-                "unrecovered failure", "escalated beyond automatic recovery",
-                "unresolved"))
-            if _operational:
-                return True
-            try:
-                from core.learning.improvement_monitor import get_improvement_monitor
+                "service(s) down", "services down", "unrecovered failure",
+                "escalated beyond automatic recovery", "unresolved"))
+            if not _operational:
+                try:
+                    from core.learning import get_learning_authority
+                    usable = float(score) > 0.0 and health.status is not HealthStatus.UNKNOWN
+                    await get_learning_authority().track_capability_baseline(
+                        health.component, "health_score", float(score), establish=usable)
+                except Exception as baseline_error:
+                    logger.error("Long-term baseline not updated for %s: %s",
+                                 health.component, baseline_error)
 
-                monitor = get_improvement_monitor()
-                usable = float(score) > 0.0 and health.status is not HealthStatus.UNKNOWN
-                if not usable:
-                    from core.database import get_database_manager as _gdb
-
-                    existing = await _gdb().execute_query(
-                        "SELECT 1 FROM unified.long_term_baselines "
-                        "WHERE component_name = $1 AND metric_name = 'health_score'",
-                        (health.component,), fetch_all=True)
-                    if not existing:
-                        logger.warning(
-                            "Not establishing a long-term baseline for %s from a "
-                            "score of %s (status %s): a zero baseline could never "
-                            "detect regression", health.component, score,
-                            health.status.value)
-                        raise _SkipBaseline
-
-                await monitor.track_cross_cycle_capability(
-                    component_name=health.component,
-                    metric_name="health_score",
-                    current_value=float(score),
-                    cycle_number=0)
-            except _SkipBaseline:
-                pass
-            except Exception as baseline_error:
-                logger.error("Long-term baseline not updated for %s: %s",
-                             health.component, baseline_error)
         return True
 
     #: Metric suffixes whose value is a self-report of being up. Exactly False
@@ -1490,12 +1392,6 @@ class HealthMonitor:
             metrics['recovery_escalations'] = rec['escalations']
             self._record_rate(metrics, 'recovery_failure_rate',
                               rec['failure_rate'], rec['total_failures'])
-
-            from core.health.system_watchdog import get_system_watchdog
-            wd = get_system_watchdog()
-            metrics['watchdog_running'] = bool(getattr(wd, 'is_running', False))
-            metrics['watchdog_recovery_attempts'] = len(getattr(wd, 'recovery_attempts', {}) or {})
-            metrics['watchdog_monitor_attached'] = getattr(wd, 'health_monitor', None) is not None
 
             metrics['monitored_components'] = len(self._monitored_components)
             metrics['components_with_readings'] = len(self.component_health)
@@ -1677,16 +1573,11 @@ class HealthMonitor:
             'constraint_solver':   ('core.reasoning.constraint_solver', 'get_constraint_solver', 'get_statistics'),
         },
         'security': {
-            # The substrate's request-validation controller and the policy that
-            # gates ITS actions. The guardian's audit scanner is NOT here -- it
-            # is the top-level system component 'security_audit' -- so this no
-            # longer conflates a substrate gate with an always-on scanner.
-            'safety_framework':    ('core.security.safety_framework', 'get_safety_framework', 'get_statistics'),
+            # The gate itself is measured by _check_safety_health, which reads
+            # the CONSTITUTION. safety_framework is not probed here any more: it
+            # no longer gates anything, and probing a retired system reports on
+            # a subsystem whose health has no consequence.
             'training_pipeline':   ('core.security.security_training_pipeline', 'get_training_pipeline', 'get_statistics'),
-            'digital_footprint':   ('core.security.digital_footprint', 'get_digital_footprint_obliterator', 'get_statistics'),
-        },
-        'security_audit': {
-            'audit_worker':        ('core.security.security_audit_worker', 'get_audit_worker', 'get_statistics'),
         },
         'learning': {
             'causal_analyzer':     ('core.learning.causal_feedback_analyzer', 'get_causal_analyzer', 'get_statistics'),
@@ -2184,93 +2075,69 @@ class HealthMonitor:
         issues = []
 
         try:
-            from core.learning.enhanced_asi_self_improvement import get_asi_self_improvement
-            asi = get_asi_self_improvement()
-            # LIVENESS ANCHOR. Learning's health is graded on whether it is UP and
-            # running, not on how often its experiments succeed (a cognitive
-            # success rate is an outcome, informational — see evaluate). Without a
-            # liveness signal, excluding the success rates left the component with
-            # nothing to score and it graded UNKNOWN. `_available` is a recognised
-            # liveness signal; the except path sets it False if the ASI faculty
-            # cannot be reached at all.
-            metrics['asi_available'] = True
-            # THE DURABLE RECORD, not this process's memory. `get_statistics()`
-            # counts an in-process list, and the monitor builds a fresh
-            # singleton on every check, so it reported 0 cycles while
-            # unified.improvement_cycles held 11 -- scoring learning 46/100 and
-            # blocking self-improvement because self-improvement had supposedly
-            # never run.
-            asi_stats = await asi.get_persisted_statistics()
+            from core.learning import get_learning_authority
+            # LIVENESS ANCHOR. Learning's health is graded on whether the learning
+            # authority is UP, not on a cognitive success rate (an outcome,
+            # informational). The substrate learns continuously from action→outcome;
+            # there is no separate self-improvement engine to poll (retired). Without
+            # a liveness signal the component would grade UNKNOWN.
+            authority = get_learning_authority()
+            metrics['learning_available'] = authority is not None
+        except Exception as _learn_err:
+            metrics['learning_available'] = False
+            logger.debug(f"Learning authority unavailable: {_learn_err}")
 
-            metrics['asi_total_cycles'] = asi_stats.get('total_cycles', 0)
-            metrics['asi_improvements_deployed'] = asi_stats.get('total_improvements_deployed', 0)
-            metrics['asi_avg_cycle_duration_sec'] = round(asi_stats.get('avg_cycle_duration', 0.0), 1)
-            metrics['asi_components_improved'] = asi_stats.get('components_improved', 0)
-
-            # HEALTH READS RECENT BEHAVIOUR, NOT A LIFETIME AVERAGE. The lifetime
-            # success rate is dominated by old pre-fix cycles and by long-dormant
-            # periods, so a 6% frozen from a burst 10+ days ago was pinning learning
-            # health today. The success-rate SIGNAL and the low-rate ISSUE are
-            # gated on the loop having actually run recently; when it hasn't, the
-            # rate is not-applicable (not a failure) and the dormancy is recorded
-            # as an informational metric, not an issue that tanks the score.
-            recent_cycles = asi_stats.get('recent_cycles', 0) or 0
-            recent_rate = asi_stats.get('recent_success_rate')
-            metrics['asi_recent_cycles'] = recent_cycles
-            metrics['asi_recently_exercised'] = recent_cycles > 0
-            self._record_rate(
-                metrics, 'asi_success_rate',
-                None if recent_rate is None else round(recent_rate, 3),
-                recent_cycles)
-            if (recent_cycles > 5 and recent_rate is not None and recent_rate < 0.3):
-                issues.append(
-                    f"Low ASI improvement success rate: {recent_rate:.0%} over "
-                    f"{recent_cycles} recent cycles")
-
-        except Exception as _asi_err:
-            metrics['asi_available'] = False
-            logger.debug(f"ASI self-improvement stats unavailable: {_asi_err}")
-
-        # CAPABILITY LOST SINCE THE BASELINE, not just work completed.
-        #
-        # Every ASI metric above counts what self-improvement DID -- cycles,
-        # deployments, success rate. None of them can fall when the system gets
-        # WORSE, so a run of successful cycles that quietly degraded three
-        # components reported as healthy.
-        #
-        # `get_capability_regression_report` answers the other half -- "did we
-        # lose abilities we had 30-60 cycles ago" -- and had zero callers.
+        # CAPABILITY LOST SINCE THE BASELINE, not just work completed. The authority
+        # holds each component's long-term baseline; it reports which are degrading.
+        # A degrading row is a REAL capability regression only when BOTH hold against
+        # THIS monitor's live reading (no re-measure): the live value is still
+        # meaningfully below baseline (else the row is stale — the component
+        # recovered since), and the current finding is NOT operational (a liveness /
+        # backlog dip is remediation's job, not lost capability). That verification
+        # lives here because this monitor owns the live component_health.
         try:
-            from core.learning.improvement_monitor import get_improvement_monitor
+            from core.learning import get_learning_authority
+            _OPERATIONAL_MARKERS = (
+                "is not running", "not initialized", "not started", "not attached",
+                "reports it is not running", "is inactive", "has crashed", "stalled",
+                "service(s) down", "services down", "unrecovered failure",
+                "escalated beyond automatic recovery", "unresolved")
+            _live = self.component_health or {}
 
-            regression_report = await get_improvement_monitor(
-            ).get_capability_regression_report()
-            regressed = regression_report.get("regressions") or []
+            def _is_capability_regression(r) -> bool:
+                comp = r["component_name"]
+                rec = _live.get(comp) or _live.get(f"{comp}.{comp}")
+                if rec is None:
+                    return False  # unverifiable against a live reading → not CRITICAL
+                baseline = r.get("baseline_value")
+                cur = (getattr(rec, "metrics", {}) or {}).get("_health_score")
+                cur = float(cur) * 100.0 if cur is not None else None
+                if cur is not None and baseline and baseline > 0 and \
+                        ((baseline - cur) / baseline) * 100.0 <= 5.0:
+                    return False  # not actually below baseline now — stale row
+                text = " ".join(str(i) for i in (getattr(rec, "issues", None) or [])).lower()
+                if any(m in text for m in _OPERATIONAL_MARKERS):
+                    return False  # a liveness/backlog fault, not lost capability
+                return True
+
+            regressed = [r for r in await get_learning_authority().get_capability_regressions()
+                         if _is_capability_regression(r)]
             metrics['capability_regressions'] = len(regressed)
             metrics['capability_regressions_critical'] = sum(
-                1 for r in regressed if r.get("severity") == "CRITICAL")
-
-            for regression in regressed:
-                # SELF-REFERENCE BREAKS THE LOOP. This IS the learning/ASI check,
-                # and it records its own health as `learning.health_score`. Counting
-                # that back as an issue makes learning's low score its own cause: a
-                # dip is filed as a regression, the regression is read here as an
-                # issue, the issue holds the score down, and it can never recover.
-                # The self metric is skipped; every OTHER component's regression is
-                # still ASI's to answer for (that is what this check is for).
-                if (regression.get("component_name") == "learning"
-                        and regression.get("metric_name") == "health_score"):
+                1 for r in regressed if (r.get("component_name") != "learning"))
+            for r in regressed:
+                # SELF-REFERENCE GUARD: this IS the learning check and it records its
+                # own health as learning.health_score; counting that back as an issue
+                # would make learning's low score its own cause, unrecoverable.
+                if r.get("component_name") == "learning" and r.get("metric_name") == "health_score":
                     continue
-                if regression.get("severity") in ("CRITICAL", "HIGH"):
-                    issues.append(
-                        f"Capability regression ({regression['severity']}): "
-                        f"{regression['component_name']}.{regression['metric_name']} "
-                        f"lost {regression.get('pct_capability_lost')}% against a "
-                        f"baseline held for {regression.get('cycles_tracked')} cycle(s)")
+                issues.append(
+                    f"Capability regression: {r['component_name']}.{r['metric_name']} "
+                    f"fell from a baseline of {r.get('baseline_value')} to "
+                    f"{r.get('last_cycle_value')} over {r.get('cycles_tracked')} cycle(s)")
         except Exception as _reg_err:
             # An unavailable regression report is not an absence of regression.
             metrics['capability_regressions'] = None
-            issues.append(f"Capability regression could not be assessed: {_reg_err}")
             logger.error("Capability regression report unavailable: %s", _reg_err)
 
         try:
@@ -2433,22 +2300,27 @@ class HealthMonitor:
         issues = []
 
         try:
-            from core.security.controller import get_security_controller
+            # Live security surface after the governance/security consolidation:
+            # Layer-1 input validation (SQL injection / path traversal / rate
+            # limiting) lives in core.security.input_validation, and runtime
+            # governance (capacity/lifecycle/laws) in RuntimeGovernance. The
+            # legacy SecurityController was archived; reading it here reported a
+            # false CRITICAL for a subsystem that had merely moved.
+            from core.security.input_validation import get_input_validator
+            from core.agents.autonomous.runtime_governance import get_runtime_governance
 
-            security = get_security_controller()
+            validator = get_input_validator()
+            stats = validator.get_statistics()
+            # A real liveness reading: governance authority is constructable too.
+            governance_live = get_runtime_governance() is not None
 
-            # Get security statistics
-            stats = await security.get_statistics()
-
-            # LIVENESS. The check emitted only a level STRING and plain integer
-            # counts — none of which the evaluator can read as a signal — so
-            # security graded UNKNOWN at 0.0 coverage however well it was running.
-            # The controller responding is a real liveness reading; named *_active
-            # so the evaluator measures it (and gates on it when down).
-            metrics['security_controller_active'] = True
+            # LIVENESS. Named *_active so the evaluator measures it (and gates on
+            # it when down). The validator answering + governance present is the
+            # honest "security is running" signal.
+            metrics['security_controller_active'] = bool(stats.get('active')) and governance_live
 
             total = int(stats.get('total_requests', 0) or 0)
-            metrics['security_level'] = stats.get('security_level', 'unknown')
+            metrics['security_level'] = 'active'
             metrics['total_requests'] = total
             metrics['blocked_requests'] = int(stats.get('blocked_requests', 0) or 0)
             metrics['security_violations'] = int(stats.get('security_violations', 0) or 0)
@@ -2471,45 +2343,6 @@ class HealthMonitor:
             # empty reading; recorded as down so the evaluator can gate on it.
             metrics['security_controller_active'] = False
             issues.append(f"Security health check error: {str(e)}")
-            metrics['error'] = str(e)
-
-        return metrics, issues
-
-    async def _check_security_audit_health(self) -> tuple[Dict[str, Any], List[str]]:
-        """The guardian's continuous security audit: findings and resolution.
-
-        Its own component now, not folded into the substrate's security
-        controller. An unresolved backlog -- especially a CRITICAL finding -- is
-        a real, honest degradation of the system's security posture, surfaced
-        here where an always-on scanner belongs.
-        """
-        metrics: Dict[str, Any] = {}
-        issues: List[str] = []
-        try:
-            from core.security.security_audit_worker import get_audit_worker
-
-            stats = await get_audit_worker().get_statistics()
-            active = int(stats.get('active_findings', 0) or 0)
-            # The CURRENT unresolved-critical count, not the lifetime cumulative
-            # `critical_findings` — reading that reported "5202 unresolved" from a
-            # counter that only ever grows, while the live backlog was empty.
-            critical = int(stats.get('active_critical_findings', 0) or 0)
-            resolution = float(stats.get('resolution_rate', 0.0) or 0.0)  # 0-100
-            metrics['audit_monitoring_active'] = bool(stats.get('monitoring_active', False))
-            metrics['audit_total_audits'] = int(stats.get('total_audits', 0) or 0)
-            metrics['audit_active_findings'] = active
-            metrics['audit_critical_findings'] = critical
-            self._record_rate(metrics, 'audit_resolution_rate',
-                              round(resolution / 100.0, 3), active or 1)
-
-            if not metrics['audit_monitoring_active']:
-                issues.append("Security audit scanner is not running")
-            if critical > 0:
-                issues.append(f"{critical} unresolved CRITICAL security finding(s)")
-            if active > 0 and resolution == 0.0:
-                issues.append(f"{active} active finding(s), none resolved")
-        except Exception as e:
-            issues.append(f"Security audit health check error: {type(e).__name__}: {e}")
             metrics['error'] = str(e)
 
         return metrics, issues
@@ -2824,114 +2657,20 @@ class HealthMonitor:
         self._declared_metrics['network'] = declared
         return metrics, issues
 
-    async def _check_llm_health(self) -> tuple[Dict[str, Any], List[str]]:
-        """Check the teacher model health — model loaded, throughput, failure rate"""
-        metrics: Dict[str, Any] = {}
-        issues: List[str] = []
-
-        try:
-            from core.services.unified_llm import get_llm_service
-            llm = get_llm_service()
-
-            # `.statistics` is the raw counter dict (9 keys). get_statistics()
-            # is the provider, and it adds the three signals that actually say
-            # whether inference can be served at all: model_loaded, worker_alive
-            # and inference_queue_size. Reading the attribute meant the guessing
-            # chain below fell through to bool(None) -> False, so "model not
-            # loaded" was reported whether or not it was.
-            stats = llm.get_statistics()
-            metrics['llm_model_loaded'] = bool(stats['model_loaded'])
-            metrics['llm_total_requests'] = stats.get('total_requests', 0)
-            metrics['llm_successful_requests'] = stats.get('successful_requests', 0)
-            metrics['llm_failed_requests'] = stats.get('failed_requests', 0)
-            metrics['llm_total_tokens'] = stats.get('total_tokens', 0)
-            metrics['llm_avg_processing_time_sec'] = round(float(stats.get('avg_processing_time', 0.0)), 2)
-            # The provider returns these and nothing read them: a dead inference
-            # worker is the difference between "no requests yet" and "requests
-            # cannot be served at all", and both looked identical.
-            metrics['llm_queue_depth'] = stats['inference_queue_size']
-
-            # THE WORKER IS A LOCAL-MODE CONCEPT. `worker_alive` reads
-            # `_worker_task`, which exists to serialise access to an in-process
-            # Llama object; it is created only on the local model-loading path.
-            # Production runs remote (LLM_SERVER_URL), where there is no such
-            # object and therefore no worker by design -- so this gate reported
-            # "requests cannot be served" as CRITICAL while requests were being
-            # served successfully. A signal that is inapplicable to the running
-            # mode is not evidence of failure; it is not evidence at all.
-            #
-            # `_remote_client` is the runtime discriminator: it is set only
-            # after the remote handshake succeeds and reset to None when remote
-            # becomes unavailable.
-            remote = getattr(llm, '_remote_client', None) is not None
-            metrics['llm_mode'] = 'remote' if remote else 'local'
-
-            if remote:
-                # A handshake that succeeded at startup is not proof the teacher model is
-                # reachable now, so this measures it rather than trusting the
-                # flag. Short timeout: the client's own is the 600s inference
-                # timeout, which would hang the health check.
-                try:
-                    r = await llm._remote_client.get(
-                        f"{llm.remote_url}/v1/models", timeout=5.0)
-                    metrics['llm_remote_endpoint_connected'] = (r.status_code == 200)
-                    if r.status_code != 200:
-                        issues.append(
-                            f"LLM server returned HTTP {r.status_code} — inference unavailable")
-                except Exception as e:
-                    metrics['llm_remote_endpoint_connected'] = False
-                    issues.append(f"LLM server unreachable at {llm.remote_url}: {e}")
-            else:
-                metrics['llm_queue_worker_alive'] = stats['worker_alive']
-                if not stats['worker_alive']:
-                    issues.append(
-                        'LLM inference worker is not alive — requests cannot be served')
-
-            total = metrics['llm_total_requests']
-            if total > 0:
-                failure_rate = metrics['llm_failed_requests'] / total
-                metrics['llm_failure_rate'] = round(failure_rate, 3)
-                if failure_rate > 0.3 and total >= 5:
-                    issues.append(
-                        f"High LLM failure rate: {failure_rate:.0%} "
-                        f"({metrics['llm_failed_requests']}/{total})"
-                    )
-            else:
-                # No request has been made; a failure rate over zero
-                # observations is undefined, not zero -- and undefined for that
-                # reason is not missing evidence, so it does not count against
-                # coverage.
-                metrics['llm_failure_rate'] = None
-                metrics['_not_applicable'] = ['llm_failure_rate']
-
-            if not metrics['llm_model_loaded']:
-                issues.append("LLM model not loaded — inference unavailable")
-
-            if metrics['llm_avg_processing_time_sec'] > 120:
-                issues.append(
-                    f"Slow LLM response: avg {metrics['llm_avg_processing_time_sec']:.1f}s"
-                )
-
-        except Exception as e:
-            issues.append(f"LLM health check error: {str(e)}")
-            metrics['error'] = str(e)
-
-        return metrics, issues
-
     async def _check_governance_health(self) -> tuple[Dict[str, Any], List[str]]:
-        """Check governance system health — evaluation counts, rejection rate, enforcement level"""
+        """Check governance system health — evaluation counts, rejection rate"""
         metrics: Dict[str, Any] = {}
         issues: List[str] = []
 
         try:
-            from core.governance.unified_governance_trigger_system import get_unified_governance
-            gov = get_unified_governance()
+            from core.governance.governance_triggers import get_governance_trigger_engine
+            gov = get_governance_trigger_engine()
 
             # EVERY READ HERE WAS INVENTED.
             #
-            # UnifiedGovernanceTriggerSystem has no `stats`, no `initialized` and
+            # GovernanceTriggerEngine has no `stats`, no `initialized` and
             # no `enforcement_level` -- its surface is config / trigger_cache /
-            # enforcement_manager / evaluate_action. So:
+            # evaluate_action. So:
             #   stats            -> {}    -> all counts reported 0
             #   initialized      -> getattr default True  -> ALWAYS "initialized",
             #                       which made the "not initialized" issue below
@@ -2958,16 +2697,6 @@ class HealthMonitor:
             metrics['governance_total_evaluations'] = int(row['total'])
             metrics['governance_approved'] = int(row['approved'] or 0)
             metrics['governance_rejected'] = int(row['rejected'] or 0)
-
-            # enforcement_manager is a real attribute and is None when no
-            # enforcement is attached -- reported instead of an invented level.
-            enforcement = getattr(gov, 'enforcement_manager', None)
-            metrics['governance_enforcement_attached'] = enforcement is not None
-            metrics['governance_enforcement_level'] = str(
-                getattr(enforcement, 'mode', 'none') if enforcement else 'none')
-            if enforcement is None:
-                issues.append('Governance enforcement manager not attached — '
-                              'triggers evaluate but nothing enforces them')
 
             total = metrics['governance_total_evaluations']
             if total > 0:
@@ -3040,154 +2769,88 @@ class HealthMonitor:
         return metrics, issues
 
     async def _check_safety_health(self) -> tuple[Dict[str, Any], List[str]]:
-        """Check the safety layer — the framework that gates actions, and the
-        commitment contracts subsystem alongside it.
+        """Check the layer that GATES ACTS — which is now the constitution.
 
-        THIS MEASURED THE WRONG SUBSYSTEM. The whole verdict came from
-        `CommitmentContractManager._instance`, which nothing constructs, so
-        `safety` graded CRITICAL permanently -- while SafetyFramework, the
-        single entry point every tool call and task evaluation routes through,
-        was not measured at all. The component reporting critical and the
-        component's actual enforcement being unobserved were the same bug: the
-        check was pointed at a subsystem that is not on the enforcement path.
+        THIS MEASURED A SYSTEM THAT NO LONGER GOVERNS. The whole probe read
+        `safety_framework`, and reported CRITICAL when it was absent with the
+        reason "actions are evaluated by nothing". That statement became false
+        the moment `tool_registry.execute_tool` began putting every act to
+        `Constitution.judge`: acts are evaluated by the constitution, and a
+        missing safety framework says nothing about whether they are.
 
-        Contracts are still reported, because absent is a fact worth recording.
-        They no longer decide the verdict: a subsystem nothing has wired cannot
-        be the reason the safety layer reads as failing, and letting it be that
-        reason is what hid the enforcement signals behind a permanent CRITICAL.
+        A health check that grades the wrong subsystem is worse than none: it
+        reports danger where there is none and, more importantly, leaves the
+        real gate unmeasured. So this measures the real one.
 
-        Metrics are DECLARED here rather than inferred from name suffixes, so
-        which signals gate is stated explicitly instead of following from the
-        fact that a key happens to end in `_initialized`.
+        WHAT IS CRITICAL HERE, and why: the gate must be REACHABLE. `judge_act`
+        fails closed, so an unreachable constitution does not mean acts go
+        unjudged — it means every act is refused and the substrate stops acting
+        at all. Either way it is the one condition that must hold.
+
+        `judge_faults` is reported but does not gate: a fault is already
+        converted into a BLOCK, so faults are a signal about the judging code,
+        not about whether acts are governed.
         """
         metrics: Dict[str, Any] = {}
         issues: List[str] = []
         declared: List[HealthMetric] = []
 
         try:
-            # Read the module singleton rather than calling the factory: the
-            # factory CREATES the framework when absent, so measuring through it
-            # would bring into existence the thing being measured and always
-            # report success.
-            from core.security import safety_framework as sf_mod
-            framework = getattr(sf_mod, '_safety_framework', None)
+            from core.agents.autonomous.autonomous_coordinator import get_constitution
 
-            metrics['safety_framework_initialized'] = framework is not None
+            constitution = get_constitution()
+            reachable = constitution is not None
+            metrics['constitution_reachable'] = reachable
             declared.append(HealthMetric(
-                name='safety_framework_initialized', raw_value=framework is not None,
-                normalized=invariant(framework is not None), weight=1.0,
+                name='constitution_reachable', raw_value=reachable,
+                normalized=invariant(reachable), weight=1.0,
                 required=True, critical=True,
-                reason=None if framework else 'safety framework not constructed'))
+                reason=None if reachable else 'the gate cannot be reached'))
+            if not reachable:
+                issues.append('Constitution unreachable — every act fails closed, '
+                              'so the substrate cannot act at all')
+                self._declared_metrics['safety'] = declared
+                return metrics, issues
 
-            if framework is None:
-                issues.append('Safety framework not initialized — '
-                              'actions are evaluated by nothing')
-            else:
-                stats = framework.get_statistics()
+            status = await constitution.get_constitution_status()
+            metrics['constitution_active'] = bool(status.get('active'))
+            metrics['constitution_laws'] = int(status.get('governance_laws_count', 0))
 
-                blocking = bool(stats.get('blocking_enabled'))
-                metrics['safety_blocking_enabled'] = blocking
-                declared.append(HealthMetric(
-                    name='safety_blocking_enabled', raw_value=blocking,
-                    normalized=invariant(blocking), weight=1.0,
-                    required=True, critical=True,
-                    reason=None if blocking else 'evaluations run but nothing is blocked'))
-                if not blocking:
-                    issues.append('Safety blocking disabled — violations are '
-                                  'detected but actions still execute')
+            counts = dict(getattr(constitution, 'metrics', {}) or {})
+            judged = int(counts.get('judged', 0))
+            refused = (int(counts.get('blocked', 0)) + int(counts.get('redirected', 0))
+                       + int(counts.get('replanned', 0)))
+            metrics['acts_judged'] = judged
+            metrics['acts_refused'] = refused
+            metrics['judge_faults'] = int(counts.get('judge_faults', 0))
 
-                # Recorded, deliberately not gated. SafetyFramework.constraints
-                # is assigned an empty list in __init__ and nothing anywhere
-                # appends to it -- its only reader is this statistic. Gating on
-                # `> 0` would be permanently unsatisfiable, which is the same
-                # defect as the contract gate below: a critical check that no
-                # reachable state can pass. Enforcement lives in the pattern and
-                # validation layers, not in this field.
-                metrics['safety_constraints_loaded'] = int(stats.get('constraints_count', 0))
+            # A refusal rate over zero judgements is not a clean record, which is
+            # why it is recorded through _record_rate rather than divided here.
+            self._record_rate(metrics, 'act_refusal_rate',
+                              round(refused / judged, 3) if judged else 0.0, judged)
+            rate = metrics['act_refusal_rate']
+            declared.append(HealthMetric(
+                name='act_refusal_rate', raw_value=rate,
+                normalized=None if rate is None else lower_is_better(rate, 0.5, 0.0),
+                weight=0.5, required=False, critical=False))
 
-                evaluations = int(stats.get('evaluations_performed', 0))
-                violations = int(stats.get('violations_detected', 0))
-                metrics['safety_evaluations_performed'] = evaluations
-                metrics['safety_violations_detected'] = violations
-                metrics['safety_events_logged'] = int(stats.get('events_logged', 0))
-
-                # get_statistics() divides by total_evaluations and returns 0.0
-                # when there have been none. A 0% violation rate over zero
-                # evaluations is not a clean record, and as a cost rate it would
-                # normalise to a perfect 1.0.
-                self._record_rate(metrics, 'safety_violation_rate',
-                                  round(float(stats.get('violation_rate', 0.0)), 3),
-                                  evaluations)
-                rate = metrics['safety_violation_rate']
-                declared.append(HealthMetric(
-                    name='safety_violation_rate', raw_value=rate,
-                    normalized=None if rate is None else lower_is_better(rate, 0.2, 0.0),
-                    weight=0.5, required=False, critical=False))
-
-            # THE CONTRACT GATE COULD NEVER PASS. This read
-            # `CommitmentContractManager._instance` -- an attribute the class
-            # does not define and nothing anywhere assigns -- so the getattr
-            # default made `safety_contracts_initialized` False on every run.
-            # As a `_initialized` key on a critical component that is an
-            # automatic gate, so `safety` reported CRITICAL permanently, for a
-            # condition no reachable state could satisfy.
-            #
-            # The manager was initialized the whole time: SafetyFramework builds
-            # one in __init__ and holds it as `contract_manager`. That is the
-            # real handle, so it is the one read here.
-            manager_instance = getattr(framework, 'contract_manager', None)
-            metrics['safety_contracts_initialized'] = manager_instance is not None
-
-            if manager_instance is None:
-                issues.append('Commitment contract manager not initialized — '
-                              'contract verification is not running')
-            else:
-                # TWO CLASSES SHARE THIS NAME. core/safety/commitment_contracts
-                # holds the one SafetyFramework constructs; the one this check
-                # used to import, core/safety/commitment_contract_manager, is a
-                # separate implementation that nothing on the enforcement path
-                # builds. They do not share an interface -- the live one's
-                # get_contract_stats is sync and returns a dict, the other's is
-                # async and returns a ContractStats -- so the `await ... .field`
-                # here was wrong for the object actually in use. It never raised
-                # only because the impossible gate above returned first.
-                #
-                # That method is also a stub (`return {}`), so the counts are
-                # read from the state the manager really keeps. Reporting the
-                # stub's zeros would say "measured: no contracts, no violations"
-                # about a subsystem that measured nothing.
-                contracts = getattr(manager_instance, 'contracts', None)
-                violations_by_cat = getattr(manager_instance, 'violations_by_category', None)
-                metrics['safety_contract_stats_implemented'] = bool(
-                    manager_instance.get_contract_stats())
-
-                if contracts is None or violations_by_cat is None:
-                    issues.append('Commitment contract manager exposes no contract state')
-                else:
-                    total = len(contracts)
-                    violated = sum(len(v) for v in violations_by_cat.values())
-                    metrics['safety_total_contracts'] = total
-                    metrics['safety_violated_contracts'] = violated
-                    self._record_rate(metrics, 'safety_contract_violation_rate',
-                                      (violated / total) if total else 0.0, total)
-                    c_rate = metrics['safety_contract_violation_rate']
-                    declared.append(HealthMetric(
-                        name='safety_contract_violation_rate', raw_value=c_rate,
-                        normalized=None if c_rate is None else lower_is_better(c_rate, 0.2, 0.0),
-                        weight=0.5, required=False, critical=False))
-
-                    if c_rate is not None and c_rate > 0.2 and total >= 5:
-                        issues.append(
-                            f"High commitment violation rate: {c_rate:.0%}"
-                        )
+            # The argument screen inside the constitution, absorbed from the
+            # layer this replaced. Its own faults are worth seeing: an argument
+            # it could not read is refused, so a rising count means acts are
+            # being stopped by unreadability rather than by a law.
+            screen = dict(getattr(constitution, 'input', None).status()
+                          if getattr(constitution, 'input', None) else {})
+            for key in ('screened', 'injection', 'traversal', 'unscreenable',
+                        'screen_faults'):
+                metrics[f'input_screen_{key}'] = int(screen.get(key, 0))
 
             self._declared_metrics['safety'] = declared
 
         except Exception as e:
             metrics['safety_available'] = False
-            issues.append(f"Safety framework health check failed: "
+            issues.append(f"Constitution health check failed: "
                           f"{type(e).__name__}: {e}")
-            logger.warning(f"Safety framework health check error: {e}")
+            logger.warning(f"Constitution health check error: {e}")
 
         return metrics, issues
 

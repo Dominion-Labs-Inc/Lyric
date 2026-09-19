@@ -13,7 +13,6 @@ BOOT MATRIX (what each suite starts):
   llm          ✓      ✓          ✗             ✗           ✗         ✗     ✗
   roundtrip    ✓      ✓          ✗             ✗           ✗         ✗     ✗
   task         ✓      ✓          ✓             ✓           ✓*        ✗     ✗
-  upgrade      ✓      ✓          ✓             ✓           ✓*        ✗     ✗
   memory       ✗      ✗          ✗             ✗           ✓         ✓     ✗
 
   * Memory agent initialises (needed by context manager) but background
@@ -34,32 +33,15 @@ Test suites:
   llm       -- model emits a correctly-named tool call for a minimal prompt
   roundtrip -- LLM calls tool → registry executes → result fed back → model summarises
   task      -- full AutonomousCoordinator end-to-end agentic loop
-  upgrade   -- LIVE SELF-UPGRADE CYCLE (8 phases):
-                 1. Research (≥5 searches) — find a real breakthrough or best practice
-                 2. Internal analysis — read own code, identify the target gap
-                 3. Design — plan the change before writing any code
-                 4. Implement — write substantive Python code
-                 5. Verify loop — run syntax/lint/tests, fix failures, REPEAT until 100%%
-                 6. Confirm — read back the file, confirm new code is present
-                 7. Monitor — 5-minute post-change health window (5 × 60 s checks)
-                 8. Report — full Markdown upgrade report written to iCloud
   memory    -- MemoryAgent read/write/recall against the real filter + DB
 
 Usage:
     python shadow_mode_test.py                    # run all suites
-    python shadow_mode_test.py --suite upgrade    # self-upgrade cycle only (recommended)
     python shadow_mode_test.py --suite task       # task execution only
     python shadow_mode_test.py --suite memory     # memory system only
     python shadow_mode_test.py --suite direct     # tool registry only (no LLM)
     python shadow_mode_test.py --dry-run          # import check, no model load
 
-Self-upgrade cycle notes:
-  - timeout: 7200 s (2 hours) — the verify loop may iterate many times
-  - The AI will NOT proceed past Phase 5 until every test passes (100%% hard gate)
-  - Change is applied directly via write_file / patch_file
-  - FORBIDDEN targets: core/governance/, core/security/, core/learning/upgrade_*.py,
-    core/learning/enhanced_asi_self_improvement.py, shadow_mode_test.py, core/memory/
-  - Post-change monitoring window: exactly 5 minutes with health check every 60 s
 """
 
 import sys
@@ -554,115 +536,6 @@ def _extract_import_repair_phases(tool_results: list) -> dict:
     return phases
 
 
-def _extract_self_upgrade_phases(tool_results: list) -> dict:
-    phases: dict = {
-        "research_calls":    0,
-        "test_iterations":   0,
-        "syntax_passes":     0,
-        "lint_passes":       0,
-        "pytest_passes":     0,
-        "deploy_called":     False,
-        "deployment_id":     None,
-        "deploy_strategy":   None,
-        "deploy_success":    None,
-        "monitor_checks":    0,
-        "monitor_trend":     None,
-        "report_written":    False,
-        "final_verdict":     None,
-        "phases_seen":       set(),
-    }
-
-    research_tools = {"conduct_research", "http_request", "search_academic", "web_search"}
-    apply_tools    = {"write_file", "patch_file", "apply_patch", "atomic_write_file"}
-
-    for tr in (tool_results or []):
-        tool_name = ""
-        output    = {}
-
-        if isinstance(tr, dict):
-            tool_name = tr.get("tool") or tr.get("name") or ""
-            output    = tr.get("output") or tr.get("result") or {}
-        elif hasattr(tr, "tool_name"):
-            tool_name = tr.tool_name or ""
-            output    = getattr(tr, "output", {}) or {}
-
-        if isinstance(output, str):
-            try:
-                output = json.loads(output)
-            except Exception:
-                output = {"raw": output}
-
-        tn_lower = tool_name.lower()
-
-        # Research phase
-        if tool_name in research_tools or any(r in tn_lower for r in research_tools):
-            phases["research_calls"] += 1
-            phases["phases_seen"].add("PHASE_1_RESEARCH")
-
-        # Internal analysis
-        if tool_name in {"read_file", "grep_search", "list_directory", "analyze_code"}:
-            phases["phases_seen"].add("PHASE_2_ANALYSIS")
-
-        # Syntax check
-        if "check_syntax" in tn_lower:
-            phases["phases_seen"].add("PHASE_5_TEST_LOOP")
-            if output.get("success") or output.get("valid") or not output.get("errors"):
-                phases["syntax_passes"] += 1
-            phases["test_iterations"] = max(phases["test_iterations"], 1)
-
-        # Lint
-        if "lint" in tn_lower:
-            phases["phases_seen"].add("PHASE_5_TEST_LOOP")
-            if output.get("success") or not output.get("errors"):
-                phases["lint_passes"] += 1
-
-        # Pytest
-        if "pytest" in tn_lower or "run_test" in tn_lower:
-            phases["phases_seen"].add("PHASE_5_TEST_LOOP")
-            phases["test_iterations"] += 1
-            if output.get("success") or (output.get("failures", 1) == 0):
-                phases["pytest_passes"] += 1
-
-        # Write file (implement phase)
-        if tool_name in {"write_file", "patch_file", "create_file"}:
-            phases["phases_seen"].add("PHASE_4_IMPLEMENT")
-
-        # Apply change (confirm phase) — write_file / patch_file is the real upgrade path
-        if tool_name in apply_tools or any(a in tn_lower for a in apply_tools):
-            phases["phases_seen"].add("PHASE_6_CONFIRM")
-            phases["deploy_called"] = True
-            if output.get("success") is not False:
-                phases["deploy_success"] = True
-
-        # Health monitoring
-        if any(h in tn_lower for h in {"health", "system_status", "get_status"}):
-            phases["phases_seen"].add("PHASE_7_MONITOR")
-            phases["monitor_checks"] += 1
-
-        # Report write
-        if tool_name in {"write_file", "create_file"} and output.get("success"):
-            raw = output.get("raw") or output.get("file_path") or ""
-            if "upgrade" in str(raw).lower() or "upgrades" in str(raw).lower():
-                phases["phases_seen"].add("PHASE_8_REPORT")
-                phases["report_written"] = True
-
-        # Final verdict extraction from any text output
-        for key in ("content", "summary", "raw", "text"):
-            val = str(output.get(key) or "").upper()
-            for verdict in ("APPLIED_AND_STABLE", "APPLIED_DEGRADING", "BLOCKED_BY_TESTS",
-                            # legacy names kept for backwards compatibility
-                            "DEPLOYED_AND_STABLE", "DEPLOYED_DEGRADING", "BLOCKED_BY_VALIDATION"):
-                if verdict in val:
-                    phases["final_verdict"] = verdict
-
-    # Infer trend from monitor check count
-    if phases["monitor_checks"] >= 5 and phases["monitor_trend"] is None:
-        phases["monitor_trend"] = "STABLE (5 checks completed)"
-
-    phases["phases_seen"] = sorted(phases["phases_seen"])
-    return phases
-
-
 async def suite_memory_agent(diag: DiagResult) -> None:
     """MemoryAgent read/write/recall against the real filter and database.
 
@@ -843,7 +716,7 @@ async def suite_memory_agent(diag: DiagResult) -> None:
 
 
 async def suite_task_execution(executor, diag: DiagResult, suite: str = "all") -> None:
-    log.info("\n-- Suite 5: Full Task Execution (AutonomousCoordinator+EnhancedASI) --")
+    log.info("\n-- Suite 5: Full Task Execution (AutonomousCoordinator) --")
 
     try:
         from core.agents.autonomous.shared_types import Task, TaskType, TaskStatus, TaskSource
@@ -854,7 +727,6 @@ async def suite_task_execution(executor, diag: DiagResult, suite: str = "all") -
 
     # Filter which tests to run based on the active suite
     _suite_task_map = {
-        "upgrade": {"task_self_upgrade"},
         "import":  {"task_import_repair"},
         "task":    {t["id"] for t in TASK_TESTS},  # all tasks
         "all":     {t["id"] for t in TASK_TESTS},
@@ -939,34 +811,6 @@ async def suite_task_execution(executor, diag: DiagResult, suite: str = "all") -
         elif "tool_selection_debug" in result:
             log.info("  [task] %s  tool_debug=%s", test["id"], result["tool_selection_debug"])
 
-        # ── Upgrade-cycle phase breakdown ─────────────────────────────────────
-        if test["id"] == "task_self_upgrade":
-            phases = _extract_self_upgrade_phases(tool_results)
-            log.info("  ── Upgrade Cycle Phase Breakdown ──────────────────────────")
-            log.info("  Phases completed  : %s", phases["phases_seen"] or "none detected")
-            log.info("  Research calls    : %d", phases["research_calls"])
-            log.info("  Test loop iters   : %d  (syntax_pass=%d  lint_pass=%d  pytest_pass=%d)",
-                     phases["test_iterations"], phases["syntax_passes"],
-                     phases["lint_passes"], phases["pytest_passes"])
-            log.info("  Deploy called     : %s  success=%s  id=%s  strategy=%s",
-                     phases["deploy_called"], phases["deploy_success"],
-                     phases["deployment_id"] or "n/a", phases["deploy_strategy"] or "n/a")
-            log.info("  Monitor checks    : %d/5  trend=%s",
-                     phases["monitor_checks"], phases["monitor_trend"] or "incomplete")
-            log.info("  Report written    : %s", phases["report_written"])
-            log.info("  Final verdict     : %s", phases["final_verdict"] or "not found in output")
-            log.info("  ────────────────────────────────────────────────────────────")
-
-            # Hard gates for upgrade task pass/fail
-            if phases["test_iterations"] > 0 and phases["pytest_passes"] == 0:
-                log.warning("  ⚠ TEST LOOP: no pytest run passed — deployment should not have occurred")
-            if phases["deploy_called"] and phases["test_iterations"] == 0:
-                log.warning("  ⚠ DEPLOY WITHOUT TESTS: deployed without running any tests")
-            if phases["monitor_checks"] < 5 and phases["deploy_success"]:
-                log.warning("  ⚠ MONITORING INCOMPLETE: only %d/5 health checks performed",
-                            phases["monitor_checks"])
-
-
         # ── Import-repair phase breakdown ─────────────────────────────────────
         if test["id"] == "task_import_repair":
             phases = _extract_import_repair_phases(tool_results)
@@ -1014,17 +858,14 @@ async def main() -> None:
             "Boot matrix:\n"
             "  schema / direct  — tool registry only  (no LLM, no memory, no DB)\n"
             "  llm / roundtrip  — LLM + tool registry  (no memory, no DB)\n"
-            "  task / upgrade   — LLM + tool registry + neural bridge + context mgr\n"
+            "  task             — LLM + tool registry + neural bridge + context mgr\n"
             "                     memory agent (loops suppressed) + no DB + no Slack\n"
-            "  upgrade          — like 'task' but runs the 8-phase self-upgrade cycle:\n"
-            "                     web research → internal analysis → design → implement\n"
-            "                     → test loop (until 100%%) → deploy → 5-min monitor → report\n"
             "  memory           — memory agent + DB  (retention contract)\n"
         )
     )
     parser.add_argument(
         "--suite",
-        choices=["schema", "direct", "llm", "roundtrip", "task", "upgrade", "import", "memory", "all"],
+        choices=["schema", "direct", "llm", "roundtrip", "task", "import", "memory", "all"],
         default="all",
         help="Which subsystem to diagnose (default: all)",
     )
@@ -1121,30 +962,17 @@ async def main() -> None:
 
     # Task suite: AutonomousCoordinator (LLM + registry + neural bridge +
     # context manager + memory agent with loops suppressed — no DB, no Slack)
-    # EnhancedASISelfImprovement is injected directly (no AutonomousCoordinator —
-    # the coordinator's 20+ subsystem init blows out llama.cpp memory on MPS).
-    if args.suite in ("task", "upgrade", "import", "all"):
-        log.info("\nInitialising AutonomousCoordinator+EnhancedASI for task suite...")
+    if args.suite in ("task", "import", "all"):
+        log.info("\nInitialising AutonomousCoordinator for task suite...")
         log.info("  Boots: LLM, ToolRegistry, NeuralBridge, ContextManager, MemoryAgent")
-        log.info("  Injected: EnhancedASISelfImprovement (Validator/Sandbox/Deployer)")
         log.info("  Suppressed: DB, Slack, background cognitive loops, memory capture")
-        if args.suite == "upgrade":
-            log.info("  MODE: Self-Upgrade Cycle + EnhancedASI validation pipeline")
-            log.info("  Gates: UpgradeValidator (syntax/security) → UpgradeSandbox (isolated)"
-                     " → SafeUpgradeDeployer (canary/blue-green)")
         if args.suite == "import":
             log.info("  MODE: Import Repair Cycle — find broken imports, fix them, verify all pass")
         try:
             from core.agents.autonomous.autonomous_coordinator import AutonomousCoordinator
-            from core.learning.enhanced_asi_self_improvement import EnhancedASISelfImprovement
             task_executor = AutonomousCoordinator()
-            # Inject EnhancedASI BEFORE initialize() so it's live when the task runs.
-            # This wires UpgradeValidator/UpgradeSandbox/SafeUpgradeDeployer hard-abort
-            # gates that are otherwise completely bypassed in bare-executor mode.
-            _asi = EnhancedASISelfImprovement()
             await task_executor.initialize_execution_faculty()
-            log.info("OK  AutonomousCoordinator+EnhancedASI ready  (asi=%s)",
-                     _asi.__class__.__name__)
+            log.info("OK  AutonomousCoordinator ready")
             await suite_task_execution(task_executor, diag, suite=args.suite)
         except Exception as e:
             log.error("FAIL  Could not start executor: %s", e)

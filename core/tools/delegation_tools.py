@@ -15,15 +15,13 @@ needs is on it:
 
 Writing a second safety+credit path inside AgentCoordinator.execute_task would
 have produced a parallel universe with its own gate and its own posteriors --
-the same defect as the two SecurityAuditWorker instances (252 findings vs 0) and
-the two meta-learning systems (_strategy_outcomes vs MetaLearner). Every one of
-those cost real correctness.
+the same defect as the two meta-learning systems (_strategy_outcomes vs
+MetaLearner), which cost real correctness.
 
 As a tool, delegation gets the gate, the outcome record, the usage history and
 the reward signal for free, and it is discoverable through the capability
 system -- which also gives DELEGATE_TASK / COORDINATE_AGENTS a provider that
-actually delegates, instead of TriggerSelfImprovementTool which runs an ASI
-cycle when asked to delegate.
+actually delegates.
 """
 
 import logging
@@ -63,11 +61,8 @@ class DelegateTaskTool(Tool):
         )
         self.category = ToolCategory.SYSTEM
         self.safety_level = ToolSafety.SAFE
-        # DELEGATE_TASK and COORDINATE_AGENTS were declared ONLY by
-        # TriggerSelfImprovementTool, whose execute() runs an ASI improvement
-        # cycle -- so a planner searching for "delegate this" found a provider,
-        # succeeded, and got self-improvement. Those false claims are removed;
-        # the capability now belongs to the tool that actually delegates.
+        # DELEGATE_TASK and COORDINATE_AGENTS belong to the tool that actually
+        # delegates, so a planner searching for "delegate this" gets delegation.
         self.capability_profile = ToolCapabilityProfile(
             tool_name="delegate_task",
             capabilities=[

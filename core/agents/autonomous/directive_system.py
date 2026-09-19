@@ -17,7 +17,7 @@ from datetime import datetime
 from .directive_manager import DirectiveManager, DirectiveCategory, DirectiveStatus
 from .directive_evolution_engine import DirectiveEvolutionEngine, EvolutionType
 from .singleton_constitution import get_singleton_constitution
-from .governance_agent import GovernanceAgent
+from .runtime_governance import get_runtime_governance
 from core.database import get_unified_db
 
 # NOTE (2026-09-02): DirectiveABTesting is no longer wired here. Comparing
@@ -41,7 +41,7 @@ class DirectiveSystem:
     2. Learning authority (MetaLearner) - owns directive effectiveness + variant
        selection (directives are arms); credited via log_directive_application
     3. DirectiveEvolutionEngine - lifecycle EVENT LOG (not a learner)
-    4. GovernanceAgent → constitution - model-free validation against the 5 laws
+    4. RuntimeGovernance → constitution - model-free validation against the 5 laws
 
     Usage:
     - Query active directives by category
@@ -77,15 +77,14 @@ class DirectiveSystem:
         self.directive_manager = directive_manager or DirectiveManager(db=None)
         self.evolution_engine = evolution_engine or DirectiveEvolutionEngine(db=None)
 
-        # GOVERNANCE — a proposed directive is vetted through the GovernanceAgent
-        # (the compliance-DECISION authority), which scores it against the 5 laws
-        # via the constitution (the law authority) and reports requires_governance.
-        # This replaced the removed five-judge vote and keeps the authority chain
-        # intact (DirectiveSystem → GovernanceAgent → constitution) rather than
-        # re-deciding compliance here. Model-free; the GovernanceAgent emits its
-        # own compliance metrics. Uses the process-wide singleton constitution the
-        # coordinator activates, so no second law authority is stood up.
-        self.governance_agent = GovernanceAgent(constitution=get_singleton_constitution())
+        # GOVERNANCE — a proposed directive is vetted through RUNTIME GOVERNANCE
+        # (the one governance/compliance authority), which scores it against the 5
+        # laws via the constitution and reports requires_governance. The former
+        # GovernanceAgent (a duplicate) was removed and its constitutional-
+        # compliance check moved into runtime governance. Model-free; runtime
+        # governance emits its own compliance metrics. Uses the process-wide
+        # singletons, so no second authority is stood up.
+        self.runtime_governance = get_runtime_governance()
 
         # Active directives cache (category -> directives)
         self.active_directives_cache: Dict[DirectiveCategory, List[Dict[str, Any]]] = {}
@@ -467,18 +466,17 @@ class DirectiveSystem:
             directive_parameters=directive_parameters,
         )
 
-        # GOVERNANCE: vet through the GovernanceAgent (the compliance-decision
+        # GOVERNANCE: vet through RUNTIME GOVERNANCE (the compliance-decision
         # authority), which scores the directive against the 5 laws via the
         # constitution and reports requires_governance. A directive is a policy the
         # substrate applies to itself, so it is checked as an internal action.
         category_val = getattr(category, "value", category)
-        record = await self.governance_agent.check_action_compliance(
+        record = await self.runtime_governance.check_action_compliance(
             action_id=directive.directive_id,
             action_description=directive_text,
             action_params={**(directive_parameters or {}),
                            "task_type": category_val,
                            "reasoning": f"directive proposed by {created_by}"},
-            source_type="internal",
         )
         validation = {
             "approved": not record.requires_governance,
@@ -646,9 +644,9 @@ class DirectiveSystem:
             'total_directives': len(all_directives),
             'directives_by_status': status_counts,
             'application_metrics': self.metrics.copy(),
-            # Governance decisions on directives are the GovernanceAgent's; its
-            # counters are the honest directive-governance metrics.
-            'governance': self.governance_agent.metrics.copy(),
+            # Governance decisions on directives are runtime governance's; its
+            # compliance counters are the honest directive-governance metrics.
+            'governance': self.runtime_governance.compliance_metrics.copy(),
             'evolution': evo_metrics,
             'cache_status': {
                 'cached_categories': len(self.active_directives_cache),

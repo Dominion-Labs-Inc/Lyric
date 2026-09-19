@@ -26,7 +26,7 @@ from core.learning.unified_learning_system import (                 # noqa: E402
 
 #: Acting on the system and verifying the effect. These are what the CONTROL
 #: arms (direct_remediation, diagnose_then_act, verify_first) choose between.
-CONTROL_TASK_TYPES = {"execution", "planning", "security_remediation"}
+CONTROL_TASK_TYPES = {"execution", "planning"}
 
 
 def test_every_task_type_has_a_family():
@@ -36,7 +36,7 @@ def test_every_task_type_has_a_family():
 
 
 def test_control_work_maps_to_control():
-    """Remediation is CONTROL work; it must not land in another family."""
+    """Acting-and-verifying work is CONTROL; it must not land in another family."""
     for name in CONTROL_TASK_TYPES:
         assert task_family_for_task_type(name) is TaskFamily.CONTROL, (
             f"{name} must map to CONTROL, got {task_family_for_task_type(name)}")

@@ -18,8 +18,7 @@ try:
     # MemoryAgent), and one interface implied a single one existed. See
     # learning_interfaces for the map. The contracts below all have declared
     # owners that satisfy them with no stub methods.
-    from .learning.learning_interfaces import (IAdaptationEngine,
-                                               ILearningAuthority,
+    from .learning.learning_interfaces import (ILearningAuthority,
                                                ILearningSystem,
                                                IMemoryConsolidation,
                                                IOutcomePrediction,
@@ -28,7 +27,6 @@ try:
 except ImportError:
     LEARNING_AVAILABLE = False
     ILearningSystem = None
-    IAdaptationEngine = None
     ILearningAuthority = None
     IStrategySelection = None
     IOutcomePrediction = None
@@ -69,7 +67,6 @@ __all__ = [
     
     # Learning
     'ILearningSystem',
-    'IAdaptationEngine',
     'ILearningAuthority',
     'IStrategySelection',
     'IOutcomePrediction',

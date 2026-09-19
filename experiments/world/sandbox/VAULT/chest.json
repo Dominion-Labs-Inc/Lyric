@@ -1,0 +1,15 @@
+{
+  "name": "chest",
+  "kind": "container",
+  "shape": "square",
+  "color": "yellow",
+  "size": "medium",
+  "properties": {},
+  "hidden_props": {},
+  "movable": true,
+  "inspected": false,
+  "dynamic": null,
+  "appearance": "_assets/chest.png",
+  "container": true,
+  "contains": "treasure"
+}

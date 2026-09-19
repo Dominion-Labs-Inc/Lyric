@@ -1,0 +1,357 @@
+{
+  "deleted_at": "2026-09-17T16:50:33.346169+00:00",
+  "requested_by": "user, 2026-09-17: delete the wrong MOVE_FILE rules, keep the right one",
+  "kept": [
+    "rule_399de8f89089",
+    "rule_75c26b11199a",
+    "rule_cf671768851b"
+  ],
+  "rules": {
+    "rule_a6568ada5f1e": {
+      "reason": "unguarded MOVE_FILE; refuted by held-out negatives; replaced by rule_399de8f89089",
+      "row": {
+        "rule_id": "rule_a6568ada5f1e",
+        "domain_id": "fs_g2_real1",
+        "rule_kind": "move_file",
+        "canonical_rule_json": "{\"body\": [{\"args\": [\"?X0\", \"?X2\", \"?X1\"], \"predicate\": \"MOVE_FILE\"}], \"action\": {\"args\": [\"?X0\", \"?X2\", \"?X1\"], \"predicate\": \"MOVE_FILE\"}, \"outputs\": [], \"add_effects\": [{\"args\": [\"?X0\", \"?X1\"], \"predicate\": \"FILE_IN\"}], \"delete_effects\": [{\"args\": [\"?X0\", \"?X2\"], \"predicate\": \"FILE_IN\"}], \"schema_version\": 3}",
+        "rendered_formula": "MOVE_FILE(?X0, ?X2, ?X1) → FILE_IN(?X0, ?X1) ⊖ FILE_IN(?X0, ?X2)",
+        "epistemic_status": "refuted",
+        "induction_method": "plotkin_lgg_minimal",
+        "induction_version": 1,
+        "validation_policy": "held_out_disjoint_roots",
+        "validation_version": 1,
+        "positive_root_count": 6,
+        "negative_root_count": 4,
+        "detail": "refuted: this generalization carries no FILE_IN(?X0, ?X2) guard, so it licenses a move from a source the file is not in. Contradicted by the held-out demonstrations mv_holdout_neg_src_wrong_1/2, and observed in practice as a grounding with a FILE as the source directory. Superseded by rule_399de8f89089, which carries the guard.",
+        "created_at": "2026-09-17 00:34:40.283499+00:00",
+        "updated_at": "2026-09-17 00:40:44.192943+00:00",
+        "validated_at": null,
+        "supersedes_rule_id": null,
+        "semantic_fingerprint": "b08710c72ac5f2c8ddb1af3d9e73a636f105c583f7025b884b5f37554edd5f29"
+      },
+      "children": {
+        "rule_authority_events.rule_id": [
+          {
+            "event_id": "rac_3ce3f6f9885c",
+            "rule_id": "rule_a6568ada5f1e",
+            "old_status": "candidate",
+            "new_status": "validated",
+            "lost_authority": false,
+            "cause": "validation",
+            "observation_id": null,
+            "task_id": null,
+            "plan_id": null,
+            "goal_id": null,
+            "detail": "confirmed by 4 independent observation(s)",
+            "occurred_at": "2026-09-17 00:34:40.315866+00:00",
+            "consumed_at": null,
+            "consumed_by": null
+          }
+        ]
+      }
+    },
+    "rule_497a9afaf5ee": {
+      "reason": "unguarded MOVE_FILE validated in a 2026-09-02 debug-run domain",
+      "row": {
+        "rule_id": "rule_497a9afaf5ee",
+        "domain_id": "rule_2gp7e9",
+        "rule_kind": "move_file",
+        "canonical_rule_json": "{\"body\": [{\"args\": [\"?X0\", \"?X2\", \"?X1\"], \"predicate\": \"MOVE_FILE\"}], \"action\": {\"args\": [\"?X0\", \"?X2\", \"?X1\"], \"predicate\": \"MOVE_FILE\"}, \"outputs\": [], \"add_effects\": [{\"args\": [\"?X0\", \"?X1\"], \"predicate\": \"FILE_IN\"}], \"delete_effects\": [{\"args\": [\"?X0\", \"?X2\"], \"predicate\": \"FILE_IN\"}], \"schema_version\": 3}",
+        "rendered_formula": "MOVE_FILE(?X0, ?X2, ?X1) → FILE_IN(?X0, ?X1) ⊖ FILE_IN(?X0, ?X2)",
+        "epistemic_status": "validated",
+        "induction_method": "plotkin_lgg_minimal",
+        "induction_version": 1,
+        "validation_policy": "held_out_disjoint_roots",
+        "validation_version": 1,
+        "positive_root_count": 6,
+        "negative_root_count": 2,
+        "detail": "confirmed by 2 independent observation(s)",
+        "created_at": "2026-09-02 19:13:24.850117+00:00",
+        "updated_at": "2026-09-02 19:15:02.734759+00:00",
+        "validated_at": "2026-09-02 19:15:02.734668+00:00",
+        "supersedes_rule_id": null,
+        "semantic_fingerprint": "eb862172b6e223589282b8ca02ed181329c5bc3372a9e17f6c6cdf0f7edde20a"
+      },
+      "children": {
+        "learned_rule_evidence.rule_id": [
+          {
+            "rule_id": "rule_497a9afaf5ee",
+            "root_evidence_id": "explore_80634c8b42f3",
+            "evidence_role": "induction_positive",
+            "supports": true,
+            "observed_at": "2026-09-02 19:13:24.850742+00:00"
+          },
+          {
+            "rule_id": "rule_497a9afaf5ee",
+            "root_evidence_id": "explore_6cc9ef05ffff",
+            "evidence_role": "induction_positive",
+            "supports": true,
+            "observed_at": "2026-09-02 19:13:24.851570+00:00"
+          },
+          {
+            "rule_id": "rule_497a9afaf5ee",
+            "root_evidence_id": "explore_25431d7b1da0",
+            "evidence_role": "induction_positive",
+            "supports": true,
+            "observed_at": "2026-09-02 19:13:24.851978+00:00"
+          },
+          {
+            "rule_id": "rule_497a9afaf5ee",
+            "root_evidence_id": "explore_a612bc7caaf9",
+            "evidence_role": "induction_positive",
+            "supports": true,
+            "observed_at": "2026-09-02 19:13:24.852373+00:00"
+          },
+          {
+            "rule_id": "rule_497a9afaf5ee",
+            "root_evidence_id": "explore_7351bc0a4a72",
+            "evidence_role": "induction_negative",
+            "supports": false,
+            "observed_at": "2026-09-02 19:13:24.852746+00:00"
+          },
+          {
+            "rule_id": "rule_497a9afaf5ee",
+            "root_evidence_id": "explore_34a8aa84a477",
+            "evidence_role": "induction_negative",
+            "supports": false,
+            "observed_at": "2026-09-02 19:13:24.853109+00:00"
+          },
+          {
+            "rule_id": "rule_497a9afaf5ee",
+            "root_evidence_id": "explore_c885b4229c5e",
+            "evidence_role": "validation_positive",
+            "supports": true,
+            "observed_at": "2026-09-02 19:13:24.856234+00:00"
+          },
+          {
+            "rule_id": "rule_497a9afaf5ee",
+            "root_evidence_id": "explore_d59d0a2c82f6",
+            "evidence_role": "validation_positive",
+            "supports": true,
+            "observed_at": "2026-09-02 19:13:24.856669+00:00"
+          }
+        ],
+        "rule_authority_events.rule_id": [
+          {
+            "event_id": "rac_14e932782d1e",
+            "rule_id": "rule_497a9afaf5ee",
+            "old_status": "candidate",
+            "new_status": "validated",
+            "lost_authority": false,
+            "cause": "validation",
+            "observation_id": null,
+            "task_id": null,
+            "plan_id": null,
+            "goal_id": null,
+            "detail": "confirmed by 2 independent observation(s)",
+            "occurred_at": "2026-09-02 19:13:24.860142+00:00",
+            "consumed_at": null,
+            "consumed_by": null
+          }
+        ]
+      }
+    },
+    "rule_9b109b69c83b": {
+      "reason": "inbox->archive-only MOVE_FILE from a 2026-09-02 debug-run domain",
+      "row": {
+        "rule_id": "rule_9b109b69c83b",
+        "domain_id": "dbg_h3_1fk",
+        "rule_kind": "move_file",
+        "canonical_rule_json": "{\"body\": [{\"args\": [\"?X0\", \"Finbox\", \"Farchive\"], \"predicate\": \"MOVE_FILE\"}], \"action\": {\"args\": [\"?X0\", \"Finbox\", \"Farchive\"], \"predicate\": \"MOVE_FILE\"}, \"outputs\": [], \"add_effects\": [{\"args\": [\"?X0\", \"Farchive\"], \"predicate\": \"FILE_IN\"}], \"delete_effects\": [{\"args\": [\"?X0\", \"Finbox\"], \"predicate\": \"FILE_IN\"}], \"schema_version\": 3}",
+        "rendered_formula": "MOVE_FILE(?X0, Finbox, Farchive) → FILE_IN(?X0, Farchive) ⊖ FILE_IN(?X0, Finbox)",
+        "epistemic_status": "validated",
+        "induction_method": "plotkin_lgg_minimal",
+        "induction_version": 1,
+        "validation_policy": "held_out_disjoint_roots",
+        "validation_version": 1,
+        "positive_root_count": 5,
+        "negative_root_count": 3,
+        "detail": "confirmed by 2 independent observation(s)",
+        "created_at": "2026-09-02 18:57:20.235743+00:00",
+        "updated_at": "2026-09-02 18:57:20.531148+00:00",
+        "validated_at": "2026-09-02 18:57:20.531054+00:00",
+        "supersedes_rule_id": null,
+        "semantic_fingerprint": "eb7bbd9d7dc9047f8229ea01074c17caab01ffea0e93db148e62bd17c6c2096f"
+      },
+      "children": {
+        "learned_rule_evidence.rule_id": [
+          {
+            "rule_id": "rule_9b109b69c83b",
+            "root_evidence_id": "explore_0a82cda5e6ea",
+            "evidence_role": "induction_positive",
+            "supports": true,
+            "observed_at": "2026-09-02 18:57:20.236619+00:00"
+          },
+          {
+            "rule_id": "rule_9b109b69c83b",
+            "root_evidence_id": "explore_1960bd219362",
+            "evidence_role": "induction_positive",
+            "supports": true,
+            "observed_at": "2026-09-02 18:57:20.237694+00:00"
+          },
+          {
+            "rule_id": "rule_9b109b69c83b",
+            "root_evidence_id": "explore_d8f7c71ff01d",
+            "evidence_role": "induction_positive",
+            "supports": true,
+            "observed_at": "2026-09-02 18:57:20.238105+00:00"
+          },
+          {
+            "rule_id": "rule_9b109b69c83b",
+            "root_evidence_id": "explore_beb6e84a6eed",
+            "evidence_role": "induction_negative",
+            "supports": false,
+            "observed_at": "2026-09-02 18:57:20.238486+00:00"
+          },
+          {
+            "rule_id": "rule_9b109b69c83b",
+            "root_evidence_id": "explore_b591312e7db5",
+            "evidence_role": "induction_negative",
+            "supports": false,
+            "observed_at": "2026-09-02 18:57:20.238849+00:00"
+          },
+          {
+            "rule_id": "rule_9b109b69c83b",
+            "root_evidence_id": "explore_a4e75b65abc5",
+            "evidence_role": "induction_negative",
+            "supports": false,
+            "observed_at": "2026-09-02 18:57:20.239230+00:00"
+          },
+          {
+            "rule_id": "rule_9b109b69c83b",
+            "root_evidence_id": "explore_1459ae0e8f08",
+            "evidence_role": "validation_positive",
+            "supports": true,
+            "observed_at": "2026-09-02 18:57:20.242310+00:00"
+          },
+          {
+            "rule_id": "rule_9b109b69c83b",
+            "root_evidence_id": "explore_3ca44f597f1d",
+            "evidence_role": "validation_positive",
+            "supports": true,
+            "observed_at": "2026-09-02 18:57:20.242725+00:00"
+          }
+        ],
+        "rule_authority_events.rule_id": [
+          {
+            "event_id": "rac_090ca5f71aa8",
+            "rule_id": "rule_9b109b69c83b",
+            "old_status": "candidate",
+            "new_status": "validated",
+            "lost_authority": false,
+            "cause": "validation",
+            "observation_id": null,
+            "task_id": null,
+            "plan_id": null,
+            "goal_id": null,
+            "detail": "confirmed by 2 independent observation(s)",
+            "occurred_at": "2026-09-02 18:57:20.245568+00:00",
+            "consumed_at": null,
+            "consumed_by": null
+          }
+        ]
+      }
+    },
+    "rule_db2a90408919": {
+      "reason": "inbox->archive-only MOVE_FILE from a 2026-09-02 debug-run domain",
+      "row": {
+        "rule_id": "rule_db2a90408919",
+        "domain_id": "rule_71r9aj",
+        "rule_kind": "move_file",
+        "canonical_rule_json": "{\"body\": [{\"args\": [\"?X0\", \"Finbox\", \"Farchive\"], \"predicate\": \"MOVE_FILE\"}], \"action\": {\"args\": [\"?X0\", \"Finbox\", \"Farchive\"], \"predicate\": \"MOVE_FILE\"}, \"outputs\": [], \"add_effects\": [{\"args\": [\"?X0\", \"Farchive\"], \"predicate\": \"FILE_IN\"}], \"delete_effects\": [{\"args\": [\"?X0\", \"Finbox\"], \"predicate\": \"FILE_IN\"}], \"schema_version\": 3}",
+        "rendered_formula": "MOVE_FILE(?X0, Finbox, Farchive) → FILE_IN(?X0, Farchive) ⊖ FILE_IN(?X0, Finbox)",
+        "epistemic_status": "validated",
+        "induction_method": "plotkin_lgg_minimal",
+        "induction_version": 1,
+        "validation_policy": "held_out_disjoint_roots",
+        "validation_version": 1,
+        "positive_root_count": 5,
+        "negative_root_count": 3,
+        "detail": "confirmed by 2 independent observation(s)",
+        "created_at": "2026-09-02 19:10:40.901759+00:00",
+        "updated_at": "2026-09-02 19:15:02.458480+00:00",
+        "validated_at": "2026-09-02 19:15:02.458388+00:00",
+        "supersedes_rule_id": null,
+        "semantic_fingerprint": "c0d37aa30f4a9ebad17140c77c1e889ee654171d877e35d4dfea65db21157061"
+      },
+      "children": {
+        "learned_rule_evidence.rule_id": [
+          {
+            "rule_id": "rule_db2a90408919",
+            "root_evidence_id": "explore_a5596d8d230c",
+            "evidence_role": "induction_positive",
+            "supports": true,
+            "observed_at": "2026-09-02 19:10:40.902473+00:00"
+          },
+          {
+            "rule_id": "rule_db2a90408919",
+            "root_evidence_id": "explore_050a9db40401",
+            "evidence_role": "induction_positive",
+            "supports": true,
+            "observed_at": "2026-09-02 19:10:40.903152+00:00"
+          },
+          {
+            "rule_id": "rule_db2a90408919",
+            "root_evidence_id": "explore_d83fc8522892",
+            "evidence_role": "induction_positive",
+            "supports": true,
+            "observed_at": "2026-09-02 19:10:40.903555+00:00"
+          },
+          {
+            "rule_id": "rule_db2a90408919",
+            "root_evidence_id": "explore_49aae1397731",
+            "evidence_role": "induction_negative",
+            "supports": false,
+            "observed_at": "2026-09-02 19:10:40.903891+00:00"
+          },
+          {
+            "rule_id": "rule_db2a90408919",
+            "root_evidence_id": "explore_de680d3a0904",
+            "evidence_role": "induction_negative",
+            "supports": false,
+            "observed_at": "2026-09-02 19:10:40.904227+00:00"
+          },
+          {
+            "rule_id": "rule_db2a90408919",
+            "root_evidence_id": "explore_124106727493",
+            "evidence_role": "induction_negative",
+            "supports": false,
+            "observed_at": "2026-09-02 19:10:40.904546+00:00"
+          },
+          {
+            "rule_id": "rule_db2a90408919",
+            "root_evidence_id": "explore_1009e7df7805",
+            "evidence_role": "validation_positive",
+            "supports": true,
+            "observed_at": "2026-09-02 19:10:40.907611+00:00"
+          },
+          {
+            "rule_id": "rule_db2a90408919",
+            "root_evidence_id": "explore_dcf7b8714cff",
+            "evidence_role": "validation_positive",
+            "supports": true,
+            "observed_at": "2026-09-02 19:10:40.908008+00:00"
+          }
+        ],
+        "rule_authority_events.rule_id": [
+          {
+            "event_id": "rac_8cedf00dec0b",
+            "rule_id": "rule_db2a90408919",
+            "old_status": "candidate",
+            "new_status": "validated",
+            "lost_authority": false,
+            "cause": "validation",
+            "observation_id": null,
+            "task_id": null,
+            "plan_id": null,
+            "goal_id": null,
+            "detail": "confirmed by 2 independent observation(s)",
+            "occurred_at": "2026-09-02 19:10:40.910758+00:00",
+            "consumed_at": null,
+            "consumed_by": null
+          }
+        ]
+      }
+    }
+  }
+}

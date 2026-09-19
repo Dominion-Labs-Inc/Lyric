@@ -1,7 +1,7 @@
 {
   "experiment": "GOV-CASCADE-01",
   "question": "Does one injected error contaminate authority over derivation depth (Proposition 7(ii)), and does the independence discipline bound it?",
-  "run_at": "2026-09-07T06:02:39.353925+00:00",
+  "run_at": "2026-09-18T01:26:38.885031+00:00",
   "coordinator_driven": [
     "system.autonomous_coordinator.learning.create_belief",
     "system.autonomous_coordinator.learning.update_belief",

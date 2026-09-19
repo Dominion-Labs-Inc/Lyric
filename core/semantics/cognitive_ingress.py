@@ -39,6 +39,16 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 logger = logging.getLogger(__name__)
 
 
+#: Minimum evidence quality for a proposition to be ADMITTED as knowledge. Below
+#: this, the gate refuses (true absence) instead of minting a weakly-held belief.
+#: A conservative default floor — it stops clearly-unsupported input (coin-flip or
+#: worse) from ever touching the concept graph or belief store; a deployment that
+#: needs a stricter "never contaminate authoritative state" posture raises it
+#: toward the point where OOD-admission approaches zero (at the cost of rejecting
+#: more genuine-but-low-confidence input, the cheaper error).
+MIN_ADMIT_QUALITY: float = 0.5
+
+
 @dataclass
 class Provenance:
     """Where a proposition came from. Required -- there is no anonymous entry."""
@@ -260,7 +270,8 @@ class CognitiveIngress:
                              description: str = "",
                              domain: str = "language",
                              word_class_of=None,
-                             remember: bool = True) -> Admission:
+                             remember: bool = True,
+                             quality: float = 1.0) -> Admission:
         """Admit a proposition already split into its parts.
 
         The atom form (`cup_in_cabinet`) is one way to say a proposition and a
@@ -282,6 +293,19 @@ class CognitiveIngress:
             source_type = EvidenceSourceType[provenance.source_type]
         except KeyError:
             result.refusals.append(f"unknown evidence source {provenance.source_type!r}")
+            return result
+
+        # SUPPORT FLOOR — insufficiently-supported input is REFUSED, not admitted as
+        # a weak belief. This is the difference between representing "I don't know"
+        # as ABSENCE (no concept, no belief) versus a low-posterior belief that has
+        # already contaminated the concept graph. The one gate every producer funnels
+        # through is the only place refusal yields true absence, because the belief
+        # fan-out downstream runs only when `admitted` is True. `quality` is the
+        # producer's evidence quality (a classifier's recognition confidence, a
+        # source's reliability); below the floor the door does not open.
+        if quality < MIN_ADMIT_QUALITY:
+            result.refusals.append(
+                f"insufficient support: quality {quality:.3f} < floor {MIN_ADMIT_QUALITY}")
             return result
 
         key = hashlib.sha256(
@@ -386,8 +410,22 @@ class CognitiveIngress:
         result.polarity = "positive" if positive else "negative"
         result.contradicts = await self._contradiction_check(
             subject, relation, obj) if obj else None
-        result.admitted = bool(result.concepts_created or result.concepts_reinforced
-                               or result.memories)
+        # ADMITTED MEANS THE KNOWLEDGE STORE TOOK IT, and nothing weaker.
+        #
+        # This counted a stored MEMORY as admission, which made the flag report
+        # success for a claim the concept graph had refused outright: every
+        # caller reads `admitted` as "it is in", and `learn_fact` gates the whole
+        # fan-out (belief, lexicon, domain) on it. Measured: a derived naming
+        # whose lineage did not resolve came back `admitted=True` carrying
+        # "concept ingestion failed: dangling lineage ..." in `refusals`, the
+        # belief moved, and `instance_predicates` — the thing the reasoner reads —
+        # never saw the edge. The claim was held and unusable at the same time.
+        #
+        # A memory is a record of having been TOLD something, which is worth
+        # keeping and is not the same as holding it: recall can hand it back,
+        # the reasoner cannot walk it. So it stays counted in `memories` and no
+        # longer decides this. `refusals` says why when the answer is no.
+        result.admitted = bool(result.concepts_created or result.concepts_reinforced)
         return result
 
     async def _remember(self, proposition: str, surface: str,

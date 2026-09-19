@@ -2731,7 +2731,7 @@ class ChaosTestingTool(Tool):
         self.description = "Run chaos engineering tests to test system resilience with real chaos injection"
         self.parameters = [
             ToolParameter(name="chaos_type", type="string", description="Type of chaos: latency, failure, resource_cpu, resource_memory, network_partition, disk_failure", required=True),
-            ToolParameter(name="target", type="string", description="Target component (e.g., database, llm_service, memory_system, autonomous_coordinator)", required=True),
+            ToolParameter(name="target", type="string", description="Target component (e.g., database, memory_system, autonomous_coordinator)", required=True),
             ToolParameter(name="duration_seconds", type="number", description="Duration of chaos injection in seconds (default: 10)", required=False),
             ToolParameter(name="intensity", type="string", description="Chaos intensity: low, medium, high (default: medium)", required=False),
             ToolParameter(name="auto_recover", type="boolean", description="Automatically trigger recovery after chaos (default: true)", required=False)

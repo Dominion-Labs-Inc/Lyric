@@ -1,0 +1,13 @@
+{
+  "name": "fern",
+  "kind": "plant",
+  "shape": "triangle",
+  "color": "green",
+  "size": "large",
+  "properties": {},
+  "hidden_props": {},
+  "movable": true,
+  "inspected": false,
+  "dynamic": "grow",
+  "appearance": "_assets/fern.png"
+}

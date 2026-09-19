@@ -23,7 +23,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import re
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from .concept_ingestion import (
     _ROOT_SOURCES,
@@ -36,8 +36,49 @@ from .concept_ingestion import (
 logger = logging.getLogger(__name__)
 
 
+#: What a PRODUCED fact is worth as evidence when the producer has no
+#: measurement of its own to offer. Named, not defaulted: it is the value this
+#: path has always used, and writing it down is the point -- a number nobody
+#: states is indistinguishable from a number nobody chose, and this one set the
+#: prior of most of what the substrate believes.
+#:
+#: It is NOT a fallback for a producer that HAS a confidence. A producer that
+#: knows how good its evidence is states it ON THE EDGE it belongs to, and a
+#: producer that genuinely has none -- a tool's declared capability, a file
+#: property read off disk -- says so by naming this.
+PRODUCED_EVIDENCE_QUALITY = 0.9
+
+#: What a claim is worth when its reading resolved NOTHING -- when the
+#: measurement sits exactly on the cut that decides between two names. It is a
+#: coin flip between those names, so it is worth a coin flip, and no less: the
+#: observation did happen and one of the two names is right.
+COIN_FLIP = 0.5
+
+
+def quality_from_resolution(resolution: float,
+                            base: float = PRODUCED_EVIDENCE_QUALITY) -> float:
+    """Turn a perceptual RESOLUTION into an evidence QUALITY.
+
+    These are two different quantities and feeding one into the other's slot was
+    a real defect, measured: the faculty reports how far a reading sits from the
+    cut that would rename it, on a scale where 0 means "on the cut". Handed to
+    the belief layer raw, that number put 60% of CORRECT colour readings and 65%
+    of correct size readings below the 0.5 floor, where a claim is not held
+    weakly but REFUSED outright. Doubting almost everything is no more honest
+    than doubting nothing; it just fails quietly instead of loudly.
+
+    The mapping is fixed by its two ends, not fitted to anything. A fully
+    resolved reading is worth exactly what this producer's observations are
+    normally worth -- it is a clean look at a thing, and there is nothing to
+    discount. A reading ON the cut is a coin flip between the two names it sits
+    between, which is `COIN_FLIP` and not zero. Everything else interpolates.
+    """
+    r = max(0.0, min(1.0, float(resolution)))
+    return COIN_FLIP + (float(base) - COIN_FLIP) * r
+
+
 async def _ingest_and_learn(service: Any, envelope: "EvidenceEnvelope", *,
-                            domain: str) -> "IngestionResult":
+                            domain: str, quality: float) -> "IngestionResult":
     """Ingest through the ONE write path, then fan the admitted relations out to
     the lexicon and beliefs via the learning authority.
 
@@ -47,13 +88,19 @@ async def _ingest_and_learn(service: Any, envelope: "EvidenceEnvelope", *,
     before, then hands `IngestionResult.admitted_relations` to
     UnifiedLearningSystem.fan_out_ingested, which runs the SAME fan-out a taught
     fact does. Every observation moves a posterior; what it believes today it can
-    revise tomorrow. Isolated -- a fan-out failure never fails the production."""
+    revise tomorrow. Isolated -- a fan-out failure never fails the production.
+
+    `quality` is how good the producer says its own evidence is, and every
+    producer states it. It was omitted here, so the fan-out's default stood and
+    a detector's confidence -- the one number on this path that was actually
+    measured -- was discarded on the way to the belief."""
     result = await service.ingest(envelope)
     try:
         from core.learning.unified_learning_system import \
             get_unified_learning_system
         await get_unified_learning_system().fan_out_ingested(
-            result, domain=domain, surface=getattr(envelope, "content", "") or "")
+            result, domain=domain, surface=getattr(envelope, "content", "") or "",
+            quality=quality)
     except Exception as error:
         logger.debug("evidence fan-out skipped (%s): %s", domain, error)
     return result
@@ -234,7 +281,8 @@ async def submit_research_result(
             },
         )
         source_ids.append(eid)
-        results.append(await _ingest_and_learn(service, envelope, domain=domain))
+        results.append(await _ingest_and_learn(service, envelope, domain=domain,
+                                               quality=PRODUCED_EVIDENCE_QUALITY))
 
     if not source_ids:
         logger.warning(
@@ -255,7 +303,7 @@ async def submit_research_result(
             content=synthesis,
             structured_data={"domain": domain, "statements": _statements(synthesis)},
             derived_from=tuple(source_ids),
-        ), domain=domain))
+        ), domain=domain, quality=PRODUCED_EVIDENCE_QUALITY))
 
     total = sum(r.accepted for r in results)
     logger.info(
@@ -268,6 +316,7 @@ async def submit_research_result(
 __all__ = ["submit_research_result", "submit_learned_rule",
            "submit_demonstration", "submit_tool_capability",
            "submit_tool_invocation", "submit_perception",
+           "submit_sensor_reading", "submit_image", "submit_video",
            "canonical_source_key"]
 
 
@@ -360,7 +409,8 @@ async def submit_learned_rule(
         },
         derived_from=roots,
     )
-    return await _ingest_and_learn(service, envelope, domain=domain or "researched")
+    return await _ingest_and_learn(service, envelope, domain=domain or "researched",
+                                 quality=PRODUCED_EVIDENCE_QUALITY)
 
 
 async def submit_demonstration(
@@ -451,7 +501,7 @@ async def submit_demonstration(
             "observation": observation,
             "positive": bool(getattr(example, "positive", True)),
         },
-    ), domain=domain_id)
+    ), domain=domain_id, quality=PRODUCED_EVIDENCE_QUALITY)
 
 
 async def submit_tool_capability(tool, *, domain: str = "tools") -> "IngestionResult":
@@ -509,7 +559,7 @@ async def submit_tool_capability(tool, *, domain: str = "tools") -> "IngestionRe
             "optional": optional,
             "provides": provides,
         }},
-    ), domain=domain)
+    ), domain=domain, quality=PRODUCED_EVIDENCE_QUALITY)
 
 
 #: Invocation SHAPES already submitted in this process. A tool called ten
@@ -568,7 +618,7 @@ async def submit_tool_invocation(
             "required": supplied,
             "provides": [f"{name}_{'succeeded' if succeeded else 'failed'}"],
         }},
-    ), domain=category)
+    ), domain=category, quality=PRODUCED_EVIDENCE_QUALITY)
 
 
 async def submit_perception(
@@ -613,4 +663,378 @@ async def submit_perception(
         producer=str(source),
         content=f"{subject} observed as {state or 'unspecified'} via {source}",
         structured_data={"concepts": concepts},
-    ), domain=domain)
+    ), domain=domain, quality=PRODUCED_EVIDENCE_QUALITY)
+
+
+# --- richer perception modalities: sensor, image, video ------------------
+#
+# THESE ADMIT SUPPLIED DESCRIPTORS, THEY DO NOT PERCEIVE. The substrate is
+# model-free, so nothing here runs a detector over pixels or a waveform: a
+# camera's object detector, an EXIF header, an IoT sensor bus, or a human
+# annotator produces the STRUCTURE (a value with a unit, a list of recognised
+# labels, a capture time), and these turn that structure into first-class typed
+# observations with PERCEPTION provenance -- the same door and the same
+# fan-out-to-beliefs a taught fact takes. What is honestly claimed is that the
+# substrate can HOLD and REASON OVER perceptual data it is given, not that it
+# extracts meaning from raw media itself.
+
+
+def _literal_concept(term: Any, domain: str) -> Tuple[Optional[Dict[str, Any]], str]:
+    """A typed-literal concept for a numeric/date term, plus its canonical surface.
+
+    The producer door (`_read_concepts`) does not classify relation TARGETS as
+    literals -- only the teaching door does -- so a sensor value declared only as
+    an edge target would land as an ordinary word `94.5` rather than a quantity.
+    Declaring the value as its own concept, typed exactly as the teaching door
+    types it (`literal_type`/`literal_value` attributes, coarse kind quantity or
+    temporal), is what keeps a measurement a measurement. Returns (None, surface)
+    when the term is not a readable literal, so the caller decides whether that is
+    a defect (a sensor value) or simply an untyped target (a free-text label)."""
+    from core.semantics.literals import classify_literal
+
+    lit = classify_literal(str(term))
+    if lit is None:
+        return None, str(term).strip()
+    return ({"label": lit.canonical, "kind": lit.concept_type, "domains": [domain],
+             "attributes": {"literal_type": lit.kind, "literal_value": str(lit.value)}},
+            lit.canonical)
+
+
+def _property_concept(value: Any, domain: str) -> Tuple[Dict[str, Any], str]:
+    """A concept for one measured property value: typed literal if numeric/date,
+    otherwise an ordinary entity for the value's canonical form. Unlike
+    `_literal_concept` this always returns a concept, because a measured property
+    (a format `png`, a codec `h264`) is a real fact whether or not it is a
+    number."""
+    lit, surface = _literal_concept(value, domain)
+    if lit is not None:
+        return lit, surface
+    return {"label": surface, "kind": "entity", "domains": [domain]}, surface
+
+
+def _term_like(value: Any) -> str:
+    """One concept label: lowercase, with runs of punctuation as underscores.
+
+    A perceived feature and a taught one must land on the SAME label or the
+    substrate holds two concepts for one thing, so this matches the spelling the
+    vision faculty uses when it names what it measured."""
+    return re.sub(r"[^a-z0-9]+", "_", str(value).strip().lower()).strip("_")
+
+
+def _named(items: Any) -> List[Tuple[str, Optional[float]]]:
+    """Normalise a detections/events list to (label, confidence) pairs.
+
+    Accepts bare strings (`"person"`) or dicts (`{"label": "person",
+    "confidence": 0.94}`). A detector's confidence is kept as provenance on the
+    concept; it is deliberately NOT folded into the belief posterior here, which
+    would be claiming a calibration this producer has not earned."""
+    out: List[Tuple[str, Optional[float]]] = []
+    for item in items or []:
+        if isinstance(item, dict):
+            label = str(item.get("label") or item.get("name") or "").strip()
+            conf = item.get("confidence")
+        else:
+            label, conf = str(item).strip(), None
+        if label:
+            try:
+                conf = float(conf) if conf is not None else None
+            except (TypeError, ValueError):
+                conf = None
+            out.append((label, conf))
+    return out
+
+
+async def submit_sensor_reading(
+    source: str,
+    content: Dict[str, Any],
+    *,
+    domain: str = "sensor",
+) -> Optional["IngestionResult"]:
+    """Record one sensor reading as a typed observation.
+
+    A reading is: a named sensor, a numeric value (a QUANTITY literal), and
+    optionally the quantity it measures, a unit, and a time. The value is
+    declared as a typed literal so a temperature of `94.5` is held as a quantity
+    the substrate can reason over, not as the word "94.5".
+
+    Returns None when there is no sensor to attribute the reading to or no value
+    to record -- a reading about nothing is not evidence. Raises when a value IS
+    given but is not a readable number: a sensor reads a magnitude, and filing a
+    word under `reads` would record a measurement as a name."""
+    from .concept_ingestion import (
+        EvidenceEnvelope, EvidenceSourceType, get_concept_ingestion_service)
+
+    payload = content or {}
+    sensor = str(payload.get("sensor") or payload.get("subject") or source or "").strip()
+    raw_value = payload.get("value")
+    if payload.get("value") is None and "reading" in payload:
+        raw_value = payload.get("reading")
+    if not sensor or raw_value is None:
+        return None
+
+    value_concept, value_surface = _literal_concept(raw_value, domain)
+    if value_concept is None:
+        raise ValueError(
+            f"sensor reading value {raw_value!r} is not a readable quantity; a "
+            f"sensor reads a magnitude, and admitting a word here would file a "
+            f"measurement as a name")
+
+    quantity = str(payload.get("quantity") or payload.get("measure") or "").strip()
+    unit = str(payload.get("unit") or payload.get("units") or "").strip()
+
+    rels: List[List[str]] = [["reads", value_surface]]
+    concepts: List[Dict[str, Any]] = [
+        {"label": sensor, "kind": "entity", "domains": [domain],
+         "description": str(payload.get("message") or payload.get("location") or "")[:400]},
+        value_concept,
+    ]
+    if quantity:
+        rels.append(["measures", quantity])
+        concepts.append({"label": quantity, "kind": "property", "domains": [domain]})
+    if unit:
+        rels.append(["reads_in", unit])
+        concepts.append({"label": unit, "kind": "entity", "domains": [domain]})
+
+    when = payload.get("at") or payload.get("observed_at")
+    if when is not None:
+        time_concept, time_surface = _literal_concept(when, domain)
+        # Only an actual date becomes a temporal fact. An epoch float would
+        # classify as a quantity, which would file the time of the reading as a
+        # second magnitude -- so a non-temporal `when` is left off the graph.
+        if time_concept is not None and time_concept["kind"] == "temporal":
+            rels.append(["observed_at", time_surface])
+            concepts.append(time_concept)
+
+    concepts[0]["relationships"] = rels
+    rendered = (f"{sensor} reads {value_surface}"
+                f"{' ' + unit if unit else ''}"
+                f"{' of ' + quantity if quantity else ''}")
+
+    service = get_concept_ingestion_service()
+    await service._ready()
+    return await _ingest_and_learn(service, EvidenceEnvelope(
+        evidence_id=_stable_id("sensor", source, sensor, quantity, value_surface,
+                               str(when or "")),
+        source_type=EvidenceSourceType.PERCEPTION,
+        source_id=f"{source}:sensor",
+        producer=str(source),
+        content=rendered,
+        structured_data={"concepts": concepts},
+    ), domain=domain, quality=PRODUCED_EVIDENCE_QUALITY)
+
+
+async def _submit_seen(
+    source: str,
+    content: Dict[str, Any],
+    *,
+    data_type: str,
+    domain: str,
+    extra_edges: Optional[List[Tuple[str, str, List[Dict[str, Any]]]]] = None,
+) -> Optional["IngestionResult"]:
+    """Shared body for image/video: an observer that saw some recognised things.
+
+    `extra_edges` is a list of (relation, surface, concept_dicts) the caller adds
+    on top of the recognised-label edges (e.g. a video's duration). Returns None
+    when nothing was recognised -- an image or clip with no labels is not, by
+    itself, evidence of anything nameable."""
+    from .concept_ingestion import (
+        EvidenceEnvelope, EvidenceSourceType, get_concept_ingestion_service)
+
+    payload = content or {}
+    observer = str(payload.get("subject") or source or "").strip()
+    detections = _named(payload.get("detections") or payload.get("objects")
+                        or payload.get("labels"))
+    # `properties` are facts MEASURED off the real file (dimensions, format,
+    # EXIF, duration) -- distinct from `detections`, which are objects a model
+    # RECOGNISED. Deterministic extraction yields the former with no model; a
+    # detector yields the latter. A clip with only measured properties is still
+    # a real observation of a real file, so either alone is enough to record.
+    properties = payload.get("properties") or {}
+    # `blobs` are perceived INDIVIDUALS: an object-like region measured off the
+    # file, carrying its own features. Unlike a detection, which records that
+    # the observer saw something of a description, a blob is the something: it
+    # is admitted as its own concept with `isa` edges, so a rule about round red
+    # things has an individual to bind to and a name can be learned for it.
+    blobs = [b for b in (payload.get("blobs") or [])
+             if isinstance(b, dict) and str(b.get("name") or "").strip()]
+    extra = list(extra_edges or [])
+    if not observer or (not detections and not properties and not extra and not blobs):
+        return None
+
+    rels: List[List[str]] = []
+    concepts: List[Dict[str, Any]] = [{
+        "label": observer, "kind": "entity", "domains": [domain],
+        "description": str(payload.get("caption") or payload.get("message") or "")[:400],
+        "attributes": {k: str(v) for k, v in (
+            ("uri", payload.get("uri")),
+            ("sha256", payload.get("sha256")),
+        ) if v},
+    }]
+    for label, conf in detections:
+        # A RECOGNITION'S CONFIDENCE BELONGS TO THE RECOGNITION. It used to set
+        # the quality of the WHOLE envelope, so `has_width 800` -- read exactly
+        # off the file header -- inherited the confidence of an ORB descriptor
+        # match. Measured once the instance library became durable and a
+        # reference actually matched: a 0.997 match raised `has_width`'s prior
+        # from 0.900 to 1.000. It could lower it just as easily. Nothing about a
+        # detector's opinion bears on a number read from the file.
+        rels.append(["observed", label] if conf is None
+                    else ["observed", label, "positive", conf])
+        concept: Dict[str, Any] = {"label": label, "kind": "entity", "domains": [domain]}
+        if conf is not None:
+            concept["attributes"] = {"detection_confidence": str(conf)}
+        concepts.append(concept)
+
+    for relation, value in properties.items():
+        prop_concept, surface = _property_concept(value, domain)
+        if not surface:
+            continue
+        rels.append([str(relation), surface])
+        concepts.append(prop_concept)
+
+    # HOW THE BLOBS STAND TO ONE ANOTHER, collected before the loop so each
+    # blob's concept can be built once with its outgoing relations already on it.
+    # This is the frame-INVARIANT structure: `larger_than` survived 48 of 48
+    # geometric transforms where the size band it replaces survived 73% and the
+    # position word 52%. It was computed by the describer from the beginning and
+    # read by nobody.
+    blob_links: Dict[str, List[List[Any]]] = {}
+    for link in (payload.get("blob_relations") or []):
+        subj = _term_like(str(link.get("subject") or ""))
+        obj = _term_like(str(link.get("object") or ""))
+        relation = str(link.get("relation") or "").strip()
+        if not subj or not obj or not relation:
+            continue
+        sup = link.get("support")
+        blob_links.setdefault(subj, []).append(
+            [relation, obj, "positive",
+             None if sup is None else quality_from_resolution(float(sup))])
+
+    for blob in blobs:
+        name = _term_like(blob["name"])
+        rels.append(["contains", name])
+        features = [_term_like(f) for f in (blob.get("isa") or []) if str(f).strip()]
+        # EACH `isa` CARRIES ITS OWN SUPPORT, where the producer measured one.
+        # Both of them do now. They used not to: a blob's colour was treated as
+        # exact because it follows from a measurement and a stated threshold, and
+        # only the SHAPE was allowed to be uncertain. That reasoning held for the
+        # PHOTOGRAPH and not for the OBJECT, which is what these claims are about
+        # -- measured across 1512 live sightings, the colour name survived 0% of
+        # a 0.55x illuminant while the substrate acted on it every time.
+        #
+        # THE SIZE BAND IS NO LONGER AMONG THEM AT ALL. It is not a weak claim
+        # about the object, it is a claim about the framing, and a support number
+        # cannot convert one into the other. Its exact measurement stays below as
+        # `occupies`, and what it was reaching for is now `larger_than`.
+        #
+        # The faculty reports a RESOLUTION and this maps it onto the quality
+        # scale, because the floor of that scale is a coin flip and not zero.
+        _support = blob.get("isa_support") or {}
+        blob_rels: List[List[Any]] = [
+            ["isa", f, "positive",
+             None if _support.get(f) is None
+             else quality_from_resolution(_support[f])]
+            for f in features]
+        blob_rels.extend(blob_links.get(name, ()))
+        for relation, value in (blob.get("properties") or {}).items():
+            prop_concept, surface = _property_concept(value, domain)
+            if not surface:
+                continue
+            blob_rels.append([str(relation), surface])
+            concepts.append(prop_concept)
+        concepts.append({
+            "label": name, "kind": "entity", "domains": [domain],
+            "description": " ".join(features),
+            "relationships": blob_rels,
+        })
+
+    for relation, surface, concept_dicts in extra:
+        rels.append([relation, surface])
+        concepts.extend(concept_dicts)
+
+    when = payload.get("captured") or payload.get("at") or payload.get("captured_at")
+    if when is not None:
+        time_concept, time_surface = _literal_concept(when, domain)
+        if time_concept is not None and time_concept["kind"] == "temporal":
+            rels.append(["observed_at", time_surface])
+            concepts.append(time_concept)
+
+    concepts[0]["relationships"] = rels
+    seen = ", ".join([label for label, _ in detections]
+                     + [" ".join(b.get("isa") or []) for b in blobs])
+    rendered = f"{observer} observed {seen} via {source}"
+
+    service = get_concept_ingestion_service()
+    await service._ready()
+    return await _ingest_and_learn(service, EvidenceEnvelope(
+        evidence_id=_stable_id(data_type, source, observer,
+                               ",".join(sorted([l for l, _ in detections]
+                                               + [str(b["name"]) for b in blobs])),
+                               str(when or "")),
+        source_type=EvidenceSourceType.PERCEPTION,
+        source_id=f"{source}:{data_type}",
+        producer=str(source),
+        content=rendered,
+        structured_data={"concepts": concepts},
+    # THE ENVELOPE'S QUALITY IS THE MEASUREMENT'S, and the recognitions carry
+    # their own above. This took the lowest detection confidence, on the
+    # reasoning that relations "are fanned out together under one quality and a
+    # batch cannot be more trustworthy than its weakest member" -- true when it
+    # was written, and no longer: per-edge quality landed, the blob `isa` edges
+    # already use it, and a detection stating its own confidence is strictly
+    # more precise than dragging every measured property to meet it.
+    ), domain=domain, quality=PRODUCED_EVIDENCE_QUALITY)
+
+
+async def submit_image(
+    source: str,
+    content: Dict[str, Any],
+    *,
+    domain: str = "vision",
+) -> Optional["IngestionResult"]:
+    """Record what is known about one image.
+
+    `content` carries STRUCTURE produced upstream, of two honest kinds:
+      - `properties`: facts MEASURED off the real file with no model -- format,
+        width/height, EXIF camera and capture date, sha256. Each becomes an edge
+        `observer <relation> <value>` (the relation is the property's key), with
+        numeric values held as typed quantities.
+      - `detections`: objects a DETECTOR recognised (labels, optional confidence),
+        each becoming `observer observed <label>`.
+    Plus an optional `subject` (defaulting to the source), `uri`, and `captured`
+    date. Either kind alone is enough; returns None when neither is present. This
+    producer reads no pixels itself -- the deterministic extractor or the detector
+    upstream does, and this admits their output with perception provenance."""
+    return await _submit_seen(source, content, data_type="image", domain=domain)
+
+
+async def submit_video(
+    source: str,
+    content: Dict[str, Any],
+    *,
+    domain: str = "vision",
+) -> Optional["IngestionResult"]:
+    """Record what a detector/annotator recognised in one video clip.
+
+    Like `submit_image`, plus temporal structure: `events` (recognised happenings,
+    each a label optionally with a `confidence`) become `observer observed
+    <event>` edges alongside the `detections`, and a numeric `duration` (seconds)
+    is held as a typed quantity. Returns None when nothing was recognised. No
+    frames are decoded here."""
+    payload = content or {}
+    events = _named(payload.get("events"))
+    extra: List[Tuple[str, str, List[Dict[str, Any]]]] = []
+    for label, conf in events:
+        concept: Dict[str, Any] = {"label": label, "kind": "event", "domains": [domain]}
+        if conf is not None:
+            concept["attributes"] = {"detection_confidence": str(conf)}
+        extra.append(("observed", label, [concept]))
+
+    duration = payload.get("duration") or payload.get("duration_seconds")
+    if duration is not None:
+        dur_concept, dur_surface = _literal_concept(duration, domain)
+        if dur_concept is not None and dur_concept["kind"] == "quantity":
+            extra.append(("lasts", dur_surface, [dur_concept]))
+
+    return await _submit_seen(source, content, data_type="video", domain=domain,
+                              extra_edges=extra)

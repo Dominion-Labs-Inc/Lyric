@@ -45,7 +45,7 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Dict, List, Optional, Sequence, Set
+from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 
 from core.learning.learning_policy import guard_learning
 from core.learning.rule_identity import semantic_fingerprint
@@ -523,6 +523,70 @@ class RuleStore:
                 " VALUES ($1,$2,$3,$4) ON CONFLICT DO NOTHING",
                 (rule_id, root, role.value, supports),
             )
+
+    # ---- forgetting -----------------------------------------------------
+    #
+    # A rule is referenced from five places, and a caller deleting one by hand
+    # gets it wrong. Measured on the live store: a cleanup that deleted the
+    # evidence and then tried `rule_identity_aliases WHERE rule_id` — a column
+    # that table does not have (it keys on `canonical_rule_id`) — raised, the
+    # caller's `suppress(Exception)` swallowed it, and the rule itself was never
+    # deleted. 30 classification rules were left standing with their evidence
+    # already gone: rules that could still fire and could no longer say what
+    # they were induced from. So the store forgets its own rules, because the
+    # store is what knows everything that points at one.
+
+    #: Everything that references `learned_rules(rule_id)`, and the column that
+    #: does the referencing. Kept beside the DDL that creates them.
+    _REFERENCING: Tuple[Tuple[str, str], ...] = (
+        ("unified.learned_rule_evidence", "rule_id"),
+        ("unified.rule_identity_aliases", "canonical_rule_id"),
+        ("unified.rule_authority_events", "rule_id"),
+        ("unified.rule_projections", "rule_id"),
+        ("unified.rule_supersessions", "replacement_rule_id"),
+        ("unified.rule_supersessions", "superseded_rule_id"),
+    )
+
+    async def forget(self, rule_ids: Sequence[str]) -> int:
+        """Delete these rules and everything that references them. Returns the
+        number of rules removed.
+
+        Raises rather than reporting a partial success: a rule left behind with
+        its evidence deleted is worse than one never deleted, because it still
+        fires and can no longer say why."""
+        ids = [str(r) for r in rule_ids if r]
+        if not ids:
+            return 0
+        await self._ready()
+        # A rule may supersede another in this same set, so clear the self
+        # reference before deleting any of them.
+        await self.db().execute_query(
+            "UPDATE unified.learned_rules SET supersedes_rule_id = NULL "
+            "WHERE supersedes_rule_id = ANY($1::text[])", (ids,), fetch_all=False)
+        for table, column in self._REFERENCING:
+            await self.db().execute_query(
+                f"DELETE FROM {table} WHERE {column} = ANY($1::text[])",
+                (ids,), fetch_all=False)
+        await self.db().execute_query(
+            "DELETE FROM unified.learned_rules WHERE rule_id = ANY($1::text[])",
+            (ids,), fetch_all=False)
+        left = await self.db().execute_query(
+            "SELECT count(*) AS n FROM unified.learned_rules "
+            "WHERE rule_id = ANY($1::text[])", (ids,), fetch_all=True) or []
+        remaining = int(left[0]["n"]) if left else 0
+        if remaining:
+            raise RuntimeError(
+                f"forget: {remaining} of {len(ids)} rule(s) survived deletion; "
+                f"something references them that this store does not know about")
+        return len(ids)
+
+    async def forget_domain(self, domain_id: str) -> int:
+        """Delete every rule filed under `domain_id`. Returns how many."""
+        await self._ready()
+        rows = await self.db().execute_query(
+            "SELECT rule_id FROM unified.learned_rules WHERE domain_id = $1",
+            (str(domain_id),), fetch_all=True) or []
+        return await self.forget([r["rule_id"] for r in rows])
 
     # ---- judging --------------------------------------------------------
 

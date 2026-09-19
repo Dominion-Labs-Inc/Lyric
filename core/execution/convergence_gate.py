@@ -185,16 +185,6 @@ class ConvergenceGate:
     def _initialize_default_invariants(self):
         """Initialize default invariants for core task types"""
         
-        # SECURITY_REMEDIATION: Must prove finding no longer exists
-        self.register_invariant(ConvergenceInvariant(
-            invariant_id="security_finding_resolved",
-            description="Security finding must no longer exist after remediation",
-            constraint_expr="NOT(finding_exists(finding_id))",
-            task_type="SECURITY_REMEDIATION",
-            required=True,
-            proof_method="smt"
-        ))
-        
         # EXECUTION: Must prove side-effects occurred
         self.register_invariant(ConvergenceInvariant(
             invariant_id="side_effects_occurred",
@@ -640,13 +630,8 @@ class ConvergenceGate:
     ) -> Tuple[bool, Optional[Dict[str, Any]]]:
         """Verify constraint using Z3 SMT solver.
         
-        CRITICAL: Must query AUTHORITATIVE state, not LLM assertions.
-        
-        Failure mode:
-        finding_exists = tool_result['llm_says_fixed']  # ❌ Formal theater
-        
-        Correct:
-        finding_exists = security_audit_worker.get_active_findings(finding_id)  # ✅ Ground truth
+        CRITICAL: Must query AUTHORITATIVE state (observed tool results), never
+        an assertion that the goal was reached.
         
         Returns:
             (satisfied, counterexample) - counterexample is Z3 model when satisfied=False
@@ -657,89 +642,7 @@ class ConvergenceGate:
         epistemic_mutations = state.get('epistemic_mutations', [])
         
         # Build constraint problem based on invariant type
-        if invariant.invariant_id == "security_finding_resolved":
-            # Query AUTHORITATIVE state: security_audit_worker
-            finding_id = task.metadata.get('finding_id') if hasattr(task, 'metadata') else None
-            if not finding_id:
-                return False  # Cannot verify without finding_id
-            
-            # Query ground truth from authoritative state store
-            try:
-                # get_security_audit_worker does not exist — the correct function
-                # is get_audit_worker() in the same module.
-                from core.security.security_audit_worker import get_audit_worker
-                audit_worker = get_audit_worker()
-
-                # get_active_findings may be sync or async depending on version
-                _findings_result = audit_worker.get_active_findings()
-                if asyncio.iscoroutine(_findings_result):
-                    active_findings = await _findings_result
-                else:
-                    active_findings = _findings_result or []
-
-                finding_exists = any(
-                    getattr(f, 'finding_id', None) == finding_id
-                    or (isinstance(f, dict) and f.get('finding_id') == finding_id)
-                    for f in active_findings
-                )
-
-                logger.info(
-                    f"🔬 SMT verification: finding_id={finding_id}, "
-                    f"exists={finding_exists} (authoritative state query)"
-                )
-
-                if finding_exists:
-                    counterexample = {
-                        "finding_id": finding_id,
-                        "finding_exists": True,
-                        "remediation_status": "incomplete",
-                        "verification_source": "authoritative_state"
-                    }
-                    return False, counterexample
-                else:
-                    return True, None
-
-            except ImportError as e:
-                logger.warning(
-                    f"Cannot import audit worker for finding {finding_id}: {e} — "
-                    "falling back to tool-result verification"
-                )
-            except Exception as e:
-                logger.error(f"Failed to query authoritative state for finding {finding_id}: {e}")
-                # Fallback: check tool results (less reliable)
-                security_scans = [
-                    r for r in tool_results
-                    if r.get('tool') in ('security_scan', 'verify_security_fix')
-                ]
-                
-                if not security_scans:
-                    counterexample = {
-                        "finding_id": finding_id,
-                        "verification_status": "no_verification_data",
-                        "verification_source": "none"
-                    }
-                    return False, counterexample
-                
-                latest_scan = security_scans[-1]
-                findings = latest_scan.get('result', {}).get('findings', [])
-                finding_exists = any(f.get('id') == finding_id for f in findings)
-                
-                logger.warning(
-                    f"⚠️  Using tool results for verification (authoritative state unavailable)"
-                )
-                
-                if finding_exists:
-                    counterexample = {
-                        "finding_id": finding_id,
-                        "finding_exists": True,
-                        "verification_source": "tool_results",
-                        "latest_scan": latest_scan.get('tool')
-                    }
-                    return False, counterexample
-                else:
-                    return True, None
-            
-        elif invariant.invariant_id == "side_effects_occurred":
+        if invariant.invariant_id == "side_effects_occurred":
             # Count successful tool calls (excluding meta-tools)
             successful_calls = sum(
                 1 for r in tool_results

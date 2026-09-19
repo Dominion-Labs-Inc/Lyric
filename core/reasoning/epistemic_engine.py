@@ -121,6 +121,12 @@ class EpistemicEngine:
 
     def __init__(self) -> None:
         self._lock = asyncio.Lock()
+        # Last-seen entropy per belief, for interpret_drift — lets the engine notice
+        # belief MOVEMENT from any source (perception, teaching, reasoning), not just
+        # the beliefs a reasoning pass itself wrote. Primed on the first drain so the
+        # existing graph is a baseline, not a one-time flood of "new" mutations.
+        self._entropy_snapshot: Dict[str, float] = {}
+        self._drift_primed: bool = False
 
     # ------------------------------------------------------------------
     # Subsystem accessors (lazy, to avoid circular imports)
@@ -391,6 +397,44 @@ class EpistemicEngine:
                 f"[{types}]"
             )
         return mutations
+
+    async def interpret_drift(self) -> List["EpistemicMutation"]:
+        """Interpret belief MOVEMENT from ANY source since the last drain.
+
+        `apply_reasoning_output` only sees the beliefs a reasoning pass itself wrote;
+        perception, teaching and direct observation move beliefs through other doors.
+        This diffs the whole belief graph's entropy against the last snapshot, so EVERY
+        belief movement — whoever caused it — becomes an interpreted mutation, using the
+        SAME new_belief / entropy_reduction / entropy_increase vocabulary
+        apply_reasoning_output uses (the engine owns that meaning in one place). Then it
+        advances the snapshot. Primed on the first call so the pre-existing graph is a
+        baseline, not a flood of spurious "new" mutations.
+
+        READ-ONLY over beliefs: it interprets what changed, it NEVER writes a belief.
+        This is the producer of the knowledge→emotion signal; emotion is fed BY
+        knowledge change, and the logic is never driven the other way."""
+        unc = self._uncertainty()
+        if unc is None or not hasattr(unc, "beliefs"):
+            return []
+        async with self._lock:
+            snap = self._entropy_snapshot
+            first = not self._drift_primed
+            mutations: List[EpistemicMutation] = []
+            for bid, belief in list(unc.beliefs.items()):
+                ent = float(getattr(belief, "entropy", 1.0))
+                if not first:
+                    if bid not in snap:
+                        delta = 1.0 - ent          # from the max-entropy baseline
+                        if abs(delta) > EPSILON:
+                            mutations.append(EpistemicMutation("new_belief", bid, delta))
+                    else:
+                        delta = snap[bid] - ent
+                        if abs(delta) > EPSILON:
+                            mtype = "entropy_reduction" if delta > 0 else "entropy_increase"
+                            mutations.append(EpistemicMutation(mtype, bid, delta))
+                snap[bid] = ent
+            self._drift_primed = True
+            return mutations
 
     # ------------------------------------------------------------------
     # Public: observe tool results during execution loop

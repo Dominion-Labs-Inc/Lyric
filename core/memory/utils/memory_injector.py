@@ -12,6 +12,8 @@ Purpose:
 
 import logging
 from typing import Dict, Any, List, Optional, Tuple
+
+from core.capability import raise_if_structural
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
@@ -102,6 +104,45 @@ class InjectedMemories:
     formatting_time: float = 0.0
 
     timestamp: datetime = field(default_factory=datetime.now)
+
+
+def _pursuit_suffix(mem: Dict[str, Any]) -> str:
+    """" (while pursuing <intent>)" when the memory recorded one, else "".
+
+    RENDERED, NOT MERELY CARRIED. `reasoning_trace` was read out of the row,
+    passed through retrieval, and then dropped by every template — present in the
+    pipeline and invisible to the reader. A field that reaches no consumer is not
+    wired, however faithfully it is stored.
+
+    The version is shown because an intent is revisable: naming the pursuit
+    without saying WHICH STATE of it was current lets a later refinement
+    re-describe what a past act was for.
+    """
+    iid = mem.get('intent_id')
+    if not iid:
+        return ""
+    ver = mem.get('intent_version')
+    return f" (while pursuing {iid}" + (f" v{ver})" if ver else ")")
+
+
+def _percept_suffix(mem: Dict[str, Any]) -> str:
+    """" (seen: <percept> #<digest>)" when the memory is OF a percept, else "".
+
+    WHY THE DIGEST IS SHOWN. The percept id names the act of seeing; the digest
+    names the thing seen. A recalled memory that says only "I saw something"
+    carries the substrate's word for it — the same standing as a recollection.
+    Naming the bytes makes it checkable: the claim can be taken back to the
+    object and verified, or found to be of something else.
+
+    Short-formed because this rides on every recalled line: the first 12
+    characters of the digest identify the object for a reader, and the full
+    value stays on the row for anything doing real verification.
+    """
+    pid = mem.get('percept_id')
+    if not pid:
+        return ""
+    digest = mem.get('percept_digest')
+    return f" (seen: {pid}" + (f" #{str(digest)[:12]})" if digest else ")")
 
 
 class MemoryInjector:
@@ -241,9 +282,14 @@ class MemoryInjector:
             self.stats['total_injections'] += 1
             self.stats['total_memories_injected'] += len(memories)
 
-            if memories:
-                avg_score = sum(m.get('relevance_score', 0) for m in memories) / len(memories)
-                self.stats['avg_relevance_score'] = avg_score
+            # Averaged over the memories that HAVE a similarity. One matched by
+            # wording carries none, and counting it as zero would report the
+            # recall as worse than it was.
+            scored = [m['relevance_score'] for m in memories
+                      if m.get('relevance_score') is not None]
+            if scored:
+                self.stats['avg_relevance_score'] = sum(scored) / len(scored)
+            self.stats['unscored_memories'] = len(memories) - len(scored)
 
             result = InjectedMemories(
                 formatted_text=formatted_text,
@@ -350,13 +396,37 @@ class MemoryInjector:
                     'memory_id': result.memory_id,
                     'content': result.content,
                     'claim': str(claim).strip() if claim else None,
-                    'relevance_score': result.similarity_score,
+                    # HOW WELL THIS MATCHED, OR THAT NOBODY MEASURED IT.
+                    #
+                    # `similarity_score` is set ONLY by the pgvector path.
+                    # `retrieve()` runs several strategies concurrently and
+                    # merges them, so a memory found by WORDING (keyword) or by
+                    # TAG legitimately carries no similarity — it was matched a
+                    # different way, not matched badly.
+                    #
+                    # Reading the attribute directly raised AttributeError on
+                    # exactly those, and the broad handler below turned that into
+                    # an empty recall: one keyword-only hit silently destroyed
+                    # the whole injection, reported as "no memories".
+                    #
+                    # None, never 0.0: an unmeasured similarity is not a measured
+                    # bad one, and writing zero would put a fabricated number
+                    # into the stats that read this.
+                    'relevance_score': getattr(result, 'similarity_score', None),
                     'importance_score': importance,
                     'timestamp': result.created_at,
                     'metadata': metadata,
                     # The derivation, when the record kept one. Carried rather
                     # than dropped: it was read out of the row already.
                     'reasoning_trace': getattr(result, 'reasoning_trace', None),
+                    # WHAT THE SUBSTRATE WAS PURSUING when this happened, and
+                    # which version of that pursuit was current at the time.
+                    'intent_id': getattr(result, 'intent_id', None),
+                    'intent_version': getattr(result, 'intent_version', None),
+                    # WHAT IT WAS OF — carried through retrieval so the reader
+                    # gets the reference, not just the recollection.
+                    'percept_id': getattr(result, 'percept_id', None),
+                    'percept_digest': getattr(result, 'percept_digest', None),
                 })
 
             if len(results) > len(memories):
@@ -397,6 +467,12 @@ class MemoryInjector:
             return memories[:max_results]
 
         except Exception as e:
+            # A WIRING FAULT MUST NOT READ AS "NOTHING WAS REMEMBERED".
+            # Returning [] here is indistinguishable from an empty store, which
+            # is how an AttributeError on one field hid itself for as long as it
+            # did. Structural faults are re-raised; only genuine retrieval
+            # failures degrade to empty, and they say so.
+            raise_if_structural(e, 'memory_injector._retrieve_memories')
             logger.error(f"Memory retrieval failed: {e}")
             return []
 
@@ -426,7 +502,8 @@ class MemoryInjector:
         lines = ["You have access to the following relevant context from memory:"]
 
         for mem in memories:
-            lines.append(f"• {mem['content']}")
+            lines.append(f"• {mem['content']}" + _pursuit_suffix(mem)
+                         + _percept_suffix(mem))
 
         return "\n".join(lines)
 

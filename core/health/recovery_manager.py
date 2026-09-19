@@ -287,12 +287,9 @@ class RecoveryManager:
     #: the live object before being listed; a handler that cannot be called is
     #: worse than none, because it reports a recovery that never happened.
     BUILTIN_RESTART_TARGETS = {
-        'watchdog':        ('core.health.system_watchdog', 'get_system_watchdog', 'start'),
-        'health_system':   ('core.health.system_watchdog', 'get_system_watchdog', 'start'),
         'backup':          ('core.services.backup_scheduler', 'get_backup_scheduler', 'start_scheduler'),
         'neural_bridge':   ('core.reasoning.neural_bridge', 'get_neural_bridge', 'initialize'),
         'reasoning':       ('core.reasoning.neural_bridge', 'get_neural_bridge', 'initialize'),
-        'llm':             ('core.services.unified_llm', 'get_llm_service', 'initialize'),
         'intelligence':    ('core.intelligence.predictive_intelligence_system',
                             'get_predictive_intelligence', 'initialize'),
         # The improvement cycle attempted `agents` on every run for two days and
@@ -308,8 +305,10 @@ class RecoveryManager:
     #: DELIBERATELY ABSENT, so nobody adds a handler that reports a recovery it
     #: cannot perform:
     #:
-    #:   security  -- SecurityController exposes no initialize()/start(); its
-    #:                low score is measurement coverage, not a stopped process.
+    #:   security / governance -- never restarted from inside the substrate;
+    #:                process supervision belongs to the container it runs in.
+    #:   monitoring / watchdog -- retired; the health monitor is the one
+    #:                health authority and nothing restarts it in-process.
     #:   learning  -- degraded by a low ASI success rate over real cycles. That
     #:                is a result, not a liveness fault, and restarting nothing
     #:                would change it. _remediate_targets already classifies it
@@ -323,9 +322,7 @@ class RecoveryManager:
     #: built-in branches. Shared with `can_restart` so the "is there a path?"
     #: answer stays identical to what `_restart_component` will actually attempt.
     _BUILTIN_RESTART_KEYS = frozenset({
-        "monitoring", "monitoring_coordinator", "monitor",
         "health", "health_monitor",
-        "security", "security_controller", "security_system",
         "db", "database", "postgres", "postgresql",
     })
 
@@ -507,6 +504,8 @@ class RecoveryManager:
                 'alert_db_recovery': RecoveryAction.ALERT,
                 'alert_quantum_degraded': RecoveryAction.ALERT,
                 'alert_network_issue': RecoveryAction.ALERT,
+                'alert_security_degraded': RecoveryAction.ALERT,
+                'alert_health_system_degraded': RecoveryAction.ALERT,
                 # Restarts
                 'restart_api_connections': RecoveryAction.RESTART,
                 'gc_collect': RecoveryAction.CLEANUP,
@@ -762,23 +761,7 @@ class RecoveryManager:
 
         # 2) Built-in restart targets
         try:
-            if component_key in {"monitoring", "monitoring_coordinator", "monitor"}:  # noqa: keys mirrored in _BUILTIN_RESTART_KEYS
-                from core.health.monitoring_coordinator import get_monitoring_coordinator
-
-                coordinator = get_monitoring_coordinator()
-                try:
-                    if hasattr(coordinator, "stop_monitoring"):
-                        await coordinator.stop_monitoring()
-                except Exception:
-                    pass
-
-                ok_init = await coordinator.initialize()
-                if not ok_init:
-                    return False
-                await coordinator.start_monitoring()
-                return True
-
-            if component_key in {"health", "health_monitor"}:
+            if component_key in {"health", "health_monitor"}:  # noqa: keys mirrored in _BUILTIN_RESTART_KEYS
                 from core.health.health_monitor import get_health_monitor
 
                 monitor = get_health_monitor()
@@ -789,22 +772,6 @@ class RecoveryManager:
                     pass
 
                 await monitor.start_monitoring()
-                return True
-
-            if component_key in {"security", "security_controller", "security_system"}:
-                from core.security.controller import get_security_controller
-
-                # If reset helper exists, use it. Otherwise attempt a light-touch restart.
-                try:
-                    from core.security.controller import reset_security_controller
-                    await reset_security_controller()
-                except Exception:
-                    pass
-
-                controller = get_security_controller()
-                coordinator = params.get("coordinator") or params.get("autonomous_coordinator")
-                if coordinator is not None and hasattr(controller, "set_autonomous_coordinator"):
-                    controller.set_autonomous_coordinator(coordinator)
                 return True
 
             if component_key in {"db", "database", "postgres", "postgresql"}:

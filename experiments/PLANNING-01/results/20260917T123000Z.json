@@ -1,0 +1,357 @@
+{
+  "experiment": "PLANNING-01",
+  "claim": "The substrate has exactly one planning authority, and every planning path reports honestly: a proved plan is really proved, an unreachable goal yields no plan, and a template plan is never presented as proved.",
+  "hypothesis": "If planning is routed by goal type through one engine, then a state goal either proves a grounded operator route or reports why it could not, never falling through to a plausible template; and what a plan claims about itself is read from what the substrate measures rather than invented.",
+  "started_at": "2026-09-17T12:30:00.416575+00:00",
+  "duration_seconds": 6.794,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/TorinAI/venv_torin/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/TorinAI",
+    "shadow_mode": "1",
+    "git_commit": "a36cac20c24cef93cfa6d22ef82bf9a3169e9a5b",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "torinai_db",
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "dotenv:.env.postgres",
+        "database": "dotenv:.env.postgres",
+        "user": "dotenv:.env.postgres",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres"
+      }
+    },
+    "git_uncommitted_changes": 259,
+    "database_verified": "torinai_db",
+    "database_verified_reason": "asked the server"
+  },
+  "summary": {
+    "checks": 39,
+    "passed": 39,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [
+    {
+      "name": "abstraction_gathered",
+      "value": true,
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "episodic_memory_gathered",
+      "value": true,
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "plan_intent_id",
+      "value": "79a054ac0dd04be38efdce539be16684",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "plan_intent_operators",
+      "value": 1,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "state_plan_inputs",
+      "value": [
+        "observed_world",
+        "learned_operators",
+        "operating_reliability"
+      ],
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "template_plan_inputs",
+      "value": [
+        "tool_history",
+        "abstraction",
+        "episodic_memory"
+      ],
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "input_sources",
+      "value": {
+        "observed_world": "coordinator (perception)",
+        "learned_operators": "rule store",
+        "operating_reliability": "domain authority",
+        "tool_history": "learning authority"
+      },
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "earned_operating_reliability",
+      "value": 0.5,
+      "unit": "fraction",
+      "note": "the honest signal a plan's confidence should read (attempts=0, enough_history=False)"
+    },
+    {
+      "name": "template_plan_confidence",
+      "value": 0.679,
+      "unit": "fraction",
+      "note": "currently invented"
+    },
+    {
+      "name": "template_plan_duration",
+      "value": 0.0,
+      "unit": "minutes",
+      "note": "currently constants"
+    },
+    {
+      "name": "state_plan_confidence",
+      "value": 1.0,
+      "unit": "fraction",
+      "note": "proved, not estimated"
+    }
+  ],
+  "checks": [
+    {
+      "label": "the planning faculty initialises",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-17T12:30:05.136774+00:00"
+    },
+    {
+      "label": "the planner IS self.planning (one authority, not a second engine)",
+      "passed": true,
+      "detail": "same_object=True",
+      "at": "2026-09-17T12:30:05.139837+00:00"
+    },
+    {
+      "label": "a goal made through self.planning is a goal the planner holds",
+      "passed": true,
+      "detail": "fe12d676",
+      "at": "2026-09-17T12:30:05.140957+00:00"
+    },
+    {
+      "label": "the domain offers a learned, executable operator",
+      "passed": true,
+      "detail": "1 executable rule(s) in fs_g2_real1",
+      "at": "2026-09-17T12:30:05.146936+00:00"
+    },
+    {
+      "label": "a goal with state conditions is a STATE goal",
+      "passed": true,
+      "detail": "GoalType.STATE",
+      "at": "2026-09-17T12:30:05.147579+00:00"
+    },
+    {
+      "label": "it plans, by search, and says so",
+      "passed": true,
+      "detail": "plan_found / state \u2014 plan of 1 step(s) found",
+      "at": "2026-09-17T12:30:05.162660+00:00"
+    },
+    {
+      "label": "a preparatory reading is declared as one, never as a grounded operator",
+      "passed": true,
+      "detail": "1 reading step(s), 1 operator step(s)",
+      "at": "2026-09-17T12:30:05.162668+00:00"
+    },
+    {
+      "label": "every step is grounded in a learned rule (not a description)",
+      "passed": true,
+      "detail": "[None, 'MOVE_FILE(Freport_2etxt, Finbox, Farchive)']",
+      "at": "2026-09-17T12:30:05.162673+00:00"
+    },
+    {
+      "label": "a proved plan states full confidence because it is proved, not estimated",
+      "passed": true,
+      "detail": "confidence=1.0",
+      "at": "2026-09-17T12:30:05.162677+00:00"
+    },
+    {
+      "label": "an unreachable state goal does NOT produce a plan",
+      "passed": true,
+      "detail": "unreachable, plan=None",
+      "at": "2026-09-17T12:30:05.166741+00:00"
+    },
+    {
+      "label": "it reports WHY, as a state verdict \u2014 never as a template plan",
+      "passed": true,
+      "detail": "unreachable / state \u2014 state space exhausted at 2 state(s); no sequence of the available actions achieves the goal",
+      "at": "2026-09-17T12:30:05.166747+00:00"
+    },
+    {
+      "label": "template decomposition produces NO plan for a state goal",
+      "passed": true,
+      "detail": "returned=None, leaked_plans=0",
+      "at": "2026-09-17T12:30:05.166776+00:00"
+    },
+    {
+      "label": "that refusal is distinguishable from a generic failure",
+      "passed": true,
+      "detail": "goal 923f2ada-2af4-4296-b7cc-2ae442171ad7 states world conditions and must be planned by s",
+      "at": "2026-09-17T12:30:05.166778+00:00"
+    },
+    {
+      "label": "a goal without state conditions is DESCRIPTIVE",
+      "passed": true,
+      "detail": "GoalType.DESCRIPTIVE",
+      "at": "2026-09-17T12:30:05.167285+00:00"
+    },
+    {
+      "label": "it is planned by template, and says template",
+      "passed": true,
+      "detail": "plan_found / template",
+      "at": "2026-09-17T12:30:05.280871+00:00"
+    },
+    {
+      "label": "a template plan claims NO learned rule behind its steps",
+      "passed": true,
+      "detail": "no step claims a rule it does not have",
+      "at": "2026-09-17T12:30:05.280880+00:00"
+    },
+    {
+      "label": "a template plan declares where its confidence came from",
+      "passed": true,
+      "detail": "confidence_source=measured_overall_success_rate",
+      "at": "2026-09-17T12:30:05.307328+00:00"
+    },
+    {
+      "label": "an UNMEASURED confidence is never presented as evidence",
+      "passed": true,
+      "detail": "source=measured_overall_success_rate, confidence=0.679 (neutral 0.5 withheld both ways until earned, as operating_reliability does)",
+      "at": "2026-09-17T12:30:05.307334+00:00"
+    },
+    {
+      "label": "a measured confidence is a real reading, not the old 0.7+count heuristic",
+      "passed": true,
+      "detail": "confidence=0.679 from measured_overall_success_rate",
+      "at": "2026-09-17T12:30:05.307337+00:00"
+    },
+    {
+      "label": "a template plan declares where its duration came from",
+      "passed": true,
+      "detail": "duration_source=unmeasured",
+      "at": "2026-09-17T12:30:05.307339+00:00"
+    },
+    {
+      "label": "an UNMEASURED duration is reported as unmeasured, not as constants",
+      "passed": true,
+      "detail": "source=unmeasured, duration=0.0 (was 75.0/65.0 summed from hardcoded per-task constants)",
+      "at": "2026-09-17T12:30:05.307341+00:00"
+    },
+    {
+      "label": "the reasoning authority is up (it owns the abstraction pipeline)",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-17T12:30:07.065338+00:00"
+    },
+    {
+      "label": "a plan formed after the reasoning authority is up gathers abstraction",
+      "passed": true,
+      "detail": "{'available': True, 'source': 'reasoning authority', 'principles': 0, 'schemas': 0, 'constraints': []}",
+      "at": "2026-09-17T12:30:07.195892+00:00"
+    },
+    {
+      "label": "episodic memory is gathered within the abstraction's constraints",
+      "passed": true,
+      "detail": "{'available': True, 'source': 'memory, within abstraction', 'memories': []}",
+      "at": "2026-09-17T12:30:07.195902+00:00"
+    },
+    {
+      "label": "no prose 'plan steps' are emitted (the dropped final step stays dropped)",
+      "passed": true,
+      "detail": "prose_steps=[], has_plan_steps=False",
+      "at": "2026-09-17T12:30:07.195909+00:00"
+    },
+    {
+      "label": "the plan records the intent it is the proved route of",
+      "passed": true,
+      "detail": "{'recorded': True, 'intent_id': '79a054ac0dd04be38efdce539be16684', 'actor': 'substrate', 'operators': 1}",
+      "at": "2026-09-17T12:30:07.195929+00:00"
+    },
+    {
+      "label": "the authority holds that intent, keyed to the goal",
+      "passed": true,
+      "detail": "id=79a054ac origin=goal",
+      "at": "2026-09-17T12:30:07.197077+00:00"
+    },
+    {
+      "label": "its shape carries the PROVED route \u2014 operator, rule, goal state",
+      "passed": true,
+      "detail": "operator=MOVE_FILE(Freport_2etxt, Finbox, Farchive) rules=['rule_399de8f89089'] proved=True",
+      "at": "2026-09-17T12:30:07.197093+00:00"
+    },
+    {
+      "label": "the goal's own words are actor-scoped content, not substrate-wide shape",
+      "passed": true,
+      "detail": "aim='archive the report'",
+      "at": "2026-09-17T12:30:07.197097+00:00"
+    },
+    {
+      "label": "every step REFERENCES that one intent (one goal, one intent)",
+      "passed": true,
+      "detail": "2 step(s) -> {'79a054ac0dd04be38efdce539be16684'}",
+      "at": "2026-09-17T12:30:07.197106+00:00"
+    },
+    {
+      "label": "each step of the ROUTE still says which step of it it is",
+      "passed": true,
+      "detail": "[0]",
+      "at": "2026-09-17T12:30:07.197110+00:00"
+    },
+    {
+      "label": "re-planning the same goal firms up the SAME intent, not a second one",
+      "passed": true,
+      "detail": "id unchanged=True, v1 -> v2",
+      "at": "2026-09-17T12:30:07.209120+00:00"
+    },
+    {
+      "label": "a state plan and a template plan declare DIFFERENT inputs",
+      "passed": true,
+      "detail": "state=['learned_operators', 'observed_world', 'operating_reliability'] template=['abstraction', 'episodic_memory', 'tool_history']",
+      "at": "2026-09-17T12:30:07.209139+00:00"
+    },
+    {
+      "label": "only a state plan asks for the observed world and learned operators",
+      "passed": true,
+      "detail": "the coordinator perceives; the planner is given what it saw",
+      "at": "2026-09-17T12:30:07.209143+00:00"
+    },
+    {
+      "label": "the state plan records the inputs it was formed on",
+      "passed": true,
+      "detail": "required=['observed_world', 'learned_operators', 'operating_reliability']",
+      "at": "2026-09-17T12:30:07.209152+00:00"
+    },
+    {
+      "label": "the template plan records the inputs it was formed on",
+      "passed": true,
+      "detail": "required=['tool_history', 'abstraction', 'episodic_memory']",
+      "at": "2026-09-17T12:30:07.209154+00:00"
+    },
+    {
+      "label": "every declared input is either gathered or reported missing with a reason",
+      "passed": true,
+      "detail": "state missing=[], template missing=[('abstraction', 'the reasoning authority has not brought up abstraction yet'), ('episodic_memory', 'the reasoning authority has not brought up abstraction yet')]",
+      "at": "2026-09-17T12:30:07.209160+00:00"
+    },
+    {
+      "label": "every gathered input names the authority that owns it",
+      "passed": true,
+      "detail": "{'observed_world': 'coordinator (perception)', 'learned_operators': 'rule store', 'operating_reliability': 'domain authority', 'tool_history': 'learning authority'}",
+      "at": "2026-09-17T12:30:07.209168+00:00"
+    },
+    {
+      "label": "episodic memory is named as the memory authority names it",
+      "passed": true,
+      "detail": "MemoryType.EPISODIC \u2014 not an invented term",
+      "at": "2026-09-17T12:30:07.209170+00:00"
+    }
+  ],
+  "notes": []
+}

@@ -1,0 +1,158 @@
+{
+  "experiment": "INTENT-02",
+  "claim": "A real reasoning pass through the bridge forms and refreshes the substrate's intent where reasoning starts, keyed so turns refresh and goals stay distinct, split into shape and content, and durable.",
+  "hypothesis": "If the bridge opens intent at the start of reason(), then every reasoning carries an intent id, a return refreshes rather than rebuilds, concurrent passes on one thread make one intent, the query never leaks into substrate-wide shape, and it survives a fresh process.",
+  "started_at": "2026-09-17T00:12:18.225244+00:00",
+  "duration_seconds": 7.053,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/TorinAI/venv_torin/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/TorinAI",
+    "shadow_mode": "1",
+    "git_commit": "a36cac20c24cef93cfa6d22ef82bf9a3169e9a5b",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "torinai_db",
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "dotenv:.env.postgres",
+        "database": "dotenv:.env.postgres",
+        "user": "dotenv:.env.postgres",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres"
+      }
+    },
+    "git_uncommitted_changes": 255,
+    "database_verified": "torinai_db",
+    "database_verified_reason": "asked the server"
+  },
+  "summary": {
+    "checks": 15,
+    "passed": 15,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [
+    {
+      "name": "reason_call_latency_mean_ms",
+      "value": 18.79,
+      "unit": "ms",
+      "note": ""
+    },
+    {
+      "name": "reason_call_latency_max_ms",
+      "value": 19.61,
+      "unit": "ms",
+      "note": ""
+    },
+    {
+      "name": "concurrent_passes_to_one_intent",
+      "value": 1,
+      "unit": "rows",
+      "note": ""
+    },
+    {
+      "name": "thread_intent_version_after_two_turns",
+      "value": 4,
+      "unit": "version",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "the real neural bridge initialises",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-17T00:12:20.050958+00:00"
+    },
+    {
+      "label": "the reasoning result carries an intent id",
+      "passed": true,
+      "detail": "f38929f65d664a7bb0aa36fffadd161f",
+      "at": "2026-09-17T00:12:20.085543+00:00"
+    },
+    {
+      "label": "a thread intent was formed for this actor",
+      "passed": true,
+      "detail": "id=f38929f6 origin=thread",
+      "at": "2026-09-17T00:12:20.087157+00:00"
+    },
+    {
+      "label": "the shape records the reasoning (answered, confidence), not the query",
+      "passed": true,
+      "detail": "shape_keys=['answered', 'confidence', 'engaged', 'kinds', 'mode_used', 'reasoning_mode']",
+      "at": "2026-09-17T00:12:20.087164+00:00"
+    },
+    {
+      "label": "the second turn keeps the same intent id",
+      "passed": true,
+      "detail": "f38929f6 == f38929f6",
+      "at": "2026-09-17T00:12:20.617020+00:00"
+    },
+    {
+      "label": "the refresh advanced the version and grew history (not a new intent)",
+      "passed": true,
+      "detail": "v4, history=3",
+      "at": "2026-09-17T00:12:20.617038+00:00"
+    },
+    {
+      "label": "the goal reasoning is a distinct intent, parented to the thread",
+      "passed": true,
+      "detail": "goal=87a0497d parent=f38929f6",
+      "at": "2026-09-17T00:12:20.643448+00:00"
+    },
+    {
+      "label": "the same anchorless question refreshes one intent",
+      "passed": true,
+      "detail": "9e88f917 == 9e88f917",
+      "at": "2026-09-17T00:12:20.705732+00:00"
+    },
+    {
+      "label": "a different question is a different intent",
+      "passed": true,
+      "detail": "67cbee54 != 9e88f917",
+      "at": "2026-09-17T00:12:20.705745+00:00"
+    },
+    {
+      "label": "content holds the latest turn's query (context is refreshed)",
+      "passed": true,
+      "detail": "content_query='and what is its population'",
+      "at": "2026-09-17T00:12:20.707083+00:00"
+    },
+    {
+      "label": "the first turn's query survives in history (refreshed, not lost)",
+      "passed": true,
+      "detail": "history_len=3",
+      "at": "2026-09-17T00:12:20.707089+00:00"
+    },
+    {
+      "label": "the query is actor-scoped content, never substrate-wide shape",
+      "passed": true,
+      "detail": "shape_keys=['answered', 'confidence', 'engaged', 'kinds', 'mode_used', 'reasoning_mode']",
+      "at": "2026-09-17T00:12:20.707095+00:00"
+    },
+    {
+      "label": "six concurrent passes on one thread collapse to exactly one intent",
+      "passed": true,
+      "detail": "1 scoped row(s) for the thread",
+      "at": "2026-09-17T00:12:20.810074+00:00"
+    },
+    {
+      "label": "intent forming does not dominate a reasoning pass (mean < 250 ms)",
+      "passed": true,
+      "detail": "mean 18.8 ms, max 19.6 ms (n=5, whole reason() call)",
+      "at": "2026-09-17T00:12:20.911820+00:00"
+    },
+    {
+      "label": "a fresh process reloads the thread intent (settled) and the parented goal",
+      "passed": true,
+      "detail": "{\"thread_reloaded\": true, \"thread_settled\": true, \"thread_version\": 4, \"goal_reloaded\": true, \"goal_parent\": \"f38929f65d664a7bb0aa36fffadd161f\"}",
+      "at": "2026-09-17T00:12:25.271897+00:00"
+    }
+  ],
+  "notes": []
+}

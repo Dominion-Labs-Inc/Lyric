@@ -2335,117 +2335,11 @@ class AbstractionPipeline:
                 )
 
 
-# FIX #5: Hierarchical Planner - Principles shape strategy BEFORE episodic retrieval
-class HierarchicalPlanner:
-    """
-    Planner that queries abstraction hierarchy BEFORE episodic memory.
-
-    Flow:
-    1. Query Level 3 principles relevant to goal
-    2. Find Level 2 schemas under those principles
-    3. Extract strategy constraints from schemas
-    4. Query episodic memories WITHIN constraints
-    5. Generate plan following principle-level strategy
-
-    This makes abstraction UPSTREAM of planning, not downstream.
-    """
-
-    def __init__(self, abstraction_pipeline: AbstractionPipeline):
-        self.pipeline = abstraction_pipeline
-        self.hierarchy = abstraction_pipeline.concept_hierarchy
-        self.schemas = abstraction_pipeline.active_schemas
-        self.memory = abstraction_pipeline.memory
-
-    async def plan(self, goal: str, domain: str = "general") -> Dict[str, Any]:
-        """Generate plan using hierarchical strategy"""
-
-        # STEP 1: Query Level 3 principles
-        principles = self.hierarchy.find_principles_for_domain(domain)
-
-        # STEP 2: Query Level 2 schemas under principles
-        relevant_schemas = []
-        for principle in principles:
-            schema_nodes = self.hierarchy.get_descendants(principle.concept_id, max_depth=1)
-            for node in schema_nodes:
-                if node.level == AbstractionLevel.SCHEMA and node.schema_id:
-                    if node.schema_id in self.schemas:
-                        relevant_schemas.append(self.schemas[node.schema_id])
-
-        # STEP 3: Extract strategy constraints
-        strategy_constraints = []
-        for schema in relevant_schemas:
-            if schema.probability > 0.7:  # Only use strong schemas
-                constraint = {
-                    'when': schema.condition,
-                    'prefer': schema.outcome,
-                    'confidence': schema.probability,
-                    'schema_id': schema.schema_id
-                }
-                strategy_constraints.append(constraint)
-
-        # STEP 4: Query episodic memories WITHIN constraints
-        constrained_query = self._build_constrained_query(goal, strategy_constraints)
-        memories = await self.memory.search_memories(
-            query_text=constrained_query,
-            limit=20
-        )
-
-        # STEP 5: Generate plan following strategy
-        plan = {
-            'goal': goal,
-            'domain': domain,
-            'principles_applied': [p.concept_id for p in principles],
-            'schemas_used': [s.schema_id for s in relevant_schemas],
-            'strategy_constraints': strategy_constraints,
-            'supporting_memories': [m.memory_id for m in memories],
-            'plan_steps': self._generate_steps_from_strategy(goal, strategy_constraints, memories)
-        }
-
-        return plan
-
-    def _build_constrained_query(self, goal: str, constraints: List[Dict]) -> str:
-        """Build query that incorporates strategic constraints"""
-        query_parts = [goal]
-
-        for constraint in constraints[:3]:  # Top 3 constraints
-            if 'prefer' in constraint:
-                for key, value in constraint['prefer'].items():
-                    query_parts.append(f"{key}:{value}")
-
-        return " ".join(query_parts)
-
-    def _generate_steps_from_strategy(
-        self,
-        goal: str,
-        constraints: List[Dict],
-        memories: List[Any]
-    ) -> List[Dict[str, Any]]:
-        """Generate plan steps following strategic constraints"""
-        steps = []
-
-        # Use constraints to shape action selection
-        for i, constraint in enumerate(constraints[:5]):
-            step = {
-                'step_number': i + 1,
-                'action': f"Apply strategy: {constraint['when']} → {constraint['prefer']}",
-                'confidence': constraint['confidence'],
-                'schema_id': constraint['schema_id']
-            }
-            steps.append(step)
-
-        # Add memory-based refinement
-        for memory in memories[:3]:
-            if hasattr(memory, 'content') and isinstance(memory.content, dict):
-                action = memory.content.get('action') or memory.content.get('result')
-                if action:
-                    steps.append({
-                        'step_number': len(steps) + 1,
-                        'action': f"Based on past: {action}",
-                        'memory_id': memory.memory_id
-                    })
-
-        return steps
-
+# Hierarchical planning — principles shape strategy BEFORE episodic retrieval —
+# now lives in the one planning authority as
+# `PlanningEngine._hierarchical_context`. The `HierarchicalPlanner` class that
+# used to sit here had no callers, and its final step emitted prose "plan steps"
+# that proved nothing; the method was absorbed, that step was not.
 
 _abstraction_pipeline: Optional[AbstractionPipeline] = None
 
@@ -2481,6 +2375,3 @@ def initialize_abstraction_pipeline(
     return _abstraction_pipeline
 
 
-def create_hierarchical_planner(abstraction_pipeline: AbstractionPipeline) -> HierarchicalPlanner:
-    """Create hierarchical planner with principle-first strategy"""
-    return HierarchicalPlanner(abstraction_pipeline)

@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import logging
 import re
+from dataclasses import dataclass
 from typing import Any, Dict, Optional, Tuple
 
 from .action_contract import ActionClass, _IRREVERSIBILITY_ORDER
@@ -69,9 +70,6 @@ _TOOL_CONSEQUENCE: Dict[str, Tuple[ActionClass, str]] = {
     #   "Remove info from data brokers"              -> DELETE, and a removal
     #                                                   request to a third party
     #                                                   cannot be recalled
-    "delete_package": (ActionClass.DELETE, "MOSTLY_IRREVERSIBLE"),
-    "purge_cdn_cache": (ActionClass.DELETE, "MOSTLY_REVERSIBLE"),
-    "remove_from_data_brokers": (ActionClass.DELETE, "IRREVERSIBLE"),
 
     #   "Migrate code from one pattern/version to another" -> in-place rewrite
     #   "Deploy versioned documentation"                   -> versioned, so the
@@ -91,7 +89,6 @@ _TOOL_CONSEQUENCE: Dict[str, Tuple[ActionClass, str]] = {
     #   "Remove and scrub URLs from web archives ... permanently deleting"
     #     -> says permanent, and third-party archives cannot be restored.
     "rename_symbol": (ActionClass.MODIFY, "PARTIALLY_REVERSIBLE"),
-    "scrub_web_archives": (ActionClass.DELETE, "IRREVERSIBLE"),
 
     # ══════════════════════════════════════════════════════════════════════
     # Bulk classification of the remaining registered tools.
@@ -112,11 +109,7 @@ _TOOL_CONSEQUENCE: Dict[str, Tuple[ActionClass, str]] = {
     # ── DELETE ─────────────────────────────────────────────────────
     "crowdstrike_lift_containment": (ActionClass.DELETE, "IRREVERSIBLE"),
     "deduplicate_data": (ActionClass.DELETE, "IRREVERSIBLE"),
-    "file_legal_takedown": (ActionClass.DELETE, "IRREVERSIBLE"),
-    "nuclear_obliteration": (ActionClass.DELETE, "IRREVERSIBLE"),
-    "obliterate_digital_footprint": (ActionClass.DELETE, "IRREVERSIBLE"),
     "sanitize_filename": (ActionClass.DELETE, "IRREVERSIBLE"),
-    "scrub_dns_whois": (ActionClass.DELETE, "IRREVERSIBLE"),
 
     # ── ARCHIVE ─────────────────────────────────────────────────────
     "ast_search": (ActionClass.ARCHIVE, "MOSTLY_REVERSIBLE"),
@@ -166,7 +159,6 @@ _TOOL_CONSEQUENCE: Dict[str, Tuple[ActionClass, str]] = {
     "link_claim_to_evidence": (ActionClass.MODIFY, "PARTIALLY_REVERSIBLE"),
     "misp_create_event": (ActionClass.MODIFY, "PARTIALLY_REVERSIBLE"),
     "modify_config_file": (ActionClass.MODIFY, "PARTIALLY_REVERSIBLE"),
-    "obfuscate_identity": (ActionClass.MODIFY, "PARTIALLY_REVERSIBLE"),
     "pagerduty_create_alert": (ActionClass.MODIFY, "PARTIALLY_REVERSIBLE"),
     "pagerduty_update_alert": (ActionClass.MODIFY, "PARTIALLY_REVERSIBLE"),
     "redis_set": (ActionClass.MODIFY, "PARTIALLY_REVERSIBLE"),
@@ -250,7 +242,6 @@ _TOOL_CONSEQUENCE: Dict[str, Tuple[ActionClass, str]] = {
     "crowdstrike_search_detections": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
     "detect_brute_force": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
     "detect_code_smells": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
-    "detect_digital_footprint": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
     "detect_intrusion": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
     "detect_zero_day": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
     "detectpatterns": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
@@ -383,15 +374,26 @@ _PAYLOAD_PATTERNS = [
     (r"\bos\.remove\b|\bos\.unlink\b|\bPath\([^)]*\)\.unlink\b|\.unlink\(", ActionClass.DELETE, "IRREVERSIBLE"),
     (r"\bmkfs\b|\bdd\s+if=|\b>\s*/dev/", ActionClass.DELETE, "IRREVERSIBLE"),
     (r"\bDROP\s+(TABLE|DATABASE)\b|\bTRUNCATE\s+TABLE\b", ActionClass.DELETE, "IRREVERSIBLE"),
+    # A mutation with no WHERE clause takes every row; there is no undo for it.
+    (r"\b(DELETE\s+FROM|UPDATE)\b(?!.*\bWHERE\b)", ActionClass.DELETE, "IRREVERSIBLE"),
+    # A bounded one changes rows it names.
+    (r"\b(DELETE\s+FROM|UPDATE)\b", ActionClass.MODIFY, "PARTIALLY_REVERSIBLE"),
     (r"\bgit\s+(reset\s+--hard|clean\s+-[a-z]*f)", ActionClass.DELETE, "IRREVERSIBLE"),
     (r"\bkill\s+-9\b|\bpkill\b", ActionClass.EXECUTE, "MOSTLY_IRREVERSIBLE"),
     (r"\bshutil\.move\b|\bos\.rename\b|\bmv\s+", ActionClass.ARCHIVE, "MOSTLY_REVERSIBLE"),
     (r"\bopen\([^)]*['\"][wa]", ActionClass.MODIFY, "PARTIALLY_REVERSIBLE"),
     (r"\bshutil\.copy", ActionClass.MODIFY, "FULLY_REVERSIBLE"),
+    # A read-only query asks; it does not change anything.
+    (r"^\s*(SELECT|SHOW|EXPLAIN|DESCRIBE|WITH)\b", ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
     (r"\b(cat|head|tail|ls|grep|find|wc|stat)\b", ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
 ]
 
-_PAYLOAD_KEYS = ("command", "code", "script", "cmd", "shell_command")
+#: Arguments whose CONTENT is the act: a shell command, a code blob -- and a
+#: SQL statement, which was missing, so `DROP TABLE users` arrived as an
+#: unclassifiable call to an unknown tool and scored the calibrated default
+#: while the DROP/TRUNCATE pattern below sat unused a few lines away.
+_PAYLOAD_KEYS = ("command", "code", "script", "cmd", "shell_command",
+                 "query", "sql", "sql_query", "statement")
 
 
 def classify_action(tool_name: str, parameters: Dict[str, Any]) -> Tuple[ActionClass, str]:
@@ -449,8 +451,67 @@ _TARGET_KEYS = ("file_path", "path", "target_path", "destination_path",
                 "source_path", "directory", "target")
 
 
-def target_sensitivity(parameters: Dict[str, Any]) -> Optional[str]:
-    """Which declared-sensitive target this invocation touches, if any.
+@dataclass(frozen=True)
+class Sensitivity:
+    """What governance DECLARES about a sensitive target — all of it.
+
+    THE FIELDS WERE ALWAYS THERE AND WERE ALWAYS DISCARDED. Every one of the
+    triggers in `config/governance_triggers.json` states an `impact_level`, a
+    `safety_risk`, an `irreversibility_class` and an `escalation_category`. This
+    function matched a trigger and returned `trigger["trigger_id"]` — a bare
+    string — so the constitution learned that `credential_file_read` matched and
+    never learned that the same trigger says CRITICAL impact, CRITICAL risk,
+    PARTIALLY_REVERSIBLE, escalate to security.
+
+    That discarded field is not cosmetic. `irreversibility_class` is how the
+    config says whether a target can be GOT BACK, and a credential declared
+    PARTIALLY_REVERSIBLE is one you re-issue rather than one you keep a copy of.
+    Reading it is what tells a removal that should simply proceed from one that
+    genuinely cannot be undone.
+    """
+    trigger_id: str
+    impact_level: Optional[str] = None
+    safety_risk: Optional[str] = None
+    irreversibility_class: Optional[str] = None
+    escalation_category: Optional[str] = None
+
+    #: Classes that mean "this can be obtained again". A target the config says
+    #: is reversible does not need a preserved copy — recovery is re-fetching it
+    #: from whatever issued it, which is fresher than anything cached.
+    _REOBTAINABLE = ("FULLY_REVERSIBLE", "MOSTLY_REVERSIBLE", "PARTIALLY_REVERSIBLE")
+
+    @property
+    def reobtainable(self) -> bool:
+        """True when governance declares this target can be got back."""
+        return (self.irreversibility_class or "").upper() in self._REOBTAINABLE
+
+    @property
+    def critical(self) -> bool:
+        return "CRITICAL" in {(self.impact_level or "").upper(),
+                              (self.safety_risk or "").upper()}
+
+    @property
+    def computed_per_argument(self) -> bool:
+        """The config declines to state a fixed level for this trigger: its
+        severity depends on the arguments and must be DERIVED, not looked up.
+        Reported rather than silently read as a level."""
+        return "VARIES_BY_PARAM" in {(self.impact_level or "").upper(),
+                                     (self.safety_risk or "").upper()}
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {"trigger_id": self.trigger_id, "impact_level": self.impact_level,
+                "safety_risk": self.safety_risk,
+                "irreversibility_class": self.irreversibility_class,
+                "escalation_category": self.escalation_category,
+                "reobtainable": self.reobtainable, "critical": self.critical}
+
+    def __str__(self) -> str:
+        # Stays readable where the trigger_id alone used to be printed.
+        return self.trigger_id
+
+
+def target_sensitivity(parameters: Dict[str, Any]) -> Optional[Sensitivity]:
+    """What governance declares about the target this invocation touches, or None.
 
     Read from governance's already-loaded trigger config, which is the one
     place target sensitivity is declared (`safety_infrastructure_write` knows
@@ -458,15 +519,15 @@ def target_sensitivity(parameters: Dict[str, Any]) -> Optional[str]:
     friends). Re-encoding those regexes here would be a second owner for the
     same question, free to disagree with the first the next time either moves.
 
-    Returns the trigger_id that claims the target, or None.
+    Returns the full declaration, not just the trigger's name.
     """
     values = [str(parameters.get(k)) for k in _TARGET_KEYS if parameters.get(k)]
     if not values:
         return None
     haystack = " ".join(values)
     try:
-        from core.governance import get_unified_governance
-        config = getattr(get_unified_governance(), "config", None) or {}
+        from core.governance import get_governance_trigger_engine
+        config = getattr(get_governance_trigger_engine(), "config", None) or {}
         for _category, body in (config.get("action_categories") or {}).items():
             for trigger in body.get("triggers", []):
                 params = ((trigger.get("conditions") or {}).get("parameters") or {})
@@ -474,7 +535,14 @@ def target_sensitivity(parameters: Dict[str, Any]) -> Optional[str]:
                     rule = params.get(key)
                     if isinstance(rule, dict) and rule.get("matches"):
                         if re.search(rule["matches"], haystack, re.IGNORECASE):
-                            return trigger["trigger_id"]
+                            return Sensitivity(
+                                trigger_id=trigger["trigger_id"],
+                                impact_level=trigger.get("impact_level"),
+                                safety_risk=trigger.get("safety_risk"),
+                                irreversibility_class=trigger.get(
+                                    "irreversibility_class"),
+                                escalation_category=trigger.get(
+                                    "escalation_category"))
     except Exception as e:  # pragma: no cover - defensive
         logger.debug("target sensitivity unavailable: %s", e)
     return None

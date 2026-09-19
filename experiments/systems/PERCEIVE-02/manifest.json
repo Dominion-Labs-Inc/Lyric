@@ -1,0 +1,90 @@
+{
+  "experiment": "PERCEIVE-02",
+  "purpose": "sight over real files: substrate holds exactly what code read from the bytes",
+  "run_at": "2026-09-18T00:10:29.408974+00:00",
+  "image": {
+    "path": "/Users/stefan/Dominion Labs/TorinAI/test_data/vision_test.png",
+    "measured": {
+      "width": 800,
+      "height": 400,
+      "format": "png",
+      "region_count": 4,
+      "dominant_colors": [
+        {
+          "name": "white",
+          "fraction": 0.901,
+          "hex": "#fefefe"
+        },
+        {
+          "name": "light_gray",
+          "fraction": 0.033,
+          "hex": "#cbcbd2"
+        },
+        {
+          "name": "vivid_red",
+          "fraction": 0.025,
+          "hex": "#fe0505"
+        },
+        {
+          "name": "gray",
+          "fraction": 0.017,
+          "hex": "#999393"
+        },
+        {
+          "name": "green",
+          "fraction": 0.016,
+          "hex": "#008000"
+        },
+        {
+          "name": "charcoal",
+          "fraction": 0.009,
+          "hex": "#474747"
+        }
+      ]
+    }
+  },
+  "video": {
+    "path": "/Users/stefan/Desktop/Founder Video.mp4",
+    "measured": {
+      "codec": "h264",
+      "width": 1620,
+      "height": 1080,
+      "duration": 60.86,
+      "frames": 1829,
+      "mean_motion": 0.991
+    }
+  },
+  "checks": {
+    "image_width_matches_bytes": true,
+    "image_height_matches_bytes": true,
+    "image_dominant_color_matches": true,
+    "image_holds_one_individual_per_region": true,
+    "image_holds_all_perceived_structures": true,
+    "image_saw_a_red_circle": true,
+    "image_saw_a_green_rectangle": true,
+    "video_codec_matches_bytes": true,
+    "video_frames_match_bytes": true,
+    "video_holds_duration": true,
+    "video_saw_motion": true,
+    "instance_recognised_where_present": true,
+    "instance_not_hallucinated_elsewhere": true
+  },
+  "summary": {
+    "checks": {
+      "image_width_matches_bytes": true,
+      "image_height_matches_bytes": true,
+      "image_dominant_color_matches": true,
+      "image_holds_one_individual_per_region": true,
+      "image_holds_all_perceived_structures": true,
+      "image_saw_a_red_circle": true,
+      "image_saw_a_green_rectangle": true,
+      "video_codec_matches_bytes": true,
+      "video_frames_match_bytes": true,
+      "video_holds_duration": true,
+      "video_saw_motion": true,
+      "instance_recognised_where_present": true,
+      "instance_not_hallucinated_elsewhere": true
+    },
+    "all_pass": true
+  }
+}

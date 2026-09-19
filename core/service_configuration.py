@@ -26,8 +26,8 @@ class ServiceStatus(Enum):
 #: `ServiceConfig.health_check_interval` referenced this as a field default
 #: and it was defined nowhere in the repository, so importing this module
 #: raised NameError -- the module has never been importable. Matched to
-#: SystemWatchdog.check_interval (30s), which is the cadence the health
-#: system already polls components on.
+#: HealthMonitor.check_interval (30s), the cadence the health system polls
+#: components on.
 SERVICE_TIMEOUT = 30
 
 

@@ -1,50 +1,16 @@
 {
   "experiment": "EDU-13 deriving a reading",
   "question": "can the substrate derive a sentence reading from sentence/meaning pairs, and read sentences nobody wrote a pattern for",
-  "recorded_at": "2026-08-24T01:18:54.345368+00:00",
+  "recorded_at": "2026-09-18T01:48:20.404686+00:00",
   "model": {
-    "policy": "strict_model_free",
-    "attempts": 0,
-    "blocked": 0,
-    "executed": 0,
-    "by_class": {
-      "llm": {
-        "attempts": 0,
-        "blocked": 0,
-        "executed": 0,
-        "sites": {}
-      },
-      "vlm": {
-        "attempts": 0,
-        "blocked": 0,
-        "executed": 0,
-        "sites": {}
-      },
-      "embedding": {
-        "attempts": 0,
-        "blocked": 0,
-        "executed": 0,
-        "sites": {}
-      },
-      "reranker": {
-        "attempts": 0,
-        "blocked": 0,
-        "executed": 0,
-        "sites": {}
-      },
-      "classifier": {
-        "attempts": 0,
-        "blocked": 0,
-        "executed": 0,
-        "sites": {}
-      },
-      "encoder": {
-        "attempts": 0,
-        "blocked": 0,
-        "executed": 0,
-        "sites": {}
-      }
-    }
+    "policy": "model-free by construction",
+    "entry_points_checked": [
+      "core.model_policy",
+      "core.services.unified_llm",
+      "core.services.lightweight_llm",
+      "core.learning.llm_teacher"
+    ],
+    "entry_points_present": []
   },
   "supplied": {
     "lexicon": "six words, classed as copula / determiner / negator",
@@ -143,44 +109,20 @@
     }
   ],
   "derivation": {
-    "status": "multiple_procedures",
+    "status": "procedure_derived",
     "size": 6,
-    "candidates_run": 251487,
+    "candidates_run": 1464,
     "procedures": [
       [
-        "DONE \u2192 EMIT",
-        "DETERMINER \u2192 SKIP",
-        "SUBJECT_UNSET \u2192 BIND_SUBJECT",
-        "CONTENT \u2192 BIND_OBJECT",
-        "OBJECT_UNSET \u2192 BIND_OBJECT",
-        "otherwise \u2192 MARK_NEGATIVE"
-      ],
-      [
-        "DONE \u2192 EMIT",
         "DETERMINER \u2192 BIND_OBJECT",
+        "SUBJECT_UNSET \u2192 BIND_SUBJECT",
         "COPULA \u2192 BIND_OBJECT",
-        "SUBJECT_UNSET \u2192 BIND_SUBJECT",
         "CONTENT \u2192 BIND_OBJECT",
-        "otherwise \u2192 MARK_NEGATIVE"
-      ],
-      [
         "DONE \u2192 EMIT",
-        "DETERMINER \u2192 BIND_OBJECT",
-        "COPULA \u2192 SKIP",
-        "SUBJECT_UNSET \u2192 BIND_SUBJECT",
-        "CONTENT \u2192 BIND_OBJECT",
-        "otherwise \u2192 MARK_NEGATIVE"
-      ],
-      [
-        "DONE \u2192 EMIT",
-        "DETERMINER \u2192 SKIP",
-        "COPULA \u2192 SKIP",
-        "SUBJECT_UNSET \u2192 BIND_SUBJECT",
-        "CONTENT \u2192 BIND_OBJECT",
         "otherwise \u2192 MARK_NEGATIVE"
       ]
     ],
-    "detail": "4 procedures of 6 step(s) take different routes to the required answers on every example; an input separating them would decide"
+    "detail": ""
   },
   "held_out": [
     {

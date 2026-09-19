@@ -41,10 +41,13 @@ class BehavioralDirective:
     escalation: float = 0.0
     caution: float = 0.0
     avoidance: float = 0.0
+    approach: float = 0.0
 
     should_explore: bool = False
     should_replan: bool = False
     should_escalate: bool = False
+    should_avoid: bool = False
+    should_approach: bool = False
 
     max_goals: int = 1
     verification_intensity: float = 0.5
@@ -58,6 +61,8 @@ class BehavioralDirective:
             "should_explore": self.should_explore,
             "should_replan": self.should_replan,
             "should_escalate": self.should_escalate,
+            "should_avoid": self.should_avoid,
+            "should_approach": self.should_approach,
             "max_goals": self.max_goals,
             "verification_intensity": round(self.verification_intensity, 4),
             "reason_codes": list(self.reason_codes),
@@ -89,6 +94,7 @@ class BehaviorArbiter:
         d.escalation = appraisal.escalation_pressure
         d.caution = appraisal.caution_pressure
         d.avoidance = appraisal.avoidance_pressure
+        d.approach = appraisal.approach_pressure
         d.appraisal = {
             "valence": appraisal.valence,
             "attribution": appraisal.attribution,
@@ -100,9 +106,10 @@ class BehaviorArbiter:
             (
                 ("escalate", d.escalation),
                 ("replan", d.replan),
+                ("avoid", d.avoidance),
+                ("approach", d.approach),
                 ("explore", d.exploration),
                 ("persist", d.persistence),
-                ("avoid", d.avoidance),
             ),
             key=lambda kv: kv[1],
             reverse=True,
@@ -113,24 +120,39 @@ class BehaviorArbiter:
 
         d.should_escalate = d.escalation >= ACT_THRESHOLD
         d.should_replan = d.replan >= ACT_THRESHOLD
+        # AVOIDANCE: back off from self-initiated engagement. APPROACH: lean in.
+        # A genuine avoid state suppresses approach (you don't commit while retreating).
+        d.should_avoid = d.avoidance >= ACT_THRESHOLD
+        d.should_approach = d.approach >= ACT_THRESHOLD and not d.should_avoid
 
         # ── exploration admission ───────────────────────────────────────────
-        # Escalation means the blocker is outside us; thrashing through more
-        # self-directed exploration is the wrong response and wastes the queue.
+        # Escalation means the blocker is outside us; avoidance means back off —
+        # both make thrashing through more self-directed exploration the wrong
+        # response, so neither admits new self-initiated work.
         d.should_explore = (
             d.exploration >= ACT_THRESHOLD
             and not d.should_escalate
+            and not d.should_avoid
             and slots_available > 0
             and queue_pressure == "nominal"
         )
         if d.should_escalate and d.exploration >= ACT_THRESHOLD:
             d.reason_codes.append("exploration_suppressed_by_escalation")
+        if d.should_avoid and d.exploration >= ACT_THRESHOLD:
+            d.reason_codes.append("exploration_suppressed_by_avoidance")
         if queue_pressure != "nominal":
             d.reason_codes.append(f"queue_pressure:{queue_pressure}")
 
-        # Breadth scales with exploration pressure and is capped by real slots.
-        d.max_goals = max(1, min(slots_available, int(round(d.exploration * 3)))) \
+        # Breadth scales with self-initiated engagement pressure, capped by real
+        # slots. A confident approach state leans in — it can widen breadth beyond
+        # bare epistemic pull; avoidance already closed should_explore above.
+        _breadth = max(d.exploration, d.approach) if d.should_approach else d.exploration
+        d.max_goals = max(1, min(slots_available, int(round(_breadth * 3)))) \
             if d.should_explore else 0
+        if d.should_approach:
+            d.reason_codes.append(f"approach:{d.approach:.2f}")
+        if d.should_avoid:
+            d.reason_codes.append(f"avoid:{d.avoidance:.2f}")
 
         # ── verification intensity ──────────────────────────────────────────
         # Caution buys evidence, not permission.

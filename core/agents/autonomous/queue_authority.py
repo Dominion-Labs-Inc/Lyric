@@ -37,7 +37,8 @@ from datetime import datetime, timedelta
 from asyncio import PriorityQueue
 from dataclasses import dataclass, field
 
-from .shared_types import Task, TaskStatus, Priority, TaskSource, TaskType
+from .shared_types import (Task, TaskStatus, Priority, TaskSource, TaskType,
+                           SUBSTRATE_ACTOR)
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +57,6 @@ _TASK_TYPE_BASE_S: Dict[str, float] = {
     "research": 120.0, "validation": 180.0, "analysis": 180.0, "synthesis": 180.0,
     "planning": 300.0,
     "execution": 600.0, "learning": 600.0, "optimization": 600.0,
-    "security_remediation": 600.0,
     "self_improvement": 1800.0,
 }
 _DEFAULT_TASK_BASE_S = 300.0
@@ -164,13 +164,10 @@ class QueueAuthority:
         self.soft_limit = int(self.config.get('soft_limit', 25))
         self.hard_limit = int(self.config.get('hard_limit', 60))
         # Work that must never be refused, whatever the backlog. API/MANUAL are
-        # user-directed; SYSTEM covers error-handler fixes; SECURITY_AUDIT covers
-        # remediation.
+        # user-directed; SYSTEM covers error-handler fixes.
         self.NON_DISCRETIONARY_SOURCES = {
-            TaskSource.API, TaskSource.MANUAL,
-            TaskSource.SECURITY_AUDIT, TaskSource.SYSTEM,
+            TaskSource.API, TaskSource.MANUAL, TaskSource.SYSTEM,
         }
-        self.NON_DISCRETIONARY_TYPES = {TaskType.SECURITY_REMEDIATION}
 
         # ── EXECUTION POOL (folded in) ──────────────────────────────────────
         # TWO budgets, deliberately separate. WORK jobs (the substrate's acting
@@ -246,8 +243,6 @@ class QueueAuthority:
     def _is_discretionary(self, task: Task, priority: Priority) -> bool:
         if getattr(task, "source", None) in self.NON_DISCRETIONARY_SOURCES:
             return False
-        if getattr(task, "type", None) in self.NON_DISCRETIONARY_TYPES:
-            return False
         return priority not in (Priority.CRITICAL, Priority.HIGH)
 
     def admits(self, task: Task, priority: Priority = Priority.MEDIUM) -> Tuple[bool, str]:
@@ -304,16 +299,58 @@ class QueueAuthority:
         self._mark_started(queued)
         return queued
 
-    async def get_next_task(self, timeout: float = None) -> Optional[QueuedTask]:
+    async def get_next_task(self, timeout: float = None,
+                            skip_actors: "Optional[frozenset]" = None
+                            ) -> Optional[QueuedTask]:
         """Pull the highest-priority work job; None on timeout/empty. This is how
-        the WORKER (the coordinator) draws from the authority."""
+        the WORKER (the coordinator) draws from the authority.
+
+        `skip_actors` are actors already at their per-user concurrency cap: the
+        highest-priority job whose actor is NOT one of them is returned, so one
+        user's backlog cannot monopolise the pool and several users each run up to
+        their cap concurrently. The substrate's own actor is never in this set (its
+        autonomous work is bounded only by the global ceiling, not the per-user cap).
+        When every ready job belongs to a capped actor, returns None — those jobs
+        stay queued, in priority order, for a later cycle."""
+        if not skip_actors:
+            # fast path: a single blocking pop (behaviour unchanged)
+            try:
+                if timeout is not None:
+                    _, _, queued = await asyncio.wait_for(self.queue.get(), timeout=timeout)
+                else:
+                    _, _, queued = await self.queue.get()
+            except asyncio.TimeoutError:
+                return None
+            self._mark_started(queued)
+            await self._persist_queued(queued)
+            return queued
+
+        # actor-aware: take what is ready (priority order), pick the first job whose
+        # actor is not capped, and put the rest back unchanged (priority preserved).
         try:
             if timeout is not None:
-                _, _, queued = await asyncio.wait_for(self.queue.get(), timeout=timeout)
+                first = await asyncio.wait_for(self.queue.get(), timeout=timeout)
             else:
-                _, _, queued = await self.queue.get()
+                first = await self.queue.get()
         except asyncio.TimeoutError:
             return None
+        items = [first]
+        while True:
+            try:
+                items.append(self.queue.get_nowait())
+            except asyncio.QueueEmpty:
+                break
+        chosen_idx = None
+        for idx, (_, _, q) in enumerate(items):
+            if getattr(q.task, "actor", SUBSTRATE_ACTOR) not in skip_actors:
+                chosen_idx = idx
+                break
+        for i, it in enumerate(items):
+            if i != chosen_idx:
+                await self.queue.put(it)                 # same tuple -> priority kept
+        if chosen_idx is None:
+            return None
+        queued = items[chosen_idx][2]
         self._mark_started(queued)
         await self._persist_queued(queued)
         return queued
@@ -395,6 +432,23 @@ class QueueAuthority:
                "priority": queued.priority.value, "added_at": queued.added_at.isoformat()}
         if include_result:
             out["result"] = queued.task.result if queued.status == TaskStatus.COMPLETED else None
+        return out
+
+    async def result_for(self, task_id: str, *, actor: str) -> Dict[str, Any]:
+        """The outcome of `task_id` — but ONLY for the actor it belongs to.
+
+        A user may read the result of THEIR OWN job, never another's. A task owned
+        by a different actor (or absent) reads as `not_found` — identical to a real
+        miss, so result-polling cannot enumerate other actors' work. Returns
+        status, plus `result` when COMPLETED or `error` when FAILED."""
+        queued = self.tasks_by_id.get(task_id)
+        if queued is None or queued.task is None or getattr(queued.task, "actor", None) != actor:
+            return {"task_id": task_id, "status": "not_found"}
+        out = {"task_id": task_id, "status": queued.status.value}
+        if queued.status == TaskStatus.COMPLETED:
+            out["result"] = queued.task.result
+        elif queued.status == TaskStatus.FAILED:
+            out["error"] = queued.error_message
         return out
 
     async def get_failed_tasks(self, limit: int = 10) -> List[Task]:
@@ -559,8 +613,8 @@ class QueueAuthority:
 
         base and severity are the queue's; reasoning_difficulty is the reasoning
         authority's MEASURED signal (the queue asks for it). A research task with
-        simple reasoning finishes fast; a critical self-improvement task doing
-        hard causal reasoning gets far longer. No flat number lives here.
+        simple reasoning finishes fast; a critical self-improvement (learning)
+        task doing hard causal reasoning gets far longer. No flat number lives here.
         """
         base = _TASK_TYPE_BASE_S.get(
             str(getattr(task_type, "value", task_type) or "").strip().lower(),

@@ -87,9 +87,48 @@ class AppraisalState:
     # reliably works is the reverse.
     agency: Optional[float] = None             # [0,1]
 
+    # Coherence across identity -> intention -> action -> outcome: was the
+    # substrate true to itself across the act — did it pursue a goal that is its
+    # OWN, act on that intent, and have the outcome bear it out? DISTINCT from
+    # success: a faithful attempt thwarted by an EXTERNAL cause keeps integrity
+    # intact (the outcome link is unmeasured, not failed), while acting in a way
+    # that does not realize one's own intent dents it. Low integrity drives
+    # RE-ALIGNMENT (verify more + re-examine the approach); high integrity backs
+    # confident engagement. It is NOT a generic score — it emerges as the mean of
+    # the chain links that were actually measurable.
+    integrity: Optional[float] = None          # [0,1]
+
     # How costly would being wrong be? This is what stops curiosity becoming
     # recklessness in security / infrastructure / device-control domains.
     risk: Optional[float] = None               # [0,1]
+
+    # How much what the substrate is LOOKING AT bears on the interests its own
+    # law protects — the constitution's definition of harm, asked of a percept
+    # instead of an act (`Constitution.bearing`).
+    #
+    # NOT RISK, AND THE DIFFERENCE IS THE WHOLE POINT. `risk` is the cost of
+    # THIS SUBSTRATE BEING WRONG, and it correctly DAMPS exploration: curiosity
+    # in a device-control domain is recklessness. A famine is not a cost of
+    # being wrong — it is the world mattering — and folding it into `risk` would
+    # make the substrate LESS willing to look into what it had just recognised
+    # as grave, which is backwards. So stakes is its own variable, and it raises
+    # engagement where risk lowers it.
+    #
+    # WHY IT HAD TO EXIST. Every other input here is about how the substrate's
+    # OWN WORK went: outcome_quality, action_success_rate, is_stagnant,
+    # goal_alignment_score. Content reached affect through exactly one channel —
+    # `epistemic_affect_signal`, which reports information gain and uncertainty
+    # change — so learning that a famine killed a hundred thousand people and
+    # learning that a file has a `.txt` extension produced the same SHAPE of
+    # movement. This module's own docstring says it holds "how the system stands
+    # toward its SITUATION", and its situation meant its scorecard.
+    #
+    # UNSIGNED, DELIBERATELY. That an interest is at stake is a property of the
+    # subject and the taxonomy can carry it. WHETHER the event harms or advances
+    # that interest lives in the proposition — "a famine began" and "a famine
+    # ended" share a subject — and nothing here can see that. A sign would be
+    # invented, so there is none, and consumers treat this as weight, not mood.
+    stakes: Optional[float] = None             # [0,1]
 
     # WHY it ended this way. Structured, not a float — reuses OutcomeClass,
     # which already encodes the credit invariant (only some classes may move a
@@ -176,7 +215,9 @@ class AppraisalState:
             "competence": self.competence,
             "goal_congruence": self.goal_congruence,
             "agency": self.agency,
+            "integrity": self.integrity,
             "risk": self.risk,
+            "stakes": self.stakes,
             "attribution": self.attribution,
             "approach_pressure": round(self.approach_pressure, 4),
             "avoidance_pressure": round(self.avoidance_pressure, 4),
@@ -222,6 +263,14 @@ def build_appraisal(
     outcome_class: Optional[Any] = None,
     options_considered: Optional[int] = None,
     self_initiated: Optional[bool] = None,
+    #: The reconciled intent: what the substrate MEANT and what came of it,
+    #: from the reasoning authority. When present, the action↔outcome link of
+    #: integrity is READ from it instead of inferred from an attribution label.
+    intent_outcome: Optional[Dict[str, Any]] = None,
+    #: What the substrate has just PERCEIVED, read through its own law
+    #: (`Constitution.bearing`): {"borne": n, "none": n, "vacant": n}. The
+    #: counts, not the readings — this module weighs, it does not interpret.
+    world_bearing: Optional[Dict[str, Any]] = None,
     previous: Optional[AppraisalState] = None,
 ) -> AppraisalState:
     """Compose an AppraisalState from signals other subsystems already measured.
@@ -340,6 +389,35 @@ def build_appraisal(
     if risk is None:
         unmeasured.append("risk")
 
+    # ── STAKES: does what I am looking at bear on an interest my law protects?
+    #
+    # SATURATING ON THE COUNT, NOT A FRACTION. A fraction would let one famine
+    # among a hundred filenames read as 0.01 — the substrate noticing something
+    # grave and then diluting it with everything mundane it happened to see in
+    # the same pass. One thing that bears is enough to matter; more raises it
+    # with diminishing return. Same form as the foothold/grounding terms in
+    # `_score_pursuits`, for the same reason.
+    #
+    # VACANT IS NOT ZERO. Subjects the substrate has no sense of (`war` and
+    # `suffering` are both VACANT against the live store today) leave stakes
+    # UNMEASURED, because "I do not know what this is" and "I know what this is
+    # and it bears on nothing" are different states and must not score alike.
+    # A percept in which everything was vacant says nothing about the world.
+    stakes = None
+    if world_bearing:
+        _borne = int(world_bearing.get("borne") or 0)
+        _understood = _borne + int(world_bearing.get("none") or 0)
+        if _borne:
+            stakes = _clamp(1.0 - 1.0 / (1.0 + _borne))
+        elif _understood:
+            stakes = 0.0        # looked, understood, and nothing was at stake
+        sources["stakes"] = {"borne": _borne,
+                             "none": int(world_bearing.get("none") or 0),
+                             "vacant": int(world_bearing.get("vacant") or 0),
+                             "read_from": "Constitution.bearing"}
+    if stakes is None:
+        unmeasured.append("stakes")
+
     # ── AGENCY: meaningful choice, NOT effectiveness of choice ─────────────
     _agency_terms = []
     if options_considered is not None:
@@ -358,10 +436,69 @@ def build_appraisal(
     if attribution is None:
         unmeasured.append("attribution")
 
+    # ── INTEGRITY: coherence across identity → intention → action → outcome ─
+    # Emergent, not a score: each link is read from a signal that was actually
+    # measured, and integrity is their mean (unmeasured links excluded, never
+    # zero-filled). This is what makes it ORTHOGONAL to success — a faithful
+    # attempt thwarted by an external cause leaves the outcome link unmeasured
+    # (integrity intact), while acting in a way that does not realize one's own
+    # intent dents it.
+    _integrity_terms: List[float] = []
+    _integrity_src: Dict[str, Any] = {}
+    # identity ↔ intention: a self-initiated pursuit springs from the substrate's
+    # OWN values (the value-derived frontier). An imposed intention cannot be
+    # judged for identity-alignment here, so it is unmeasured, not counted against.
+    if self_initiated:
+        _integrity_terms.append(1.0)
+        _integrity_src["identity_intention"] = 1.0
+    # intention ↔ action: did the substrate act on its intent? Acting (SUCCESS or
+    # a clean STRATEGY failure — it ran) realizes the intent; being unable to act
+    # at all is an EXTERNAL/execution matter, not a coherence break, so unmeasured.
+    if attribution in ("success", "strategy_failure"):
+        _integrity_terms.append(1.0)
+        _integrity_src["intention_action"] = 1.0
+    # action ↔ outcome: did acting realize the intent?
+    #
+    # MEASURED when the intent was reconciled. The substrate recorded what it
+    # meant (the proved route) and what came of it (the RE-OBSERVED world), so
+    # this link is read from that pairing rather than inferred from a label.
+    # This is the link the whole intent authority exists to make answerable:
+    # "did I do what I meant", not "did a tool return success".
+    if intent_outcome:
+        _matched = bool(intent_outcome.get("matched_aim"))
+        _integrity_terms.append(1.0 if _matched else 0.0)
+        _integrity_src["action_outcome"] = {
+            "matched_aim": _matched,
+            "read_from": "reconciled intent",
+            "goal_conditions_met": intent_outcome.get("goal_conditions_met"),
+        }
+    # Otherwise the older reading stands: SUCCESS → yes; a STRATEGY failure is
+    # the substrate's OWN approach failing to bear out its intent (a coherence
+    # break that is its own); external/execution/infra failures are
+    # faithful-but-thwarted and leave this link unmeasured.
+    elif attribution == "success":
+        _integrity_terms.append(1.0)
+        _integrity_src["action_outcome"] = 1.0
+    elif attribution == "strategy_failure":
+        _integrity_terms.append(0.0)
+        _integrity_src["action_outcome"] = 0.0
+    # goal congruence, when measured, IS the action↔outcome coherence directly
+    # ("does the output match the objective") — fold it in as a measured link.
+    if goal_congruence is not None:
+        _integrity_terms.append(goal_congruence)
+        _integrity_src["goal_congruence"] = goal_congruence
+    integrity = _mean(_known(*_integrity_terms)) if _integrity_terms else None
+    if integrity is None:
+        unmeasured.append("integrity")
+    else:
+        sources["integrity"] = _integrity_src
+
     state = AppraisalState(
         goal_congruence=goal_congruence,
         agency=agency,
+        integrity=integrity,
         risk=risk,
+        stakes=stakes,
         attribution=attribution,
         valence=valence,
         activation=activation,
@@ -403,6 +540,12 @@ def _derive_pressures(s: AppraisalState) -> None:
     _strategy = attr == "strategy_failure"
     _blocked = attr == "safety_blocked"
 
+    # INTEGRITY drives RE-ALIGNMENT: incoherence across identity→intention→action→
+    # outcome is a reason to verify more and re-examine the approach; coherence
+    # backs confident engagement. Measured-only — no integrity reading contributes
+    # nothing (never read as zero).
+    _incoherence = None if s.integrity is None else (1.0 - s.integrity)
+
     # EXPLORATION: something to learn AND the ability to act on it.
     # Dissatisfaction amplifies; it never creates. RISK damps it — this is what
     # keeps curiosity from becoming recklessness.
@@ -414,8 +557,21 @@ def _derive_pressures(s: AppraisalState) -> None:
             base *= (1.0 - 0.6 * s.risk)
         if _external or _blocked:
             base *= 0.4      # nothing here is ours to explore
+        # STAKES LIFT, where risk damps. Something that bears on an interest the
+        # law protects is a reason to look FURTHER into it, not to back away:
+        # recognising an outbreak and then exploring it less would be the
+        # opposite of what recognising it is for. Applied AFTER the risk damp so
+        # the two stay legible as separate forces rather than cancelling in one
+        # scalar, and capped like every other term here.
+        if s.stakes:
+            base *= (1.0 + 0.5 * s.stakes)
         s.exploration_pressure = _clamp(base) or 0.0
     else:
+        # NOTHING TO EXPLORE FROM, BUT SOMETHING AT STAKE. Stakes alone is not a
+        # direction — it cannot say what to look into — so it does not
+        # manufacture exploration out of an unmeasured epistemic state. It is
+        # recorded as unmeasured above and left to the pursuit ranking, which
+        # knows WHICH gap bears on what.
         s.exploration_pressure = 0.0
 
     # PERSISTENCE: the current line is working. Deliberately NOT a function of
@@ -438,6 +594,13 @@ def _derive_pressures(s: AppraisalState) -> None:
     else:
         s.replan_pressure = 0.0
 
+    # Low integrity is itself a reason to RE-EXAMINE the approach (the re-alignment
+    # drive), to the extent the route is ours to change (controllability). It only
+    # RAISES replan, never lowers an existing signal.
+    if _incoherence is not None and s.controllability is not None:
+        s.replan_pressure = _clamp(max(s.replan_pressure,
+                                       _incoherence * s.controllability)) or 0.0
+
     # ESCALATION: cannot be fixed from here. Low control, cause outside us.
     if neg is not None:
         _e = []
@@ -457,6 +620,7 @@ def _derive_pressures(s: AppraisalState) -> None:
         s.risk,
         None if s.confidence is None else 1.0 - s.confidence,
         None if s.competence is None else 1.0 - s.competence,
+        _incoherence,   # low integrity → verify more (the "verify" half of re-alignment)
     )
     s.caution_pressure = (_mean(_c) or 0.0)
 
@@ -476,9 +640,10 @@ def _derive_pressures(s: AppraisalState) -> None:
     else:
         s.avoidance_pressure = 0.0
 
-    # APPROACH: positive valence backed by capability, control and alignment.
+    # APPROACH: positive valence backed by capability, control, alignment — and
+    # integrity (being coherent across the act backs confident engagement).
     _approach = _known(pos, s.competence, s.controllability, s.goal_congruence,
-                       s.activation)
+                       s.activation, s.integrity)
     s.approach_pressure = (_mean(_approach) or 0.0)
 
 
@@ -509,7 +674,9 @@ def _blend(previous: AppraisalState, incoming: AppraisalState) -> AppraisalState
         competence=mix(previous.competence, incoming.competence),
         goal_congruence=mix(previous.goal_congruence, incoming.goal_congruence),
         agency=mix(previous.agency, incoming.agency),
+        integrity=mix(previous.integrity, incoming.integrity),
         risk=mix(previous.risk, incoming.risk),
+        stakes=mix(previous.stakes, incoming.stakes),
         # Attribution is a fact about the LAST outcome, never smoothed.
         attribution=incoming.attribution,
         sources=incoming.sources,
@@ -536,9 +703,83 @@ class AppraisalSystem:
 
     HISTORY_MAX = 200
 
+    #: The core appraisal variables, each with what it answers. This is the
+    #: faculty's own account of what it is made of — a first-class faculty that
+    #: can only be read by knowing which attributes to guess at is not one.
+    DIMENSIONS: Dict[str, str] = {
+        "valence": "was this experience good or bad",
+        "activation": "how strongly does this state call for acting",
+        "confidence": "how much do I trust my current model",
+        "epistemic_opportunity": "is there something here worth learning",
+        "progress": "am I moving toward the objective",
+        "controllability": "do my actions change the outcome",
+        "competence": "how capable am I here",
+        "goal_congruence": "is where I am moving where I need to go",
+        "agency": "did I have meaningful choice",
+        "integrity": "was I true to myself across this act",
+        "risk": "how costly would being wrong be",
+        "stakes": "does what I am looking at bear on an interest my law protects",
+    }
+
+    #: The behavioural pressures, and what each one means the substrate should
+    #: do. Derived from the dimensions above, never stored independently.
+    PRESSURES: Dict[str, str] = {
+        "approach_pressure": "engage — this is going well and I am able",
+        "avoidance_pressure": "back off",
+        "exploration_pressure": "look further into this",
+        "persistence_pressure": "stay on this line, it is working",
+        "replan_pressure": "the approach is wrong, not the situation",
+        "escalation_pressure": "this cannot be fixed from here",
+        "caution_pressure": "proceed, but verify more",
+    }
+
     def __init__(self) -> None:
         self.current_state: Optional[AppraisalState] = None
         self.history: List[Dict[str, Any]] = []
+
+    def standing(self) -> Dict[str, Any]:
+        """HOW THE SUBSTRATE STANDS, and how it came to stand that way.
+
+        The faculty made legible: every dimension with its value, whether it was
+        MEASURED at all, and what produced it; then every pressure with what it
+        means to act on. A disposition that can be read only as seven unexplained
+        floats cannot be audited, argued with, or trusted.
+
+        UNMEASURED IS REPORTED AS UNMEASURED. The distinction this module was
+        built to keep — "no signal" is not "a neutral signal" — is worth nothing
+        if the view that presents it rounds None to 0.0.
+        """
+        state = self.current_state
+        if state is None:
+            return {"appraised": False,
+                    "why": "nothing has been appraised yet in this process",
+                    "dimensions": {name: {"measured": False, "value": None,
+                                          "answers": question}
+                                   for name, question in self.DIMENSIONS.items()},
+                    "pressures": {}, "derived": {}, "updates": 0}
+        dimensions: Dict[str, Any] = {}
+        for name, question in self.DIMENSIONS.items():
+            value = getattr(state, name, None)
+            dimensions[name] = {
+                "measured": value is not None,
+                "value": value,
+                "answers": question,
+                "from": state.sources.get(name),
+            }
+        return {
+            "appraised": True,
+            "dimensions": dimensions,
+            "pressures": {name: {"value": round(getattr(state, name, 0.0), 4),
+                                 "means": meaning}
+                          for name, meaning in self.PRESSURES.items()},
+            "derived": {"eagerness": state.eagerness, "doubt": state.doubt,
+                        "frustration": state.frustration,
+                        "satisfaction": state.satisfaction},
+            "attribution": state.attribution,
+            "unmeasured": list(state.unmeasured),
+            "updates": len(self.history),
+            "updated_at": state.updated_at.isoformat(),
+        }
 
     def update(self, **signals) -> AppraisalState:
         """Produce the next appraisal, blended onto the current one."""

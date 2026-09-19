@@ -51,39 +51,6 @@ echo -e "${CYAN}║${NC}                                                        
 echo -e "${CYAN}╚════════════════════════════════════════════════════════════════╝${NC}"
 echo ""
 
-# THE DEDICATED TERMINAL IS THE ONLY PLACE THIS STARTS.
-#
-# Everything the substrate executes -- every run_shell_command, every subprocess
-# -- is a child of this process, so whichever window starts TorinAI owns every
-# command it will ever run. Starting it from an arbitrary shell means those
-# commands inherit that shell's PATH, virtualenv and working directory, which is
-# how a run ends up on the system interpreter instead of venv_torin.
-#
-# TORIN_SHELL is set only by TorinAI/.torinshell/.zshrc, which TorinAI.app loads.
-# The escape hatch is explicit rather than absent: scheduled and detached runs
-# are legitimate, they just have to say so.
-check_dedicated_shell() {
-    # TORIN_LAUNCHER=app is the desktop dashboard. It qualifies for the same
-    # reason the dedicated shell does, and only for that reason: it sets the
-    # working directory and uses venv_torin explicitly, so the environment every
-    # child command inherits is controlled rather than whatever a stray shell
-    # happened to have. The rule was never "only a terminal" -- it is "only a
-    # launcher that guarantees the environment".
-    if [ "$TORIN_SHELL" = "1" ] || [ "$TORIN_LAUNCHER" = "app" ] \
-       || [ "$TORIN_ALLOW_ANY_SHELL" = "1" ]; then
-        return 0
-    fi
-    echo -e "${RED}❌ Not the dedicated TorinAI terminal.${NC}"
-    echo ""
-    echo -e "${GRAY}   TorinAI runs every one of its shell commands as a child of${NC}"
-    echo -e "${GRAY}   this process, so it starts from one window only.${NC}"
-    echo ""
-    echo -e "${BLUE}   Open${NC} ${CYAN}TorinAI.app${NC} ${BLUE}(Desktop)${NC}${BLUE} and run${NC} ${ORANGE}torin${NC} ${BLUE}there.${NC}"
-    echo -e "${GRAY}   Deliberate exception: TORIN_ALLOW_ANY_SHELL=1 ./torin${NC}"
-    echo ""
-    exit 1
-}
-
 # Check if already running
 check_running() {
     if [ -f "$MAIN_PID_FILE" ]; then
@@ -232,7 +199,6 @@ start_torin() {
 # Main execution
 main() {
     # Pre-flight checks
-    check_dedicated_shell
     check_running
     check_python
     check_env_files

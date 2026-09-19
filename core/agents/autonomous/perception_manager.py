@@ -16,6 +16,18 @@ from core.database import TorinUnifiedDatabase
 logger = logging.getLogger(__name__)
 
 
+#: The live perceptual-awareness hub, exposed as a singleton so any reader — the
+#: memory agent stamping a forming memory's perceptual context — reaches the SAME
+#: instance the coordinator feeds. The perceptual analogue of get_appraisal_system().
+_PERCEPTION_MANAGER: Optional["PerceptionManager"] = None
+
+
+def get_perception_manager() -> Optional["PerceptionManager"]:
+    """The live PerceptionManager the coordinator created and feeds, or None before
+    one exists (a reading, never invented)."""
+    return _PERCEPTION_MANAGER
+
+
 #: The perceptions table had NO definition anywhere in the codebase. Both the
 #: writer and the reader named an unqualified `perceptions`, so every write
 #: since this module was authored failed with `relation "perceptions" does not
@@ -66,7 +78,12 @@ class PerceptionManager:
             "confidence_avg": 0.0,
             "queue_length": 0
         }
-    
+
+        # Expose this instance as the live hub so the memory agent can stamp a
+        # forming memory's perceptual context from the same state we feed.
+        global _PERCEPTION_MANAGER
+        _PERCEPTION_MANAGER = self
+
     async def initialize(self) -> bool:
         """Initialize the perception system"""
         try:
@@ -125,6 +142,22 @@ class PerceptionManager:
                     "perception %s from %s was analysed but NOT retained: %s",
                     perception_id, source, e)
 
+            # THE PERCEPT'S IDENTITY TRAVELS ON THE PERCEPT, so a caller can
+            # bind it as the scope its work is done under (`set_acting_percept`)
+            # and a memory formed there links to it BY REFERENCE.
+            #
+            # BINDING IS NOT DONE HERE, deliberately. This function does not own
+            # the scope — it returns, and whatever the caller does next may or
+            # may not be about what was just perceived. Binding without owning
+            # the reset leaves the percept standing over unrelated later work,
+            # which is the recency defect the link exists to remove, arriving by
+            # another route. Same contract as `set_acting_intent`: the acting
+            # path binds and resets; the authority only supplies the id.
+            processed_perception.metadata["perception_id"] = perception_id
+            _digest = (content or {}).get("sha256") or (content or {}).get("digest")
+            if _digest:
+                processed_perception.metadata["digest"] = str(_digest)
+
             # A perception is an OBSERVATION of something the substrate can
             # name, and PerceptionManager was its only consumer -- perceptions
             # were stored, counted, and never became knowledge of anything.
@@ -146,15 +179,46 @@ class PerceptionManager:
             return None
     
     async def _observe_semantically(self, source, data_type, content) -> None:
-        """Submit a perception as evidence. Never fails perception itself."""
-        try:
-            from core.domain.evidence_producers import submit_perception
+        """Submit a perception as evidence. Never fails perception itself.
 
-            await submit_perception(source, data_type, content or {})
+        Dispatched on modality: a sensor reading, an image, and a video each
+        carry structure a bare component/status envelope cannot (a typed value
+        and unit, recognised labels, temporal events), so each has its own
+        producer. Anything else -- the original health-monitoring case, a named
+        component in a named state -- takes the general `submit_perception` path.
+        The producer decides what is nameable; an unrecognised modality is not
+        coerced into one that loses its structure."""
+        try:
+            from core.domain import evidence_producers as ep
+
+            modality = {
+                "sensor": ep.submit_sensor_reading,
+                "image": ep.submit_image,
+                "video": ep.submit_video,
+            }.get(str(data_type or "").strip().lower())
+
+            if modality is not None:
+                await modality(source, content or {})
+            else:
+                await ep.submit_perception(source, data_type, content or {})
         except Exception as e:
             logger.error(
                 "perception from %s could not be recorded as evidence: %s: %s",
                 source, type(e).__name__, e)
+
+    def note_perception(self, source: str, data_type: str,
+                        content: Dict[str, Any], *, confidence: float = 1.0) -> PerceptionData:
+        """Record what was just perceived into the overall perceptual awareness —
+        WITHOUT re-admitting it as evidence. For a percept whose evidence was already
+        admitted by its own owner (a recognition rides `learn_fact`; a sensed image
+        rides `process_input`): this only updates the live perceptual state, so the
+        substrate knows what it is currently perceiving and a memory forming now can
+        stamp that context. Calling `process_input` here would double-admit."""
+        perception = PerceptionData(source=source, data_type=data_type,
+                                    content=dict(content or {}),
+                                    confidence=float(confidence))
+        self.perception_queue.append(perception)
+        return perception
 
     async def get_recent_perceptions(self, limit: int = 10) -> List[PerceptionData]:
         """Get most recent perception data"""
@@ -316,3 +380,59 @@ class PerceptionManager:
         # Database cleanup is handled by the unified database itself
         self.connection = None
         logger.info("Perception manager shutdown completed")
+
+# ══════════════════════════════════════════════════════════════════════════
+# WHAT THE SUBSTRATE IS PERCEIVING RIGHT NOW — bound to the acting context
+# ══════════════════════════════════════════════════════════════════════════
+#
+# The perceptual counterpart of `set_acting_intent`, and it exists for the same
+# reason that one does: a memory forming while the substrate is perceiving has
+# to be able to say WHICH percept it is of, by reference.
+#
+# WHAT THIS REPLACES. A memory already carried a `perceptual_state` snapshot,
+# attached by RECENCY — a 120-second window over whatever had been perceived
+# lately. That is a correlation: it says something was in view around then, and
+# it degrades exactly where it matters most, when several things were seen close
+# together. "I saw that employee send that email" then rests on the substrate's
+# word plus a nearby timestamp, which is testimony, not a record.
+#
+# A reference is defensible where a recollection is not: the percept holds what
+# was actually sensed, and its digest identifies the very bytes.
+#
+# MODALITY-AGNOSTIC. `percept`, not `image` — hearing and voice arrive through
+# the same door and bind here the same way.
+
+import contextvars as _contextvars
+
+_acting_percept: "_contextvars.ContextVar[Optional[Dict[str, Any]]]" = \
+    _contextvars.ContextVar("torin_acting_percept", default=None)
+
+
+def set_acting_percept(percept_id: Optional[str],
+                       digest: Optional[str] = None):
+    """Bind the percept the current work is being done under. Returns the token.
+
+    `digest` is the content identity of the thing perceived (an image's sha256),
+    carried beside the id so the OBJECT stays identifiable even if the percept
+    row is later pruned.
+    """
+    if not percept_id:
+        return _acting_percept.set(None)
+    return _acting_percept.set({"percept_id": str(percept_id),
+                                "percept_digest": str(digest) if digest else None})
+
+
+def get_acting_percept() -> Optional[Dict[str, Any]]:
+    """The percept bound to the current async context, or None. None is honest:
+    work that is not being done under a percept must not borrow one."""
+    return _acting_percept.get()
+
+
+def reset_acting_percept(token) -> None:
+    try:
+        _acting_percept.reset(token)
+    except (ValueError, LookupError):
+        # A token from another context is not this context's to reset; losing the
+        # reset is harmless (the context ends), silently ignoring a real error is
+        # not, so only these two are caught.
+        pass

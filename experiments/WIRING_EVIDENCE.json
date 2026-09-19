@@ -1,5 +1,5 @@
 {
-  "recorded_at": "2026-08-19T18:38:32.675789+00:00",
+  "recorded_at": "2026-09-13T21:05:42.848757+00:00",
   "checks": {
     "perception_retention": {
       "perceived": true,
@@ -11,96 +11,13 @@
       },
       "passed": true
     },
-    "logical_agent_deduction": {
-      "importable": true,
-      "integration": "LogicalIntegrationSystem",
-      "protocol_execute": true,
-      "deduction": {
-        "provable": {
-          "success": true,
-          "formalized": true,
-          "requires_model": false,
-          "conclusions": [
-            {
-              "expression": "socrates_mortal",
-              "confidence": 0.98,
-              "rule": "direct",
-              "premises_used": [
-                "socrates_man -> socrates_mortal",
-                "socrates_man"
-              ]
-            }
-          ],
-          "error": null,
-          "proof_steps": 4
-        },
-        "unprovable": {
-          "success": false,
-          "formalized": true,
-          "requires_model": false,
-          "conclusions": [],
-          "error": null,
-          "proof_steps": 3
-        },
-        "no_premises": {
-          "success": false,
-          "formalized": false,
-          "requires_model": false,
-          "conclusions": [],
-          "error": "could not formalize without a model: no premises could be represented",
-          "proof_steps": null
-        },
-        "unformalizable": {
-          "success": false,
-          "formalized": false,
-          "requires_model": false,
-          "conclusions": [],
-          "error": "could not formalize without a model: unsupported premise: 'We report a novel synthesis route for LiFePO4'",
-          "proof_steps": null
-        },
-        "no_goal": {
-          "success": false,
-          "formalized": null,
-          "requires_model": null,
-          "conclusions": [],
-          "error": "deduction needs something to prove; supply `goals`. Enumerating consequences of the premises without a goal is what produced a conjunction of every pair.",
-          "proof_steps": null
-        }
-      },
-      "stats": {
-        "total_reasoning_tasks": 5,
-        "successful_inferences": 1,
-        "failed_inferences": 4,
-        "average_reasoning_time": 0.0008484363555908203,
-        "patterns_learned": 0
-      },
-      "passed": true
-    },
-    "pattern_learning": {
-      "two_examples": {
-        "status": "rule_learned",
-        "learned": 1,
-        "rules": [
-          {
-            "rule_id": "rule_0a4071cef2ef",
-            "formula": "MAN(?X0) \u2192 MORTAL(?X0)",
-            "status": "candidate"
-          }
-        ]
-      },
-      "one_example": {
-        "status": "insufficient_evidence",
-        "learned": 0
-      },
-      "counter": 1,
-      "passed": true
-    },
     "tool_observation_and_projection": {
       "tool_invocation_succeeded": true,
       "projection": {
-        "tools": 372,
-        "projected": 372,
+        "tools": 356,
+        "projected": 356,
         "no_structure": 0,
+        "unreadable_structure": 0,
         "failed": 0
       },
       "passed": true
@@ -110,18 +27,133 @@
     "envelopes_by_source": [
       {
         "source_type": "imported_knowledge",
+        "producer": "analogy_discovery",
+        "n": 1
+      },
+      {
+        "source_type": "imported_knowledge",
+        "producer": "cross_domain_seed",
+        "n": 4
+      },
+      {
+        "source_type": "imported_knowledge",
         "producer": "tool_registry",
-        "n": 372
+        "n": 374
+      },
+      {
+        "source_type": "imported_knowledge",
+        "producer": "wn_timing",
+        "n": 119
+      },
+      {
+        "source_type": "imported_knowledge",
+        "producer": "wordnet",
+        "n": 5765
+      },
+      {
+        "source_type": "induced_rule",
+        "producer": "operator_learning",
+        "n": 40
       },
       {
         "source_type": "induced_rule",
         "producer": "rule_induction",
+        "n": 3
+      },
+      {
+        "source_type": "perception",
+        "producer": "boiler_room",
+        "n": 1
+      },
+      {
+        "source_type": "perception",
+        "producer": "card_b",
+        "n": 2
+      },
+      {
+        "source_type": "perception",
+        "producer": "clause_classifier:digits",
+        "n": 8
+      },
+      {
+        "source_type": "perception",
+        "producer": "clause_classifier:digits2",
+        "n": 6
+      },
+      {
+        "source_type": "perception",
+        "producer": "clause_classifier:gov",
+        "n": 17
+      },
+      {
+        "source_type": "perception",
+        "producer": "clause_classifier:mnist",
+        "n": 12
+      },
+      {
+        "source_type": "perception",
+        "producer": "clause_classifier:persisttest",
+        "n": 7
+      },
+      {
+        "source_type": "perception",
+        "producer": "clause_classifier:shapes",
+        "n": 2
+      },
+      {
+        "source_type": "perception",
+        "producer": "clause_classifier:toy_shapes",
+        "n": 6
+      },
+      {
+        "source_type": "perception",
+        "producer": "clause_classifier:toy_vision",
+        "n": 1
+      },
+      {
+        "source_type": "perception",
+        "producer": "founder_clip",
+        "n": 2
+      },
+      {
+        "source_type": "perception",
+        "producer": "front_door_camera",
         "n": 1
       },
       {
         "source_type": "perception",
         "producer": "health_monitoring",
         "n": 1
+      },
+      {
+        "source_type": "perception",
+        "producer": "lobby_camera",
+        "n": 1
+      },
+      {
+        "source_type": "perception",
+        "producer": "photo_a",
+        "n": 2
+      },
+      {
+        "source_type": "perception",
+        "producer": "test_card",
+        "n": 2
+      },
+      {
+        "source_type": "perception",
+        "producer": "vision_test",
+        "n": 1
+      },
+      {
+        "source_type": "perception",
+        "producer": "zzt_src_probe",
+        "n": 1
+      },
+      {
+        "source_type": "research_finding",
+        "producer": "conversation",
+        "n": 62
       },
       {
         "source_type": "research_finding",
@@ -135,25 +167,120 @@
       },
       {
         "source_type": "task_artifact",
+        "producer": "archive_world_execution",
+        "n": 6
+      },
+      {
+        "source_type": "task_artifact",
+        "producer": "operator_learning",
+        "n": 219
+      },
+      {
+        "source_type": "task_artifact",
         "producer": "substrate_execution",
-        "n": 174
+        "n": 1461
       },
       {
         "source_type": "tool_observation",
         "producer": "tool_registry",
-        "n": 15
+        "n": 49
+      },
+      {
+        "source_type": "user_supplied",
+        "producer": "acq_scale",
+        "n": 23
+      },
+      {
+        "source_type": "user_supplied",
+        "producer": "acq_test",
+        "n": 5
+      },
+      {
+        "source_type": "user_supplied",
+        "producer": "conversation",
+        "n": 211
+      },
+      {
+        "source_type": "user_supplied",
+        "producer": "dbg",
+        "n": 1
       },
       {
         "source_type": "user_supplied",
         "producer": "kite_teacher",
         "n": 16
+      },
+      {
+        "source_type": "user_supplied",
+        "producer": "learning",
+        "n": 163
+      },
+      {
+        "source_type": "user_supplied",
+        "producer": "lexical",
+        "n": 82760
+      },
+      {
+        "source_type": "user_supplied",
+        "producer": "prof",
+        "n": 1302
+      },
+      {
+        "source_type": "user_supplied",
+        "producer": "qwen_teacher",
+        "n": 7
+      },
+      {
+        "source_type": "user_supplied",
+        "producer": "t",
+        "n": 2
+      },
+      {
+        "source_type": "user_supplied",
+        "producer": "teacher",
+        "n": 368631
+      },
+      {
+        "source_type": "user_supplied",
+        "producer": "teacher_a",
+        "n": 2
+      },
+      {
+        "source_type": "user_supplied",
+        "producer": "teacher_b",
+        "n": 1
+      },
+      {
+        "source_type": "user_supplied",
+        "producer": "test",
+        "n": 5
+      },
+      {
+        "source_type": "user_supplied",
+        "producer": "verify",
+        "n": 3
+      },
+      {
+        "source_type": "user_supplied",
+        "producer": "wikipedia",
+        "n": 2
       }
     ],
     "concepts_by_extractor": [
       {
+        "source_type": "user_supplied",
+        "extractor": "structured",
+        "n": 254869
+      },
+      {
         "source_type": "imported_knowledge",
         "extractor": "structured",
-        "n": 986
+        "n": 1037
+      },
+      {
+        "source_type": "perception",
+        "extractor": "structured",
+        "n": 115
       },
       {
         "source_type": "research_finding",
@@ -163,32 +290,32 @@
       {
         "source_type": "tool_observation",
         "extractor": "structured",
-        "n": 16
+        "n": 44
       },
       {
-        "source_type": "user_supplied",
+        "source_type": "research_finding",
         "extractor": "structured",
-        "n": 9
-      },
-      {
-        "source_type": "perception",
-        "extractor": "structured",
-        "n": 2
+        "n": 36
       },
       {
         "source_type": "task_artifact",
         "extractor": "structured",
-        "n": 1
+        "n": 30
+      },
+      {
+        "source_type": null,
+        "extractor": null,
+        "n": 6
       }
     ],
     "relations_by_extractor": [
       {
         "extractor": "structured",
-        "n": 2181
+        "n": 199731
       },
       {
         "extractor": "llm_structured",
-        "n": 195
+        "n": 192
       },
       {
         "extractor": "perm_probe",
@@ -197,7 +324,7 @@
     ],
     "perceptions": [
       {
-        "n": 5
+        "n": 27
       }
     ],
     "reasoning_pattern_rules": [

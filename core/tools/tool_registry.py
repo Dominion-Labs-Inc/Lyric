@@ -30,12 +30,6 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union
 
 # Phase 2: Governance integration
-from core.governance import (
-    UnifiedGovernanceTriggerSystem,
-    ActionCategory,
-    EnforcementMode,
-    DecisionTier,
-)
 from core.safety import (
     CommitmentContract,
     CommitmentType,
@@ -1271,15 +1265,6 @@ def _enrich_tool_error(error_str: str, tool_name: str) -> "ToolErrorInfo":
         ),
         short_hint=_reflection_hint,
     )
-
-
-async def _record_safety_outcome_async(action_id: str, success: bool, error: Optional[str] = None):
-    """Close a safety assessment with the real outcome. Fire-and-forget."""
-    try:
-        from core.security.safety_framework import get_safety_framework
-        await get_safety_framework().record_outcome(action_id, success, error)
-    except Exception as e:
-        logger.debug(f"safety outcome not recorded for {action_id}: {e}")
 
 
 async def _persist_tool_execution_async(entry: Dict[str, Any]) -> None:
@@ -2685,19 +2670,8 @@ class ToolRegistry:
         except Exception:
             pass
         
-        # Phase 2: Safety evaluation — the single gate.
-        #
-        # safety_framework composes content safety, parameter validation, code
-        # sanitization, ASI risk scoring and the governance trigger table, and
-        # persists every evaluation to `safety_assessments`.
-        #
-        # There is NO approval gate by design. The Singleton retains full tool
-        # autonomy — elevated risk is scored, recorded and surfaced as context,
-        # not blocked. Only hard invariants (injection, dangerous content
-        # patterns, MUST_BLOCK triggers) deny execution.
-        from core.security.safety_framework import GovernanceBlockError
-
-        safety_action_id = f"tool_{tool_name}_{uuid.uuid4().hex[:8]}"
+        # Phase 2: the constitution judges the act — the single gate.
+        act_id = f"tool_{tool_name}_{uuid.uuid4().hex[:8]}"
         _tool_safety = getattr(tool, "safety_level", None)
         _tool_safety = _tool_safety.value if hasattr(_tool_safety, "value") else _tool_safety
 
@@ -2712,66 +2686,58 @@ class ToolRegistry:
             except Exception as _cap_error:      # a profile must never block a call
                 logger.debug(f"capability summary unavailable for {tool_name}: {_cap_error}")
 
-        try:
-            from core.security.safety_framework import get_safety_framework
-            framework = get_safety_framework()
-            approved, safety_eval = await framework.evaluate_action(
-                action_id=safety_action_id,
-                action_type="execute_tool",
-                parameters={"tool_name": tool_name, **parameters},
-                tool_name=tool_name,
-                tool_safety=_tool_safety,
-                capability=_capability,
-            )
-        except GovernanceBlockError as e:
-            # Belt-and-braces: evaluate_action returns (False, eval) for blocks,
-            # but if any path still raises, a block must never become an allow.
-            logger.error(f"SAFETY BLOCK (raised) for {tool_name}: {e}")
-            return ToolResult(
-                success=False,
-                output=None,
-                error=f"SAFETY_BLOCKED: {tool_name} denied — {e}",
-                tool_name=tool_name,
-                parameters=parameters,
-                metadata={"error_type": "SAFETY_BLOCKED", "action_id": safety_action_id},
-            )
-        except Exception as e:
-            # A failure to *evaluate* is not a failure of the action. Safety must
-            # not take the system down, so execution proceeds — but this is
-            # deliberately distinct from the block path above.
-            logger.error(f"Safety evaluation error for {tool_name}: {e}")
-            approved, safety_eval = True, None
+        # THE CONSTITUTION IS THE GATE.
+        #
+        # Every tool call the substrate makes arrives here, so this is where its
+        # own law is applied: five laws, judged against the act's measured
+        # consequence, the capabilities its arguments would actually confer, what
+        # the substrate has READ of the file it is about to touch, and the intent
+        # reasoning recorded for the work this call belongs to.
+        #
+        # The intent is read from the async context, never from `parameters`. An
+        # intent that travelled inside the act would be an account the act writes
+        # about itself; the id names a record, and the constitution fetches it.
+        # An id naming nothing judges as no intent at all.
+        #
+        # This REPLACES safety_framework.evaluate_action. That module stays on
+        # disk as the reference the remaining capabilities are still being taken
+        # from, but it no longer governs: two gates would be two answers to
+        # "may this act happen", which is the duplicate-authority defect on the
+        # one path where it matters most. Parity and zero regressions were
+        # measured before the swap (BENCHMARKS §1.3).
+        from core.agents.autonomous.autonomous_coordinator import (
+            get_constitution, judge_act)
+        from core.reasoning.intent_authority import (
+            get_acting_intent, get_acting_actor)
 
-        if not approved and safety_eval is not None:
-            logger.error(
-                f"SAFETY_BLOCKED: {tool_name} risk={safety_eval.risk_level.value} "
-                f"violations={safety_eval.violations_detected}"
-            )
+        judgment = await judge_act(
+            "tool", tool_name,
+            {"tool_name": tool_name, **parameters,
+             # What the tool declares about ITSELF, so the laws judge the act
+             # rather than only its arguments.
+             "_tool_safety": _tool_safety, "_capability": _capability},
+            intent_id=get_acting_intent(),
+            # WHOSE work this is. Not who asked — the constitution stays blind to
+            # that — but whether the things this act touches are the substrate's
+            # own or someone else's, which decides what it may risk with them.
+            actor=get_acting_actor())
+        if not judgment.allowed:
+            logger.error("📜 CONSTITUTION %s — Law %d (%s): %s",
+                         judgment.verdict.value.upper(), judgment.law_number,
+                         judgment.law_name, judgment.reason)
             return ToolResult(
                 success=False,
                 output=None,
-                error=(
-                    f"SAFETY_BLOCKED: {tool_name} denied — "
-                    f"{'; '.join(safety_eval.violations_detected) or 'safety constraint'}"
-                ),
+                error=(f"CONSTITUTION_{judgment.verdict.value.upper()}: "
+                       f"{tool_name} — {judgment.reason}"),
                 tool_name=tool_name,
                 parameters=parameters,
                 metadata={
-                    "error_type": "SAFETY_BLOCKED",
-                    "action_id": safety_action_id,
-                    "safety": safety_eval.determination(),
+                    "error_type": "CONSTITUTION_REFUSED",
+                    "action_id": act_id,
+                    "judgment": judgment.to_dict(),
                 },
             )
-
-        if safety_eval is not None and safety_eval.monitoring_required:
-            logger.info(
-                f"ELEVATED RISK: {tool_name} risk={safety_eval.risk_level.value} "
-                f"tool_safety={_tool_safety} — executing with monitoring"
-            )
-
-        # Tier routing removed: CRITICAL/IMPORTANT no longer divert to an
-        # approval queue. safety_framework already scored and recorded this
-        # action above; elevated risk executes with monitoring.
 
         # Execute tool
         try:
@@ -2792,23 +2758,33 @@ class ToolRegistry:
             #
             # Attached under its own key rather than merged in, so a tool's own
             # metadata can never collide with it or overwrite it.
-            if safety_eval is not None:
-                if not isinstance(result.metadata, dict):
-                    result.metadata = {}
-                result.metadata["safety"] = safety_eval.determination()
+            if not isinstance(result.metadata, dict):
+                result.metadata = {}
+            result.metadata["judgment"] = judgment.to_dict()
 
-            # Close the safety assessment with what actually happened. This is
-            # what makes safety_assessments a labelled dataset rather than a log.
+            # WHAT THE SUBSTRATE NOW KNOWS ABOUT THE FILES IT TOUCHED. Judged
+            # before, noted after — both through the constitution, which owns the
+            # reading ledger Law 2 consults.
             #
-            # Awaited deliberately, not fire-and-forget: a create_task here
-            # leaves a window where the assessment exists without its outcome,
-            # and anything lost in that window biases the dataset toward
-            # whatever happened to finish. The write is a single indexed UPDATE.
-            if safety_eval is not None:
-                await _record_safety_outcome_async(
-                    safety_action_id, result.success,
-                    None if result.success else (result.error or "tool returned failure")
-                )
+            # This has to live where EVERY act passes. It used to be called from
+            # one route only (`_execute_operation`), so the substrate's own
+            # proved work recorded nothing it read or wrote, and Law 2 then
+            # refused acts on files it had just handled. Only a successful act
+            # is noted: an act that failed established no account of anything.
+            if result.success:
+                try:
+                    get_constitution().note_act(tool_name, parameters)
+                except Exception as _note_error:
+                    logger.warning("reading ledger not updated for %s: %s",
+                                   tool_name, _note_error)
+
+            # What HAPPENED after an allowed act is not recorded here. The
+            # substrate's account of an act it chose is its INTENT, and that is
+            # reconciled against the re-observed world by the path that raised
+            # it (see `_reconcile_plan_intent`). Closing a second outcome record
+            # from inside the tool layer would be a second account of the same
+            # act, written by the layer least able to say whether the act
+            # achieved anything.
 
             # Track usage
             await tool._track_usage()
@@ -3193,7 +3169,7 @@ def _register_default_tools():
 
     try:
         from .execution_tools import (
-            RunPythonTool, RunShellCommandTool, ExecuteSandboxTool,
+            RunPythonTool, RunShellCommandTool,
             ListProcessesTool, KillProcessTool, StartServiceTool,
             StopServiceTool, RestartServiceTool, GetProcessInfoTool,
             RunBackgroundTaskTool, ScheduleCronJobTool, InstallPythonPackageTool,
@@ -3203,7 +3179,6 @@ def _register_default_tools():
         )
         _register_tool_lazy(RunPythonTool)
         _register_tool_lazy(RunShellCommandTool)
-        _register_tool_lazy(ExecuteSandboxTool)
         _register_tool_lazy(ListProcessesTool)
         _register_tool_lazy(KillProcessTool)
         _register_tool_lazy(StartServiceTool)
@@ -3656,15 +3631,6 @@ def _register_default_tools():
             DetectIntrusionTool, AnalyzeAnomalyTool, MonitorLogsTool,
             DetectBruteForceTool, AnalyzeTrafficPatternTool, AutoRespondThreatTool,
             HuntThreatsTool, DetectZeroDayTool,
-            # Privacy & Digital Footprint Detection (ENABLED - Read-only, safe)
-            AIDigitalFootprintDetectionTool,
-            # Privacy & Digital Footprint Obliteration (DISABLED BY DEFAULT - EXTREMELY DANGEROUS)
-            DigitalFootprintObliterationTool,
-            RemoveFromDataBrokersTool,
-            ScrubWebArchivesTool, ScrubDNSWhoisTool, DeletePackageTool,
-            PurgeCDNCacheTool, FileLegalTakedownTool, RotateCredentialsTool,
-            ObfuscateIdentityTool, NukeSocialMediaAccountTool,
-            AggressiveDataBrokerAttackTool, NuclearObliterationTool
         )
         # Register Encryption & Cryptography Tools
         _register_tool_lazy(EncryptFileTool)
@@ -3706,26 +3672,6 @@ def _register_default_tools():
         _register_tool_lazy(HuntThreatsTool)
         _register_tool_lazy(DetectZeroDayTool)
 
-        # Register AI Digital Footprint Detection Tool (ENABLED - Read-only, safe)
-        _register_tool_lazy(AIDigitalFootprintDetectionTool)
-        logger.info("✅ AI Digital Footprint Detection Tool registered (ENABLED - read-only intelligence gathering)")
-
-        # Register Digital Footprint Obliteration Tools (ALL DISABLED BY DEFAULT)
-        # All tools are registered but disabled - require explicit authorization to enable
-        _register_tool_lazy(DigitalFootprintObliterationTool)
-        _register_tool_lazy(RemoveFromDataBrokersTool)
-        _register_tool_lazy(ScrubWebArchivesTool)
-        _register_tool_lazy(ScrubDNSWhoisTool)
-        _register_tool_lazy(DeletePackageTool)
-        _register_tool_lazy(PurgeCDNCacheTool)
-        _register_tool_lazy(FileLegalTakedownTool)
-        _register_tool_lazy(RotateCredentialsTool)
-        _register_tool_lazy(ObfuscateIdentityTool)
-        _register_tool_lazy(NukeSocialMediaAccountTool)
-        _register_tool_lazy(AggressiveDataBrokerAttackTool)
-        _register_tool_lazy(NuclearObliterationTool)
-        logger.info("⚠️  Digital footprint tools registered (13 total) - ALL DISABLED - require explicit authorization")
-
     except ImportError as e:
         logger.warning(f"Could not register security tools: {e}")
 
@@ -3734,7 +3680,7 @@ def _register_default_tools():
         from .learning_tools import (
             ProfilePerformanceTool, AnalyzeCausalFeedbackTool, DetectPatternsTool,
             ExtractLessonsLearnedTool, GenerateHypothesisTool,
-            BenchmarkLearningSystemsTool, VisualizeLearningProgressTool,
+            VisualizeLearningProgressTool, BenchmarkCapabilityTool,
             IdentifySkillGapsTool, RecommendTrainingTool, MonitorDataDriftTool,
         )
         _register_tool_lazy(ProfilePerformanceTool)
@@ -3742,8 +3688,8 @@ def _register_default_tools():
         _register_tool_lazy(DetectPatternsTool)
         _register_tool_lazy(ExtractLessonsLearnedTool)
         _register_tool_lazy(GenerateHypothesisTool)
-        _register_tool_lazy(BenchmarkLearningSystemsTool)
         _register_tool_lazy(VisualizeLearningProgressTool)
+        _register_tool_lazy(BenchmarkCapabilityTool)
         _register_tool_lazy(IdentifySkillGapsTool)
         _register_tool_lazy(RecommendTrainingTool)
         _register_tool_lazy(MonitorDataDriftTool)

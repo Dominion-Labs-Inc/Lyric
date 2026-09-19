@@ -147,6 +147,59 @@ class MemoryItem:
     #: that `emotional_context` carried, which was the memory's importance
     #: score under a name that implied something else.
     appraisal_snapshot: Optional[Dict[str, Any]] = None
+    #: WHAT THE SUBSTRATE WAS TRYING TO ACHIEVE when this happened — the intent
+    #: this episode belonged to, by ID.
+    #:
+    #: The record already carried how it reasoned (`reasoning_trace`), what
+    #: weighed on it (`decision_factors`), how it felt (`appraisal_snapshot`) and
+    #: what condition it was in (`system_state`) — and not the GOAL any of that
+    #: served. A derivation without its conclusion: the substrate could
+    #: reconstruct how it thought and never what it was thinking toward.
+    #:
+    #: A LINK, NEVER A COPY. Intent is live, revisable state owned by the intent
+    #: authority; a memory is a permanent record of what happened. Snapshotting
+    #: the intent's shape here would create a second account of what was meant,
+    #: free to diverge from the first — the duplicate-authority defect, in the
+    #: one place where "what I was trying to do" must have a single answer.
+    intent_id: Optional[str] = None
+    #: WHICH VERSION of that intent was current when this happened.
+    #:
+    #: `refresh` firms an intent up as understanding improves and climbs
+    #: `version`, keeping the prior states in `history`. So "what was I trying to
+    #: do at the time" and "what does that pursuit say now" are different
+    #: questions, and the id alone answers only the second. Without the version a
+    #: past act is recalled under a goal the substrate only later refined into —
+    #: a memory quietly re-described by hindsight.
+    intent_version: Optional[int] = None
+
+    #: WHICH PERCEPT this memory is of — by reference, resolving to
+    #: `unified.perceptions`.
+    #:
+    #: TESTIMONY VERSUS A RECORD. The substrate could already say "I recall
+    #: seeing that", and a memory formed while perceiving carried a
+    #: `perceptual_state` snapshot — but attached by RECENCY, a 120-second
+    #: window over whatever had been perceived lately. That is a correlation,
+    #: not a link: it says something was in view around then, and it degrades
+    #: exactly when it matters most, when several things were seen close
+    #: together. "I saw that employee send that email" then rests on the
+    #: substrate's word plus a nearby timestamp.
+    #:
+    #: A reference is defensible where a recollection is not. The percept holds
+    #: what was actually sensed — for an image the blobs and their `isa`
+    #: features, the dimensions, and the sha256 of the exact bytes — so the
+    #: claim resolves to a record of the seeing rather than to a memory of it.
+    #:
+    #: MODALITY-AGNOSTIC BY CONSTRUCTION. This is `percept_id`, not `image_id`,
+    #: because hearing and voice arrive through the same perceptual door and
+    #: must link the same way. A field named for one sense would have to be
+    #: added again for the next.
+    percept_id: Optional[str] = None
+    #: The content digest of what was perceived (an image's sha256), carried
+    #: alongside the id so the OBJECT is identifiable even if the percept row is
+    #: pruned — the percept is the account of the seeing, this is the thing seen.
+    #: Never a substitute for the link: absent a percept, this stays None rather
+    #: than standing in for one.
+    percept_digest: Optional[str] = None
 
     # Optional properties
     embeddings: Optional[List[float]] = None

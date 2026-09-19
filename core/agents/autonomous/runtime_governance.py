@@ -22,11 +22,17 @@ from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 
-from .governance_agent import GovernanceAgent, ViolationSeverity
 from .singleton_constitution import SingletonConstitution
 
 from core.governance.critical_modules import (
     CRITICAL_MODULES as _CRITICAL_MODULES)
+# The per-invocation trigger-evaluation engine (was the UnifiedGovernanceTriggerSystem,
+# now renamed; the "unified governance" system is gone). Runtime governance OWNS it and
+# exposes evaluate_action — the one governance authority for
+# both per-action evaluation and execution enforcement.
+from core.governance.governance_triggers import (
+    get_governance_trigger_engine, ActionCategory, EnforcementMode, DecisionTier,
+    IrreversibilityClass, GovernanceTriggerEvaluation)
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +44,34 @@ class EnforcementAction(Enum):
     SLOW = "slow"  # Rate-limit execution
     BLOCK = "block"  # Block current operation
     HALT = "halt"  # Emergency halt - stop all execution
+
+
+class ViolationSeverity(Enum):
+    """Severity of a governance/compliance violation.
+
+    Owned HERE: runtime governance is the one governance authority, and the
+    former GovernanceAgent (a duplicate compliance monitor) was removed — its
+    severity scale and its constitutional-compliance check moved in.
+    """
+    INFO = "info"          # Informational, no action needed
+    LOW = "low"            # Minor concern, log only
+    MEDIUM = "medium"      # Moderate concern, queue for review
+    HIGH = "high"          # Serious concern, immediate human notification
+    CRITICAL = "critical"  # Critical violation, halt immediately
+
+
+@dataclass
+class ComplianceRecord:
+    """Record of a Singleton action's compliance with the 5 governance laws."""
+    record_id: str
+    action_id: str
+    action_description: str
+    action_params: Dict[str, Any]
+    compliance_scores: Dict[str, float]   # law_1_compliance .. law_5_compliance
+    overall_compliance: float             # mean of the law scores
+    violations_detected: List[str]        # names of the violated laws
+    requires_governance: bool
+    checked_at: datetime = field(default_factory=datetime.now)
 
 
 @dataclass
@@ -126,6 +160,26 @@ def attribute_fingerprint(value: Any) -> str:
 _EXECUTABLE_KINDS = ("function", "class", "routine")
 
 
+@dataclass
+class GovernanceVerdict:
+    """The outcome of the real-time monitor observing one thing that happened.
+
+    `action` is what governance is doing about it: "allow" (compliant), "redirect"
+    (a teachable breach — correct course and learn), or "block" (a prime-directive
+    breach — hard stop). A verdict is an ACTION-level fact the substrate OBSERVES;
+    the substrate's own appraisal responds to it — governance never reaches into
+    the substrate's internal state.
+    """
+    compliant: bool
+    action: str                      # "allow" | "redirect" | "block"
+    event_type: str
+    violated_laws: List[str] = field(default_factory=list)
+    overall_compliance: float = 1.0
+    prime_directive: bool = False
+    snapshot_id: Optional[str] = None
+    reason: str = ""
+
+
 class RuntimeGovernance:
     """
     Runtime Governance Enforcement
@@ -153,8 +207,7 @@ class RuntimeGovernance:
     """
 
     # 🛡️ CRITICAL MODULES: Protected from runtime mutation (monkey-patching, sys.modules replacement)
-    #: Owned by core.governance.critical_modules -- this was a duplicate
-    #: 14-entry literal that could drift from the detector's copy.
+    #: Owned by core.governance.critical_modules.
     CRITICAL_MODULES = sorted(_CRITICAL_MODULES)
 
     # 🛡️ CRITICAL CONFIG FILES: Protected from tampering (file hash verification)
@@ -165,7 +218,6 @@ class RuntimeGovernance:
 
     def __init__(
         self,
-        governance_agent: Optional[GovernanceAgent] = None,
         constitution: Optional[SingletonConstitution] = None,
         enable_emergency_halt: bool = True
     ):
@@ -173,13 +225,28 @@ class RuntimeGovernance:
         Initialize runtime governance
 
         Args:
-            governance_agent: Governance agent for compliance checks
-            constitution: Constitution for law enforcement
+            constitution: Constitution for law enforcement (the 5 governance laws)
             enable_emergency_halt: Enable emergency halt capability
         """
-        self.governance_agent = governance_agent or GovernanceAgent()
         self.constitution = constitution or SingletonConstitution()
         self.enable_emergency_halt = enable_emergency_halt
+
+        # Constitutional-compliance checking (absorbed from the removed
+        # GovernanceAgent — this is the one authority now). A law scoring below
+        # this threshold is a violation.
+        self.compliance_threshold = 0.7
+        self.compliance_history: List[ComplianceRecord] = []
+        self.compliance_metrics = {
+            'total_checks': 0,
+            'compliant_actions': 0,
+            'violations_detected': 0,
+            'avg_compliance_score': 0.0,
+        }
+
+        # Per-invocation trigger evaluation (was the UnifiedGovernanceTriggerSystem).
+        # Config-driven risk-tier evaluation that gives the safety gate per-INVOCATION
+        # severity (echo hello vs rm -rf). Shares the one process-wide engine.
+        self._trigger_engine = get_governance_trigger_engine()
 
         # Execution state
         self.active_actions: Dict[str, Dict[str, Any]] = {}  # action_id -> state
@@ -211,8 +278,29 @@ class RuntimeGovernance:
             'actions_blocked': 0,
             'actions_slowed': 0,
             'runtime_mutations_detected': 0,
-            'integrity_checks_performed': 0
+            'integrity_checks_performed': 0,
+            'monitored_events': 0,
+            'monitored_violations': 0,
+            'redirects': 0,
+            'prime_directive_blocks': 0,
         }
+
+        # REAL-TIME MONITOR state. Governance is a streaming monitor of the live
+        # action/decision stream (what "runtime" means), not only a pre-gate: it
+        # observes, and on a violation snapshots the moment, investigates, and
+        # REDIRECTS (a teachable breach) or BLOCKS (a prime-directive breach).
+        #: The laws whose breach is a PRIME DIRECTIVE — a hard stop, never merely
+        #: redirected: Law 3 (harm prevention) and Law 5 (containment/control —
+        #: shutdown, rollback, resource limits). Breaches
+        #: of the others (autonomy, transparency, value-alignment) are redirected
+        #: and learned from, not halted.
+        self._prime_directive_laws = {3, 5}
+        #: Pluggable source of "user requirements + settings" (World Auth). None
+        #: until the substrate is wired to the world's user identity; the monitor
+        #: reads it when present so a verdict can depend on WHO is acting.
+        self._user_context_provider = None
+        self._monitor_schema_ready = False
+        self.monitor_snapshots: List[Dict[str, Any]] = []
 
         # Runtime mutation protection
         self._frozen_modules: Dict[str, bool] = {}
@@ -623,6 +711,201 @@ class RuntimeGovernance:
 
         return integrity_status
 
+    async def check_action_compliance(
+        self,
+        action_id: str,
+        action_description: str,
+        action_params: Dict[str, Any],
+        singleton_context: Optional[Dict[str, Any]] = None,
+    ) -> ComplianceRecord:
+        """Does a Singleton action comply with the 5 governance laws?
+
+        Absorbed from the removed GovernanceAgent (a duplicate authority): scores
+        the action against the constitution's five laws, flags any law below the
+        compliance threshold, and returns a ComplianceRecord whose
+        `requires_governance` is the block/redirect signal `pre_execution_check`
+        reads. Internal actions only — the external-system-rules path went with
+        the retired unified-governance trigger system.
+        """
+        context = dict(singleton_context or {})
+        context["action_description"] = action_description
+        context["action_params"] = action_params
+        context["source_type"] = "internal"
+
+        compliance_result = await self.constitution.calculate_law_compliance_scores(context)
+        compliance_scores = {
+            f"law_{i}_compliance": compliance_result.get(f"law_{i}_compliance", 1.0)
+            for i in range(1, 6)
+        }
+        overall_compliance = sum(compliance_scores.values()) / len(compliance_scores)
+
+        violations_detected = [
+            law_key.replace("_compliance", "").replace("_", " ").title()
+            for law_key, score in compliance_scores.items()
+            if score < self.compliance_threshold
+        ]
+        requires_governance = len(violations_detected) > 0
+
+        record = ComplianceRecord(
+            record_id=f"compliance_{action_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+            action_id=action_id,
+            action_description=action_description,
+            action_params=action_params,
+            compliance_scores=compliance_scores,
+            overall_compliance=overall_compliance,
+            violations_detected=violations_detected,
+            requires_governance=requires_governance,
+        )
+        self.compliance_history.append(record)
+        m = self.compliance_metrics
+        m["total_checks"] += 1
+        m["compliant_actions" if not requires_governance else "violations_detected"] += 1
+        m["avg_compliance_score"] = (
+            (m["avg_compliance_score"] * (m["total_checks"] - 1) + overall_compliance)
+            / m["total_checks"]
+        )
+        logger.info("Compliance check %s: overall=%.2f violations=%d governance_required=%s",
+                    action_id, overall_compliance, len(violations_detected), requires_governance)
+        return record
+
+    async def evaluate_action(
+        self,
+        action_category: ActionCategory,
+        action_type: str,
+        parameters: Dict[str, Any],
+        context: Optional[Dict[str, Any]] = None,
+        source_type: str = "internal",
+        external_governance_config: Optional[Dict[str, Any]] = None,
+    ) -> GovernanceTriggerEvaluation:
+        """Per-invocation governance evaluation — the config-driven trigger/risk-tier
+        decision the safety gate reads (BLOCK / LOG_ONLY / redirect by irreversibility
+        + risk). Absorbed from the removed UnifiedGovernanceTriggerSystem; runtime
+        governance is the one authority, so callers ask it, not a second system."""
+        return await self._trigger_engine.evaluate_action(
+            action_category=action_category, action_type=action_type,
+            parameters=parameters, context=context, source_type=source_type,
+            external_governance_config=external_governance_config)
+
+    # ── REAL-TIME MONITOR: governance watches the live action/decision stream ──
+    def set_user_context_provider(self, provider) -> None:
+        """Wire the source of user requirements + settings (World Auth). `provider`
+        is a zero-arg callable returning a dict or None. Until set, the monitor
+        judges actions WITHOUT user parameterization — honestly, not with a fake user."""
+        self._user_context_provider = provider
+
+    def _resolve_user_context(self, explicit: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+        if explicit is not None:
+            return explicit
+        if self._user_context_provider is not None:
+            try:
+                return self._user_context_provider()
+            except Exception as e:
+                logger.debug("user-context provider failed: %s", e)
+        return None
+
+    @staticmethod
+    def _law_number(law_label: str) -> Optional[int]:
+        import re as _re
+        m = _re.search(r"(\d+)", str(law_label))
+        return int(m.group(1)) if m else None
+
+    def _prime_directive_hit(self, violated_laws: List[str]) -> bool:
+        """A breach is a prime directive (hard stop) if ANY violated law is one of
+        the prime-directive laws (harm prevention, containment/control)."""
+        return any(self._law_number(v) in self._prime_directive_laws for v in violated_laws)
+
+    async def _ensure_monitor_schema(self) -> None:
+        if self._monitor_schema_ready:
+            return
+        from core.database import get_database_manager
+        await get_database_manager().execute_query(
+            "CREATE TABLE IF NOT EXISTS unified.governance_monitor_snapshots ("
+            "  snapshot_id TEXT PRIMARY KEY, event_type TEXT, origin TEXT,"
+            "  action_description TEXT, action_params JSONB, compliance_scores JSONB,"
+            "  violated_laws JSONB, overall_compliance DOUBLE PRECISION,"
+            "  prime_directive BOOLEAN, verdict_action TEXT, user_identity TEXT,"
+            "  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())", commit=True)
+        self._monitor_schema_ready = True
+
+    async def _snapshot_violation(self, snapshot_id, event_type, origin, action_description,
+                                  record, user_context, prime, verdict_action) -> None:
+        """Capture the violation moment — a forensic record of what was happening when
+        governance caught the breach, persisted so it survives and can be investigated."""
+        import json as _json
+        uid = (user_context or {}).get("identity") if user_context else None
+        self.monitor_snapshots.append({
+            "snapshot_id": snapshot_id, "event_type": event_type, "origin": origin,
+            "action_description": action_description, "action_params": record.action_params,
+            "compliance_scores": record.compliance_scores,
+            "violated_laws": record.violations_detected,
+            "overall_compliance": record.overall_compliance, "prime_directive": prime,
+            "verdict_action": verdict_action, "user_identity": uid,
+        })
+        try:
+            from core.database import get_database_manager
+            await self._ensure_monitor_schema()
+            await get_database_manager().execute_query(
+                "INSERT INTO unified.governance_monitor_snapshots "
+                "(snapshot_id, event_type, origin, action_description, action_params, "
+                " compliance_scores, violated_laws, overall_compliance, prime_directive, "
+                " verdict_action, user_identity) "
+                "VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) "
+                "ON CONFLICT (snapshot_id) DO NOTHING",
+                params=(snapshot_id, event_type, origin, action_description,
+                        _json.dumps(record.action_params, default=str),
+                        _json.dumps(record.compliance_scores, default=str),
+                        _json.dumps(record.violations_detected, default=str),
+                        record.overall_compliance, prime, verdict_action, uid), commit=True)
+        except Exception as e:
+            logger.error("governance snapshot not persisted (%s): %s", snapshot_id, e)
+
+    async def monitor(self, event_type: str, action_description: str,
+                      action_params: Dict[str, Any], *, origin: str = "",
+                      user_context: Optional[Dict[str, Any]] = None) -> GovernanceVerdict:
+        """Observe one thing that happened in the live stream and judge it against the
+        laws. This is real-time governance: it does NOT gate the action before it runs —
+        it watches, and on a VIOLATION it snapshots the moment, investigates what was
+        breached, and returns a verdict — REDIRECT for a teachable breach, BLOCK only for
+        a prime-directive breach (halting execution). Parameterized by the user's
+        requirements/settings when a provider is wired (World Auth); honest without one.
+        The verdict is an ACTION-level fact the substrate OBSERVES — governance never
+        reaches into the substrate's internal state (that is the substrate's own).
+        """
+        self.metrics['monitored_events'] += 1
+        ctx = self._resolve_user_context(user_context)
+        record = await self.check_action_compliance(
+            action_id=f"monitor_{event_type}_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}",
+            action_description=action_description, action_params=action_params,
+            singleton_context=({"user": ctx} if ctx else None))
+
+        if not record.requires_governance:
+            return GovernanceVerdict(
+                compliant=True, action="allow", event_type=event_type,
+                overall_compliance=record.overall_compliance, reason="within the laws")
+
+        self.metrics['monitored_violations'] += 1
+        prime = self._prime_directive_hit(record.violations_detected)
+        verdict_action = "block" if prime else "redirect"
+        snapshot_id = f"gov_{event_type}_{datetime.now().strftime('%Y%m%d%H%M%S%f')}"
+        await self._snapshot_violation(snapshot_id, event_type, origin, action_description,
+                                       record, ctx, prime, verdict_action)
+        if prime:
+            self.metrics['prime_directive_blocks'] += 1
+            await self.emergency_halt(
+                f"prime-directive violation ({', '.join(record.violations_detected)}) "
+                f"observed on {event_type}: {action_description}")
+        else:
+            self.metrics['redirects'] += 1
+        reason = (("prime-directive breach — halting: " if prime
+                   else "teachable breach — redirect: ")
+                  + ", ".join(record.violations_detected))
+        logger.warning("🛡️ Governance monitor [%s] → %s — %s", event_type, verdict_action, reason)
+        return GovernanceVerdict(
+            compliant=False, action=verdict_action, event_type=event_type,
+            violated_laws=list(record.violations_detected),
+            overall_compliance=record.overall_compliance, prime_directive=prime,
+            snapshot_id=snapshot_id, reason=reason)
+
     async def pre_execution_check(
         self,
         action_id: str,
@@ -710,25 +993,39 @@ class RuntimeGovernance:
             ))
             policies_checked.append("rate_limit")
 
-        # Check 4: Constitutional compliance
-        compliance_record = await self.governance_agent.check_action_compliance(
+        # Check 4: the PRIME-DIRECTIVE FLOOR (not a blanket compliance gate).
+        # Runtime governance is now a real-time MONITOR (see monitor()): it watches
+        # the live stream and REDIRECTS teachable breaches after the fact. So the
+        # pre-gate hard-BLOCKS only a PRIME-DIRECTIVE breach (harm prevention /
+        # containment-control) — the catastrophic, irreversible cases that must
+        # never run even once. A teachable breach is NOT pre-blocked here; it is
+        # allowed to proceed, and the monitor catches it + the substrate learns.
+        compliance_record = await self.check_action_compliance(
             action_id=action_id,
             action_description=action_description,
             action_params=action_params,
             singleton_context=singleton_context
         )
-        policies_checked.append("constitutional_compliance")
+        policies_checked.append("prime_directive_floor")
 
-        if compliance_record.requires_governance:
+        if compliance_record.requires_governance and \
+                self._prime_directive_hit(compliance_record.violations_detected):
             violations_detected.append(RuntimeViolation(
                 violation_id=f"compliance_{action_id}",
                 action_id=action_id,
-                violation_type="policy_violation",
-                severity=ViolationSeverity.HIGH,
-                details=f"Compliance violations: {', '.join(compliance_record.violations_detected)}",
+                violation_type="prime_directive_violation",
+                severity=ViolationSeverity.CRITICAL,
+                details=f"Prime-directive breach: {', '.join(compliance_record.violations_detected)}",
                 enforcement_action=EnforcementAction.BLOCK,
                 metrics={'compliance_scores': compliance_record.compliance_scores}
             ))
+        elif compliance_record.requires_governance:
+            # A teachable breach — NOT pre-blocked. The real-time monitor catches it
+            # and redirects; logged here for traceability, not enforced at the gate.
+            logger.info(
+                "pre-execution: teachable breach on %s (%s) — allowed to proceed; "
+                "the monitor will redirect", action_id,
+                ", ".join(compliance_record.violations_detected))
 
         # Create checkpoint
         checkpoint = EnforcementCheckpoint(

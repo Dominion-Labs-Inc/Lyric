@@ -241,3 +241,9 @@ scripts/general_wikidata_edges.json
 
 # bulk data dumps (downloaded, regenerable)
 data/bulk/
+
+# Experiment work artifacts: regenerable intermediates written by a run, not
+# inputs or results. FALSIFY-01's perturbed-image set alone is 1.4 GB. The
+# experiment script, its stimuli, findings and results are all tracked.
+experiments/*/work/
+experiments/*/*/work/

@@ -86,7 +86,12 @@ async def main():
         chunk = props[i:i + args.batch]
         for prop in chunk:
             try:
-                us.observe_claim(prop, domain="general", supports=True, source="taught")
+                # Through the ONE authority's door, not the raw belief substrate.
+                # (The concepts were admitted by the separate ConceptNet drain; this
+                # backfills their beliefs. A full one-door re-teach would use
+                # coord.learning.learn_facts over the triples — heavier, re-admits.)
+                coord.learning.observe_claim(prop, domain="general", supports=True,
+                                             source="taught")
             except Exception:
                 pass
         with contextlib.suppress(Exception):

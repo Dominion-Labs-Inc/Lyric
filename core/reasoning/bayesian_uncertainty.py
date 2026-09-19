@@ -26,6 +26,45 @@ from core.database import TorinUnifiedDatabase
 logger = logging.getLogger(__name__)
 
 
+# ======================================================================
+# THE BELIEF-UPDATE KERNEL (the ONE implementation of the math)
+# ======================================================================
+# Extracted so every store that moves a posterior on evidence uses the
+# IDENTICAL update -- the universal one-mind belief graph
+# (`BayesianUncertaintySystem`) and the actor-scoped context store
+# (`core.learning.scoped_context_store`). There must be exactly one place
+# the odds-based Bayesian update lives, or the two partitions would drift.
+_LR_STRENGTH = 3.0       # likelihood-ratio strength at quality=1.0 (exp(±3) ≈ 20x / 0.05x)
+_POSTERIOR_FLOOR = 1e-6  # clamp so entropy never collapses to an irrefutable 0/1
+
+
+def posterior_from_evidence(prior: float, quality: float,
+                            supports: bool) -> Tuple[float, float]:
+    """Odds-based Bayesian update: P(H|E)/P(¬H|E) = [P(H)/P(¬H)] * LR, with
+    LR = exp(±_LR_STRENGTH * quality). Symmetric, bounded, no zero-probability
+    singularities. Returns (posterior, likelihood_ratio), UNCLAMPED — the caller
+    clamps when it stores (see `clamp_posterior`), so reversal/Δ detection can see
+    the raw move first, exactly as the belief graph has always done."""
+    lr = math.exp((_LR_STRENGTH if supports else -_LR_STRENGTH) * quality)
+    prior_odds = prior / max(1e-9, 1.0 - prior)
+    new_odds = prior_odds * lr
+    return new_odds / (1.0 + new_odds), lr
+
+
+def clamp_posterior(posterior: float) -> float:
+    """Clamp a posterior to the open interval so a belief can never become
+    permanently irrefutable/irrecoverable (entropy collapsing to zero)."""
+    return max(_POSTERIOR_FLOOR, min(1.0 - _POSTERIOR_FLOOR, posterior))
+
+
+def belief_entropy(probability: float) -> float:
+    """Shannon entropy of a Bernoulli belief: H = -p·log2(p) - (1-p)·log2(1-p)."""
+    if probability <= 0.0 or probability >= 1.0:
+        return 0.0
+    return -(probability * math.log2(probability) +
+             (1 - probability) * math.log2(1 - probability))
+
+
 class UncertaintyType(Enum):
     """Types of uncertainty"""
     ALEATORIC = "aleatoric"  # Irreducible randomness
@@ -182,7 +221,12 @@ class BayesianUncertaintySystem:
         # O(1) find-by-claim for observe_claim. Was a linear scan over every
         # belief -- O(n) per call, O(n^2) across a teaching run -- the root cause
         # of multi-hour teaching stalls. Kept in sync at every add/load/delete.
-        self._claim_index: Dict[str, str] = {}
+        # Claim key -> ids of the beliefs holding that claim, in registration
+        # order; domain -> ids. Reads by claim or domain use these instead of
+        # scanning every belief, and the LAST id for a claim is the one belief
+        # observe_claim moves and belief_for_claim returns.
+        self._claim_ids: Dict[str, List[str]] = {}
+        self._domain_ids: Dict[str, Set[str]] = {}
 
         # Writes that could not reach the DB yet (not initialized). Exposed in
         # get_statistics() so a degraded-persistence window is a visible number
@@ -195,7 +239,13 @@ class BayesianUncertaintySystem:
         # wins; rows are upserted) and REPLAYED by `flush_pending_writes` once
         # persistence is available (startup load, and every durable flush).
         self._pending_writes: Dict[str, "BayesianBelief"] = {}
-        
+        #: Live fire-and-forget belief-write tasks, TRACKED so a shutdown flush can
+        #: await them. Without this, `_save_belief` orphaned every write to
+        #: `loop.create_task` and a process exiting before the task ran lost the
+        #: belief -- the "half of knowledge survives restart" defect. `drain_writes`
+        #: awaits this set; the done-callback keeps it self-pruning.
+        self._write_tasks: set = set()
+
         # Known unknowns
         self.known_unknowns: Dict[str, KnownUnknown] = {}
         
@@ -271,8 +321,7 @@ class BayesianUncertaintySystem:
         # up by id and raises "Belief not found" otherwise, so creating a
         # belief with initial evidence always failed -- the belief was only
         # added to self.beliefs on the line after the update attempt.
-        self.beliefs[belief_id] = belief
-        self._claim_index[self._claim_key(belief.claim)] = belief_id
+        self._register_belief(belief)
         self.stats['beliefs_tracked'] += 1
 
         if evidence:
@@ -289,6 +338,35 @@ class BayesianUncertaintySystem:
         """Normalized key a claim is indexed and matched by."""
         return " ".join(str(claim).strip().lower().split())
 
+    @staticmethod
+    def _domain_key(domain: Any) -> str:
+        return (domain or "").strip().lower()
+
+    def _register_belief(self, belief: "BayesianBelief") -> None:
+        self.beliefs[belief.belief_id] = belief
+        ids = self._claim_ids.setdefault(self._claim_key(belief.claim), [])
+        if belief.belief_id in ids:
+            ids.remove(belief.belief_id)
+        ids.append(belief.belief_id)
+        self._domain_ids.setdefault(self._domain_key(belief.domain), set()).add(belief.belief_id)
+
+    def _unregister_belief(self, belief_id: str) -> None:
+        belief = self.beliefs.pop(belief_id)
+        key = self._claim_key(belief.claim)
+        ids = self._claim_ids.get(key, [])
+        if belief_id in ids:
+            ids.remove(belief_id)
+        if not ids:
+            self._claim_ids.pop(key, None)
+        members = self._domain_ids.get(self._domain_key(belief.domain), set())
+        members.discard(belief_id)
+        if not members:
+            self._domain_ids.pop(self._domain_key(belief.domain), None)
+
+    def _claim_belief_id(self, claim: Any) -> Optional[str]:
+        ids = self._claim_ids.get(self._claim_key(claim))
+        return ids[-1] if ids else None
+
     def observe_claim(self, claim: str, domain: str = "language", *,
                       supports: bool = True, quality: float = 0.9,
                       source: str = "taught") -> BayesianBelief:
@@ -302,7 +380,7 @@ class BayesianUncertaintySystem:
         belief, so a taught fact moves a posterior instead of spawning parallel
         beliefs about the same claim."""
         key = self._claim_key(claim)
-        existing_id = self._claim_index.get(key)
+        existing_id = self._claim_belief_id(key)
         if existing_id is not None and existing_id not in self.beliefs:
             existing_id = None  # stale index entry -> treat as new
         evidence = {"quality": quality, "source": source}
@@ -360,31 +438,11 @@ class BayesianUncertaintySystem:
         # STEP 2: Bayesian update with decayed prior
         prior = decayed_prior
 
-        # Odds-based Bayesian update using exponential likelihood ratio.
-        # LR = exp(±_LR_STRENGTH * quality), applied in odds form:
-        #   P(H|E) / P(¬H|E) = [P(H) / P(¬H)] * LR
-        #
-        # Properties:
-        #   quality = 0.0  → LR = 1.0       (neutral, no update)
-        #   quality = 0.5  → LR = exp(±1.5) (moderate)
-        #   quality = 1.0  → LR = exp(±3.0) (strong, ≈ 20x or 0.05x)
-        #   Symmetric, bounded, no zero-probability singularities.
-        #
-        # Replaces the previous heuristic P(E|H)/P(E|¬H) assignment which
-        # produced infinite likelihood ratios at quality=1.0 and inverted
-        # direction for contradicting evidence above quality=0.5.
-        _LR_STRENGTH = 3.0
-        if evidence_supports:
-            lr = math.exp(_LR_STRENGTH * evidence_weight)
-        else:
-            lr = math.exp(-_LR_STRENGTH * evidence_weight)
-
-        prior_odds = prior / max(1e-9, 1.0 - prior)
-        new_odds = prior_odds * lr
-        posterior = new_odds / (1.0 + new_odds)
-
-        # Store LR for diagnostics (replaces raw P(E|H) assignment)
-        likelihood = lr
+        # Odds-based Bayesian update via the shared kernel (the ONE place this
+        # math lives; see `posterior_from_evidence` at module scope). quality=0
+        # → no move; quality=1 → ≈20x/0.05x; symmetric, bounded, no singularities.
+        posterior, likelihood = posterior_from_evidence(
+            prior, evidence_weight, evidence_supports)
 
         # STEP 3: Detect regime shift (belief reversal across 0.5 threshold)
         is_reversal = False
@@ -401,13 +459,9 @@ class BayesianUncertaintySystem:
         # STEP 4: Update domain volatility (adaptive decay rate)
         self._update_domain_volatility(belief.domain, belief_change, is_reversal)
 
-        # Update belief state
-        # Clamp to open interval to prevent entropy collapsing to zero,
-        # which would make the belief permanently irrefutable/irrecoverable.
-        _POSTERIOR_FLOOR = 1e-6
-        belief.posterior_probability = max(
-            _POSTERIOR_FLOOR, min(1.0 - _POSTERIOR_FLOOR, posterior)
-        )
+        # Update belief state. Clamp (shared helper) to the open interval so
+        # entropy never collapses to an irrefutable/irrecoverable 0 or 1.
+        belief.posterior_probability = clamp_posterior(posterior)
         belief.likelihood = likelihood
         belief.entropy = self._calculate_entropy(belief.posterior_probability)
         belief.last_updated = datetime.now()
@@ -444,11 +498,9 @@ class BayesianUncertaintySystem:
         return belief
     
     def _calculate_entropy(self, probability: float) -> float:
-        """Calculate Shannon entropy: H = -p*log(p) - (1-p)*log(1-p)"""
-        if probability == 0.0 or probability == 1.0:
-            return 0.0
-        return -(probability * math.log2(probability) +
-                 (1 - probability) * math.log2(1 - probability))
+        """Shannon entropy of the belief (delegates to the shared kernel so there
+        is one entropy implementation across the universal and scoped stores)."""
+        return belief_entropy(probability)
 
     def _apply_temporal_decay(self, belief: BayesianBelief) -> float:
         """
@@ -804,11 +856,8 @@ class BayesianUncertaintySystem:
         """The held belief whose claim matches (normalised), or None — a fresh
         retrieval by proposition. Used by completion SAW to independently check
         whether a learned claim is actually held in the store now."""
-        key = " ".join(str(claim).strip().lower().split())
-        for b in self.beliefs.values():
-            if " ".join(str(b.claim).strip().lower().split()) == key:
-                return b
-        return None
+        belief_id = self._claim_belief_id(claim)
+        return self.beliefs.get(belief_id) if belief_id else None
 
     def beliefs_for_domain(self, domain: str, limit: int = 8) -> List[Dict[str, Any]]:
         """The SPECIFIC beliefs held in a domain — claim + posterior, most-recently
@@ -816,11 +865,10 @@ class BayesianUncertaintySystem:
         observe_claim) both move these, so they ARE the substrate's accumulated
         understanding of the domain. Used to stamp a memory with the pertinent
         beliefs at the time it formed, not just an aggregate count."""
-        key = (domain or "").strip().lower()
+        key = self._domain_key(domain)
         if not key:
             return []
-        items = [b for b in self.beliefs.values()
-                 if (getattr(b, "domain", "") or "").strip().lower() == key]
+        items = [self.beliefs[bid] for bid in self._domain_ids.get(key, ())]
         items.sort(key=lambda b: getattr(b, "last_updated", None) or datetime.min,
                    reverse=True)
         return [{"belief_id": b.belief_id, "claim": b.claim,
@@ -991,8 +1039,7 @@ class BayesianUncertaintySystem:
             posterior_probability=0.7,
             entropy=self._calculate_entropy(0.7)
         )
-        self.beliefs[belief_id] = belief
-        self._claim_index[self._claim_key(belief.claim)] = belief_id
+        self._register_belief(belief)
         self.stats['beliefs_tracked'] += 1
         self._save_belief(belief)
         
@@ -1134,7 +1181,7 @@ class BayesianUncertaintySystem:
             reasons.append(f"Low calibrated confidence ({calibrated_conf:.2f})")
         
         # Critical domain with moderate uncertainty
-        critical_domains = ['safety', 'security', 'self_modification']
+        critical_domains = ['safety', 'security', 'self_improvement']
         if domain in critical_domains and (entropy > 0.5 or calibrated_conf < 0.7):
             defer = True
             reasons.append(f"Critical domain with insufficient certainty")
@@ -1255,9 +1302,32 @@ class BayesianUncertaintySystem:
         import asyncio
         try:
             loop = asyncio.get_running_loop()
-            loop.create_task(self._write_belief_row(belief, commit=True))
+            # TRACK the task so a shutdown flush (drain_writes) can await it.
+            # Buffer the latest state too, so `flush_pending_writes` is a backstop
+            # if the process dies before this task runs -- either path persists it.
+            self._pending_writes[belief.belief_id] = belief
+            task = loop.create_task(self._write_belief_row(belief, commit=True))
+            self._write_tasks.add(task)
+            task.add_done_callback(lambda t: (
+                self._write_tasks.discard(t),
+                self._pending_writes.pop(belief.belief_id, None)
+                if not t.cancelled() and not t.exception() and t.result() else None))
         except RuntimeError:
-            pass  # No running loop (e.g. tests) — skip persistence
+            # No running loop (e.g. tests): buffer for the next durable flush /
+            # startup replay rather than silently dropping the write.
+            self._pending_writes[belief.belief_id] = belief
+
+    async def drain_writes(self) -> int:
+        """Await every outstanding fire-and-forget belief write, then replay any
+        buffered backlog. The shutdown flush barrier calls this BEFORE the DB pool
+        closes, so no belief is lost to an un-run `create_task` on exit. Returns
+        the number of write tasks awaited."""
+        import asyncio
+        tasks = list(self._write_tasks)
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
+        await self.flush_pending_writes()
+        return len(tasks)
 
     async def flush_pending_writes(self) -> int:
         """Replay belief writes that were BUFFERED while the DB was unavailable, so
@@ -1525,8 +1595,7 @@ class BayesianUncertaintySystem:
                         update_count=int(row["update_count"] or 0),
                         last_updated=row["last_updated"] if row["last_updated"] else datetime.now(),
                     )
-                    self.beliefs[b.belief_id] = b
-                    self._claim_index[self._claim_key(b.claim)] = b.belief_id
+                    self._register_belief(b)
                     self.stats["beliefs_tracked"] += 1
                     loaded += 1
                 except Exception as row_err:
@@ -1567,6 +1636,7 @@ class BayesianUncertaintySystem:
         try:
             now = datetime.now()
             beliefs_decayed = 0
+            beliefs_removed = 0
             total_decay = 0.0
 
             for belief_id, belief in list(self.beliefs.items()):
@@ -1595,8 +1665,8 @@ class BayesianUncertaintySystem:
                     # "0 decayed" actually meant "the method crashed").
                     _evidence_count = len(belief.evidence_for) + len(belief.evidence_against)
                     if 0.45 <= decayed_prob <= 0.55 and _evidence_count < 3:
-                        self._claim_index.pop(self._claim_key(belief.claim), None)
-                        del self.beliefs[belief_id]
+                        self._unregister_belief(belief_id)
+                        beliefs_removed += 1
                         # DURABLE: the belief was dropped from memory, so drop its
                         # row too — otherwise load_from_db resurrects it.
                         await self._delete_belief_row(belief_id)
@@ -1610,17 +1680,28 @@ class BayesianUncertaintySystem:
             logger.info(f"✓ Applied decay to {beliefs_decayed} beliefs (avg decay: {avg_decay:.4f})")
 
             return {
+                # The ACTUAL count of beliefs deleted this pass. This used to report
+                # `len(neutral beliefs still present)` — the beliefs that were KEPT
+                # (evidence_count >= 3), the inverse of "removed".
                 'beliefs_decayed': beliefs_decayed,
                 'avg_decay_amount': avg_decay,
-                'beliefs_removed': len([b for b in list(self.beliefs.values()) if 0.45 <= b.posterior_probability <= 0.55])
+                'beliefs_removed': beliefs_removed
             }
 
         except Exception as e:
+            # A wiring bug (AttributeError/TypeError/...) must RE-RAISE, never be
+            # recorded as "0 decayed" — that silent-negative is exactly how the
+            # neutral-band AttributeError above aborted the loop invisibly. Genuine
+            # runtime errors carry an explicit `error` marker so a caller can tell
+            # failure from an empty result.
+            from core.capability import raise_if_structural
+            raise_if_structural(e, "bayesian_uncertainty.apply_temporal_decay_to_all_beliefs")
             logger.error(f"Failed to apply belief decay: {e}")
             return {
                 'beliefs_decayed': 0,
                 'avg_decay_amount': 0.0,
-                'beliefs_removed': 0
+                'beliefs_removed': 0,
+                'error': str(e),
             }
 
     async def check_belief_consistency(self) -> Dict[str, Any]:
@@ -1694,11 +1775,17 @@ class BayesianUncertaintySystem:
             }
 
         except Exception as e:
+            # Re-raise a wiring bug rather than report "0 violations" (which is what
+            # the wrong-attribute-name crashes did — a repair pass inert exactly when
+            # it had work). Runtime errors carry an explicit `error` marker.
+            from core.capability import raise_if_structural
+            raise_if_structural(e, "bayesian_uncertainty.check_belief_consistency")
             logger.error(f"Failed to check belief consistency: {e}")
             return {
                 'violations_found': 0,
                 'constraints_propagated': 0,
-                'relationships_checked': 0
+                'relationships_checked': 0,
+                'error': str(e),
             }
 
     async def update_domain_volatility_metrics(self) -> Dict[str, Any]:
@@ -1740,10 +1827,16 @@ class BayesianUncertaintySystem:
             }
 
         except Exception as e:
+            # Re-raise wiring bugs. On a genuine runtime error report avg_volatility
+            # as None (UNKNOWN) — the old 0.01 default read as a real, healthy "low
+            # volatility" value, a fabricated-on-failure metric that hid the crash.
+            from core.capability import raise_if_structural
+            raise_if_structural(e, "bayesian_uncertainty.update_domain_volatility_metrics")
             logger.error(f"Failed to update domain volatility: {e}")
             return {
                 'domains_updated': 0,
-                'avg_volatility': 0.01
+                'avg_volatility': None,
+                'error': str(e),
             }
 
     def _adjust_evidence_with_domain_support(

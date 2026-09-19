@@ -252,11 +252,17 @@ def _build_reading(procedures, *, cached: bool):
                     f"agree; no model" + (" (rehydrated from cache)" if cached else "")))
 
 
-def _load_cached_procedures():
-    """The persisted procedures IF one was saved for exactly this code+evidence,
-    else None. Any problem -- missing file, key mismatch, unpicklable, wrong
-    shape -- returns None so the caller re-derives. A bad cache can never become
-    a wrong reader; the worst case is the pre-cache behaviour of deriving."""
+def _load_cached_verdict() -> Optional[Tuple[Optional[tuple], str]]:
+    """The recorded outcome of the derivation for exactly this code+evidence:
+    (procedures, "") or (None, why). None when there is no such record -- missing
+    file, key mismatch, unreadable, wrong shape -- and the caller derives. A bad
+    record can never become a wrong reader; the worst case is deriving again.
+
+    A failure is recorded as well as a success. The search is deterministic
+    (same status, same 2,595,614 candidates and same operators under different
+    hash seeds), so the same code and evidence always reach the same verdict,
+    and re-proving a failure cost ten minutes of a core on every boot.
+    """
     import pickle
     key = _cache_key()
     if not key:
@@ -273,12 +279,15 @@ def _load_cached_procedures():
     if not isinstance(blob, dict) or blob.get("key") != key:
         return None  # stale: code or evidence changed since it was written
     procedures = blob.get("procedures")
-    return tuple(procedures) if procedures else None
+    if procedures:
+        return tuple(procedures), ""
+    why = blob.get("why")
+    return (None, why) if why else None
 
 
-def _persist_procedures(procedures) -> None:
-    """Save the derived procedures for the current code+evidence. Best-effort:
-    a failure to write is logged and the process runs exactly as before."""
+def _persist_verdict(procedures: Optional[tuple], why: str) -> None:
+    """Record the derivation's outcome for the current code+evidence. A failure
+    to write is logged and the next boot derives again."""
     import pickle
     key = _cache_key()
     if not key:
@@ -288,24 +297,72 @@ def _persist_procedures(procedures) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         tmp = path.with_suffix(".pkl.tmp")
         with open(tmp, "wb") as fh:
-            pickle.dump({"key": key, "procedures": tuple(procedures)}, fh,
-                        protocol=pickle.HIGHEST_PROTOCOL)
+            pickle.dump({"key": key,
+                         "procedures": tuple(procedures) if procedures else None,
+                         "why": why}, fh, protocol=pickle.HIGHEST_PROTOCOL)
         tmp.replace(path)  # atomic: a reader never sees a half-written cache
-        logger.info("derived reading cached to %s", path)
+        logger.info("derived reading verdict recorded to %s", path)
     except Exception as error:
-        logger.warning("derived-reading cache not written (will re-derive next "
+        logger.warning("derived-reading verdict not written (will re-derive next "
                        "boot): %s", error)
 
 
-def derive() -> Tuple[Optional[object], str]:
-    """Derive the reading procedure. Once per process, then cached.
+def _derive_procedures() -> Tuple[Optional[tuple], str, bool]:
+    """The derivation itself: a minutes-long combinatorial search, pure CPU.
 
-    PERSISTED ACROSS BOOTS. The derivation is a minutes-long combinatorial
-    search; re-running it every process start is pure waste. On success the
-    result is written to `runtime/derived_reading.pkl`, keyed by a hash of the
-    evidence and the synthesis source, and a matching cache is rehydrated in
-    milliseconds instead. The cache is fail-safe: any mismatch or read error
-    re-derives, so it can only ever save time, never change the reading.
+    Returns (procedures, "", True), (None, why, True) when the search itself
+    found no reading, or (None, why, False) when it raised -- an exception says
+    nothing about what this code and evidence derive, so it is not a verdict to
+    record. No cache, no registry, so it can run in a process of its own.
+    """
+    from core.learning.unified_learning_system import get_learning_authority
+    from core.learning.procedure_synthesis import IOExample, SynthesisStatus
+    from core.learning.rule_induction import Fact
+
+    authority = get_learning_authority()
+    try:
+        operators, why = _learn_instructions(authority)
+        if operators is None:
+            return None, why, True
+
+        guards = tuple(Fact(flag, ()) for flag in FLAGS)
+        examples = [IOExample(label=s,
+                              build=lambda t=s: SentenceMachine(t),
+                              expected=m, max_steps=budget(s))
+                    for s, m in TAUGHT]
+        result = authority.derive_procedure(
+            operators, guards, examples, terminal="READING",
+            max_rules=MAX_RULES)
+    except Exception as error:
+        return None, f"derivation raised {type(error).__name__}: {error}", False
+
+    if result.status not in (SynthesisStatus.PROCEDURE_DERIVED,
+                             SynthesisStatus.MULTIPLE_PROCEDURES):
+        return None, f"synthesis returned {result.status.value}: {result.detail}", True
+
+    # MULTIPLE_PROCEDURES is underdetermination and it is the normal
+    # outcome here: five sentences do not pin down the route through six
+    # guards. Four procedures fit, and they differ only in how they get
+    # there. Picking one would be choosing a reading the evidence does not
+    # choose -- so ALL of them read every sentence and they must AGREE.
+    # Where they disagree the sentence is exactly the input the synthesis
+    # said "would decide", and the honest answer is that this reading does
+    # not determine it.
+    return tuple(result.procedures), "", True
+
+
+def derive() -> Tuple[Optional[object], str]:
+    """Derive the reading procedure in this process. Once per process, then cached.
+
+    PERSISTED ACROSS BOOTS. On success the procedures are written to
+    `runtime/derived_reading.pkl`, keyed by a hash of the evidence and the
+    synthesis source, and a matching cache is rehydrated in milliseconds
+    instead. The cache is fail-safe: any mismatch or read error re-derives, so
+    it can only ever save time, never change the reading.
+
+    The substrate does not call this: `register_off_process` runs the search in
+    a separate process, because in the substrate's interpreter it holds the GIL
+    for its whole run.
 
     Returns (DerivedReading, "") or (None, why). A failure is REPORTED, never
     swallowed into a silent fallback -- if this cannot be derived, the caller
@@ -315,61 +372,26 @@ def derive() -> Tuple[Optional[object], str]:
         if _state["derived"]:
             return _state["reading"], _state["why"]
 
-        # FAST PATH: a derivation persisted for exactly this code+evidence.
-        cached = _load_cached_procedures()
+        # FAST PATH: a verdict recorded for exactly this code+evidence.
+        verdict = _load_cached_verdict()
+        cached = verdict is not None
         if cached:
-            reading = _build_reading(cached, cached=True)
-            _state.update(derived=True, reading=reading, why="")
+            procedures, why = verdict
+        else:
+            procedures, why, is_verdict = _derive_procedures()
+            if is_verdict:
+                # Recorded BEFORE building the reading, so the minutes-long
+                # search is paid once per code+evidence, not once per process.
+                _persist_verdict(procedures, why)
+        if procedures is None:
+            _state.update(derived=True, reading=None, why=why)
+            logger.warning("reading not derived%s: %s",
+                           " (verdict recorded for this code and evidence)" if cached else "",
+                           why)
+            return None, why
+        if cached:
             logger.info("derived reading rehydrated from cache (no synthesis)")
-            return reading, ""
-
-        from core.learning.unified_learning_system import get_learning_authority
-        from core.learning.procedure_synthesis import IOExample, SynthesisStatus
-        from core.learning.rule_induction import Fact
-
-        authority = get_learning_authority()
-        try:
-            operators, why = _learn_instructions(authority)
-            if operators is None:
-                _state.update(derived=True, reading=None, why=why)
-                logger.warning("reading not derived: %s", why)
-                return None, why
-
-            guards = tuple(Fact(flag, ()) for flag in FLAGS)
-            examples = [IOExample(label=s,
-                                  build=lambda t=s: SentenceMachine(t),
-                                  expected=m, max_steps=budget(s))
-                        for s, m in TAUGHT]
-            result = authority.derive_procedure(
-                operators, guards, examples, terminal="READING",
-                max_rules=MAX_RULES)
-        except Exception as error:
-            why = f"derivation raised {type(error).__name__}: {error}"
-            _state.update(derived=True, reading=None, why=why)
-            logger.warning("reading not derived: %s", why)
-            return None, why
-
-        if result.status not in (SynthesisStatus.PROCEDURE_DERIVED,
-                                 SynthesisStatus.MULTIPLE_PROCEDURES):
-            why = f"synthesis returned {result.status.value}: {result.detail}"
-            _state.update(derived=True, reading=None, why=why)
-            logger.warning("reading not derived: %s", why)
-            return None, why
-
-        # MULTIPLE_PROCEDURES is underdetermination and it is the normal
-        # outcome here: five sentences do not pin down the route through six
-        # guards. Four procedures fit, and they differ only in how they get
-        # there. Picking one would be choosing a reading the evidence does not
-        # choose -- so ALL of them read every sentence and they must AGREE.
-        # Where they disagree the sentence is exactly the input the synthesis
-        # said "would decide", and the honest answer is that this reading does
-        # not determine it.
-        procedures = tuple(result.procedures)
-
-        # Persist for next boot BEFORE building the reading, so the minutes-long
-        # search is paid once ever, not once per process.
-        _persist_procedures(procedures)
-        reading = _build_reading(procedures, cached=False)
+        reading = _build_reading(procedures, cached=cached)
         _state.update(derived=True, reading=reading, why="")
         return reading, ""
 
@@ -389,6 +411,75 @@ def ensure_registered() -> Tuple[bool, str]:
     reading, why = derive()
     if reading is None:
         return False, why
+    registry.register(reading)
+    return True, ""
+
+
+def _derive_in_child(sender) -> None:
+    """Entry point of the derivation process: sends back (procedures, why)."""
+    try:
+        sender.send(_derive_procedures())
+    except BaseException as error:
+        sender.send((None, f"derivation raised {type(error).__name__}: {error}", False))
+    finally:
+        sender.close()
+
+
+async def register_off_process() -> Tuple[bool, str]:
+    """Register the reading without running its search in this interpreter.
+
+    A recorded verdict for this code and evidence is used here in milliseconds.
+    Otherwise the search runs in a separate process, and its verdict comes back,
+    is recorded, and a derived reading is registered. In a thread of the substrate's own process the search held
+    the GIL for its whole run -- longer than a boot -- so every encode, numpy
+    call and coroutine step on the event loop waited on it, and it never
+    finished to write the cache that would have ended it. Cancelling this
+    terminates the derivation process.
+    """
+    import asyncio
+    import multiprocessing
+    from core.semantics.reading_registry import get_reading_registry
+
+    registry = get_reading_registry()
+    if any(r.name == "subject_object_polarity" for r in registry.readings()):
+        return True, ""
+
+    verdict = _load_cached_verdict()
+    cached = verdict is not None
+    procedures, why = verdict if cached else (None, "")
+    is_verdict = False
+    if not cached:
+        context = multiprocessing.get_context("spawn")
+        receiver, sender = context.Pipe(duplex=False)
+        process = context.Process(target=_derive_in_child, args=(sender,),
+                                  name="derived-reading", daemon=True)
+        process.start()
+        sender.close()
+        logger.info("derived reading: search running in process %s", process.pid)
+        try:
+            procedures, why, is_verdict = await asyncio.to_thread(receiver.recv)
+        except EOFError:
+            await asyncio.to_thread(process.join)
+            procedures, why = None, (f"derivation process exited with code "
+                                     f"{process.exitcode} without an answer")
+        except asyncio.CancelledError:
+            process.terminate()
+            raise
+        await asyncio.to_thread(process.join)
+        receiver.close()
+        if is_verdict:
+            _persist_verdict(procedures, why)
+    if procedures is None:
+        with _lock:
+            _state.update(derived=True, reading=None, why=why)
+        logger.warning("reading not derived%s: %s",
+                       " (verdict recorded for this code and evidence)" if cached else "",
+                       why)
+        return False, why
+
+    reading = _build_reading(procedures, cached=cached)
+    with _lock:
+        _state.update(derived=True, reading=reading, why="")
     registry.register(reading)
     return True, ""
 

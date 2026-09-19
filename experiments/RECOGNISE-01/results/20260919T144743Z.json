@@ -1,0 +1,242 @@
+{
+  "experiment": "RECOGNISE-01",
+  "claim": "The substrate names what it sees at the moment it sees it, from rules it induced itself, through the same authority that answers a question about a name \u2014 and the name arrives with the derivation that licensed it, resting on the observations it was read from and on nothing else.",
+  "hypothesis": "Recognition was a capability the substrate had and never used, because nothing asked. Making it a reflex closes that, and the risk it introduces is circularity: a name becoming a feature, a conclusion becoming its own evidence. Both are closed here by construction rather than by care.",
+  "started_at": "2026-09-19T14:47:43.415547+00:00",
+  "duration_seconds": 57.965,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/TorinAI/venv_torin/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/TorinAI",
+    "shadow_mode": "1",
+    "git_commit": "a36cac20c24cef93cfa6d22ef82bf9a3169e9a5b",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "torinai_db",
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "environment",
+        "database": "environment",
+        "user": "environment",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres"
+      }
+    },
+    "git_uncommitted_changes": 291,
+    "database_verified": null,
+    "database_verified_reason": "not verified"
+  },
+  "summary": {
+    "checks": 27,
+    "passed": 27,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [
+    {
+      "name": "induced_rule",
+      "value": "circle(?X0) \u2227 vivid_red(?X0) \u2192 recogcat557f10(?X0)",
+      "unit": "formula",
+      "note": ""
+    },
+    {
+      "name": "observed_features",
+      "value": 3,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "held_features",
+      "value": 21,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "hypotheses_for_ambiguous_category",
+      "value": 3,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "checks_passed",
+      "value": 27,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "checks_total",
+      "value": 27,
+      "unit": "count",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "every example entered through sight, not by hand",
+      "passed": true,
+      "detail": "2 positive(s), 2 negative(s)",
+      "at": "2026-09-19T14:48:31.014889+00:00"
+    },
+    {
+      "label": "a naming rule was induced from them",
+      "passed": true,
+      "detail": "circle(?X0) \u2227 vivid_red(?X0) \u2192 recogcat557f10(?X0)",
+      "at": "2026-09-19T14:48:31.157541+00:00"
+    },
+    {
+      "label": "sight admitted the fresh thing",
+      "passed": true,
+      "detail": "recog_557f10_5_blob1",
+      "at": "2026-09-19T14:48:32.982749+00:00"
+    },
+    {
+      "label": "and NAMED it, with nobody asking",
+      "passed": true,
+      "detail": "recog_557f10_5_blob1 isa recogcat557f10",
+      "at": "2026-09-19T14:48:32.983697+00:00"
+    },
+    {
+      "label": "the naming authority states the rule that fired",
+      "passed": true,
+      "detail": "circle & vivid_red -> recogcat557f10 (candidate)",
+      "at": "2026-09-19T14:48:32.989893+00:00"
+    },
+    {
+      "label": "and how many hypotheses agreed, not just that one did",
+      "passed": true,
+      "detail": "1 hypothesis/es",
+      "at": "2026-09-19T14:48:32.989902+00:00"
+    },
+    {
+      "label": "asking gives the SAME answer \u2014 one authority, two doors",
+      "passed": true,
+      "detail": "Yes: recog_557f10_5_blob1 isa a recogcat557f10",
+      "at": "2026-09-19T14:48:33.900656+00:00"
+    },
+    {
+      "label": "it entered as a DERIVATION, not as an observation",
+      "passed": true,
+      "detail": "induced_rule",
+      "at": "2026-09-19T14:48:33.901564+00:00"
+    },
+    {
+      "label": "declaring the observations it was read from",
+      "passed": true,
+      "detail": "1 root(s)",
+      "at": "2026-09-19T14:48:33.901583+00:00"
+    },
+    {
+      "label": "and the rule it applied gained no support from being applied",
+      "passed": true,
+      "detail": "rule roots 4, name roots 1, overlap 0",
+      "at": "2026-09-19T14:48:33.902590+00:00"
+    },
+    {
+      "label": "the name is held as a fact about the thing",
+      "passed": true,
+      "detail": "21 held feature(s)",
+      "at": "2026-09-19T14:48:33.902601+00:00"
+    },
+    {
+      "label": "and is NOT among what was observed of it",
+      "passed": true,
+      "detail": "observed: ['circle', 'large', 'vivid_red']",
+      "at": "2026-09-19T14:48:33.902607+00:00"
+    },
+    {
+      "label": "so a second naming cannot rest on the first",
+      "passed": true,
+      "detail": "no derived name appears in the premises",
+      "at": "2026-09-19T14:48:33.902618+00:00"
+    },
+    {
+      "label": "induction generalises over the observed features only",
+      "passed": true,
+      "detail": "['circle', 'small', 'vivid_red']",
+      "at": "2026-09-19T14:48:35.724353+00:00"
+    },
+    {
+      "label": "the name reached the judgement as a claim of that percept",
+      "passed": true,
+      "detail": "31 claim(s) at accept=0.95",
+      "at": "2026-09-19T14:48:35.724379+00:00"
+    },
+    {
+      "label": "carrying its own posterior and verdict",
+      "passed": true,
+      "detail": "ACT @ 0.9501",
+      "at": "2026-09-19T14:48:35.724388+00:00"
+    },
+    {
+      "label": "and the percept's verdict is still the WEAKEST of them all",
+      "passed": true,
+      "detail": "percept=ACT, weakest=ACT",
+      "at": "2026-09-19T14:48:35.724395+00:00"
+    },
+    {
+      "label": "nothing it learned here names this one",
+      "passed": true,
+      "detail": "named: ['cat1e7634trgr', 'cat9ec3b4trgr', 'catc290e1trgr', 'catd8883ftrgr', 'catdfbdaatrgr', 'catf1345ftrgr', 'catf4ce0atrgr', 'greentri0b96e7', 'gtdca515', 'gtfd64ff', 'gtokaf7e0b']",
+      "at": "2026-09-19T14:48:37.060946+00:00"
+    },
+    {
+      "label": "and 'nothing fired' is distinguishable from 'nothing to try'",
+      "passed": true,
+      "detail": "48 naming rule(s) weighed",
+      "at": "2026-09-19T14:48:37.060961+00:00"
+    },
+    {
+      "label": "because with no rules at all it says so",
+      "passed": true,
+      "detail": "considered=0",
+      "at": "2026-09-19T14:48:37.060971+00:00"
+    },
+    {
+      "label": "the disagreement is reported, not resolved by picking one",
+      "passed": true,
+      "detail": "2/3 fire",
+      "at": "2026-09-19T14:48:41.369088+00:00"
+    },
+    {
+      "label": "it is NOT named while its hypotheses disagree",
+      "passed": true,
+      "detail": "withheld",
+      "at": "2026-09-19T14:48:41.369098+00:00"
+    },
+    {
+      "label": "and what would decide it is stated",
+      "passed": true,
+      "detail": "small",
+      "at": "2026-09-19T14:48:41.369102+00:00"
+    },
+    {
+      "label": "the faculty learned a reference instance",
+      "passed": true,
+      "detail": "108 keypoints",
+      "at": "2026-09-19T14:48:41.371477+00:00"
+    },
+    {
+      "label": "a faculty that never saw it knows it \u2014 the library is durable",
+      "passed": true,
+      "detail": "knows 1 instance(s)",
+      "at": "2026-09-19T14:48:41.372182+00:00"
+    },
+    {
+      "label": "and can actually recognise it again from the pixels",
+      "passed": true,
+      "detail": "1 match(es)",
+      "at": "2026-09-19T14:48:41.373793+00:00"
+    },
+    {
+      "label": "forgetting it is durable too",
+      "passed": true,
+      "detail": "gone",
+      "at": "2026-09-19T14:48:41.374107+00:00"
+    }
+  ],
+  "notes": []
+}

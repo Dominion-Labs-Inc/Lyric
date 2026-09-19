@@ -88,22 +88,6 @@ class Priority(Enum):
     HIGH = "high"
     CRITICAL = "critical"
 
-class AgentType(Enum):
-    """Swarm agent types for digital footprint scrubbing"""
-    HUNTER = "hunter"              # Finds digital traces
-    ANALYZER = "analyzer"          # Analyzes trace content
-    SCRUBBER = "scrubber"          # Removes traces
-    VALIDATOR = "validator"        # Validates cleanup
-    GUARDIAN = "guardian"          # Monitors for new traces
-    
-    # External operation specialists
-    NETWORK_HUNTER = "network_hunter"      # Scans network logs and connections
-    BROWSER_SCRUBBER = "browser_scrubber"  # Cleans browser data and cookies
-    API_CLEANER = "api_cleaner"            # Removes API tokens and call logs
-    DNS_GUARDIAN = "dns_guardian"          # Monitors and cleans DNS queries
-    PROXY_AGENT = "proxy_agent"            # Handles proxy/VPN trace cleanup
-    WEB_TRACER = "web_tracer"              # Specialized web search trace cleanup
-
 class ContentCategory(Enum):
     """Categories of content filtering"""
     ILLEGAL_DRUGS = "illegal_drugs"
@@ -167,37 +151,6 @@ class SecurityThreat:
 ThreatReport = SecurityThreat
 
 @dataclass
-class DigitalTrace:
-    """Digital trace for footprint scrubbing"""
-    trace_id: str
-    location: str
-    trace_type: str
-    risk_level: Priority
-    content_size: int
-    last_accessed: datetime
-    
-    # Metadata
-    discovered_at: float = field(default_factory=lambda: datetime.now().timestamp())
-    cleaned: bool = False
-    cleaned_at: Optional[float] = None
-
-@dataclass
-class SwarmAgent:
-    """Individual agent in the digital footprint scrubbing swarm"""
-    agent_id: str
-    agent_type: AgentType
-    specialization: str
-    capabilities: List[str]
-    status: str = "active"
-    performance_rating: float = 1.0
-    
-    # Statistics
-    traces_found: int = 0
-    traces_cleaned: int = 0
-    operations_performed: int = 0
-    last_activity: float = field(default_factory=lambda: datetime.now().timestamp())
-
-@dataclass
 class SecurityPolicy:
     """Unified security policy configuration"""
     # General settings
@@ -219,11 +172,6 @@ class SecurityPolicy:
     enable_injection_detection: bool = True
     enable_path_traversal_detection: bool = True
     enable_response_sanitization: bool = True
-    
-    # Digital footprint
-    enable_footprint_monitoring: bool = True
-    enable_real_time_cleanup: bool = True
-    footprint_scan_interval: int = 300  # 5 minutes
     
     # Session management
     require_authentication: bool = True
@@ -259,12 +207,6 @@ class SecurityMetrics:
     pii_detected: int = 0
     confidential_breaches: int = 0
     
-    # Digital footprint metrics
-    traces_found: int = 0
-    traces_cleaned: int = 0
-    real_time_cleanups: int = 0
-    monitoring_cycles: int = 0
-    
     # Performance metrics
     average_response_time: float = 0.0
     system_uptime: float = 0.0
@@ -272,9 +214,9 @@ class SecurityMetrics:
 __all__ = [
     # Enums
     'SecurityLevel', 'ThreatType', 'ContentType', 'ValidationResult', 
-    'AlertSeverity', 'RecoveryAction', 'Priority', 'AgentType', 'ContentCategory',
-    
+    'AlertSeverity', 'RecoveryAction', 'Priority', 'ContentCategory',
+
     # Data structures
-    'SecurityContext', 'SecurityThreat', 'ThreatReport', 'DigitalTrace', 
-    'SwarmAgent', 'SecurityPolicy', 'SecurityMetrics'
+    'SecurityContext', 'SecurityThreat', 'ThreatReport',
+    'SecurityPolicy', 'SecurityMetrics'
 ]

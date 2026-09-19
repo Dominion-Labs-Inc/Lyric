@@ -1103,6 +1103,101 @@ class NeuralSymbolicBridge:
             logger.warning("apply_reasoning_output failed: %s", e)
             return 0
 
+    async def epistemic_affect_signal(self) -> Dict[str, Any]:
+        """The reasoning authority's reading of how the substrate's knowledge has MOVED
+        since last asked, summarized into the curiosity-grade signals the emotional
+        state consumes (information_gain, uncertainty_reduction → confidence,
+        contradiction_introduced → doubt). Interprets belief movement FROM ANY SOURCE —
+        perception, teaching, reasoning — because a percept or a taught fact changes the
+        substrate's knowledge just as a reasoning pass does. Routed THROUGH the authority
+        like the other epistemic services; the engine is the mechanism.
+
+        Read-only: it interprets what changed, it does not change a belief or make a
+        decision. This is the knowledge→emotion producer; the inverse (emotion driving
+        truth or decisions) does not exist. Empty dict when nothing moved."""
+        try:
+            from core.reasoning.epistemic_engine import (
+                get_epistemic_engine, summarize_epistemic_mutations)
+            mutations = await get_epistemic_engine().interpret_drift()
+            if not mutations:
+                return {}
+            signal = summarize_epistemic_mutations(mutations)
+            # WHAT THE MOVEMENT WAS ABOUT, not only how large it was.
+            #
+            # The summary is deliberately quantity-only — it is the curiosity
+            # signal, and a magnitude is all curiosity needs. But a consumer
+            # that wants to respond DIFFERENTLY to different subject matter (the
+            # constitution reading percepts for what they bear on) cannot work
+            # from a magnitude, and `EpistemicMutation` carries a `belief_id`
+            # rather than the claim. Resolving those here keeps the resolution
+            # in the one place that already owns this signal, and stays
+            # read-only: no belief is touched and no decision is made.
+            signal["subjects"] = self._subjects_of(mutations)
+            return signal
+        except Exception as e:
+            logger.debug("epistemic affect signal unavailable: %s", e)
+            return {}
+
+    #: Relations whose OBJECT is what the belief is about. `report mentions
+    #: famine` is a fact about the report grammatically and about the famine in
+    #: every sense a consumer cares about.
+    _OBJECT_BEARING_RELATIONS = ("mentions", "observed", "describes", "depicts",
+                                 "refers to", "concerns", "about")
+
+    @classmethod
+    def _subjects_of(cls, mutations) -> List[str]:
+        """The distinct TERMS the beliefs that moved are about, newest first.
+
+        A claim is held as the reader produced it, so for most relations the
+        subject is what it is about: "famine isa disaster".
+
+        BOTH ENDS, FOR ONE MEASURED REASON. Reading a supplied document does not
+        admit what it SAYS — a content fact carries quality 0.3 against
+        `MIN_ADMIT_QUALITY` 0.5 and is refused, which is correct: a user's file
+        is not a source of truth. What survives is what it is ABOUT:
+
+            field_report.txt mentions Famine      (confidence 0.95)
+
+        Taking the subject alone reads that as `field_report.txt` — a filename,
+        which bears on nothing — and a substrate handed a report about a famine
+        would register having perceived a text file. The term that matters is in
+        the object position for exactly the relations that mean "is about".
+
+        Read-only and cheap to be generous with: a term no consumer can make
+        sense of comes back VACANT rather than wrong.
+        """
+        from core.reasoning.bayesian_uncertainty import get_uncertainty_system
+        beliefs = getattr(get_uncertainty_system(), "beliefs", None) or {}
+        out: List[str] = []
+        seen = set()
+
+        def add(term: str) -> None:
+            term = (term or "").strip()
+            if term and term.lower() not in seen:
+                seen.add(term.lower())
+                out.append(term)
+
+        for m in reversed(list(mutations)):
+            belief = beliefs.get(getattr(m, "entity_id", None))
+            claim = str(getattr(belief, "claim", "") or "").strip()
+            if not claim:
+                continue
+            subject, _, rest = claim.partition(" isa ")
+            if rest:
+                add(subject)
+                continue
+            # Not an `isa`: find the relation that names how the two ends relate.
+            lowered = claim.lower()
+            for relation in cls._OBJECT_BEARING_RELATIONS:
+                marker = f" {relation} "
+                if marker in lowered:
+                    index = lowered.index(marker)
+                    add(claim[index + len(marker):])
+                    break
+            else:
+                add(claim.split(" ", 1)[0])
+        return out
+
     @staticmethod
     def _coerce_predictions(value: Any, *, field: str) -> List[str]:
         """Normalize a predictions/alternatives argument to a list of non-empty
@@ -1291,10 +1386,10 @@ class NeuralSymbolicBridge:
             # a background thread -- it starved every later startup phase through the
             # GIL and, when synchronous, froze the boot outright. It is not needed
             # for the substrate to come up (the live reader is SentenceReader), so it
-            # is deferred to AFTER startup: `SystemManager.start()` kicks off
-            # `derived_reader.ensure_registered()` once, off the boot path. The
-            # registry reports an honest empty until that finishes. See
-            # core/main.py (post `mark_startup_complete`).
+            # is deferred to AFTER startup: `TorinAISystem.start()` runs
+            # `derived_reader.register_off_process()`, which rehydrates a cached
+            # derivation or searches in a separate process. The registry reports
+            # an honest empty until that finishes.
 
             # Restore measured reasoning difficulty from the durable store, and
             # register its periodic flush on the queue authority (cadence lives
@@ -1356,6 +1451,75 @@ class NeuralSymbolicBridge:
 
         return result
 
+    async def _intent_engage(self, request: "ReasoningRequest"):
+        """Open or refresh the substrate's intent for this reasoning, as it starts.
+
+        Resolves the engagement from `task_metadata` — a goal, a conversation
+        thread, or (with neither anchor) the query itself — so the same
+        engagement refreshes one intent across turns and sessions. Splits at
+        record time: the query and its context are the actor's CONTENT; the
+        reasoning skeleton is substrate-wide SHAPE. Returns the Intent or None.
+        """
+        try:
+            from core.reasoning.intent_authority import (
+                get_intent_authority, continuity_goal, continuity_thread,
+                continuity_question, SUBSTRATE_ACTOR)
+            md = request.task_metadata or {}
+            actor = str(md.get("actor") or md.get("actor_identity")
+                        or md.get("scope_actor") or SUBSTRATE_ACTOR)
+            if md.get("goal_id"):
+                key, origin = continuity_goal(str(md["goal_id"])), "goal"
+            elif md.get("thread_id") or md.get("conversation_id") or md.get("session_id"):
+                tid = str(md.get("thread_id") or md.get("conversation_id")
+                          or md.get("session_id"))
+                key, origin = continuity_thread(tid), "thread"
+            else:
+                key, origin = continuity_question(request.query or ""), "question"
+            mode = getattr(request.mode, "value", str(request.mode))
+            shape = {"reasoning_mode": mode, "engaged": True}
+            content = {"aim": (request.query or "")[:500],
+                       "query": request.query or "",
+                       "context": list(request.context or [])}
+            if md.get("topic"):
+                content["topic"] = str(md["topic"])
+            return await get_intent_authority().form(
+                origin, actor, key, shape=shape, content=content,
+                parent_intent_id=md.get("parent_intent_id"))
+        except Exception as e:                    # never break reasoning; be loud
+            logger.error("intent not formed for this reasoning: %s", e)
+            return None
+
+    async def _intent_settle(self, intent, request: "ReasoningRequest", result):
+        """Refresh the intent with what reasoning produced, and stamp its id onto
+        the result so downstream (the constitution, learning) can read it. Not a
+        reconciliation of an action's outcome — that comes when an act runs."""
+        if intent is None:
+            return
+        try:
+            from core.reasoning.intent_authority import get_intent_authority
+            kinds = [getattr(k, "value", str(k)) for k in (request.kinds or [])]
+            if not kinds:
+                meta = getattr(result, "metadata", {}) or {}
+                kk = meta.get("kinds") or meta.get("kind")
+                if kk:
+                    kinds = list(kk) if isinstance(kk, (list, tuple)) else [kk]
+            shape = {
+                "engaged": False,
+                "kinds": kinds,
+                "confidence": getattr(result, "confidence", None),
+                "mode_used": getattr(getattr(result, "mode_used", None), "value",
+                                     str(getattr(result, "mode_used", ""))),
+                "answered": bool(getattr(result, "answer", None)),
+            }
+            settled = await get_intent_authority().refresh(
+                intent.intent_id, intent.actor, shape=shape)
+            if result is not None and hasattr(result, "metadata"):
+                md = result.metadata if isinstance(result.metadata, dict) else {}
+                md["intent_id"] = settled.intent_id
+                result.metadata = md
+        except Exception as e:
+            logger.error("intent not settled for this reasoning: %s", e)
+
     async def reason(self, request: ReasoningRequest) -> ReasoningResult:
         """Perform neural-symbolic reasoning, and TIME it per kind (B).
 
@@ -1365,7 +1529,16 @@ class NeuralSymbolicBridge:
         affects the answer and never raises into the caller."""
         import time as _time
         _t0 = _time.monotonic()
+        # INTENT FORMS WHERE REASONING STARTS. Before doing the work, the
+        # reasoning authority opens (or refreshes) the substrate's intent for
+        # this engagement — what it is trying to do and why. It is annotation on
+        # reasoning: it must never change the answer or take the call down, so it
+        # is wrapped, but a failure is logged loudly (error, not debug) because a
+        # self that silently stops recording its own intentions is the defect
+        # this exists to prevent.
+        _intent = await self._intent_engage(request)
         result = await self._reason_impl(request)
+        await self._intent_settle(_intent, request, result)
         try:
             kinds = list(request.kinds or [])
             if not kinds and result is not None:
@@ -1678,8 +1851,10 @@ class NeuralSymbolicBridge:
         authority, not a model handle this reasoner holds. The substrate reasoner
         never consults the model itself (its reasoning is deterministic); this only
         reports, for a higher layer, whether escalating to a teacher is possible."""
-        from core.learning.llm_teacher import teacher_reachable
-        return teacher_reachable()
+        # The unified-LLM / teacher subsystem has been retired. No teacher can
+        # serve a request; the substrate reasoner is deterministic and never
+        # consults a model, so this is permanently False.
+        return False
 
     # NOTE: `_verify_candidate` was removed (2026-09-01). It verified a
     # MODEL-proposed answer by formalizing + proving it from context — but the
@@ -2088,7 +2263,14 @@ class NeuralSymbolicBridge:
             # sense-crossing chains instead of affirming them. Verified: kills
             # dog->plant / piano->animal / salmon->tree while keeping robin->
             # animal, dog->animal, shark->fish, etc.
-            ans = await answer_over_graph(db, subj, relation, obj, max_hops=4)
+            # WHOSE context is in scope. When the reasoning was requested on a
+            # user's behalf, the caller stamps `actor` into task_metadata; the
+            # overlay then chains that user's scoped edges together with the
+            # shared graph, and no one else's. Absent (substrate/idle cognition)
+            # it answers over the shared mind alone.
+            actor = (request.task_metadata or {}).get("actor")
+            ans = await answer_over_graph(db, subj, relation, obj, max_hops=4,
+                                          actor=actor)
         except Exception as e:
             logger.debug("concept-graph query failed: %s", e)
             return None
@@ -2122,6 +2304,30 @@ class NeuralSymbolicBridge:
                                       "model_required": False,
                                       "model_available": self._model_available(),
                                       "route": ["substrate", "belief", "held"]})
+                # SCOPED belief backstop: when reasoning FOR a user, a fact that
+                # user taught is held in their scoped context, not the universal
+                # store, so consult it too -- keyed to THIS actor, never another's.
+                if actor:
+                    key = " ".join(f"{_s} isa {_o}".lower().split())
+                    srows = await db.execute_query(
+                        "SELECT posterior AS p FROM unified.scoped_beliefs "
+                        "WHERE scope_actor = $1 AND claim_key = $2 "
+                        "ORDER BY posterior DESC LIMIT 1",
+                        (actor, key), fetch_all=True) or []
+                    if srows:
+                        p = float(srows[0]["p"] or 0.0)
+                        if p >= 0.9 or p <= 0.1:
+                            held_yes = p >= 0.9
+                            return ReasoningResult(
+                                answer=f"{'Yes' if held_yes else 'No'}: {subj} isa {obj}",
+                                confidence=round(p if held_yes else 1.0 - p, 3),
+                                reasoning_steps=[f"your context: {subj} isa {obj} "
+                                                 f"held at {p:.3f} (you told me)"],
+                                mode_used=ReasoningMode.CROSS_DOMAIN,
+                                metadata={"verified": True, "reason": REASON_DERIVED_BY_KIND,
+                                          "model_required": False,
+                                          "model_available": self._model_available(),
+                                          "route": ["scoped", "belief", "held"]})
             except Exception as e:
                 logger.debug("belief consult failed: %s", e)
             return None  # not taught, not derivable — honest fall-through
@@ -2296,6 +2502,143 @@ class NeuralSymbolicBridge:
                 return [ant, cons]
         return []
 
+    async def _answer_over_induced_rules(
+        self, request: ReasoningRequest
+    ) -> Optional[ReasoningResult]:
+        """Name an instance by APPLYING a rule the substrate INDUCED from examples.
+
+        Where the question asks whether an instance is some category, and the
+        substrate has induced a classification rule concluding that category
+        (red(?X) & circular(?X) -> stop_sign(?X)), this loads the instance's own
+        feature facts from the concept graph and applies every induced rule that
+        concludes the category. It answers Yes with the fired rule as the
+        derivation, at a confidence set by how validated the rule is. Returns None
+        (honest abstention) when no induced rule concludes the category, or none
+        fires on the instance's features -- never a guess. This is the bridge from
+        model-free induction to naming: the rule was LEARNED from labeled cases,
+        and applying it deductively is what turns a perceived structure into a name.
+
+        The JUDGEMENT itself -- which categories these features license, under the
+        version-space agreement discipline -- belongs to `core.learning.rule_naming`
+        and is shared with sight, which names what it sees through the same call.
+        This method owns reading the question and rendering the answer; it does not
+        own deciding, because two copies of that decision would drift apart and the
+        substrate would answer a question differently from how it recognises.
+        """
+        try:
+            from core.learning.rule_store import get_rule_store
+            from core.learning.rule_induction import predicate_name
+            from core.learning.rule_naming import rank as naming_rank, read_names
+            from core.reasoning.concept_graph_reasoning import (
+                observed_instance_features)
+            from core.database import get_database_manager
+        except Exception as e:
+            logger.debug("induced-rule deps unavailable: %s", e)
+            return None
+
+        reader = SentenceReader()
+        goal_node = reader._parse_goal(str(request.query))
+        goal_parts = reader.clause_parts(goal_node) if goal_node else None
+        if not goal_parts:
+            return None
+        import re as _re
+        subject = reader._normalize(goal_parts.get("subject") or "")
+        # Strip a leading article the reader keeps on the complement ("a stopsign"),
+        # so the queried category matches the induced rule's head predicate.
+        obj = _re.sub(r"^(?:a|an|the)\s+", "",
+                      str(goal_parts.get("obj") or "").strip(), flags=_re.I)
+        category = predicate_name(obj)
+        if not subject or not category:
+            return None
+
+        try:
+            db = get_database_manager()
+            if not getattr(db, "initialized", False):
+                await db.initialize()
+            # OBSERVED features, the same ones sight names from. Reading every
+            # copular edge here would let the answer rest on a premise the
+            # substrate CONCLUDED — and since the naming reflex writes its
+            # conclusions as ordinary `isa` edges, the question and the sighting
+            # would start disagreeing about the same blob, which is precisely
+            # what sharing the naming authority exists to prevent.
+            observed, _evidence = await observed_instance_features(db, subject)
+            feats = [p for p in (predicate_name(f) for f in observed) if p]
+        except Exception as e:
+            logger.debug("induced-rule feature load failed: %s", e)
+            return None
+        if not feats:
+            return None  # nothing is known about the instance to reason from
+
+        try:
+            # A naming rule is found by what it CONCLUDES, not by which domain it
+            # was filed under -- the query names a category, not a domain.
+            stored = await get_rule_store().load()
+        except Exception as e:
+            logger.debug("induced-rule load failed: %s", e)
+            return None
+        # THE ONE NAMING AUTHORITY decides. The agreement discipline, the version
+        # spaces and the confidences live in `core.learning.rule_naming`, because
+        # SIGHT names what it sees through the same call: a question about a
+        # category and a name that arrives with a sighting must never be able to
+        # disagree, and they would have the moment the sweep was written twice.
+        reading = read_names(subject, feats, stored, category=category)
+        if not reading.considered:
+            return None  # the substrate induced no rule that names this category
+
+        have = ", ".join(sorted(reading.features))
+        # Precedence between version spaces is by how validated they are: a
+        # disagreeing VALIDATED space outranks a clean CANDIDATE one, because the
+        # ambiguity is the more established fact.
+        best_name = reading.names[0] if reading.names else None
+        best_undet = max(reading.undetermined, key=lambda u: naming_rank(u.status),
+                         default=None)
+        if best_undet is not None and (
+                best_name is None
+                or naming_rank(best_undet.status) > naming_rank(best_name.status)):
+            logger.debug(
+                "naming %s withheld: %d of %d hypotheses fire on %s; undecided by %s",
+                category, best_undet.firing, best_undet.hypotheses, subject,
+                "; ".join(best_undet.silent))
+            return ReasoningResult(
+                answer="",
+                confidence=0.0,
+                reasoning_steps=[
+                    f"{best_undet.hypotheses} hypotheses stand for {category}, and "
+                    f"they disagree about {subject}",
+                    f"{subject} is {have}",
+                    f"an instance separating them would decide {category}"],
+                mode_used=ReasoningMode.CROSS_DOMAIN,
+                metadata={
+                    "verified": False,
+                    "reason": REASON_DERIVED_BY_KIND,
+                    "model_required": False,
+                    "model_available": self._model_available(),
+                    "route": ["substrate", "induced_rule", "undetermined"],
+                    "rule_status": "undetermined",
+                    "hypotheses": best_undet.hypotheses,
+                    "hypotheses_firing": best_undet.firing,
+                    "undecided": True})
+
+        if best_name is not None:
+            return ReasoningResult(
+                answer=f"Yes: {subject} isa {category}",
+                confidence=best_name.confidence,
+                reasoning_steps=[
+                    f"induced rule ({best_name.status}): {best_name.body} -> {category}",
+                    f"{subject} is {have}",
+                    f"therefore {subject} is a {category}"],
+                mode_used=ReasoningMode.CROSS_DOMAIN,
+                metadata={
+                    "verified": True,
+                    "reason": REASON_DERIVED_BY_KIND,
+                    "model_required": False,
+                    "model_available": self._model_available(),
+                    "route": ["substrate", "induced_rule", "applied"],
+                    "rule_status": best_name.status,
+                    "chain": [f"{subject} is {have}",
+                              f"{subject} is a {category}"]})
+        return None  # a rule names the category, but none fires on these features
+
     async def _substrate_solvers(
         self,
         request: ReasoningRequest
@@ -2351,6 +2694,15 @@ class NeuralSymbolicBridge:
         rule_answer = await self._answer_over_held_rules(request)
         if rule_answer is not None:
             return rule_answer
+
+        # INDUCED RULES over the instance's own features. A classification rule the
+        # substrate LEARNED from labeled examples (red & circular -> stop_sign)
+        # names a new instance by applying to its perceived/taught features. After
+        # taught rules (which are more specific) and before the formalizer;
+        # abstains when no induced rule concludes the asked category or none fires.
+        induced_answer = await self._answer_over_induced_rules(request)
+        if induced_answer is not None:
+            return induced_answer
 
         try:
             formalization = await self._get_deterministic_formalizer().formalize(

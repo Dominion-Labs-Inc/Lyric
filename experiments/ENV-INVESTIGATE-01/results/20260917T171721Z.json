@@ -1,0 +1,148 @@
+{
+  "experiment": "ENV-INVESTIGATE-01",
+  "claim": "Environment investigation is ROBUST and BOUNDED: the substrate scans its world recursively, records what each thing IS structurally, and reads textual CONTENT into observations linked to what the file is about \u2014 while never decoding a binary as text, and never exceeding its scan/depth/size bounds.",
+  "hypothesis": "A naive scanner either stays shallow (missing nested content), or decodes everything (turning binary bytes into fabricated 'facts'). Both failures are visible here: nested content must be found, and a NUL-containing file must yield structural metadata with ZERO content facts.",
+  "started_at": "2026-09-17T17:17:21.072735+00:00",
+  "duration_seconds": 4.696,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/TorinAI/venv_torin/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/TorinAI",
+    "shadow_mode": "1",
+    "git_commit": "a36cac20c24cef93cfa6d22ef82bf9a3169e9a5b",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "torinai_db",
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "dotenv:.env.postgres",
+        "database": "dotenv:.env.postgres",
+        "user": "dotenv:.env.postgres",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres"
+      }
+    },
+    "git_uncommitted_changes": 266,
+    "database_verified": null,
+    "database_verified_reason": "no initialized connection in this process"
+  },
+  "summary": {
+    "checks": 9,
+    "passed": 9,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [
+    {
+      "name": "entries_scanned",
+      "value": 5,
+      "unit": "count",
+      "note": "everything the bounded recursive scan found, files and directories"
+    },
+    {
+      "name": "scan_max_entries",
+      "value": 400,
+      "unit": "count",
+      "note": "the containment bound"
+    },
+    {
+      "name": "scan_max_depth",
+      "value": 4,
+      "unit": "levels",
+      "note": "the containment bound"
+    },
+    {
+      "name": "read_max_bytes",
+      "value": 65536,
+      "unit": "bytes",
+      "note": "no file is read past this \u2014 investigation cannot become ingestion"
+    },
+    {
+      "name": "structural_facts",
+      "value": 4,
+      "unit": "count",
+      "note": "what the thing IS: contains / isa / extension / size"
+    },
+    {
+      "name": "content_observations",
+      "value": 2,
+      "unit": "count",
+      "note": "sentences read from real text, held as PERCEPTION-provenance observations at low quality \u2014 observations, not knowledge"
+    },
+    {
+      "name": "binary_content_facts",
+      "value": 0,
+      "unit": "count",
+      "note": "MUST be 0: a NUL-containing file yields metadata only. Any other value means the substrate decoded bytes into invented facts"
+    },
+    {
+      "name": "files_recorded_in_ledger",
+      "value": 1,
+      "unit": "count",
+      "note": "every content read is recorded as a READING, so Law 2 can later tell whether what the substrate holds is still what is on disk"
+    }
+  ],
+  "checks": [
+    {
+      "label": "scan recurses into subdirectories (finds sub/b.md at depth 1)",
+      "passed": true,
+      "detail": "['a.txt', 'b.md', 'bin.dat', 'empty', 'sub']",
+      "at": "2026-09-17T17:17:25.416891+00:00"
+    },
+    {
+      "label": "scan records kind + extension + size",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-17T17:17:25.416907+00:00"
+    },
+    {
+      "label": "directories are recorded too",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-17T17:17:25.416910+00:00"
+    },
+    {
+      "label": "a NUL-containing file reads as None (binary, never decoded)",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-17T17:17:25.416938+00:00"
+    },
+    {
+      "label": "a real text file reads its content",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-17T17:17:25.417042+00:00"
+    },
+    {
+      "label": "structural facts held (contains / isa / extension / size)",
+      "passed": true,
+      "detail": "4 structural",
+      "at": "2026-09-17T17:17:25.767655+00:00"
+    },
+    {
+      "label": "file CONTENT read into observations (PERCEPTION prov, source=the file, low quality)",
+      "passed": true,
+      "detail": "2 content observations: [('cat', 'is', 'an animal'), ('engine', 'is', 'a component')]",
+      "at": "2026-09-17T17:17:25.767673+00:00"
+    },
+    {
+      "label": "the file is linked to what it is ABOUT (mentions)",
+      "passed": true,
+      "detail": "['engine', 'cat']",
+      "at": "2026-09-17T17:17:25.767682+00:00"
+    },
+    {
+      "label": "binary file yields structural metadata but NO decoded content",
+      "passed": true,
+      "detail": "0 content facts (want 0)",
+      "at": "2026-09-17T17:17:25.767695+00:00"
+    }
+  ],
+  "notes": [
+    "Uses the REAL _scan_environment / _read_text_bounded / _ingest_environment_entry bound to a minimal stand-in carrying a real ReadingLedger, so the reading-ledger side effect is exercised rather than stubbed out."
+  ]
+}

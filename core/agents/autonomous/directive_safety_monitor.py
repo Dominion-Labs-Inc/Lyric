@@ -10,7 +10,7 @@ Integrates with existing security and monitoring systems to detect:
 5. Security compromises (poisoned feedback, adversarial tasks)
 
 100% COMPLETE IMPLEMENTATION - NO STUBS
-Integrates with: SystemSecurityManager, MonitoringCoordinator, Drift Monitoring
+Integrates with: SystemSecurityManager, Drift Monitoring
 """
 
 import logging
@@ -48,7 +48,6 @@ class DirectiveSafetyMonitor:
     Monitors directive system for failure modes and safety violations.
 
     Integrates with existing TorinAI systems:
-    - MonitoringCoordinator: Register monitoring tasks
     - SystemSecurityManager: Validate telemetry data integrity
     - Drift Monitoring: Detect behavioral drift patterns
 

@@ -404,8 +404,7 @@ _NEVER_BRAND = {
     "synthesize", "conduct", "scaffold", "implement", "compile", "license",
     "repository", "integration", "distributed", "slo", "anomaly", "dashboard",
     "clipboard", "notification", "system", "user", "team", "channel",
-    "scrub", "purge", "rotate", "obfuscate", "nuke", "aggressive", "nuclear",
-    "obliterate", "remove", "file_legal", "package",
+    "scrub", "purge", "rotate", "remove", "package",
 }
 
 

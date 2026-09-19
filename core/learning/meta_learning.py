@@ -11,7 +11,7 @@ This module implements the core MetaLearner used across TorinAI:
 
 The design is intentionally self-contained and lightweight so it can be
 reused by higher-level systems (autonomous coordinator, interaction
-meta-learning, enhanced self-improvement, etc.).
+meta-learning, etc.).
 """
 
 from __future__ import annotations
@@ -59,7 +59,7 @@ class TaskFamily(Enum):
 #: lives next to TaskFamily because this module is what gives the concept
 #: meaning; the coordinator now delegates here rather than holding a copy.
 #:
-#: Three task types are CONTROL work: acting on the system and verifying the
+#: Two task types are CONTROL work: acting on the system and verifying the
 #: effect. Those are the ones the CONTROL arms exist to choose an approach for.
 TASK_TYPE_TO_FAMILY = {
     "research":             TaskFamily.REASONING,
@@ -71,7 +71,6 @@ TASK_TYPE_TO_FAMILY = {
     "communication":        TaskFamily.GENERATION,
     "learning":             TaskFamily.SEQUENCE,
     "optimization":         TaskFamily.REINFORCEMENT,
-    "security_remediation": TaskFamily.CONTROL,
     "self_improvement":     TaskFamily.REASONING,
 }
 
@@ -284,8 +283,8 @@ class MetaLearner(IStrategySelection):
         """Load persisted statistics exactly once, on whichever path arrives first.
 
         get_meta_learner() hands out the singleton to callers that never call
-        initialize() (EnhancedASISelfImprovement.meta_learner is one). Those
-        callers would otherwise record outcomes onto zeroed in-memory defaults
+        initialize(). Those callers would otherwise record outcomes onto zeroed
+        in-memory defaults
         and then upsert them over the real persisted posteriors -- silently
         destroying learning rather than merely failing to load it.
         """
@@ -420,7 +419,7 @@ class MetaLearner(IStrategySelection):
                     # earlier process. _initialize_default_strategies only knows
                     # the built-in families, so every arm minted at runtime by
                     # _find_or_create_strategy (executor choices, task-type
-                    # choices, self-improvement scopes) was read from the table
+                    # choices) was read from the table
                     # and thrown away -- persisted but unreachable, which looks
                     # exactly like no persistence at all.
                     try:
@@ -493,9 +492,8 @@ class MetaLearner(IStrategySelection):
             # strategies, and its caller dereferences the result — so a family
             # with no strategies is an AttributeError, not a graceful skip.
             # CONTROL was missing, and CONTROL is the family that matters most:
-            # TaskFamily.SECURITY_REMEDIATION maps to it
-            # (autonomous_coordinator:5171), so it is the family of essentially
-            # every task Torin actually executes. With no strategies registered,
+            # execution and planning map to it, so it is the family of
+            # essentially every task Torin actually executes. With no strategies registered,
             # evaluate_strategies(CONTROL) returned {'total_strategies': 0} and
             # select_strategy(CONTROL) returned None -- meta-learning had nothing
             # to choose between and nothing to update for the ONLY work being
@@ -765,7 +763,7 @@ class MetaLearner(IStrategySelection):
 
         # EXPLORATION MODE: allow low-trial strategies while quota remains
         if exploration_quota_used < exploration_quota_limit and strategy.trials < 5:
-            logger.info(
+            logger.debug(
                 "✓ Strategy %s allowed for EXPLORATION (trials=%d, quota=%.1f/%.1f)",
                 strategy.strategy_id,
                 strategy.trials,
@@ -804,7 +802,7 @@ class MetaLearner(IStrategySelection):
                 f"(trials={strategy.trials})",
             )
 
-        logger.info(
+        logger.debug(
             "✅ Strategy %s validated: success_rate=%.1f%%, 95%% CI=[%.1f%%, %.1f%%], trials=%d",
             strategy.strategy_id,
             strategy.success_rate * 100.0,
@@ -837,7 +835,9 @@ class MetaLearner(IStrategySelection):
           (via ``thompson_sample_strategy``)
         - Optionally incorporates latency preferences when ``prefer_fast``
           is True
-        - Applies ``validate_strategy_for_production`` to enforce safety
+        - Applies ``validate_strategy_for_production`` as a constraint on the
+          arms the bandit may choose; when no arm passes, returns None and puts
+          the per-arm reasons in ``_decision_sink["gate_blocked"]``
 
         ``strategy_prefix`` scopes selection to one decision problem within a
         family. Several distinct decisions map onto the same TaskFamily (which
@@ -882,18 +882,50 @@ class MetaLearner(IStrategySelection):
             )
             return None
 
-        # Soft filter by confidence
-        candidates: List[LearningStrategy] = [
-            self.strategies[sid]
-            for sid in strategy_ids
-            if self.strategies[sid].confidence >= min_confidence
-        ]
+        # HARD GATE FIRST. It decides which arms may be chosen at all, and the
+        # bandit samples only among those, so the propensities recorded with the
+        # decision are those of the policy that actually chose. Sampling first
+        # and substituting an approved arm afterwards recorded the propensities
+        # of a different policy -- and when no arm passed, the blocked arm was
+        # returned "to avoid failure" as though it had.
+        pool: List[LearningStrategy] = [self.strategies[sid] for sid in strategy_ids]
+        gate_blocked: Dict[str, str] = {}
+        if enable_hard_gate:
+            allowed: List[LearningStrategy] = []
+            for strategy in pool:
+                is_valid, reason = self.validate_strategy_for_production(
+                    strategy,
+                    exploration_quota_used=exploration_quota_used,
+                    exploration_quota_limit=0.10,
+                )
+                if is_valid:
+                    allowed.append(strategy)
+                else:
+                    gate_blocked[strategy.strategy_id] = reason
+            pool = allowed
 
-        if not candidates:
-            candidates = [self.strategies[sid] for sid in strategy_ids]
-
-        if not candidates:
+        if not pool:
+            # No arm is fit for use. That is the answer, not a reason to use one
+            # anyway; the caller decides what an unanswerable choice means.
+            by_reason: Dict[str, int] = {}
+            for why in gate_blocked.values():
+                reason = why.split(" (", 1)[0].split(":", 1)[0]
+                by_reason[reason] = by_reason.get(reason, 0) + 1
+            logger.warning(
+                "MetaLearner HARD GATE: no %s strategy%s passes (%s)",
+                task_type.value,
+                f" with prefix {strategy_prefix!r}" if strategy_prefix else "",
+                ", ".join(f"{n} {reason.lower()}" for reason, n in by_reason.items()),
+            )
+            logger.debug("MetaLearner HARD GATE reasons: %s", gate_blocked)
+            if _decision_sink is not None:
+                _decision_sink["gate_blocked"] = dict(gate_blocked)
             return None
+
+        # A PREFERENCE for confident arms among the allowed, not a filter: with
+        # no confident arm the allowed arms are the candidates.
+        candidates: List[LearningStrategy] = (
+            [s for s in pool if s.confidence >= min_confidence] or pool)
 
         # Bandit-based selection (Thompson sampling). The propensity variant
         # additionally reports P(arm chosen | posterior) for every candidate --
@@ -904,78 +936,6 @@ class MetaLearner(IStrategySelection):
         )
         if not best:
             return None
-
-        # HARD GATE: production validation with exploration awareness
-        if enable_hard_gate:
-            is_valid, reason = self.validate_strategy_for_production(
-                best,
-                exploration_quota_used=exploration_quota_used,
-                exploration_quota_limit=0.10,
-            )
-
-            if not is_valid:
-                logger.error(
-                    "🛑 MetaLearner HARD GATE: Strategy %s blocked: %s",
-                    best.strategy_id,
-                    reason,
-                )
-
-                remaining = [c for c in candidates if c.strategy_id != best.strategy_id]
-                if not remaining:
-                    logger.error(
-                        "MetaLearner HARD GATE exhausted for %s; returning blocked best strategy %s to avoid failure",
-                        task_type.value,
-                        best.strategy_id,
-                    )
-                    return best
-
-                # Try bandit among remaining
-                fallback = thompson_sample_strategy(remaining, prefer_fast=prefer_fast)
-                if fallback is not None:
-                    is_valid, reason = self.validate_strategy_for_production(
-                        fallback,
-                        exploration_quota_used=exploration_quota_used,
-                        exploration_quota_limit=0.10,
-                    )
-                    if is_valid:
-                        best = fallback
-                    else:
-                        fallback = None
-
-                # As a final fallback, try by effectiveness score
-                if fallback is None:
-                    for candidate in sorted(
-                        remaining,
-                        key=lambda s: s.effectiveness_score,
-                        reverse=True,
-                    ):
-                        is_valid, reason = self.validate_strategy_for_production(
-                            candidate,
-                            exploration_quota_used=exploration_quota_used,
-                            exploration_quota_limit=0.10,
-                        )
-                        if is_valid:
-                            best = candidate
-                            break
-                    else:
-                        # Hard gate exhaustion: prefer the most mature strategy to avoid
-                        # crashing the learning pipeline.
-                        best_effort = max(
-                            remaining,
-                            key=lambda s: (
-                                getattr(s, "trials", 0),
-                                getattr(s, "success_rate", 0.0),
-                                getattr(s, "effectiveness_score", 0.0),
-                            ),
-                        )
-                        logger.error(
-                            "MetaLearner HARD GATE exhausted for %s; returning best-effort blocked strategy %s (quota=%.1f/10%%)",
-                            task_type.value,
-                            best_effort.strategy_id,
-                            exploration_quota_used * 100.0,
-                        )
-                        best = best_effort
-        
 
         logger.info(
             "Selected strategy for %s: %s (effectiveness=%.1f, success_rate=%.1f%%, trials=%d)",

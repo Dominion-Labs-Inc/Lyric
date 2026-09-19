@@ -5,9 +5,10 @@ Every component of this chain existed and none of them were joined:
 
   producer  AutonomousCoordinator._store_task_outcome_meta_memory writes a
             TaskOutcomeRecord as a META memory tagged "task_outcome", with the
-            domain from _infer_domain_from_task
-  bridge    DomainRegistry.resolve_domain_reference turns that CATEGORY
-            ("scientific") into the populated FIELDS beneath it
+            knowledge domain from knowledge_domain_of (the declared domain;
+            none otherwise)
+  bridge    DomainRegistry.resolve_domain_reference turns that reference (a
+            field, or a category) into the populated FIELDS it names
   consumer  UnifiedLearningSystem.learn_with_domain_context, the only method
             that puts a domain onto learn_from_example
   tier      _idle_domain_expansion_work, documented at TORINAI_REFERENCE.md:3114
@@ -75,13 +76,15 @@ async def _coordinator():
     return coord
 
 
-def _task(description, task_type="analysis", task_id="oracle_task"):
+def _task(description, task_type="analysis", task_id="oracle_task", domain_id=None):
     from types import SimpleNamespace
     return SimpleNamespace(
         id=task_id,
         description=description,
         type=SimpleNamespace(value=task_type),
         source=SimpleNamespace(value="autonomous"),
+        metadata={"domain_id": domain_id} if domain_id else {},
+        provenance=None,
     )
 
 
@@ -199,10 +202,8 @@ async def test_learning_recorded_and_credit_earned_are_separately_representable(
 
 @pytest.mark.asyncio
 async def test_producer_vocabulary_is_a_subset_of_what_the_resolver_accepts():
-    """The producer's category space and the registry's must be ONE vocabulary."""
+    """The producer's domain references and the registry's must be ONE vocabulary."""
     _load_env()
-    import inspect
-    import re
     from core.agents.autonomous.autonomous_coordinator import AutonomousCoordinator
     from core.domain.domain_registry import DomainRegistry, UnresolvedDomainReference
     from core.domain.domain_types import DomainType
@@ -215,14 +216,14 @@ async def test_producer_vocabulary_is_a_subset_of_what_the_resolver_accepts():
         "the producer and the registry use different DomainType objects; "
         "identity-based Enum equality means their values can never match")
 
-    # (b) Every literal the producer can return comes FROM that enum. A branch
-    # returning a hand-typed string is how the two vocabularies drift apart.
-    source = inspect.getsource(AutonomousCoordinator._infer_domain_from_task)
-    literals = set(re.findall(r'return\s+"([^"]+)"', source))
-    unknown = sorted(lit for lit in literals if lit not in {d.value for d in DomainType})
-    assert not unknown, (
-        f"_infer_domain_from_task can return {unknown}, which are not DomainType "
-        f"values; the registry resolves against DomainType and would never match")
+    # (b) The producer names a domain only from what a task declares. Nothing is
+    # read into the description: a task's contract text ("You MAY: investigate")
+    # once filed every one of them under `scientific` -> biology.
+    of = AutonomousCoordinator.knowledge_domain_of
+    assert of("analysis", "domain_fluid_mechanics") == "domain_fluid_mechanics"
+    for task_type in ("research", "analysis", "execution", "learning"):
+        assert of(task_type, None) is None, (
+            f"a {task_type} task that declares no domain was given one")
 
     # (c) Every category the producer can emit is ACCEPTED by the resolver --
     # either resolving to fields or raising the explicit unresolved error. What
@@ -426,7 +427,7 @@ async def test_applying_a_mapping_counts_as_using_it():
         "but nothing increments it, so every mapping reads as equally untried "
         "forever")
 
-    # ACCUMULATION across DISTINCT applications. suggest_cross_domain_mappings
+    # ACCUMULATION across DISTINCT applications. UniversalDomainMaster.suggest_mappings
     # mints a fresh CrossDomainMapping per call with usage_count=0, so storing
     # the candidate wholesale reset the running total and every application
     # landed on 1 again. A single-application assertion passes against that bug.
@@ -672,17 +673,17 @@ async def test_chain_end_to_end():
     storage = await _storage()
     db = get_database_manager()
 
-    # 1. A task the producer classifies into a category that HAS learned fields.
+    # 1. A task that acts in a domain HOLDING learned concepts.
     task = _task("test and verify pressure loss across the pipe fitting installation",
-                 task_id="oracle_chain_e2e")
-    category = coord._infer_domain_from_task(task)
+                 task_id="oracle_chain_e2e", domain_id="domain_fluid_mechanics")
+    domain = coord._task_domain(task)
     resolved = DomainRegistry()
     await resolved.initialize()
     fields = [r.domain_id for r in resolved.resolve_domain_reference(
-        category, require_concepts=True)]
+        domain, require_concepts=True)]
     assert fields, (
-        f"the producer classified this task as {category!r}, which resolves to "
-        f"no populated field; the chain cannot be exercised through it")
+        f"the task acts in {domain!r}, which resolves to no populated field; "
+        f"the chain cannot be exercised through it")
 
     # 2. Store it through the REAL producer.
     memory_id = await coord._store_task_outcome_meta_memory(
@@ -703,7 +704,7 @@ async def test_chain_end_to_end():
         assert isinstance(raw, dict), (
             f"raw_event is {type(raw).__name__}; the structured TaskOutcomeRecord "
             f"did not survive storage and only the prose narrative remains")
-        assert raw.get("domain") == category
+        assert raw.get("knowledge_domain") == domain
         assert raw.get("outcome") == "success"
 
         # 4. Run the tier.

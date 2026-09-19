@@ -171,6 +171,59 @@ async def test_rediscovery_updates_one_row_rather_than_appending():
 
 
 @pytest.mark.asyncio
+async def test_a_rederivation_without_a_verdict_keeps_the_stored_one():
+    """Deriving a mapping again judges nothing, so it cannot erase a judgement."""
+    _load_env()
+    from core.domain.domain_registry import DomainRegistry
+
+    db = await _db()
+    registry = DomainRegistry()
+    await registry.initialize()
+    await _clean(db)
+    try:
+        accepted = _mapping(registry, True, target_concept="c_tgt_kept")
+        assert await registry.add_cross_domain_mapping(accepted) is True
+        again = _mapping(registry, None, target_concept="c_tgt_kept")
+        assert await registry.add_cross_domain_mapping(again) is True
+        assert await _verified_column(db, accepted.mapping_id) is True
+    finally:
+        await _clean(db)
+
+
+@pytest.mark.asyncio
+async def test_a_relationship_stored_under_another_id_is_adopted():
+    """Rows written before ids were derived carry a uuid. Storing the same
+    relationship under its derived id must update that row, not collide with
+    uq_domain_mappings_semantic."""
+    _load_env()
+    from core.domain.domain_registry import DomainRegistry
+
+    db = await _db()
+    registry = DomainRegistry()
+    await registry.initialize()
+    await _clean(db)
+    try:
+        await db.execute_query(
+            """INSERT INTO unified.domain_mappings
+                   (mapping_id, source_domain, target_domain, source_concept,
+                    target_concept, similarity_score, reasoning_strategy,
+                    verified, confidence, created_at)
+               VALUES ($1, $2, $3, $4, $5, 0.7, 'similarity', NULL, 0.56, NOW())""",
+            ("legacy-uuid-row", DOMAIN_SRC, DOMAIN_TGT, "c_src", "c_tgt_legacy"),
+            commit=True)
+        mapping = _mapping(registry, True, target_concept="c_tgt_legacy")
+        assert await registry.add_cross_domain_mapping(mapping) is True
+        assert mapping.mapping_id == "legacy-uuid-row"
+        rows = await db.execute_query(
+            """SELECT mapping_id, verified FROM unified.domain_mappings
+               WHERE source_domain = $1 AND target_concept = $2""",
+            (DOMAIN_SRC, "c_tgt_legacy"), fetch_all=True)
+        assert [(r["mapping_id"], r["verified"]) for r in rows] == [("legacy-uuid-row", True)]
+    finally:
+        await _clean(db)
+
+
+@pytest.mark.asyncio
 async def test_writers_supply_every_mandatory_column():
     """A NOT NULL column with no default must be written by every writer.
 

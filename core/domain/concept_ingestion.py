@@ -79,6 +79,12 @@ _ROOT_SOURCES = frozenset({
     EvidenceSourceType.IMPORTED_KNOWLEDGE,
 })
 
+#: The same set as it is STORED (`evidence_envelopes.source_type` holds the enum
+#: value), for a reader that has a row rather than an enum. Derived from the set
+#: above so the two can never disagree — a query that re-listed these by hand
+#: would keep admitting a source the moment this set changed.
+ROOT_SOURCE_VALUES: Tuple[str, ...] = tuple(sorted(s.value for s in _ROOT_SOURCES))
+
 
 class ConceptExistence(Enum):
     """How well established a concept's EXISTENCE is.
@@ -200,11 +206,19 @@ class IngestionResult:
     #: prevent elsewhere. A caller must be able to tell an empty observation
     #: from a broken extractor.
     extraction_failures: List[Tuple[str, str]] = field(default_factory=list)
-    #: The (subject, relation, object, positive) edges this ingestion actually
-    #: admitted. The counts above are totals; this is the content, so a caller
-    #: (e.g. an evidence producer) can run the SAME learning fan-out -- lexicon,
-    #: beliefs -- over exactly what was written, instead of only the concept graph.
-    admitted_relations: List[Tuple[str, str, Optional[str], bool]] = \
+    #: The (subject, relation, object, positive, quality) edges this ingestion
+    #: actually admitted. The counts above are totals; this is the content, so a
+    #: caller (e.g. an evidence producer) can run the SAME learning fan-out --
+    #: lexicon, beliefs -- over exactly what was written, instead of only the
+    #: concept graph.
+    #:
+    #: `quality` is the producer's support for that ONE edge, or None where it
+    #: stated none and the envelope's own quality stands. Carried per edge
+    #: because one observation can hold claims of different standing: a blob's
+    #: colour is read off the pixels while its shape is inferred from a lossy
+    #: approximation, and a single envelope number said they were alike.
+    admitted_relations: List[Tuple[str, str, Optional[str], bool,
+                                   Optional[float]]] = \
         field(default_factory=list)
 
     @property
@@ -308,8 +322,17 @@ class ConceptExtractor:
             domains = item.get("domains") or item.get("domain") or []
             if isinstance(domains, str):
                 domains = [domains]
+            # THE EDGE IS CARRIED AT ITS FULL WIDTH. This truncated every edge to
+            # three elements, so a producer's per-edge SUPPORT was discarded here
+            # — before `_record_relations` could ever read it — and a blob's
+            # inferred shape reached the belief layer indistinguishable from its
+            # measured colour. The 4th element stays numeric: it is a quantity,
+            # and stringifying it the way polarity is stringified would make it
+            # unreadable downstream.
             rels = tuple(
-                (str(r[0]), str(r[1])) if len(r) < 3 else (str(r[0]), str(r[1]), str(r[2]))
+                (str(r[0]), str(r[1])) if len(r) < 3
+                else (str(r[0]), str(r[1]), str(r[2])) if len(r) < 4
+                else (str(r[0]), str(r[1]), str(r[2]), r[3])
                 for r in (item.get("relationships") or [])
                 if isinstance(r, (list, tuple)) and len(r) >= 2
             )
@@ -810,6 +833,9 @@ class ConceptIngestionService:
         db = self.db()
         if not getattr(db, "initialized", False):
             await db.initialize()
+        # The concept upsert maintains the vector columns the domain authority owns.
+        from core.integration.universal_domain_master import get_universal_domain_master
+        await get_universal_domain_master().ensure_concept_schema()
 
     # ---- identity -------------------------------------------------------
 
@@ -1139,11 +1165,20 @@ class ConceptIngestionService:
         identity: ConceptIdentity,
         candidate: ConceptCandidate,
         envelope: EvidenceEnvelope,
-    ) -> List[Tuple[str, str, Optional[str], bool]]:
+    ) -> List[Tuple[str, str, Optional[str], bool, Optional[float]]]:
         """Persist edges with canonical endpoints where they resolve, and return
-        the (subject, relation, object, positive) triples admitted, so the caller
-        can fan them out to the lexicon and beliefs."""
-        admitted: List[Tuple[str, str, Optional[str], bool]] = []
+        the (subject, relation, object, positive, quality) tuples admitted, so
+        the caller can fan them out to the lexicon and beliefs.
+
+        `quality` is the producer's support for THAT EDGE, or None where it
+        stated none. It was not carried at all, so every edge from one
+        observation reached the belief layer at a single envelope-wide number —
+        a blob's measured colour and its inferred shape arriving equally well
+        founded. An edge may supply it as a fourth element; the 2- and 3-element
+        forms every other producer emits are unchanged and yield None, which
+        means "the producer stated no per-edge support", never "no support".
+        """
+        admitted: List[Tuple[str, str, Optional[str], bool, Optional[float]]] = []
         for edge in candidate.relationships:
             relation, surface = edge[0], edge[1]
             # An extractor that knows nothing of polarity emits a 2-tuple, and
@@ -1167,8 +1202,17 @@ class ConceptIngestionService:
                  str(surface), envelope.evidence_id, candidate.extractor, polarity),
                 commit=True,
             )
+            quality: Optional[float] = None
+            if len(edge) > 3 and edge[3] is not None:
+                try:
+                    quality = max(0.0, min(1.0, float(edge[3])))
+                except (TypeError, ValueError):
+                    logger.warning(
+                        "edge %s--%s->%s carried a non-numeric support %r; "
+                        "treating as unstated rather than guessing",
+                        identity.concept_id, relation, surface, edge[3])
             admitted.append((identity.name, str(relation), str(surface),
-                             polarity == "positive"))
+                             polarity == "positive", quality))
         return admitted
 
     async def contradictions(self, concept_id: Optional[str] = None) -> List[Dict[str, Any]]:
@@ -1414,6 +1458,16 @@ class ConceptIngestionService:
                ON CONFLICT (concept_id) DO UPDATE SET
                    description         = COALESCE(NULLIF(EXCLUDED.description,''),
                                                   unified.concepts.description),
+                   -- A changed description invalidates its stored vector; the
+                   -- Universal Domain Master re-encodes pending rows.
+                   description_embedding = CASE
+                       WHEN NULLIF(EXCLUDED.description,'') IS NULL
+                         OR EXCLUDED.description IS NOT DISTINCT FROM unified.concepts.description
+                       THEN unified.concepts.description_embedding END,
+                   embedding_model     = CASE
+                       WHEN NULLIF(EXCLUDED.description,'') IS NULL
+                         OR EXCLUDED.description IS NOT DISTINCT FROM unified.concepts.description
+                       THEN unified.concepts.embedding_model END,
                    attributes          = unified.concepts.attributes || EXCLUDED.attributes,
                    -- MERGED, NOT REPLACED. Learning one thing about a concept
                    -- is not grounds for forgetting the rest: teaching
@@ -1544,6 +1598,13 @@ class ConceptIngestionService:
         # new concept rather than a re-scan of every dangling edge in the graph.
         if created_identities:
             await self.relink_dangling_edges(created_identities)
+
+        # The domain authority takes it from here: the registry reflects the
+        # written concepts and their text vectors are stored.
+        written = result.created + result.reinforced
+        if written:
+            from core.integration.universal_domain_master import get_universal_domain_master
+            await get_universal_domain_master().concepts_written(written)
 
         logger.info(
             "Ingested %s: %d candidate(s) -> %d created, %d reinforced, "

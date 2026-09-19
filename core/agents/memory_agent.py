@@ -16,11 +16,9 @@ Features:
 - Semantic and keyword-based search
 - Automatic tier migration (hot → cold after 60 days)
 - Governance integration (capability tokens for deletes)
-- Protected parameter modifications (fail-closed security)
 
 Integration:
 - Single entry point exported from core/memory/__init__.py
-- Protected against autonomous self-modification
 - Constitutional constraints enforcement
 
 Author: TorinAI System
@@ -72,8 +70,6 @@ class MemoryAgent(IMemoryConsolidation):
 
     Governance:
         - Protected delete operations require capability tokens
-        - Parameter modifications are governance-protected
-        - Autonomous self-modification is blocked
     """
 
     def __init__(self):
@@ -392,10 +388,18 @@ class MemoryAgent(IMemoryConsolidation):
         thinking_state: Optional[Dict[str, Any]] = None,
         system_state: Optional[Dict[str, Any]] = None,
         decision_factors: Optional[Dict[str, Any]] = None,
-        emotional_context: Optional[Dict[str, Any]] = None
+        emotional_context: Optional[Dict[str, Any]] = None,
+        image: Optional[Any] = None,
+        image_meta: Optional[Dict[str, Any]] = None
     ) -> Tuple[bool, Optional[str]]:
         """
         Store memory to hot tier (PostgreSQL) with intelligent filtering
+
+        `image` (a path or raw bytes) attaches image data to the memory: the
+        bytes are retained in the media store and can be produced again, while
+        `image_meta` (the perceived structure -- dimensions, format, colours,
+        regions) rides in the media record. The memory's own `content` should
+        already describe what is in the picture, so it is recallable by that.
 
         Memory Agent analyzes raw inputs and generates MemoryWorthinessMetadata.
         Calling systems should NOT pre-generate metadata - that's Memory Agent's job.
@@ -440,6 +444,10 @@ class MemoryAgent(IMemoryConsolidation):
                     type(self).__name__ + ' could not initialize; refusing to '
                     'continue as though it had')
             logger.debug(f"[MEMORY_AGENT.STORE_MEMORY] Initialization complete")
+
+        # An attached image marks the memory as visual, for worthiness and search.
+        if image is not None:
+            source_context = {**(source_context or {}), "has_image": True}
 
         # ========== STEP 1: GENERATE OR EXTRACT METADATA ==========
         logger.debug(f"[MEMORY_AGENT.STORE_MEMORY] STEP 1: Generate/extract metadata")
@@ -673,6 +681,48 @@ class MemoryAgent(IMemoryConsolidation):
         #
         # Read here, not described: if no task has appraised yet, current_state
         # is None and this stays None rather than inventing a neutral state.
+        # WHAT THE SUBSTRATE WAS TRYING TO ACHIEVE, captured the same way and at
+        # the same moment as its appraisal: read from the live acting context,
+        # never described. The record already held how it reasoned, what weighed
+        # on it and how it felt — and not the goal any of that served.
+        #
+        # THE VERSION IS TAKEN NOW, deliberately. An intent is revisable: the
+        # authority firms its shape up as understanding improves. Storing the id
+        # alone would let a later refinement silently re-describe what a past act
+        # was for, so the version current at the time is stored beside it and the
+        # intent's own `history` holds that state.
+        intent_id = intent_version = None
+        try:
+            from core.reasoning.intent_authority import get_acting_intent
+            intent_id = get_acting_intent()
+            if intent_id:
+                from core.reasoning.intent_authority import get_intent_authority
+                _held = await get_intent_authority().get_by_id(str(intent_id))
+                intent_version = getattr(_held, "version", None) if _held else None
+        except Exception as e:
+            # Never blocks forming a memory; never silently claims one either.
+            logger.debug("memory: acting intent unavailable: %s", e)
+            intent_id = intent_version = None
+
+        # WHAT THIS MEMORY IS OF, when it is of something perceived — by
+        # reference to the percept, not by nearness to it in time.
+        #
+        # The `perceptual_state` snapshot below still records what was in view
+        # (useful context, attached by recency); this is a different and stronger
+        # claim: that THIS memory is of THAT percept. Only a memory formed inside
+        # the scope of a seeing gets one, so a memory formed outside it carries
+        # None rather than borrowing whatever was perceived lately.
+        percept_id = percept_digest = None
+        try:
+            from core.agents.autonomous.perception_manager import get_acting_percept
+            _percept = get_acting_percept()
+            if _percept:
+                percept_id = _percept.get("percept_id")
+                percept_digest = _percept.get("percept_digest")
+        except Exception as e:
+            logger.debug("memory: acting percept unavailable: %s", e)
+            percept_id = percept_digest = None
+
         try:
             from core.agents.autonomous.appraisal import get_appraisal_system
             _appraisal = get_appraisal_system().current_state
@@ -718,6 +768,38 @@ class MemoryAgent(IMemoryConsolidation):
         except Exception as e:
             logger.warning(f"Appraisal snapshot failed: {type(e).__name__}: {e}")
             appraisal_snapshot = None
+
+        # CONTEMPORANEOUS PERCEPTION.
+        # What the substrate was perceiving when this memory formed — the third live
+        # snapshot, alongside belief_state and appraisal. Read from the one perceptual-
+        # awareness hub (the perceptual analogue of reading the appraisal system), and
+        # recency-gated so only perception contemporaneous with THIS memory attaches —
+        # a stale percept is never stamped onto an unrelated memory. None when nothing
+        # was perceived recently: a reading, never invented. This is how a recalled
+        # memory carries what was perceived AND believed AND felt at that moment.
+        try:
+            from core.agents.autonomous.perception_manager import get_perception_manager
+            _pm = get_perception_manager()
+            if _pm is not None:
+                _window = 120.0   # seconds: the contemporaneous perceptual window
+                _now = datetime.now().timestamp()
+                _recent = await _pm.get_recent_perceptions(limit=8)
+                _fresh = [p for p in _recent
+                          if (_now - float(getattr(p, "timestamp", 0.0))) <= _window]
+                if _fresh:
+                    if thinking_state is None:
+                        thinking_state = {}
+                    thinking_state["perceptual_state"] = {
+                        "captured_at": datetime.now().isoformat(),
+                        "perceptions": [
+                            {"source": p.source, "data_type": p.data_type,
+                             "content": p.content,
+                             "confidence": round(float(p.confidence), 4),
+                             "age_s": round(_now - float(p.timestamp), 2)}
+                            for p in _fresh],
+                    }
+        except Exception as e:
+            logger.warning(f"Perceptual state snapshot failed: {type(e).__name__}: {e}")
 
         # ========== STEP 5: CHECK FOR DUPLICATES ==========
         # Deduplicate KNOWLEDGE, never OBSERVATIONS.
@@ -780,6 +862,10 @@ class MemoryAgent(IMemoryConsolidation):
             if merged_memory_id:
                 logger.info(f"Memory merged into existing memory: {merged_memory_id}")
                 logger.debug(f"[MEMORY_AGENT.STORE_MEMORY] ✓ MERGED into {merged_memory_id}")
+                # Attach the image to the memory it merged into, so re-seeing a
+                # picture keeps it even when the description deduplicates.
+                if image is not None:
+                    await self._retain_image(merged_memory_id, image, image_meta)
                 return True, merged_memory_id
             else:
                 logger.warning("Merge failed, proceeding with storage of new memory")
@@ -855,7 +941,13 @@ class MemoryAgent(IMemoryConsolidation):
             decision_factors=decision_factors,
             emotional_context=emotional_context,
             memory_admission=memory_admission,
-            appraisal_snapshot=appraisal_snapshot
+            appraisal_snapshot=appraisal_snapshot,
+            # The pursuit this episode belonged to — a link, plus the version
+            # that was current, so hindsight cannot rewrite what it was for.
+            intent_id=intent_id,
+            intent_version=intent_version,
+            percept_id=percept_id,
+            percept_digest=percept_digest,
         )
 
         try:
@@ -872,6 +964,10 @@ class MemoryAgent(IMemoryConsolidation):
                 self.metrics["memories_stored"] += 1
                 logger.info(f"Memory {memory_id} stored to hot tier (filtered)")
                 logger.debug(f"[MEMORY_AGENT.STORE_MEMORY] ✓ SUCCESS - Memory {memory_id} stored")
+                # Retain attached image DATA so the substrate remembers the
+                # picture, not only a sentence about it.
+                if image is not None:
+                    await self._retain_image(memory_id, image, image_meta)
                 # EVENT: a new episodic memory is what abstraction feeds on.
                 # Count it (and, past threshold, schedule abstraction on the
                 # queue authority). Cheap — never reasons on the write path.
@@ -889,6 +985,27 @@ class MemoryAgent(IMemoryConsolidation):
             import traceback
             traceback.print_exc()
             return False, None
+
+    async def _retain_image(self, memory_id: str, image: Any,
+                            image_meta: Optional[Dict[str, Any]]) -> None:
+        """Attach image DATA to a memory through the media store. Isolated: a
+        media-store failure is reported and never fails the memory it belongs to.
+        Called on BOTH storage paths (new memory and merge-into-existing) so a
+        remembered picture is kept even when its description deduplicates."""
+        try:
+            from core.memory.media_store import get_media_store
+            await get_media_store().store_image(
+                memory_id, image, perceived=image_meta or {})
+        except Exception as media_error:
+            logger.error("memory %s stored but its image was not retained: %s",
+                         memory_id, media_error)
+
+    async def get_memory_images(self, memory_id: str) -> List[Dict[str, Any]]:
+        """The image data attached to a memory -- bytes, mime, dimensions and
+        perceived structure -- so the substrate can produce the picture it
+        remembers, not only a description of it. Empty when the memory has none."""
+        from core.memory.media_store import get_media_store
+        return await get_media_store().media_for_memory(memory_id)
 
     async def capture_task_outcome(
         self,
@@ -3068,136 +3185,8 @@ class MemoryAgent(IMemoryConsolidation):
         logger.debug("MemoryAgent cleanup")
 
     # ================================================================================================
-    # PROTECTED PARAMETER MODIFICATIONS (Governance Protected)
+    # GOVERNANCE (capability-token-protected deletes)
     # ================================================================================================
-
-    async def modify_importance_threshold(
-        self,
-        new_threshold: float,
-        capability_token: Optional[str] = None,
-        reason: Optional[str] = None
-    ) -> Tuple[bool, str]:
-        """
-        Modify importance threshold parameter (governance protected)
-
-        CRITICAL: This modifies system behavior and requires capability token.
-        Protected against autonomous self-modification.
-
-        Returns:
-            Tuple of (success, message)
-        """
-        # Governance check: block autonomous modification
-        if not capability_token or not await self._validate_capability_token(capability_token):
-            error_msg = "BLOCKED: Importance threshold modification requires governance approval + capability token"
-            logger.warning(f"Autonomous self-modification attempt blocked: {error_msg}")
-
-            # Create governance request
-            await self._create_governance_request(
-                modification_type="importance_threshold",
-                parameters={
-                    "current_threshold": "default",
-                    "requested_threshold": new_threshold,
-                    "reason": reason or "unknown"
-                },
-                metadata={
-                    "timestamp": datetime.now().isoformat()
-                }
-            )
-
-            return False, error_msg
-
-        # Validate parameter range
-        if not (0.0 <= new_threshold <= 1.0):
-            return False, f"Invalid threshold: {new_threshold} (must be 0.0-1.0)"
-
-        # Log parameter modification
-        await self._log_parameter_modification(
-            parameter="importance_threshold",
-            old_value="default",
-            new_value=new_threshold,
-            capability_token=capability_token,
-            reason=reason
-        )
-
-        # Apply modification (stored in metadata)
-        await self.postgres_storage.update_metadata(
-            key="importance_threshold",
-            value=new_threshold,
-            metadata={
-                "modified_at": datetime.now().isoformat(),
-                "reason": reason or ""
-            }
-        )
-
-        logger.info(f"Importance threshold modified: {new_threshold} (reason: {reason})")
-
-        return True, f"Importance threshold set to {new_threshold}"
-
-    async def modify_decay_rates(
-        self,
-        decay_config: Dict[str, float],
-        capability_token: Optional[str] = None,
-        reason: Optional[str] = None
-    ) -> Tuple[bool, str]:
-        """
-        Modify memory decay rates (governance protected)
-
-        CRITICAL: Modifies memory persistence behavior across system.
-        Protected against autonomous self-modification.
-
-        Returns:
-            Tuple of (success, message)
-        """
-        # Governance check: block autonomous modification
-        if not capability_token or not await self._validate_capability_token(capability_token):
-            error_msg = "BLOCKED: Decay rate modification requires governance approval"
-            logger.warning(f"Autonomous decay modification blocked: {error_msg}")
-
-            # Create governance request
-            await self._create_governance_request(
-                modification_type="decay_rates",
-                parameters={
-                    "requested_config": decay_config,
-                    "reason": reason or "unknown"
-                },
-                metadata={
-                    "timestamp": datetime.now().isoformat()
-                }
-            )
-
-            return False, error_msg
-
-        # Validate decay config
-        if not decay_config:
-            return False, "Empty decay configuration"
-
-        # Validate all decay rates
-        for memory_type, rate in decay_config.items():
-            if not (0.0 <= rate <= 1.0):
-                return False, f"Invalid decay rate for {memory_type}: {rate}"
-
-        # Log parameter modification
-        await self._log_parameter_modification(
-            parameter="decay_rates",
-            old_value={},
-            new_value=decay_config,
-            capability_token=capability_token,
-            reason=reason
-        )
-
-        # Apply modification
-        await self.postgres_storage.update_metadata(
-            key="decay_configuration",
-            value=decay_config,
-            metadata={
-                "modified_at": datetime.now().isoformat(),
-                "reason": reason or ""
-            }
-        )
-
-        logger.info(f"Decay rates modified: {len(decay_config)} types updated")
-
-        return True, f"Decay rates updated for {len(decay_config)} memory types"
 
     async def _validate_capability_token(self, token: Optional[str]) -> bool:
         """
@@ -3248,281 +3237,26 @@ class MemoryAgent(IMemoryConsolidation):
             logger.error(f"Token validation error: {e}")
             return False
 
-    async def _create_governance_request(
-        self,
-        modification_type: str,
-        parameters: Dict[str, Any],
-        metadata: Optional[Dict[str, Any]] = None
-    ) -> Tuple[bool, str]:
-        """
-        Create governance request for parameter modification
+    # GOVERNANCE IS NOT THIS AGENT'S TO ANSWER.
+    #
+    # Two methods stood here: `validate_governance_compliance`, which routed to
+    # safety_framework, and `get_governance_status`, which returned a hardcoded
+    # "constitutional_compliance": True. Neither had a production caller, and the
+    # second is the very defect the first was written to fix -- an invented
+    # authorization, which is worse than a missing one because a missing check is
+    # visible and an invented one is not.
+    #
+    # They are gone rather than re-pointed at the constitution. The constitution
+    # judges an act BEFORE it happens, at the point where the act is real: intent
+    # is formed when reasoning starts, the route is proved by planning over
+    # operators the rule store attests, and every tool call is judged with its
+    # actual arguments. An agent asking "is this operation compliant?" as it is
+    # about to run is the old model's shape -- a late yes/no standing in for a
+    # law that already applies, earlier and with more to read.
+    #
+    # What DOES gate memory operations here is unchanged and real: the capability
+    # token above, which a protected operation must carry.
 
-        Escalates to governance system when autonomous modification is blocked.
-
-        Returns:
-            Tuple of (success, request_id)
-        """
-        # Generate governance request
-        request_id = f"gov_req_{uuid.uuid4().hex}"
-
-        request = MemoryOperation(
-            operation_id=request_id,
-            operation_type="governance_request",
-            memory_id="",
-            parameters={
-                "modification_type": modification_type,
-                "requested_parameters": parameters,
-                "status": "pending_approval"
-            },
-            metadata={
-                "created_at": datetime.now().isoformat(),
-                "escalated_from": "memory_agent",
-                **(metadata or {})
-            }
-        )
-
-        logger.info(f"Governance request created: request_id={request_id}")
-
-        return True, request_id
-
-    async def _log_parameter_modification(
-        self,
-        parameter: str,
-        old_value: Any,
-        new_value: Any,
-        capability_token: str,
-        reason: Optional[str] = None
-    ):
-        """
-        Log parameter modification for audit trail
-
-        All parameter modifications are logged to governance system.
-        """
-        # Create audit log entry
-        timestamp = datetime.now()
-
-        # Generate modification record
-        modification_type = "parameter_modification"
-        if "threshold" in parameter:
-            modification_type = "threshold_modification"
-        elif "decay" in parameter:
-            modification_type = "decay_modification"
-        elif "tier" in parameter:
-            modification_type = "tier_modification"
-        else:
-            modification_type = "configuration_modification"
-
-        audit_record = MemoryOperation(
-            operation_id=f"mod_{uuid.uuid4().hex}",
-            operation_type=modification_type,
-            memory_id="system",
-            parameters={
-                "parameter_name": parameter,
-                "old_value": str(old_value),
-                "new_value": str(new_value),
-                "reason": reason or "not_specified"
-            },
-            metadata={
-                "timestamp": timestamp.isoformat(),
-                "capability_token_hash": "hashed"  # Don't log raw token
-            }
-        )
-
-        logger.info(f"Parameter modification logged: parameter={parameter}")
-
-    async def modify_tier_thresholds(
-        self,
-        tier_config: Dict[str, int],
-        capability_token: Optional[str] = None,
-        reason: Optional[str] = None
-    ) -> Tuple[bool, str]:
-        """
-        Modify tier migration thresholds (governance protected)
-
-        Changes when memories migrate from hot → cold tier.
-        Default: 60 days for hot tier retention.
-
-        Returns:
-            Tuple of (success, message)
-        """
-        # Governance check: block autonomous modification
-        if not capability_token or not await self._validate_capability_token(capability_token):
-            error_msg = "BLOCKED: Tier threshold modification requires governance approval"
-            logger.warning(f"Autonomous tier modification blocked: {error_msg}")
-
-            await self._create_governance_request(
-                modification_type="tier_thresholds",
-                parameters={
-                    "requested_config": tier_config,
-                    "reason": reason or "unknown"
-                },
-                metadata={
-                    "timestamp": datetime.now().isoformat()
-                }
-            )
-
-            return False, error_msg
-
-        # Validate tier config
-        required_keys = ["hot_tier_days", "cold_tier_days"]
-        if not all(key in tier_config for key in required_keys):
-            return False, f"Missing required keys: {required_keys}"
-
-        # Log parameter modification
-        await self._log_parameter_modification(
-            parameter="tier_thresholds",
-            old_value={"hot_tier_days": 60},
-            new_value=tier_config,
-            capability_token=capability_token,
-            reason=reason
-        )
-
-        logger.info(f"Tier thresholds modified: hot={tier_config['hot_tier_days']} days")
-
-        return True, f"Tier thresholds updated successfully"
-
-    async def modify_embedding_config(
-        self,
-        embedding_config: Dict[str, Any],
-        capability_token: Optional[str] = None,
-        reason: Optional[str] = None
-    ) -> Tuple[bool, str]:
-        """
-        Modify embedding service configuration (governance protected)
-
-        CRITICAL: Changes semantic search behavior across entire system.
-        Protected against autonomous model switching.
-
-        Returns:
-            Tuple of (success, message)
-        """
-        # Governance check: block autonomous modification
-        if not capability_token or not await self._validate_capability_token(capability_token):
-            error_msg = "BLOCKED: Embedding config modification requires governance approval"
-            logger.warning(f"Autonomous embedding modification blocked: {error_msg}")
-
-            await self._create_governance_request(
-                modification_type="embedding_configuration",
-                parameters={
-                    "requested_config": embedding_config,
-                    "reason": reason or "unknown"
-                },
-                metadata={
-                    "timestamp": datetime.now().isoformat()
-                }
-            )
-
-            return False, error_msg
-
-        # Validate embedding config
-        required_keys = ["model_name"]
-        if not all(key in embedding_config for key in required_keys):
-            return False, f"Missing required embedding config keys: {required_keys}"
-
-        # Log parameter modification
-        await self._log_parameter_modification(
-            parameter="embedding_configuration",
-            old_value={"model_name": "sentence-transformers/all-MiniLM-L6-v2"},
-            new_value=embedding_config,
-            capability_token=capability_token,
-            reason=reason
-        )
-
-        logger.info(f"Embedding config modified: model={embedding_config.get('model_name')}")
-
-        return True, "Embedding configuration updated - restart required"
-
-    async def validate_governance_compliance(
-        self,
-        operation: str,
-        parameters: Optional[Dict[str, Any]] = None
-    ) -> Tuple[bool, str]:
-        """
-        Validate operation against governance constraints
-
-        Checks if operation complies with TorinAI constitutional principles.
-
-        Returns:
-            Tuple of (compliant, reason)
-        """
-        # Governance check: validate operation type
-        if not operation:
-            return False, "Operation type required"
-
-        # Protected operations requiring capability tokens
-        protected_operations = ["delete", "modify_threshold", "modify_decay", "modify_tier"]
-        if any(protected_op in operation.lower() for protected_op in protected_operations):
-            # Check for capability token in parameters
-            has_token = parameters and "capability_token" in parameters if parameters else False
-
-            if not has_token:
-                return False, f"Operation '{operation}' requires capability token"
-
-        # THE AUTHORITY FOR THIS DECISION IS safety_framework.evaluate_action.
-        #
-        # This used to call `governance.check_compliance(action=..., context=...)`
-        # on the trigger system, WHICH HAS NO SUCH METHOD -- the only
-        # check_compliance in the codebase belongs to SingletonConstitution and
-        # takes a SystemState. So every call raised AttributeError, the broad
-        # handler swallowed it, and the function returned
-        # `True, "Operation complies with governance"`.
-        #
-        # Every memory-agent operation was therefore approved unconditionally
-        # while reporting that a governance check had passed. That is a
-        # FABRICATED AUTHORIZATION, and it is worse than no check at all: a
-        # missing check is visible, an invented one is not.
-        try:
-            from core.security.safety_framework import get_safety_framework
-
-            approved, evaluation = await get_safety_framework().evaluate_action(
-                action_id=f"memory_agent:{operation}",
-                action_type=operation,
-                parameters=dict(parameters or {}),
-                is_internal=True,
-                source="memory_agent",
-            )
-        except Exception as e:
-            raise_if_structural(e, "memory_agent.validate_governance_compliance")
-            # NON-BLOCKING BY POLICY, HONEST BY REQUIREMENT. Governance does not
-            # gate ordinary execution here, so an unavailable evaluator does not
-            # stop the operation -- but it must not be reported as compliance.
-            # The claim is the defect, not the allow.
-            logger.warning(f"Safety evaluation unavailable: {e}")
-            return True, f"governance check unavailable ({type(e).__name__}); not evaluated"
-
-        if not approved:
-            violations = ", ".join(evaluation.violations_detected) or "no reason recorded"
-            return False, f"Blocked by safety framework ({evaluation.risk_level.value}): {violations}"
-
-        return True, f"Evaluated by safety framework: risk {evaluation.risk_level.value}"
-
-    async def get_governance_status(self) -> Dict[str, Any]:
-        """
-        Get current governance status for memory agent
-
-        Returns:
-            Dictionary with governance metrics and compliance status
-        """
-        # Calculate governance metrics
-        timestamp = datetime.now()
-
-        # Return governance status
-        return {
-            "agent_name": "MemoryAgent",
-            "governance_version": "7.2",
-            "constitutional_compliance": True,
-            "protected_operations": [
-                "delete_memory",
-                "permanent_delete",
-                "modify_importance_threshold",
-                "modify_decay_rates",
-                "modify_tier_thresholds",
-                "modify_embedding_config"
-            ],
-            "capability_token_required": True,
-            "autonomous_modifications_blocked": True,
-            "timestamp": timestamp.isoformat()
-        }
 
     # ================================================================================================
     # AUTONOMOUS MEMORY LOOPS (Persistent Cognition)

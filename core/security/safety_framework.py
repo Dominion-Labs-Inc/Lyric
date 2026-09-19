@@ -35,6 +35,10 @@ from core.safety.multi_level_prompts import (
 from core.safety.commitment_contracts import (
     CommitmentContractManager, CommitmentType, ViolationSeverity
 )
+# Layer-1 input validation (SQL injection / path traversal / rate limiting).
+# Imported at module load so a missing validator is a LOUD boot failure, never
+# a silent per-call fail-open — this layer is fail-closed by design.
+from core.security.input_validation import get_input_validator
 
 logger = logging.getLogger(__name__)
 
@@ -326,28 +330,26 @@ class SafetyFramework:
                 )
 
             # Layer 1: INPUT — injection, path traversal, rate limiting.
-            # Folded in from SecurityController so callers no longer have to
-            # invoke it separately. Fail-closed: untrusted input is not an
-            # agent decision, so this is one of the few hard blocks.
-            try:
-                from core.security.controller import get_security_controller
-                input_ok, input_err = await get_security_controller().validate_request(
-                    parameters,
-                    {
-                        'action_type': action_type,
-                        'action_id': action_id,
-                        # Agent-originated calls are internal. Without this the full
-                        # SQL-injection regex set runs on every string argument, and
-                        # `(--[^\n]*$)` matches any trailing CLI flag — blocking
-                        # `ls --color`, `git log --oneline`, `pytest --verbose`.
-                        'is_internal': is_internal,
-                        'source': source,
-                        'tool_name': tool_name,
-                    },
-                )
-            except Exception as e:
-                logger.debug(f"input validation unavailable: {e}")
-                input_ok, input_err = True, ""
+            # The live Layer-1 validator (core.security.input_validation) owns
+            # this; it is imported at module load, so there is no per-call
+            # import to fail. Fail-closed: untrusted input is not an agent
+            # decision, so this is one of the few hard blocks — the validator
+            # itself returns (False, reason) on any internal fault, and we do
+            # NOT convert that into an ALLOW.
+            input_ok, input_err = await get_input_validator().validate_action_input(
+                parameters,
+                {
+                    'action_type': action_type,
+                    'action_id': action_id,
+                    # Agent-originated calls are internal, so the SQL grammar
+                    # only runs on parameters that actually reach a SQL sink
+                    # (see InputValidator._reaches_sql_sink) rather than on
+                    # every trailing CLI flag or file glob.
+                    'is_internal': is_internal,
+                    'source': source,
+                    'tool_name': tool_name,
+                },
+            )
 
             if not input_ok:
                 evaluation['violations'].append(input_err)
@@ -454,7 +456,7 @@ class SafetyFramework:
             # a few lines below. Two boundaries, and the accidental one won.
             #
             # What blocks is now decided in ONE place, by whether the action
-            # can be undone (`unified_governance_trigger_system.blocking_mode`).
+            # can be undone (`governance_triggers.blocking_mode`).
             # Every condition these patterns describe is covered there by a
             # named rule carrying a declared irreversibility class -- including
             # `eval`/`exec` (code_dynamic_eval) and dynamic imports
@@ -523,9 +525,8 @@ class SafetyFramework:
         # Runs OUTSIDE the content/pattern try-block so GovernanceBlockError and
         # propagate freely to callers.
         try:
-            from core.governance.unified_governance_trigger_system import (
-                get_unified_governance, EnforcementMode,
-            )
+            from core.governance.governance_triggers import EnforcementMode
+            from core.agents.autonomous.runtime_governance import get_runtime_governance
             # 1. ASI structural pipeline — only for actions that carry a real plan.
             #
             # Tool calls do not. `ASIActionType["EXECUTE_TOOL"]` raises KeyError, so
@@ -570,7 +571,7 @@ class SafetyFramework:
             if tool_name and "tool_name" not in gov_parameters:
                 gov_parameters["tool_name"] = tool_name
 
-            gov_eval = await get_unified_governance().evaluate_action(
+            gov_eval = await get_runtime_governance().evaluate_action(
                 action_category=category,
                 action_type=action_type,
                 parameters=gov_parameters,
@@ -871,7 +872,7 @@ class SafetyFramework:
 
     def _action_type_to_category(self, action_type: str):
         """Map action_type string to governance ActionCategory."""
-        from core.governance.unified_governance_trigger_system import ActionCategory
+        from core.governance.governance_triggers import ActionCategory
         _map = {
             # Tool execution
             "tool": ActionCategory.TOOL_EXECUTION,
@@ -932,7 +933,7 @@ class SafetyFramework:
                     assessment_id       VARCHAR(64) PRIMARY KEY,
                     -- TEXT, not VARCHAR(64). action_id is an EXTERNAL identifier
                     -- (task ids such as
-                    -- security_remediation_integrity_modified_core_agents_autonomous_general_purpose_executor.py)
+                    -- ids that embed file paths)
                     -- whose length this table does not control. Bounding it made
                     -- every long-id evaluation fail to persist: the safety
                     -- decision was still made and enforced, but the durable audit

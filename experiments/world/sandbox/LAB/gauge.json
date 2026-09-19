@@ -1,0 +1,15 @@
+{
+  "name": "gauge",
+  "kind": "sensor",
+  "shape": "circle",
+  "color": "blue",
+  "size": "medium",
+  "properties": {
+    "reading": 0.675
+  },
+  "hidden_props": {},
+  "movable": true,
+  "inspected": true,
+  "dynamic": "drift",
+  "appearance": "_assets/gauge.png"
+}

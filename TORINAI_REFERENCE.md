@@ -247,7 +247,6 @@ is accountable for ecosystem health. It must:
 | `self.directive_system` | DirectiveSystem | Auto-created |
 | `self.learning` | UnifiedLearningSystem | Injected |
 | `self.asi_self_improvement` | EnhancedASISelfImprovement | Injected by main.py |
-| `self.security_audit_worker` | SecurityAuditWorker | Auto-created |
 | `self.security_controller` | SecurityController | `get_security_controller()` |
 | `self.health_monitor` | HealthMonitor | Provided or auto-created |
 | `self.monitoring_coordinator` | MonitoringCoordinator | Auto-created |
@@ -356,7 +355,7 @@ Law 5: Containment and Control
   - Maintain operational boundaries
   - Preserve shutdown and rollback capability
   - No circumvention of safety measures
-  - No self-modification that bypasses governance
+  - No bypassing governance oversight
   - Maintain resource limits
 ```
 
@@ -1916,7 +1915,6 @@ Backup enabled:        True by default
 | `frontier_foresight_methods_impl.py` | Research signal aggregation | 10-minute cache |
 | `capability_benchmark_suite.py` | Standardized capability benchmarks | Domain scores |
 | `performance_profiler.py` | Timing + throughput tracking | Per-operation latency |
-| `mutation_detector.py` | Behavioral fingerprinting | Behavioral delta detection |
 
 ---
 
@@ -2040,54 +2038,11 @@ score = sample * speed_factor
 
 ## 14. Security Systems — Full Specification
 
-### 13.1 Security Audit Worker
+### 13.1 Security Audit Worker — REMOVED (2026-09-14)
 
-**File:** `core/security/security_audit_worker.py`
-
-**Audit interval:** 120 seconds (default)
-
-**Compliance score formula:**
-```
-penalty_weights = {CRITICAL: 20, HIGH: 10, MEDIUM: 5, LOW: 1}
-total_penalty = sum(penalty_weights[f.severity] for f in findings)
-score = max(0.0, 100.0 - total_penalty)
-```
-
-**Access control audit thresholds:**
-```
-Failed auth attempts in 24h, grouped by username:
-  > 10 attempts per user → MEDIUM finding
-  > 50 attempts per user → HIGH finding
-```
-
-**Anomaly detection thresholds:**
-```
-Error rate in 1-hour window:
-  > 25% error rate → MEDIUM
-  > 50% error rate → HIGH
-
-Directive creation rate:
-  > 50 directives in 1 hour → MEDIUM
-
-SQL injection patterns detected in auth logs → HIGH
-World-readable configuration files → HIGH
-```
-
-**Threat enrichment and auto-block logic:**
-```
-Phase 2: Query threat intelligence for IPs in findings
-  threat_score > 80 → Upgrade finding severity to CRITICAL
-
-Phase 3: Auto-block decision
-  IF severity == CRITICAL AND threat_score > 70:
-    → analyze_and_block(ip_address)
-```
-
-**Critical table integrity checks:**
-```
-Tables: ['conversations', 'memories', 'system_logs', 'governance_evaluations']
-Trigger: rows == 0 OR rows is None → MEDIUM finding
-```
+Removed from TorinAI with all of its consumers. World security is the DHCM world factory's
+`security-audit` agent (`DHCM/institutions/security_audit_agent.py`); see
+`docs/architecture/security.md`.
 
 ### 13.2 Threat Intelligence Engine
 
@@ -3064,18 +3019,10 @@ The correct idle priority order, from highest to lowest:
 
 ---
 
-**Priority 1 — Security (Immediate Action)**
+**Priority 1 — Security** — no longer a substrate idle tier: the security audit worker was removed
+2026-09-14; world security runs in the DHCM world factory (see `docs/architecture/security.md`).
 
-Run a full security audit every audit cycle (120 seconds). Between audits:
-- Query `security_audit_worker.get_active_findings(severity=HIGH)` and CRITICAL
-- For each unactioned finding: call `handle_security_finding()` to queue remediation
-- Check firewall rule consistency: verify active rules match expected block list
-- Query threat intelligence on any IPs seen in recent logs
-- Push confirmed HIGH threats to Cloudflare WAF if external-facing
-- Validate configuration file permissions (detect world-readable .env files)
-- Scan recently self-generated code for newly introduced dangerous patterns
-- Run brute-force detection on authentication logs (window: 1 hour)
-- Check for known CVEs in `requirements.txt` dependencies (via safety or pip-audit)
+---
 
 **Priority 2 — System and Subsystem Health**
 

@@ -8,9 +8,10 @@ from core.capability import raise_if_structural
 import asyncio
 import json
 import logging
+from enum import Enum
 from dataclasses import dataclass, field
 from decimal import Decimal
-from typing import Dict, Any, List, Optional, Set
+from typing import Dict, Any, List, Optional, Set, Tuple
 from datetime import datetime, timedelta
 from uuid import uuid4
 
@@ -20,6 +21,41 @@ from .shared_types import (
 )
 from .execution_plan_adapter import state_plan_to_tasks
 from core.reasoning.temporal_reasoning import PlanningStatus
+
+
+class PlanInput(Enum):
+    """What a KIND of plan needs before it can be formed.
+
+    Not every plan is the same. A state goal needs the world as it is now and the
+    operators the substrate has learned; a descriptive one needs what its tools
+    have actually done and what the substrate abstracted from past experience.
+    Declaring that per kind makes the difference stated rather than implied, and
+    each input is obtained through the AUTHORITY that owns it — never by reaching
+    into a store behind its owner's back.
+    """
+    #: The world as it is now. The COORDINATOR perceives; the planner is given it.
+    OBSERVED_WORLD = "observed_world"
+    #: The operators the substrate has learned — the rule store.
+    LEARNED_OPERATORS = "learned_operators"
+    #: How the tools have actually performed — the learning authority.
+    TOOL_HISTORY = "tool_history"
+    #: Principles and schemas — the reasoning authority, which owns abstraction.
+    ABSTRACTION = "abstraction"
+    #: Specific past experiences, queried within the abstraction's constraints.
+    #: Named for what the memory authority calls it — `MemoryType.EPISODIC` —
+    #: rather than a term invented here.
+    EPISODIC_MEMORY = "episodic_memory"
+    #: Earned correctness in a domain — the domain authority.
+    OPERATING_RELIABILITY = "operating_reliability"
+
+
+#: What each kind of plan declares it needs. The engine assembles exactly this.
+PLAN_KIND_INPUTS: Dict[str, Tuple[PlanInput, ...]] = {
+    "state": (PlanInput.OBSERVED_WORLD, PlanInput.LEARNED_OPERATORS,
+              PlanInput.OPERATING_RELIABILITY),
+    "template": (PlanInput.TOOL_HISTORY, PlanInput.ABSTRACTION,
+                 PlanInput.EPISODIC_MEMORY),
+}
 
 
 @dataclass
@@ -221,14 +257,36 @@ class PlanningEngine:
             )
 
         state_facts = [Fact.parse(str(c)) for c in world]
-        goal_facts = [Fact.parse(str(c)) for c in goal.state_conditions]
+
+        # A GOAL MAY STATE THAT A FACT MUST NOT HOLD. The search understands
+        # negation and works over formulas; GROUNDING needs the positive fact
+        # underneath, because that is the fact an operator's effects touch.
+        #
+        # Parsing every condition as a positive Fact made a negative goal
+        # unplannable THROUGH THIS AUTHORITY — `¬FILE_IN(...)` is not an
+        # identifier — even though the substrate learned REMOVE_FILE precisely to
+        # satisfy one, and the raw planner has handled negation since that gap
+        # was closed. The capability existed; this path could not reach it.
+        goal_formulas: List[str] = []
+        goal_facts: List[Fact] = []
+        for condition in (goal.state_conditions or []):
+            text = str(condition).strip()
+            core, negated = text, False
+            for marker in ("¬", "NOT ", "not "):
+                if core.startswith(marker):
+                    core, negated = core[len(marker):].strip(), True
+                    break
+            fact = Fact.parse(core)
+            goal_facts.append(fact)
+            goal_formulas.append(f"¬{fact.to_formula()}" if negated
+                                 else fact.to_formula())
 
         rules = await get_rule_store().executable_rules(
             domain_id=context.get("domain_id"))
         grounding = ground_for_problem(rules, state_facts, goal_facts)
 
         result = TemporalReasoningSystem().plan_for_state_goal(
-            [f.to_formula() for f in goal_facts],
+            goal_formulas,
             {"conditions": [f.to_formula() for f in state_facts]},
             grounding.to_actions(),
         )
@@ -253,14 +311,32 @@ class PlanningEngine:
                 operators_considered=len(grounding.operators),
             )
 
+        # THE PROVED ROUTE IS RECORDED AS THE GOAL'S INTENT, through the authority
+        # that owns intent. If reasoning already opened an intent when this goal
+        # was raised, this FIRMS IT UP with the route that was actually proved
+        # rather than starting a second account of the same pursuit.
+        recorded = await self._record_plan_intent(goal, result, grounding, context)
+
         plan_id = str(uuid4())
         tasks = state_plan_to_tasks(result, goal, plan_id, grounding.complete,
-                                    domain_id=context.get("domain_id"))
+                                    domain_id=context.get("domain_id"),
+                                    intent_id=recorded.get("intent_id"))
         plan = Plan(
             id=plan_id, goal_id=goal.id, tasks=tasks,
             estimated_duration=self._estimate_plan_duration(tasks),
             confidence=1.0,  # the plan is proved, not estimated
             created_at=datetime.now(), status="active",
+            # A STATE plan declares different inputs from a template one: the
+            # world the coordinator observed, the operators the substrate learned,
+            # and what it has earned in this domain. Recorded so the plan carries
+            # what it was formed on.
+            metadata={"planning_mode": "state",
+                      "confidence_source": "proved_by_search",
+                      "inputs": await self.assemble_inputs("state", goal, context),
+                      # Which intent this plan is the proved route of, or why it
+                      # has none. The account lives in the authority; this is the
+                      # reference to it.
+                      "intent": recorded},
         )
         await self._store_plan(plan)
         self.active_plans[plan.id] = plan
@@ -286,25 +362,42 @@ class PlanningEngine:
         if not self.active or goal_id not in self.current_goals:
             return None
 
-        try:
-            goal = self.current_goals[goal_id]
-            if goal.goal_type is GoalType.STATE:
-                raise ValueError(
-                    f"goal {goal_id} states world conditions and must be planned "
-                    f"by search, not decomposed into a task template"
-                )
+        # THE GUARD IS NOT AN ERROR, so it is raised OUTSIDE the try below. It
+        # used to sit inside, where the blanket `except Exception` swallowed it
+        # and returned None — the refusal held, but a caller could not tell a
+        # deliberate refusal from the planner breaking.
+        goal = self.current_goals[goal_id]
+        if goal.goal_type is GoalType.STATE:
+            raise ValueError(
+                f"goal {goal_id} states world conditions and must be planned "
+                f"by search, not decomposed into a task template"
+            )
 
+        try:
             # Generate tasks for the goal
             tasks = await self._generate_tasks_for_goal(goal, context or {})
+
+            # WHAT THIS PLAN CLAIMS ABOUT ITSELF IS MEASURED, NOT INVENTED.
+            # A template decomposition proves nothing, so its confidence and
+            # duration are read from what the substrate has actually recorded
+            # about the tools these tasks would use. Where nothing has been
+            # measured, the absence is reported rather than filled in.
+            confidence, duration, provenance = await self._measured_plan_claims(tasks)
+            # Exactly the inputs a TEMPLATE plan declares it needs — tool history,
+            # abstraction, episodic memory — each from the authority that owns it,
+            # with anything missing reported as missing rather than skipped.
+            provenance["inputs"] = await self.assemble_inputs(
+                "template", goal, context or {})
 
             plan = Plan(
                 id=str(uuid4()),
                 goal_id=goal_id,
                 tasks=tasks,
-                estimated_duration=self._estimate_plan_duration(tasks),
-                confidence=self._calculate_plan_confidence(tasks, context or {}),
+                estimated_duration=duration,
+                confidence=confidence,
                 created_at=datetime.now(),
-                status="active"
+                status="active",
+                metadata=provenance,
             )
             
             await self._store_plan(plan)
@@ -603,21 +696,341 @@ class PlanningEngine:
         """Estimate total duration for plan execution"""
         return sum(task.estimated_duration for task in tasks)
     
-    def _calculate_plan_confidence(self, tasks: List[Task], context: Dict[str, Any]) -> float:
-        """Calculate confidence in plan success"""
-        base_confidence = 0.7
-        
-        # Adjust based on task complexity
-        if len(tasks) <= 3:
-            base_confidence += 0.2
-        elif len(tasks) > 7:
-            base_confidence -= 0.1
-        
-        # Adjust based on context
-        if context.get("available_resources", 0) > 0.8:
-            base_confidence += 0.1
-        
-        return min(1.0, max(0.0, base_confidence))
+    #: A schema must be this strong before it constrains planning. Below it, the
+    #: regularity is not established enough to shape what the substrate does.
+    SCHEMA_STRENGTH_FLOOR: float = 0.7
+
+    # ── the proved route, recorded as intent ─────────────────────────────────
+
+    async def _record_plan_intent(self, goal: Goal, result: Any, grounding: Any,
+                                  context: Dict[str, Any]) -> Dict[str, Any]:
+        """Record the proved route as this goal's INTENT, through the authority
+        that owns intent.
+
+        ONE GOAL IS ONE INTENT. The steps of a proved plan are the route within
+        it, not separate intentions, so each task references this intent and says
+        which step of it it is. If reasoning already opened an intent when the
+        goal was raised, `form` finds it and firms it up with the route that was
+        actually proved — it does not start a second account of the same pursuit.
+
+        The split is made here, at the point of record: the reasoning skeleton
+        (operators, the rules that license them, the goal state) is substrate-wide
+        SHAPE; the goal's own words and the concrete bindings are the actor's
+        CONTENT.
+
+        Returns what happened — including a reason when nothing was recorded — so
+        the plan carries an honest account of whether it has an intent behind it
+        rather than appearing to have one.
+        """
+        from core.reasoning.intent_authority import (
+            get_intent_authority, continuity_goal, SUBSTRATE_ACTOR)
+
+        actor = str(context.get("actor") or SUBSTRATE_ACTOR)
+        steps = list(getattr(result, "steps", []) or [])
+        actions = list(getattr(result, "actions", []) or [])
+        operators = [str(step.get("action")) for step in steps if step.get("action")]
+        rule_ids = [a.get("rule_id") for a in actions if a.get("rule_id")]
+        goal_conditions = [str(c) for c in (getattr(result, "goal_conditions", []) or [])]
+        try:
+            intent = await get_intent_authority().form(
+                "goal", actor, continuity_goal(goal.id),
+                shape={
+                    # `proved` is the claim the constitution's Law 4 rests on, and
+                    # it is true here BECAUSE the search found this route over
+                    # operators the rule store attests are executable.
+                    "proved": True,
+                    "operator": operators[0] if operators else "",
+                    "operators": operators,
+                    "goal_conditions": goal_conditions,
+                    "rule_ids": rule_ids,
+                    "domain": context.get("domain_id"),
+                    "steps": len(operators),
+                    "grounding_complete": bool(getattr(grounding, "complete", True)),
+                    "plan_guarantee": getattr(
+                        getattr(result, "guarantee", None), "value", None),
+                },
+                content={
+                    "aim": goal.description,
+                    "bindings": [a.get("bindings", {}) for a in actions],
+                })
+            return {"recorded": True, "intent_id": intent.intent_id,
+                    "actor": actor, "operators": len(operators)}
+        except Exception as e:
+            # Not swallowed into a silent success: the plan will say it has no
+            # intent behind it, and why, rather than appearing to have one.
+            logger.error("the proved plan for goal %s was not recorded as intent: %s",
+                         goal.id, e)
+            return {"recorded": False, "intent_id": None, "reason": str(e)}
+
+    # ── the inputs a plan needs, gathered through their owners ───────────────
+
+    async def assemble_inputs(self, kind: str, goal: Goal,
+                              context: Dict[str, Any]) -> Dict[str, Any]:
+        """Gather exactly the inputs this KIND of plan declares it needs.
+
+        Each is obtained through the authority that OWNS it, and what could not
+        be obtained is reported as missing with a reason rather than quietly
+        skipped — a plan formed without an input it declared is a plan formed on
+        less than it said it needed.
+        """
+        required = PLAN_KIND_INPUTS.get(kind, ())
+        gathered: Dict[str, Any] = {}
+        missing: List[Dict[str, Any]] = []
+        for need in required:
+            obtained = await self._obtain_input(need, goal, context)
+            if obtained.get("available"):
+                gathered[need.value] = obtained
+            else:
+                missing.append({"input": need.value,
+                                "reason": obtained.get("reason")})
+        return {"kind": kind,
+                "required": [need.value for need in required],
+                "gathered": gathered,
+                "missing": missing}
+
+    async def _obtain_input(self, need: PlanInput, goal: Goal,
+                            context: Dict[str, Any]) -> Dict[str, Any]:
+        """One declared input, from its owner. Absence is reported, never filled."""
+        try:
+            if need is PlanInput.OBSERVED_WORLD:
+                # The COORDINATOR perceives the environment; the planner is given
+                # what it saw. The planner does not go and look for itself.
+                world = context.get("world_state")
+                if world is None:
+                    return {"available": False,
+                            "reason": "no observed world supplied by the coordinator"}
+                return {"available": True, "source": "coordinator (perception)",
+                        "facts": len(world)}
+
+            if need is PlanInput.LEARNED_OPERATORS:
+                from core.learning.rule_store import get_rule_store
+                domain_id = context.get("domain_id")
+                rules = await get_rule_store().executable_rules(domain_id=domain_id)
+                if not rules:
+                    return {"available": False,
+                            "reason": f"the rule store holds no executable "
+                                      f"operator for domain {domain_id!r}"}
+                return {"available": True, "source": "rule store",
+                        "operators": len(rules)}
+
+            if need is PlanInput.TOOL_HISTORY:
+                metrics = await self._measured_tool_metrics()
+                if not metrics.get("available"):
+                    return {"available": False, "reason": metrics.get("reason")
+                            or "no tool history recorded"}
+                return {"available": True, "source": "learning authority",
+                        "runs": metrics.get("runs"),
+                        "success_rate": metrics.get("success_rate")}
+
+            if need in (PlanInput.ABSTRACTION, PlanInput.EPISODIC_MEMORY):
+                hierarchical = await self._hierarchical_context(
+                    goal, domain=context.get("domain_id") or "general")
+                if not hierarchical.get("available"):
+                    return {"available": False,
+                            "reason": hierarchical.get("reason")}
+                if need is PlanInput.ABSTRACTION:
+                    return {"available": True, "source": "reasoning authority",
+                            "principles": len(hierarchical.get("principles_applied") or []),
+                            "schemas": len(hierarchical.get("schemas_considered") or []),
+                            "constraints": hierarchical.get("strategy_constraints") or []}
+                return {"available": True, "source": "memory, within abstraction",
+                        "memories": hierarchical.get("supporting_memories") or []}
+
+            if need is PlanInput.OPERATING_RELIABILITY:
+                domain_id = context.get("domain_id")
+                if not domain_id:
+                    return {"available": False,
+                            "reason": "no domain to read earned reliability for"}
+                from core.integration.universal_domain_master import (
+                    get_universal_domain_master)
+                reliability = await get_universal_domain_master(
+                    ).operating_reliability(domain_id)
+                return {"available": True, "source": "domain authority",
+                        **reliability}
+
+            return {"available": False, "reason": f"unknown input {need!r}"}
+        except Exception as e:
+            logger.debug("planning input %s unavailable: %s", need.value, e)
+            return {"available": False, "reason": str(e)}
+
+    @staticmethod
+    def _constrained_query(description: str, constraints: List[Dict[str, Any]]) -> str:
+        """The memory query, narrowed by what the strongest schemas prefer."""
+        parts = [description]
+        for constraint in constraints[:3]:
+            for key, value in (constraint.get("prefer") or {}).items():
+                parts.append(f"{key}:{value}")
+        return " ".join(parts)
+
+    async def _memories_within(self, description: str,
+                              constraints: List[Dict[str, Any]],
+                              pipeline: Any) -> List[str]:
+        """EPISODIC memories queried WITHIN the strategy constraints — ids only.
+
+        Scoped to `MemoryType.EPISODIC` — specific past experiences — because that
+        is what this step claims to consult. The planner this came from said
+        "episodic" in its docstring while querying every memory type, so the claim
+        and the query disagreed.
+
+        `search_memories` returns either a list or a (ok, list) pair depending on
+        the interface a caller uses; both are handled, because assuming one was a
+        second latent bug in that planner.
+        """
+        from core.memory.utils.interfaces import MemoryType
+        found = await pipeline.memory.search_memories(
+            query_text=self._constrained_query(description, constraints),
+            memory_types=[MemoryType.EPISODIC], limit=20)
+        if isinstance(found, tuple):
+            found = found[1] if len(found) > 1 else []
+        return [m for m in
+                (getattr(item, "memory_id", "") for item in (found or [])) if m]
+
+    async def _hierarchical_context(self, goal: Goal,
+                                    domain: str = "general") -> Dict[str, Any]:
+        """Abstraction UPSTREAM of planning: the principles and schemas that bear
+        on this goal, and the past experience falling WITHIN those constraints.
+
+        Absorbed from the orphaned `HierarchicalPlanner`, which had no callers.
+        Its METHOD is what is kept — principles → schemas beneath them → strategy
+        constraints → episodic memory queried within those constraints — because
+        that is what makes planning hierarchical, and it is how a plan draws on
+        past memories rather than on the goal's wording alone.
+
+        ITS FINAL STEP IS DELIBERATELY NOT KEPT. That emitted prose steps
+        ("Apply strategy: {when} → {prefer}", "Based on past: {action}") — output
+        shaped like a plan that proves nothing. Steps come from proved operators;
+        this supplies the CONTEXT a plan is formed in, recorded as real ids.
+        """
+        from core.reasoning.hierarchical_abstraction import AbstractionLevel
+        from core.reasoning.neural_bridge import get_neural_bridge
+        # THROUGH THE REASONING AUTHORITY, which owns abstraction — not the
+        # module-level global behind it.
+        pipeline = getattr(get_neural_bridge(), "abstraction", None)
+        if pipeline is None:
+            return {"available": False,
+                    "reason": "the reasoning authority has not brought up "
+                              "abstraction yet"}
+        try:
+            hierarchy = pipeline.concept_hierarchy
+            principles = hierarchy.find_principles_for_domain(domain)
+            schemas = []
+            for principle in principles:
+                for node in hierarchy.get_descendants(principle.concept_id,
+                                                      max_depth=1):
+                    if node.level is AbstractionLevel.SCHEMA and node.schema_id:
+                        schema = pipeline.active_schemas.get(node.schema_id)
+                        if schema is not None:
+                            schemas.append(schema)
+            constraints = [
+                {"when": s.condition, "prefer": s.outcome,
+                 "confidence": s.probability, "schema_id": s.schema_id,
+                 "evidence_count": s.evidence_count}
+                for s in schemas if s.probability > self.SCHEMA_STRENGTH_FLOOR
+            ]
+            return {
+                "available": True,
+                "domain": domain,
+                "principles_applied": [p.concept_id for p in principles],
+                "schemas_considered": [s.schema_id for s in schemas],
+                "strategy_constraints": constraints,
+                "supporting_memories": await self._memories_within(
+                    goal.description, constraints, pipeline),
+            }
+        except Exception as e:
+            logger.debug("hierarchical context unavailable: %s", e)
+            return {"available": False, "reason": str(e)}
+
+    #: Neutral confidence, used ONLY when nothing relevant has been measured.
+    #: Withheld both ways until earned — the same discipline as
+    #: `operating_reliability`, which reports 0.5 rather than guessing until it
+    #: has enough outcomes. It is paired with provenance saying it is unmeasured,
+    #: so a caller can tell "no evidence yet" from "evidence says 0.5".
+    UNMEASURED_CONFIDENCE: float = 0.5
+
+    @staticmethod
+    def _task_tool_names(task: Task) -> List[str]:
+        """The tools this task says it would use."""
+        return [str(t) for t in ((task.metadata or {}).get("suggested_tools") or [])]
+
+    async def _measured_tool_metrics(self) -> Dict[str, Any]:
+        """What the substrate has actually MEASURED about its tools — per-tool
+        success rate and average latency.
+
+        Read THROUGH THE LEARNING AUTHORITY, which owns what the substrate has
+        learned and surfaces tool performance as part of it. The planner does not
+        reach into the tool-metrics collector behind its owner's back. Never
+        invents: when nothing is recorded it says so, and the caller reports the
+        absence."""
+        try:
+            from core.learning import get_learning_authority
+            metrics = await get_learning_authority().get_learning_metrics()
+            usage = (metrics or {}).get("tool_usage")
+            if not usage:
+                return {"available": False,
+                        "reason": "the learning authority has no tool usage recorded"}
+            return usage
+        except Exception as e:
+            logger.debug("tool metrics unavailable to the planner: %s", e)
+            return {"available": False, "reason": str(e)}
+
+    async def _measured_plan_claims(
+        self, tasks: List[Task]
+    ) -> Tuple[float, float, Dict[str, Any]]:
+        """(confidence, duration_minutes, provenance) for a template plan, read
+        from measured tool history rather than constants.
+
+        Confidence is the mean measured success rate of the tools these tasks
+        would use; duration is their summed mean latency. Both report how they
+        were derived, and when there is no history the provenance says
+        `unmeasured` instead of a number pretending to be evidence.
+        """
+        metrics = await self._measured_tool_metrics()
+        provenance: Dict[str, Any] = {"planning_mode": "template"}
+        if not metrics.get("available"):
+            provenance.update({
+                "confidence_source": "unmeasured",
+                "duration_source": "unmeasured",
+                "reason": metrics.get("reason") or metrics.get("error")
+                or "no tool metrics available",
+            })
+            return self.UNMEASURED_CONFIDENCE, 0.0, provenance
+
+        by_tool = {row["tool"]: row for row in (metrics.get("by_tool") or [])}
+        rates: List[float] = []
+        total_ms = 0.0
+        measured_tools: List[str] = []
+        for task in tasks:
+            for name in self._task_tool_names(task):
+                row = by_tool.get(name)
+                if not row:
+                    continue
+                if row.get("success_rate") is not None:
+                    rates.append(float(row["success_rate"]))
+                if row.get("avg_latency_ms") is not None:
+                    total_ms += float(row["avg_latency_ms"])
+                measured_tools.append(name)
+
+        if rates:
+            confidence = round(sum(rates) / len(rates), 4)
+            provenance["confidence_source"] = "measured_tool_success_rate"
+            provenance["tools_measured"] = sorted(set(measured_tools))
+        elif metrics.get("success_rate") is not None:
+            # No per-tool history for these tools; the substrate's overall
+            # measured success rate is still a real reading.
+            confidence = float(metrics["success_rate"])
+            provenance["confidence_source"] = "measured_overall_success_rate"
+            provenance["runs"] = metrics.get("runs")
+        else:
+            confidence = self.UNMEASURED_CONFIDENCE
+            provenance["confidence_source"] = "unmeasured"
+
+        if total_ms > 0:
+            duration = round(total_ms / 60000.0, 4)      # ms -> minutes
+            provenance["duration_source"] = "measured_tool_latency"
+        else:
+            duration = 0.0
+            provenance["duration_source"] = "unmeasured"
+        return confidence, duration, provenance
     
     def _can_execute_task(self, task: Task, system_state: SystemState) -> bool:
         """Check if task can be executed given current system state.

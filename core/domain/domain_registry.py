@@ -12,12 +12,12 @@ import logging
 import os
 from pathlib import Path
 from typing import Dict, List, Set, Optional, Any, Tuple
-from collections import defaultdict
+from collections import defaultdict, deque
 from dataclasses import dataclass
 
 from .domain_types import (
     Domain, DomainType, DomainConcept, ConceptType, DomainRelation, DomainKnowledge,
-    CrossDomainMapping, KnowledgeTransfer, calculate_domain_similarity
+    CrossDomainMapping, KnowledgeTransfer
 )
 from core.capability import raise_if_structural
 
@@ -92,11 +92,25 @@ class DomainRegistry:
         self.domains: Dict[str, Domain] = {}
         self.cross_domain_mappings: Dict[str, CrossDomainMapping] = {}
         self.knowledge_transfers: Dict[str, KnowledgeTransfer] = {}
+        # derived mapping id -> the id its relationship is stored under
+        self._mapping_aliases: Dict[str, str] = {}
         
         # Indexes for fast lookup
         self.concept_index: Dict[str, Set[str]] = defaultdict(set)  # concept_name -> domain_ids
         self.relation_index: Dict[str, Set[str]] = defaultdict(set)  # relation_type -> domain_ids
-        self.domain_similarity_cache: Dict[Tuple[str, str], float] = {}
+
+        # CONTENT VERSIONS. Anything derived from a domain's concepts (vectors,
+        # signatures, correspondences) is reused until one of these moves.
+        # `generation` moves on every full load; a domain's own version moves
+        # whenever refresh_concepts changes its membership or a member.
+        self.generation = 0
+        self._concept_versions: Dict[str, int] = defaultdict(int)
+        # domain -> (version, concept ids that joined, left or changed at it),
+        # so a consumer can update what it derived instead of recomputing it.
+        self._concept_changes: Dict[str, deque] = defaultdict(
+            lambda: deque(maxlen=self.CONCEPT_CHANGE_LOG))
+        # concept_id -> the domain holding it, for moving a re-filed concept.
+        self._concept_home: Dict[str, str] = {}
         
         self._lock = asyncio.Lock()
         self.initialized = False
@@ -118,6 +132,7 @@ class DomainRegistry:
         """
         async with self._lock:
             await self._db().initialize()
+            self.generation += 1
             await self._load_domains()
             await self._load_concepts()
             self._repair_category_links()
@@ -374,6 +389,155 @@ class DomainRegistry:
                 return domain_type
         return DomainType.ABSTRACT
 
+    _CONCEPT_COLUMNS = "concept_id, name, domain, description, attributes, relationships"
+
+    def _field_domain(self, field: str, unclassified: Optional[Set[str]] = None) -> Domain:
+        """The Domain for a unified.concepts field, created on first sight."""
+        domain_id = f"domain_{field}"
+        if domain_id not in self.domains:
+            dtype = self._classify_field(field)
+            if (dtype is DomainType.ABSTRACT and field not in self._FIELD_TO_DOMAIN_TYPE
+                    and unclassified is not None):
+                # No recognizable signal in the field name: classified as
+                # ABSTRACT automatically, not left for a human to map.
+                unclassified.add(field)
+            self.domains[domain_id] = Domain(
+                domain_id=domain_id,
+                name=field.replace("_", " ").title(),
+                domain_type=dtype,
+                description=f"Knowledge field: {field}",
+            )
+            # Membership recorded in the registry's OWN structure. Domain
+            # already carries parent_domains/child_domains, so category ->
+            # field is expressed there rather than in a second lookup table
+            # the resolver would have to consult. The classification above
+            # seeds this once; everything downstream reads the graph.
+            category_id = f"domain_{dtype.value}"
+            self.domains[domain_id].parent_domains.add(category_id)
+            if category_id in self.domains:
+                self.domains[category_id].child_domains.add(domain_id)
+        return self.domains[domain_id]
+
+    def _attach_concept_row(self, row, unclassified: Optional[Set[str]] = None) -> Optional[str]:
+        """Attach one unified.concepts row to its field's domain. The ONE
+        derivation of a DomainConcept from a stored concept."""
+        field = (row["domain"] or "").strip().lower()
+        if not field:
+            return None
+        domain = self._field_domain(field, unclassified)
+
+        def _j(v, default):
+            if v in (None, ""):
+                return default
+            return json.loads(v) if isinstance(v, str) else v
+
+        # relationships is [[verb, target], ...]; the target is the related
+        # concept. The verb is kept in properties rather than thrown away.
+        related, verbs = set(), []
+        for r in _j(row["relationships"], []):
+            if isinstance(r, (list, tuple)) and len(r) >= 2:
+                verbs.append([r[0], r[1]])
+                related.add(str(r[1]))
+            elif isinstance(r, str):
+                related.add(r)
+
+        domain.concepts[row["concept_id"]] = DomainConcept(
+            concept_id=row["concept_id"],
+            name=row["name"],
+            domain_id=domain.domain_id,
+            # unified.concepts records no type. ENTITY is the taxonomy's
+            # least-committal member and the shape these rows actually have
+            # (named things with attributes); it is not inferred per row.
+            concept_type=ConceptType.ENTITY,
+            description=row["description"] or "",
+            attributes=_j(row["attributes"], {}),
+            properties={"relationships": verbs} if verbs else {},
+            related_concepts=related,
+        )
+        self._concept_home[row["concept_id"]] = domain.domain_id
+        return domain.domain_id
+
+    @staticmethod
+    def _concept_content(concept: DomainConcept) -> tuple:
+        return (concept.name, concept.description, concept.concept_type,
+                json.dumps(concept.attributes, sort_keys=True, default=str),
+                json.dumps(concept.properties, sort_keys=True, default=str),
+                frozenset(concept.related_concepts))
+
+    #: Versions of change history kept per domain.
+    CONCEPT_CHANGE_LOG = 256
+
+    def concept_changes(self, domain_id: str, since: Tuple[int, int],
+                        until: Tuple[int, int]) -> Optional[Set[str]]:
+        """Concept ids that joined, left or changed in `domain_id` between two
+        of its versions; None when that history is not held (a full reload
+        happened, or the log no longer reaches back that far)."""
+        if since[0] != until[0] or since[1] > until[1]:
+            return None
+        if since == until:
+            return set()
+        entries = [ids for version, ids in self._concept_changes.get(domain_id, ())
+                   if since[1] < version <= until[1]]
+        if len(entries) != until[1] - since[1]:
+            return None
+        return set().union(*entries)
+
+    def concept_version(self, domain_id: str) -> Tuple[int, int]:
+        """Moves whenever the concepts `domain_id` holds may have changed."""
+        return (self.generation, self._concept_versions[domain_id])
+
+    async def refresh_concepts(self, concept_ids: List[str]) -> Set[str]:
+        """Re-read these concepts from unified.concepts into their domains.
+
+        A written or re-filed concept is attached to the domain its row now
+        names and removed from the one that held it. A domain's version moves
+        only when a concept joined, left, or changed content; a re-read of an
+        unchanged concept moves nothing. Returns the domain ids that changed.
+        """
+        ids = sorted({str(c) for c in concept_ids if c})
+        if not ids:
+            return set()
+        rows = await self._db().execute_query(
+            f"SELECT {self._CONCEPT_COLUMNS} FROM unified.concepts "
+            "WHERE concept_id = ANY($1::text[])",
+            (ids,), fetch_all=True) or []
+        found = {r["concept_id"] for r in rows}
+        missing = [c for c in ids if c not in found]
+        if missing:
+            raise LookupError(
+                f"refresh_concepts: {len(missing)} concept(s) are not in "
+                f"unified.concepts: {missing[:5]}")
+        changed_ids: Dict[str, Set[str]] = defaultdict(set)
+        async with self._lock:
+            for row in rows:
+                cid = row["concept_id"]
+                home = self._concept_home.get(cid)
+                previous = None
+                if home is not None and home in self.domains:
+                    previous = self.domains[home].concepts.pop(cid, None)
+                domain_id = self._attach_concept_row(row)
+                if domain_id is None:
+                    self._concept_home.pop(cid, None)
+                    if previous is not None:
+                        changed_ids[home].add(cid)
+                    continue
+                self.concept_index[row["name"].lower()].add(domain_id)
+                current = self.domains[domain_id].concepts[cid]
+                if (previous is None or home != domain_id
+                        or self._concept_content(previous) != self._concept_content(current)):
+                    changed_ids[domain_id].add(cid)
+                    if home is not None and home != domain_id:
+                        changed_ids[home].add(cid)
+            changed = set(changed_ids)
+            for domain_id, ids in changed_ids.items():
+                self._concept_versions[domain_id] += 1
+                self._concept_changes[domain_id].append(
+                    (self._concept_versions[domain_id], frozenset(ids)))
+            self.unpopulated_domain_ids = [
+                d for d in self.unpopulated_domain_ids
+                if not self.domains.get(d) or not self.domains[d].concepts]
+        return changed
+
     async def _load_concepts(self):
         """Load concepts from unified.concepts and attach them to their domains.
 
@@ -387,71 +551,16 @@ class DomainRegistry:
         working producer reasons at.
         """
         rows = await self._db().execute_query(
-            """SELECT concept_id, name, domain, description, attributes, relationships
-               FROM unified.concepts""",
+            f"SELECT {self._CONCEPT_COLUMNS} FROM unified.concepts",
             fetch_all=True,
         ) or []
-
-        def _j(v, default):
-            if v in (None, ""):
-                return default
-            return json.loads(v) if isinstance(v, str) else v
 
         unclassified: Set[str] = set()
         attached = 0
         for row in rows:
-            field = (row["domain"] or "").strip().lower()
-            if not field:
-                continue
-            domain_id = f"domain_{field}"
-
-            if domain_id not in self.domains:
-                dtype = self._classify_field(field)
-                if dtype is DomainType.ABSTRACT and field not in self._FIELD_TO_DOMAIN_TYPE:
-                    # No recognizable signal in the field name: classified as
-                    # ABSTRACT automatically, not left for a human to map.
-                    unclassified.add(field)
-                self.domains[domain_id] = Domain(
-                    domain_id=domain_id,
-                    name=field.replace("_", " ").title(),
-                    domain_type=dtype,
-                    description=f"Knowledge field: {field}",
-                )
-                # Membership recorded in the registry's OWN structure. Domain
-                # already carries parent_domains/child_domains, so category ->
-                # field is expressed there rather than in a second lookup table
-                # the resolver would have to consult. The classification above
-                # seeds this once; everything downstream reads the graph.
-                category_id = f"domain_{dtype.value}"
-                self.domains[domain_id].parent_domains.add(category_id)
-                if category_id in self.domains:
-                    self.domains[category_id].child_domains.add(domain_id)
-
-            # relationships is [[verb, target], ...]; the target is the related
-            # concept. The verb is kept in properties rather than thrown away.
-            rels = _j(row["relationships"], [])
-            related, verbs = set(), []
-            for r in rels:
-                if isinstance(r, (list, tuple)) and len(r) >= 2:
-                    verbs.append([r[0], r[1]])
-                    related.add(str(r[1]))
-                elif isinstance(r, str):
-                    related.add(r)
-
-            self.domains[domain_id].concepts[row["concept_id"]] = DomainConcept(
-                concept_id=row["concept_id"],
-                name=row["name"],
-                domain_id=domain_id,
-                # unified.concepts records no type. ENTITY is the taxonomy's
-                # least-committal member and the shape these rows actually have
-                # (named things with attributes); it is not inferred per row.
-                concept_type=ConceptType.ENTITY,
-                description=row["description"] or "",
-                attributes=_j(row["attributes"], {}),
-                properties={"relationships": verbs} if verbs else {},
-                related_concepts=related,
-            )
-            attached += 1
+            domain_id = self._attach_concept_row(row, unclassified)
+            if domain_id is not None:
+                attached += 1
 
         # A domain that just received concepts is no longer empty.
         self.unpopulated_domain_ids = [
@@ -769,6 +878,7 @@ class DomainRegistry:
         try:
             async with self._lock:
                 self.domains[domain.domain_id] = domain
+                self._repair_category_links()
                 await self._persist_domain(domain)
                 await self._update_indexes_for_domain(domain)
                 logger.info(f"Registered domain: {domain.name} ({domain.domain_id})")
@@ -794,33 +904,6 @@ class DomainRegistry:
         if domain_type:
             domains = [d for d in domains if d.domain_type == domain_type]
         return domains
-    
-    async def find_similar_domains(self, domain_id: str, threshold: float = 0.5) -> List[Tuple[Domain, float]]:
-        """Find domains similar to the given domain"""
-        if domain_id not in self.domains:
-            return []
-        
-        target_domain = self.domains[domain_id]
-        similar_domains = []
-        
-        for other_id, other_domain in self.domains.items():
-            if other_id == domain_id:
-                continue
-            
-            # Check cache first
-            cache_key = (min(domain_id, other_id), max(domain_id, other_id))
-            if cache_key in self.domain_similarity_cache:
-                similarity = self.domain_similarity_cache[cache_key]
-            else:
-                similarity = calculate_domain_similarity(target_domain, other_domain)
-                self.domain_similarity_cache[cache_key] = similarity
-            
-            if similarity >= threshold:
-                similar_domains.append((other_domain, similarity))
-        
-        # Sort by similarity score
-        similar_domains.sort(key=lambda x: x[1], reverse=True)
-        return similar_domains
     
     async def find_concepts_across_domains(self, concept_name: str) -> List[Tuple[Domain, DomainConcept]]:
         """Find concepts with similar names across all domains"""
@@ -856,7 +939,7 @@ class DomainRegistry:
         async with self._lock:
             # CARRY FORWARD what was accumulated, replace only what was re-judged.
             #
-            # suggest_cross_domain_mappings mints a FRESH CrossDomainMapping on
+            # UniversalDomainMaster.suggest_mappings mints a FRESH CrossDomainMapping on
             # every call, with usage_count=0 and success_rate=0.0 from the
             # dataclass defaults. Storing it wholesale overwrote the running
             # totals of the mapping it re-derived -- both here and, through
@@ -864,6 +947,19 @@ class DomainRegistry:
             # so usage_count could never exceed 1 no matter how often the
             # correspondence was relied upon. The verdict is new each time; the
             # history is not, and a re-derivation is not a reset.
+            # ONE ROW PER RELATIONSHIP. uq_domain_mappings_semantic makes
+            # (domains, concepts, strategy) unique, and rows written before ids
+            # were derived carry a uuid; a re-derivation adopts that row's id
+            # instead of colliding with it.
+            if mapping.mapping_id not in self.cross_domain_mappings:
+                derived_id = mapping.mapping_id
+                stored_id = self._mapping_aliases.get(derived_id)
+                if stored_id is None:
+                    stored_id = await self._stored_mapping_id(mapping)
+                    if stored_id is not None and stored_id != derived_id:
+                        self._mapping_aliases[derived_id] = stored_id
+                if stored_id is not None:
+                    mapping.mapping_id = stored_id
             prior = self.cross_domain_mappings.get(mapping.mapping_id)
             if prior is not None:
                 mapping.usage_count = max(mapping.usage_count, prior.usage_count)
@@ -871,6 +967,13 @@ class DomainRegistry:
                                         else mapping.success_rate)
                 mapping.last_used = mapping.last_used or prior.last_used
                 mapping.created_at = prior.created_at
+                # A re-derivation that judged nothing is not a verdict.
+                if mapping.validated is None:
+                    mapping.validated = prior.validated
+                    mapping.validation_score = prior.validation_score
+                if self._serialize_mapping(prior) == self._serialize_mapping(mapping):
+                    # Re-derived exactly as stored: nothing to write.
+                    return True
             self.cross_domain_mappings[mapping.mapping_id] = mapping
             try:
                 await self._persist_mapping(mapping)
@@ -893,64 +996,6 @@ class DomainRegistry:
                     mappings.append(mapping)
         return mappings
     
-    async def suggest_cross_domain_mappings(self, source_domain_id: str, 
-                                          target_domain_id: str) -> List[CrossDomainMapping]:
-        """Suggest potential cross-domain mappings based on concept similarity.
-
-        Raises UnknownDomain if either domain is not registered. Returning []
-        for that case made "these domains have no analogy" and "you asked about
-        a domain that does not exist" the same answer -- so a typo, an
-        uninitialized registry and a genuine negative were indistinguishable to
-        every caller.
-        """
-        missing = [d for d in (source_domain_id, target_domain_id) if d not in self.domains]
-        if missing:
-            raise UnknownDomain(missing, sorted(self.domains))
-
-        source_domain = self.domains[source_domain_id]
-        target_domain = self.domains[target_domain_id]
-        
-        suggested_mappings = []
-        
-        for source_concept in source_domain.concepts.values():
-            for target_concept in target_domain.concepts.values():
-                # Calculate concept similarity
-                from .domain_types import calculate_concept_similarity
-                similarity = calculate_concept_similarity(source_concept, target_concept)
-                
-                if similarity > 0.6:  # Threshold for suggestion
-                    mapping = CrossDomainMapping(
-                        # DETERMINISTIC, derived from the relationship itself.
-                        # An empty id makes __post_init__ mint a fresh uuid4, so
-                        # re-proposing the same concept pair produced a new row
-                        # every run and ON CONFLICT (mapping_id) never fired --
-                        # the store would accumulate duplicate rows of the same
-                        # mapping, each with its own verdict. The identity of a
-                        # mapping is which two concepts it relates, not when it
-                        # happened to be rediscovered.
-                        mapping_id=self._mapping_key(
-                            source_domain_id, target_domain_id,
-                            source_concept.concept_id, target_concept.concept_id,
-                            "similarity"),
-                        source_domain_id=source_domain_id,
-                        target_domain_id=target_domain_id,
-                        source_concept_id=source_concept.concept_id,
-                        target_concept_id=target_concept.concept_id,
-                        mapping_type="similarity",
-                        strength=similarity,
-                        confidence=similarity * 0.8,  # Slightly lower confidence
-                        # A SUGGESTION, not a refutation. This said False, which
-                        # is the validator's verdict for "tested and does not
-                        # hold" -- so every candidate this method proposed was
-                        # born marked as already disproven.
-                        validated=None
-                    )
-                    suggested_mappings.append(mapping)
-        
-        # Sort by strength
-        suggested_mappings.sort(key=lambda x: x.strength, reverse=True)
-        return suggested_mappings[:10]  # Return top 10 suggestions
-    
     async def create_knowledge_transfer(self, transfer: KnowledgeTransfer) -> bool:
         """Create a knowledge transfer record.
 
@@ -959,6 +1004,10 @@ class DomainRegistry:
         the table never received and callers were told it worked.
         """
         async with self._lock:
+            prior = self.knowledge_transfers.get(transfer.transfer_id)
+            if prior is not None and self._transfer_content(prior) == self._transfer_content(transfer):
+                # The same transfer derived again: stored as it is.
+                return True
             self.knowledge_transfers[transfer.transfer_id] = transfer
             try:
                 await self._persist_transfer(transfer)
@@ -1238,6 +1287,19 @@ class DomainRegistry:
             commit=True,
         )
 
+    async def _stored_mapping_id(self, mapping: CrossDomainMapping) -> Optional[str]:
+        rows = await self._db().execute_query(
+            """SELECT mapping_id FROM unified.domain_mappings
+               WHERE source_domain = $1 AND target_domain = $2
+                 AND source_concept = $3 AND target_concept = $4
+                 AND reasoning_strategy = $5""",
+            (self._domain_key(mapping.source_domain_id),
+             self._domain_key(mapping.target_domain_id),
+             mapping.source_concept_id, mapping.target_concept_id,
+             str(mapping.mapping_type)),
+            fetch_all=True) or []
+        return rows[0]["mapping_id"] if rows else None
+
     async def _persist_mapping(self, mapping: CrossDomainMapping):
         """Persist a cross-domain mapping to unified.domain_mappings.
 
@@ -1314,10 +1376,23 @@ class DomainRegistry:
                         concept_type, transfer_method, success, metadata,
                         created_at, completed_at)
                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10)
+                   -- Deriving a transfer again states no outcome. It must not
+                   -- erase the outcome resolve_knowledge_transfer recorded, or
+                   -- the measured effectiveness and its evidence.
                    ON CONFLICT (transfer_id) DO UPDATE SET
-                       success      = EXCLUDED.success,
-                       metadata     = EXCLUDED.metadata,
-                       completed_at = EXCLUDED.completed_at""",
+                       success      = COALESCE(EXCLUDED.success,
+                                               unified.knowledge_transfers.success),
+                       metadata     = CASE
+                           WHEN unified.knowledge_transfers.success IS NULL
+                           THEN EXCLUDED.metadata
+                           ELSE EXCLUDED.metadata || jsonb_build_object(
+                               'effectiveness_score',
+                               unified.knowledge_transfers.metadata->'effectiveness_score',
+                               'outcome_evidence',
+                               unified.knowledge_transfers.metadata->'outcome_evidence')
+                           END,
+                       completed_at = COALESCE(EXCLUDED.completed_at,
+                                               unified.knowledge_transfers.completed_at)""",
                 (
                     f"{transfer.transfer_id}:{concept_id}",
                     self._domain_key(transfer.source_domain_id),
@@ -1440,6 +1515,13 @@ class DomainRegistry:
             "last_used": mapping.last_used.isoformat() if mapping.last_used else None
         }
     
+    def _transfer_content(self, transfer: KnowledgeTransfer) -> Dict[str, Any]:
+        """What a transfer states, without when this copy of it was made."""
+        content = self._serialize_transfer(transfer)
+        content.pop("initiated_at", None)
+        content.pop("completed_at", None)
+        return content
+
     def _serialize_transfer(self, transfer: KnowledgeTransfer) -> Dict[str, Any]:
         """Serialize transfer to dict"""
         return {

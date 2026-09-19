@@ -82,7 +82,7 @@ TOOL_SCENARIOS = {
     }
 }
 
-# Learning System Scenarios (3 scenarios)
+# Learning System Scenarios (2 scenarios)
 LEARNING_SCENARIOS = {
     "training_pipeline_latency": {
         "name": "Training Pipeline Data Loading Latency",
@@ -104,29 +104,6 @@ LEARNING_SCENARIOS = {
             }
         },
         "blast_radius": 20,
-        "environment": "dev"
-    },
-
-    "model_checkpoint_save_failure": {
-        "name": "Model Checkpoint Save Failures",
-        "description": "Test handling of checkpoint save failures during training",
-        "target_system": "learning_system",
-        "chaos_type": ChaosType.ERROR,
-        "component": "safe_upgrade_deployer",
-        "injection_point": "save_checkpoint",
-        "injection_config": {
-            "error_type": "IOError",
-            "error_rate": 0.15,  # 15% failure rate
-            "duration_seconds": 300
-        },
-        "hypothesis": {
-            "hypothesis_statement": "Checkpoint failures should not halt training, retry mechanism should work",
-            "expected_behavior": {
-                "max_latency_p95_ms": 500,
-                "max_error_rate": 0.02
-            }
-        },
-        "blast_radius": 10,
         "environment": "dev"
     },
 
@@ -685,31 +662,8 @@ MONITORING_SCENARIOS = {
     }
 }
 
-# Services System Scenarios (3 scenarios)
+# Services System Scenarios (1 scenario)
 SERVICES_SCENARIOS = {
-    "llm_inference_latency": {
-        "name": "LLM Inference Latency Spike",
-        "description": "Test unified LLM service resilience with slow model inference",
-        "target_system": "services_system",
-        "chaos_type": ChaosType.LATENCY,
-        "component": "unified_llm",
-        "injection_point": "llm_inference",
-        "injection_config": {
-            "delay_ms": 2000,
-            "jitter_ms": 500,
-            "duration_seconds": 300
-        },
-        "hypothesis": {
-            "hypothesis_statement": "LLM inference latency should queue requests without timeouts",
-            "expected_behavior": {
-                "max_latency_p95_ms": 2800,
-                "max_error_rate": 0.01
-            }
-        },
-        "blast_radius": 15,
-        "environment": "staging"
-    },
-
     "backup_operation_failures": {
         "name": "Backup Scheduler Operation Failures",
         "description": "Test handling of backup operation failures",
@@ -730,28 +684,6 @@ SERVICES_SCENARIOS = {
             }
         },
         "blast_radius": 5,
-        "environment": "staging"
-    },
-
-    "llm_request_queue_exhaustion": {
-        "name": "LLM Request Queue Exhaustion",
-        "description": "Test unified LLM service under request queue overflow",
-        "target_system": "services_system",
-        "chaos_type": ChaosType.RESOURCE_EXHAUSTION,
-        "component": "unified_llm",
-        "injection_point": "llm_queue",
-        "injection_config": {
-            "resource_type": "queue",
-            "duration_seconds": 360
-        },
-        "hypothesis": {
-            "hypothesis_statement": "Queue exhaustion should trigger request rejection with backpressure",
-            "expected_behavior": {
-                "max_latency_p95_ms": 1500,
-                "max_error_rate": 0.10  # Higher error rate acceptable with queue rejection
-            }
-        },
-        "blast_radius": 20,
         "environment": "staging"
     }
 }

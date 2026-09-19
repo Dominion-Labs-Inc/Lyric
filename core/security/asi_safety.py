@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-TorinAI ASI Safety Framework - Artificial Superintelligence Safety Assessment
+TorinAI ASI Safety Framework - Artificial intelligence Safety Assessment
 Advanced ASI system with emergent reasoning capabilities and self-evolving safety rules
 """
 

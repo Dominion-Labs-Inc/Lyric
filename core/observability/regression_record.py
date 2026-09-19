@@ -2,16 +2,14 @@
 """Where every part of the system says it got worse.
 
 Regression was detected in several places and aggregated in none, so nothing
-could see that three different parts of the system degraded in the same hour:
+could see that different parts of the system degraded in the same hour:
 
     rule_authority          a rule going VALIDATED -> REFUTED, in its own table
-    capability_benchmarks   regression_detected, inside one report object
-    improvement_monitor     trend_status='degrading', in long_term_baselines
     health_monitor          error rates, as a health issue string
 
 Each is correct and each is private. A rule losing execution authority IS a
-regression; it just was not counted as one alongside a capability score falling
-or a component's health dropping below its own baseline.
+regression; it just was not counted as one alongside a component's health
+dropping below its own baseline.
 
     AUTHORITIES REPORT REGRESSION. THEY DO NOT CHECK FOR IT.
 
@@ -23,8 +21,8 @@ is the thing that changes that state: nobody outside the rule store can see a
 rule lose authority at the moment it happens.
 
 So each authority reports the fact at the moment it observes it, and the
-consumers -- health, self-improvement -- read one record and decide what it
-means. `rule_authority` already had exactly this shape internally and states
+consumers read one record and decide what it means. `rule_authority` already
+had exactly this shape internally and states
 the principle: "the rule store emits the event because the rule store is what
 changes the status; the planning layer reads it and decides what that means for
 its plans. Neither knows about the other."

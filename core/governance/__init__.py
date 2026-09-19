@@ -1,16 +1,16 @@
 """
 Governance Module
 
-Unified governance trigger system for autonomous AI safety.
+Governance trigger engine for autonomous AI safety (owned by runtime governance).
 
 Main Components:
-- UnifiedGovernanceTriggerSystem: Evaluates actions across 8 action categories
+- GovernanceTriggerEngine: Evaluates actions across 8 action categories
 - ContextClassifier: Non-destructive context labeling for governance quality
 
 Usage:
-    from core.governance import UnifiedGovernanceTriggerSystem, ActionCategory
+    from core.governance import GovernanceTriggerEngine, ActionCategory
 
-    trigger_system = UnifiedGovernanceTriggerSystem()
+    trigger_system = GovernanceTriggerEngine()
 
     evaluation = await trigger_system.evaluate_action(
         action_category=ActionCategory.TOOL_EXECUTION,
@@ -28,15 +28,18 @@ Usage:
         )
 """
 
-from core.governance.unified_governance_trigger_system import (
-    UnifiedGovernanceTriggerSystem,
+# The governance trigger ENGINE (per-invocation risk-tier evaluation). Runtime
+# governance owns the evaluation authority (RuntimeGovernance.evaluate_action);
+# the engine + its types live here. (Was the UnifiedGovernanceTriggerSystem,
+# now renamed; the "unified governance" system is gone.)
+from core.governance.governance_triggers import (
+    GovernanceTriggerEngine,
+    get_governance_trigger_engine,
     ActionCategory,
     EnforcementMode,
     IrreversibilityClass,
     DecisionTier,
     GovernanceTriggerEvaluation,
-    get_unified_governance,
-    get_governance_system
 )
 
 from core.governance.context_classifier import (
@@ -47,17 +50,14 @@ from core.governance.context_classifier import (
 )
 
 __all__ = [
-    # Unified Governance Trigger System
-    "UnifiedGovernanceTriggerSystem",
+    # Governance trigger engine + types (evaluation authority = RuntimeGovernance)
+    "GovernanceTriggerEngine",
+    "get_governance_trigger_engine",
     "ActionCategory",
     "EnforcementMode",
     "IrreversibilityClass",
     "DecisionTier",
     "GovernanceTriggerEvaluation",
-
-    # Singleton getters
-    "get_unified_governance",
-    "get_governance_system",
 
     # Context Classifier
     "ContextClassifier",

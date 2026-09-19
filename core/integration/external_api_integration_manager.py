@@ -426,10 +426,10 @@ class ExternalAPIIntegrationManager:
     ) -> APISafetyEvaluation:
         """Trigger governance for blocked/flagged APIs"""
         try:
-            from core.governance import get_unified_governance, ActionCategory
+            from core.governance import get_governance_trigger_engine, ActionCategory
 
             # Use governance singleton
-            governance = get_unified_governance()
+            governance = get_governance_trigger_engine()
             result = await governance.evaluate_action(
                 action_category=ActionCategory.EXTERNAL_INTEGRATIONS,
                 action_type="external_api_addition",

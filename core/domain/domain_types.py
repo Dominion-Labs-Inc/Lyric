@@ -13,6 +13,8 @@ from typing import Dict, List, Set, Optional, Any, Tuple, Union
 from datetime import datetime
 import json
 
+import numpy as np
+
 logger = logging.getLogger(__name__)
 
 
@@ -33,6 +35,10 @@ class DomainType(Enum):
     ETHICAL = "ethical"
     AESTHETIC = "aesthetic"
     PRACTICAL = "practical"
+    #: a place the substrate INHABITS (not a subject it knows about) — the environment it lives and
+    #: acts in. Tagged so environments are first-class and resolved empirically (by probing), not
+    #: looked up. Registering one records a max-uncertainty belief, so it becomes a target to explore.
+    ENVIRONMENT = "environment"
 
 
 class ConceptType(Enum):
@@ -330,157 +336,88 @@ class KnowledgeTransfer:
             self.transfer_id = str(uuid.uuid4())
 
 
-# Utility functions for domain operations
-def _lexical_similarity(a: str, b: str) -> float:
-    """Token-overlap similarity over concept text. Sync and O(1)-ish.
+# Concept similarity.
+#
+# Meaning dominates (0.6); structure corroborates it and is gated on it, so
+# shared metadata amplifies a real resemblance and contributes nothing to an
+# imaginary one. A cross-domain analogy has different names by definition, so
+# the description carries the semantic term on its own when names differ.
+#
+# ONE definition over arrays. Text meaning comes from stored unit vectors
+# (UniversalDomainMaster owns them); nothing here encodes text.
+CONCEPT_SEMANTIC_WEIGHT = 0.60
+CONCEPT_NAME_WEIGHT = 0.30
+CONCEPT_DESCRIPTION_WEIGHT = 0.70
+CONCEPT_CORROBORATION_SATURATION = 0.35
 
-    Deliberately lexical rather than embedding-based: this is called inside the
-    cross-domain strategies' cartesian-product loops (N x M concept pairs), and
-    an async embedding round-trip per pair would be ruinous. Embeddings would be
-    a strict improvement IF this is ever moved off the hot path or backed by a
-    pair cache -- embedding_service.compute_similarity() already exists for it.
+
+def text_key(text: Optional[str]) -> str:
+    """The form under which two concept texts count as identical. '' = no text."""
+    return (text or "").strip().lower()
+
+
+def concept_structure_table(
+    groups_a: List[Tuple[frozenset, str, float]],
+    groups_b: List[Tuple[frozenset, str, float]],
+) -> np.ndarray:
+    """Structural term for every pair of structure groups.
+
+    A group is (property keys, concept type, abstraction level); the term is
+    0.20 * property-key Jaccard + 0.10 * type match + 0.10 * abstraction proximity.
     """
-    if not a or not b:
-        return 0.0
-    ta = {t for t in re.split(r"[^a-z0-9]+", a.lower()) if len(t) > 2}
-    tb = {t for t in re.split(r"[^a-z0-9]+", b.lower()) if len(t) > 2}
-    if not ta or not tb:
-        return 1.0 if a.strip().lower() == b.strip().lower() else 0.0
-    return len(ta & tb) / len(ta | tb)
+    table = np.zeros((len(groups_a), len(groups_b)), dtype=np.float64)
+    for i, (keys_a, type_a, level_a) in enumerate(groups_a):
+        for j, (keys_b, type_b, level_b) in enumerate(groups_b):
+            overlap = (len(keys_a & keys_b) / len(keys_a | keys_b)
+                       if keys_a and keys_b else 0.0)
+            table[i, j] = (0.20 * overlap
+                           + 0.10 * (1.0 if type_a == type_b else 0.0)
+                           + 0.10 * (1.0 - min(1.0, abs(level_a - level_b))))
+    return table
 
 
-# Pair-cache backing the encoder, which is what the note above said was the
-# precondition for using it here. Concept text is stable and the strategies
-# walk the same concepts repeatedly, so the cartesian-product loops encode each
-# distinct string once, not once per pair.
-_EMBED_CACHE: Dict[str, Optional[List[float]]] = {}
-_EMBED_CACHE_MAX = 4096
-_EMBED_STATE: Dict[str, Any] = {"degraded_warned": False}
+def concept_group(concept: "DomainConcept") -> Tuple[frozenset, str, float]:
+    ctype = concept.concept_type
+    return (frozenset((concept.properties or {}).keys()),
+            ctype.value if isinstance(ctype, Enum) else str(ctype),
+            float(concept.abstraction_level))
 
 
-def _embed(text: str) -> Optional[List[float]]:
-    """Cached encode through the shared embedding service. None if unavailable."""
-    key = text.strip().lower()
-    if not key:
-        return None
-    if key in _EMBED_CACHE:
-        return _EMBED_CACHE[key]
-    try:
-        from core.memory.utils.embedding_service import get_embedding_service
-        vec = get_embedding_service().generate_embedding(text)
-    except Exception as e:  # encoder absent / model not cached locally
-        logger.debug(f"concept embedding unavailable: {e}")
-        vec = None
-    if len(_EMBED_CACHE) < _EMBED_CACHE_MAX:
-        _EMBED_CACHE[key] = vec
-    return vec
+def concept_similarity_scores(
+    name_cosine: np.ndarray, description_cosine: np.ndarray,
+    name_identical: np.ndarray, description_identical: np.ndarray,
+    name_absent: np.ndarray, description_absent: np.ndarray,
+    structure: np.ndarray,
+) -> np.ndarray:
+    """Similarity for aligned arrays of concept pairs, rounded to 4 places.
 
-
-def _semantic_similarity(a: str, b: str) -> float:
-    """How close two pieces of concept text are in MEANING.
-
-    Token overlap cannot express the thing cross-domain reasoning exists to
-    find. "muscular organ that pumps blood through vessels" and "mechanical
-    device that pumps fluid through pipes" are the same idea in two domains,
-    and share 0.38 of their words; the encoder puts them at 0.51 while placing
-    an unrelated concept at 0.00. Lexical overlap remains the fallback, but it
-    announces itself rather than silently degrading the whole subsystem to
-    word-matching.
+    Per text: absent on either side -> 0, identical key -> 1, otherwise the
+    cosine of the two unit vectors clamped to [0, 1].
     """
-    if not a or not b:
-        return 0.0
-    if a.strip().lower() == b.strip().lower():
-        return 1.0
-
-    va, vb = _embed(a), _embed(b)
-    if va is not None and vb is not None:
-        try:
-            from core.memory.utils.embedding_service import get_embedding_service
-            sim = get_embedding_service().compute_similarity(va, vb)
-            if sim is not None:
-                return float(sim)
-        except Exception as e:
-            logger.debug(f"concept similarity encode failed: {e}")
-
-    if not _EMBED_STATE["degraded_warned"]:
-        _EMBED_STATE["degraded_warned"] = True
-        logger.warning(
-            "DEGRADED: concept similarity has fallen back to lexical token overlap "
-            "because the embedding service is unavailable. Cross-domain analogies "
-            "between differently-named concepts will be under-scored and most will "
-            "fall below the mapping threshold."
-        )
-    return _lexical_similarity(a, b)
+    name_sim = np.clip(name_cosine, 0.0, 1.0)
+    name_sim = np.where(name_identical, 1.0, name_sim)
+    name_sim = np.where(name_absent, 0.0, name_sim)
+    desc_sim = np.clip(description_cosine, 0.0, 1.0)
+    desc_sim = np.where(description_identical, 1.0, desc_sim)
+    desc_sim = np.where(description_absent, 0.0, desc_sim)
+    semantic = np.maximum(name_sim, CONCEPT_NAME_WEIGHT * name_sim
+                          + CONCEPT_DESCRIPTION_WEIGHT * desc_sim)
+    corroboration = np.minimum(1.0, semantic / CONCEPT_CORROBORATION_SATURATION)
+    score = CONCEPT_SEMANTIC_WEIGHT * semantic + corroboration * structure
+    return np.round(np.minimum(score, 1.0), 4)
 
 
-def calculate_concept_similarity(concept1: DomainConcept, concept2: DomainConcept) -> float:
-    """Similarity between two concepts, dominated by what they MEAN.
+def semantic_floor(threshold: float, max_structure: float) -> float:
+    """Smallest semantic term that can still score above `threshold`.
 
-    The previous version scored ONLY structural metadata -- concept_type
-    equality (0.3), property-KEY overlap (0.4) and abstraction-level proximity
-    (0.3) -- and never read `name` or `description`. Two entirely unrelated
-    concepts that happened to share a type and abstraction level scored a
-    floor of 0.6 by construction.
-
-    That floor was load-bearing in the worst way: cross_domain_reasoner stores
-    any mapping above 0.4 into semantic memory, so unrelated domains produced
-    persisted, "verified" cross-domain equivalences. Verified before this fix:
-    `alpha part_of beta` vs `zeta part_of omega` scored 0.6.
-
-    Meaning now dominates (0.6 of the weight); structure is weak corroboration.
+    The score is increasing in the semantic term and bounded by the largest
+    structural term, so any pair below this floor cannot pass.
     """
-    name_sim = _semantic_similarity(
-        getattr(concept1, "name", "") or "", getattr(concept2, "name", "") or ""
-    )
-    desc_sim = _semantic_similarity(
-        getattr(concept1, "description", "") or "",
-        getattr(concept2, "description", "") or "",
-    )
-    # A matching name is the strongest signal, but it is the WRONG thing to
-    # require here: a cross-domain analogy has different names by definition --
-    # that is what makes it cross-domain. The previous weighting capped the
-    # description's contribution at 0.3 of the semantic term, so with name_sim=0
-    # the semantic term could not exceed 0.3 and the total could not exceed
-    #     0.6*0.3 + 0.2 + 0.1 + 0.1 = 0.58
-    # against suggest_cross_domain_mappings' `> 0.6` threshold. A PERFECT
-    # analogy -- identical description, identical properties, identical type and
-    # abstraction, differing only in name -- scored 0.58 and was rejected.
-    # Cross-domain mappings were unreachable by construction; only concepts
-    # sharing a name could produce one, which is not an analogy at all.
-    # Description now carries the semantic term on its own when names differ.
-    semantic = max(name_sim, 0.30 * name_sim + 0.70 * desc_sim)
-
-    props1 = set(concept1.properties.keys())
-    props2 = set(concept2.properties.keys())
-    prop_overlap = (
-        len(props1 & props2) / len(props1 | props2) if (props1 and props2) else 0.0
-    )
-
-    type_match = 1.0 if concept1.concept_type == concept2.concept_type else 0.0
-    abs_diff = abs(concept1.abstraction_level - concept2.abstraction_level)
-    abstraction = 1.0 - min(1.0, abs_diff)
-
-    # Structure CORROBORATES meaning; it must not substitute for it. Summed
-    # unconditionally, the three structural terms are a 0.40 floor for any two
-    # concepts that share a type, an abstraction level and their property keys
-    # -- regardless of what they mean. `glacier` and `compiler` with identical
-    # metadata scored 0.4868 that way, over the 0.40 at which
-    # cross_domain_reasoner persists a mapping into semantic memory. That is
-    # how a fabricated "cross-domain mapping" memory got written at confidence
-    # 1.0 during an audit probe. Gating on the semantic term means shared
-    # metadata amplifies a real resemblance and contributes nothing to an
-    # imaginary one.
-    corroboration = min(1.0, semantic / 0.35)
-
-    score = (
-        0.60 * semantic          # what the concepts actually are
-        + corroboration * (
-            0.20 * prop_overlap    # shared structure
-            + 0.10 * type_match    # weak: everything is an "entity"
-            + 0.10 * abstraction   # weak: proximity is not relatedness
-        )
-    )
-    return round(min(score, 1.0), 4)
+    saturation = CONCEPT_CORROBORATION_SATURATION
+    weight = CONCEPT_SEMANTIC_WEIGHT
+    if weight * saturation + max_structure > threshold:
+        return threshold / (weight + max_structure / saturation)
+    return (threshold - max_structure) / weight
 
 
 def _surface_key(text: str) -> str:
@@ -530,71 +467,49 @@ def structural_complexity(domain: Domain) -> float:
     return round(0.4 * size + 0.3 * density + 0.3 * variety, 4)
 
 
-def calculate_domain_similarity(domain1: Domain, domain2: Domain) -> float:
+@dataclass(frozen=True)
+class DomainSignature:
+    """What domain similarity reads from a domain, computed once per content version."""
+    domain_type: Optional[DomainType]
+    names: frozenset
+    targets: frozenset
+    verbs: frozenset
+    complexity: float
+
+
+def domain_signature(domain: Domain) -> DomainSignature:
+    """O(concepts); run it off the event loop for large domains."""
+    concepts = list(domain.concepts.values())
+    return DomainSignature(
+        domain_type=domain.domain_type,
+        names=frozenset(_surface_key(c.name) for c in concepts),
+        targets=frozenset(_surface_key(t) for c in concepts
+                          for t in (c.related_concepts or ())),
+        verbs=frozenset(_relation_vocabulary(domain)),
+        complexity=structural_complexity(domain),
+    )
+
+
+def domain_similarity(sig1: DomainSignature, sig2: DomainSignature) -> float:
     """Similarity between two domains, from measures that can actually fire.
 
-    The previous version had four terms of which TWO WERE STRUCTURALLY DEAD and
-    a third was constant. Measured over 153 pairs of 18 populated domains:
-
-        concept overlap   0.4  0/153 pairs shared an exact concept name
-        principle overlap 0.2  0/33 domains had core_principles populated
-        type match        0.2  fires
-        complexity        0.2  ALL complexity_score == 0.5 -> always exactly 0.2
-
-        distinct values produced: [0.2, 0.4]   ceiling 0.4
-
-    60% of the weight could never contribute, so the score had two reachable
-    values and could not rank anything. It was nevertheless being used to choose
-    which domains to attempt knowledge transfer from, while the concept-level
-    mapping strength that DOES discriminate (0.0-0.80 across the same domains)
-    was computed only afterwards, on whichever three the constant happened to
-    yield.
-
-    Why concept-name overlap could never fire: under the identity model a
-    concept shared by two domains is ONE concept with two domain memberships,
-    not two rows with the same name. That term asked a question the data model
-    is designed to make impossible.
-
-    The replacements use what the graph actually holds:
-
-        type affinity        0.15  same DomainType, or same category family
+        type affinity        0.15  same DomainType
         conceptual coupling  0.35  relation targets naming the other's concepts
         structural signature 0.30  shared relation vocabulary (Jaccard)
-        scale affinity       0.20  computed complexity, not the 0.5 default
+        scale affinity       0.20  computed complexity
+
+    Concept-name overlap is not a term: under the identity model a concept
+    shared by two domains is ONE concept with two memberships.
     """
     score = 0.0
-
-    # 1. TYPE AFFINITY — unchanged in intent, reduced in weight because it is
-    #    coarse: 4 distinct types across 18 populated domains.
-    if domain1.domain_type == domain2.domain_type:
+    if sig1.domain_type == sig2.domain_type:
         score += 0.15
-
-    # 2. CONCEPTUAL COUPLING — does one domain's structure REFER to the other's
-    #    concepts? This is the honest replacement for name overlap: domains are
-    #    related when their concepts are linked, not when they duplicate names.
-    names1 = {_surface_key(c.name) for c in domain1.concepts.values()}
-    names2 = {_surface_key(c.name) for c in domain2.concepts.values()}
-    targets1 = {_surface_key(t) for c in domain1.concepts.values()
-                for t in (c.related_concepts or ())}
-    targets2 = {_surface_key(t) for c in domain2.concepts.values()
-                for t in (c.related_concepts or ())}
-    if names1 and names2:
-        crossing = len(targets1 & names2) + len(targets2 & names1)
-        reachable = len(targets1) + len(targets2)
+    if sig1.names and sig2.names:
+        crossing = len(sig1.targets & sig2.names) + len(sig2.targets & sig1.names)
+        reachable = len(sig1.targets) + len(sig2.targets)
         if reachable:
             score += 0.35 * min(1.0, crossing / reachable)
-
-    # 3. STRUCTURAL SIGNATURE — two domains that describe their concepts with
-    #    the same KINDS of relation share structure even with no shared
-    #    vocabulary of things. This is what the dead principle-overlap term was
-    #    reaching for, measured from data that exists.
-    verbs1, verbs2 = _relation_vocabulary(domain1), _relation_vocabulary(domain2)
-    if verbs1 and verbs2:
-        score += 0.30 * (len(verbs1 & verbs2) / len(verbs1 | verbs2))
-
-    # 4. SCALE AFFINITY — computed complexity. Domains of wildly different
-    #    maturity are poor transfer partners regardless of topic.
-    c1, c2 = structural_complexity(domain1), structural_complexity(domain2)
-    score += 0.20 * (1.0 - abs(c1 - c2))
-
+    if sig1.verbs and sig2.verbs:
+        score += 0.30 * (len(sig1.verbs & sig2.verbs) / len(sig1.verbs | sig2.verbs))
+    score += 0.20 * (1.0 - abs(sig1.complexity - sig2.complexity))
     return round(min(score, 1.0), 4)

@@ -1,0 +1,97 @@
+{
+  "experiment": "TASK-RESULT-01",
+  "claim": "The task loop is fully wired AND scoped to who asked: a job entering the one front door is queued as a Task owned by the verified requester, returns a task_id acknowledgement immediately, and its result is retrievable only by that requester.",
+  "hypothesis": "If scoping were cosmetic, another identity could poll the handle and read the result, or the Task would be attributed to the substrate itself.",
+  "started_at": "2026-09-18T11:34:21.510122+00:00",
+  "duration_seconds": 4.342,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/TorinAI/venv_torin/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/TorinAI",
+    "shadow_mode": "1",
+    "git_commit": "a36cac20c24cef93cfa6d22ef82bf9a3169e9a5b",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "torinai_db",
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "dotenv:.env.postgres",
+        "database": "dotenv:.env.postgres",
+        "user": "dotenv:.env.postgres",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres"
+      }
+    },
+    "git_uncommitted_changes": 280,
+    "database_verified": "torinai_db",
+    "database_verified_reason": "asked the server"
+  },
+  "summary": {
+    "checks": 9,
+    "passed": 9,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [],
+  "checks": [
+    {
+      "label": "ack carries a task_id",
+      "passed": true,
+      "detail": "ack={'success': True, 'task_id': 'user_48d2e49d331a', 'source': 'api', 'priority': 'HIGH', 'poll_with': {'task_result': 'user_48d2e49d331a'}}",
+      "at": "2026-09-18T11:34:25.847116+00:00"
+    },
+    {
+      "label": "ack carries the poll handle",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-18T11:34:25.847140+00:00"
+    },
+    {
+      "label": "the Task is scoped to the requester (not the substrate)",
+      "passed": true,
+      "detail": "actor=wa-user-ed568a94",
+      "at": "2026-09-18T11:34:25.847147+00:00"
+    },
+    {
+      "label": "status is a working state, no result yet",
+      "passed": true,
+      "detail": "early={'task_id': 'user_48d2e49d331a', 'status': 'pending'}",
+      "at": "2026-09-18T11:34:25.847162+00:00"
+    },
+    {
+      "label": "status completed + result returned (direct method)",
+      "passed": true,
+      "detail": "done={'task_id': 'user_48d2e49d331a', 'status': 'completed', 'result': {'summary': 'revenue up 12%', 'quality_score': 0.9}}",
+      "at": "2026-09-18T11:34:25.849153+00:00"
+    },
+    {
+      "label": "same result through the one front door (task_result poll)",
+      "passed": true,
+      "detail": "via_door={'task_id': 'user_48d2e49d331a', 'status': 'completed', 'result': {'summary': 'revenue up 12%', 'quality_score': 0.9}}",
+      "at": "2026-09-18T11:34:25.849186+00:00"
+    },
+    {
+      "label": "status failed + error",
+      "passed": true,
+      "detail": "failed={'task_id': 'user_464832a1e8bc', 'status': 'failed', 'error': 'no tool could do it'}",
+      "at": "2026-09-18T11:34:25.851424+00:00"
+    },
+    {
+      "label": "another actor gets not_found (no result leak, no enumeration)",
+      "passed": true,
+      "detail": "sneak={'task_id': 'user_48d2e49d331a', 'status': 'not_found'}",
+      "at": "2026-09-18T11:34:25.851436+00:00"
+    },
+    {
+      "label": "and not through the front door either",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-18T11:34:25.851446+00:00"
+    }
+  ],
+  "notes": []
+}

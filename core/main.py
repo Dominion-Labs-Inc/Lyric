@@ -4,12 +4,12 @@ TorinAI Main Entry Point
 =========================
 Primary initialization and orchestration for TorinAI system
 
-CRITICAL INITIALIZATION ORDER (from system_logs analysis):
-1. UnifiedLLMService (the teacher model) - MUST BE FIRST
+INITIALIZATION ORDER (model-free: no language model is started):
+1. (retired) — the unified LLM service was removed
 2. Database Systems (PostgreSQL pools, unified database)
 3. Memory System (PostgreSQL hot/cold tier storage)
 4. Domain Systems (registry, ontology, reasoner, domain master)
-5. Learning System (connects to the teacher model)
+5. Learning System
 6. Research & Predictive Intelligence
 7. Health Monitoring & Recovery
 8. Quantum Computing Systems
@@ -170,12 +170,12 @@ class TorinAISystem:
     """
     TorinAI Main System Orchestrator
 
-    Manages initialization, coordination, and shutdown of all subsystems:
-    - UnifiedLLMService (the teacher model) - initialized FIRST
+    Manages initialization, coordination, and shutdown of all subsystems
+    (model-free — no language model):
     - Database systems (PostgreSQL, unified DB)
     - Memory and knowledge management
     - Domain reasoning and integration
-    - Learning and self-improvement
+    - Learning (the substrate improves only by learning)
     - Research and predictive intelligence
     - Health monitoring and recovery
     - Quantum computing subsystems
@@ -191,9 +191,6 @@ class TorinAISystem:
         # System state
         self.running = False
         self.initialized = False
-
-        # PHASE 1: THE TEACHER MODEL (initialized FIRST)
-        self.llm_service = None  # UnifiedLLMService - the teacher model
 
         # PHASE 2: Database Systems
         self.unified_database = None  # PostgreSQL unified database
@@ -220,8 +217,6 @@ class TorinAISystem:
         # PHASE 7: Health & Monitoring
         self.health_monitor = None
         self.recovery_manager = None
-        self.system_watchdog = None
-        self.monitoring_coordinator = None
 
         # PHASE 8: Quantum Computing
         self.quantum_system = None
@@ -237,7 +232,6 @@ class TorinAISystem:
         # PHASE 11: Security & Safety
         self.security_system = None
         self.asi_safety = None
-        self.self_improvement_engine = None
         self.integrated_security = None
 
         # PHASE 12: Additional Services
@@ -249,13 +243,12 @@ class TorinAISystem:
         self.memory_injector = None
         self.slack_notifier = None
         self.logical_integration = None
-        self.audit_worker = None
         self.training_pipeline = None
         self.backup_scheduler = None
         self.testing_tools = None
 
         # Governance & Task Management
-        self.governance_system = None  # UnifiedGovernanceTriggerSystem
+        self.governance_system = None  # GovernanceTriggerEngine
         self.tool_registry = None  # Central tool registry
         self.extrinsic_task_manager = None  # External task manager
 
@@ -287,8 +280,6 @@ class TorinAISystem:
         logger.info("TorinAI System Initialization - PRODUCTION MODE")
         logger.info("=" * 80)
         logger.info("Initialization Order:")
-        logger.info("  1.  UnifiedLLMService (the teacher model) - CRITICAL FIRST")
-        logger.info("  1b. Context compression service - CRITICAL")
         logger.info("  2.  Database Systems")
         logger.info("  3.  Memory System")
         logger.info("  4.  Domain Systems")
@@ -303,30 +294,9 @@ class TorinAISystem:
         logger.info("=" * 80)
 
         try:
-            # ================================================================
-            # PHASE 1: INITIALIZE THE TEACHER MODEL (CRITICAL - MUST BE FIRST)
-            # ================================================================
-            logger.info("")
-            logger.info("PHASE 1: Initializing the teacher model (UnifiedLLMService)")
-            logger.info("-" * 80)
-
-            await self._initialize_llm_service()
-
-            if not self.llm_service:
-                logger.error(
-                    "CRITICAL FAILURE: the teacher model failed to initialize!\n"
-                    "Cannot proceed without LLM service. All other systems depend on it."
-                )
-                try:
-                    from core.utils.notification_publisher import send_system_notification
-                    await send_system_notification(
-                        title="🚨 CRITICAL: TorinAI Core Model Failed to Initialize",
-                        message="**Unified model service initialization failed!**\n\nSystem cannot start without the core model. All other systems depend on it.\n\n**Action Required:** Check model service configuration and logs.",
-                        severity="critical"
-                    )
-                except:
-                    pass
-                return
+            # No language model. The unified LLM service, the LLM teacher, and
+            # TeacherPolicy were retired; the substrate is model-free by
+            # construction and nothing here starts or consults a model.
 
             # ================================================================
             # (Former PHASE 1b — the context-compression LLM front-end — is
@@ -470,7 +440,6 @@ class TorinAISystem:
                 support_services = []
 
                 # Core systems (essential infrastructure)
-                if getattr(self, 'llm_service', None): core_services.append("UnifiedLLM")
                 if getattr(self, 'unified_database', None): core_services.append("PostgreSQL")
                 if getattr(self, 'memory_system', None): core_services.append("Memory")
 
@@ -533,73 +502,6 @@ class TorinAISystem:
         except Exception as e:
             logger.error(f"Initialization failed: {e}", exc_info=True)
             raise
-
-    # ========================================================================
-    # PHASE 1: THE TEACHER MODEL (CRITICAL - MUST BE FIRST)
-    # ========================================================================
-
-    async def _initialize_llm_service(self):
-        """Initialize UnifiedLLMService (the teacher model) - MUST BE FIRST"""
-        try:
-            from core.services.unified_llm import get_llm_service
-
-            logger.info("🎓 Initializing the teacher model...")
-
-            # Get singleton instance
-            self.llm_service = get_llm_service()
-
-            # Initialize with extended timeout (model loading can take 30-60s)
-            success = await asyncio.wait_for(
-                self.llm_service.initialize(),
-                timeout=120.0  # 2 minute timeout for model loading
-            )
-
-            if success:
-                logger.info("✅ TEACHER MODEL INITIALIZED")
-                logger.info(f"   Model device: {self.llm_service.device.value if self.llm_service.device else 'unknown'}")
-                logger.info(f"   Model loaded: {self.llm_service.model_loaded}")
-                self.stats['services_initialized'] += 1
-
-                # Test the teacher model with a simple generation
-                try:
-                    logger.info("   Testing the teacher model with a simple generation...")
-                    from core.services.unified_llm import LLMRequest
-
-                    test_request = LLMRequest(
-                        prompt="Respond with: OK",
-                        system_prompt="You are Torin.",
-                        agent_type="test",
-                        # Qwen3.6 reasons before answering: at 10 tokens the
-                        # budget is spent on chain-of-thought and the answer is
-                        # empty, so the startup self-test can never see one.
-                        # Measured: 256 is the first budget that yields content.
-                        max_tokens=320,
-                        temperature=0.1
-                    )
-
-                    test_response = await asyncio.wait_for(
-                        self.llm_service.process_request(test_request),
-                        timeout=30.0
-                    )
-
-                    if test_response.success:
-                        logger.info("   ✅ Teacher model test passed - ready for use")
-                    else:
-                        logger.warning(f"   ⚠️ Teacher model test failed: {test_response.error}")
-
-                except Exception as e:
-                    logger.warning(f"   ⚠️ Teacher model test failed: {e}")
-
-            else:
-                logger.error("❌ Teacher model failed to initialize")
-                self.stats['services_failed'] += 1
-
-        except asyncio.TimeoutError:
-            logger.error("❌ Teacher model initialization timeout (exceeded 120s)")
-            self.stats['services_failed'] += 1
-        except Exception as e:
-            logger.error(f"❌ Failed to initialize the teacher model: {e}", exc_info=True)
-            self.stats['services_failed'] += 1
 
     # ========================================================================
     # PHASE 2: DATABASE SYSTEMS
@@ -814,8 +716,6 @@ class TorinAISystem:
         try:
             from core.learning.unified_learning_system import get_learning_authority
             from core.learning.unified_learning_system import get_unified_learning_system
-            from core.learning.enhanced_asi_self_improvement import get_asi_self_improvement
-            from core.learning.improvement_monitor import get_improvement_monitor
 
             logger.info("=" * 80)
             logger.info("🧠 Initializing Complete Learning System")
@@ -844,9 +744,6 @@ class TorinAISystem:
                 learning = authority  # same object; kept for the injection below
 
                 # Inject dependencies into the authority.
-                if self.llm_service:
-                    learning.llm_service = self.llm_service
-                    logger.info("   ✅ Teacher model injected")
                 if self.memory_system:
                     learning.memory_system = self.memory_system
                     logger.info("   ✅ Memory system injected")
@@ -854,48 +751,11 @@ class TorinAISystem:
                 await learning.initialize()
                 logger.info("   ✅ Learning authority ready (strategies integrated)")
 
-                # 2. Initialize ImprovementMonitor
-                logger.info("📊 Initializing Improvement Monitor...")
-                improvement_monitor = get_improvement_monitor()
-
-                if hasattr(improvement_monitor, 'initialize'):
-                    await improvement_monitor.initialize()
-                logger.info("   ✅ Improvement Monitor ready")
-
-                # 3. Initialize EnhancedASI Self-Improvement
-                logger.info("🔧 Initializing Enhanced ASI Self-Improvement...")
-                asi = get_asi_self_improvement()
-
-                # Inject dependencies into EnhancedASI
-                if self.llm_service:
-                    asi.llm = self.llm_service
-                    logger.info("   ✅ Teacher model injected")
-
-                if self.memory_system:
-                    asi.memory = self.memory_system
-                    logger.info("   ✅ Memory system injected")
-
-                # Wire improvement_monitor to ASI
-                asi._monitor = improvement_monitor
-                logger.info("   ✅ Improvement Monitor wired")
-
-                if hasattr(asi, 'initialize'):
-                    await asi.initialize()
-                logger.info("   ✅ Enhanced ASI Self-Improvement ready")
-
-                # Store references for later use
-                learning._asi_self_improvement = asi
-                learning._improvement_monitor = improvement_monitor
-
                 logger.info("=" * 80)
-                logger.info("✅ Complete Learning System Initialized")
-                logger.info("   • Unified Learning System: ✓")
-                logger.info("   • Improvement Monitor: ✓")
-                logger.info("   • Enhanced ASI: ✓")
-                logger.info("   • Dependencies Injected: ✓")
+                logger.info("✅ Learning System Initialized (substrate authority)")
                 logger.info("=" * 80)
 
-                return (learning, asi, improvement_monitor)
+                return learning
 
             result = await self.service_init.initialize_service(
                 "learning_system",
@@ -904,12 +764,10 @@ class TorinAISystem:
             )
 
             if result:
-                self.learning_system, self.asi_self_improvement, self.improvement_monitor = result
+                self.learning_system = result
                 self.stats['services_initialized'] += 1
             else:
                 self.learning_system = None
-                self.asi_self_improvement = None
-                self.improvement_monitor = None
                 self.stats['services_failed'] += 1
 
         except Exception as e:
@@ -1054,39 +912,6 @@ class TorinAISystem:
             logger.error(f"Recovery manager initialization failed: {e}")
             self.stats['services_failed'] += 1
 
-        # System Watchdog
-        #
-        # Nothing in this file referenced the watchdog, so it was never
-        # constructed and never started: the component that detects failing
-        # subsystems and drives recovery was absent for the whole run, and the
-        # health system reported CRITICAL on watchdog_running for exactly that
-        # reason. Its start() also starts the health monitor's own periodic
-        # loop, which was likewise never running -- so health was only ever
-        # measured when something asked for it directly.
-        #
-        # Constructed here and started in start(), matching the audit worker and
-        # backup scheduler: initialize() builds, start() runs the loops.
-        try:
-            from core.health.system_watchdog import get_system_watchdog
-
-            async def init_watchdog():
-                return get_system_watchdog()
-
-            self.system_watchdog = await self.service_init.initialize_service(
-                "system_watchdog",
-                init_watchdog,
-                timeout=10
-            )
-
-            if self.system_watchdog:
-                self.stats['services_initialized'] += 1
-            else:
-                self.stats['services_failed'] += 1
-
-        except Exception as e:
-            logger.error(f"System watchdog initialization failed: {e}")
-            self.stats['services_failed'] += 1
-
     # ========================================================================
     # PHASE 8: QUANTUM COMPUTING
     # ========================================================================
@@ -1126,13 +951,12 @@ class TorinAISystem:
             from core.quantum.quantum_learning_bridge import initialize_quantum_learning_bridge
 
             async def init_bridge():
-                # Check if LLM service is initialized
-                if not self.llm_service or not self.llm_service.model_loaded:
-                    logger.warning("LLM service is not initialized")
-                    return None
-
-                bridge = await initialize_quantum_learning_bridge()
-                return bridge
+                # Not started: the quantum subsystem is disabled (no IBM access,
+                # qiskit_algorithms not installed — see the health registry). This
+                # previously gated on a loaded language model, but the bridge has
+                # no model dependency; that gate was removed with the unified LLM.
+                logger.info("Quantum learning bridge not started (quantum subsystem disabled)")
+                return None
 
             self.quantum_learning_bridge = await self.service_init.initialize_service(
                 "quantum_learning_bridge",
@@ -1143,9 +967,6 @@ class TorinAISystem:
 
             if self.quantum_learning_bridge:
                 self.stats['services_initialized'] += 1
-            else:
-                logger.warning("Failed to initialize quantum learning bridge: LLM service is not initialized")
-                self.stats['services_failed'] += 1
 
         except Exception as e:
             logger.error(f"Quantum learning bridge initialization failed: {e}")
@@ -1239,7 +1060,7 @@ class TorinAISystem:
             logger.info("Initializing Autonomous Coordinator (THE SINGLETON)...")
 
             async def init_coordinator():
-                coordinator = await get_autonomous_coordinator(teacher_model=self.llm_service)
+                coordinator = await get_autonomous_coordinator()
 
                 # Inject dependencies
                 if self.quantum_reasoning:
@@ -1254,8 +1075,6 @@ class TorinAISystem:
                 # self.learning_system` set a SECOND name for that same object;
                 # it is gone. `self.learning_system` here and coordinator.learning
                 # are identical, and this phase already ran .initialize() on it.
-                if hasattr(self, 'asi_self_improvement') and self.asi_self_improvement:
-                    coordinator.asi_self_improvement = self.asi_self_improvement
                 # Inject the INITIALIZED singleton. The coordinator otherwise
                 # constructs its own PredictiveIntelligenceSystem that main never
                 # initialize()s — two live instances of one subsystem, with the
@@ -1263,12 +1082,6 @@ class TorinAISystem:
                 if getattr(self, 'predictive_intelligence', None):
                     coordinator.intelligence = self.predictive_intelligence
                     logger.info("✓ Autonomous coordinator connected to predictive intelligence")
-                    logger.info("✓ ASI Self-Improvement injected into coordinator")
-
-                # Inject governance system (SINGLETON pattern - only ONE instance)
-                if hasattr(self, 'governance_system') and self.governance_system:
-                    coordinator.governance = self.governance_system
-                    logger.info("✓ Governance System injected into coordinator")
 
                 # Inject health monitoring systems (SINGLETON pattern - only ONE instance)
                 if hasattr(self, 'health_monitor') and self.health_monitor:
@@ -1391,21 +1204,6 @@ class TorinAISystem:
                     self.autonomous_coordinator.governance_system = self.governance_system
                     logger.info("✓ Autonomous coordinator connected to governance system")
 
-                # Wire up security audit worker reference
-                if self.audit_worker:
-                    self.autonomous_coordinator.security_audit_worker = self.audit_worker
-                    logger.info("✓ Autonomous coordinator connected to security audit worker")
-
-                # Wire up monitoring coordinator integrations (if monitoring enabled)
-                if hasattr(self.autonomous_coordinator, 'monitoring_coordinator') and self.autonomous_coordinator.monitoring_coordinator:
-                    if self.slack_notifier and hasattr(self.autonomous_coordinator.monitoring_coordinator, 'set_slack_notifier'):
-                        self.autonomous_coordinator.monitoring_coordinator.set_slack_notifier(self.slack_notifier)
-                        logger.info("✓ Monitoring coordinator connected to Slack notifier")
-
-                    if hasattr(self.autonomous_coordinator.monitoring_coordinator, 'set_autonomous_coordinator'):
-                        self.autonomous_coordinator.monitoring_coordinator.set_autonomous_coordinator(self.autonomous_coordinator)
-                        logger.info("✓ Monitoring coordinator connected to autonomous coordinator")
-
                 logger.info("✅ Autonomous Coordinator (THE SINGLETON) initialized")
                 self.stats['services_initialized'] += 1
             else:
@@ -1435,55 +1233,6 @@ class TorinAISystem:
             logger.error(f"Slack notifier initialization failed: {e}")
             self.stats['services_failed'] += 1
 
-        # Security Audit Worker
-        try:
-            from core.security.security_audit_worker import get_audit_worker
-
-            logger.info("Initializing security audit worker...")
-            self.audit_worker = get_audit_worker()
-
-            # Wire up slack integration if method exists
-            if self.slack_notifier and hasattr(self.audit_worker, 'set_slack_notifier'):
-                self.audit_worker.set_slack_notifier(self.slack_notifier)
-
-            # Wire up autonomous coordinator integration for remediation tasks
-            if self.autonomous_coordinator and hasattr(self.audit_worker, 'set_autonomous_coordinator'):
-                self.audit_worker.set_autonomous_coordinator(self.autonomous_coordinator)
-                logger.info("✓ Security audit worker connected to autonomous coordinator")
-
-            # Wire up governance system integration
-            if self.governance_system and hasattr(self.audit_worker, 'set_governance_system'):
-                self.audit_worker.set_governance_system(self.governance_system)
-                logger.info("✓ Security audit worker connected to governance system")
-
-            # Wire up safety framework integration.
-            #
-            # This used to pass `self.asi_safety`, which is assigned None at
-            # construction and NEVER assigned anything else -- so the condition
-            # was always false and the audit worker was never connected to
-            # anything. It now receives the actual authority for action safety.
-            #
-            # Stated plainly because it is still true: the audit worker STORES
-            # this and no code path reads it yet. The hook is connected to the
-            # right object rather than to None, and the log says what happened
-            # rather than implying an integration that does not exist.
-            if hasattr(self.audit_worker, 'set_safety_framework'):
-                from core.security.safety_framework import get_safety_framework
-                self.audit_worker.set_safety_framework(get_safety_framework())
-                logger.info("✓ Security audit worker holds a safety framework reference "
-                            "(no consumer reads it yet)")
-
-            # Wire up integrated security system (active defense)
-            if self.integrated_security and hasattr(self.audit_worker, 'set_integrated_security'):
-                self.audit_worker.set_integrated_security(self.integrated_security)
-
-            logger.info("✓ Security audit worker initialized")
-            self.stats['services_initialized'] += 1
-
-        except Exception as e:
-            logger.error(f"Security audit worker initialization failed: {e}")
-            self.stats['services_failed'] += 1
-
         # Security Training Pipeline
         try:
             from core.security.security_training_pipeline import get_training_pipeline
@@ -1502,106 +1251,21 @@ class TorinAISystem:
             logger.error(f"Security training pipeline initialization failed: {e}")
             self.stats['services_failed'] += 1
 
-        # Integrated Security System (Active Defense)
-        try:
-            from core.security import create_integrated_security_system
-            import os
-
-            logger.info("Initializing integrated security system (active defense)...")
-
-            # Get API keys from environment
-            abuseipdb_key = os.getenv('ABUSEIPDB_API_KEY')
-            virustotal_key = os.getenv('VIRUSTOTAL_API_KEY')
-            otx_key = os.getenv('OTX_API_KEY')
-            cloudflare_token = os.getenv('CLOUDFLARE_API_TOKEN')
-            cloudflare_zone = os.getenv('CLOUDFLARE_ZONE_ID')
-            
-            # Firewall mode: PRODUCTION by default - set TORIN_FIREWALL_TEST=true to disable
-            # NOTE: Requires root/sudo privileges for iptables/pf rules
-            firewall_test_mode = os.getenv('TORIN_FIREWALL_TEST', 'false').lower() == 'true'
-            if not firewall_test_mode:
-                logger.info("🔥 Firewall PRODUCTION MODE - real iptables/pf rules will be applied")
-            else:
-                logger.info("⚠️  Firewall TEST MODE - dry run, no actual rules applied")
-
-            # Initialize integrated security system
-            self.integrated_security = create_integrated_security_system(
-                test_mode=firewall_test_mode,  # test_mode=False means production (real rules)
-                cloudflare_api_token=cloudflare_token,
-                cloudflare_zone_id=cloudflare_zone,
-                abuseipdb_key=abuseipdb_key,
-                virustotal_key=virustotal_key,
-                otx_key=otx_key,
-                use_singleton=True
-            )
-
-            # REPORT THE MODE THAT IS ACTUALLY IN FORCE, not the one requested.
-            # The log above states the intended mode before the call; if a
-            # singleton already existed the call returns it unchanged, so the
-            # only truthful source is the object that came back.
-            actual_test_mode = self.integrated_security.get('test_mode')
-            if actual_test_mode is not None and bool(actual_test_mode) != firewall_test_mode:
-                logger.error(
-                    "⚠️ Firewall mode in force (test_mode=%s) differs from the mode "
-                    "requested (test_mode=%s); an earlier caller created the "
-                    "security system", actual_test_mode, firewall_test_mode)
-            else:
-                logger.info("Firewall mode in force: test_mode=%s", actual_test_mode)
-
-            # Restore persisted threat intel state (best-effort)
-            threat_intel = self.integrated_security.get('threat_intel')
-            if threat_intel and hasattr(threat_intel, 'load_persisted_state'):
-                try:
-                    await threat_intel.load_persisted_state()
-                    logger.info("✓ Threat intelligence persistence state restored")
-                except Exception as e:
-                    logger.warning(f"Threat intelligence persistence restore failed: {e}")
-
-            # Start background monitoring
-            threat_blocking = self.integrated_security.get('threat_blocking')
-            if threat_blocking and hasattr(threat_blocking, 'start_monitoring'):
-                await threat_blocking.start_monitoring()
-                logger.info("✓ Threat blocking engine monitoring started")
-
-            # Start firewall monitoring (verifies rules are still in place)
-            firewall = self.integrated_security.get('firewall')
-            if firewall and hasattr(firewall, 'start_monitoring'):
-                # Wire health callback to monitoring coordinator
-                if self.monitoring_coordinator and hasattr(self.monitoring_coordinator, 'singleton_callback'):
-                    firewall.set_health_callback(self.monitoring_coordinator.singleton_callback)
-                await firewall.start_monitoring()
-                logger.info("✓ Firewall manager monitoring started (rule verification)")
-
-            # Wire integrated security to SecurityAuditWorker
-            if self.audit_worker and hasattr(self.audit_worker, 'set_integrated_security'):
-                self.audit_worker.set_integrated_security(self.integrated_security)
-                logger.info("✓ Security audit worker connected to integrated security system")
-
-            # Wire SecurityController to AutonomousCoordinator
-            security_controller = self.integrated_security.get('security_controller')
-            if security_controller and self.autonomous_coordinator:
-                if hasattr(security_controller, 'set_autonomous_coordinator'):
-                    security_controller.set_autonomous_coordinator(self.autonomous_coordinator)
-                    logger.info("✓ SecurityController connected to AutonomousCoordinator")
-
-                # Also set SecurityController on AutonomousCoordinator (if not already set)
-                if not hasattr(self.autonomous_coordinator, 'security_controller') or not self.autonomous_coordinator.security_controller:
-                    self.autonomous_coordinator.security_controller = security_controller
-                    logger.info("✓ AutonomousCoordinator connected to SecurityController")
-
-            logger.info("✓ Integrated security system initialized (active defense enabled)")
-            self.stats['services_initialized'] += 1
-
-        except Exception as e:
-            logger.error(f"Integrated security system initialization failed: {e}")
-            self.stats['services_failed'] += 1
+        # SECURITY IS NOT STARTED BY THE SUBSTRATE.
+        # The shield is the DHCM membrane (Dominion Labs/DHCM/) around the WORLD — the
+        # environment the substrate operates in (like nature around the earth). The
+        # world and its shield run independently; the substrate neither creates nor
+        # starts them, and they do not start the substrate. The legacy integrated
+        # "active defense" system is archived under core/security/_disabled/.
+        # self.integrated_security stays None — the honest state — and every
+        # `if self.integrated_security` guard downstream skips cleanly.
 
         # Governance System (SINGLETON pattern)
         try:
-            from core.governance import get_unified_governance
+            from core.governance import get_governance_trigger_engine
 
             logger.info("Initializing governance system (singleton)...")
-            self.governance_system = get_unified_governance()  # Get singleton instance
+            self.governance_system = get_governance_trigger_engine()  # Get singleton instance
 
             # Wire up slack integration
             if self.slack_notifier:
@@ -1733,20 +1397,16 @@ class TorinAISystem:
                 await self.autonomous_coordinator.start_coordination()
                 logger.info("✓ Autonomous coordinator started")
 
-            # Start security monitoring
-            if self.audit_worker:
-                await self.audit_worker.start_monitoring()
-                logger.info("✓ Security monitoring started")
+            # Start the health monitoring loop. There is no in-process watchdog:
+            # process supervision belongs to the container the substrate runs in.
+            if self.health_monitor:
+                await self.health_monitor.start_monitoring()
+                logger.info("✓ Health monitoring started")
 
-            # Start system watchdog (also starts the health monitoring loop).
-            # TORIN_NO_WATCHDOG=1 keeps it off — for a supervised-restart-free
-            # startup where every failure stays visible instead of being auto-
-            # recovered (diagnostic runs).
-            if self.system_watchdog and os.getenv("TORIN_NO_WATCHDOG") != "1":
-                await self.system_watchdog.start()
-                logger.info("✓ System watchdog started")
-            elif self.system_watchdog:
-                logger.warning("⏭️  System watchdog DISABLED (TORIN_NO_WATCHDOG=1)")
+            # Concept text vectors not stored yet are encoded in the background.
+            if self.universal_domain_master:
+                self.universal_domain_master.start_concept_embedding()
+                logger.info("✓ Concept embedding started")
 
             # Start backup scheduler ONLY if no guardian owns it. Backups are a
             # system (always-on) concern now owned by the guardian; the substrate
@@ -1769,38 +1429,29 @@ class TorinAISystem:
             logger.info("✓ All services started successfully")
             logger.info("🎉 Service initialization complete!")
             
-            # Mark health monitoring startup complete so alerts can now be generated
-            if self.autonomous_coordinator and hasattr(self.autonomous_coordinator, 'monitoring_coordinator'):
-                mc = self.autonomous_coordinator.monitoring_coordinator
-                if mc and hasattr(mc, 'mark_startup_complete'):
-                    mc.mark_startup_complete()
+            # DERIVED READING — after everything is up. A cached derivation is
+            # rehydrated; otherwise its search runs in a separate process and the
+            # result is persisted. In a thread here it held the GIL for longer
+            # than a boot: every single-text encode ran at ~2 it/s instead of
+            # ~120, and it never finished to write its cache. The reading
+            # registry is honestly empty until it completes.
+            from core.semantics.derived_reader import register_off_process
 
-            # DERIVED READING — off the boot path, ONCE, after everything is up.
-            # Its derivation is a minutes-long procedure_synthesis search; run on
-            # the init path (sync OR in a thread) it starved — or froze — startup
-            # through the GIL. The system is now fully running, so the one-time
-            # cost is paid in a background daemon thread that blocks no init phase.
-            # Fire and forget; the reading registry is honestly empty until it
-            # completes. FOLLOW-UP: persist the derived reading and rehydrate it on
-            # boot (like schemas) so it is derived once EVER, not once per boot.
-            try:
-                import threading as _threading
-                from core.semantics.derived_reader import ensure_registered as _ensure_reading
+            async def _register_reading():
+                try:
+                    ok, why = await register_off_process()
+                except asyncio.CancelledError:
+                    raise
+                except Exception:
+                    logger.error("derived reading registration failed", exc_info=True)
+                    return
+                if ok:
+                    logger.info("✓ derived reading registered")
+                else:
+                    logger.warning("derived reading not registered: %s", why)
 
-                def _derive_reading_once():
-                    try:
-                        ok, why = _ensure_reading()
-                        if ok:
-                            logger.info("✓ derived reading registered (post-startup)")
-                        else:
-                            logger.warning("derived reading not registered: %s", why)
-                    except Exception as _e:
-                        logger.warning("derived reading registration skipped: %s", _e)
-
-                _threading.Thread(target=_derive_reading_once,
-                                  name="derived-reading", daemon=True).start()
-            except Exception as _e:
-                logger.warning("derived reading post-startup kickoff skipped: %s", _e)
+            self._derived_reading_task = asyncio.create_task(
+                _register_reading(), name="derived-reading")
 
         except Exception as e:
             logger.error(f"Service startup failed: {e}", exc_info=True)
@@ -1916,19 +1567,20 @@ class TorinAISystem:
                 except Exception as e:
                     logger.error(f"Error stopping autonomous coordinator: {e}")
 
-            if self.audit_worker:
-                await self.audit_worker.stop_monitoring()
-                logger.info("✓ Security monitoring stopped")
+            if self.health_monitor:
+                await self.health_monitor.stop_monitoring()
+                logger.info("✓ Health monitoring stopped")
+
+            if self.universal_domain_master:
+                await self.universal_domain_master.shutdown()
+
+            reading_task = getattr(self, "_derived_reading_task", None)
+            if reading_task is not None and not reading_task.done():
+                reading_task.cancel()  # terminates the derivation process
 
             if self.backup_scheduler:
                 await self.backup_scheduler.stop_scheduler()
                 logger.info("✓ Backup scheduler stopped")
-
-            # Shutdown the teacher model
-            if self.llm_service:
-                logger.info("Shutting down the teacher model...")
-                await self.llm_service.shutdown()
-                logger.info("✓ Teacher model shutdown complete")
 
             # Close logging database (coordinator's log_db)
             if self.autonomous_coordinator and hasattr(self.autonomous_coordinator, 'log_db'):
@@ -1938,6 +1590,34 @@ class TorinAISystem:
                         logger.info("✓ Logging database closed")
                 except Exception as e:
                     logger.warning(f"Error closing logging database: {e}")
+
+            # PERSISTENCE FLUSH BARRIER — the ONE place that guarantees uniform
+            # durability. Runs BEFORE the DB pool closes, because closing the pool
+            # kills in-flight belief writes. Every store that used a fire-and-forget
+            # or in-memory-until-later discipline is drained here, so the whole
+            # substrate persists by one guarantee instead of half surviving restart.
+            logger.info("Flushing durable state before shutdown...")
+            try:
+                from core.reasoning.bayesian_uncertainty import get_uncertainty_system
+                us = get_uncertainty_system()
+                drained = await us.drain_writes()          # await orphaned belief writes + replay buffer
+                await us.save_domain_volatility()           # per-domain volatility (else only reflection-loop persisted)
+                logger.info("✓ Beliefs flushed (%d write task(s) drained)", drained)
+            except Exception as e:
+                logger.warning(f"belief/volatility flush failed: {e}")
+            try:
+                from core.semantics.lexicon import get_lexicon
+                get_lexicon().save()                        # in-memory POS proposals since last save
+                logger.info("✓ Lexicon saved")
+            except Exception as e:
+                logger.warning(f"lexicon save failed: {e}")
+            try:
+                from core.learning import get_learning_authority
+                saved = get_learning_authority().save_classifiers()  # the classifier MECHANISM
+                if saved:
+                    logger.info("✓ %d clause classifier(s) persisted", saved)
+            except Exception as e:
+                logger.warning(f"classifier persist failed: {e}")
 
             # Close unified database connections (singleton - closes all 3 pools)
             if self.unified_database:
@@ -2018,13 +1698,6 @@ class TorinAISystem:
 
         # Get subsystem status
         try:
-            if self.llm_service:
-                status['subsystems']['llm_service'] = {
-                    'loaded': self.llm_service.model_loaded,
-                    'device': self.llm_service.device.value if self.llm_service.device else 'unknown',
-                    'statistics': self.llm_service.get_statistics()
-                }
-
             if self.quantum_reasoning:
                 status['subsystems']['quantum_reasoning'] = await self.quantum_reasoning.get_statistics()
 
@@ -2033,9 +1706,6 @@ class TorinAISystem:
 
             if self.memory_injector:
                 status['subsystems']['memory_injector'] = await self.memory_injector.get_statistics()
-
-            if self.audit_worker:
-                status['subsystems']['audit_worker'] = await self.audit_worker.get_statistics()
 
             if self.training_pipeline:
                 status['subsystems']['training_pipeline'] = await self.training_pipeline.get_statistics()

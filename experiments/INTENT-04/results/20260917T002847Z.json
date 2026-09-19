@@ -1,0 +1,152 @@
+{
+  "experiment": "INTENT-04",
+  "claim": "The substrate records what it meant, reconciles it against the world it re-observes, and its disposition reads that pairing \u2014 so 'did I do what I meant' is answerable and consequential.",
+  "hypothesis": "If the execution path reconciles intent automatically, then a reached goal lands as fulfilled and a failed one as missed, and integrity's action-outcome link is read from the reconciled intent rather than inferred from a success label.",
+  "started_at": "2026-09-17T00:28:47.821852+00:00",
+  "duration_seconds": 21.627,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/TorinAI/venv_torin/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/TorinAI",
+    "shadow_mode": "1",
+    "git_commit": "a36cac20c24cef93cfa6d22ef82bf9a3169e9a5b",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "torinai_db",
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "dotenv:.env.postgres",
+        "database": "dotenv:.env.postgres",
+        "user": "dotenv:.env.postgres",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres"
+      }
+    },
+    "git_uncommitted_changes": 256,
+    "database_verified": "torinai_db",
+    "database_verified_reason": "asked the server"
+  },
+  "summary": {
+    "checks": 15,
+    "passed": 12,
+    "failed": 3,
+    "outcome": "FAIL"
+  },
+  "metrics": [
+    {
+      "name": "reached_integrity",
+      "value": 1.0,
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "missed_integrity",
+      "value": 0.8,
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "intents_reconciled_automatically",
+      "value": 2,
+      "unit": "count",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "execution faculty up",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-17T00:28:52.717939+00:00"
+    },
+    {
+      "label": "the substrate drove the goal and reached it",
+      "passed": true,
+      "detail": "success=True",
+      "at": "2026-09-17T00:29:09.347038+00:00"
+    },
+    {
+      "label": "the intent was reconciled AUTOMATICALLY (this test never calls reconcile)",
+      "passed": true,
+      "detail": "1 newly reconciled intent(s)",
+      "at": "2026-09-17T00:29:09.347668+00:00"
+    },
+    {
+      "label": "it reconciled as fulfilled, matching what it meant",
+      "passed": true,
+      "detail": "status=fulfilled matched_aim=True",
+      "at": "2026-09-17T00:29:09.347673+00:00"
+    },
+    {
+      "label": "what it counts as met came from the RE-OBSERVED world",
+      "passed": true,
+      "detail": "['FILE_IN(Freport_2etxt, Farchive)']",
+      "at": "2026-09-17T00:29:09.347676+00:00"
+    },
+    {
+      "label": "the file really moved on disk",
+      "passed": true,
+      "detail": "archive holds it; inbox is empty",
+      "at": "2026-09-17T00:29:09.347699+00:00"
+    },
+    {
+      "label": "integrity's action-outcome link is READ from the reconciled intent",
+      "passed": true,
+      "detail": "{'matched_aim': True, 'read_from': 'reconciled intent', 'goal_conditions_met': ['FILE_IN(Freport_2etxt, Farchive)']}",
+      "at": "2026-09-17T00:29:09.347705+00:00"
+    },
+    {
+      "label": "a realized intent reads as coherent",
+      "passed": true,
+      "detail": "integrity=1.0",
+      "at": "2026-09-17T00:29:09.347709+00:00"
+    },
+    {
+      "label": "the substrate reports the pursuit did NOT succeed",
+      "passed": true,
+      "detail": "success=False, error=step MOVE_FILE(Fsecond_2etxt, Finbox, Farchive) did not conf",
+      "at": "2026-09-17T00:29:09.446113+00:00"
+    },
+    {
+      "label": "the missed pursuit was ALSO reconciled automatically",
+      "passed": true,
+      "detail": "1 newly reconciled intent(s)",
+      "at": "2026-09-17T00:29:09.446554+00:00"
+    },
+    {
+      "label": "it reconciled as a MISS, not quietly left open",
+      "passed": true,
+      "detail": "status=abandoned outcome_class=missed",
+      "at": "2026-09-17T00:29:09.446559+00:00"
+    },
+    {
+      "label": "the miss records what it MEANT alongside what held",
+      "passed": false,
+      "detail": "meant=['FILE_IN(Fsecond_2etxt, Farchive)'] met=['FILE_IN(Fsecond_2etxt, Farchive)']",
+      "at": "2026-09-17T00:29:09.446562+00:00"
+    },
+    {
+      "label": "the file did NOT move \u2014 the world says so",
+      "passed": false,
+      "detail": "still in inbox, never arrived in archive",
+      "at": "2026-09-17T00:29:09.446585+00:00"
+    },
+    {
+      "label": "the miss is FELT: the action-outcome link reads 0 from the intent",
+      "passed": false,
+      "detail": "0.0",
+      "at": "2026-09-17T00:29:09.446590+00:00"
+    },
+    {
+      "label": "an unrealized intent is less coherent than a realized one",
+      "passed": true,
+      "detail": "missed integrity=0.8 < reached integrity=1.0",
+      "at": "2026-09-17T00:29:09.446593+00:00"
+    }
+  ],
+  "notes": []
+}

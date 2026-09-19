@@ -27,7 +27,7 @@ class ProfilePerformanceTool(Tool):
         self.description = "Profile execution time, memory usage, and CPU usage of a component. Returns performance metrics including execution time, memory usage, and CPU percentage."
         self.category = ToolCategory.LEARNING
         self.parameters = [
-            ToolParameter("component", "string", "Component name to profile (e.g., 'memory_agent', 'unified_llm')", required=True),
+            ToolParameter("component", "string", "Component name to profile (e.g., 'memory_agent', 'neural_bridge')", required=True),
             ToolParameter("operation", "string", "Specific operation to profile (optional)", required=False),
             ToolParameter("duration", "number", "Profiling duration in seconds (default: 5.0)", required=False)
         ]
@@ -113,7 +113,7 @@ class ProfilePerformanceTool(Tool):
             return ToolResult(
                 success=False,
                 output=None,
-                error=f"Failed to profile '{component}': {str(e)}. Make sure the component name is valid (e.g., 'memory_agent', 'unified_llm', 'neural_bridge')."
+                error=f"Failed to profile '{component}': {str(e)}. Make sure the component name is valid (e.g., 'memory_agent', 'neural_bridge')."
             )
 
 
@@ -704,76 +704,6 @@ class GenerateHypothesisTool(Tool):
             return ToolResult(success=False, output=None, error=str(e))
 
 
-class BenchmarkLearningSystemsTool(Tool):
-    """Benchmark learning systems and compare performance"""
-
-    def __init__(self):
-        super().__init__()
-        self.name = "benchmarklearningsystems"
-        self.description = "Benchmark learning systems and algorithms. Returns performance comparison across systems."
-        self.category = ToolCategory.LEARNING
-        self.parameters = [
-            ToolParameter("systems", "array", "List of system names to benchmark", required=True),
-            ToolParameter("metrics", "array", "Metrics to measure (e.g., ['accuracy', 'speed', 'resource_usage'])", required=False)
-        ]
-
-        self.capability_profile = ToolCapabilityProfile(
-            tool_name="benchmarklearningsystems",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.BENCHMARK,
-                    description="Benchmark system performance",
-                    input_types=["systems", "metrics"],
-                    output_types=["benchmark_results"],
-                    latency="high",
-                    cost="medium",
-                    reliability="high",
-                    risk_level=RiskLevel.LOW,
-                    priority=9
-                ),
-                CapabilityMetadata(
-                    capability=Capability.BENCHMARK_CAPABILITY,
-                    description="Benchmark specific capabilities",
-                    input_types=["systems"],
-                    output_types=["capability_scores"],
-                    latency="high",
-                    cost="medium",
-                    reliability="high",
-                    risk_level=RiskLevel.LOW,
-                    priority=8
-                )
-            ],
-            requires_filesystem=False,
-            requires_network=False,
-            requires_database=True,
-            is_idempotent=True
-        )
-
-    async def execute(self, systems: List[str], metrics: List[str] = None) -> ToolResult:
-        """Benchmark learning systems"""
-        try:
-            from core.learning.capability_benchmark_suite import CapabilityBenchmarkSuite
-
-            benchmark_suite = CapabilityBenchmarkSuite()
-            results = {}
-
-            default_metrics = metrics or ["accuracy", "speed", "resource_usage"]
-
-            for system in systems:
-                results[system] = {
-                    metric: round(0.7 + (hash(f"{system}{metric}") % 30) / 100, 2)
-                    for metric in default_metrics
-                }
-
-            return ToolResult(
-                success=True,
-                output={"results": results, "systems": systems, "metrics": default_metrics}
-            )
-        except Exception as e:
-            logger.error(f"Benchmarking failed: {e}")
-            return ToolResult(success=False, output=None, error=str(e))
-
-
 class VisualizeLearningProgressTool(Tool):
     """Visualize learning progress over time"""
 
@@ -1042,6 +972,56 @@ class RecommendTrainingTool(Tool):
             return ToolResult(success=False, output=None, error=str(e))
 
 
+class BenchmarkCapabilityTool(Tool):
+    """Measure the substrate's capability on the frozen benchmark suite."""
+
+    def __init__(self):
+        super().__init__()
+        self.name = "benchmarkcapability"
+        self.description = (
+            "Run the frozen capability benchmark suite against the substrate (reasoning, "
+            "coding, analysis, comprehension) and return the real measured scores. The "
+            "substrate answers each case (substrate-first, not a model) and a frozen grader "
+            "scores it; a case it cannot yet represent scores an honest 0, a case that could "
+            "not run is excluded. Scores are tracked as long-term capability baselines.")
+        self.category = ToolCategory.LEARNING
+        self.parameters = [
+            ToolParameter("domains", "array", "Domains to test (default: all) — "
+                          "reasoning/coding/analysis/comprehension", required=False),
+            ToolParameter("sample_size", "integer", "Limit tests per domain (default: all)",
+                          required=False),
+        ]
+        self.capability_profile = ToolCapabilityProfile(
+            tool_name="benchmarkcapability",
+            capabilities=[
+                CapabilityMetadata(
+                    capability=Capability.TRACK_PROGRESS,
+                    description="Measure and track the substrate's capability over cycles",
+                    input_types=["benchmark_domains"],
+                    output_types=["benchmark_results", "capability_report"],
+                    latency="high",
+                    cost="medium",
+                    reliability="high",
+                    risk_level=RiskLevel.LOW,
+                    priority=8,
+                )
+            ],
+            requires_filesystem=False,
+        )
+
+    async def execute(self, domains: Optional[List[str]] = None,
+                      sample_size: Optional[int] = None) -> ToolResult:
+        """Run the capability benchmark through the learning authority (its owner)."""
+        try:
+            from core.learning.unified_learning_system import get_unified_learning_system
+            report = await get_unified_learning_system().benchmark_capability(
+                domains=domains, sample_size=sample_size)
+            return ToolResult(success=True, output=report)
+        except Exception as e:
+            logger.error(f"Capability benchmark failed: {e}")
+            return ToolResult(success=False, output=None, error=str(e))
+
+
 def register_learning_tools():
     """Register all learning tools in the tool registry"""
     from core.tools import get_tool_registry
@@ -1049,18 +1029,16 @@ def register_learning_tools():
     registry = get_tool_registry()
 
     tools = [
-        # Original 5 tools
         ProfilePerformanceTool(),
         AnalyzeCausalFeedbackTool(),
         MonitorDataDriftTool(),
-        # New 7 tools
         DetectPatternsTool(),
         ExtractLessonsLearnedTool(),
         GenerateHypothesisTool(),
-        BenchmarkLearningSystemsTool(),
         VisualizeLearningProgressTool(),
         IdentifySkillGapsTool(),
-        RecommendTrainingTool()
+        RecommendTrainingTool(),
+        BenchmarkCapabilityTool()
     ]
 
     for tool in tools:

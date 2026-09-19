@@ -162,11 +162,11 @@ class IterationController:
     - Epistemic evidence for retry decisions
     """
 
-    # Security/critical work gets a FLOOR (we are willing to keep going) and a
+    # Critical work gets a FLOOR (we are willing to keep going) and a
     # CEILING (a policy limit, not a default). The adaptive result survives in
     # between — importance must not delete the measurement.
-    SECURITY_ITERATION_FLOOR: int = 40
-    SECURITY_ITERATION_CEILING: int = 200
+    CRITICAL_ITERATION_FLOOR: int = 40
+    CRITICAL_ITERATION_CEILING: int = 200
 
 
     def __init__(self, config: Dict[str, Any] = None):
@@ -327,42 +327,41 @@ class IterationController:
                 )
             )
             
-            # ── Task-Aware Scaling: SECURITY & CRITICAL tasks bypass normal caps ──
-            from core.agents.autonomous.shared_types import TaskType
+            # ── Task-Aware Scaling: CRITICAL tasks bypass normal caps ──
             task_type = getattr(task, 'type', None)
             task_criticality = getattr(task, 'criticality', 'normal')
             
-            if task_type == TaskType.SECURITY_REMEDIATION or task_criticality == 'CRITICAL':
-                # Security raises WILLINGNESS to keep working; it does not delete
+            if task_criticality == 'CRITICAL':
+                # Criticality raises WILLINGNESS to keep working; it does not delete
                 # the measurement of how much work is warranted.
                 #
                 # This was `bayesian_max_iterations = 200` — an assignment, so the
-                # adaptive result was computed and thrown away. Every security
+                # adaptive result was computed and thrown away. Every critical
                 # task got 200 iterations regardless of what the evidence implied,
                 # which combined with a 36000s time budget authorised ten-hour
                 # runs on findings no agent could resolve.
                 #
                 # A floor is the correct shape, and the complexity branch below
                 # already used it. The ceiling remains available for genuinely
-                # hard security work — it is now a limit, not a default.
+                # hard critical work — it is now a limit, not a default.
                 _computed = bayesian_max_iterations
                 bayesian_max_iterations = max(
-                    min(_computed, self.SECURITY_ITERATION_CEILING),
-                    self.SECURITY_ITERATION_FLOOR,
+                    min(_computed, self.CRITICAL_ITERATION_CEILING),
+                    self.CRITICAL_ITERATION_FLOOR,
                 )
                 if bayesian_max_iterations != _computed:
                     logger.info(
-                        f"🔒 Security/Critical floor applied: {_computed} → "
+                        f"🔒 Critical floor applied: {_computed} → "
                         f"{bayesian_max_iterations} "
-                        f"(floor={self.SECURITY_ITERATION_FLOOR}, "
-                        f"ceiling={self.SECURITY_ITERATION_CEILING}, "
+                        f"(floor={self.CRITICAL_ITERATION_FLOOR}, "
+                        f"ceiling={self.CRITICAL_ITERATION_CEILING}, "
                         f"task_type={task_type}, criticality={task_criticality})"
                     )
                 else:
                     logger.info(
-                        f"🔒 Security/Critical task: adaptive budget {_computed} "
-                        f"already within [{self.SECURITY_ITERATION_FLOOR}, "
-                        f"{self.SECURITY_ITERATION_CEILING}] — kept"
+                        f"🔒 Critical task: adaptive budget {_computed} "
+                        f"already within [{self.CRITICAL_ITERATION_FLOOR}, "
+                        f"{self.CRITICAL_ITERATION_CEILING}] — kept"
                     )
             elif complexity is not None and complexity > 0.4:
                 # Multi-phase tasks (EXECUTION, SELF_IMPROVEMENT, etc.) often need more

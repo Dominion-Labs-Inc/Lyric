@@ -269,7 +269,6 @@ SENSITIVE_BLOCKLIST: Set[str] = {
     "load_test", "chaos_testing",  # can saturate system
     "run_chaos_experiment", "create_chaos_experiment",
     "mutation_testing",  # can be slow + mutates files
-    "trigger_self_improvement",
     "run_python", "execute_sandbox", "run_shell_command",
     "execute_with_timeout", "execute_with_resource_limits",
     "execute_network_isolated", "execute_deterministic",

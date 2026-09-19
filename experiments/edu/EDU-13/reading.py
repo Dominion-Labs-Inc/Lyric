@@ -47,11 +47,38 @@ os.environ.setdefault("TORIN_MODEL_POLICY", "strict_model_free")
 logging.disable(logging.INFO)
 
 from core.execution.procedure import Operator  # noqa: E402
-from core.learning.learning_authority import get_learning_authority  # noqa: E402
+from core.learning.unified_learning_system import (  # noqa: E402
+    get_learning_authority,   # the learning authority now lives with the system that is it
+)
 from core.learning.procedure_synthesis import SynthesisStatus  # noqa: E402
 from core.learning.procedure_synthesis import IOExample  # noqa: E402
 from core.learning.rule_induction import Fact, TrainingExample  # noqa: E402
-from core.model_policy import model_telemetry  # noqa: E402
+
+#: There is no model policy to consult any more, because there is no model. The
+#: entry points a policy used to gate were deleted rather than switched off, so
+#: what used to be "the policy blocked N attempts" is now "there is nothing here
+#: to attempt". This looks for each retired entry point and reports which, if
+#: any, can still be imported.
+RETIRED_MODEL_ENTRY_POINTS = (
+    "core.model_policy",
+    "core.services.unified_llm",
+    "core.services.lightweight_llm",
+    "core.learning.llm_teacher",
+)
+
+
+def model_entry_points_present() -> list:
+    """Any retired model entry point that is importable in this process."""
+    import importlib.util
+    present = []
+    for name in RETIRED_MODEL_ENTRY_POINTS:
+        try:
+            if importlib.util.find_spec(name) is not None:
+                present.append(name)
+        except (ImportError, ModuleNotFoundError, ValueError):
+            continue
+    return present
+
 from experiments.sentence_machine import (AFFIRMS, DENIES, FLAGS,  # noqa: E402
                                           INSTRUCTIONS, SentenceMachine)
 
@@ -211,9 +238,11 @@ def main() -> int:
         print(f"\n  {len(result.procedures)} procedures fit the evidence; they "
               f"{'agree' if all_agree else 'DISAGREE'} on every held-out sentence")
 
-    telemetry = model_telemetry()
-    passed = (first_correct == len(HELD_OUT) and all_agree
-              and telemetry["attempts"] == 0 and telemetry["executed"] == 0)
+    model_present = model_entry_points_present()
+    telemetry = {"policy": "model-free by construction",
+                 "entry_points_checked": list(RETIRED_MODEL_ENTRY_POINTS),
+                 "entry_points_present": model_present}
+    passed = (first_correct == len(HELD_OUT) and all_agree and not model_present)
 
     manifest = Path(__file__).resolve().parent / "reading.json"
     manifest.write_text(json.dumps({
@@ -240,7 +269,7 @@ def main() -> int:
     }, indent=2, default=str))
 
     print(f"\n  held-out: {first_correct}/{len(HELD_OUT)}   "
-          f"model attempts {telemetry['attempts']}, executed {telemetry['executed']}")
+          f"model entry points present: {model_present or 'none'}")
     print(f"{'PASS' if passed else 'FAIL'}  ->  {manifest.name}")
     return 0 if passed else 1
 

@@ -25,7 +25,7 @@ Design principles (addresses 9 identified weaknesses):
        file mtime predates the tool call timestamp.
 
 Hard failures (block VERIFIED):
-    EXECUTION / SECURITY_REMEDIATION tasks:
+    EXECUTION tasks:
       - Any claimed artifact with link_strength == "none"
       - Any weak link that fails filesystem verification (demoted to none)
       - agent-provided artifact_hashes that don't match actual disk content
@@ -197,7 +197,7 @@ class CausalTraceabilityGate:
         tool_results: List[Dict[str, Any]],
     ) -> "CausalTraceResult":
         """Verify causal traceability for all claimed artifacts."""
-        is_impl_task = task_type.upper() in ("EXECUTION", "SECURITY_REMEDIATION")
+        is_impl_task = task_type.upper() == "EXECUTION"
 
         claimed_files = self._get_claimed_files(proposal)
         # Normalize all claimed hash keys to realpath immediately (fix #4)

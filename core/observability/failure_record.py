@@ -3,14 +3,12 @@
 
 Every folder in `core/` produces errors -- roughly 1,500 exception handlers
 across 30 packages -- and each one used to decide for itself where the error
-went. The result was six consumers each reading a different store, and none of
-them seeing the same system:
+went. The result was several consumers each reading a different store, and none
+of them seeing the same system:
 
     autonomous_coordinator  -> system_failures      (recurring-failure check)
     health_monitor          -> tool_error_events    (asymmetric recording)
-    improvement_monitor     -> component_health     (per-component score)
     intrinsic_motivation    -> last_failure         (goal generation)
-    EnhancedASI             -> component_health     (improvement targets)
     RecoveryManager         -> system_failures      (recovery strategy)
 
 Producers wrote to log files, `tool_error_events`, `security_events`,

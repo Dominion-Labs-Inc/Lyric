@@ -7,7 +7,7 @@ Main controller coordinating the entire chaos framework lifecycle.
 
 Features:
 - Experiment lifecycle management (create → approve → execute → monitor → complete)
-- Governance integration with UnifiedGovernanceTriggerSystem
+- Governance integration with GovernanceTriggerEngine
 - Progressive rollout coordination (canary → gradual → full)
 - Automatic rollback on SLO violations
 - Circuit breaker management
@@ -400,7 +400,7 @@ class ChaosOrchestrator:
         Returns:
             Governance decision ID
         """
-        # This would integrate with UnifiedGovernanceTriggerSystem
+        # This would integrate with GovernanceTriggerEngine
         # For now, return a mock decision ID
         governance_decision_id = f"gov_{experiment.experiment_id}"
 

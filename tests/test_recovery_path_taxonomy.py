@@ -1,6 +1,6 @@
 """RecoveryManager.can_restart: does a restart PATH exist for this component?
 
-This is the distinction that keeps the self-improvement cycle from re-issuing an
+This is the distinction that keeps health remediation from re-issuing an
 impossible restart every run — "no authorized recovery exists" (nothing to try)
 must not read as "the restart was attempted and failed". Pure and in-process:
 no system bring-up, no handler side effects."""

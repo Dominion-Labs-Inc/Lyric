@@ -45,19 +45,16 @@ CORE = os.path.join(REPO, "core")
 #: onto their owning module), MemoryType (the core_types copy deleted).
 KNOWN_SHADOW_DEBT = {
     "ActionCategory",     # slack_notifier vs unified_governance_trigger_system
-    "AgentType",          # security_types vs agents vs unified_llm
-    "AlertSeverity",      # security_types vs health_interfaces vs monitoring_coordinator
+    "AlertSeverity",      # security_types vs health_interfaces
     "AttackType",         # security_training_pipeline vs active_defense_types
     "DecisionTier",       # slack_notifier vs unified_governance_trigger_system
     "DecisionType",       # memory_worthiness vs autonomous_interfaces
-    "DeviceType",         # lightweight_llm vs unified_llm
     "EvolutionType",      # directive_types vs directive_evolution_engine
     "ExperimentStatus",   # hypothesis_testing vs chaos.types
     "HealthStatus",       # FIVE definitions across learning/health/system
     "LogicType",          # logical_integration vs advanced_proof_engine
-    "PatternType",        # memory_worthiness vs digital_footprint
     "Priority",           # security_types vs autonomous.shared_types
-    "RecoveryAction",     # security_types vs system_watchdog vs recovery_manager
+    "RecoveryAction",     # security_types vs recovery_manager
     "ServiceStatus",      # service_configuration vs environment_state
     "TestStatus",         # testing_validation_tools vs directive_ab_testing
     "ViolationSeverity",  # governance_agent vs commitment_contracts

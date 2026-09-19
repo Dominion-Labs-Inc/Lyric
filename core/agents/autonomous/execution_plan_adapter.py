@@ -89,6 +89,7 @@ def state_plan_to_tasks(
     plan_id: str,
     grounding_complete: bool = True,
     domain_id: Optional[str] = None,
+    intent_id: Optional[str] = None,
 ) -> List[Task]:
     """Turn a PLAN_FOUND result into a strictly ordered task chain.
 
@@ -111,7 +112,71 @@ def state_plan_to_tasks(
     tasks: List[Task] = []
     previous: Optional[str] = None
 
+    def reading_steps_for(operator: str) -> List[Task]:
+        """THE PLANNER READS FIRST.
+
+        Law 2 refuses an act on a file the substrate has no current account of,
+        and the answer the law gives is "read it, then plan from what it says".
+        That is a planning step, so the planner puts it in the route rather than
+        letting execution discover that the act it proved cannot legally run.
+
+        The paths come from the BINDING — the same translation from operator to
+        tool arguments the executor will make — and which of them need reading is
+        answered by the constitution, so the planner and the judge cannot
+        disagree about what the law requires.
+
+        Nothing is guessed: an unbound operator or an unreadable world yields no
+        reading steps, and the act is then refused at the gate, which is the
+        honest outcome.
+        """
+        nonlocal previous
+        try:
+            from core.agents.autonomous.autonomous_coordinator import get_constitution
+            from core.execution.operator_binding import get_binding_registry
+            from core.learning.rule_induction import Fact
+
+            fact = Fact.parse(operator)
+            binding = get_binding_registry().get(domain_id or "", fact.predicate)
+            if binding is None:
+                return []
+            params = binding.parameters(fact.args)
+            needed = get_constitution().requires_reading(binding.tool_name, params)
+        except Exception:
+            # The planner never fabricates a preparatory step it cannot justify.
+            return []
+
+        built: List[Task] = []
+        for path in needed:
+            read_task = Task(
+                id=str(uuid4()),
+                type=TaskType.EXECUTION,
+                description=f"read {path}",
+                priority=goal.priority,
+                status=TaskStatus.PENDING,
+                created_at=datetime.now(),
+                estimated_duration=0.1,
+                dependencies=[previous] if previous else [],
+                provenance={
+                    "goal_id": goal.id,
+                    "plan_id": plan_id,
+                    "domain_id": domain_id,
+                    "intent_id": intent_id,
+                    "planning_mode": "state",
+                    # NOT a grounded operator: this step is not part of the proved
+                    # route, it is what the law requires before the route may run.
+                    # Saying so plainly keeps it out of the operator path, which
+                    # would refuse it for having no rule behind it.
+                    "reading_for": operator,
+                    "read_path": path,
+                    "predecessor_task_id": previous,
+                },
+            )
+            built.append(read_task)
+            previous = read_task.id
+        return built
+
     for index, (step, action) in enumerate(zip(result.steps, result.actions)):
+        tasks.extend(reading_steps_for(str(step["action"])))
         task = Task(
             id=str(uuid4()),
             type=TaskType.EXECUTION,
@@ -128,6 +193,12 @@ def state_plan_to_tasks(
                 "goal_id": goal.id,
                 "plan_id": plan_id,
                 "domain_id": domain_id,
+                # WHICH INTENT THIS STEP BELONGS TO. The task REFERENCES the
+                # intent the reasoning authority holds; it is not itself the
+                # account of why the substrate is acting. One goal is one intent,
+                # and `step_index` below says which step of its proved route this
+                # is.
+                "intent_id": intent_id,
                 "planning_mode": "state",
                 "planning_result": result.status.value,
                 "goal_conditions": list(result.goal_conditions),

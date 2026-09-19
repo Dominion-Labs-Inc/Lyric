@@ -1,0 +1,13 @@
+{
+  "name": "agent",
+  "kind": "agent",
+  "shape": "triangle",
+  "color": "violet",
+  "size": "medium",
+  "properties": {},
+  "hidden_props": {},
+  "movable": true,
+  "inspected": false,
+  "dynamic": null,
+  "appearance": "_assets/agent.png"
+}

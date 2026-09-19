@@ -194,66 +194,6 @@ class LearningResult:
             self.result_id = str(uuid.uuid4())
 
 
-class IAdaptationEngine(ABC):
-    """Observing the system, changing it, and checking whether that helped.
-
-    THIS DESCRIBES `EnhancedASISelfImprovement`, WHICH ALREADY DOES ALL OF IT.
-    The old five methods -- analyze_performance, identify_adaptation_needs,
-    generate_adaptation_strategy, apply_adaptation, validate_adaptation -- map
-    one for one onto phases that exist and run:
-
-        analyze_performance          -> _assess_improvements
-                                        ImprovementMonitor.detect_degradation
-        identify_adaptation_needs    -> select_targets_by_constraint (Z3)
-        generate_adaptation_strategy -> _generate_improvements
-        apply_adaptation             -> _deploy_improvements
-        validate_adaptation          -> _evaluate_impact
-                                        _check_capability_regression
-
-    Nothing declared it, so a search for "who adapts the system" found an
-    abstract class with no implementer while a working eight-phase cycle sat
-    in `enhanced_asi_self_improvement.py`.
-
-    THE PHASES ARE INTERNAL AND STAY INTERNAL. Requiring `_assess_improvements`
-    as an abstract method would make an implementation detail part of the
-    contract and force any other engine to adopt this one's decomposition. The
-    contract is what a CALLER can use: observe the system, run a cycle, read
-    what happened. The five phases are how this implementation runs one cycle.
-    """
-
-    @abstractmethod
-    async def observe_system(self) -> Dict[str, Any]:
-        """What the system looks like now -- environment, topology, behaviour.
-
-        Adaptation that has not looked cannot be evidence-based, which is why
-        observation is part of the contract and not a private step.
-        """
-        raise NotImplementedError("Subclasses must implement observe_system()")
-
-    @abstractmethod
-    async def run_improvement_cycle(self, scope: Any = None,
-                                    **options: Any) -> Any:
-        """Assess, select, change, and measure -- once.
-
-        Returns the cycle record, including what was NOT done and why. A cycle
-        that changed nothing is a real outcome and must be reported as one
-        rather than as a failure.
-        """
-        raise NotImplementedError(
-            "Subclasses must implement run_improvement_cycle()")
-
-    @abstractmethod
-    async def get_persisted_statistics(self) -> Dict[str, Any]:
-        """What adaptation has actually achieved, from the durable record.
-
-        FROM THE STORE, NOT FROM MEMORY. An engine reporting its own
-        in-process counters says zero after every restart, and a health check
-        constructing one fresh reads that as "self-improvement has never run".
-        """
-        raise NotImplementedError(
-            "Subclasses must implement get_persisted_statistics()")
-
-
 # `IKnowledgeManager` was REMOVED, and not because its capabilities are
 # missing. Every one of them is owned:
 #
@@ -371,8 +311,8 @@ class IMemoryConsolidation(ABC):
     Drawn from `MemoryAgent`'s real surface. `UnifiedLearningSystem` refuses
     `consolidate_learning` and names the owner: "Memory consolidation is owned
     by MemoryAgent (hot/cold tiering); call it there." Behind that refusal sit
-    five working methods -- `consolidate_memories`, `consolidate_old_duplicates`,
-    `_consolidate_cluster`, `migrate_to_cold_tier`, `modify_tier_thresholds` --
+    four working methods -- `consolidate_memories`, `consolidate_old_duplicates`,
+    `_consolidate_cluster`, `migrate_to_cold_tier` --
     and none of them were typed as consolidating anything, so a search for the
     capability found the stub that raises and not the code that works.
 

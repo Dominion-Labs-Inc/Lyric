@@ -21,7 +21,6 @@ from core.integration.slack_notifier import (
     NotificationType,
     SlackChannel
 )
-from core.security.security_audit_worker import SecurityAuditWorker
 
 # Configure logging
 logging.basicConfig(
@@ -186,32 +185,6 @@ async def test_learning_milestone():
         return False
 
 
-async def test_security_audit_integration():
-    """Test security audit worker integration with Slack"""
-    logger.info("")
-    logger.info("=" * 60)
-    logger.info("TEST 6: Security Audit Worker Integration")
-    logger.info("=" * 60)
-
-    # Create security audit worker
-    audit_worker = SecurityAuditWorker()
-
-    # Set up Slack notifier integration
-    notifier = get_slack_notifier()
-    audit_worker.set_slack_notifier(notifier)
-
-    logger.info("✅ Security audit worker integrated with Slack notifier")
-
-    # Note: We won't run a full audit as it requires database
-    # Just verify the integration is set up correctly
-    if audit_worker.slack_notifier is not None:
-        logger.info("✅ Slack notifier properly configured in audit worker")
-        return True
-    else:
-        logger.error("❌ Slack notifier not configured in audit worker")
-        return False
-
-
 async def test_notification_statistics():
     """Test notification statistics"""
     logger.info("")
@@ -261,7 +234,6 @@ async def main():
     results.append(("Learning Milestone", await test_learning_milestone()))
     await asyncio.sleep(1)
 
-    results.append(("Security Audit Integration", await test_security_audit_integration()))
 
     results.append(("Notification Statistics", await test_notification_statistics()))
 

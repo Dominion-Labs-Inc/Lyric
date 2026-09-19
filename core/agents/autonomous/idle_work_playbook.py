@@ -1,7 +1,7 @@
 """
 Idle Work Playbook
 ==================
-Structured decision graphs for all 6 idle priority tiers.
+Structured decision graphs for the idle priority tiers.
 
 For each tier the playbook maps a raw observation (data returned by a subsystem
 call) to an ordered list of RemediationPlan / PlaybookStep objects.  The
@@ -12,12 +12,10 @@ the coordinator.
 
 Priority tiers (the tiers scheduled on the queue authority by
 _register_idle_subsystems):
-  1. Security  — (AuditCategory, AuditSeverity) → RemediationPlan
-  2. Health    — (component_name, health_status) → RemediationPlan
-  3. Self-improvement — selects target components from health + failure data
-  4. Meta-learning    — returns ordered TaskType list to evaluate
-  5. Memory           — returns ordered ConsolidationStrategy list
-  6. Exploration      — filters + caps goal generation config
+  1. Health    — (component_name, health_status) → RemediationPlan
+  2. Meta-learning    — returns ordered TaskType list to evaluate
+  3. Memory           — returns ordered ConsolidationStrategy list
+  4. Exploration      — filters + caps goal generation config
 """
 from __future__ import annotations
 
@@ -76,11 +74,6 @@ STEP_COOLDOWNS: Dict[StepIdempotency, float] = {
 # Any action not listed here defaults to MUTATING (safe conservative choice)
 ACTION_IDEMPOTENCY: Dict[str, StepIdempotency] = {
     # ── Read-only / truly idempotent ──────────────────────────────────────
-    "audit_auth_logs":            StepIdempotency.SAFE,
-    "audit_data_consistency":     StepIdempotency.SAFE,
-    "audit_iam_policies":         StepIdempotency.SAFE,
-    "audit_encryption_coverage":  StepIdempotency.SAFE,
-    "verify_firewall_rules":      StepIdempotency.SAFE,
     "verify_db_integrity":        StepIdempotency.SAFE,
     "verify_after_restart":       StepIdempotency.SAFE,
     "verify_agents_healthy":      StepIdempotency.SAFE,
@@ -88,25 +81,11 @@ ACTION_IDEMPOTENCY: Dict[str, StepIdempotency] = {
     "verify_api_connectivity":    StepIdempotency.SAFE,
     "verify_network":             StepIdempotency.SAFE,
     "verify_dns_resolution":      StepIdempotency.SAFE,
-    "run_compliance_scan":        StepIdempotency.SAFE,
-    "run_full_compliance_scan":   StepIdempotency.SAFE,
-    "generate_compliance_report": StepIdempotency.SAFE,
-    "scan_codebase":              StepIdempotency.SAFE,
-    "scan_dependencies":          StepIdempotency.SAFE,
-    "investigate_anomaly":        StepIdempotency.SAFE,
-    "threat_intel_lookup":        StepIdempotency.SAFE,
     "track_memory_trend":         StepIdempotency.SAFE,
     "track_storage_health":       StepIdempotency.SAFE,
-    "rescan_access_control":      StepIdempotency.SAFE,
-    "rescan_authentication":      StepIdempotency.SAFE,
-    "rescan_configuration":       StepIdempotency.SAFE,
-    "emergency_security_scan":    StepIdempotency.SAFE,
     "gc_collect":                 StepIdempotency.SAFE,
 
     # ── Notifications — 30 min cooldown ──────────────────────────────────
-    "notify_oncall":              StepIdempotency.NOTIFY,
-    "notify_security_team":       StepIdempotency.NOTIFY,
-    "notify_team":                StepIdempotency.NOTIFY,
     "alert_db_recovery":          StepIdempotency.NOTIFY,
     "alert_learning_degraded":    StepIdempotency.NOTIFY,
     "alert_security_degraded":    StepIdempotency.NOTIFY,
@@ -115,7 +94,6 @@ ACTION_IDEMPOTENCY: Dict[str, StepIdempotency] = {
 
     # ── Restarts — 10 min cooldown ────────────────────────────────────────
     "restart_component":          StepIdempotency.RESTART,
-    "restart_security_worker":    StepIdempotency.RESTART,
     "restart_agents":             StepIdempotency.RESTART,
     "restart_api_connections":    StepIdempotency.RESTART,
     "reinitialize_learning":      StepIdempotency.RESTART,
@@ -125,27 +103,11 @@ ACTION_IDEMPOTENCY: Dict[str, StepIdempotency] = {
     "reconnect_database":         StepIdempotency.RESTART,
 
     # ── Mutating but recoverable — 15 min cooldown ────────────────────────
-    "fix_config_issue":           StepIdempotency.MUTATING,
-    "fix_critical_config":        StepIdempotency.MUTATING,
-    "block_suspicious_ips":       StepIdempotency.MUTATING,
-    "block_if_confirmed":         StepIdempotency.MUTATING,
-    "enforce_encryption":         StepIdempotency.MUTATING,
-    "enforce_least_privilege":    StepIdempotency.MUTATING,
     "reduce_cache_size":          StepIdempotency.MUTATING,
     "repair_storage":             StepIdempotency.MUTATING,
 
     # ── Destructive / high-impact — 60 min cooldown ───────────────────────
-    "rotate_credentials":         StepIdempotency.DESTRUCTIVE,
-    "rotate_api_keys":            StepIdempotency.DESTRUCTIVE,
-    "rotate_secrets":             StepIdempotency.DESTRUCTIVE,
-    "rotate_encryption_keys":     StepIdempotency.DESTRUCTIVE,
-    "revoke_suspicious_sessions": StepIdempotency.DESTRUCTIVE,
-    "revoke_all_sessions":        StepIdempotency.DESTRUCTIVE,
-    "revoke_overprivileged":      StepIdempotency.DESTRUCTIVE,
     "backup_before_repair":       StepIdempotency.DESTRUCTIVE,
-    "restore_from_backup":        StepIdempotency.DESTRUCTIVE,
-    "generate_patch":             StepIdempotency.DESTRUCTIVE,
-    "apply_via_asi":              StepIdempotency.DESTRUCTIVE,
 }
 
 
@@ -163,7 +125,7 @@ class PlaybookStep:
     any step is executed.  See StepIdempotency and STEP_COOLDOWNS.
     """
     capability:   str                            # e.g. "AUTO_REMEDIATE", "BLOCK_THREAT"
-    action:       str                            # e.g. "block_suspicious_ips", "reconnect_database"
+    action:       str                            # e.g. "reconnect_database"
     description:  str                            # Human-readable one-liner
     params:       Dict[str, Any] = field(default_factory=dict)
     governance:   GovernanceTier = GovernanceTier.ROUTINE
@@ -195,7 +157,7 @@ class RemediationPlan:
     Returned by all plan_XXX() methods and consumed by the coordinator.
     """
     trigger_id:      str                        # Finding ID, component name, etc.
-    trigger_type:    str                        # "security_finding" | "unhealthy_component" | ...
+    trigger_type:    str                        # "unhealthy_component" | ...
     severity:        str                        # "critical" | "high" | "medium" | "low" | "info"
     summary:         str                        # One-line description for logs/memory
     steps:           List[PlaybookStep] = field(default_factory=list)
@@ -204,187 +166,14 @@ class RemediationPlan:
 
 
 # ============================================================================
-# TIER 1 — Security playbook matrix
-# ============================================================================
-# Key: (AuditCategory.value, AuditSeverity.value)
-# Value: list of PlaybookStep in execution order
-
-_SECURITY_MATRIX: Dict[tuple, List[PlaybookStep]] = {
-
-    # ── ACCESS CONTROL ───────────────────────────────────────────────────────
-    ("access_control", "critical"): [
-        PlaybookStep("AUDIT_TRAIL",   "audit_auth_logs",            "Audit recent authentication logs",         order=1),
-        PlaybookStep("REVOKE_ACCESS", "revoke_suspicious_sessions", "Revoke suspicious active sessions",         order=2, governance=GovernanceTier.IMPORTANT),
-        PlaybookStep("MANAGE_SECRETS","rotate_credentials",          "Rotate affected credentials",               order=3, governance=GovernanceTier.IMPORTANT),
-        PlaybookStep("NOTIFY",        "notify_oncall",               "Alert on-call security engineer",           order=4),
-        PlaybookStep("SCAN_SECURITY", "rescan_access_control",       "Rescan to verify remediation",              order=5, on_failure="alert"),
-    ],
-    ("access_control", "high"): [
-        PlaybookStep("AUDIT_TRAIL",   "audit_auth_logs",            "Audit recent authentication logs",         order=1),
-        PlaybookStep("NOTIFY",        "notify_security_team",        "Notify security team",                      order=2),
-    ],
-    ("access_control", "medium"): [
-        PlaybookStep("AUDIT_TRAIL",   "audit_auth_logs",            "Audit recent authentication logs",         order=1),
-    ],
-
-    # ── AUTHENTICATION ────────────────────────────────────────────────────────
-    ("authentication", "critical"): [
-        PlaybookStep("REVOKE_ACCESS", "revoke_all_sessions",        "Revoke all active sessions",                order=1, governance=GovernanceTier.IMPORTANT),
-        PlaybookStep("MANAGE_SECRETS","rotate_api_keys",             "Rotate all API keys",                       order=2, governance=GovernanceTier.IMPORTANT),
-        PlaybookStep("NOTIFY",        "notify_oncall",               "Alert on-call security engineer",           order=3),
-        PlaybookStep("SCAN_SECURITY", "rescan_authentication",       "Rescan authentication controls",            order=4),
-    ],
-    ("authentication", "high"): [
-        PlaybookStep("AUDIT_TRAIL",   "audit_auth_logs",            "Audit authentication logs",                order=1),
-        PlaybookStep("NOTIFY",        "notify_security_team",        "Notify security team",                      order=2),
-    ],
-    ("authentication", "medium"): [
-        PlaybookStep("AUDIT_TRAIL",   "audit_auth_logs",            "Audit authentication logs",                order=1),
-    ],
-
-    # ── AUTHORIZATION ─────────────────────────────────────────────────────────
-    ("authorization", "critical"): [
-        PlaybookStep("IAM_ANALYSIS",           "audit_iam_policies",       "Audit IAM policies and permissions",        order=1),
-        PlaybookStep("ENFORCE_LEAST_PRIVILEGE","enforce_least_privilege",   "Enforce least-privilege access model",      order=2, governance=GovernanceTier.IMPORTANT),
-        PlaybookStep("REVOKE_ACCESS",          "revoke_overprivileged",     "Revoke over-privileged access grants",      order=3, governance=GovernanceTier.IMPORTANT),
-        PlaybookStep("NOTIFY",                 "notify_oncall",             "Alert on-call engineer",                    order=4),
-    ],
-    ("authorization", "high"): [
-        PlaybookStep("IAM_ANALYSIS",           "audit_iam_policies",       "Audit IAM policies",                        order=1),
-        PlaybookStep("ENFORCE_LEAST_PRIVILEGE","enforce_least_privilege",   "Enforce least privilege",                   order=2, governance=GovernanceTier.IMPORTANT),
-    ],
-    ("authorization", "medium"): [
-        PlaybookStep("IAM_ANALYSIS",           "audit_iam_policies",       "Audit IAM policies",                        order=1),
-    ],
-
-    # ── DATA INTEGRITY ────────────────────────────────────────────────────────
-    ("data_integrity", "critical"): [
-        PlaybookStep("BACKUP_DATABASE",  "backup_before_repair",      "Backup data before repair",                 order=1, on_failure="abort"),
-        PlaybookStep("VALIDATE_DATA",    "audit_data_consistency",    "Audit data consistency",                    order=2),
-        PlaybookStep("RESTORE_DATABASE", "restore_from_backup",       "Restore from last known good backup",       order=3, governance=GovernanceTier.CRITICAL),
-        PlaybookStep("NOTIFY",           "notify_oncall",             "Alert on-call engineer",                    order=4),
-    ],
-    ("data_integrity", "high"): [
-        PlaybookStep("VALIDATE_DATA",    "audit_data_consistency",    "Audit data consistency",                    order=1),
-        PlaybookStep("NOTIFY",           "notify_team",               "Notify team of integrity issue",            order=2),
-    ],
-    ("data_integrity", "medium"): [
-        PlaybookStep("VALIDATE_DATA",    "audit_data_consistency",    "Audit data consistency",                    order=1),
-    ],
-
-    # ── CONFIGURATION ─────────────────────────────────────────────────────────
-    ("configuration", "critical"): [
-        PlaybookStep("MANAGE_CONFIG",  "fix_critical_config",        "Apply critical configuration fix",          order=1, governance=GovernanceTier.IMPORTANT),
-        PlaybookStep("MANAGE_SECRETS", "rotate_secrets",             "Rotate any exposed secrets",                order=2, governance=GovernanceTier.IMPORTANT),
-        PlaybookStep("NOTIFY",         "notify_oncall",              "Alert on-call engineer",                    order=3),
-        PlaybookStep("SCAN_SECURITY",  "rescan_configuration",       "Rescan configuration after fix",            order=4),
-    ],
-    ("configuration", "high"): [
-        PlaybookStep("MANAGE_CONFIG",  "fix_config_issue",           "Apply configuration fix",                   order=1),
-        PlaybookStep("MANAGE_SECRETS", "rotate_secrets",             "Rotate exposed secrets",                    order=2, governance=GovernanceTier.IMPORTANT),
-        PlaybookStep("SCAN_SECURITY",  "rescan_configuration",       "Rescan configuration after fix",            order=3),
-    ],
-    ("configuration", "medium"): [
-        PlaybookStep("MANAGE_CONFIG",  "fix_config_issue",           "Apply configuration fix",                   order=1),
-    ],
-
-    # ── CODE SECURITY ─────────────────────────────────────────────────────────
-    ("code_security", "critical"): [
-        PlaybookStep("SECURITY_CODE_REVIEW",  "scan_codebase",       "Run full codebase security scan",           order=1),
-        PlaybookStep("DEPENDENCY_SCAN",       "scan_dependencies",   "Scan dependencies for known CVEs",          order=2),
-        PlaybookStep("GENERATE_SECURITY_FIX", "generate_patch",      "Generate security patch via ASI",           order=3, governance=GovernanceTier.IMPORTANT),
-        PlaybookStep("PATCH_MANAGEMENT",      "apply_via_asi",       "Apply patch via ASI self-improvement",      order=4, governance=GovernanceTier.CRITICAL),
-        PlaybookStep("NOTIFY",                "notify_oncall",       "Alert on-call engineer",                    order=5),
-    ],
-    ("code_security", "high"): [
-        PlaybookStep("SECURITY_CODE_REVIEW",  "scan_codebase",       "Run code security scan",                    order=1),
-        PlaybookStep("DEPENDENCY_SCAN",       "scan_dependencies",   "Scan dependencies for CVEs",                order=2),
-        PlaybookStep("GENERATE_SECURITY_FIX", "generate_patch",      "Generate security patch",                   order=3, governance=GovernanceTier.IMPORTANT),
-    ],
-    ("code_security", "medium"): [
-        PlaybookStep("SECURITY_CODE_REVIEW",  "scan_codebase",       "Run code security scan",                    order=1),
-        PlaybookStep("DEPENDENCY_SCAN",       "scan_dependencies",   "Scan dependencies for CVEs",                order=2),
-    ],
-
-    # ── ANOMALY DETECTION ─────────────────────────────────────────────────────
-    ("anomaly_detection", "critical"): [
-        PlaybookStep("DETECT_THREAT",   "investigate_anomaly",       "Investigate the detected anomaly",          order=1),
-        PlaybookStep("ANALYZE_THREAT",  "threat_intel_lookup",       "Query threat intelligence sources",         order=2),
-        PlaybookStep("BLOCK_THREAT",    "block_if_confirmed",        "Block confirmed threat source",             order=3, governance=GovernanceTier.IMPORTANT, on_failure="alert"),
-        PlaybookStep("NOTIFY",          "notify_oncall",             "Alert on-call security engineer",           order=4),
-    ],
-    ("anomaly_detection", "high"): [
-        PlaybookStep("DETECT_THREAT",   "investigate_anomaly",       "Investigate the detected anomaly",          order=1),
-        PlaybookStep("ANALYZE_THREAT",  "threat_intel_lookup",       "Query threat intelligence sources",         order=2),
-        PlaybookStep("NOTIFY",          "notify_security_team",      "Notify security team",                      order=3),
-    ],
-    ("anomaly_detection", "medium"): [
-        PlaybookStep("DETECT_THREAT",   "investigate_anomaly",       "Investigate the detected anomaly",          order=1),
-    ],
-
-    # ── NETWORK SECURITY ──────────────────────────────────────────────────────
-    ("network_security", "critical"): [
-        PlaybookStep("BLOCK_THREAT",       "block_suspicious_ips",   "Block suspicious IP addresses",             order=1, governance=GovernanceTier.IMPORTANT),
-        PlaybookStep("CHECK_CONNECTIVITY", "verify_firewall_rules",  "Verify firewall rules are enforced",        order=2),
-        PlaybookStep("NOTIFY",             "notify_oncall",          "Alert on-call engineer",                    order=3),
-    ],
-    ("network_security", "high"): [
-        PlaybookStep("BLOCK_THREAT",       "block_suspicious_ips",   "Block suspicious IP addresses",             order=1),
-        PlaybookStep("CHECK_CONNECTIVITY", "verify_firewall_rules",  "Verify firewall rules are enforced",        order=2),
-    ],
-    ("network_security", "medium"): [
-        PlaybookStep("CHECK_CONNECTIVITY", "verify_firewall_rules",  "Verify firewall rules",                     order=1),
-    ],
-
-    # ── ENCRYPTION ────────────────────────────────────────────────────────────
-    ("encryption", "critical"): [
-        PlaybookStep("ENCRYPT_DATA", "enforce_encryption",          "Enforce encryption on sensitive data",       order=1, governance=GovernanceTier.IMPORTANT),
-        PlaybookStep("MANAGE_SECRETS","rotate_encryption_keys",     "Rotate encryption keys",                    order=2, governance=GovernanceTier.IMPORTANT),
-        PlaybookStep("NOTIFY",       "notify_oncall",               "Alert on-call engineer",                    order=3),
-    ],
-    ("encryption", "high"): [
-        PlaybookStep("ENCRYPT_DATA", "enforce_encryption",          "Enforce encryption on sensitive data",       order=1, governance=GovernanceTier.IMPORTANT),
-    ],
-    ("encryption", "medium"): [
-        PlaybookStep("VALIDATE_DATA","audit_encryption_coverage",   "Audit encryption coverage",                  order=1),
-    ],
-
-    # ── COMPLIANCE ────────────────────────────────────────────────────────────
-    ("compliance", "critical"): [
-        PlaybookStep("COMPLIANCE_CHECK",  "run_full_compliance_scan",     "Run full compliance scan",              order=1),
-        PlaybookStep("COMPLIANCE_REPORT", "generate_compliance_report",   "Generate compliance report",            order=2),
-        PlaybookStep("NOTIFY",            "notify_oncall",                "Alert compliance officer",              order=3),
-    ],
-    ("compliance", "high"): [
-        PlaybookStep("COMPLIANCE_CHECK",  "run_compliance_scan",          "Run targeted compliance scan",          order=1),
-        PlaybookStep("COMPLIANCE_REPORT", "generate_compliance_report",   "Generate compliance report",            order=2),
-    ],
-    ("compliance", "medium"): [
-        PlaybookStep("COMPLIANCE_CHECK",  "run_compliance_scan",          "Run compliance scan",                   order=1),
-    ],
-}
-
-# Severity levels that warrant notify=True in the produced plan
-_NOTIFY_SEVERITIES = {"critical", "high"}
-
-# Generic fallback steps used when no specific matrix entry exists
-_GENERIC_INVESTIGATE = PlaybookStep(
-    "SCAN_SECURITY", "investigate_finding",
-    "Investigate security finding",
-    order=1
-)
-_GENERIC_NOTIFY = PlaybookStep(
-    "NOTIFY", "notify_security_team",
-    "Notify security team",
-    order=2
-)
-
-
-# ============================================================================
 # TIER 2 — Health playbook matrix
 # ============================================================================
 # Key: component name prefix (lowercase)
 # Value: ordered recovery steps
+
+_SECURITY_NOTIFY_ONLY: List[PlaybookStep] = [
+    PlaybookStep("NOTIFY", "alert_security_degraded", "Alert: security posture degraded", order=1, governance=GovernanceTier.IMPORTANT),
+]
 
 _HEALTH_MATRIX: Dict[str, List[PlaybookStep]] = {
     "database": [
@@ -403,10 +192,18 @@ _HEALTH_MATRIX: Dict[str, List[PlaybookStep]] = {
         PlaybookStep("META_LEARN",   "rebuild_strategy_cache",         "Rebuild meta-learning strategy cache",    order=2),
         PlaybookStep("NOTIFY",       "alert_learning_degraded",        "Alert: learning subsystem degraded",      order=3),
     ],
-    "security": [
-        PlaybookStep("SELF_REPAIR",   "restart_security_worker",       "Restart security audit worker",           order=1),
-        PlaybookStep("SCAN_SECURITY", "emergency_security_scan",       "Run emergency security scan post-restart",order=2),
-        PlaybookStep("NOTIFY",        "alert_security_degraded",       "Alert: security monitoring degraded",     order=3, governance=GovernanceTier.IMPORTANT),
+    # No self-repair/restart for the security family or the health system itself:
+    # process supervision belongs to the container the substrate runs inside, not
+    # a restart from within it. Report the degradation honestly.
+    "security":         _SECURITY_NOTIFY_ONLY,
+    "governance":       _SECURITY_NOTIFY_ONLY,
+    "safety":           _SECURITY_NOTIFY_ONLY,
+    "firewall":         _SECURITY_NOTIFY_ONLY,
+    "threat_intel":     _SECURITY_NOTIFY_ONLY,
+    "content_security": _SECURITY_NOTIFY_ONLY,
+    "malware_sandbox":  _SECURITY_NOTIFY_ONLY,
+    "health_system": [
+        PlaybookStep("NOTIFY",        "alert_health_system_degraded",  "Alert: health system degraded",           order=1),
     ],
     "agents": [
         PlaybookStep("SELF_REPAIR",   "restart_agents",                "Restart degraded agent pool",             order=1),
@@ -450,15 +247,6 @@ _GENERIC_HEALTH_STEPS = [
 
 
 # ============================================================================
-# TIER 3 — Self-improvement: component target selection
-# ============================================================================
-
-# Components that are unhealthy get targeted for ASI improvement pass
-# Same set as health statuses
-_IMPROVEMENT_TARGET_STATUSES = _UNHEALTHY_STATUSES
-
-
-# ============================================================================
 # TIER 4 — Meta-learning: task types to evaluate
 # ============================================================================
 
@@ -472,7 +260,6 @@ _META_LEARNING_TASK_TYPES: List[str] = [
     "validation",
     "learning",
     "optimization",
-    "security_remediation",
 ]
 
 # Win rate below this threshold triggers adaptive strategy revision
@@ -727,66 +514,6 @@ class IdleWorkPlaybook:
     then execute each RemediationPlan via _execute_playbook_plan().
     """
 
-    # ── TIER 1: Security ──────────────────────────────────────────────────────
-
-    def plan_security_response(
-        self,
-        findings: List[Any],          # List[SecurityAuditFinding]
-        min_severity: str = "low",    # Ignore findings below this severity
-    ) -> List[RemediationPlan]:
-        """
-        Map each security finding to a structured remediation plan.
-
-        Covers ALL severity levels (not just CRITICAL) using the matrix above.
-        Findings with no specific matrix entry get a generic investigation plan.
-        Returns plans sorted from highest to lowest severity.
-        """
-        severity_rank = {"critical": 4, "high": 3, "medium": 2, "low": 1, "info": 0}
-        min_rank = severity_rank.get(min_severity.lower(), 0)
-
-        plans: List[RemediationPlan] = []
-        for finding in findings:
-            category = getattr(finding, "category", None)
-            severity = getattr(finding, "severity", None)
-            if category is None or severity is None:
-                continue
-
-            cat_val = category.value if hasattr(category, "value") else str(category)
-            sev_val = severity.value if hasattr(severity, "value") else str(severity)
-
-            # Skip findings below requested minimum severity
-            if severity_rank.get(sev_val, 0) < min_rank:
-                continue
-
-            # Exact matrix lookup → severity-fallback
-            steps = (
-                _SECURITY_MATRIX.get((cat_val, sev_val))
-                or _SECURITY_MATRIX.get(("anomaly_detection", sev_val))
-            )
-
-            if not steps:
-                # Generic fallback: always investigate; notify for high+
-                steps = [_GENERIC_INVESTIGATE]
-                if sev_val in _NOTIFY_SEVERITIES:
-                    steps = [_GENERIC_INVESTIGATE, _GENERIC_NOTIFY]
-
-            plans.append(RemediationPlan(
-                trigger_id   = getattr(finding, "finding_id", "unknown"),
-                trigger_type = "security_finding",
-                severity     = sev_val,
-                summary      = (
-                    f"[{cat_val.upper()}:{sev_val.upper()}] "
-                    f"{getattr(finding, 'title', 'Security Finding')}"
-                ),
-                steps        = sorted(steps, key=lambda s: s.order),
-                notify       = sev_val in _NOTIFY_SEVERITIES,
-                store_to_memory = True,
-            ))
-
-        # Return highest severity first
-        plans.sort(key=lambda p: severity_rank.get(p.severity, 0), reverse=True)
-        return plans
-
     # ── TIER 2: Health ────────────────────────────────────────────────────────
 
     def plan_health_response(
@@ -844,44 +571,6 @@ class IdleWorkPlaybook:
                 plans.append(plan)
         plans.sort(key=lambda p: severity_rank.get(p.severity, 0), reverse=True)
         return plans
-
-    # ── TIER 3: Self-improvement target selection ──────────────────────────────
-
-    def plan_self_improvement_targets(
-        self,
-        health_data: Dict[str, Any],
-        recent_failure_components: List[str],
-    ) -> List[str]:
-        """
-        Return a prioritized list of improvement targets for an ASI improvement pass.
-
-        Priority order:
-          1. Critical/down components from health check   (reactive — fix broken things)
-          2. Recently failed components from task history (reactive — address regressions)
-          3. Degraded/unhealthy components from health check
-        """
-        critical_targets: List[str] = []
-        degraded_targets: List[str] = []
-
-        components = health_data.get("components", {}) or {}
-        for comp_name, comp_data in components.items():
-            if not isinstance(comp_data, dict):
-                continue
-            status = str(comp_data.get("status", "")).lower()
-            if status in {"critical", "down", "failed", "failing"}:
-                critical_targets.append(comp_name)
-            elif status in _IMPROVEMENT_TARGET_STATUSES:
-                degraded_targets.append(comp_name)
-
-        # Merge reactive targets: critical first, then recent failures, then degraded
-        seen: Set[str] = set()
-        targets: List[str] = []
-        for comp in critical_targets + recent_failure_components + degraded_targets:
-            if comp and comp not in seen:
-                targets.append(comp)
-                seen.add(comp)
-
-        return targets
 
     def plan_meta_learning_evaluation(self) -> List[str]:
         """

@@ -38,8 +38,7 @@ async def main():
                 "- Governance sessions\n"
                 "- Approval requests\n"
                 "- Informational messages\n"
-                "- Learning milestones\n\n"
-                "The security_audit_worker.py fix has been applied and tested successfully."
+                "- Learning milestones"
             ),
             severity="LOW",
             metadata={

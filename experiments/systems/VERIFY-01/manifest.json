@@ -1,7 +1,7 @@
 {
   "experiment": "VERIFY-01",
   "purpose": "fresh current-state verification of the unified coordinator pipelines",
-  "run_at": "2026-09-07T12:10:11.816673+00:00",
+  "run_at": "2026-09-17T17:14:20.234516+00:00",
   "findings": {
     "reasoning_pipeline": {
       "ok": true,
@@ -9,7 +9,7 @@
         {
           "q": "is a robin a bird",
           "answer": "Yes: robin isa a bird",
-          "confidence": 0.95,
+          "confidence": 0.85,
           "mode": "ReasoningMode.CROSS_DOMAIN",
           "reason": "derived_by_kind",
           "route": [
@@ -23,7 +23,7 @@
         {
           "q": "is an ocelot an animal",
           "answer": "Yes: ocelot isa an animal",
-          "confidence": 0.85,
+          "confidence": 0.95,
           "mode": "ReasoningMode.CROSS_DOMAIN",
           "reason": "derived_by_kind",
           "route": [
@@ -67,25 +67,53 @@
         "task_type",
         "verification_state"
       ],
-      "summary": "{'success': True, 'model_free': True, 'verification_state': 'verified', 'task_id': 'verify01_q', 'task_type': 'ANALYSIS', 'method': 'conversation.understand', 'answer': 'Yes \u2014 ocelot is an animal beca"
+      "summary": "{'success': True, 'model_free': True, 'verification_state': 'verified', 'task_id': 'verify01_q', 'task_type': 'ANALYSIS', 'method': 'conversation.understand', 'answer': 'Yes \u2014 ocelot isa animal.\\nYes "
     },
     "cross_domain_pipeline": {
       "ok": true,
       "type": "dict",
-      "summary": "{'success': True, 'insights': [], 'confidence': None, 'mappings': 0, 'processing_time': 6.900066}"
+      "summary": "{'success': True, 'insights': [], 'confidence': None, 'mappings': 0, 'processing_time': 0.000109}"
     },
     "domain_pipeline": {
       "ok": true,
-      "total_domains_db": 22,
+      "total_domains_db": 50,
       "category_domains": 15,
       "learned_domains": [
+        "conversation",
         "domain_bird",
         "domain_device",
         "domain_general",
-        "domain_glindar",
         "domain_insect",
         "domain_language",
-        "domain_lexical"
+        "domain_lexical",
+        "environment_ed9c1a7ba71c7df3",
+        "execution",
+        "filesystem",
+        "fs_g2_real1",
+        "fs_removal_01",
+        "general",
+        "kite17",
+        "language_arts",
+        "network",
+        "partition_probe_28143d72",
+        "partition_probe_31792df2",
+        "partition_probe_45d28395",
+        "partition_probe_6b36ab82",
+        "partition_probe_8d315aa9",
+        "partition_probe_97689863",
+        "partition_probe_a38284fe",
+        "partition_probe_d75b0734",
+        "partition_probe_ffa9cc1f",
+        "perception",
+        "perceval",
+        "probe_0ecf3d6a",
+        "reg_ec1613",
+        "sensor",
+        "substrate",
+        "tools",
+        "toy_percepts",
+        "vision",
+        "zoology"
       ],
       "has_universal_domain_master": true
     },
@@ -106,11 +134,11 @@
       "ok": true,
       "num_targets": 5,
       "sample": [
-        "Design experiment to resolve uncertainty: Rain",
-        "Design experiment to resolve uncertainty: Rain",
-        "Design experiment to resolve uncertainty: rained(sky)",
-        "Design experiment to resolve uncertainty: rained(sky)",
-        "Design experiment to resolve uncertainty: rained"
+        "Design experiment to resolve uncertainty: the substrate has learned the operator",
+        "Design experiment to resolve uncertainty: the substrate has learned the operator",
+        "Design experiment to resolve uncertainty: the substrate has learned the operator",
+        "Design experiment to resolve uncertainty: the substrate has learned the operator",
+        "Design experiment to resolve uncertainty: the substrate has learned the operator"
       ]
     },
     "memory_pipeline": {

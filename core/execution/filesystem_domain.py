@@ -128,6 +128,52 @@ class FilesystemWorld:
             parameters=parameters, observe=self.observe,
             description="move a file between directories under the sandbox root")
 
+    def removal_binding(self) -> OperatorBinding:
+        """Bind REMOVE_FILE(file, dir) to the delete_file tool.
+
+        The domain had only MOVE_FILE, so nothing the substrate could learn here
+        was irreversible — which also meant the one verdict the constitution
+        reserves for irreversible acts had no real act to judge. Removal is a
+        real thing to do with a file, the tool exists, and the operator is
+        learned from what actually happens rather than declared: delete a file
+        that is there and FILE_IN goes away; ask to delete one that is not and
+        the tool fails, leaving the world untouched. That pair is exactly the
+        precondition the learner needs.
+        """
+        root = self.root
+
+        def parameters(args):
+            file, directory = (_decode(a) for a in args)
+            # The tool's own parameters: it names the target `path` and refuses
+            # to act without `confirm`. Sending `file_path` would simply fail.
+            return {"path": str(root / directory / file), "confirm": True}
+
+        return OperatorBinding(
+            predicate="REMOVE_FILE", tool_name="delete_file",
+            parameters=parameters, observe=self.observe,
+            description="delete a file inside the sandbox root")
+
+    def propose_removals(self) -> List[Fact]:
+        """Candidate REMOVE_FILE actions, grounded in what is observed.
+
+        Per observed file, in order: a removal aimed at a directory the file is
+        NOT in (the tool fails, the world does not move — the negative that
+        isolates FILE_IN(file, dir) as the precondition), then the real removal
+        (the positive). Both are executed against the live world by the caller;
+        nothing here asserts an outcome.
+        """
+        facts = self.observe() or frozenset()
+        located = sorted({(f.args[0], f.args[1]) for f in facts
+                          if f.predicate == PREDICATE and len(f.args) == 2})
+        dirs = self.dirs()
+        out: List[Fact] = []
+        for file, here in located:
+            elsewhere = next((d for d in dirs if d != here), None)
+            if elsewhere is not None:
+                out.append(Fact("REMOVE_FILE", (file, elsewhere)))   # must fail
+            out.append(Fact("REMOVE_FILE", (file, here)))            # must succeed
+        return out
+
     def propose_actions(self) -> List[Fact]:
         """Candidate MOVE_FILE actions to try, grounded in what is observed.
 
@@ -183,6 +229,7 @@ def install_filesystem_domain(domain_id: str, root: Path) -> FilesystemWorld:
     """
     world = FilesystemWorld(Path(root))
     get_binding_registry().register(domain_id, world.binding())
+    get_binding_registry().register(domain_id, world.removal_binding())
     # Also declare HOW to explore it, so the idle exploration tier can pick this
     # domain up and learn its operators without knowing it is a filesystem.
     from core.learning.exploration import register_explorable_domain

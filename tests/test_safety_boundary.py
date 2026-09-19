@@ -91,7 +91,7 @@ def test_the_same_tool_gets_a_different_verdict_per_invocation(command, blocked,
 
 
 def test_what_blocks_is_decided_in_one_place():
-    from core.governance.unified_governance_trigger_system import (
+    from core.governance.governance_triggers import (
         EnforcementMode, IrreversibilityClass, blocking_mode)
 
     assert blocking_mode(IrreversibilityClass.IRREVERSIBLE,

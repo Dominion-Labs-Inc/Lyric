@@ -1,0 +1,79 @@
+{
+  "experiment": "INTEGRATION-LOOP-01",
+  "claim": "The full KNOW -> DO -> frontier loop runs through the REAL coordinator: a real grounded-operator task acts on a real FilesystemWorld, the outcome is verified by an INDEPENDENT filesystem oracle rather than the tool's own return, that outcome persists, earned reliability moves, and the operability bar shifts with it.",
+  "hypothesis": "If any link were stubbed, the chain would still report success while the filesystem oracle disagreed \u2014 so the oracle, not the tool, decides.",
+  "started_at": "2026-09-18T11:25:38.240922+00:00",
+  "duration_seconds": 17.705,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/TorinAI/venv_torin/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/TorinAI",
+    "shadow_mode": "1",
+    "git_commit": "a36cac20c24cef93cfa6d22ef82bf9a3169e9a5b",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "torinai_db",
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "dotenv:.env.postgres",
+        "database": "dotenv:.env.postgres",
+        "user": "dotenv:.env.postgres",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres"
+      }
+    },
+    "git_uncommitted_changes": 280,
+    "database_verified": "torinai_db",
+    "database_verified_reason": "asked the server"
+  },
+  "summary": {
+    "checks": 6,
+    "passed": 6,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [],
+  "checks": [
+    {
+      "label": "every run actually changed the world (independent filesystem oracle)",
+      "passed": true,
+      "detail": "5/5",
+      "at": "2026-09-18T11:25:55.680883+00:00"
+    },
+    {
+      "label": "the substrate ACCEPTED the verified-successful operation as complete",
+      "passed": true,
+      "detail": "5/5 accepted \u2014 if 0, completion rejected a real success (false negative); EARNED then records wins as losses",
+      "at": "2026-09-18T11:25:55.680891+00:00"
+    },
+    {
+      "label": "operating outcomes PERSISTED by the producer (no hand-call) \u2014 attempts += RUNS",
+      "passed": true,
+      "detail": "attempts 0\u21925 (\u03945), wins 0\u21925",
+      "at": "2026-09-18T11:25:55.681711+00:00"
+    },
+    {
+      "label": "earned reliability moved OFF neutral after \u22654 verified operations",
+      "passed": true,
+      "detail": "earned 0.5\u21920.5655 (win_rate=1.0)",
+      "at": "2026-09-18T11:25:55.690285+00:00"
+    },
+    {
+      "label": "operability BAR shifted DOWN (verified successes earned trust)",
+      "passed": true,
+      "detail": "bar 0.5\u21920.4803 (wins 5/5) \u2014 UP means real successes were recorded as losses",
+      "at": "2026-09-18T11:25:55.690292+00:00"
+    },
+    {
+      "label": "the motivation frontier now reads the REVISED threshold (live earned basis)",
+      "passed": true,
+      "detail": "fresh bar=0.4803 earned_attempts=5",
+      "at": "2026-09-18T11:25:55.942716+00:00"
+    }
+  ],
+  "notes": []
+}

@@ -2,7 +2,7 @@
 """
 Intrinsic Motivation System
 Implements 7-dimensional intrinsic motivation for autonomous behavior
-Influences 60% of self-improvement decisions
+(what the substrate pursues to get better at its job — by learning)
 """
 
 from core.capability import raise_if_structural
@@ -113,7 +113,7 @@ class MotivationProfile:
     accumulated_event_reward: float = 0.0
     event_reward_count: int = 0
 
-    influence_percentage: float = 0.60  # 60% influence on self-improvement
+    influence_percentage: float = 0.60  # share of pursuit decisions motivation weighs in on
     last_updated: Optional[datetime] = None
     history: List[Dict[str, Any]] = field(default_factory=list)
 
@@ -329,7 +329,7 @@ class IntrinsicMotivationSystem:
     6. Social (0.9x) - Collaboration
     7. Impact (0.8x) - Meaningful change
 
-    Influences 60% of autonomous self-improvement decisions
+    Weighs in on what the substrate pursues to get better at its job (by learning)
     """
 
     def __init__(self, config: Optional[Dict[str, Any]] = None):
@@ -369,9 +369,6 @@ class IntrinsicMotivationSystem:
         # Database for persistence (optional - gracefully degrades)
         self.db = None
 
-
-        # Integration points
-        self.security_audit_worker = None  # For receiving security findings
 
         # Configuration
         self.influence_percentage = self.config.get("influence_percentage", 0.60)
@@ -441,7 +438,7 @@ class IntrinsicMotivationSystem:
         # 4. GOAL MUTATION ENGINE: Dimensional mutation parameters
         self._mutation_enabled = True
         self._mutation_dimensions = {
-            'components': ['memory_agent', 'neural_bridge', 'unified_llm', 'learning', 'security'],
+            'components': ['memory_agent', 'neural_bridge', 'learning', 'security'],
             'abstraction_levels': ['low', 'medium', 'high'],
             'objective_types': ['research', 'explore', 'learn', 'analyze', 'optimize', 'investigate', 'improve'],
             'time_horizons': ['immediate', 'short', 'long']
@@ -467,11 +464,6 @@ class IntrinsicMotivationSystem:
 
         logger.info("Intrinsic motivation system initialized with advanced novelty features")
 
-
-    def set_security_audit_worker(self, worker):
-        """Set security audit worker for receiving security findings"""
-        self.security_audit_worker = worker
-        logger.info("Intrinsic motivation system connected to security audit worker")
 
     async def log_intrinsic_reward(
         self,
@@ -749,7 +741,7 @@ class IntrinsicMotivationSystem:
             return 'learning'
         elif any(word in goal_lower for word in ['test', 'run_pytest', 'verify', 'validate', 'coverage']):
             return 'testing'
-        elif any(word in goal_lower for word in ['refactor', 'improve', 'trigger_self_improvement', 'benchmark_learning']):
+        elif any(word in goal_lower for word in ['improve']):
             return 'self_improvement'
         elif any(word in goal_lower for word in ['trace', 'architecture', 'execution path', 'neural_bridge', 'source']):
             return 'architecture'
@@ -2360,27 +2352,8 @@ class IntrinsicMotivationSystem:
             component = gap.get('component', 'unknown')
             gap_stats[component] = gap.get('uncertainty', 0.5)
 
-        # Extract security findings
-        security_findings = system_context.get('security_findings', [])
-        security_stats = {}  # component -> {severity_score, finding_count}
-
-        severity_map = {'critical': 1.0, 'high': 0.8, 'medium': 0.5, 'low': 0.3}
-        for finding in security_findings:
-            component = finding.get('component', 'security')
-            severity = finding.get('severity', 'medium').lower()
-            severity_score = severity_map.get(severity, 0.5)
-
-            if component not in security_stats:
-                security_stats[component] = {'severity_score': 0.0, 'finding_count': 0}
-
-            security_stats[component]['severity_score'] = max(
-                security_stats[component]['severity_score'],
-                severity_score
-            )
-            security_stats[component]['finding_count'] += 1
-
         # Combine all signals into component_metrics
-        all_components = set(task_stats.keys()) | set(error_stats.keys()) | set(gap_stats.keys()) | set(performance_metrics.keys()) | set(security_stats.keys())
+        all_components = set(task_stats.keys()) | set(error_stats.keys()) | set(gap_stats.keys()) | set(performance_metrics.keys())
 
         for component in all_components:
             # Calculate failure_rate
@@ -2418,12 +2391,6 @@ class IntrinsicMotivationSystem:
                 # Mix of epistemic and aleatoric
                 epistemic_uncertainty = gap_stats.get(component, prediction_error * 0.6)
 
-            # Boost uncertainty for security findings
-            sec_info = security_stats.get(component, {})
-            if sec_info:
-                security_boost = sec_info.get('severity_score', 0.0) * 0.7
-                epistemic_uncertainty = min(0.95, epistemic_uncertainty + security_boost)
-
             # Calculate impact_radius based on component type
             impact_radius = self._calculate_impact_radius(component, error_info['error_count'])
 
@@ -2454,7 +2421,6 @@ class IntrinsicMotivationSystem:
         component_keywords = {
             'memory': 'memory_agent',
             'neural': 'neural_bridge',
-            'llm': 'unified_llm',
             'learning': 'learning',
             'security': 'security',
             'tool': 'tool_execution',
@@ -2471,7 +2437,7 @@ class IntrinsicMotivationSystem:
     def _calculate_impact_radius(self, component: str, error_count: int) -> float:
         """Calculate impact radius: 0.0=component, 0.5=system, 1.0=user-facing"""
         # User-facing components have highest impact
-        user_facing = ['api_layer', 'unified_llm', 'security']
+        user_facing = ['api_layer', 'security']
         system_critical = ['memory_agent', 'neural_bridge', 'database']
 
         if component in user_facing:

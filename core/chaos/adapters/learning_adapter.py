@@ -7,7 +7,6 @@ Chaos injection for the learning system.
 
 Targets:
 - Continuous learning pipeline
-- Safe upgrade deployer
 - Governance pattern learner
 - Model training and validation
 - Pattern extraction
@@ -31,7 +30,6 @@ class LearningSystemAdapter(TargetSystemAdapter):
 
     Injection Points:
     - continuous_learning_pipeline.train: Training process failures
-    - safe_upgrade_deployer.deploy: Deployment failures
     - governance_pattern_learner.extract_patterns: Pattern extraction errors
     - model_validator.validate: Validation failures
     """
@@ -40,7 +38,6 @@ class LearningSystemAdapter(TargetSystemAdapter):
         super().__init__("learning_system")
         self.injection_points = {
             "training": "continuous_learning_pipeline",
-            "deployment": "safe_upgrade_deployer",
             "pattern_learning": "governance_pattern_learner",
             "validation": "model_validator"
         }
@@ -58,7 +55,6 @@ class LearningSystemAdapter(TargetSystemAdapter):
 
         Examples:
         - component="continuous_learning_pipeline", injection_point="data_loading"
-        - component="safe_upgrade_deployer", injection_point="model_upload"
         """
         injection_id = f"learning_latency_{uuid.uuid4().hex[:8]}"
 

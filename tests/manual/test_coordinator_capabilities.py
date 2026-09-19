@@ -133,7 +133,7 @@ async def test_keyword_vs_capability_comparison():
     # Show cognitive tools
     cognitive_tools = [name for name in new_tools.keys()
                       if name in ['analyzecausalfeedback', 'forecastcapabilities',
-                                 'profileperformance', 'triggerselfimprovement']]
+                                 'profileperformance']]
 
     print(f"Cognitive tools: {cognitive_tools}")
 

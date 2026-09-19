@@ -1,0 +1,217 @@
+{
+  "experiment": "SEE-LOOP-01",
+  "claim": "One act of sight carries through the live substrate intact: what was seen is held at the standing its evidence warrants, judged by the same band that judges a recognition and a finished task, recorded so the memory of it resolves to the bytes, read through the law that governs the substrate \u2014 and changes nothing about what it may do.",
+  "hypothesis": "Each stage of this path passes its own test. The defects found today all lived in the SEAMS \u2014 a value computed by one stage and dropped before the next could read it \u2014 and no single-stage test can see one. This exercises the whole chain in one run.",
+  "started_at": "2026-09-19T13:42:20.945845+00:00",
+  "duration_seconds": 35.094,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/TorinAI/venv_torin/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/TorinAI",
+    "shadow_mode": "1",
+    "git_commit": "a36cac20c24cef93cfa6d22ef82bf9a3169e9a5b",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "torinai_db",
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "dotenv:.env.postgres",
+        "database": "dotenv:.env.postgres",
+        "user": "dotenv:.env.postgres",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres"
+      }
+    },
+    "git_uncommitted_changes": 288,
+    "database_verified": "torinai_db",
+    "database_verified_reason": "asked the server"
+  },
+  "summary": {
+    "checks": 23,
+    "passed": 23,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [
+    {
+      "name": "percept_id",
+      "value": "perc_1789825373.667412_seeloop_2aff63",
+      "unit": "id",
+      "note": ""
+    },
+    {
+      "name": "beliefs_from_one_sight",
+      "value": 27,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "acceptance_band",
+      "value": 0.95,
+      "unit": "posterior",
+      "note": ""
+    },
+    {
+      "name": "claims_judged",
+      "value": 21,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "unsure_claims_flagged",
+      "value": 1,
+      "unit": "count",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "the substrate is the live one, with its faculties up",
+      "passed": true,
+      "detail": "constitution + appraisal + vision all held",
+      "at": "2026-09-19T13:42:53.792891+00:00"
+    },
+    {
+      "label": "sight returned a percept through the one entry point",
+      "passed": true,
+      "detail": "PerceptionData",
+      "at": "2026-09-19T13:42:53.792904+00:00"
+    },
+    {
+      "label": "the percept has a durable identity",
+      "passed": true,
+      "detail": "perc_1789825373.667412_seeloop_2aff63",
+      "at": "2026-09-19T13:42:53.792907+00:00"
+    },
+    {
+      "label": "what was seen is held as beliefs",
+      "passed": true,
+      "detail": "27 belief(s)",
+      "at": "2026-09-19T13:42:53.838717+00:00"
+    },
+    {
+      "label": "an INFERRED claim is held at its own measured support",
+      "passed": true,
+      "detail": "circle prior=0.896",
+      "at": "2026-09-19T13:42:53.838744+00:00"
+    },
+    {
+      "label": "while a MEASURED claim is not \u2014 they entered by different evidence",
+      "passed": true,
+      "detail": "has_width=800 prior=0.9",
+      "at": "2026-09-19T13:42:53.838749+00:00"
+    },
+    {
+      "label": "a recognition below the floor is not held at all",
+      "passed": true,
+      "detail": "quality 0.02 < floor 0.5; 0 belief(s) \u2014 absence, not a weak posterior",
+      "at": "2026-09-19T13:42:53.886592+00:00"
+    },
+    {
+      "label": "the sensing produced a judgement, not only beliefs",
+      "passed": true,
+      "detail": "1 judgement event(s)",
+      "at": "2026-09-19T13:42:53.886623+00:00"
+    },
+    {
+      "label": "every claim it made was judged, none skipped",
+      "passed": true,
+      "detail": "21 claim(s) at accept=0.95",
+      "at": "2026-09-19T13:42:53.886627+00:00"
+    },
+    {
+      "label": "each claim carries its own verdict and the posterior behind it",
+      "passed": true,
+      "detail": "ACT 21 / VERIFY 0 / ABSTAIN 0",
+      "at": "2026-09-19T13:42:53.886639+00:00"
+    },
+    {
+      "label": "the percept's own verdict is the WEAKEST of its claims",
+      "passed": true,
+      "detail": "percept=ACT",
+      "at": "2026-09-19T13:42:53.886642+00:00"
+    },
+    {
+      "label": "it fans out on the SAME event a recognition does",
+      "passed": true,
+      "detail": "PERCEPT_RECOGNIZED",
+      "at": "2026-09-19T13:42:53.886648+00:00"
+    },
+    {
+      "label": "and names which path produced it, so the two stay distinguishable",
+      "passed": true,
+      "detail": "perceive_sensed",
+      "at": "2026-09-19T13:42:53.886650+00:00"
+    },
+    {
+      "label": "the memory records WHICH percept it is of",
+      "passed": true,
+      "detail": "perc_1789825373.667412_seeloop_2aff63",
+      "at": "2026-09-19T13:42:53.937881+00:00"
+    },
+    {
+      "label": "which resolves to the record of the seeing, digest and all",
+      "passed": true,
+      "detail": "sha256=34d363dde4cf9345",
+      "at": "2026-09-19T13:42:53.939169+00:00"
+    },
+    {
+      "label": "every blob it saw is read through the law, none skipped",
+      "passed": true,
+      "detail": "{'borne': 0, 'none': 3, 'vacant': 0, 'readings': []} over 3 blob(s)",
+      "at": "2026-09-19T13:42:55.715867+00:00"
+    },
+    {
+      "label": "a refusal is still a refusal after a whole act of sight",
+      "passed": true,
+      "detail": "block \u2014 law 3",
+      "at": "2026-09-19T13:42:55.720460+00:00"
+    },
+    {
+      "label": "and affect still reaches no law",
+      "passed": true,
+      "detail": "stakes is an appraisal dimension, and no law reads appraisal (asserted against the law bodies in BEARING-01)",
+      "at": "2026-09-19T13:42:55.720468+00:00"
+    },
+    {
+      "label": "an inferred claim it is unsure of is flagged, not acted on",
+      "passed": true,
+      "detail": "ellipse @0.9753",
+      "at": "2026-09-19T13:42:55.843609+00:00"
+    },
+    {
+      "label": "while the claims it measured are still acted on",
+      "passed": true,
+      "detail": "ACT 12 / VERIFY 1",
+      "at": "2026-09-19T13:42:55.843620+00:00"
+    },
+    {
+      "label": "so the percept's own verdict is VERIFY \u2014 the weakest claim decides",
+      "passed": true,
+      "detail": "VERIFY",
+      "at": "2026-09-19T13:42:55.843622+00:00"
+    },
+    {
+      "label": "and the reaction can name what to re-observe from the payload alone",
+      "passed": true,
+      "detail": "would register known-unknowns for: unsure_2aff63_blob1",
+      "at": "2026-09-19T13:42:55.843627+00:00"
+    },
+    {
+      "label": "the reaction carries the VERIFY verdict out without raising",
+      "passed": true,
+      "detail": "_react_percept ran on a sensed VERIFY",
+      "at": "2026-09-19T13:42:55.843689+00:00"
+    }
+  ],
+  "notes": [
+    "Before this the whole percept shared one envelope quality, so a shape inferred from a lossy polygon approximation and a width read off the file were equally well founded in the record. The support existed at every point and was dropped at the seam: `concept_ingestion` truncated every edge to three elements at extraction, before the reader of the fourth ever ran.",
+    "`perceive` asked of every recognition whether its confidence cleared a defensible bar; `sense` ran to the belief store and stopped. The substrate held an acceptance standard for what it RECOGNISED and none for what it SAW \u2014 on the path that runs constantly and that an attacker reaches first.",
+    "A shape and a colour bear on no interest the law protects, and the reading says so as NONE or VACANT rather than as an absence of reading. That is the honest result for a test card: the faculty fires, and finds nothing at stake.",
+    "The test card is clean, so every claim it yields is high-support and the loop only ever exercised ACT. The branch that matters is the other one: what the substrate does when it is NOT sure. It was broken here and no single-stage test could see it, because both stages were individually correct and disagreed about the payload."
+  ]
+}

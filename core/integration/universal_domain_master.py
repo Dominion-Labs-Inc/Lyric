@@ -20,12 +20,16 @@ Features:
 
 import logging
 import asyncio
+import heapq
+import time
 import uuid
 import json
 from dataclasses import dataclass, field
-from typing import Dict, Any, List, Optional, Set, Tuple
+from typing import Dict, Any, List, Optional, Sequence, Set, Tuple
 from datetime import datetime
 from enum import Enum
+
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -76,6 +80,13 @@ from core.domain.cross_domain_reasoner import ReasoningStrategy  # noqa: E402
 # through it, and universal_ontology maps all twelve members. The two members
 # unique to this copy had zero uses repo-wide.
 from core.domain.domain_types import ConceptType  # noqa: E402
+
+from core.domain.domain_types import (  # noqa: E402
+    CONCEPT_DESCRIPTION_WEIGHT, CONCEPT_NAME_WEIGHT, CrossDomainMapping,
+    DomainConcept, concept_group, concept_similarity_scores,
+    concept_structure_table, domain_signature, domain_similarity,
+    semantic_floor, text_key,
+)
 
 
 @dataclass
@@ -339,6 +350,402 @@ class EpistemicDeficit:
         )
 
 
+# ======================================================================
+# CONCEPT VECTORS AND CONCEPT-LEVEL CORRESPONDENCE
+#
+# Owned by UniversalDomainMaster. A concept's name and description are encoded
+# once, when the concept is written, and stored on its unified.concepts row.
+# Correspondence between two domains is scored from those stored vectors in a
+# worker thread and reused until either domain's concepts change.
+# ======================================================================
+
+#: float32 similarity blocks are this many elements (~128 MB).
+_BLOCK_ELEMENTS = 1 << 25
+#: Candidate pairs rescored exactly per batch.
+_EXACT_BATCH = 32_768
+#: float32 dot products of unit vectors are within ~1e-6 of the float64 value;
+#: the candidate floor is lowered by this so no passing pair is filtered out.
+_FLOAT32_MARGIN = 1e-4
+
+
+class _ConceptVectorStore:
+    """Stored concept vectors held in memory, loaded from unified.concepts on use.
+
+    Rows are append-only and arrays are replaced, never resized in place, so a
+    worker thread scoring arrays it was handed never sees a row change.
+    """
+
+    def __init__(self):
+        self.index: Dict[str, int] = {}
+        self.size = 0
+        self.garbage = 0
+        self.names: Optional[np.ndarray] = None
+        self.descriptions: Optional[np.ndarray] = None
+        self.name_keys: Optional[np.ndarray] = None
+        self.description_keys: Optional[np.ndarray] = None
+        self._text_ids: Dict[str, int] = {}
+
+    def _text_id(self, text: Optional[str]) -> int:
+        key = text_key(text)
+        return self._text_ids.setdefault(key, len(self._text_ids)) if key else -1
+
+    def _allocate(self, capacity: int, dim: int) -> None:
+        names = np.zeros((capacity, dim), dtype=np.float32)
+        descriptions = np.zeros((capacity, dim), dtype=np.float32)
+        name_keys = np.full(capacity, -1, dtype=np.int64)
+        description_keys = np.full(capacity, -1, dtype=np.int64)
+        if self.names is not None and self.garbage > max(100_000, len(self.index)):
+            live = np.fromiter(self.index.values(), dtype=np.int64, count=len(self.index))
+            order = np.argsort(live)
+            live = live[order]
+            names[:live.size] = self.names[live]
+            descriptions[:live.size] = self.descriptions[live]
+            name_keys[:live.size] = self.name_keys[live]
+            description_keys[:live.size] = self.description_keys[live]
+            ids = list(self.index.keys())
+            self.index = {ids[k]: row for row, k in enumerate(order.tolist())}
+            self.size, self.garbage = live.size, 0
+        elif self.names is not None:
+            names[:self.size] = self.names[:self.size]
+            descriptions[:self.size] = self.descriptions[:self.size]
+            name_keys[:self.size] = self.name_keys[:self.size]
+            description_keys[:self.size] = self.description_keys[:self.size]
+        self.names, self.descriptions = names, descriptions
+        self.name_keys, self.description_keys = name_keys, description_keys
+
+    def put(self, entries: List[Tuple[str, Optional[str], Optional[str],
+                                      Optional[np.ndarray], Optional[np.ndarray]]]) -> None:
+        """entries: (concept_id, name, description, name_vector, description_vector)."""
+        if not entries:
+            return
+        dim = next((len(v) for e in entries for v in e[3:] if v is not None), None)
+        if dim is None and self.names is None:
+            from core.memory.utils.embedding_service import EMBEDDING_DIMENSIONS
+            dim = EMBEDDING_DIMENSIONS
+        dim = dim or self.names.shape[1]
+        end = self.size + len(entries)
+        if self.names is None or end > len(self.names) or self.names.shape[1] != dim:
+            if self.names is not None and self.names.shape[1] != dim:
+                raise ValueError(
+                    f"stored concept vectors are {dim}-dimensional; this store "
+                    f"holds {self.names.shape[1]}")
+            self._allocate(max(end, 2 * (0 if self.names is None else len(self.names)), 4096), dim)
+            end = self.size + len(entries)
+        for offset, (concept_id, name, description, name_vec, desc_vec) in enumerate(entries):
+            for text, vec, what in ((name, name_vec, "name"), (description, desc_vec, "description")):
+                if bool(text_key(text)) != (vec is not None):
+                    raise ValueError(
+                        f"concept {concept_id}: {what} text and stored vector disagree "
+                        f"(text {'present' if text_key(text) else 'absent'}, vector "
+                        f"{'present' if vec is not None else 'absent'})")
+            row = self.size + offset
+            self.names[row] = name_vec if name_vec is not None else 0.0
+            self.descriptions[row] = desc_vec if desc_vec is not None else 0.0
+            self.name_keys[row] = self._text_id(name) if name_vec is not None else -1
+            self.description_keys[row] = (self._text_id(description)
+                                          if desc_vec is not None else -1)
+            if concept_id in self.index:
+                self.garbage += 1
+            self.index[concept_id] = row
+        self.size = end
+
+    def discard(self, concept_ids: Sequence[str]) -> None:
+        for concept_id in concept_ids:
+            if self.index.pop(concept_id, None) is not None:
+                self.garbage += 1
+
+
+@dataclass(frozen=True)
+class _ConceptSide:
+    """One domain's concepts, in order, as rows of a vector store snapshot."""
+    concept_ids: Tuple[str, ...]
+    rows: np.ndarray
+    names: np.ndarray
+    descriptions: np.ndarray
+    name_keys: np.ndarray
+    description_keys: np.ndarray
+    groups: np.ndarray
+    group_table: Tuple[Tuple[frozenset, str, float], ...]
+
+
+def _build_side(concepts: List[DomainConcept], rows: np.ndarray,
+                names: np.ndarray, descriptions: np.ndarray,
+                name_keys: np.ndarray, description_keys: np.ndarray) -> _ConceptSide:
+    table: Dict[Tuple[frozenset, str, float], int] = {}
+    groups = np.empty(len(concepts), dtype=np.int32)
+    for position, concept in enumerate(concepts):
+        groups[position] = table.setdefault(concept_group(concept), len(table))
+    return _ConceptSide(
+        concept_ids=tuple(c.concept_id for c in concepts), rows=rows,
+        names=names, descriptions=descriptions,
+        name_keys=name_keys[rows], description_keys=description_keys[rows],
+        groups=groups, group_table=tuple(table))
+
+
+def _encode_concept_texts(names: List[Optional[str]], descriptions: List[Optional[str]]
+                          ) -> Tuple[List[Optional[np.ndarray]], List[Optional[np.ndarray]]]:
+    """Unit vectors for each non-empty text; None where there is no text. Blocking."""
+    from core.memory.utils.embedding_service import get_embedding_service
+    texts: List[str] = []
+    slots: List[Tuple[int, int]] = []
+    for kind, column in enumerate((names, descriptions)):
+        for position, text in enumerate(column):
+            if text_key(text):
+                texts.append(text)
+                slots.append((kind, position))
+    vectors = get_embedding_service().encode_normalized(texts)
+    out: Tuple[List[Optional[np.ndarray]], List[Optional[np.ndarray]]] = (
+        [None] * len(names), [None] * len(descriptions))
+    for (kind, position), vector in zip(slots, vectors):
+        out[kind][position] = vector
+    return out
+
+
+def _key_positions(keys: np.ndarray) -> Dict[int, np.ndarray]:
+    """text id -> positions holding it, for texts that are present."""
+    order = np.argsort(keys, kind="stable")
+    ordered = keys[order]
+    unique, starts, counts = np.unique(ordered, return_index=True, return_counts=True)
+    return {int(k): order[a:a + c] for k, a, c in zip(unique.tolist(), starts.tolist(),
+                                                       counts.tolist()) if k >= 0}
+
+
+def _exact_pair_scores(src: _ConceptSide, tgt: _ConceptSide, structure: np.ndarray,
+                       ii: np.ndarray, jj: np.ndarray) -> np.ndarray:
+    """Concept similarity for aligned pairs (src[ii], tgt[jj]), in float64."""
+    name_cos = np.einsum("ij,ij->i", src.names[src.rows[ii]].astype(np.float64),
+                         tgt.names[tgt.rows[jj]].astype(np.float64))
+    desc_cos = np.einsum("ij,ij->i", src.descriptions[src.rows[ii]].astype(np.float64),
+                         tgt.descriptions[tgt.rows[jj]].astype(np.float64))
+    sn, tn = src.name_keys[ii], tgt.name_keys[jj]
+    sd, td = src.description_keys[ii], tgt.description_keys[jj]
+    return concept_similarity_scores(
+        name_cos, desc_cos, sn == tn, sd == td,
+        (sn < 0) | (tn < 0), (sd < 0) | (td < 0),
+        structure[src.groups[ii], tgt.groups[jj]])
+
+
+def _slice_side(side: _ConceptSide, positions: Sequence[int]) -> _ConceptSide:
+    """The concepts of `side` at `positions` (ascending), same store and groups."""
+    idx = np.asarray(positions, dtype=np.int64)
+    return _ConceptSide(
+        concept_ids=tuple(side.concept_ids[i] for i in positions), rows=side.rows[idx],
+        names=side.names, descriptions=side.descriptions,
+        name_keys=side.name_keys[idx], description_keys=side.description_keys[idx],
+        groups=side.groups[idx], group_table=side.group_table)
+
+
+def _score_correspondence(src: _ConceptSide, tgt: _ConceptSide, threshold: float,
+                          depth: int, count_all: bool) -> Dict[str, Any]:
+    """Concept pairs scoring above `threshold`. Exact; blocking.
+
+    `strongest`: the `depth` strongest as (score, source_id, target_id), strongest
+    first, ties in source-then-target order. `complete`: whether those are every
+    passing pair. With `count_all`, also `pairs` and `total` over every passing
+    pair, and `rows` / `cols`: concept id -> (pairs, total) for each concept with
+    a passing pair.
+
+    Keeping only the strongest, blocks are float32 and a pair is rescored in
+    float64 only if its semantic term clears the floor for the current depth-th
+    best, which rises as the scan goes. Counting every pair needs every passing
+    score, so blocks are float64 and scores are taken from them.
+    """
+    n, m = len(src.concept_ids), len(tgt.concept_ids)
+    result: Dict[str, Any] = {"source_concepts": n, "target_concepts": m,
+                              "pairs": 0 if count_all else None,
+                              "total": 0.0 if count_all else None,
+                              "strongest": [], "complete": True,
+                              "rows": {} if count_all else None,
+                              "cols": {} if count_all else None}
+    if n == 0 or m == 0:
+        return result
+    dtype = np.float64 if count_all else np.float32
+    margin = 1e-9 if count_all else _FLOAT32_MARGIN
+    structure = concept_structure_table(list(src.group_table), list(tgt.group_table))
+    max_structure = float(structure.max())
+    target_names = tgt.names[tgt.rows].astype(dtype, copy=False)
+    target_descriptions = tgt.descriptions[tgt.rows].astype(dtype, copy=False)
+    name_positions = _key_positions(tgt.name_keys)
+    description_positions = _key_positions(tgt.description_keys)
+    strongest: List[Tuple[float, int, int]] = []
+    block_elements = _BLOCK_ELEMENTS // (2 if count_all else 1)
+    step = max(1, min(n, block_elements // m))
+    if count_all:
+        row_pairs = np.zeros(n, dtype=np.int64)
+        row_total = np.zeros(n, dtype=np.float64)
+        col_pairs = np.zeros(m, dtype=np.int64)
+        col_total = np.zeros(m, dtype=np.float64)
+
+    for i0 in range(0, n, step):
+        i1 = min(n, i0 + step)
+        rows = src.rows[i0:i1]
+        name_sim = src.names[rows].astype(dtype, copy=False) @ target_names.T
+        desc_sim = src.descriptions[rows].astype(dtype, copy=False) @ target_descriptions.T
+        np.maximum(name_sim, 0.0, out=name_sim)
+        np.maximum(desc_sim, 0.0, out=desc_sim)
+        if count_all:
+            # Scores are read from these blocks, so they hold exact similarities.
+            np.minimum(name_sim, 1.0, out=name_sim)
+            np.minimum(desc_sim, 1.0, out=desc_sim)
+        for block, keys, positions in ((name_sim, src.name_keys, name_positions),
+                                       (desc_sim, src.description_keys, description_positions)):
+            for offset, key in enumerate(keys[i0:i1].tolist()):
+                if key >= 0 and key in positions:
+                    block[offset, positions[key]] = 1.0
+        if count_all:
+            semantic = desc_sim * CONCEPT_DESCRIPTION_WEIGHT
+        else:
+            # Only a bound is needed from float32 blocks; pairs are rescored.
+            semantic = np.multiply(desc_sim, CONCEPT_DESCRIPTION_WEIGHT, out=desc_sim)
+        semantic += CONCEPT_NAME_WEIGHT * name_sim
+        np.maximum(semantic, name_sim, out=semantic)
+
+        bar = threshold
+        if not count_all and len(strongest) >= depth:
+            bar = max(threshold, strongest[0][0])
+        ii, jj = np.nonzero(semantic > semantic_floor(bar, max_structure) - margin)
+        del semantic
+        if ii.size == 0:
+            continue
+
+        if count_all:
+            flags = np.zeros(ii.size, dtype=bool)
+            scores = concept_similarity_scores(
+                name_sim[ii, jj], desc_sim[ii, jj], flags, flags, flags, flags,
+                structure[src.groups[ii + i0], tgt.groups[jj]])
+            batches = [(ii + i0, jj, scores)]
+        else:
+            batches = []
+            ii = ii + i0
+            for b0 in range(0, ii.size, _EXACT_BATCH):
+                bi, bj = ii[b0:b0 + _EXACT_BATCH], jj[b0:b0 + _EXACT_BATCH]
+                batches.append((bi, bj, _exact_pair_scores(src, tgt, structure, bi, bj)))
+        del name_sim, desc_sim
+
+        for bi, bj, scores in batches:
+            passing = scores > threshold
+            if not passing.any():
+                continue
+            bi, bj, scores = bi[passing], bj[passing], scores[passing]
+            if count_all:
+                result["pairs"] += int(scores.size)
+                result["total"] += float(scores.sum())
+                np.add.at(row_pairs, bi, 1)
+                np.add.at(row_total, bi, scores)
+                np.add.at(col_pairs, bj, 1)
+                np.add.at(col_total, bj, scores)
+            if scores.size > depth:
+                kth = np.partition(scores, scores.size - depth)[scores.size - depth]
+                tied = np.nonzero(scores >= kth)[0]
+                order = np.lexsort((bj[tied], bi[tied], -scores[tied]))[:depth]
+                if tied.size > depth:
+                    result["complete"] = False
+                chosen = tied[order]
+                if scores.size > chosen.size:
+                    result["complete"] = False
+                bi, bj, scores = bi[chosen], bj[chosen], scores[chosen]
+            for score, i, j in zip(scores.tolist(), bi.tolist(), bj.tolist()):
+                item = (score, -i, -j)
+                if len(strongest) < depth:
+                    heapq.heappush(strongest, item)
+                else:
+                    result["complete"] = False
+                    if item > strongest[0]:
+                        heapq.heapreplace(strongest, item)
+
+    if not count_all and len(strongest) >= depth:
+        # The scan stopped rescoring pairs below the rising bar, so pairs beyond
+        # the depth may exist unseen.
+        result["complete"] = False
+    result["strongest"] = [(score, src.concept_ids[-i], tgt.concept_ids[-j])
+                           for score, i, j in sorted(strongest, reverse=True)]
+    if count_all:
+        result["rows"] = {src.concept_ids[i]: (int(row_pairs[i]), float(row_total[i]))
+                          for i in np.nonzero(row_pairs)[0].tolist()}
+        result["cols"] = {tgt.concept_ids[j]: (int(col_pairs[j]), float(col_total[j]))
+                          for j in np.nonzero(col_pairs)[0].tolist()}
+    return result
+
+
+def _update_correspondence(prev: Dict[str, Any], src: _ConceptSide, tgt: _ConceptSide,
+                           changed_src: Set[str], changed_tgt: Set[str],
+                           threshold: float, depth: int,
+                           count_all: bool) -> Optional[Dict[str, Any]]:
+    """`prev` brought up to date after the concepts in `changed_src` /
+    `changed_tgt` joined, left or changed; None when that cannot be done
+    exactly, and the caller scores in full. Blocking.
+
+    Only pairs touching a changed concept are scored. Pairs between unchanged
+    concepts keep their scores, and their relative order: a re-registered
+    concept moves to the end of its domain, the others keep their order.
+    """
+    n, m = len(src.concept_ids), len(tgt.concept_ids)
+    if (len(changed_src) > max(1000, n // 10) or len(changed_tgt) > max(1000, m // 10)
+            or (count_all and changed_src and changed_tgt)
+            or (count_all and changed_src and prev.get("rows") is None)
+            or (count_all and changed_tgt and prev.get("cols") is None)):
+        return None
+    src_pos = {cid: i for i, cid in enumerate(src.concept_ids)}
+    tgt_pos = {cid: j for j, cid in enumerate(tgt.concept_ids)}
+
+    parts = []
+    changed_rows = sorted(src_pos[c] for c in changed_src if c in src_pos)
+    if changed_rows:
+        parts.append(_score_correspondence(
+            _slice_side(src, changed_rows), tgt, threshold, depth, count_all))
+    changed_cols = sorted(tgt_pos[c] for c in changed_tgt if c in tgt_pos)
+    if changed_cols:
+        changed_row_set = set(changed_rows)
+        unchanged_rows = [i for i in range(n) if i not in changed_row_set]
+        if unchanged_rows:
+            parts.append(_score_correspondence(
+                _slice_side(src, unchanged_rows), _slice_side(tgt, changed_cols),
+                threshold, depth, count_all))
+
+    def rank(entry):
+        return (-entry[0], src_pos[entry[1]], tgt_pos[entry[2]])
+
+    kept = [e for e in prev["strongest"] if e[1] not in changed_src and e[2] not in changed_tgt]
+    # A list that is not every passing pair of its region is exact only down to
+    # its own last entry: anything it left out ranks after that.
+    bounds = []
+    if not prev["complete"]:
+        if not kept:
+            return None
+        bounds.append(max(rank(e) for e in kept))
+    for part in parts:
+        if not part["complete"]:
+            bounds.append(max(rank(e) for e in part["strongest"]))
+    candidates = sorted(kept + [e for part in parts for e in part["strongest"]], key=rank)
+    if bounds:
+        bound = min(bounds)
+        candidates = [e for e in candidates if rank(e) <= bound]
+    result: Dict[str, Any] = {
+        "source_concepts": n, "target_concepts": m,
+        "strongest": candidates[:depth],
+        "complete": not bounds and len(candidates) <= depth,
+        "pairs": None, "total": None, "rows": None, "cols": None,
+    }
+    if count_all:
+        if changed_src:
+            rows = {c: v for c, v in prev["rows"].items() if c not in changed_src}
+            removed = [prev["rows"][c] for c in changed_src if c in prev["rows"]]
+            for part in parts:
+                rows.update(part["rows"])
+            result["rows"] = rows
+        else:
+            cols = {c: v for c, v in prev["cols"].items() if c not in changed_tgt}
+            removed = [prev["cols"][c] for c in changed_tgt if c in prev["cols"]]
+            for part in parts:
+                cols.update(part["cols"])
+            result["cols"] = cols
+        result["pairs"] = (prev["pairs"] - sum(p for p, _t in removed)
+                           + sum(part["pairs"] for part in parts))
+        result["total"] = (prev["total"] - sum(t for _p, t in removed)
+                           + sum(part["total"] for part in parts))
+    return result
+
+
 class UniversalDomainMaster:
     """
     Universal Domain Master - Cross-Domain Orchestration Tool
@@ -395,22 +802,24 @@ class UniversalDomainMaster:
             'total_mappings': 0
         }
 
+        # Concept vectors and what is derived from them, each entry keyed by the
+        # registry content version it was computed from.
+        self._schema_ready = False
+        self._vectors = _ConceptVectorStore()
+        self._sides: Dict[str, Tuple[Tuple[int, int], _ConceptSide]] = {}
+        self._signatures: Dict[str, Tuple[Tuple[int, int], Any]] = {}
+        self._correspondences: Dict[tuple, Tuple[tuple, Dict[str, Any]]] = {}
+        self._correspondence_runs: Dict[tuple, Tuple[tuple, "asyncio.Task"]] = {}
+        self._pair_mappings: Dict[tuple, Tuple[tuple, List["DomainMapping"]]] = {}
+        self._embedding_backfill: Optional["asyncio.Task"] = None
+
         self._initialized = True
         logger.info("🧰 UniversalDomainMaster initialized as Singleton tool (not autonomous orchestrator)")
 
     async def initialize(self):
         """Initialize database and load domain registry"""
         try:
-            # Get PostgreSQL database connection
-            from core.database import get_database_manager
-            self.db = get_database_manager()
-
-            # Ensure database is initialized
-            if not self.db.initialized:
-                await self.db.initialize()
-
-            # Create tables (idempotent - only creates if not exists)
-            await self._create_tables()
+            await self._database()
 
             # Load domain definitions
             await self._load_domain_registry()
@@ -421,15 +830,65 @@ class UniversalDomainMaster:
             logger.error(f"Failed to initialize Universal Domain Master: {e}")
             raise
 
-    async def _create_tables(self):
-        """Create database tables (PostgreSQL - tables already exist in schema)"""
-        # Tables are created in postgres_schemas.sql:
-        # - unified.domains
-        # - unified.domain_mappings
-        # - unified.knowledge_transfers
-        # - unified.cross_domain_queries
-        # This method is kept for compatibility but does nothing
-        pass
+    async def _database(self):
+        """The database, initialized, with the concept vector columns present."""
+        if self.db is None:
+            from core.database import get_database_manager
+            self.db = get_database_manager()
+        if not self.db.initialized:
+            await self.db.initialize()
+        if not self._schema_ready:
+            await self._ensure_concept_vector_schema()
+            self._schema_ready = True
+        return self.db
+
+    async def ensure_concept_schema(self) -> None:
+        """For writers of unified.concepts, whose upsert maintains these columns."""
+        await self._database()
+
+    async def _ensure_concept_vector_schema(self) -> None:
+        """name_embedding / description_embedding / embedding_model on unified.concepts.
+
+        Columns are added only when missing: ADD COLUMN takes an exclusive lock
+        even when IF NOT EXISTS makes it a no-op. Vectors written by any other
+        model are cleared, because they are not comparable with this model's.
+        """
+        from core.memory.utils.embedding_service import (
+            EMBEDDING_DIMENSIONS, EMBEDDING_MODEL_ID)
+        db = self.db
+        present = {r["column_name"] for r in await db.execute_query(
+            """SELECT column_name FROM information_schema.columns
+               WHERE table_schema = 'unified' AND table_name = 'concepts'
+                 AND column_name IN ('name_embedding', 'description_embedding',
+                                     'embedding_model')""", fetch_all=True) or []}
+        wanted = [("name_embedding", f"vector({EMBEDDING_DIMENSIONS})"),
+                  ("description_embedding", f"vector({EMBEDDING_DIMENSIONS})"),
+                  ("embedding_model", "TEXT")]
+        missing = [f"ADD COLUMN {name} {ddl}" for name, ddl in wanted if name not in present]
+        if missing:
+            await db.execute_query(
+                f"ALTER TABLE unified.concepts {', '.join(missing)}", commit=True)
+            logger.info("unified.concepts: added %s", ", ".join(missing))
+        indexed = await db.execute_query(
+            """SELECT 1 FROM pg_indexes WHERE schemaname = 'unified'
+               AND indexname = 'idx_concepts_embedding_pending'""", fetch_all=True)
+        if not indexed:
+            await db.execute_query(
+                """CREATE INDEX idx_concepts_embedding_pending ON unified.concepts
+                   (concept_id) WHERE embedding_model IS NULL""", commit=True)
+        cleared = (await db.execute_query(
+            """WITH cleared AS (
+                   UPDATE unified.concepts
+                      SET name_embedding = NULL, description_embedding = NULL,
+                          embedding_model = NULL
+                    WHERE embedding_model IS NOT NULL AND embedding_model <> $1
+                RETURNING 1)
+               SELECT count(*) AS n FROM cleared""",
+            (EMBEDDING_MODEL_ID,), fetch_all=True))[0]["n"]
+        if cleared:
+            logger.warning(
+                "unified.concepts: cleared %d vector(s) written by a model other "
+                "than %s; they will be re-encoded", cleared, EMBEDDING_MODEL_ID)
 
     async def _load_domain_registry(self):
         """Load domain definitions from database"""
@@ -453,6 +912,13 @@ class UniversalDomainMaster:
             fetch_all=True
         )
 
+        # This cache is keyed by DomainType -- it holds only the CATEGORY-shaped
+        # rows ("domain_<DomainType>"). A LEARNED domain (conversation, zoology,
+        # vision, sensor, ...) is not a DomainType classification: it is a domain
+        # the substrate has actually learned, tracked by the DomainRegistry, and it
+        # correctly does NOT map here. So a non-category id is the EXPECTED case,
+        # not an anomaly -- skip it quietly (debug), never warn.
+        skipped_learned = 0
         for row in rows:
             # Parse domain_id to get domain_type (format: "domain_scientific")
             domain_id = row['domain_id']
@@ -466,9 +932,12 @@ class UniversalDomainMaster:
                     'concepts': []  # Can be extracted from metadata JSONB if needed
                 }
             except ValueError:
-                logger.warning(f"Unknown domain type in database: {domain_type_str}")
+                skipped_learned += 1
+                logger.debug("domain %s is a learned domain, not a DomainType "
+                             "category — tracked by the registry, not this cache", domain_id)
 
-        logger.info(f"Loaded {len(self.domain_cache)} domains into cache")
+        logger.info("Loaded %d DomainType categories into cache (%d learned "
+                    "domains tracked elsewhere)", len(self.domain_cache), skipped_learned)
 
     async def _initialize_default_domains(self):
         """RETIRED: seeding the DomainType categories into unified.domains.
@@ -604,7 +1073,8 @@ class UniversalDomainMaster:
             boundaries={"origin": "learned"},
             maturity_score=0.1,  # newly discovered; competence is low
         )
-        await registry.register_domain(domain)
+        if not await registry.register_domain(domain):
+            raise RuntimeError(f"domain {domain_id} could not be registered")
         # A domain the substrate has just discovered is one it is not yet
         # competent in. Record that as an epistemic belief at maximum
         # uncertainty so the domain SURFACES in the epistemic engine's unstable
@@ -788,6 +1258,16 @@ class UniversalDomainMaster:
                    still_observations BIGINT NOT NULL DEFAULT 0,
                    ambient_changes    BIGINT NOT NULL DEFAULT 0,
                    updated_at         TIMESTAMPTZ NOT NULL DEFAULT NOW())""")
+        # operating-outcome accounting shares this authority (one owner for all
+        # per-domain action accounting -- controllability is "do my acts MOVE the
+        # domain"; operating is "when I acted to DO a task here, was the outcome
+        # RIGHT"). Distinct measurements, same table; added to existing rows too.
+        await self.db.execute_query(
+            "ALTER TABLE unified.domain_controllability "
+            "ADD COLUMN IF NOT EXISTS operating_attempts BIGINT NOT NULL DEFAULT 0")
+        await self.db.execute_query(
+            "ALTER TABLE unified.domain_controllability "
+            "ADD COLUMN IF NOT EXISTS operating_wins BIGINT NOT NULL DEFAULT 0")
 
     async def record_controllability(
         self, domain_id: str, *, action_attempts: int = 0, action_effects: int = 0,
@@ -847,6 +1327,104 @@ class UniversalDomainMaster:
         still = row["still_observations"] or 0
         ambient_rate = ((row["ambient_changes"] or 0) / still) if still else 0.0
         return max(0.0, min(1.0, action_effect_rate * (1.0 - ambient_rate)))
+
+    #: Minimum operating outcomes before earned reliability is allowed to move the
+    #: operability bar. Below this, the Wilson bound is reported but treated as
+    #: NEUTRAL (no shift) -- a single right/wrong operation must not swing trust,
+    #: the same "earned over several, never one" discipline as competence. Mirrors
+    #: the learning-progress window.
+    OPERATING_MIN_SAMPLE: int = 4
+
+    async def record_operating_outcome(
+        self, domain_id: str, *, success: bool,
+        outcome_class: Optional["OutcomeClass"] = None,
+    ) -> bool:
+        """Record one OPERATING outcome in a domain -- the substrate acted to DO a
+        task there (answer/troubleshoot/modify) and the result was verified RIGHT
+        (success) or WRONG. This is the EARNED half of operability: proven-correct
+        operation lowers the knowledge bar it must clear to act there again; being
+        wrong raises it. Distinct from competence (did I LEARN the operators) and
+        controllability (do my acts MOVE the world) -- correctness, not either of
+        those. Persisted so earned trust survives a restart.
+
+        THE CREDIT INVARIANT APPLIES HERE, at the one place this posterior moves
+        rather than at the call sites -- the same discipline `track_learning_outcome`
+        enforces for strategy arms, and for the same reason: an outcome that says
+        nothing about operating correctly must not be allowed to move a signal that
+        governs whether the substrate may act in this domain at all.
+
+        The motivating case was MEASURED, not hypothesized: a goal the substrate
+        could not PLAN executed nothing -- no tool invoked, no world change -- and
+        still landed as `operating_attempts += 1, wins += 0`. A knowledge deficit
+        was being recorded as an operating failure, and because `earned` raises the
+        KNOW->DO bar when it falls, not knowing how to act in a domain made the
+        substrate LESS free to act there. That is self-reinforcing in the wrong
+        direction: the remedy for a deficit is to operate and learn, and the
+        deficit was closing that door on itself.
+
+        Returns whether the outcome was credited, so a caller can tell a denied
+        outcome from a recorded one instead of inferring it from the counters.
+        """
+        from core.learning.meta_learning import OutcomeClass, is_credit_eligible
+
+        if outcome_class is None:
+            # Conservative default, deliberately loud: a caller that forgets to
+            # classify loses a data point audibly rather than silently teaching
+            # the substrate a false thing about how well it operates.
+            outcome_class = OutcomeClass.INDETERMINATE
+            logger.warning(
+                "record_operating_outcome called without outcome_class for %s -- "
+                "denied credit as INDETERMINATE", domain_id)
+        if not is_credit_eligible(outcome_class):
+            logger.info(
+                "operating outcome for %s NOT credited (%s): it establishes "
+                "nothing about operating correctness here",
+                domain_id, outcome_class.value)
+            return False
+
+        await self._ensure_domain_for_capability(domain_id)
+        if not self.db:
+            return False
+        await self._ensure_controllability_table()
+        await self.db.execute_query(
+            """INSERT INTO unified.domain_controllability
+                   (domain_id, operating_attempts, operating_wins)
+               VALUES ($1, 1, $2)
+               ON CONFLICT (domain_id) DO UPDATE SET
+                   operating_attempts = domain_controllability.operating_attempts + 1,
+                   operating_wins     = domain_controllability.operating_wins + EXCLUDED.operating_wins,
+                   updated_at         = NOW()""",
+            (domain_id, 1 if success else 0), commit=True)
+        return True
+
+    async def operating_reliability(self, domain_id: str) -> Dict[str, Any]:
+        """How reliably the substrate operates CORRECTLY in a domain, as the
+        lower bound of the Wilson 95% interval on its operating win-rate -- the
+        conservative, sample-size-aware estimate the StrategyAdaptationGate uses.
+
+        `earned` in [0,1] is the shift signal: the Wilson lower bound once enough
+        outcomes have accrued, else a NEUTRAL 0.5 (optimism withheld BOTH ways
+        until earned -- too few outcomes neither lowers nor raises the bar). The
+        lower bound is the right statistic: a handful of wins does not yet earn a
+        bar drop (wide interval, low floor), while a consistent record does."""
+        from core.agents.autonomous.idle_work_playbook import StrategyAdaptationGate
+        attempts = wins = 0
+        if self.db:
+            await self._ensure_controllability_table()
+            rows = await self.db.execute_query(
+                "SELECT operating_attempts, operating_wins FROM "
+                "unified.domain_controllability WHERE domain_id=$1",
+                (domain_id,), fetch_all=True)
+            if rows:
+                attempts = rows[0]["operating_attempts"] or 0
+                wins = rows[0]["operating_wins"] or 0
+        lo, hi = StrategyAdaptationGate._wilson_ci(wins, attempts) if attempts else (0.0, 1.0)
+        enough = attempts >= self.OPERATING_MIN_SAMPLE
+        earned = round(lo, 4) if enough else 0.5
+        return {"domain": domain_id, "attempts": int(attempts), "wins": int(wins),
+                "win_rate": round(wins / attempts, 4) if attempts else None,
+                "wilson_lower": round(lo, 4), "wilson_upper": round(hi, 4),
+                "earned": earned, "enough_history": enough}
 
     async def diagnose_deficit(
         self, domain_id: str, goal_conditions, world, outcome,
@@ -1264,27 +1842,367 @@ class UniversalDomainMaster:
     async def similar_domains(self, domain_id: str, *, threshold: float = 0.0):
         """Domains most similar to a known one, by concept structure.
 
-        The authority-level entry point for 'what is this domain like'. The
-        ranking itself is the registry's concept-based measure -- one
-        implementation, delegated to here rather than reimplemented -- so the
-        capability is unchanged; consolidating the ENTRY means callers ask the
-        Master rather than each reaching for its own registry handle.
+        [(Domain, score)] strongest first; [] for an unregistered domain. Each
+        domain's signature is computed off the event loop once per content
+        version, so a ranking is set arithmetic over cached signatures.
         """
         registry = await self._registry()
-        return await registry.find_similar_domains(domain_id, threshold=threshold)
+        domain = registry.domains.get(domain_id)
+        if domain is None:
+            return []
+        target = await self._signature(registry, domain)
+        ranked = []
+        for other_id, other in list(registry.domains.items()):
+            if other_id == domain_id:
+                continue
+            score = domain_similarity(target, await self._signature(registry, other))
+            if score >= threshold:
+                ranked.append((other, score))
+        ranked.sort(key=lambda pair: pair[1], reverse=True)
+        return ranked
 
-    async def suggest_mappings(self, source_domain_id: str, target_domain_id: str):
+    async def _signature(self, registry, domain):
+        version = registry.concept_version(domain.domain_id)
+        cached = self._signatures.get(domain.domain_id)
+        if cached is not None and cached[0] == version:
+            return cached[1]
+        signature = await asyncio.to_thread(domain_signature, domain)
+        if registry.concept_version(domain.domain_id) == version:
+            self._signatures[domain.domain_id] = (version, signature)
+        return signature
+
+    #: A suggested concept mapping must score above this; at most this many.
+    SUGGESTION_THRESHOLD: float = 0.6
+    SUGGESTION_LIMIT: int = 10
+
+    async def suggest_mappings(self, source_domain_id: str, target_domain_id: str
+                               ) -> List[CrossDomainMapping]:
         """Concept-level correspondences between two domains -- the mapping
         ground truth transfer consumes.
 
-        The authority-level entry for 'how do these two domains correspond'. The
-        computation is the registry's concept-similarity mapping (one
-        implementation, delegated to here); consolidating the ENTRY means callers
-        ask the Master rather than each holding their own registry handle.
+        The strongest concept pairs scoring above SUGGESTION_THRESHOLD, at most
+        SUGGESTION_LIMIT, as unvalidated candidates (validated=None). Raises
+        UnknownDomain for an unregistered domain.
         """
         registry = await self._registry()
-        return await registry.suggest_cross_domain_mappings(
-            source_domain_id, target_domain_id)
+        found = await self._concept_correspondence(
+            registry, source_domain_id, target_domain_id,
+            threshold=self.SUGGESTION_THRESHOLD, keep=self.SUGGESTION_LIMIT,
+            count_all=False)
+        return [
+            CrossDomainMapping(
+                mapping_id=registry._mapping_key(
+                    source_domain_id, target_domain_id,
+                    source_concept, target_concept, "similarity"),
+                source_domain_id=source_domain_id,
+                target_domain_id=target_domain_id,
+                source_concept_id=source_concept,
+                target_concept_id=target_concept,
+                mapping_type="similarity",
+                strength=score,
+                confidence=score * 0.8,
+                validated=None,
+            )
+            for score, source_concept, target_concept in found["strongest"][:self.SUGGESTION_LIMIT]
+        ]
+
+    async def structural_similarities(self, source_domain_id: str, target_domain_id: str,
+                                      *, threshold: float, keep: int) -> Dict[str, Any]:
+        """Every concept pair scoring above `threshold`: how many (`pairs`), their
+        summed score (`total`) and the `keep` strongest as
+        (score, source_concept_id, target_concept_id)."""
+        registry = await self._registry()
+        found = await self._concept_correspondence(
+            registry, source_domain_id, target_domain_id,
+            threshold=threshold, keep=keep, count_all=True)
+        return {"source_concepts": found["source_concepts"],
+                "target_concepts": found["target_concepts"],
+                "pairs": found["pairs"], "total": found["total"],
+                "strongest": found["strongest"][:keep]}
+
+    async def concept_similarity(self, source_domain_id: str, source_concept_id: str,
+                                 target_domain_id: str, target_concept_id: str) -> float:
+        """Similarity of two concepts, each read from the domain holding it."""
+        registry = await self._registry()
+        concepts = []
+        for domain_id, concept_id in ((source_domain_id, source_concept_id),
+                                      (target_domain_id, target_concept_id)):
+            domain = registry.domains.get(domain_id)
+            if domain is None:
+                from core.domain.domain_registry import UnknownDomain
+                raise UnknownDomain([domain_id], sorted(registry.domains))
+            concept = domain.concepts.get(concept_id)
+            if concept is None:
+                raise LookupError(f"{domain_id} holds no concept {concept_id!r}")
+            concepts.append(concept)
+        store = await self._vectors_for(concepts)
+        rows = np.array([store.index[c.concept_id] for c in concepts], dtype=np.int64)
+        src = _build_side(concepts[:1], rows[:1], store.names, store.descriptions,
+                          store.name_keys, store.description_keys)
+        tgt = _build_side(concepts[1:], rows[1:], store.names, store.descriptions,
+                          store.name_keys, store.description_keys)
+        structure = concept_structure_table(list(src.group_table), list(tgt.group_table))
+        zero = np.zeros(1, dtype=np.int64)
+        return float(_exact_pair_scores(src, tgt, structure, zero, zero)[0])
+
+    async def _concept_correspondence(self, registry, source_domain_id: str,
+                                      target_domain_id: str, *, threshold: float,
+                                      keep: int, count_all: bool) -> Dict[str, Any]:
+        """Scored once per content version of the two domains; concurrent callers
+        of the same question share one computation."""
+        missing = [d for d in (source_domain_id, target_domain_id) if d not in registry.domains]
+        if missing:
+            from core.domain.domain_registry import UnknownDomain
+            raise UnknownDomain(missing, sorted(registry.domains))
+        key = (source_domain_id, target_domain_id, threshold, keep, count_all)
+        version = (registry.concept_version(source_domain_id),
+                   registry.concept_version(target_domain_id))
+        cached = self._correspondences.get(key)
+        if cached is not None and cached[0] == version:
+            return cached[1]
+        running = self._correspondence_runs.get(key)
+        if running is None or running[0] != version or running[1].done():
+            task = asyncio.create_task(self._compute_correspondence(
+                registry, key, version, threshold, keep, count_all))
+            running = (version, task)
+            self._correspondence_runs[key] = running
+
+            def _finished(done, key=key):
+                if self._correspondence_runs.get(key, (None, None))[1] is done:
+                    del self._correspondence_runs[key]
+            task.add_done_callback(_finished)
+        return await asyncio.shield(running[1])
+
+    #: A result keeps this many times `keep` strongest pairs, so concepts can
+    #: leave or change without scoring the whole pair again.
+    CORRESPONDENCE_DEPTH_FACTOR: int = 4
+
+    async def _compute_correspondence(self, registry, key: tuple, version: tuple,
+                                      threshold: float, keep: int,
+                                      count_all: bool) -> Dict[str, Any]:
+        source_domain_id, target_domain_id = key[0], key[1]
+        src = await self._concept_side(registry, registry.domains[source_domain_id])
+        tgt = await self._concept_side(registry, registry.domains[target_domain_id])
+        depth = keep * self.CORRESPONDENCE_DEPTH_FACTOR
+        started = time.monotonic()
+        result, how = None, "scored"
+        previous = self._correspondences.get(key)
+        if previous is not None:
+            changed_src = registry.concept_changes(source_domain_id, previous[0][0], version[0])
+            changed_tgt = registry.concept_changes(target_domain_id, previous[0][1], version[1])
+            if changed_src is not None and changed_tgt is not None:
+                result = await asyncio.to_thread(
+                    _update_correspondence, previous[1], src, tgt, changed_src,
+                    changed_tgt, threshold, depth, count_all)
+                if result is not None and not result["complete"] and len(result["strongest"]) < keep:
+                    result = None  # too few exact pairs left to answer from
+                if result is not None:
+                    how = (f"updated for {len(changed_src)}+{len(changed_tgt)} "
+                           f"changed concept(s)")
+        if result is None:
+            result = await asyncio.to_thread(
+                _score_correspondence, src, tgt, threshold, depth, count_all)
+        elapsed = time.monotonic() - started
+        if elapsed >= 1.0:
+            logger.info(
+                "Concept correspondence %s (%d) -> %s (%d) %s in %.1fs off the "
+                "event loop: %s pair(s) above %.2f",
+                source_domain_id, len(src.concept_ids), target_domain_id,
+                len(tgt.concept_ids), how, elapsed,
+                result["pairs"] if count_all else len(result["strongest"][:keep]), threshold)
+        if (registry.concept_version(source_domain_id),
+                registry.concept_version(target_domain_id)) == version:
+            self._correspondences[key] = (version, result)
+        return result
+
+    async def _concept_side(self, registry, domain) -> _ConceptSide:
+        version = registry.concept_version(domain.domain_id)
+        cached = self._sides.get(domain.domain_id)
+        if cached is not None and cached[0] == version:
+            return cached[1]
+        concepts = list(domain.concepts.values())
+        store = await self._vectors_for(concepts)
+        rows = np.fromiter((store.index[c.concept_id] for c in concepts),
+                           dtype=np.int64, count=len(concepts))
+        side = await asyncio.to_thread(
+            _build_side, concepts, rows, store.names, store.descriptions,
+            store.name_keys, store.description_keys)
+        if registry.concept_version(domain.domain_id) == version:
+            self._sides[domain.domain_id] = (version, side)
+        return side
+
+    async def _vectors_for(self, concepts: List[DomainConcept]) -> _ConceptVectorStore:
+        """The vector store, holding every one of `concepts` on return.
+
+        Stored vectors are read from unified.concepts; a concept whose vectors
+        are not stored yet is encoded and stored first. A concept projected from
+        the universal ontology has no row and is encoded in memory. Any other
+        concept the registry holds but the table does not is a store
+        inconsistency and raises.
+        """
+        store = self._vectors
+        while True:
+            wanted = [c for c in concepts if c.concept_id not in store.index]
+            if not wanted:
+                return store
+            db = await self._database()
+            by_id = {c.concept_id: c for c in wanted}
+            ids = list(by_id)
+            found: Set[str] = set()
+            pending: List[str] = []
+            for k in range(0, len(ids), 5_000):
+                part = ids[k:k + 5_000]
+                rows = await db.execute_query(
+                    """SELECT concept_id, name, description, embedding_model,
+                              name_embedding, description_embedding
+                       FROM unified.concepts WHERE concept_id = ANY($1::text[])""",
+                    (part,), fetch_all=True) or []
+                ready = []
+                for row in rows:
+                    found.add(row["concept_id"])
+                    if row["embedding_model"] is None:
+                        pending.append(row["concept_id"])
+                    else:
+                        ready.append((row["concept_id"], row["name"], row["description"],
+                                      row["name_embedding"], row["description_embedding"]))
+                store.put(ready)
+            if pending:
+                await self.embed_pending_concepts(pending)
+            unstored = [by_id[c] for c in ids if c not in found]
+            projected = [c for c in unstored
+                         if (c.properties or {}).get("source") == "universal_ontology"]
+            if len(projected) != len(unstored):
+                strays = [c.concept_id for c in unstored
+                          if (c.properties or {}).get("source") != "universal_ontology"]
+                raise LookupError(
+                    f"{len(strays)} concept(s) held by the domain registry have no "
+                    f"unified.concepts row: {strays[:5]}")
+            if projected:
+                names = [c.name for c in projected]
+                descriptions = [c.description for c in projected]
+                name_vecs, desc_vecs = await asyncio.to_thread(
+                    _encode_concept_texts, names, descriptions)
+                store.put([(c.concept_id, c.name, c.description, nv, dv)
+                           for c, nv, dv in zip(projected, name_vecs, desc_vecs)])
+
+    #: Concepts encoded and written per round.
+    EMBED_BATCH: int = 256
+
+    async def embed_pending_concepts(self, concept_ids: Optional[Sequence[str]] = None) -> int:
+        """Encode and store vectors for concepts that have none (embedding_model
+        IS NULL), all of them or only `concept_ids`. Returns the number written.
+
+        Encoding runs in a worker thread. A row whose description changed after
+        it was read is not written and is read again next round.
+        """
+        from pgvector import Vector
+        from core.memory.utils.embedding_service import EMBEDDING_MODEL_ID
+        db = await self._database()
+        scope = sorted({str(c) for c in concept_ids if c}) if concept_ids is not None else None
+        if scope is not None and not scope:
+            return 0
+        written = 0
+        unwritten_rounds = 0
+        next_report = 25_000
+        while True:
+            if scope is None:
+                rows = await db.execute_query(
+                    """SELECT concept_id, name, description FROM unified.concepts
+                       WHERE embedding_model IS NULL LIMIT $1""",
+                    (self.EMBED_BATCH,), fetch_all=True) or []
+            else:
+                rows = await db.execute_query(
+                    """SELECT concept_id, name, description FROM unified.concepts
+                       WHERE embedding_model IS NULL AND concept_id = ANY($1::text[])
+                       LIMIT $2""", (scope, self.EMBED_BATCH), fetch_all=True) or []
+            if not rows:
+                return written
+            name_vecs, desc_vecs = await asyncio.to_thread(
+                _encode_concept_texts, [r["name"] for r in rows],
+                [r["description"] for r in rows])
+            stored = await db.execute_query(
+                """UPDATE unified.concepts AS c
+                      SET name_embedding = v.name_embedding,
+                          description_embedding = v.description_embedding,
+                          embedding_model = $5
+                     FROM unnest($1::text[], $2::vector[], $3::vector[], $4::text[])
+                          AS v(concept_id, name_embedding, description_embedding, description)
+                    WHERE c.concept_id = v.concept_id
+                      AND c.embedding_model IS NULL
+                      AND c.description IS NOT DISTINCT FROM v.description
+                RETURNING c.concept_id""",
+                ([r["concept_id"] for r in rows],
+                 [Vector(v) if v is not None else None for v in name_vecs],
+                 [Vector(v) if v is not None else None for v in desc_vecs],
+                 [r["description"] for r in rows],
+                 EMBEDDING_MODEL_ID),
+                fetch_all=True) or []
+            self._vectors.discard([r["concept_id"] for r in stored])
+            written += len(stored)
+            unwritten_rounds = 0 if stored else unwritten_rounds + 1
+            if unwritten_rounds >= 3:
+                raise RuntimeError(
+                    f"concept vectors for {len(rows)} pending concept(s) were encoded "
+                    f"but not stored in 3 consecutive rounds "
+                    f"(first: {rows[0]['concept_id']}); the rows are changing under "
+                    f"the writer or the update does not match them")
+            if scope is None and written >= next_report:
+                logger.info("Concept embeddings: %d stored so far", written)
+                next_report += 25_000
+
+    def start_concept_embedding(self) -> "asyncio.Task":
+        """Store vectors for every concept that has none. Runs in the background;
+        its failure is logged at ERROR and re-raised inside the task."""
+        if self._embedding_backfill is None or self._embedding_backfill.done():
+            self._embedding_backfill = asyncio.create_task(
+                self._backfill_concept_embeddings(), name="udm-concept-embedding")
+        return self._embedding_backfill
+
+    async def _backfill_concept_embeddings(self) -> int:
+        try:
+            db = await self._database()
+            pending = (await db.execute_query(
+                "SELECT count(*) AS n FROM unified.concepts WHERE embedding_model IS NULL",
+                fetch_all=True))[0]["n"]
+            if not pending:
+                logger.info("Concept embeddings: every concept has stored vectors")
+                return 0
+            logger.info("Concept embeddings: %d concept(s) have no stored vectors; "
+                        "encoding them in the background", pending)
+            started = time.monotonic()
+            written = await self.embed_pending_concepts()
+            logger.info("Concept embeddings: stored vectors for %d concept(s) in %.0fs",
+                        written, time.monotonic() - started)
+            return written
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.error("Concept embeddings: background encoding failed", exc_info=True)
+            raise
+
+    async def concepts_written(self, concept_ids: Sequence[str]) -> None:
+        """The concept write path reports what it wrote: the registry re-reads
+        those concepts and their text vectors are stored."""
+        ids = sorted({str(c) for c in concept_ids if c})
+        if not ids:
+            return
+        registry = await self._registry()
+        await registry.refresh_concepts(ids)
+        self._vectors.discard(ids)
+        await self.embed_pending_concepts(ids)
+
+    async def record_mapping(self, mapping: CrossDomainMapping) -> bool:
+        """The one writer of cross-domain mappings; the registry stores them."""
+        registry = await self._registry()
+        return await registry.add_cross_domain_mapping(mapping)
+
+    async def record_knowledge_transfer(self, transfer) -> bool:
+        registry = await self._registry()
+        return await registry.create_knowledge_transfer(transfer)
+
+    async def record_mapping_usage(self, mapping_ids: List[str], **usage) -> int:
+        registry = await self._registry()
+        return await registry.record_mapping_usage(mapping_ids, **usage)
 
     # ==================================================================
     # DOMAIN DISCOVERY BY CRYSTALLIZATION
@@ -1665,6 +2583,7 @@ class UniversalDomainMaster:
 
         registry = await self._registry()
         outcomes: List[Dict[str, Any]] = []
+        refiled: List[str] = []
         for members in components.values():
             # Does this cluster link (either direction) to exactly one existing
             # domain? Outgoing: a member's relation target lives there. Incoming:
@@ -1682,10 +2601,8 @@ class UniversalDomainMaster:
                 domain_id = f"domain_{field}"
                 await self.ensure_domain(
                     domain_id, name=field.replace("_", " ").title())
-                for cid in members:
-                    await self.db.execute_query(
-                        "UPDATE unified.concepts SET domain = $1 WHERE concept_id = $2",
-                        (field, cid))
+                await self._refile_concepts(members, field)
+                refiled.extend(members)
                 outcomes.append({"domain_id": domain_id, "field": field,
                                  "hub": field, "concepts": len(members),
                                  "grew": True})
@@ -1702,22 +2619,19 @@ class UniversalDomainMaster:
             domain_id = f"domain_{field}"
             await self.ensure_domain(domain_id,
                                      name=hub.replace("_", " ").title())
-            # Re-file the cluster's concepts under their subject's field, so the
-            # registry attaches them to the new domain on its next load and the
-            # analogy engine groups them as a distinct subject.
-            for cid in members:
-                await self.db.execute_query(
-                    "UPDATE unified.concepts SET domain = $1 WHERE concept_id = $2",
-                    (field, cid))
+            # Re-file the cluster's concepts under their subject's field, where
+            # the analogy engine groups them as a distinct subject.
+            await self._refile_concepts(members, field)
+            refiled.extend(members)
             outcomes.append({"domain_id": domain_id, "field": field,
                              "hub": hub, "concepts": len(members)})
             if len(outcomes) >= limit:
                 break
 
-        # Reload the registry so the newly crystallized domains and their
-        # concept membership are live for reasoning and transfer immediately.
+        # The registry re-reads exactly the re-filed concepts, so the new
+        # membership is live for reasoning and transfer immediately.
         if outcomes:
-            await registry.initialize()
+            await registry.refresh_concepts(refiled)
             # Declarative knowledge coverage: now that each domain holds its
             # concepts, set how well-developed its knowledge is from the graph.
             for o in outcomes:
@@ -1725,6 +2639,12 @@ class UniversalDomainMaster:
 
         return {"examined": len(components), "crystallized": len(outcomes),
                 "outcomes": outcomes}
+
+    async def _refile_concepts(self, concept_ids: List[str], field: str) -> None:
+        await self.db.execute_query(
+            """UPDATE unified.concepts SET domain = $1, updated_at = NOW()
+               WHERE concept_id = ANY($2::text[])""",
+            (field, list(concept_ids)), commit=True)
 
     async def update_knowledge_coverage(self, domain_id: str) -> float:
         """Set a domain's `maturity_score` from the DEVELOPMENT of its concept
@@ -2005,36 +2925,29 @@ class UniversalDomainMaster:
                 execution_time=execution_time
             )
 
-    async def _resolved_field_keys(self, refs) -> List[str]:
-        """Domain references -> canonical field keys, via the registry resolver.
+    def _resolve_references(self, registry, refs, *, rank_against: Optional[str] = None):
+        """Domain references -> canonical registry fields holding concepts.
 
-        One resolution path shared by the reader and the writer, so a mapping
-        stored under a key is looked up under the same key.
+        Either level resolves: a field names itself, a DomainType category
+        expands to its member fields, exact match winning. The fan-out is bounded
+        by MAX_RESOLVED_FIELDS and the resolver logs what it drops.
         """
-        from core.domain.cross_domain_reasoner import get_cross_domain_reasoner
         from core.domain.domain_registry import UnresolvedDomainReference
-
-        reasoner = get_cross_domain_reasoner()
-        await reasoner.initialize()
-        registry = reasoner.domain_registry
-
-        keys, seen = [], set()
-        for ref in refs or []:
+        out, seen = [], set()
+        for ref in refs:
             name = ref.value if isinstance(ref, DomainType) else str(ref)
             try:
                 resolved = registry.resolve_domain_reference(
                     name, require_concepts=True,
-                    max_targets=self.MAX_RESOLVED_FIELDS,
-                )
+                    max_targets=self.MAX_RESOLVED_FIELDS, rank_against=rank_against)
             except UnresolvedDomainReference as e:
                 logger.warning("Skipping unresolved domain reference: %s", e)
                 continue
             for rd in resolved:
-                k = registry._domain_key(rd.domain_id)
-                if k not in seen:
-                    seen.add(k)
-                    keys.append(k)
-        return keys
+                if rd.domain_id not in seen:
+                    seen.add(rd.domain_id)
+                    out.append(rd)
+        return out
 
     async def _find_cross_domain_mappings(
         self,
@@ -2043,258 +2956,140 @@ class UniversalDomainMaster:
         strategy: ReasoningStrategy,
         min_similarity: float
     ) -> List[DomainMapping]:
-        """Find mappings between source and target domains"""
-        mappings = []
+        """Mappings between the domains a query names, for one strategy.
 
-        # Check cache first
-        for source in source_domains:
-            for target in target_domains:
-                cache_key = (source, target)
-                if cache_key in self.mapping_cache:
-                    cached_mappings = [
-                        m for m in self.mapping_cache[cache_key]
-                        if m.similarity_score >= min_similarity
-                    ]
-                    mappings.extend(cached_mappings)
-
-        if mappings:
-            logger.debug(f"Found {len(mappings)} cached mappings")
-            return mappings
-
-        # Query database for existing mappings.
-        #
-        # Rows store CANONICAL FIELD keys ("physics"), so the lookup resolves the
-        # caller's references the same way the writer does. Querying by
-        # DomainType.value here would ask for "physical" and never match a row
-        # the writer stored under "physics" -- a read/write asymmetry that reads
-        # as "no mappings exist" rather than as a key mismatch.
-        if self.db:
-            source_keys = await self._resolved_field_keys(source_domains)
-            target_keys = await self._resolved_field_keys(target_domains)
-            for source in source_keys:
-                for target in target_keys:
-                    rows = await self.db.execute_query(
-                        """SELECT mapping_id, source_domain, target_domain, source_concept,
-                                  target_concept, similarity_score, reasoning_strategy,
-                                  verified, confidence
-                           FROM unified.domain_mappings
-                           WHERE source_domain = $1 AND target_domain = $2
-                           AND similarity_score >= $3
-                           -- verified IS NULL  = candidate, never ontologically judged
-                           -- verified IS TRUE  = accepted knowledge
-                           -- verified IS FALSE = rejected; must never be returned
-                           AND (verified IS NULL OR verified IS TRUE)""",
-                        (source, target, min_similarity),
-                        fetch_all=True
-                    )
-
-                    for row in rows:
-                        mapping = DomainMapping(
-                            mapping_id=row['mapping_id'],
-                            source_domain=row['source_domain'],
-                            target_domain=row['target_domain'],
-                            source_concept=row['source_concept'],
-                            target_concept=row['target_concept'],
-                            similarity_score=row['similarity_score'],
-                            reasoning_strategy=ReasoningStrategy(row['reasoning_strategy']),
-                            verified=row['verified'],
-                            confidence=row['confidence']
-                        )
+        Each reference resolves to fields. For every field pair the reasoner
+        generates candidates once per content version of the two fields and
+        they are stored; the answer is everything stored for that pair and
+        strategy that is not refuted. `mapping_cache` holds the answer per
+        reference pair of the latest query.
+        """
+        registry = await self._registry()
+        mappings: List[DomainMapping] = []
+        seen: Set[str] = set()
+        for source_ref in source_domains:
+            for target_ref in target_domains:
+                answered: List[DomainMapping] = []
+                for source in self._resolve_references(registry, [source_ref]):
+                    for target in self._resolve_references(
+                            registry, [target_ref], rank_against=source.domain_id):
+                        if source.domain_id == target.domain_id:
+                            continue
+                        answered.extend(await self._pair_mappings_for(
+                            registry, source, target, strategy, min_similarity))
+                self.mapping_cache[(source_ref, target_ref)] = answered
+                for mapping in answered:
+                    if mapping.mapping_id not in seen:
+                        seen.add(mapping.mapping_id)
                         mappings.append(mapping)
-
-        # If no mappings found, generate new ones
-        if not mappings:
-            mappings = await self._generate_mappings(
-                source_domains,
-                target_domains,
-                strategy,
-                min_similarity
-            )
-
-        # Update cache
-        for source in source_domains:
-            for target in target_domains:
-                cache_key = (source, target)
-                self.mapping_cache[cache_key] = [
-                    m for m in mappings
-                    if m.source_domain == source and m.target_domain == target
-                ]
-
         return mappings
 
-    async def _generate_mappings(
-        self,
-        source_domains: List[DomainType],
-        target_domains: List[DomainType],
-        strategy: ReasoningStrategy,
-        min_similarity: float
-    ) -> List[DomainMapping]:
-        """Generate cross-domain mappings via the real reasoner.
+    async def _pair_mappings_for(self, registry, source, target,
+                                 strategy: ReasoningStrategy,
+                                 min_similarity: float) -> List[DomainMapping]:
+        key = (source.domain_id, target.domain_id, strategy, min_similarity)
+        version = (registry.concept_version(source.domain_id),
+                   registry.concept_version(target.domain_id))
+        cached = self._pair_mappings.get(key)
+        if cached is not None and cached[0] == version:
+            return cached[1]
+        await self._generate_mappings(registry, source, target, strategy, min_similarity)
+        db = await self._database()
+        rows = await db.execute_query(
+            """SELECT mapping_id, source_domain, target_domain, source_concept,
+                      target_concept, similarity_score, reasoning_strategy,
+                      verified, confidence
+               FROM unified.domain_mappings
+               WHERE source_domain = $1 AND target_domain = $2
+                 AND reasoning_strategy = $3
+                 AND similarity_score >= $4
+                 -- verified IS NULL  = candidate, never ontologically judged
+                 -- verified IS TRUE  = accepted knowledge
+                 -- verified IS FALSE = rejected; must never be returned
+                 AND (verified IS NULL OR verified IS TRUE)
+               ORDER BY similarity_score DESC, mapping_id""",
+            (registry._domain_key(source.domain_id), registry._domain_key(target.domain_id),
+             strategy.value, min_similarity),
+            fetch_all=True) or []
+        found = [
+            DomainMapping(
+                mapping_id=row['mapping_id'],
+                source_domain=row['source_domain'],
+                target_domain=row['target_domain'],
+                source_concept=row['source_concept'],
+                target_concept=row['target_concept'],
+                similarity_score=row['similarity_score'],
+                reasoning_strategy=strategy,
+                verified=row['verified'],
+                confidence=row['confidence'],
+            )
+            for row in rows
+        ]
+        if (registry.concept_version(source.domain_id),
+                registry.concept_version(target.domain_id)) == version:
+            self._pair_mappings[key] = (version, found)
+        return found
 
-        This previously called the neural bridge, DISCARDED its output, and
-        emitted placeholder concepts:
+    async def _generate_mappings(self, registry, source, target,
+                                 strategy: ReasoningStrategy,
+                                 min_similarity: float) -> int:
+        """Generate and store candidate mappings for one field pair via the
+        reasoner. Returns how many were stored.
 
-            source_concept = f"{source.value}_concept"   ->  "technical_concept"
-            target_concept = f"{target.value}_concept"   ->  "scientific_concept"
-
-        Only `result.confidence` was used. Any row it stored would have been a
-        durable, restart-surviving assertion that "technical_concept maps to
-        scientific_concept" — a placeholder wearing the shape of knowledge, and
-        it would have counted toward the >=2 cross-domain significance rule.
-        The table is empty today only because the confidence threshold happened
-        not to be met.
-
-        CrossDomainReasoner implements the seven real strategies and already
-        emits List[CrossDomainMapping] with actual concept identities, so this
-        is a delegation, not a translation layer.
-
-        Everything produced here is a CANDIDATE: `verified=None` means no
-        ontological validation has been performed. It is NOT `False` (which
-        would assert rejection) and NOT `True`. UniversalOntology's validator is
-        deliberately NOT called — it is a stub that returns valid=True
-        unconditionally, so calling it would stamp every model proposal as
-        validated knowledge.
+        CrossDomainReasoner implements the seven strategies over real concept
+        identities. Everything stored here is a CANDIDATE (validated=None): no
+        ontological validation has been performed. A failure raises; it is not
+        reported as "no mappings".
         """
         from core.domain.cross_domain_reasoner import (
             get_cross_domain_reasoner, ReasoningContext as XDomainContext,
         )
-        from core.domain.domain_registry import UnresolvedDomainReference
-
         reasoner = get_cross_domain_reasoner()
         await reasoner.initialize()
-        registry = reasoner.domain_registry
-
-        # Resolve references to canonical registry domains BEFORE reasoning.
-        #
-        # This minted `f"domain_{source.value}"` directly from DomainType, which
-        # always names a CATEGORY (domain_physical). Every concept lives in a
-        # FIELD (domain_physics), so the reasoner was handed empty domains and
-        # returned honest "no mappings" for pairs that in fact share concepts.
-        #
-        # The resolver turns either level into canonical field ids, exact match
-        # winning over category expansion, and bounds the fan-out so a category
-        # pair does not become every-field-against-every-field.
-        def _resolve(dts, *, rank_against=None):
-            out, seen = [], set()
-            for dt in dts:
-                ref = dt.value if isinstance(dt, DomainType) else str(dt)
-                try:
-                    for rd in registry.resolve_domain_reference(
-                        ref,
-                        require_concepts=True,
-                        max_targets=self.MAX_RESOLVED_FIELDS,
-                        rank_against=rank_against,
-                    ):
-                        if rd.domain_id not in seen:
-                            seen.add(rd.domain_id)
-                            out.append(rd)
-                except UnresolvedDomainReference as e:
-                    logger.warning("Skipping unresolved domain reference: %s", e)
-            return out
-
-        resolved_sources = _resolve(source_domains)
-        if not resolved_sources:
-            logger.info(
-                "No source domain resolved to a field with concepts (%s); "
-                "returning no candidates",
-                ", ".join(getattr(d, "value", str(d)) for d in source_domains),
-            )
-            return []
-
-        mappings: List[DomainMapping] = []
-        for source in resolved_sources:
-            for target in _resolve(target_domains, rank_against=source.domain_id):
-                if source.domain_id == target.domain_id:
-                    continue
-                try:
-                    ctx = XDomainContext(
-                        source_domain_id=source.domain_id,
-                        target_domain_id=target.domain_id,
-                        reasoning_goal=(
-                            f"identify conceptual correspondences from the "
-                            f"{source.name} domain to the {target.name} domain"
-                        ),
-                        strategy=strategy,
-                        confidence_threshold=min_similarity,
-                        # The reasoner's own quality gate stays ON: it answers
-                        # "is this a well-formed candidate", which is a
-                        # different question from ontological acceptance.
-                        require_validation=True,
-                    )
-                    result = await reasoner.reason_across_domains(ctx)
-                except Exception as e:
-                    # No fabricated fallback. The previous version emitted more
-                    # placeholder mappings on failure, which is how a durable
-                    # store fills with noise the moment the producer errors.
-                    logger.warning(
-                        "Cross-domain reasoning failed for %s->%s (%s); "
-                        "returning no candidates rather than placeholders",
-                        source.domain_id, target.domain_id, e
-                    )
-                    continue
-
-                if not getattr(result, "success", False):
-                    continue
-
-                for gm in (getattr(result, "generated_mappings", None) or []):
-                    sim = float(getattr(gm, "strength", 0.0) or getattr(gm, "confidence", 0.0) or 0.0)
-                    if sim < min_similarity:
-                        continue
-                    mapping = DomainMapping(
-                        mapping_id=getattr(gm, "mapping_id", None)
-                        or f"mapping_{uuid.uuid4().hex[:16]}",
-                        source_domain=registry._domain_key(source.domain_id),
-                        target_domain=registry._domain_key(target.domain_id),
-                        source_concept=gm.source_concept_id,
-                        target_concept=gm.target_concept_id,
-                        similarity_score=sim,
-                        reasoning_strategy=strategy,
-                        # UNVALIDATED. None != False: nothing has judged it.
-                        verified=None,
-                        confidence=float(getattr(gm, "confidence", sim) or sim),
-                    )
-                    mappings.append(mapping)
-                    await self._store_mapping(mapping)
-
-        if mappings:
-            logger.info(
-                "Generated %d cross-domain CANDIDATE mapping(s) — unvalidated",
-                len(mappings)
-            )
-        return mappings
-
-
-    async def _store_mapping(self, mapping: DomainMapping):
-        """Store mapping in database"""
-        if not self.db:
-            return
-
-        await self.db.execute_query(
-            """INSERT INTO unified.domain_mappings
-               (mapping_id, source_domain, target_domain, source_concept,
-                target_concept, similarity_score, reasoning_strategy,
-                verified, confidence, metadata)
-               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-               -- Untargeted ON CONFLICT: mapping_id is not the only uniqueness
-               -- constraint. uq_domain_mappings_semantic makes the RELATIONSHIP
-               -- unique (source/target domain + concepts + strategy), so two
-               -- schemas independently rediscovering the same mapping produce
-               -- one row rather than a duplicate under a fresh uuid.
-               ON CONFLICT DO NOTHING""",
-            (
-                mapping.mapping_id,
-                mapping.source_domain,
-                mapping.target_domain,
-                mapping.source_concept,
-                mapping.target_concept,
-                mapping.similarity_score,
-                mapping.reasoning_strategy.value,
-                mapping.verified,
-                mapping.confidence,
-                json.dumps(mapping.metadata) if mapping.metadata else None
+        result = await reasoner.reason_across_domains(XDomainContext(
+            source_domain_id=source.domain_id,
+            target_domain_id=target.domain_id,
+            reasoning_goal=(
+                f"identify conceptual correspondences from the "
+                f"{source.name} domain to the {target.name} domain"
             ),
-            commit=True
-        )
+            strategy=strategy,
+            confidence_threshold=min_similarity,
+            # The reasoner's own quality gate stays ON: it answers "is this a
+            # well-formed candidate", a different question from ontological
+            # acceptance.
+            require_validation=True,
+        ))
+        if not result.success:
+            return 0
+
+        stored = 0
+        for gm in result.generated_mappings:
+            similarity = float(gm.strength or gm.confidence or 0.0)
+            if similarity < min_similarity:
+                continue
+            mapping = CrossDomainMapping(
+                mapping_id=registry._mapping_key(
+                    source.domain_id, target.domain_id,
+                    gm.source_concept_id, gm.target_concept_id, strategy.value),
+                source_domain_id=source.domain_id,
+                target_domain_id=target.domain_id,
+                source_concept_id=gm.source_concept_id,
+                target_concept_id=gm.target_concept_id,
+                mapping_type=strategy.value,
+                strength=similarity,
+                confidence=float(gm.confidence if gm.confidence is not None else similarity),
+                validated=None,
+            )
+            if not await self.record_mapping(mapping):
+                raise RuntimeError(
+                    f"cross-domain mapping {mapping.mapping_id} could not be stored")
+            stored += 1
+        if stored:
+            logger.info(
+                "Generated %d cross-domain CANDIDATE mapping(s) %s -> %s (%s) — unvalidated",
+                stored, source.domain_id, target.domain_id, strategy.value)
+        return stored
 
     async def _generate_insights(
         self,
@@ -2386,6 +3181,12 @@ class UniversalDomainMaster:
 
     async def shutdown(self):
         """Shutdown and cleanup"""
+        if self._embedding_backfill is not None and not self._embedding_backfill.done():
+            self._embedding_backfill.cancel()
+            try:
+                await self._embedding_backfill
+            except asyncio.CancelledError:
+                pass
         # Database connection is managed by TorinUnifiedDatabase singleton
         # No need to close here
         logger.info("Universal Domain Master shutdown complete")

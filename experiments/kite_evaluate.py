@@ -46,9 +46,32 @@ from core.learning.rule_induction import (  # noqa: E402
     Fact, TrainingExample, applies, successor_state,
 )
 from core.learning.rule_store import EpistemicStatus, RuleStore  # noqa: E402
-from core.model_policy import (  # noqa: E402
-    ModelPolicy, get_model_policy, model_telemetry,
+
+#: There is no model policy any more, because there is no model. The entry
+#: points a policy used to gate were DELETED rather than switched off, so what
+#: used to be "the policy blocked N attempts" is now "there is nothing here to
+#: attempt". This condition measures that instead of assuming it: it looks for
+#: each retired entry point and reports which, if any, can still be imported.
+RETIRED_MODEL_ENTRY_POINTS = (
+    "core.model_policy",
+    "core.services.unified_llm",
+    "core.services.lightweight_llm",
+    "core.learning.llm_teacher",
 )
+
+
+def model_entry_points_present() -> list:
+    """Any retired model entry point that is importable in this process."""
+    import importlib.util
+    present = []
+    for name in RETIRED_MODEL_ENTRY_POINTS:
+        try:
+            if importlib.util.find_spec(name) is not None:
+                present.append(name)
+        except (ImportError, ModuleNotFoundError, ValueError):
+            continue
+    return present
+
 
 SUITE = Path(__file__).resolve().parent / "kite_evaluation_suite.json"
 DOMAIN = "kite17"
@@ -65,13 +88,24 @@ def derive(rules, state):
 
 
 def run_derive(rules, case):
+    """What the executable rules derive for this state, as a SET of facts.
+
+    A state gains a fact or it does not. Two stored rules that say the same
+    thing derive the same fact twice, and counting that as a wrong answer would
+    score rule MULTIPLICITY as a failure of derivation, which is a different
+    claim and not the one this suite makes. The multiplicity is reported beside
+    the result rather than folded into it, so a store holding a hypothesis twice
+    is visible instead of being either hidden or miscounted as an error."""
     state = facts(case["state"])
-    added = sorted(str(f) for instance in derive(rules, state) for f in instance.add)
-    expected = sorted(case["expect_add"])
+    instances = [str(f) for instance in derive(rules, state) for f in instance.add]
+    derived = sorted(set(instances))
+    expected = sorted(set(case["expect_add"]))
     return {
-        "id": case["id"], "kind": "derive", "derived": added, "expected": expected,
-        "passed": added == expected,
-        "no_derivation": not added,
+        "id": case["id"], "kind": "derive", "derived": derived, "expected": expected,
+        "passed": derived == expected,
+        "derivations": len(instances),
+        "duplicate_derivations": len(instances) - len(derived),
+        "no_derivation": not derived,
     }
 
 
@@ -131,7 +165,7 @@ async def main() -> int:
         for case in suite["cases"]
     ]
 
-    telemetry = model_telemetry()
+    model_present = model_entry_points_present()
     report = {
         "condition": args.condition,
         "database": {
@@ -142,7 +176,7 @@ async def main() -> int:
         "pid": os.getpid(),
         "suite_version": suite["suite_version"],
         "policies": {
-            "model": get_model_policy().value,
+            "model": "no model entry point exists",
             "learning": get_learning_policy().value,
         },
         "loader": {
@@ -158,15 +192,14 @@ async def main() -> int:
         "passed": sum(1 for r in results if r["passed"]),
         "total": len(results),
         "model": {
-            "attempts": telemetry["attempts"],
-            "executed": telemetry["executed"],
-            "blocked": telemetry["blocked"],
+            "entry_points_checked": list(RETIRED_MODEL_ENTRY_POINTS),
+            "entry_points_present": model_present,
         },
     }
 
     # Asserted rather than trusted: a condition that ran with either policy
     # relaxed proves nothing, and must not be quietly folded into the results.
-    assert report["policies"]["model"] == ModelPolicy.STRICT_MODEL_FREE.value
+    assert not model_present, f"a retired model entry point is importable: {model_present}"
     assert report["policies"]["learning"] == LearningPolicy.FROZEN.value
 
     print(json.dumps(report))

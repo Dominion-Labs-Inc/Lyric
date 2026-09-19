@@ -1,0 +1,24 @@
+{
+  "experiment": "PERCEIVE-04",
+  "purpose": "memory stores image data: bytes retained, perceived, linked, recallable",
+  "run_at": "2026-09-17T17:11:58.166657+00:00",
+  "image": "/Users/stefan/Dominion Labs/TorinAI/test_data/vision_test.png",
+  "file_sha256": "34d363dde4cf9345793469a805ce48f09577f666c9c07da7741f042b7ffbb1f1",
+  "memory_id": "mem_ced71be033b54369bc488f1f9f25b9e8",
+  "retained": {
+    "media_id": "media_34d363dde4cf9345793469a805ce48f0",
+    "memory_id": "mem_ced71be033b54369bc488f1f9f25b9e8",
+    "mime": "image/png",
+    "byte_size": 5294,
+    "width": 800,
+    "height": 400
+  },
+  "checks": {
+    "memory_stored": true,
+    "image_linked_to_memory": true,
+    "bytes_round_trip_exact": true,
+    "dimensions_retained": true,
+    "perceived_structure_attached": true,
+    "memory_text_describes_picture": true
+  }
+}

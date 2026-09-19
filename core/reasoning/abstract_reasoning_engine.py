@@ -54,8 +54,8 @@ else:  # Direct imports - all systems must be working
 AGILearningEngine = MasterLearningSystem
 AGIMemory = MemoryAgent  # MemoryAgent is the replacement for UnifiedMemorySystem
 
-# Import domain knowledge system for cross-domain reasoning
-from core.domain import CrossDomainReasoner, UniversalOntology, DomainRegistry, UnknownDomain
+# The universal ontology this engine reasons over
+from core.domain import UniversalOntology
 from core.capability import raise_if_structural
 
 
@@ -2031,27 +2031,6 @@ class AbstractReasoningEngine:
         self.memory = memory
         self.neural_bridge = neural_bridge
 
-        # Domain knowledge integration.
-        #
-        # The SINGLETONS, not fresh instances. Constructing a private
-        # DomainRegistry/CrossDomainReasoner here made a second domain system:
-        # its registry loaded its own domains and its reasoner scored over them,
-        # so a domain the Universal Domain Master knew about was invisible to
-        # this engine and vice versa -- two authorities for one question. The
-        # Master and every other consumer share these singletons; this engine
-        # now does too, so there is one account of what domains exist.
-        from core.domain.domain_registry import get_domain_registry
-        from core.domain.universal_ontology import get_universal_ontology
-        from core.domain.cross_domain_reasoner import get_cross_domain_reasoner
-        self.domain_registry = get_domain_registry()
-        self.universal_ontology = get_universal_ontology()
-        self.cross_domain_reasoner = get_cross_domain_reasoner()
-        self.domain_reasoning_stats = {
-            "cross_domain_mappings": 0,
-            "analogical_transfers": 0,
-            "domain_specific_reasoning": 0
-        }
-
         # Reasoning strategies
         self.strategies: Dict[ReasoningType, ReasoningStrategy] = {}
         self._initialize_strategies()
@@ -2076,7 +2055,6 @@ class AbstractReasoningEngine:
             "reasoning_types_used": {},
             "inference_methods_used": {},
             "total_reasoning_time": 0.0,
-            "cross_domain_insights": 0
         }
 
         logger.info(f"Abstract Reasoning Engine initialized with domain knowledge: {self.engine_id}")
@@ -2930,105 +2908,6 @@ class AbstractReasoningEngine:
             }
             for result in history
         ]
-
-    async def reason_across_domains(self, source_domain: str, target_domain: str,
-                                     concept: str) -> Dict[str, Any]:
-        """Use cross-domain reasoning to transfer knowledge between domains"""
-        try:
-            logger.info(f"Cross-domain reasoning: {source_domain} -> {target_domain} for concept '{concept}'")
-
-            # Mapping is owned by the DomainRegistry. This called
-            # find_cross_domain_mapping() on cross_domain_reasoner, which does
-            # not implement it, so every call raised AttributeError into the
-            # broad except below -- and the two counters underneath were never
-            # reached either. suggest_cross_domain_mappings() is the working
-            # implementation and has always been there.
-            from core.domain.domain_registry import get_domain_registry
-            registry = get_domain_registry()
-            if not getattr(registry, "domains", None):
-                await registry.initialize()
-
-            mappings = await registry.suggest_cross_domain_mappings(
-                source_domain, target_domain
-            )
-            mapping = (
-                mappings[0].to_dict() if mappings and hasattr(mappings[0], "to_dict")
-                else (mappings[0] if mappings else None)
-            )
-
-            # Only count a mapping we actually found.
-            if mapping is not None:
-                self.domain_reasoning_stats["cross_domain_mappings"] += 1
-                self.statistics["cross_domain_insights"] += 1
-
-            result = {
-                "source_domain": source_domain,
-                "target_domain": target_domain,
-                "concept": concept,
-                "mapping": mapping,
-                "success": mapping is not None,
-                "error_class": None if mapping is not None else "no_mapping",
-            }
-
-            logger.info(f"Cross-domain mapping {'found' if mapping else 'not found'}")
-            return result
-
-        except UnknownDomain as e:
-            # A malformed question, not a negative answer. Kept separate so the
-            # caller cannot read it as "these domains are unrelated".
-            logger.warning(f"Cross-domain reasoning on unregistered domain(s): {e}")
-            return {
-                "source_domain": source_domain,
-                "target_domain": target_domain,
-                "concept": concept,
-                "mapping": None,
-                "success": False,
-                "error": str(e),
-                "error_class": "unknown_domain",
-                "unregistered_domains": e.missing,
-            }
-        except Exception as e:
-            raise_if_structural(e, "AbstractReasoningEngine.reason_across_domains")
-            logger.error(f"Error in cross-domain reasoning: {e}", exc_info=True)
-            return {"success": False, "error": str(e), "error_class": "operational"}
-
-    async def analogical_reasoning(self, source_case: Dict[str, Any],
-                                    target_problem: Dict[str, Any]) -> Dict[str, Any]:
-        """Apply analogical reasoning using domain knowledge"""
-        try:
-            logger.info("Performing analogical reasoning with domain knowledge")
-
-            # Use cross-domain reasoner for analogical transfer
-            analogy_result = await self.cross_domain_reasoner.apply_analogical_reasoning(
-                source=source_case,
-                target=target_problem
-            )
-
-            self.domain_reasoning_stats["analogical_transfers"] += 1
-
-            result = {
-                "source_case": source_case.get("description", "Unknown"),
-                "target_problem": target_problem.get("description", "Unknown"),
-                "analogy": analogy_result,
-                "confidence": analogy_result.get("confidence", 0.0) if analogy_result else 0.0,
-                "success": analogy_result is not None
-            }
-
-            logger.info(f"Analogical reasoning completed with confidence: {result['confidence']}")
-            return result
-
-        except Exception as e:
-            logger.error(f"Error in analogical reasoning: {e}")
-            return {"success": False, "error": str(e)}
-
-    def get_domain_statistics(self) -> Dict[str, Any]:
-        """Get statistics about domain knowledge usage in reasoning"""
-        return {
-            "cross_domain_mappings": self.domain_reasoning_stats["cross_domain_mappings"],
-            "analogical_transfers": self.domain_reasoning_stats["analogical_transfers"],
-            "domain_specific_reasoning": self.domain_reasoning_stats["domain_specific_reasoning"],
-            "total_cross_domain_insights": self.statistics["cross_domain_insights"]
-        }
 
 
 # Export main classes and functions

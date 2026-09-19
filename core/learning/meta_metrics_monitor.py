@@ -103,7 +103,10 @@ class MetaParameterSnapshot:
     # Velocity metrics
     strategies_promoted_last_week: int = 0
     strategies_deprecated_last_week: int = 0
-    rate_of_change: float = 0.0  # Churn rate
+    #: How fast the governed parameters are moving. None when there is no
+    #: history to compare against — kept distinct from a measured 0.0, which
+    #: means they were compared and did not move.
+    rate_of_change: Optional[float] = None
 
     metadata: Dict[str, Any] = field(default_factory=dict)
 
@@ -256,25 +259,37 @@ class MetaMetricsMonitor:
             return 0, 0
         return int(rows[0]["promoted"] or 0), int(rows[0]["deprecated"] or 0)
 
-    async def _parameter_rate_of_change(self) -> float:
+    async def _parameter_rate_of_change(self) -> Optional[float]:
         """How fast the meta-parameters themselves are moving.
 
         The sum of absolute change in the two governed parameters across the
         last two snapshots. A meta-parameter that moves every cycle is drifting
         even when no single step crosses a threshold, and that is precisely the
         shape a per-snapshot threshold check cannot see.
+
+        THREE OUTCOMES, KEPT APART — this returned 0.0 for all of them, which
+        reported "the governed parameters are perfectly stable" both when the
+        database was unreachable and when there was no history to compare. On a
+        STANDARDS GUARD that is the worst possible direction to be wrong in: the
+        one reading that means "I cannot see whether my own standards are
+        slipping" looked identical to "they are not slipping." It is the same
+        defect the comment below this call site records fixing for the promotion
+        counts, left in place here.
+
+          * a real rate           -> the float
+          * no history to compare -> None (nothing to measure YET)
+          * unreadable            -> RAISES (a guard that cannot read itself has
+                                    failed, and `_alert_severity` already grades
+                                    an unknown magnitude CRITICAL for exactly
+                                    this reason)
         """
-        try:
-            db = await self._get_db()
-            rows = await db.execute_query(
-                """SELECT min_trials, adaptation_threshold
-                     FROM unified.meta_parameter_snapshots
-                    ORDER BY timestamp DESC LIMIT 2""", fetch_all=True) or []
-        except Exception as error:
-            logger.error("Parameter rate of change unavailable: %s", error)
-            return 0.0
+        db = await self._get_db()
+        rows = await db.execute_query(
+            """SELECT min_trials, adaptation_threshold
+                 FROM unified.meta_parameter_snapshots
+                ORDER BY timestamp DESC LIMIT 2""", fetch_all=True) or []
         if len(rows) < 2:
-            return 0.0
+            return None
         newer, older = rows[0], rows[1]
         change = abs(int(newer["min_trials"] or 0) - int(older["min_trials"] or 0))
         change += abs(float(newer["adaptation_threshold"] or 0.0)
@@ -348,79 +363,6 @@ class MetaMetricsMonitor:
         """Whether average strategy confidence is rising or falling."""
         series = await self._snapshot_series("avg_strategy_confidence")
         return self._describe_trend(series, "RISING", "FALLING", tolerance=0.05)
-
-    async def _publish_metrics(self, snapshot: "MetaParameterSnapshot") -> int:
-        """Publish this snapshot's measurements to the improvement record.
-
-        `unified.improvement_metrics` and `unified.metric_measurements` were
-        both EMPTY, and their producers -- `ImprovementMonitor.track_improvement`
-        and `record_measurement` -- had zero callers anywhere in the codebase.
-        The table, the schema and the writer all existed; nothing ever joined
-        them, so no component's improvement was recorded by the system built to
-        record it.
-
-        The meta-parameters are the natural first publisher because they are
-        the one place a real APPROVED BASELINE exists to compare against.
-        Everywhere else has to invent one; here it is `APPROVED_DEFAULTS`, which
-        is what "approved" means.
-
-        Returns how many were published. Never raises: this is telemetry about
-        the health check, and it must not be able to fail the health check.
-        """
-        published = 0
-        try:
-            from core.learning.improvement_monitor import (
-                MetricType, get_improvement_monitor)
-
-            monitor = get_improvement_monitor()
-
-            # (metric name, type, approved baseline, measured value)
-            # A None measurement is SKIPPED, not published as zero -- the whole
-            # point of measuring these is that unmeasured and bad are different.
-            measurements = [
-                ("meta.min_trials", MetricType.QUALITY_SCORE,
-                 float(APPROVED_DEFAULTS["min_trials"]), float(snapshot.min_trials)),
-                ("meta.adaptation_threshold", MetricType.QUALITY_SCORE,
-                 APPROVED_DEFAULTS["adaptation_threshold"],
-                 snapshot.adaptation_threshold),
-                ("meta.exploration_quota", MetricType.QUALITY_SCORE,
-                 APPROVED_DEFAULTS["exploration_quota"], snapshot.exploration_quota),
-                ("meta.avg_strategy_confidence", MetricType.QUALITY_SCORE,
-                 LOW_CONFIDENCE_THRESHOLD, snapshot.avg_strategy_confidence),
-                ("meta.total_strategies", MetricType.THROUGHPUT,
-                 None, snapshot.total_strategies),
-            ]
-
-            for name, metric_type, baseline, current in measurements:
-                if current is None or baseline is None:
-                    continue
-                try:
-                    ok, metric = await monitor.track_improvement(
-                        component_name="meta_learning",
-                        metric_type=metric_type,
-                        metric_name=name,
-                        baseline_value=float(baseline),
-                        current_value=float(current),
-                        metadata={"source": "meta_metrics_monitor",
-                                  "snapshot_id": snapshot.snapshot_id})
-                    published += 1 if ok else 0
-
-                    # improvement_metrics holds ONE row per metric (the insert
-                    # upserts), so it only ever shows the latest value.
-                    # metric_measurements is the time-series half and was
-                    # likewise empty. Without it there is a current reading and
-                    # no history, which is exactly what a trend needs.
-                    if ok and metric is not None:
-                        await monitor.record_measurement(
-                            metric_id=metric.metric_id,
-                            value=float(current),
-                            metadata={"snapshot_id": snapshot.snapshot_id})
-                except Exception as error:
-                    logger.error("Could not publish %s: %s", name, error)
-
-        except Exception as error:
-            logger.error("Metric publication unavailable: %s", error)
-        return published
 
     async def capture_snapshot(
         self,
@@ -573,22 +515,50 @@ class MetaMetricsMonitor:
                 exploration_drift=stored_drift.get("exploration_drift", exploration_drift),
                 strategies_promoted_last_week=stored_drift.get("strategies_promoted_last_week", 0),
                 strategies_deprecated_last_week=stored_drift.get("strategies_deprecated_last_week", 0),
-                rate_of_change=stored_drift.get("rate_of_change", 0.0),
+                # No default: an absent rate is unknown, not zero churn.
+                rate_of_change=stored_drift.get("rate_of_change"),
             )
 
-            # Every measurement in this snapshot also goes to the improvement
-            # record, so a component's meta-parameters sit alongside every other
-            # component's metrics instead of only in this module's own table.
-            published = await self._publish_metrics(snapshot)
+            logger.info("Captured meta-parameter snapshot: %s",
+                        snapshot.snapshot_id)
 
-            logger.info("Captured meta-parameter snapshot: %s (%d metrics published)",
-                        snapshot.snapshot_id, published)
-
+            await self._mirror_snapshot_metrics(snapshot)
             return snapshot
 
         except Exception as e:
             logger.error(f"Error capturing meta-parameter snapshot: {e}")
             return None
+
+    async def _mirror_snapshot_metrics(self, snapshot: "MetaParameterSnapshot") -> None:
+        """Mirror the snapshot's meta-parameters into the authority's metric time
+        series, so the meta-learner's standards are queryable over time alongside
+        every other tracked metric (trend + history), not only in this monitor's own
+        snapshot table. Routed through the learning authority (the one owner of the
+        metric series). Isolated: a mirroring fault never fails snapshot capture.
+        """
+        try:
+            from core.learning import get_learning_authority
+            authority = get_learning_authority()
+            fields = {
+                "min_trials": snapshot.min_trials,
+                "adaptation_threshold": snapshot.adaptation_threshold,
+                "exploration_quota": snapshot.exploration_quota,
+                "avg_strategy_confidence": snapshot.avg_strategy_confidence,
+                "total_strategies": snapshot.total_strategies,
+                "low_confidence_adoptions": snapshot.low_confidence_adoptions,
+                "min_trials_drift": snapshot.min_trials_drift,
+                "threshold_drift": snapshot.threshold_drift,
+                "exploration_drift": snapshot.exploration_drift,
+                "rate_of_change": snapshot.rate_of_change,
+            }
+            for name, value in fields.items():
+                if value is None:
+                    continue
+                await authority.record_metric(
+                    "meta_learner", name, float(value), metric_type="meta",
+                    metadata={"snapshot_id": snapshot.snapshot_id})
+        except Exception as e:
+            logger.debug("meta-metric mirroring skipped: %s", e)
 
     async def detect_standards_degradation(
         self,

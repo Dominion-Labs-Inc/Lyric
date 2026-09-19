@@ -1,0 +1,26 @@
+objc[8194]: Class AVFFrameReceiver is implemented in both /Users/stefan/Dominion Labs/TorinAI/venv_torin/lib/python3.11/site-packages/av/.dylibs/libavdevice.62.1.100.dylib (0x1168443a8) and /Users/stefan/Dominion Labs/TorinAI/venv_torin/lib/python3.11/site-packages/cv2/.dylibs/libavdevice.61.3.100.dylib (0x1409103a8). This may cause spurious casting failures and mysterious crashes. One of the duplicates must be removed or renamed.
+objc[8194]: Class AVFAudioReceiver is implemented in both /Users/stefan/Dominion Labs/TorinAI/venv_torin/lib/python3.11/site-packages/av/.dylibs/libavdevice.62.1.100.dylib (0x1168443f8) and /Users/stefan/Dominion Labs/TorinAI/venv_torin/lib/python3.11/site-packages/cv2/.dylibs/libavdevice.61.3.100.dylib (0x1409103f8). This may cause spurious casting failures and mysterious crashes. One of the duplicates must be removed or renamed.
+Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|██████████| 1/1 [00:00<00:00, 13.22it/s]
+Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|██████████| 1/1 [00:00<00:00, 124.06it/s]
+Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|██████████| 1/1 [00:00<00:00, 178.70it/s]
+Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|██████████| 1/1 [00:00<00:00, 176.81it/s]
+Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|██████████| 1/1 [00:00<00:00, 87.42it/s]
+Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|██████████| 1/1 [00:00<00:00, 102.81it/s]
+== 1. the perception hub is active (the one pipeline is live) ==
+  [PASS] PerceptionManager initialized -> process_input admits
+== 2. perceive is the recognition primitive (no longer orphaned) ==
+  decision=ACT posterior=1.0 accept=0.95
+  [PASS] perceive returned a governed decision (ACT/VERIFY/ABSTAIN)
+== 3. the decision was fanned through the event spine ==
+  [PASS] PERCEPT_RECOGNIZED reached a reaction (confidence governs behaviour)
+== 4. ONE pipeline: coord.see senses, the hub admits once ==
+  [PASS] see returned PerceptionData (the hub was the admitter)
+  [PASS] the percept was admitted as evidence (edges for the subject exist)
+  [PASS] the percept is in the substrate's perceptual awareness
+== 5. perception is stamped WITHIN a memory (the whole point) ==
+  [PASS] a memory was stored to hang perception on
+  perceptual_state on the memory: ['sample_bright', 'vision_test', 'vision_test']
+  [PASS] the memory carries a contemporaneous perceptual_state
+  [PASS] belief_state is also stamped (perceived + believed together)
+
+RESULT: PASS — one pipeline; perceive wired; perception rides within memory

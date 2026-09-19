@@ -1,0 +1,263 @@
+{
+  "experiment": "DRIFT-01",
+  "claim": "The Drift faculty enforces eleven invariants on every detector it holds: a declared baseline with a stated reason, prime-then-diff, read-only observation, VACANT distinguished from BLIND, per-signal severity with no averaging, and correction that requires evidence, aims at the median, moves only partway, is recorded, and reaches the substrate's EXPECTATIONS while being unable to reach its LAWS.",
+  "hypothesis": "If the vessel did not enforce these, an absorbed detector could opt out of them one at a time \u2014 which is exactly how the existing detectors came to disagree: each gets one thing right and the rest wrong. A cold start would read as drift, an unmeasurable guard would read as healthy, and a baseline could be moved on two data points.",
+  "started_at": "2026-09-19T15:25:42.528846+00:00",
+  "duration_seconds": 6.424,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/TorinAI/venv_torin/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/TorinAI",
+    "shadow_mode": null,
+    "git_commit": "a36cac20c24cef93cfa6d22ef82bf9a3169e9a5b",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "torinai_db",
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "dotenv:.env.postgres",
+        "database": "dotenv:.env.postgres",
+        "user": "dotenv:.env.postgres",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres"
+      }
+    },
+    "git_uncommitted_changes": 294,
+    "database_verified": "torinai_db",
+    "database_verified_reason": "asked the server"
+  },
+  "summary": {
+    "checks": 25,
+    "passed": 25,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [
+    {
+      "name": "goal_conclusion_rate_observed",
+      "value": 0.1964,
+      "unit": "fraction",
+      "note": "LIVE reading from the intent authority over the real database"
+    },
+    {
+      "name": "goal_conclusion_rate_expected",
+      "value": 0.75,
+      "unit": "fraction",
+      "note": "a substrate that finishes three quarters of what it forms is closing its pursuits; well below that, work is being started and left open and nothing can say what became of it"
+    },
+    {
+      "name": "goal_conclusion_deviation",
+      "value": 0.5536,
+      "unit": "fraction",
+      "note": "how far the substrate sits from finishing what it starts"
+    },
+    {
+      "name": "goal_conclusion_severity",
+      "value": "critical",
+      "unit": "band",
+      "note": ""
+    },
+    {
+      "name": "correction_from",
+      "value": 0.75,
+      "unit": "fraction",
+      "note": "the declared expectation before"
+    },
+    {
+      "name": "correction_to",
+      "value": 0.618,
+      "unit": "fraction",
+      "note": ""
+    },
+    {
+      "name": "correction_median_target",
+      "value": 0.31,
+      "unit": "fraction",
+      "note": "what the observations actually centred on"
+    },
+    {
+      "name": "correction_mean_rejected",
+      "value": 0.3538,
+      "unit": "fraction",
+      "note": "what the mean would have aimed at \u2014 dragged by two outliers"
+    },
+    {
+      "name": "correction_weight",
+      "value": 0.3,
+      "unit": "fraction",
+      "note": "how far one correction travels toward observation"
+    },
+    {
+      "name": "min_correction_samples",
+      "value": 8,
+      "unit": "count",
+      "note": "below this the substrate will not revise what it expects of itself"
+    },
+    {
+      "name": "detectors_registered",
+      "value": 7,
+      "unit": "count",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "the detector carries a declared baseline",
+      "passed": true,
+      "detail": "expected=0.75",
+      "at": "2026-09-19T15:25:48.713544+00:00"
+    },
+    {
+      "label": "the baseline states WHY it is that value \u2014 not a chosen constant",
+      "passed": true,
+      "detail": "a substrate that finishes three quarters of what it forms is closing its\u2026",
+      "at": "2026-09-19T15:25:48.713556+00:00"
+    },
+    {
+      "label": "its severity bands are ordered largest-first and each names a severity",
+      "passed": true,
+      "detail": "[(0.5, 'critical'), (0.3, 'significant'), (0.15, 'moderate'), (0.05, 'minor')]",
+      "at": "2026-09-19T15:25:48.713569+00:00"
+    },
+    {
+      "label": "the FIRST reading is VACANT, establishing footing rather than movement",
+      "passed": true,
+      "detail": "state=vacant severity=none",
+      "at": "2026-09-19T15:25:48.834948+00:00"
+    },
+    {
+      "label": "and it is not counted as drift",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-19T15:25:48.834958+00:00"
+    },
+    {
+      "label": "the second reading is LIVE, with a real observed value from the substrate",
+      "passed": true,
+      "detail": "observed=0.19636363636363635",
+      "at": "2026-09-19T15:25:48.841993+00:00"
+    },
+    {
+      "label": "it carries a computed magnitude against the declared expectation",
+      "passed": true,
+      "detail": "|0.1964 - 0.75| = 0.5536",
+      "at": "2026-09-19T15:25:48.842000+00:00"
+    },
+    {
+      "label": "nothing-to-measure reads VACANT and is NOT graded severe",
+      "passed": true,
+      "detail": "vacant/none",
+      "at": "2026-09-19T15:25:48.846532+00:00"
+    },
+    {
+      "label": "a guard that COULD NOT be read is BLIND and CRITICAL \u2014 never defaulted down",
+      "passed": true,
+      "detail": "blind/critical",
+      "at": "2026-09-19T15:25:48.846538+00:00"
+    },
+    {
+      "label": "neither is reported as drift \u2014 absence of a reading is not movement",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-19T15:25:48.846541+00:00"
+    },
+    {
+      "label": "the blind one is surfaced separately, as a blind spot",
+      "passed": true,
+      "detail": "['broken_guard']",
+      "at": "2026-09-19T15:25:48.846548+00:00"
+    },
+    {
+      "label": "a detector that raises does not take the faculty down with it",
+      "passed": true,
+      "detail": "7 signal(s) returned",
+      "at": "2026-09-19T15:25:48.846551+00:00"
+    },
+    {
+      "label": "the faculty exposes no aggregate score to average away a failing signal",
+      "passed": true,
+      "detail": "no average_* / overall_* attribute exists",
+      "at": "2026-09-19T15:25:48.846556+00:00"
+    },
+    {
+      "label": "it reports the WORST signal instead, so one healthy reading cannot pay for a broken one",
+      "passed": true,
+      "detail": "worst=goal_conclusion_rate (critical)",
+      "at": "2026-09-19T15:25:48.846564+00:00"
+    },
+    {
+      "label": "7 \u2014 a correction on too little evidence is REFUSED",
+      "passed": true,
+      "detail": "3 samples < 8 required; expectation still 0.75",
+      "at": "2026-09-19T15:25:48.846574+00:00"
+    },
+    {
+      "label": "a correction with enough evidence is APPLIED",
+      "passed": true,
+      "detail": "0.75 \u2192 0.6180",
+      "at": "2026-09-19T15:25:48.846585+00:00"
+    },
+    {
+      "label": "8 \u2014 it aimed at the MEDIAN, not the mean (outliers cannot drag a standard)",
+      "passed": true,
+      "detail": "median=0.31 mean=0.3538 \u2192 0.6180",
+      "at": "2026-09-19T15:25:48.846591+00:00"
+    },
+    {
+      "label": "9 \u2014 it moved only part of the way, so the substrate converges not oscillates",
+      "passed": true,
+      "detail": "0.75 \u2192 0.6180 (target was 0.31)",
+      "at": "2026-09-19T15:25:48.846594+00:00"
+    },
+    {
+      "label": "10 \u2014 the self-correction is RECORDED, with what it was and why",
+      "passed": true,
+      "detail": "eight measured conclusion rates",
+      "at": "2026-09-19T15:25:48.846597+00:00"
+    },
+    {
+      "label": "the constitution's five laws are untouched by a drift correction",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-19T15:25:48.936574+00:00"
+    },
+    {
+      "label": "and its compliance threshold is untouched",
+      "passed": true,
+      "detail": "0.7",
+      "at": "2026-09-19T15:25:48.936582+00:00"
+    },
+    {
+      "label": "correction reaches ONLY a detector's expectation \u2014 it has no handle on a law",
+      "passed": true,
+      "detail": "no law-touching name appears in correct()",
+      "at": "2026-09-19T15:25:48.936589+00:00"
+    },
+    {
+      "label": "three perceptions left the observed goal set exactly as it was",
+      "passed": true,
+      "detail": "total 1586\u21921586, concluded 54\u219254",
+      "at": "2026-09-19T15:25:48.952690+00:00"
+    },
+    {
+      "label": "the coordinator holds ONE Drift faculty",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-19T15:25:48.952696+00:00"
+    },
+    {
+      "label": "a second detector under a live name is refused \u2014 one question, one authority",
+      "passed": true,
+      "detail": "ValueError raised on re-registration",
+      "at": "2026-09-19T15:25:48.952705+00:00"
+    }
+  ],
+  "notes": [
+    "`goal_conclusion_rate` reads the live intent authority over the real database; the VACANT and BLIND probes are real detector subclasses whose subjects genuinely do not exist / genuinely fail to read.",
+    "No existing detector (calibration, epistemic, standards, constitutional) is absorbed yet \u2014 that is step 2, one at a time against a parity benchmark. This proves the vessel's laws."
+  ]
+}

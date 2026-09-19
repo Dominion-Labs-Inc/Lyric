@@ -76,21 +76,6 @@ REGISTRY: Dict[str, ControlledSystem] = {
             holder_attr="health_monitor", running_attr="is_monitoring",
             start_method="start_monitoring", stop_method="stop_monitoring"),
         ControlledSystem(
-            "system_watchdog", MONITORING,
-            "Detects a dead component and restarts it",
-            holder_attr="system_watchdog", running_attr="is_running",
-            start_method="start", stop_method="stop"),
-        ControlledSystem(
-            "monitoring_coordinator", MONITORING,
-            "Orchestrates the monitoring subsystems",
-            holder_attr="monitoring_coordinator", running_attr="is_monitoring",
-            start_method="start_monitoring", stop_method="stop_monitoring"),
-        ControlledSystem(
-            "security_audit_worker", SECURITY,
-            "Continuous security auditing; findings become tasks",
-            holder_attr="audit_worker", running_attr="monitoring_active",
-            start_method="start_monitoring", stop_method="stop_monitoring"),
-        ControlledSystem(
             "threat_blocking", SECURITY,
             "Blocks known-bad entities in real time",
             holder_attr="threat_blocking", running_attr="monitoring_active",
@@ -99,11 +84,6 @@ REGISTRY: Dict[str, ControlledSystem] = {
             "safety_framework", SECURITY,
             "The single evaluation point every tool call passes through",
             holder_attr="safety_framework", running_attr=None,
-            start_method=None, stop_method=None),
-        ControlledSystem(
-            "security_controller", SECURITY,
-            "Central enforcement: injection, path, rate-limit checks",
-            holder_attr="security_controller", running_attr=None,
             start_method=None, stop_method=None),
         ControlledSystem(
             "malware_sandbox", SECURITY,
@@ -141,15 +121,8 @@ def resolve_live(autonomous_system: Any) -> Dict[str, Any]:
     a = autonomous_system
     return {
         "health_monitor": first((a, "health_monitor"), (coord, "health_monitor")),
-        "system_watchdog": first((a, "system_watchdog"), (coord, "system_watchdog")),
-        "monitoring_coordinator": first((a, "monitoring_coordinator"),
-                                        (coord, "monitoring_coordinator")),
-        "security_audit_worker": first((a, "audit_worker"),
-                                       (coord, "security_audit_worker")),
         "threat_blocking": first((a, "threat_blocking"), (coord, "threat_blocking")),
         "safety_framework": first((a, "safety_framework"), (coord, "safety_framework")),
-        "security_controller": first((a, "security_controller"),
-                                     (coord, "security_controller")),
         "malware_sandbox": first((a, "malware_sandbox"), (coord, "malware_sandbox")),
     }
 

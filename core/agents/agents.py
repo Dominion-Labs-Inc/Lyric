@@ -13,8 +13,9 @@ This replaces the old factory that minted bespoke `memory` / `research` /
 `logical` agent classes. Those were authorities/tools wearing an agent costume:
 memory is the `MemoryAgent` authority, research is the `conduct_research` tool,
 logical/formal reasoning is reasoning substrate (`core.reasoning.logical_integration`).
-None of them are agents; every agent shares them. The `MemoryAgent` and
-the `SecurityAuditWorker` are authorities, never things this factory instantiates.
+None of them are agents; every agent shares them. The `MemoryAgent` is an
+authority, never a thing this factory instantiates. This factory holds the
+SUBSTRATE's own agents; system agents (security) belong to the world's factory.
 
 Deployment model:
 - **No flat cap.** Each ReasoningType carries an ALLOWANCE — how many

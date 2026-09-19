@@ -13,13 +13,9 @@ before the substrate and outlive it. The thing that protects a system must be
 more durable than the thing it protects, not a feature of it.
 
 WHY THIS IS POSSIBLE WITHOUT REWRITING THEM. Each system already constructs
-standalone -- `HealthMonitor(config=None)`, `MonitoringCoordinator(...)`,
-`get_audit_worker()` -- and only TOUCHES the coordinator through optional,
-guarded callbacks (`if self.autonomous_coordinator:`). Their one real coupling,
-security findings becoming remediation tasks, already crosses the boundary
-through the task queue (`TaskSource.SECURITY_AUDIT`): a finding is written as a
-task row the substrate drains when it is up. So nothing here reimplements a
-system; it hosts the real ones.
+standalone -- `HealthMonitor(config=None)` -- and only TOUCHES the coordinator through optional,
+guarded callbacks (`if self.autonomous_coordinator:`). So nothing here
+reimplements a system; it hosts the real ones.
 
 SOLE OWNER OF THE CONTROL LOOP. When the guardian runs, it is the authority for
 these systems' status and control -- it holds the live objects, so it is the
@@ -56,8 +52,8 @@ class Guardian:
         # WHAT THE GUARDIAN OWNS, AND WHAT IT DOES NOT.
         #
         # The guardian is the EXTERNAL always-on layer: watch that the substrate
-        # is alive, and run security. It does NOT run health_monitor or
-        # monitoring_coordinator -- those monitor the substrate's OWN internal
+        # is alive, and run security. It does NOT run health_monitor -- that
+        # monitors the substrate's OWN internal
         # subsystems (memory, learning, reasoning...), which do not exist when
         # the substrate is down. Coordinating the health of subsystems that are
         # not running is meaningless, so that apparatus lives WITH the substrate
@@ -65,10 +61,6 @@ class Guardian:
         # Monitoring page reads that component health directly; it is not a
         # guardian concern.
         builders = {
-            "system_watchdog":
-                ("core.health.system_watchdog", "get_system_watchdog", "start"),
-            "security_audit_worker":
-                ("core.security.security_audit_worker", "get_audit_worker", "start_monitoring"),
             # Backups are a durability concern that must survive the substrate,
             # so the always-on guardian owns the scheduler. The substrate defers
             # to it when a guardian is present (see core/main.py), so exactly one

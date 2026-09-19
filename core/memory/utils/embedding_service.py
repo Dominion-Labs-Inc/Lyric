@@ -18,6 +18,7 @@ Load Time: ~1.46 seconds
 
 import logging
 import os
+import threading
 import numpy as np
 from typing import List, Optional, Union
 from sentence_transformers import SentenceTransformer
@@ -67,6 +68,10 @@ class EmbeddingService:
         self.embedding_dim = EMBEDDING_DIMENSIONS
         self.initialized = False
         self._init_failed = False  # Prevent infinite retry on broken-pipe / MPS conflict
+        # One model, called from the event loop and from worker threads. The
+        # tokenizer is not safe under concurrent calls, so every encode takes
+        # this lock.
+        self._encode_lock = threading.Lock()
 
         # Performance metrics
         self.metrics = {
@@ -134,7 +139,8 @@ class EmbeddingService:
             start_time = time.time()
 
             # Generate embedding
-            embedding = self.model.encode(text, convert_to_numpy=True)
+            with self._encode_lock:
+                embedding = self.model.encode(text, convert_to_numpy=True)
 
             # Convert to list for JSON serialization
             embedding_list = embedding.tolist()
@@ -180,7 +186,8 @@ class EmbeddingService:
             start_time = time.time()
 
             # Batch encode for efficiency
-            embeddings = self.model.encode(valid_texts, convert_to_numpy=True, batch_size=32)
+            with self._encode_lock:
+                embeddings = self.model.encode(valid_texts, convert_to_numpy=True, batch_size=32)
 
             # Convert to list of lists
             embeddings_list = embeddings.tolist()
@@ -201,6 +208,36 @@ class EmbeddingService:
         except Exception as e:
             logger.error(f"Failed to generate batch embeddings: {e}")
             return None
+
+    def encode_normalized(self, texts: List[str]) -> np.ndarray:
+        """Unit-length float32 vectors for `texts`, row i for texts[i].
+
+        Raises instead of returning None: a caller that stores these vectors
+        cannot tell "no model" from "nothing to encode" through a None, and an
+        empty text has no meaning to encode, so it is refused rather than
+        silently dropped (dropping shifts every later row onto the wrong text).
+        Blocking; call it from a worker thread.
+        """
+        if not texts:
+            return np.zeros((0, self.embedding_dim), dtype=np.float32)
+        if any(not t or not t.strip() for t in texts):
+            raise ValueError("encode_normalized requires non-empty texts")
+        if not self.initialized and not self.initialize():
+            raise RuntimeError(f"embedding model {self.model_name} is unavailable")
+        # The lock is taken per slice so an encode on the event loop waits for
+        # one slice, not for a whole backfill batch.
+        parts = []
+        for start in range(0, len(texts), 64):
+            with self._encode_lock:
+                parts.append(self.model.encode(
+                    [t.strip() for t in texts[start:start + 64]], batch_size=64,
+                    convert_to_numpy=True, normalize_embeddings=True))
+        vectors = np.asarray(np.concatenate(parts), dtype=np.float32)
+        if vectors.shape != (len(texts), self.embedding_dim):
+            raise RuntimeError(
+                f"embedding model {self.model_name} returned shape {vectors.shape}, "
+                f"expected ({len(texts)}, {self.embedding_dim})")
+        return vectors
 
     def compute_similarity(
         self,

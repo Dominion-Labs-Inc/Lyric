@@ -1,0 +1,160 @@
+{
+  "experiment": "MOTIVATION-CLOSEDLOOP-01",
+  "claim": "The motivation loop CLOSES: an unknown becomes a ranked frontier pursuit, acting on it moves the underlying belief, and the moved belief changes the ranking on the next pass. The decision is deterministic \u2014 the same self state yields the same ranking, with no RNG anywhere in it.",
+  "hypothesis": "If the loop were open, resolving an unknown would leave the frontier unchanged and the substrate would keep pursuing what it had already learned.",
+  "started_at": "2026-09-17T17:16:42.867756+00:00",
+  "duration_seconds": 11.772,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/TorinAI/venv_torin/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/TorinAI",
+    "shadow_mode": "1",
+    "git_commit": "a36cac20c24cef93cfa6d22ef82bf9a3169e9a5b",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "torinai_db",
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "dotenv:.env.postgres",
+        "database": "dotenv:.env.postgres",
+        "user": "dotenv:.env.postgres",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres"
+      }
+    },
+    "git_uncommitted_changes": 266,
+    "database_verified": "torinai_db",
+    "database_verified_reason": "asked the server"
+  },
+  "summary": {
+    "checks": 11,
+    "passed": 11,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [
+    {
+      "name": "evidence_quality",
+      "value": 0.15,
+      "unit": "quality [0,1]",
+      "note": "UniversalDomainMaster.COMPETENCE_EVIDENCE_QUALITY \u2014 the real, deliberately low production default, not a test value"
+    },
+    {
+      "name": "cycles_to_competence",
+      "value": 4,
+      "unit": "count",
+      "note": "weak positive evidence updates needed before the gap left the unstable set; 1 would mean competence flips on a single point"
+    },
+    {
+      "name": "entropy_pursued_before",
+      "value": 1.0,
+      "unit": "entropy [0,1]",
+      "note": ""
+    },
+    {
+      "name": "entropy_pursued_after",
+      "value": 0.5891,
+      "unit": "entropy [0,1]",
+      "note": "must fall below the 0.7 unstable threshold for the gap to close"
+    },
+    {
+      "name": "entropy_reduction",
+      "value": 0.4109,
+      "unit": "entropy delta",
+      "note": "how far acting on the pursuit moved the belief"
+    },
+    {
+      "name": "entropy_untouched_control",
+      "value": 0.0,
+      "unit": "entropy delta",
+      "note": "the OTHER unknown, which must not move \u2014 proves the update was targeted rather than a global drift toward confidence"
+    },
+    {
+      "name": "pursuits_before",
+      "value": 2,
+      "unit": "count",
+      "note": "frontier size while both seeded unknowns are still unknown"
+    },
+    {
+      "name": "pursuits_after",
+      "value": 1,
+      "unit": "count",
+      "note": "frontier size after one is RESOLVED \u2014 the loop closing shows here"
+    }
+  ],
+  "checks": [
+    {
+      "label": "test_capA is a capability pursuit",
+      "passed": true,
+      "detail": "{'target': 'the substrate has learned the operators of domain test_capA', 'domain': 'test_capA', 'frontier': 'capability', 'entropy': 1.0, 'score': 0.5, 'source': 'belief', 'connections': 0, 'evidence': 0, 'foothold': 0, 'grounding': None}",
+      "at": "2026-09-17T17:16:54.636379+00:00"
+    },
+    {
+      "label": "test_capB is a capability pursuit",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-17T17:16:54.636391+00:00"
+    },
+    {
+      "label": "both start uncertain (entropy > 0.7)",
+      "passed": true,
+      "detail": "A=1.000 B=1.000",
+      "at": "2026-09-17T17:16:54.636396+00:00"
+    },
+    {
+      "label": "one weak cycle does NOT flip competence (not resolved after a single data point)",
+      "passed": true,
+      "detail": "entropy after 1 cycle = 0.964",
+      "at": "2026-09-17T17:16:54.636446+00:00"
+    },
+    {
+      "label": "A's uncertainty DECREASED (posterior moved on real evidence)",
+      "passed": true,
+      "detail": "entropy 1.000 -> 0.589",
+      "at": "2026-09-17T17:16:54.636478+00:00"
+    },
+    {
+      "label": "competence EARNED over SEVERAL cycles, not one",
+      "passed": true,
+      "detail": "4 cycles, entropy 0.589",
+      "at": "2026-09-17T17:16:54.636481+00:00"
+    },
+    {
+      "label": "A left the unstable set (entropy <= 0.7)",
+      "passed": true,
+      "detail": "0.589",
+      "at": "2026-09-17T17:16:54.636483+00:00"
+    },
+    {
+      "label": "A is no longer an unstable region",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-17T17:16:54.636504+00:00"
+    },
+    {
+      "label": "A dropped out of the pursuit ranking",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-17T17:16:54.640071+00:00"
+    },
+    {
+      "label": "B is STILL a pursuit \u2014 the next pursuit changed to the unresolved one",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-17T17:16:54.640078+00:00"
+    },
+    {
+      "label": "B was untouched by A's update (targeted, not global)",
+      "passed": true,
+      "detail": "B entropy 1.000 -> 1.000",
+      "at": "2026-09-17T17:16:54.640083+00:00"
+    }
+  ],
+  "notes": [
+    "Uses the REAL coordinator decision methods bound to a minimal stand-in: no database, so _development is None and growth is 0, and the competence/grounding reads return nothing. The ranking then rests on entropy and the structural tiebreaks, which is what this claim needs."
+  ]
+}

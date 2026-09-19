@@ -15,7 +15,6 @@ class AutonomyLevel(Enum):
     DELIBERATIVE = "deliberative" 
     ADAPTIVE = "adaptive"
     CREATIVE = "creative"
-    SELF_MODIFYING = "self_modifying"
 
 
 class PlanningStrategy(Enum):

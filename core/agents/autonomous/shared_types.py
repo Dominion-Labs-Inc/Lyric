@@ -33,7 +33,10 @@ class TaskType(Enum):
     COMMUNICATION = "communication"
     LEARNING = "learning"
     OPTIMIZATION = "optimization"
-    SECURITY_REMEDIATION = "security_remediation"
+    #: Getting better at its job. The substrate has no model weights and never
+    #: rewrites its own code or configuration, so this is learning work aimed at
+    #: its own performance (benchmark a capability, diagnose a failure, close a
+    #: gap); the improvement is whatever that learning changes.
     SELF_IMPROVEMENT = "self_improvement"
 
 
@@ -125,13 +128,12 @@ class TaskSource(Enum):
     MANUAL = "manual"  # Manually created by human
     AUTONOMOUS = "autonomous"  # AI-generated tasks
     SYSTEM = "system"  # System-generated tasks
-    SECURITY_AUDIT = "security_audit"  # Security audit worker findings
 
 
 #: The actor a task belongs to when it is the SUBSTRATE'S OWN work.
 #:
 #: Not a user, and deliberately not a string a user could ever hold. Health
-#: monitoring, security auditing, the idle loops -- this is Torin's own
+#: monitoring, the idle loops -- this is Torin's own
 #: cognition, and its memories and learned evidence belong to Torin, never to
 #: whoever happened to be connected when a loop fired. Scoping the substrate's
 #: health knowledge to a passing user would be as wrong as leaking that user's
@@ -142,7 +144,7 @@ SUBSTRATE_ACTOR = "__substrate__"
 #: these is owned by the substrate; anything else is owned by the user who
 #: caused it, and MUST carry that user's id as its actor.
 _SUBSTRATE_SOURCES = frozenset({
-    TaskSource.AUTONOMOUS, TaskSource.SYSTEM, TaskSource.SECURITY_AUDIT,
+    TaskSource.AUTONOMOUS, TaskSource.SYSTEM,
 })
 
 

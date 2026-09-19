@@ -2,9 +2,9 @@
 
 The capability under test is the one the audit found missing: the substrate
 could execute symbolic knowledge at zero model calls and could not acquire any.
-Every test here runs under STRICT_MODEL_FREE and asserts the census afterwards,
-so a regression that quietly reintroduces a model call fails here rather than
-being discovered in an experiment's results.
+The substrate is model-free by construction: there is no model call site on
+this path to guard, so these tests exercise induction directly rather than
+asserting a runtime census.
 """
 import pytest
 
@@ -13,21 +13,7 @@ from core.learning.rule_induction import (
     TrainingExample, applies, generalize, get_rule_inducer, is_variable,
     match_body, successor_state,
 )
-from core.model_policy import (
-    ModelPolicy, assert_model_free, reset_model_telemetry, set_model_policy,
-)
-
 F = Fact.parse
-
-
-@pytest.fixture(autouse=True)
-def strict():
-    previous = set_model_policy(ModelPolicy.STRICT_MODEL_FREE)
-    reset_model_telemetry()
-    yield
-    assert_model_free("rule induction")
-    set_model_policy(previous)
-    reset_model_telemetry()
 
 
 @pytest.fixture
@@ -257,6 +243,55 @@ def test_matching_enumerates_every_binding():
 
 def test_variables_are_marked_not_inferred():
     assert is_variable("?X") and not is_variable("X")
+
+
+def test_a_counter_demonstration_forces_the_source_location_precondition(inducer):
+    """Five demonstrations leave the source location out of the body: every one of
+    them has the mover already at the source, so nothing distinguishes it. A sixth
+    positive case cannot narrow a hypothesis that already covers it; a case where
+    the mover is NOT at the source, and the action therefore has no effect, can."""
+    def move(who, a, b, evidence_id, opened=True, path=True, acted=True, at_source=True):
+        before = []
+        if at_source:
+            before.append(F(f"AT({who},{a})"))
+        if path:
+            before.append(F(f"PATH({a},{b})"))
+        if opened:
+            before.append(F(f"OPEN({b})"))
+        before = tuple(before)
+        ok = opened and path and acted and at_source
+        return TrainingExample(
+            before=before,
+            action=F(f"MOVE({who},{a},{b})") if acted else None,
+            after=before + (F(f"AT({who},{b})"),) if ok else before,
+            positive=ok, evidence_id=evidence_id,
+        )
+
+    five = [
+        move("a", "R1", "R2", "t1"), move("b", "R3", "R4", "t2"),
+        move("c", "R5", "R6", "n1", opened=False),
+        move("d", "R7", "R8", "n2", path=False),
+        move("e", "R9", "R10", "n3", acted=False),
+    ]
+
+    baseline = inducer.induce(five).rule
+    assert not any(f.predicate == "AT" for f in baseline.body), (
+        "the five-demonstration body is expected to omit the source location"
+    )
+
+    another_success = inducer.induce(five + [move("f", "R11", "R12", "n4")]).rule
+    assert {str(f) for f in another_success.body} == {str(f) for f in baseline.body}, (
+        "a further positive case cannot narrow a hypothesis that already covers it"
+    )
+
+    constrained = inducer.induce(
+        five + [move("f", "R11", "R12", "n4", at_source=False)]
+    ).rule
+    assert any(f.predicate == "AT" for f in constrained.body), (
+        "a counter-demonstration must force the source location into the body"
+    )
+    assert {f.predicate for f in constrained.body} == {"AT", "PATH", "OPEN", "MOVE"}
+    assert constrained.effects.add == frozenset({Fact("AT", ("?X0", "?X1"))})
 
 
 def test_a_retraction_is_learned_as_a_delete_effect(inducer):

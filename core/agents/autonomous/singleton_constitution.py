@@ -114,7 +114,7 @@ class SingletonConstitution:
         # Metrics — surfaced via get_constitution_status for the health monitor.
         # Honest counters of what THIS authority did: drift assessments run and
         # drift alerts raised. (Directive-governance decisions and their counts
-        # are the GovernanceAgent's — the constitution only supplies law scores.)
+        # are runtime governance's — the constitution only supplies law scores.)
         self.metrics: Dict[str, Any] = {
             "alignment_checks": 0,
             "drift_alerts": 0,
@@ -190,7 +190,7 @@ class SingletonConstitution:
                     "Directives must maintain operational boundaries",
                     "Directives must preserve shutdown and rollback capabilities",
                     "Directives must not circumvent safety mechanisms",
-                    "Directives must not enable self-modification that bypasses governance oversight",
+                    "Directives must not bypass governance oversight",
                     "Directives must maintain resource usage limits"
                 ]
             )
@@ -379,12 +379,12 @@ class SingletonConstitution:
 
     # NOTE (2026-09-02): a validate_directive() was briefly added here but REMOVED
     # — it re-implemented the compliance DECISION (thresholds) on top of the raw
-    # law scores, bypassing the GovernanceAgent, which is the authority that owns
+    # law scores, bypassing RUNTIME GOVERNANCE, which is the authority that owns
     # that decision (it calls calculate_law_compliance_scores below, applies the
-    # threshold + external rules, and reports requires_governance). Directive
-    # governance flows DirectiveSystem → GovernanceAgent → this constitution's
-    # calculate_law_compliance_scores. The constitution stays the law-SCORING
-    # authority; the GovernanceAgent stays the compliance-DECISION authority.
+    # threshold, and reports requires_governance). Directive governance flows
+    # DirectiveSystem → RuntimeGovernance.check_action_compliance → this
+    # constitution's calculate_law_compliance_scores. The constitution stays the
+    # law-SCORING authority; runtime governance is the compliance-DECISION authority.
 
     async def _calculate_context_law_compliance(
         self,
@@ -412,8 +412,8 @@ class SingletonConstitution:
 
             if law.law_number == 1:  # Human Autonomy Preservation
                 # External-facing actions that directly affect users get scrutiny.
-                # Self-improvement, code analysis, and autonomous upgrade cycles are
-                # intentional design — do NOT penalise them here.
+                # Learning, code analysis, and research are intentional design —
+                # do NOT penalise them here.
                 if source_type == "external":
                     compliance = 0.85
                 # Only flag actions that directly affect user data or send
@@ -437,9 +437,6 @@ class SingletonConstitution:
                 destructive_kw = ["delete", "drop", "truncate", "kill", "terminate", "shutdown", "halt", "wipe"]
                 if any(kw in action_desc for kw in destructive_kw):
                     compliance = 0.55
-                # Security remediation is explicitly safe
-                if action_params.get("task_type") == "security_remediation":
-                    compliance = max(compliance, 0.95)
 
             elif law.law_number == 4:  # Value Alignment
                 # Research, learning, analysis, optimization advance the mission

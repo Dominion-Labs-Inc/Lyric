@@ -717,11 +717,22 @@ class UniversalOntology:
         and left `verified=None` instead.
 
         A mapping is a claim that two concepts occupy analogous positions in
-        their own structures. That is testable against the learned graph: if
-        A relates to X by R, an analogous B should relate to something by R too.
-        Similarity of the two concepts is NOT evidence for it -- similarity is
-        what proposed the mapping in the first place, so accepting on similarity
-        would be accepting the hypothesis as its own confirmation.
+        their own structures. That is testable against the learned graph: an
+        edge of A is preserved at B when B has the SAME relation to the SAME
+        concept -- pipe `isa` tube and vessel `isa` tube; pump `moves` fluid and
+        heart `moves` fluid. Similarity of the two concepts is NOT evidence for
+        it -- similarity is what proposed the mapping in the first place, so
+        accepting on similarity would be accepting the hypothesis as its own
+        confirmation.
+
+        A shared relation LABEL is not preserved structure. `isa` is 98% of all
+        stored relations, so matching labels alone accepted almost any pair:
+        sparrow (isa passerine, isa fish) against vessel (carries blood, isa
+        container/craft/tube) scored 1.0 and was stored as accepted. Nor is a
+        similar-meaning argument: measured over real mappings, argument
+        similarity for sound analogies (fluid/blood 0.55, pipe/vessel 0.45,
+        pump/heart 0.38) overlaps that of unsound ones (sparrow's arguments
+        against vessel's 0.37, valve's 0.45), so any cutoff would be a guess.
 
         Three verdicts, and REJECTED must be reachable or the validator is
         decorative:
@@ -752,11 +763,16 @@ class UniversalOntology:
                 await db.initialize()
 
             async def edges(cid):
+                # DISTINCT: one relation to one concept is one edge, however
+                # many observations recorded it.
                 rows = await db.execute_query(
-                    "SELECT relation, target_concept_id FROM unified.concept_relations "
+                    "SELECT DISTINCT relation, target_concept_id FROM unified.concept_relations "
                     "WHERE source_concept_id = $1 AND target_concept_id IS NOT NULL",
                     (cid,), fetch_all=True) or []
-                return [(r["relation"], r["target_concept_id"]) for r in rows]
+                # An edge to either side of the proposed mapping is not
+                # structure the two share.
+                return sorted((r["relation"], r["target_concept_id"]) for r in rows
+                              if r["target_concept_id"] not in (source_id, target_id))
 
             src_edges = await edges(source_id)
             tgt_edges = await edges(target_id)
@@ -776,13 +792,13 @@ class UniversalOntology:
                 f"{self.MIN_EDGES_TO_JUDGE} needed on each side)")
             return result
 
-        # RELATION PRESERVATION -- the load-bearing test. Raw relation labels;
-        # relation-class normalisation is deliberately not applied so its
-        # contribution can be measured separately later.
-        src_relations = [r for r, _t in src_edges]
-        tgt_relations = {r for r, _t in tgt_edges}
-        preserved = [r for r in src_relations if r in tgt_relations]
-        preservation = len(preserved) / len(src_relations)
+        # EDGE PRESERVATION -- the load-bearing test: the same relation to the
+        # same concept. Raw relation labels; relation-class normalisation is
+        # deliberately not applied so its contribution can be measured
+        # separately later.
+        target_edge_set = set(tgt_edges)
+        preserved = [edge for edge in src_edges if edge in target_edge_set]
+        preservation = len(preserved) / len(src_edges)
 
         # DEGREE CONSISTENCY -- an analogue occupying the same role should have
         # a comparable number of connections. Reported, not gating.
@@ -791,7 +807,7 @@ class UniversalOntology:
         result["measurements"].update({
             "relations_preserved": len(preserved),
             "relation_preservation": round(preservation, 4),
-            "preserved_relations": sorted(set(preserved)),
+            "preserved_edges": [list(edge) for edge in preserved],
             "degree_consistency": round(degree_ratio, 4),
             "threshold": self.RELATION_PRESERVATION_THRESHOLD,
         })
@@ -806,11 +822,11 @@ class UniversalOntology:
             result["valid"] = False
             result["confidence"] = 0.0
             result["issues"].append(
-                f"only {len(preserved)}/{len(src_relations)} source relations "
+                f"only {len(preserved)}/{len(src_edges)} source edges "
                 f"({preservation:.0%}) are present at the target")
             if preserved:
                 result["suggestions"].append(
-                    f"partial structure survives via {sorted(set(preserved))}")
+                    f"partial structure survives via {[list(e) for e in preserved]}")
 
         return result
 

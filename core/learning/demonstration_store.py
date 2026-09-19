@@ -26,11 +26,27 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import List, Optional, Sequence
+from typing import Callable, List, Optional, Sequence
 
 from core.learning.rule_induction import Fact, TrainingExample
 
 logger = logging.getLogger(__name__)
+
+
+# Producer trigger (event-driven induction). The coordinator registers a cheap,
+# synchronous, non-raising callback here; enqueuing a pending induction signature
+# then WAKES the induction drain instead of a fixed-interval poll sweeping for
+# backlog. Every producer of a demonstration converges on `append` below, so this
+# is the one correct place to fire it. Opt-in: unset (standalone/test contexts)
+# means recording behaves exactly as before.
+_ON_PENDING: Optional[Callable[[], None]] = None
+
+
+def set_on_pending(callback: Optional[Callable[[], None]]) -> None:
+    """Register (or clear, with None) the callback fired right after a signature
+    is enqueued for induction. Must be cheap and must not raise."""
+    global _ON_PENDING
+    _ON_PENDING = callback
 
 
 DDL = """
@@ -152,6 +168,14 @@ class DemonstrationStore:
             # every operator in the domain, because a new contrastive sharpens
             # them all.
             await self._mark_pending(domain_id, predicate, arity)
+            # WAKE the induction drain (event-driven): a signature is now pending.
+            # All demonstration producers converge here, so this fires for the
+            # executor AND for exploration-recorded signatures alike.
+            if _ON_PENDING is not None:
+                try:
+                    _ON_PENDING()
+                except Exception as _cb_err:
+                    logger.debug("on_pending callback failed (non-fatal): %s", _cb_err)
         logger.info("demonstration %s for %s in %s: %s", example.evidence_id,
                     f"{predicate}/{arity}" if example.action else "contrastive",
                     domain_id, "recorded" if written else "already present")

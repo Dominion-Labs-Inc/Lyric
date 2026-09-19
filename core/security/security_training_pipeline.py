@@ -151,7 +151,6 @@ class SecurityTrainingPipeline:
         # Integration points
         self.learning_system = None
         self.safety_framework = None
-        self.audit_worker = None
         self.slack_notifier = None
 
         logger.info("SecurityTrainingPipeline initialized")
@@ -639,11 +638,6 @@ class SecurityTrainingPipeline:
             'timestamp': datetime.now().isoformat()
         }
 
-        # Report to audit worker if available
-        if self.audit_worker and not correctly_handled:
-            logger.warning(f"Red team attack succeeded: {scenario.scenario_id}")
-            # Could create audit finding here
-
         return result
 
     async def get_statistics(self) -> Dict[str, Any]:
@@ -712,11 +706,6 @@ class SecurityTrainingPipeline:
         """Set safety framework integration"""
         self.safety_framework = safety_framework
         logger.info("Safety framework integration configured")
-
-    def set_audit_worker(self, audit_worker):
-        """Set audit worker integration"""
-        self.audit_worker = audit_worker
-        logger.info("Audit worker integration configured")
 
     async def _store_session_memory(self, session: TrainingSession) -> None:
         """Store training session to memory with RICH METADATA"""

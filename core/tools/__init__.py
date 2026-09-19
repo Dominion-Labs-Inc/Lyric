@@ -49,7 +49,6 @@ from .filesystem_tools import (
 from .execution_tools import (
     RunPythonTool,
     RunShellCommandTool,
-    ExecuteSandboxTool,
     ListProcessesTool,
     KillProcessTool,
     StartServiceTool,
@@ -368,7 +367,6 @@ __all__ = [
     # Execution tools
     'RunPythonTool',
     'RunShellCommandTool',
-    'ExecuteSandboxTool',
     'ListProcessesTool',
     'KillProcessTool',
     'StartServiceTool',
@@ -647,7 +645,7 @@ except Exception as e:
 
 # Auto-register delegation tools. Without this the delegate_task tool exists in
 # the tree but is unreachable at runtime -- the same dark-capability pattern as
-# create_agents_system and get_upgrade_validator.
+# create_agents_system.
 try:
     from .delegation_tools import register_delegation_tools
     register_delegation_tools()

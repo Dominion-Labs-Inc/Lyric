@@ -1,0 +1,193 @@
+{
+  "experiment": "MEMORY-INTENT-01",
+  "claim": "An episode is recorded with the pursuit it belonged to \u2014 by id and by the intent version current at the time \u2014 so the substrate can ask both 'what was I trying to do when this happened' and 'what happened while I pursued that', and a later refinement of the goal cannot re-describe a past act.",
+  "hypothesis": "If the link were a COPY of the intent's shape, refreshing the intent would leave two diverging accounts of what was meant. If it were the id ALONE, hindsight would silently re-describe past acts under a goal the substrate only later refined into. Only id PLUS version answers 'at the time' honestly.",
+  "started_at": "2026-09-19T15:18:57.371816+00:00",
+  "duration_seconds": 5.942,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/TorinAI/venv_torin/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/TorinAI",
+    "shadow_mode": null,
+    "git_commit": "a36cac20c24cef93cfa6d22ef82bf9a3169e9a5b",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "torinai_db",
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "dotenv:.env.postgres",
+        "database": "dotenv:.env.postgres",
+        "user": "dotenv:.env.postgres",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres"
+      }
+    },
+    "git_uncommitted_changes": 294,
+    "database_verified": "torinai_db",
+    "database_verified_reason": "asked the server"
+  },
+  "summary": {
+    "checks": 15,
+    "passed": 15,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [
+    {
+      "name": "coverage_intent_id",
+      "value": 0.0001,
+      "unit": "fraction",
+      "note": "1 of 13464 memories"
+    },
+    {
+      "name": "coverage_appraisal_snapshot",
+      "value": 0.0449,
+      "unit": "fraction",
+      "note": "604 of 13464 memories"
+    },
+    {
+      "name": "coverage_reasoning_trace",
+      "value": 0.0613,
+      "unit": "fraction",
+      "note": "825 of 13464 memories"
+    },
+    {
+      "name": "coverage_decision_factors",
+      "value": 0.2508,
+      "unit": "fraction",
+      "note": "3377 of 13464 memories"
+    },
+    {
+      "name": "coverage_emotional_context",
+      "value": 0.0977,
+      "unit": "fraction",
+      "note": "1315 of 13464 memories"
+    },
+    {
+      "name": "coverage_system_state",
+      "value": 0.238,
+      "unit": "fraction",
+      "note": "3204 of 13464 memories"
+    },
+    {
+      "name": "memories_total",
+      "value": 13464,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "intent_version_at_capture",
+      "value": 1,
+      "unit": "version",
+      "note": ""
+    },
+    {
+      "name": "episodes_per_pursuit",
+      "value": 1,
+      "unit": "count",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "the record carries contemporaneous context on some memories",
+      "passed": true,
+      "detail": "appraisal 604, reasoning 825",
+      "at": "2026-09-19T15:19:03.098888+00:00"
+    },
+    {
+      "label": "a memory was formed",
+      "passed": true,
+      "detail": "mem_aa494dbb36344323a1767f21",
+      "at": "2026-09-19T15:19:03.298587+00:00"
+    },
+    {
+      "label": "it recorded the pursuit it belonged to, by id",
+      "passed": true,
+      "detail": "stored=bcfecdf85930441b",
+      "at": "2026-09-19T15:19:03.299549+00:00"
+    },
+    {
+      "label": "and the intent VERSION current at the time",
+      "passed": true,
+      "detail": "stored v1, was v1",
+      "at": "2026-09-19T15:19:03.299556+00:00"
+    },
+    {
+      "label": "the memory does not carry a copy of the intent's goal conditions",
+      "passed": true,
+      "detail": "49 bytes of content, no operator or goal state in it",
+      "at": "2026-09-19T15:19:03.299563+00:00"
+    },
+    {
+      "label": "the pursuit genuinely moved on",
+      "passed": true,
+      "detail": "v1 \u2192 v2",
+      "at": "2026-09-19T15:19:03.302362+00:00"
+    },
+    {
+      "label": "the memory still names the version it was pursued under \u2014 hindsight did not rewrite it",
+      "passed": true,
+      "detail": "memory still v1, intent now v2",
+      "at": "2026-09-19T15:19:03.303025+00:00"
+    },
+    {
+      "label": "and the earlier state is recoverable from the intent's own history",
+      "passed": true,
+      "detail": "1 prior state(s) held",
+      "at": "2026-09-19T15:19:03.303653+00:00"
+    },
+    {
+      "label": "while the actor-free SHAPE view withholds that history, as it should",
+      "passed": true,
+      "detail": "shape view carries no owner-scoped history",
+      "at": "2026-09-19T15:19:03.304174+00:00"
+    },
+    {
+      "label": "from the memory, the pursuit resolves",
+      "passed": true,
+      "detail": "MOVE_FILE(?f, ?a, ?b)",
+      "at": "2026-09-19T15:19:03.304687+00:00"
+    },
+    {
+      "label": "from the pursuit, its episodes resolve",
+      "passed": true,
+      "detail": "1 episode(s)",
+      "at": "2026-09-19T15:19:03.305328+00:00"
+    },
+    {
+      "label": "the memory comes back from the store at all",
+      "passed": true,
+      "detail": "MemoryItem",
+      "at": "2026-09-19T15:19:03.309083+00:00"
+    },
+    {
+      "label": "and carries the pursuit through RETRIEVAL, not just through the write",
+      "passed": true,
+      "detail": "intent_id=bcfecdf85930441bb44d4cfd85c2bca8, version=1",
+      "at": "2026-09-19T15:19:03.309092+00:00"
+    },
+    {
+      "label": "so a recalled memory RENDERS the pursuit to its reader",
+      "passed": true,
+      "detail": "(while pursuing bcfecdf85930441bb44d4cfd85c2bca8 v1)",
+      "at": "2026-09-19T15:19:03.309101+00:00"
+    },
+    {
+      "label": "a memory without one renders nothing extra",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-19T15:19:03.309104+00:00"
+    }
+  ],
+  "notes": [
+    "Coverage is thin and is reported rather than rounded up: these fields sit on a minority of memories, so a capability built on them answers for that minority. The fix is at the write sites.",
+    "Intent is live, revisable state owned by the intent authority; a memory is a permanent record of what happened. Snapshotting the shape here would create a second account of what was meant, free to diverge from the first \u2014 the duplicate-authority defect in the one place where 'what I was trying to do' must have a single answer.",
+    "What this section is for: a field that reaches no consumer is not wired, however faithfully it is stored. It must therefore be checked through the path a reader actually uses \u2014 the moment it builds its own input it stops testing the wiring and starts testing string formatting.",
+    "`reasoning_trace` is read out of the row and carried through retrieval, then dropped by every template \u2014 present in the pipeline and invisible to the reader. A field that reaches no consumer is not wired, however faithfully it is stored."
+  ]
+}

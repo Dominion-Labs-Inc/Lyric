@@ -1,0 +1,218 @@
+{
+  "experiment": "RECONCILE-01",
+  "claim": "Every execution path that owns a pursuit reconciles its intent exactly once, from the re-observed world; a step that does not own the pursuit leaves it open for its owner.",
+  "hypothesis": "If ownership is the rule, then a planned route closes once after its last step, a standalone operator and a declared-tool operation each close their own intent (including when refused), a plan step closes nothing, and the verdict follows the world rather than the step's own success.",
+  "started_at": "2026-09-18T13:41:45.317944+00:00",
+  "duration_seconds": 16.7,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/TorinAI/venv_torin/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/TorinAI",
+    "shadow_mode": "1",
+    "git_commit": "a36cac20c24cef93cfa6d22ef82bf9a3169e9a5b",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "torinai_db",
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "dotenv:.env.postgres",
+        "database": "dotenv:.env.postgres",
+        "user": "dotenv:.env.postgres",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres"
+      }
+    },
+    "git_uncommitted_changes": 284,
+    "database_verified": "torinai_db",
+    "database_verified_reason": "asked the server"
+  },
+  "summary": {
+    "checks": 27,
+    "passed": 27,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [
+    {
+      "name": "closes_recorded",
+      "value": 5,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "intents_formed",
+      "value": 7,
+      "unit": "count",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "execution faculty up",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-18T13:41:50.820372+00:00"
+    },
+    {
+      "label": "the operator every case relies on is validated",
+      "passed": true,
+      "detail": "EpistemicStatus.VALIDATED",
+      "at": "2026-09-18T13:41:50.943013+00:00"
+    },
+    {
+      "label": "the route ran through the plan owner and reached the goal",
+      "passed": true,
+      "detail": "path=substrate_plan steps=4",
+      "at": "2026-09-18T13:42:01.631330+00:00"
+    },
+    {
+      "label": "it really was two operator steps",
+      "passed": true,
+      "detail": "2 operator step(s)",
+      "at": "2026-09-18T13:42:01.631341+00:00"
+    },
+    {
+      "label": "the intent was closed EXACTLY ONCE",
+      "passed": true,
+      "detail": "1 close(s)",
+      "at": "2026-09-18T13:42:01.631346+00:00"
+    },
+    {
+      "label": "\u2026and only after BOTH files had moved (not on step one)",
+      "passed": true,
+      "detail": "archived at close: ['a', 'b']",
+      "at": "2026-09-18T13:42:01.631351+00:00"
+    },
+    {
+      "label": "it closed as fulfilled, matching what it meant",
+      "passed": true,
+      "detail": "status=fulfilled",
+      "at": "2026-09-18T13:42:01.631928+00:00"
+    },
+    {
+      "label": "both files really moved on disk",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-18T13:42:01.631969+00:00"
+    },
+    {
+      "label": "a route is proved",
+      "passed": true,
+      "detail": "plan of 1 step(s) found",
+      "at": "2026-09-18T13:42:01.663906+00:00"
+    },
+    {
+      "label": "the step ran through the operator path and confirmed",
+      "passed": true,
+      "detail": "runtime_confirmation",
+      "at": "2026-09-18T13:42:01.723993+00:00"
+    },
+    {
+      "label": "the step did NOT close the plan's intent",
+      "passed": true,
+      "detail": "0 close(s)",
+      "at": "2026-09-18T13:42:01.724007+00:00"
+    },
+    {
+      "label": "the intent is still open for its owner",
+      "passed": true,
+      "detail": "status=forming",
+      "at": "2026-09-18T13:42:01.724839+00:00"
+    },
+    {
+      "label": "the operator ran and confirmed",
+      "passed": true,
+      "detail": "runtime_confirmation",
+      "at": "2026-09-18T13:42:01.803830+00:00"
+    },
+    {
+      "label": "it closed its intent exactly once",
+      "passed": true,
+      "detail": "1 close(s)",
+      "at": "2026-09-18T13:42:01.803839+00:00"
+    },
+    {
+      "label": "as fulfilled, and the verdict travels with the result",
+      "passed": true,
+      "detail": "status=fulfilled",
+      "at": "2026-09-18T13:42:01.804368+00:00"
+    },
+    {
+      "label": "the act ran and its rule was CONFIRMED (the operator works)",
+      "passed": true,
+      "detail": "runtime_confirmation / refused=None",
+      "at": "2026-09-18T13:42:01.880350+00:00"
+    },
+    {
+      "label": "the file is where the act put it, not where the intent meant",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-18T13:42:01.880391+00:00"
+    },
+    {
+      "label": "the intent closed once, as MISSED \u2014 the world decided, not the step",
+      "passed": true,
+      "detail": "closes=1 status=abandoned",
+      "at": "2026-09-18T13:42:01.880958+00:00"
+    },
+    {
+      "label": "the act was refused",
+      "passed": true,
+      "detail": "the constitution replan this act under Law 2: move_file would archive /var/folders/0y/66ltqc9s0xs5h7",
+      "at": "2026-09-18T13:42:01.928917+00:00"
+    },
+    {
+      "label": "the refused act changed nothing on disk",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-18T13:42:01.928950+00:00"
+    },
+    {
+      "label": "the pursuit was concluded, once, as missed \u2014 not left in forming",
+      "passed": true,
+      "detail": "closes=1 status=abandoned",
+      "at": "2026-09-18T13:42:01.929445+00:00"
+    },
+    {
+      "label": "the refusal is recorded as why",
+      "passed": true,
+      "detail": "MOVE_FILE(Funread_2etxt, Finbox, Farchive): refused \u2014 the constitution replan this act under Law 2: ",
+      "at": "2026-09-18T13:42:01.929450+00:00"
+    },
+    {
+      "label": "the declared tool ran",
+      "passed": true,
+      "detail": "None",
+      "at": "2026-09-18T13:42:01.966734+00:00"
+    },
+    {
+      "label": "the operation closed its intent once, fulfilled",
+      "passed": true,
+      "detail": "closes=1 status=fulfilled",
+      "at": "2026-09-18T13:42:01.967280+00:00"
+    },
+    {
+      "label": "the declared tool ran",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-18T13:42:02.005347+00:00"
+    },
+    {
+      "label": "the plan step did NOT close the intent",
+      "passed": true,
+      "detail": "closes=0 status=forming",
+      "at": "2026-09-18T13:42:02.006478+00:00"
+    },
+    {
+      "label": "the MOVE_FILE rule is still validated after every case",
+      "passed": true,
+      "detail": "EpistemicStatus.VALIDATED",
+      "at": "2026-09-18T13:42:02.007745+00:00"
+    }
+  ],
+  "notes": []
+}

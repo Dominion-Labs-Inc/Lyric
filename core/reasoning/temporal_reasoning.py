@@ -235,33 +235,6 @@ class PlanningResult:
         return PlanOutcome.CONDITIONAL_PLAN
 
 
-@dataclass
-class Plan:
-    """A multi-step plan with temporal constraints"""
-    plan_id: str
-    goal: str
-    
-    # Steps
-    steps: List[Dict[str, Any]] = field(default_factory=list)
-    
-    # Temporal constraints
-    step_dependencies: List[Tuple[int, int]] = field(default_factory=list)  # (step_i, step_j)
-    time_constraints: Dict[int, timedelta] = field(default_factory=dict)  # step -> max duration
-    
-    # Execution
-    current_step: int = 0
-    completed_steps: Set[int] = field(default_factory=set)
-    failed_steps: Set[int] = field(default_factory=set)
-    
-    # Evaluation
-    estimated_duration: Optional[timedelta] = None
-    success_probability: float = 0.5
-    
-    # Status
-    status: str = "planned"  # planned, executing, completed, failed
-    created_at: datetime = field(default_factory=datetime.now)
-
-
 class TemporalReasoningSystem:
     """
     Temporal Reasoning & Prediction for the Singleton
@@ -284,7 +257,6 @@ class TemporalReasoningSystem:
         self.propositions: Dict[str, TemporalProposition] = {}
         self.causal_links: Dict[str, CausalLink] = {}
         self.future_states: Dict[str, FutureState] = {}
-        self.plans: Dict[str, Plan] = {}
         
         # Timeline
         self.timeline: List[Tuple[datetime, str]] = []  # (time, event_id)
@@ -293,8 +265,6 @@ class TemporalReasoningSystem:
         self.stats = {
             'states_projected': 0,
             'causal_links_discovered': 0,
-            'plans_created': 0,
-            'plans_executed': 0,
             'predictions_made': 0,
             'predictions_correct': 0
         }
@@ -670,109 +640,6 @@ class TemporalReasoningSystem:
     # ==================================================================================
     # MULTI-STEP PLANNING
     # ==================================================================================
-    
-    def create_plan(
-        self,
-        goal: str,
-        steps: List[Dict[str, Any]],
-        dependencies: Optional[List[Tuple[int, int]]] = None
-    ) -> Plan:
-        """Create a multi-step plan with temporal constraints"""
-        plan_id = f"plan_{uuid.uuid4().hex[:12]}"
-        
-        plan = Plan(
-            plan_id=plan_id,
-            goal=goal,
-            steps=steps,
-            step_dependencies=dependencies or []
-        )
-        
-        # Estimate duration
-        total_duration = timedelta()
-        for step in steps:
-            if 'duration' in step:
-                total_duration += step['duration']
-        plan.estimated_duration = total_duration
-        
-        self.plans[plan_id] = plan
-        
-        self.stats['plans_created'] += 1
-        
-        logger.info(f"Created plan: {goal} with {len(steps)} steps")
-        
-        return plan
-    
-    def get_executable_steps(self, plan: Plan) -> List[int]:
-        """Get steps that can be executed now (dependencies met)"""
-        executable = []
-        
-        for i, step in enumerate(plan.steps):
-            # Skip if already completed or failed
-            if i in plan.completed_steps or i in plan.failed_steps:
-                continue
-            
-            # Check if all dependencies are met
-            dependencies_met = True
-            for dep_from, dep_to in plan.step_dependencies:
-                if dep_to == i and dep_from not in plan.completed_steps:
-                    dependencies_met = False
-                    break
-            
-            if dependencies_met:
-                executable.append(i)
-        
-        return executable
-    
-    def execute_plan_step(
-        self,
-        plan_id: str,
-        step_index: int,
-        success: bool = True
-    ) -> Dict[str, Any]:
-        """Execute a single step of a plan"""
-        if plan_id not in self.plans:
-            return {'error': 'Plan not found'}
-        
-        plan = self.plans[plan_id]
-        
-        if step_index >= len(plan.steps):
-            return {'error': 'Invalid step index'}
-        
-        # Check if step is executable
-        executable_steps = self.get_executable_steps(plan)
-        if step_index not in executable_steps:
-            return {'error': 'Step dependencies not met'}
-        
-        # Execute step
-        if success:
-            plan.completed_steps.add(step_index)
-            logger.info(f"Completed step {step_index} of plan {plan_id}")
-        else:
-            plan.failed_steps.add(step_index)
-            logger.info(f"Failed step {step_index} of plan {plan_id}")
-        
-        plan.current_step = step_index + 1
-        
-        # Check if plan is complete
-        if len(plan.completed_steps) == len(plan.steps):
-            plan.status = "completed"
-            self.stats['plans_executed'] += 1
-            logger.info(f"Plan {plan_id} completed successfully")
-        elif plan.failed_steps:
-            plan.status = "failed"
-            logger.info(f"Plan {plan_id} failed at step {step_index}")
-        else:
-            plan.status = "executing"
-        
-        
-        return {
-            'success': success,
-            'step_index': step_index,
-            'plan_status': plan.status,
-            'completed_steps': len(plan.completed_steps),
-            'total_steps': len(plan.steps),
-            'next_executable': self.get_executable_steps(plan)
-        }
     
     def plan_for_state_goal(
         self,
@@ -1159,6 +1026,13 @@ class TemporalReasoningSystem:
 
         parsed = [Fact.parse(c) for c in conditions]
         for condition in goal_conditions:
+            denied = TemporalReasoningSystem._negated(condition)
+            if denied is not None:
+                # An absence cannot be reached "conditionally" by a value nobody
+                # knows yet: either the fact is there or it is not.
+                if denied in conditions:
+                    return False
+                continue
             goal = Fact.parse(condition)
             if not any(
                 fact.predicate == goal.predicate and fact.arity == goal.arity
@@ -1177,21 +1051,6 @@ class TemporalReasoningSystem:
             'description': action.get('description', ''),
         }
 
-    def generate_plan_for_goal(
-        self,
-        goal: Any,
-        current_state: Dict[str, Any],
-        available_actions: List[Dict[str, Any]]
-    ) -> Plan:
-        """Plan, returning a Plan for callers that only need the steps.
-
-        Prefer plan_for_state_goal, which distinguishes UNREACHABLE from
-        INDETERMINATE. An empty Plan here means one of those and cannot say
-        which.
-        """
-        result = self.plan_for_state_goal(goal, current_state, available_actions)
-        return self.create_plan(goal=str(goal), steps=result.steps)
-
     def _extract_conditions(self, goal: Any) -> List[str]:
         """The conditions a goal requires.
 
@@ -1209,9 +1068,38 @@ class TemporalReasoningSystem:
             return [str(c) for c in goal if str(c).strip()]
         return [str(goal)]
     
+    #: How a goal says a fact must NOT hold. Both spellings, because the rule
+    #: language renders deletions with ⊖ and people write "not".
+    _NEGATION_PREFIXES = ("¬", "not ", "NOT ", "⊖")
+
+    @classmethod
+    def _negated(cls, condition: str) -> Optional[str]:
+        """The fact a condition denies, or None if it asserts one."""
+        text = str(condition).strip()
+        for prefix in cls._NEGATION_PREFIXES:
+            if text.startswith(prefix):
+                return text[len(prefix):].strip()
+        return None
+
     def _goal_satisfied(self, conditions: List[str], state: Dict[str, Any]) -> bool:
-        """Check if goal conditions are satisfied"""
-        return all(cond in state.get('conditions', []) for cond in conditions)
+        """Whether every goal condition holds in this state.
+
+        A goal may require that a fact does NOT hold. Without this, removal was
+        unplannable by construction: "the file is gone" is not a fact you can
+        add to a state, it is one you can only take away, and a goal test that
+        only asks `cond in conditions` can never be satisfied by an absence. The
+        planner could delete facts (operators have ⊖ effects) and then had no way
+        to be ASKED for one.
+        """
+        held = state.get('conditions', [])
+        for condition in conditions:
+            denied = self._negated(condition)
+            if denied is not None:
+                if denied in held:
+                    return False
+            elif condition not in held:
+                return False
+        return True
     
     def _action_applicable(self, action: Dict[str, Any], state: Dict[str, Any]) -> bool:
         """Check if action can be applied in current state"""
@@ -1293,7 +1181,6 @@ class TemporalReasoningSystem:
             'total_propositions': len(self.propositions),
             'total_causal_links': len(self.causal_links),
             'total_future_states': len(self.future_states),
-            'total_plans': len(self.plans),
             'timeline_events': len(self.timeline),
             'prediction_accuracy': (self.stats['predictions_correct'] / max(self.stats['predictions_made'], 1))
         }

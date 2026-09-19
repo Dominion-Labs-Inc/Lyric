@@ -205,7 +205,6 @@ async def test_learning_tools_capabilities():
         'analyzecausalfeedback': [Capability.CAUSAL_REASONING, Capability.ANALYZE_FEEDBACK, Capability.EXTRACT_PATTERNS],
         'forecastcapabilities': [Capability.PREDICT_BREAKTHROUGH, Capability.TRACK_FRONTIER],
         'monitordatadrift': [Capability.MONITOR_DRIFT, Capability.DETECT_ANOMALY],
-        'triggerselfimprovement': [Capability.SELF_REPAIR, Capability.EXPAND_CAPABILITY],
     }
 
     print("\n🔍 Verifying Learning Tool Capabilities:")

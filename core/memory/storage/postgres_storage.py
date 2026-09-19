@@ -201,6 +201,10 @@ class PostgresStorage:
                                      if getattr(memory, 'memory_admission', None) else None)
             appraisal_snapshot_json = (json.dumps(memory.appraisal_snapshot)
                                        if getattr(memory, 'appraisal_snapshot', None) else None)
+            intent_id = getattr(memory, 'intent_id', None)
+            intent_version = getattr(memory, 'intent_version', None)
+            percept_id = getattr(memory, 'percept_id', None)
+            percept_digest = getattr(memory, 'percept_digest', None)
 
             # Convert timestamps
             created_at = datetime.fromtimestamp(memory.created_at) if isinstance(memory.created_at, (int, float)) else memory.created_at
@@ -233,8 +237,17 @@ class PostgresStorage:
                     tags,
                     access_count,
                     user_id,
-                    session_id
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16::text::vector, $17, $18, $19, $20, $21, $22)
+                    session_id,
+                    -- WHAT THE SUBSTRATE WAS PURSUING when this happened, by id,
+                    -- with the version current at the time. A link to the intent
+                    -- authority, never a copy of its shape.
+                    intent_id,
+                    intent_version,
+                    -- WHAT IT WAS OF, by reference to the percept that recorded
+                    -- the seeing (or the hearing) -- a record, not a recollection.
+                    percept_id,
+                    percept_digest
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16::text::vector, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26)
                 ON CONFLICT (memory_id) DO UPDATE SET
                     content = EXCLUDED.content,
                     last_accessed = EXCLUDED.last_accessed,
@@ -248,6 +261,15 @@ class PostgresStorage:
                     decision_factors = EXCLUDED.decision_factors,
                     memory_admission = EXCLUDED.memory_admission,
                     appraisal_snapshot = EXCLUDED.appraisal_snapshot,
+                    -- Not overwritten with NULL by a later touch that carries no
+                    -- intent: what an episode was pursuing does not stop being
+                    -- true because something accessed the row again.
+                    intent_id = COALESCE(EXCLUDED.intent_id, memory_hot.intent_id),
+                    intent_version = COALESCE(EXCLUDED.intent_version, memory_hot.intent_version),
+                    -- Same rule: what an episode was OF does not stop being true
+                    -- because something touched the row again.
+                    percept_id = COALESCE(EXCLUDED.percept_id, memory_hot.percept_id),
+                    percept_digest = COALESCE(EXCLUDED.percept_digest, memory_hot.percept_digest),
                     embedding = EXCLUDED.embedding,
                     metadata = EXCLUDED.metadata,
                     related_memories = EXCLUDED.related_memories,
@@ -276,7 +298,11 @@ class PostgresStorage:
                     tags_json,
                     memory.access_count,
                     memory.user_id if hasattr(memory, 'user_id') else None,
-                    memory.session_id if hasattr(memory, 'session_id') else None
+                    memory.session_id if hasattr(memory, 'session_id') else None,
+                    intent_id,
+                    intent_version,
+                    percept_id,
+                    percept_digest
                 ),
                 use_hot_tier=True,
                 commit=True
@@ -1297,7 +1323,19 @@ class PostgresStorage:
                 # inherited the same fate.
                 system_state=_json_field(row, 'system_state'),
                 memory_admission=_json_field(row, 'memory_admission'),
-                appraisal_snapshot=_json_field(row, 'appraisal_snapshot')
+                appraisal_snapshot=_json_field(row, 'appraisal_snapshot'),
+                # THE SAME DEFECT, FOUND AGAIN — and the comment above is where
+                # it was already documented. Both links were written faithfully
+                # by `store` and absent from this mapping, so every retrieved
+                # MemoryItem reported None for them: "while pursuing X" and
+                # "seen: Y" could never render from a real retrieval, and
+                # hot->cold migration reads through here, so the archive lost
+                # them too. A link that survives the write and dies on the read
+                # is not wired.
+                intent_id=row.get('intent_id'),
+                intent_version=row.get('intent_version'),
+                percept_id=row.get('percept_id'),
+                percept_digest=row.get('percept_digest'),
             )
 
         except Exception as e:

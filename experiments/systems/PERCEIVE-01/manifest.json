@@ -1,0 +1,243 @@
+{
+  "experiment": "PERCEIVE-01",
+  "purpose": "feed sensor/image/video through the real perception path and verify each becomes provenance-carried, typed, believed knowledge",
+  "run_at": "2026-09-17T17:09:52.872678+00:00",
+  "inputs": [
+    {
+      "source": "boiler_room",
+      "data_type": "sensor",
+      "content": {
+        "sensor": "boiler_temp_sensor",
+        "quantity": "temperature",
+        "value": 94.5,
+        "unit": "celsius",
+        "at": "2026-09-08",
+        "location": "primary boiler loop"
+      }
+    },
+    {
+      "source": "front_door_camera",
+      "data_type": "image",
+      "content": {
+        "detections": [
+          {
+            "label": "person",
+            "confidence": 0.94
+          },
+          {
+            "label": "package"
+          }
+        ],
+        "dimensions": "1920x1080",
+        "captured": "2026-09-08",
+        "caption": "a person leaving a package at the door"
+      }
+    },
+    {
+      "source": "lobby_camera",
+      "data_type": "video",
+      "content": {
+        "detections": [
+          "person"
+        ],
+        "events": [
+          {
+            "label": "door_opening",
+            "confidence": 0.81
+          }
+        ],
+        "duration": 12,
+        "captured": "2026-09-08"
+      }
+    }
+  ],
+  "feed": [
+    {
+      "source": "boiler_room",
+      "data_type": "sensor",
+      "processed": true,
+      "retained": true
+    },
+    {
+      "source": "front_door_camera",
+      "data_type": "image",
+      "processed": true,
+      "retained": true
+    },
+    {
+      "source": "lobby_camera",
+      "data_type": "video",
+      "processed": true,
+      "retained": true
+    }
+  ],
+  "held": {
+    "boiler_temp_sensor": {
+      "edges": [
+        {
+          "relation": "measures",
+          "target": "temperature",
+          "resolved": true
+        },
+        {
+          "relation": "observed at",
+          "target": "2026-09-08",
+          "resolved": true
+        },
+        {
+          "relation": "reads",
+          "target": "94.5",
+          "resolved": true
+        },
+        {
+          "relation": "reads in",
+          "target": "celsius",
+          "resolved": true
+        }
+      ],
+      "expected_edges": [
+        "reads->94.5",
+        "measures->temperature",
+        "reads in->celsius",
+        "observed at->2026-09-08"
+      ],
+      "missing_edges": [],
+      "beliefs": [
+        {
+          "claim": "boiler_temp_sensor reads 94.5",
+          "posterior": 1.0,
+          "domain": "sensor"
+        },
+        {
+          "claim": "boiler_temp_sensor reads_in celsius",
+          "posterior": 1.0,
+          "domain": "sensor"
+        },
+        {
+          "claim": "boiler_temp_sensor measures temperature",
+          "posterior": 1.0,
+          "domain": "sensor"
+        },
+        {
+          "claim": "boiler_temp_sensor observed_at 2026-09-08",
+          "posterior": 1.0,
+          "domain": "sensor"
+        }
+      ]
+    },
+    "front_door_camera": {
+      "edges": [
+        {
+          "relation": "observed",
+          "target": "package",
+          "resolved": true
+        },
+        {
+          "relation": "observed",
+          "target": "person",
+          "resolved": true
+        },
+        {
+          "relation": "observed at",
+          "target": "2026-09-08",
+          "resolved": true
+        }
+      ],
+      "expected_edges": [
+        "observed->person",
+        "observed->package",
+        "observed at->2026-09-08"
+      ],
+      "missing_edges": [],
+      "beliefs": [
+        {
+          "claim": "front_door_camera observed person",
+          "posterior": 1.0,
+          "domain": "vision"
+        },
+        {
+          "claim": "front_door_camera observed package",
+          "posterior": 1.0,
+          "domain": "vision"
+        },
+        {
+          "claim": "front_door_camera observed_at 2026-09-08",
+          "posterior": 1.0,
+          "domain": "vision"
+        }
+      ]
+    },
+    "lobby_camera": {
+      "edges": [
+        {
+          "relation": "lasts",
+          "target": "12",
+          "resolved": true
+        },
+        {
+          "relation": "observed",
+          "target": "door_opening",
+          "resolved": true
+        },
+        {
+          "relation": "observed",
+          "target": "person",
+          "resolved": true
+        },
+        {
+          "relation": "observed at",
+          "target": "2026-09-08",
+          "resolved": true
+        }
+      ],
+      "expected_edges": [
+        "observed->person",
+        "observed->door_opening",
+        "lasts->12",
+        "observed at->2026-09-08"
+      ],
+      "missing_edges": [],
+      "beliefs": [
+        {
+          "claim": "lobby_camera observed_at 2026-09-08",
+          "posterior": 1.0,
+          "domain": "vision"
+        },
+        {
+          "claim": "lobby_camera lasts 12",
+          "posterior": 1.0,
+          "domain": "vision"
+        },
+        {
+          "claim": "lobby_camera observed person",
+          "posterior": 1.0,
+          "domain": "vision"
+        },
+        {
+          "claim": "lobby_camera observed door_opening",
+          "posterior": 1.0,
+          "domain": "vision"
+        }
+      ]
+    }
+  },
+  "typed_value": {
+    "name": "94.5",
+    "concept_kind": "quantity",
+    "attributes": "{\"literal_type\": \"decimal\", \"literal_value\": \"94.5\"}",
+    "provenance": "{\"extractor\": \"structured\", \"first_producer\": \"boiler_room\", \"first_source_type\": \"perception\"}"
+  },
+  "provenance": {
+    "boiler_room": 1,
+    "front_door_camera": 1,
+    "lobby_camera": 1
+  },
+  "summary": {
+    "all_retained": true,
+    "all_expected_edges_present": true,
+    "value_held_as_quantity": true,
+    "beliefs_held_for_every_subject": true,
+    "perception_provenance_present": true,
+    "verdict_pass": true
+  }
+}

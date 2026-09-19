@@ -6,8 +6,8 @@ Imports here are unguarded on purpose. A learning package that imports
 successfully while its own components are None is worse than one that fails:
 the None travels to an unrelated call site and fails there instead, so the
 traceback names a consumer rather than the broken import. Every consumer of
-these names (ImprovementScope alone has 54) would have to defend itself
-against a package that claims to have loaded.
+these names would have to defend itself against a package that claims to have
+loaded.
 
 If an import here fails, the package fails, at the line responsible.
 """
@@ -33,7 +33,6 @@ from .unified_learning_system import (Admission, Contribution, ContributionKind,
                                      get_unified_learning_system)
 from ..memory import MemoryManager as AGIMemorySystem
 from .learning_interfaces import ILearningSystem, LearningType
-from .enhanced_asi_self_improvement import ImprovementScope
 
 # Retained alias: core.reasoning imports this name.
 MasterLearningSystem = UnifiedLearningSystem
@@ -50,6 +49,5 @@ __all__ = [
     'AGIMemorySystem',
     'ILearningSystem',
     'LearningType',
-    'ImprovementScope',
     'get_unified_learning_system',
 ]

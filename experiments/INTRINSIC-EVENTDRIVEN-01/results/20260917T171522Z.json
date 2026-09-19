@@ -1,0 +1,130 @@
+{
+  "experiment": "INTRINSIC-EVENTDRIVEN-01",
+  "claim": "Intrinsic pursuit is EVENT-DRIVEN, not polled: a state-changing event fires one coalesced selection cycle, which reads the frontier from `_intrinsic_pursuits` and routes each frontier kind to its real closer \u2014 knowledge to the understand loop, capability to a competence drive goal, environment to its own reaction. No timer, no stub routes.",
+  "hypothesis": "If selection were polled or stubbed, a burst of events would produce more than one cycle and a seeded not-knowing would not reach the frontier the cycle actually reads.",
+  "started_at": "2026-09-17T17:15:22.741905+00:00",
+  "duration_seconds": 14.554,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/TorinAI/venv_torin/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/TorinAI",
+    "shadow_mode": "1",
+    "git_commit": "a36cac20c24cef93cfa6d22ef82bf9a3169e9a5b",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "torinai_db",
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "dotenv:.env.postgres",
+        "database": "dotenv:.env.postgres",
+        "user": "dotenv:.env.postgres",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres"
+      }
+    },
+    "git_uncommitted_changes": 264,
+    "database_verified": "torinai_db",
+    "database_verified_reason": "asked the server"
+  },
+  "summary": {
+    "checks": 9,
+    "passed": 8,
+    "failed": 1,
+    "outcome": "FAIL"
+  },
+  "metrics": [
+    {
+      "name": "frontier_pursuits_total",
+      "value": 92,
+      "unit": "count",
+      "note": "every pursuit the frontier holds, unlimited"
+    },
+    {
+      "name": "frontier_distinct_scores",
+      "value": 14,
+      "unit": "count",
+      "note": "distinct score values \u2014 1 would mean the ranking carries no information"
+    },
+    {
+      "name": "frontier_score_spread",
+      "value": 0.3415,
+      "unit": "score delta",
+      "note": "best minus worst across the whole frontier"
+    },
+    {
+      "name": "seeded_rank",
+      "value": 76,
+      "unit": "rank",
+      "note": "position of the freshly-seeded gap among 92 pursuits; present but > 50 means crowded out, not missing"
+    },
+    {
+      "name": "seeded_present_unlimited",
+      "value": true,
+      "unit": "bool",
+      "note": "TRUE with a bare rank beyond the cut distinguishes a ranking fault from a wiring fault"
+    }
+  ],
+  "checks": [
+    {
+      "label": "knowledge \u2192 a Research goal for the understand loop (no drive)",
+      "passed": true,
+      "detail": "desc='Research photosynthesis' md={'objective_type': 'research', 'frontier': 'knowledge', 'domain_id': 'd1'}",
+      "at": "2026-09-17T17:15:26.982847+00:00"
+    },
+    {
+      "label": "capability \u2192 a competence DRIVE goal (_execute_drive_goal reads drive/domain_id/scope)",
+      "passed": true,
+      "detail": "md={'objective_type': 'competence', 'drive': 'competence', 'scope': 'domain_contrastive', 'domain_id': 'test_cap', 'frontier': 'capability'}",
+      "at": "2026-09-17T17:15:26.982865+00:00"
+    },
+    {
+      "label": "environment \u2192 None (closed by _react_investigate_environment, not a queued task)",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-17T17:15:26.982870+00:00"
+    },
+    {
+      "label": "intrinsic values derive from the pursuit (novelty=entropy, curiosity=score)",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-17T17:15:26.982872+00:00"
+    },
+    {
+      "label": "one state-changing event \u2192 exactly one selection cycle",
+      "passed": true,
+      "detail": "cycles=1",
+      "at": "2026-09-17T17:15:37.199850+00:00"
+    },
+    {
+      "label": "a BURST of 6 events collapses to a single-flight selection (\u22642 cycles)",
+      "passed": true,
+      "detail": "cycles=1",
+      "at": "2026-09-17T17:15:37.231082+00:00"
+    },
+    {
+      "label": "the seeded not-knowing surfaces as a frontier pursuit",
+      "passed": false,
+      "detail": "50 pursuits",
+      "at": "2026-09-17T17:15:37.294406+00:00"
+    },
+    {
+      "label": "the event drove the REAL selection cycle to run",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-17T17:15:37.296016+00:00"
+    },
+    {
+      "label": "no task queued only because a real gate declined (wiring still fired)",
+      "passed": true,
+      "detail": "exploration_status=DECLINED_BY_ARBITER (event\u2192cycle wiring confirmed above)",
+      "at": "2026-09-17T17:15:37.296025+00:00"
+    }
+  ],
+  "notes": [
+    "DISCRIMINATION, not wiring: the seeded gap IS on the frontier at rank 76/92, below the limit=50 cut. Pursuits scoring identically tie at the cut, and which one surfaces is then decided by the structural tiebreak rather than by merit."
+  ]
+}

@@ -13,7 +13,7 @@ import json
 
 from .domain_types import (
     Domain, DomainConcept, DomainRelation, DomainKnowledge,
-    CrossDomainMapping, KnowledgeTransfer, calculate_concept_similarity
+    CrossDomainMapping, KnowledgeTransfer
 )
 from .domain_registry import DomainRegistry
 from .universal_ontology import UniversalOntology
@@ -139,10 +139,13 @@ class CrossDomainReasoner:
                     type(self).__name__ + ' could not initialize; refusing to '
                     'continue as though it had')
         
-        # Check cache first
+        # Reused until either domain's concepts change.
         cache_key = self._generate_cache_key(context)
-        if cache_key in self.reasoning_cache:
-            return self.reasoning_cache[cache_key]
+        version_key = (cache_key,
+                       self.domain_registry.concept_version(context.source_domain_id),
+                       self.domain_registry.concept_version(context.target_domain_id))
+        if version_key in self.reasoning_cache:
+            return self.reasoning_cache[version_key]
         
         # Get reasoning strategy
         strategy_func = self.strategies.get(context.strategy)
@@ -157,113 +160,99 @@ class CrossDomainReasoner:
                 new_insights=["Unsupported reasoning strategy"]
             )
         
-        try:
-            # Execute reasoning strategy
-            result = await strategy_func(context)
-            
-            # Validate results if required
-            if context.require_validation:
-                await self._validate_reasoning_result(result)
+        # Execute reasoning strategy
+        result = await strategy_func(context)
+        
+        # Validate results if required
+        if context.require_validation:
+            await self._validate_reasoning_result(result)
 
-            # Cache the result
-            self.reasoning_cache[cache_key] = result
+        self.reasoning_cache[version_key] = result
 
-            # STORE TO MEMORY WITH RICH METADATA
-            if result.success and result.confidence >= 0.4:
-                try:
-                    from core.memory import get_memory_agent
-                    from core.memory.utils.interfaces import MemoryType
+        # STORE TO MEMORY WITH RICH METADATA
+        if result.success and result.confidence >= 0.4:
+            try:
+                from core.memory import get_memory_agent
+                from core.memory.utils.interfaces import MemoryType
 
-                    memory_agent = await get_memory_agent()
+                memory_agent = await get_memory_agent()
 
-                    # Build rich metadata UPSTREAM
-                    thinking_state = {
-                        "reasoning_id": result.reasoning_id,
-                        "source_domain": context.source_domain_id,
-                        "target_domain": context.target_domain_id,
-                        "strategy": context.strategy.value,
-                        # RICH METADATA: Justification
-                        "justification": {
-                            "store_reason": [
-                                "cross_domain_synthesis",
-                                "multi_domain_inference",
-                                context.strategy.value,
-                                f"{len(result.generated_mappings)}_mappings_generated"
-                            ],
-                            "decision_summary": f"Cross-domain reasoning from {context.source_domain_id} to {context.target_domain_id} using {context.strategy.value}",
-                            "alternatives_considered": ["single_domain_reasoning", "direct_transfer", "no_mapping"],
-                            "rejected_because": ["insufficient_domain_coverage", "requires_cross_domain_synthesis", "knowledge_gap"],
-                            "complexity_assessment": "very_high" if len(result.reasoning_steps) > 5 else "high",
-                            "novelty_assessment": "novel" if len(result.new_insights) > 2 and result.confidence > 0.8 else "incremental"
-                        },
-                        # RICH METADATA: Outcome
-                        "outcome": {
-                            "action_type": "cross_domain_reasoning",
-                            "action_summary": f"Generated {len(result.generated_mappings)} cross-domain mappings with {len(result.new_insights)} insights",
-                            "affected_components": ["cross_domain_reasoner", context.source_domain_id, context.target_domain_id],
-                            "created_new_knowledge": len(result.new_insights) > 0,
-                            "confidence": result.confidence,
-                            # Self-reported by the strategy that produced the
-                            # result. Labelled as such so a reader cannot mistake
-                            # it for an assessed impact.
-                            "impact_assessment": "critical" if result.confidence > 0.9 else "significant" if result.confidence > 0.7 else "moderate",
-                            "impact_assessment_basis": "self_reported_confidence",
-                            # `require_validation` is a REQUEST for validation,
-                            # not its outcome. Stamping "verified" from it meant
-                            # asking for validation was sufficient to be marked
-                            # verified -- _validate_reasoning_result computed
-                            # result.validation_score and no one ever read it.
-                            # That is how a probe wrote a mapping memory marked
-                            # verified at confidence 1.0.
-                            "verification_status": _verification_status(context, result),
-                            "validation_score": getattr(result, "validation_score", None),
-                        }
+                # Build rich metadata UPSTREAM
+                thinking_state = {
+                    "reasoning_id": result.reasoning_id,
+                    "source_domain": context.source_domain_id,
+                    "target_domain": context.target_domain_id,
+                    "strategy": context.strategy.value,
+                    # RICH METADATA: Justification
+                    "justification": {
+                        "store_reason": [
+                            "cross_domain_synthesis",
+                            "multi_domain_inference",
+                            context.strategy.value,
+                            f"{len(result.generated_mappings)}_mappings_generated"
+                        ],
+                        "decision_summary": f"Cross-domain reasoning from {context.source_domain_id} to {context.target_domain_id} using {context.strategy.value}",
+                        "alternatives_considered": ["single_domain_reasoning", "direct_transfer", "no_mapping"],
+                        "rejected_because": ["insufficient_domain_coverage", "requires_cross_domain_synthesis", "knowledge_gap"],
+                        "complexity_assessment": "very_high" if len(result.reasoning_steps) > 5 else "high",
+                        "novelty_assessment": "novel" if len(result.new_insights) > 2 and result.confidence > 0.8 else "incremental"
+                    },
+                    # RICH METADATA: Outcome
+                    "outcome": {
+                        "action_type": "cross_domain_reasoning",
+                        "action_summary": f"Generated {len(result.generated_mappings)} cross-domain mappings with {len(result.new_insights)} insights",
+                        "affected_components": ["cross_domain_reasoner", context.source_domain_id, context.target_domain_id],
+                        "created_new_knowledge": len(result.new_insights) > 0,
+                        "confidence": result.confidence,
+                        # Self-reported by the strategy that produced the
+                        # result. Labelled as such so a reader cannot mistake
+                        # it for an assessed impact.
+                        "impact_assessment": "critical" if result.confidence > 0.9 else "significant" if result.confidence > 0.7 else "moderate",
+                        "impact_assessment_basis": "self_reported_confidence",
+                        # `require_validation` is a REQUEST for validation,
+                        # not its outcome. Stamping "verified" from it meant
+                        # asking for validation was sufficient to be marked
+                        # verified -- _validate_reasoning_result computed
+                        # result.validation_score and no one ever read it.
+                        # That is how a probe wrote a mapping memory marked
+                        # verified at confidence 1.0.
+                        "verification_status": _verification_status(context, result),
+                        "validation_score": getattr(result, "validation_score", None),
                     }
+                }
 
-                    decision_factors = {
-                        "strategy": context.strategy.value,
-                        "source_domain": context.source_domain_id,
-                        "target_domain": context.target_domain_id,
-                        "max_mappings": context.max_mappings,
-                        "validation_required": context.require_validation,
-                        # RICH METADATA: Strategy selection
-                        "strategy_selection": {
-                            "chosen_strategy": context.strategy.value,
-                            "selection_rationale": "Best fit for domain characteristics and available knowledge",
-                            "alternative_strategies": ["transfer_learning", "direct_analogy", "compositional"],
-                            "confidence_in_choice": 0.9
-                        }
+                decision_factors = {
+                    "strategy": context.strategy.value,
+                    "source_domain": context.source_domain_id,
+                    "target_domain": context.target_domain_id,
+                    "max_mappings": context.max_mappings,
+                    "validation_required": context.require_validation,
+                    # RICH METADATA: Strategy selection
+                    "strategy_selection": {
+                        "chosen_strategy": context.strategy.value,
+                        "selection_rationale": "Best fit for domain characteristics and available knowledge",
+                        "alternative_strategies": ["transfer_learning", "direct_analogy", "compositional"],
+                        "confidence_in_choice": 0.9
                     }
+                }
 
-                    # Store with full rich metadata
-                    await memory_agent.store_memory(
-                        memory_type=MemoryType.SEMANTIC,
-                        content=f"Cross-domain reasoning: {len(result.new_insights)} insights, {len(result.generated_mappings)} mappings",
-                        importance_score=result.confidence,
-                        confidence_score=result.confidence,
-                        tags=["cross_domain_reasoning", context.source_domain_id, context.target_domain_id, context.strategy.value],
-                        thinking_state=thinking_state,
-                        decision_factors=decision_factors,
-                        reasoning_trace=[str(step) for step in result.reasoning_steps],
-                        emotional_context={"reasoning_confidence": result.confidence}
-                    )
-                except Exception as e:
-                    logger.warning(f"Failed to store cross-domain reasoning to memory: {e}")
+                # Store with full rich metadata
+                await memory_agent.store_memory(
+                    memory_type=MemoryType.SEMANTIC,
+                    content=f"Cross-domain reasoning: {len(result.new_insights)} insights, {len(result.generated_mappings)} mappings",
+                    importance_score=result.confidence,
+                    confidence_score=result.confidence,
+                    tags=["cross_domain_reasoning", context.source_domain_id, context.target_domain_id, context.strategy.value],
+                    thinking_state=thinking_state,
+                    decision_factors=decision_factors,
+                    reasoning_trace=[str(step) for step in result.reasoning_steps],
+                    emotional_context={"reasoning_confidence": result.confidence}
+                )
+            except Exception as e:
+                logger.warning(f"Failed to store cross-domain reasoning to memory: {e}")
 
-            return result
-            
-        except Exception as e:
-            logger.error(f"Reasoning failed: {e}")
-            return ReasoningResult(
-                reasoning_id=cache_key,
-                source_domain_id=context.source_domain_id,
-                target_domain_id=context.target_domain_id,
-                strategy=context.strategy,
-                success=False,
-                confidence=0.0,
-                new_insights=[f"Reasoning error: {str(e)}"]
-            )
-    
+        return result
+
     async def _analogical_reasoning(self, context: ReasoningContext) -> ReasoningResult:
         """Perform analogical reasoning between domains"""
         result = ReasoningResult(
@@ -282,41 +271,43 @@ class CrossDomainReasoner:
         if not source_domain or not target_domain:
             return result
         
-        # Find structural similarities
-        structural_mappings = await self._find_structural_similarities(source_domain, target_domain)
+        # Every concept pair above the structural threshold, scored by the
+        # domain authority from stored concept vectors.
+        from core.integration.universal_domain_master import get_universal_domain_master
+        found = await get_universal_domain_master().structural_similarities(
+            context.source_domain_id, context.target_domain_id,
+            threshold=self.STRUCTURAL_SIMILARITY_THRESHOLD, keep=context.max_mappings)
         result.reasoning_steps.append({
             "step": "structural_analysis",
-            "mappings_found": len(structural_mappings)
+            "mappings_found": found["pairs"]
         })
-        
-        # Generate analogical mappings
-        analogical_mappings = []
-        for struct_mapping in structural_mappings:
-            # Create cross-domain mapping
-            mapping = CrossDomainMapping(
-                mapping_id="",
+
+        # The strongest pairs become the generated mappings.
+        result.generated_mappings = [
+            CrossDomainMapping(
+                mapping_id=self.domain_registry._mapping_key(
+                    context.source_domain_id, context.target_domain_id,
+                    source_concept, target_concept, "analogical"),
                 source_domain_id=context.source_domain_id,
                 target_domain_id=context.target_domain_id,
-                source_concept_id=struct_mapping["source_concept"],
-                target_concept_id=struct_mapping["target_concept"],
+                source_concept_id=source_concept,
+                target_concept_id=target_concept,
                 mapping_type="analogical",
-                strength=struct_mapping["similarity"],
-                confidence=struct_mapping["similarity"] * 0.8
+                strength=similarity,
+                confidence=similarity * self.ANALOGICAL_CONFIDENCE_FACTOR,
             )
-            analogical_mappings.append(mapping)
-        
-        result.generated_mappings = analogical_mappings[:context.max_mappings]
-        
-        # Generate insights based on analogies
-        insights = await self._generate_analogical_insights(analogical_mappings, source_domain, target_domain)
-        result.new_insights = insights
-        
-        # Calculate overall confidence
-        if analogical_mappings:
-            avg_confidence = sum(m.confidence for m in analogical_mappings) / len(analogical_mappings)
-            result.confidence = avg_confidence
-            result.success = avg_confidence >= context.confidence_threshold
-        
+            for similarity, source_concept, target_concept in found["strongest"]
+        ]
+
+        result.new_insights = self._generate_analogical_insights(
+            found["pairs"], source_domain, target_domain)
+
+        # Confidence over EVERY pair above the threshold, not only those kept.
+        if found["pairs"]:
+            result.confidence = (self.ANALOGICAL_CONFIDENCE_FACTOR
+                                 * found["total"] / found["pairs"])
+            result.success = result.confidence >= context.confidence_threshold
+
         return result
     
     async def _structural_reasoning(self, context: ReasoningContext) -> ReasoningResult:
@@ -723,25 +714,11 @@ class CrossDomainReasoner:
         return result
     
     # Helper methods for reasoning strategies
-    
-    async def _find_structural_similarities(self, source_domain: Domain, 
-                                          target_domain: Domain) -> List[Dict[str, Any]]:
-        """Find structural similarities between domains"""
-        similarities = []
-        
-        for source_concept in source_domain.concepts.values():
-            for target_concept in target_domain.concepts.values():
-                similarity = calculate_concept_similarity(source_concept, target_concept)
-                
-                if similarity > 0.5:  # Threshold for structural similarity
-                    similarities.append({
-                        "source_concept": source_concept.concept_id,
-                        "target_concept": target_concept.concept_id,
-                        "similarity": similarity,
-                        "basis": "structural"
-                    })
-        
-        return similarities
+
+    #: A concept pair is structurally similar above this score.
+    STRUCTURAL_SIMILARITY_THRESHOLD = 0.5
+    #: An analogical mapping's confidence is its similarity scaled by this.
+    ANALOGICAL_CONFIDENCE_FACTOR = 0.8
     
     async def _analyze_domain_structure(self, domain: Domain) -> Dict[str, Any]:
         """Analyze the structural patterns in a domain"""
@@ -772,25 +749,20 @@ class CrossDomainReasoner:
         
         return structure
     
-    def _concept_similarity(
+    async def _concept_similarity(
         self, domain_a: "Domain", id_a: str, domain_b: "Domain", id_b: str
     ) -> float:
         """Semantic similarity between two concepts, resolved from their domains.
 
-        Returns 0.0 when either concept cannot be resolved -- an unresolvable
-        concept is NOT evidence of similarity.
+        0.0 when either id is not a concept of its domain (a relation endpoint
+        can name something that is not one) -- that is not evidence of
+        similarity. A scoring failure raises.
         """
-        from core.domain.domain_types import calculate_concept_similarity
-
-        c_a = (domain_a.concepts or {}).get(id_a)
-        c_b = (domain_b.concepts or {}).get(id_b)
-        if c_a is None or c_b is None:
+        if id_a not in (domain_a.concepts or {}) or id_b not in (domain_b.concepts or {}):
             return 0.0
-        try:
-            return float(calculate_concept_similarity(c_a, c_b))
-        except Exception as e:
-            logger.debug(f"concept similarity failed for {id_a}/{id_b}: {e}")
-            return 0.0
+        from core.integration.universal_domain_master import get_universal_domain_master
+        return await get_universal_domain_master().concept_similarity(
+            domain_a.domain_id, id_a, domain_b.domain_id, id_b)
 
     async def _find_structural_correspondences(self, source_structure: Dict[str, Any],
                                              target_structure: Dict[str, Any],
@@ -814,11 +786,11 @@ class CrossDomainReasoner:
                     # or target_domain at all, so N x M same-typed relations all
                     # passed the 0.5 threshold regardless of content: two
                     # entirely unrelated domains scored 0.700 with maps=1.
-                    parent_sim = self._concept_similarity(
+                    parent_sim = await self._concept_similarity(
                         source_domain, source_hier["parent"],
                         target_domain, target_hier["parent"],
                     )
-                    child_sim = self._concept_similarity(
+                    child_sim = await self._concept_similarity(
                         source_domain, source_hier.get("child", ""),
                         target_domain, target_hier.get("child", ""),
                     )
@@ -908,11 +880,11 @@ class CrossDomainReasoner:
             # Cannot ground it -> not evidence of an analogy.
             return 0.0
 
-        cause_sim = self._concept_similarity(
+        cause_sim = await self._concept_similarity(
             source_domain, pattern1.get("cause_concept", ""),
             target_domain, pattern2.get("cause_concept", ""),
         )
-        effect_sim = self._concept_similarity(
+        effect_sim = await self._concept_similarity(
             source_domain, pattern1.get("effect_concept", ""),
             target_domain, pattern2.get("effect_concept", ""),
         )
@@ -953,42 +925,27 @@ class CrossDomainReasoner:
         if source_domain is None or target_domain is None:
             return 0.0
 
-        whole_sim = self._concept_similarity(
+        whole_sim = await self._concept_similarity(
             source_domain, comp1.get("whole_concept", ""),
             target_domain, comp2.get("whole_concept", ""),
         )
-        part_sim = self._concept_similarity(
+        part_sim = await self._concept_similarity(
             source_domain, comp1.get("part_concept", ""),
             target_domain, comp2.get("part_concept", ""),
         )
         semantic = (whole_sim + part_sim) / 2.0
         return round(type_match * semantic, 4)
     
-    async def _generate_analogical_insights(self, mappings: List[CrossDomainMapping],
-                                          source_domain: Domain,
-                                          target_domain: Domain) -> List[str]:
-        """Generate insights from analogical mappings"""
+    def _generate_analogical_insights(self, pairs: int, source_domain: Domain,
+                                      target_domain: Domain) -> List[str]:
+        """Insights from the number of analogical concept pairs found."""
+        if not pairs:
+            return [f"No strong analogical mappings found between {source_domain.name} "
+                    f"and {target_domain.name}"]
         insights = []
-
-        # Handle empty mappings
-        if not mappings:
-            insights.append(f"No strong analogical mappings found between {source_domain.name} and {target_domain.name}")
-            return insights
-
-        if len(mappings) > 5:
-            insights.append(f"Strong analogical correspondence: {len(mappings)} concept mappings found")
-
-        # Analyze mapping types
-        mapping_types = [m.mapping_type for m in mappings]
-        if mapping_types:
-            most_common_type = max(set(mapping_types), key=mapping_types.count)
-            insights.append(f"Dominant mapping type: {most_common_type}")
-
-        # Analyze confidence levels
-        high_confidence_mappings = [m for m in mappings if m.confidence > 0.8]
-        if high_confidence_mappings:
-            insights.append(f"High confidence mappings: {len(high_confidence_mappings)}")
-
+        if pairs > 5:
+            insights.append(f"Strong analogical correspondence: {pairs} concept mappings found")
+        insights.append("Dominant mapping type: analogical")
         return insights
     
     async def _validate_reasoning_result(self, result: ReasoningResult) -> None:

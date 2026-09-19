@@ -112,6 +112,9 @@ class TaskOutcomeRecord:
     timestamp: datetime
     result_summary: str | None = None
     failure_reason: str | None = None
+    #: The knowledge domain the task acted in, or None when it named none.
+    #: `domain` is the operation bucket outcomes are recalled by.
+    knowledge_domain: str | None = None
     #: The INDEPENDENT groundings the completion judgment rested on — DID/SAW
     #: evidence items ({epoch, channel, provenance, supports, strength}). Stored
     #: WITH the outcome so a later memory query returns not just "a similar task
@@ -156,6 +159,10 @@ class TaskOutcomeRecord:
         if not isinstance(data["confidence"], (int, float)):
             raise ValueError("Field 'confidence' must be a number")
 
+        knowledge_domain = data.get("knowledge_domain")
+        if knowledge_domain is not None and not isinstance(knowledge_domain, str):
+            raise ValueError("Field 'knowledge_domain' must be a string or None")
+
         ts = data["timestamp"]
         if isinstance(ts, str):
             try:
@@ -178,6 +185,7 @@ class TaskOutcomeRecord:
             timestamp=timestamp,
             result_summary=data.get("result_summary"),
             failure_reason=data.get("failure_reason"),
+            knowledge_domain=knowledge_domain,
             evidence=data.get("evidence"),
         )
 
@@ -191,6 +199,7 @@ class TaskOutcomeRecord:
             "outcome": self.outcome,
             "confidence": float(self.confidence),
             "domain": self.domain,
+            "knowledge_domain": self.knowledge_domain,
             "task_source": self.task_source,
             "timestamp": self.timestamp.isoformat(),
         }

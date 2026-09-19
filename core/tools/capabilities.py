@@ -264,7 +264,7 @@ class Capability(Enum):
     IDENTIFY_OPPORTUNITY = "identify_opportunity"    # Identify innovation opportunities
     ASSESS_FEASIBILITY = "assess_feasibility"        # Assess technical feasibility
 
-    # ========== SELF-IMPROVEMENT ==========
+    # ========== SELF-IMPROVEMENT (through learning: measure, diagnose, learn) ==========
     ANALYZE_PERFORMANCE = "analyze_performance"      # Analyze own performance
     IDENTIFY_BOTTLENECK = "identify_bottleneck"      # Identify performance bottlenecks
     OPTIMIZE_COMPONENT = "optimize_component"        # Optimize system components
@@ -615,7 +615,7 @@ class ToolCapabilityProfile:
     # decide whether a capability needed sign-off, and had ZERO callers -- so
     # it described an approval tier that nothing consulted, for a
     # governance-session model that no longer exists. Risk is decided per
-    # invocation now, by `unified_governance_trigger_system.blocking_mode`,
+    # invocation now, by `governance_triggers.blocking_mode`,
     # from evidence about the invocation rather than a static per-capability
     # annotation.
 
@@ -1464,10 +1464,6 @@ def infer_capability_from_task(task_description: str, threshold: float = 1.0) ->
         (r'\bauto\w*\s+respond\b.*?\bthreat\b', Capability.BLOCK_THREAT, 9.0),
         (r'\bpurge\b', Capability.DELETE_DATA, 8.0),
         (r'\bscrub\b', Capability.DELETE_DATA, 8.0),
-        (r'\bobliterat\w+\b', Capability.DELETE_DATA, 9.0),
-        (r'\b(dmca|gdpr|ccpa)\b', Capability.SEND_MESSAGE, 9.0),
-        (r'\btakedown\s+notices?\b', Capability.SEND_MESSAGE, 9.0),
-        (r'\bsubmit\b.*?\b(takedown|request)\b', Capability.SEND_MESSAGE, 8.0),
         (r'\bconduct\s+(\w+\s+)*research\b', Capability.CONDUCT_RESEARCH, 9.0),
         (r'\bpublication.quality\s+(graphs?|charts?|visualiz)\b', Capability.CONDUCT_RESEARCH, 8.0),
         (r'\bexport\s+bibliography\b', Capability.CONDUCT_RESEARCH, 8.0),

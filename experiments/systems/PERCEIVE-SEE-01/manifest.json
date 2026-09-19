@@ -1,0 +1,588 @@
+{
+  "experiment": "PERCEIVE-SEE-01",
+  "admission": [
+    {
+      "image": "see_325339_1",
+      "drawn": [
+        "circle",
+        "red"
+      ],
+      "measured": [
+        "vivid_red",
+        "circle",
+        "small"
+      ],
+      "blob": "see_325339_1_blob1",
+      "blob_holds": [
+        "circle",
+        "small",
+        "vivid_red"
+      ]
+    },
+    {
+      "image": "see_325339_2",
+      "drawn": [
+        "circle",
+        "red"
+      ],
+      "measured": [
+        "vivid_red",
+        "circle",
+        "medium"
+      ],
+      "blob": "see_325339_2_blob1",
+      "blob_holds": [
+        "circle",
+        "medium",
+        "vivid_red"
+      ]
+    },
+    {
+      "image": "see_325339_3",
+      "drawn": [
+        "circle",
+        "blue"
+      ],
+      "measured": [
+        "vivid_blue",
+        "circle",
+        "medium"
+      ],
+      "blob": "see_325339_3_blob1",
+      "blob_holds": [
+        "circle",
+        "medium",
+        "vivid_blue"
+      ]
+    },
+    {
+      "image": "see_325339_4",
+      "drawn": [
+        "square",
+        "red"
+      ],
+      "measured": [
+        "vivid_red",
+        "square",
+        "medium"
+      ],
+      "blob": "see_325339_4_blob1",
+      "blob_holds": [
+        "medium",
+        "square",
+        "vivid_red"
+      ]
+    },
+    {
+      "image": "see_325339_5",
+      "drawn": [
+        "circle",
+        "red"
+      ],
+      "measured": [
+        "vivid_red",
+        "circle",
+        "small"
+      ],
+      "blob": "see_325339_5_blob1",
+      "blob_holds": [
+        "cat325339cire",
+        "circle",
+        "small",
+        "vivid_red"
+      ]
+    },
+    {
+      "image": "see_325339_6",
+      "drawn": [
+        "circle",
+        "red"
+      ],
+      "measured": [
+        "vivid_red",
+        "circle",
+        "medium"
+      ],
+      "blob": "see_325339_6_blob1",
+      "blob_holds": [
+        "cat325339cire",
+        "circle",
+        "medium",
+        "vivid_red"
+      ]
+    },
+    {
+      "image": "see_325339_7",
+      "drawn": [
+        "circle",
+        "red"
+      ],
+      "measured": [
+        "vivid_red",
+        "circle",
+        "large"
+      ],
+      "blob": "see_325339_7_blob1",
+      "blob_holds": [
+        "cat325339cire",
+        "circle",
+        "large",
+        "vivid_red"
+      ]
+    },
+    {
+      "image": "see_325339_8",
+      "drawn": [
+        "square",
+        "red"
+      ],
+      "measured": [
+        "vivid_red",
+        "square",
+        "large"
+      ],
+      "blob": "see_325339_8_blob1",
+      "blob_holds": [
+        "large",
+        "square",
+        "vivid_red"
+      ]
+    },
+    {
+      "image": "see_325339_9",
+      "drawn": [
+        "circle",
+        "blue"
+      ],
+      "measured": [
+        "vivid_blue",
+        "circle",
+        "small"
+      ],
+      "blob": "see_325339_9_blob1",
+      "blob_holds": [
+        "circle",
+        "small",
+        "vivid_blue"
+      ]
+    },
+    {
+      "image": "see_325339_10",
+      "drawn": [
+        "square",
+        "blue"
+      ],
+      "measured": [
+        "vivid_blue",
+        "square",
+        "medium"
+      ],
+      "blob": "see_325339_10_blob1",
+      "blob_holds": [
+        "medium",
+        "square",
+        "vivid_blue"
+      ]
+    },
+    {
+      "image": "see_325339_11",
+      "drawn": [
+        "square",
+        "blue"
+      ],
+      "measured": [
+        "vivid_blue",
+        "square",
+        "medium"
+      ],
+      "blob": "see_325339_11_blob1",
+      "blob_holds": [
+        "medium",
+        "square",
+        "vivid_blue"
+      ]
+    },
+    {
+      "image": "see_325339_12",
+      "drawn": [
+        "square",
+        "blue"
+      ],
+      "measured": [
+        "vivid_blue",
+        "square",
+        "medium"
+      ],
+      "blob": "see_325339_12_blob1",
+      "blob_holds": [
+        "medium",
+        "square",
+        "vivid_blue"
+      ]
+    },
+    {
+      "image": "see_325339_13",
+      "drawn": [
+        "square",
+        "red"
+      ],
+      "measured": [
+        "vivid_red",
+        "square",
+        "medium"
+      ],
+      "blob": "see_325339_13_blob1",
+      "blob_holds": [
+        "medium",
+        "square",
+        "vivid_red"
+      ]
+    },
+    {
+      "image": "see_325339_14",
+      "drawn": [
+        "circle",
+        "blue"
+      ],
+      "measured": [
+        "vivid_blue",
+        "circle",
+        "medium"
+      ],
+      "blob": "see_325339_14_blob1",
+      "blob_holds": [
+        "circle",
+        "medium",
+        "vivid_blue"
+      ]
+    },
+    {
+      "image": "see_325339_15",
+      "drawn": [
+        "square",
+        "blue"
+      ],
+      "measured": [
+        "vivid_blue",
+        "square",
+        "medium"
+      ],
+      "blob": "see_325339_15_blob1",
+      "blob_holds": [
+        "cat325339sqbl",
+        "medium",
+        "square",
+        "vivid_blue"
+      ]
+    },
+    {
+      "image": "see_325339_16",
+      "drawn": [
+        "square",
+        "blue"
+      ],
+      "measured": [
+        "vivid_blue",
+        "square",
+        "medium"
+      ],
+      "blob": "see_325339_16_blob1",
+      "blob_holds": [
+        "cat325339sqbl",
+        "medium",
+        "square",
+        "vivid_blue"
+      ]
+    },
+    {
+      "image": "see_325339_17",
+      "drawn": [
+        "square",
+        "blue"
+      ],
+      "measured": [
+        "vivid_blue",
+        "square",
+        "large"
+      ],
+      "blob": "see_325339_17_blob1",
+      "blob_holds": [
+        "cat325339sqbl",
+        "large",
+        "square",
+        "vivid_blue"
+      ]
+    },
+    {
+      "image": "see_325339_18",
+      "drawn": [
+        "circle",
+        "blue"
+      ],
+      "measured": [
+        "vivid_blue",
+        "circle",
+        "large"
+      ],
+      "blob": "see_325339_18_blob1",
+      "blob_holds": [
+        "circle",
+        "large",
+        "vivid_blue"
+      ]
+    },
+    {
+      "image": "see_325339_19",
+      "drawn": [
+        "square",
+        "red"
+      ],
+      "measured": [
+        "vivid_red",
+        "square",
+        "medium"
+      ],
+      "blob": "see_325339_19_blob1",
+      "blob_holds": [
+        "medium",
+        "square",
+        "vivid_red"
+      ]
+    },
+    {
+      "image": "see_325339_20",
+      "drawn": [
+        "circle",
+        "red"
+      ],
+      "measured": [
+        "vivid_red",
+        "circle",
+        "medium"
+      ],
+      "blob": "see_325339_20_blob1",
+      "blob_holds": [
+        "cat325339cire",
+        "circle",
+        "medium",
+        "vivid_red"
+      ]
+    },
+    {
+      "image": "see_325339_21",
+      "drawn": [
+        "triangle",
+        "green"
+      ],
+      "measured": [
+        "vivid_green",
+        "triangle",
+        "small"
+      ],
+      "blob": "see_325339_21_blob1",
+      "blob_holds": [
+        "small",
+        "triangle",
+        "vivid_green"
+      ]
+    },
+    {
+      "image": "see_325339_22",
+      "drawn": [
+        "triangle",
+        "green"
+      ],
+      "measured": [
+        "vivid_green",
+        "triangle",
+        "small"
+      ],
+      "blob": "see_325339_22_blob1",
+      "blob_holds": [
+        "small",
+        "triangle",
+        "vivid_green"
+      ]
+    },
+    {
+      "image": "see_325339_23",
+      "drawn": [
+        "triangle",
+        "red"
+      ],
+      "measured": [
+        "vivid_red",
+        "triangle",
+        "medium"
+      ],
+      "blob": "see_325339_23_blob1",
+      "blob_holds": [
+        "medium",
+        "triangle",
+        "vivid_red"
+      ]
+    },
+    {
+      "image": "see_325339_24",
+      "drawn": [
+        "circle",
+        "green"
+      ],
+      "measured": [
+        "vivid_green",
+        "circle",
+        "medium"
+      ],
+      "blob": "see_325339_24_blob1",
+      "blob_holds": [
+        "circle",
+        "medium",
+        "vivid_green"
+      ]
+    },
+    {
+      "image": "see_325339_25",
+      "drawn": [
+        "triangle",
+        "green"
+      ],
+      "measured": [
+        "vivid_green",
+        "triangle",
+        "small"
+      ],
+      "blob": "see_325339_25_blob1",
+      "blob_holds": [
+        "cat325339trgr",
+        "small",
+        "triangle",
+        "vivid_green"
+      ]
+    },
+    {
+      "image": "see_325339_26",
+      "drawn": [
+        "triangle",
+        "green"
+      ],
+      "measured": [
+        "vivid_green",
+        "triangle",
+        "medium"
+      ],
+      "blob": "see_325339_26_blob1",
+      "blob_holds": [
+        "medium",
+        "triangle",
+        "vivid_green"
+      ]
+    },
+    {
+      "image": "see_325339_27",
+      "drawn": [
+        "triangle",
+        "green"
+      ],
+      "measured": [
+        "vivid_green",
+        "triangle",
+        "medium"
+      ],
+      "blob": "see_325339_27_blob1",
+      "blob_holds": [
+        "medium",
+        "triangle",
+        "vivid_green"
+      ]
+    },
+    {
+      "image": "see_325339_28",
+      "drawn": [
+        "circle",
+        "green"
+      ],
+      "measured": [
+        "vivid_green",
+        "circle",
+        "large"
+      ],
+      "blob": "see_325339_28_blob1",
+      "blob_holds": [
+        "circle",
+        "large",
+        "vivid_green"
+      ]
+    },
+    {
+      "image": "see_325339_29",
+      "drawn": [
+        "triangle",
+        "red"
+      ],
+      "measured": [
+        "vivid_red",
+        "triangle",
+        "small"
+      ],
+      "blob": "see_325339_29_blob1",
+      "blob_holds": [
+        "small",
+        "triangle",
+        "vivid_red"
+      ]
+    },
+    {
+      "image": "see_325339_30",
+      "drawn": [
+        "circle",
+        "red"
+      ],
+      "measured": [
+        "vivid_red",
+        "circle",
+        "medium"
+      ],
+      "blob": "see_325339_30_blob1",
+      "blob_holds": [
+        "cat325339cire",
+        "circle",
+        "medium",
+        "vivid_red"
+      ]
+    }
+  ],
+  "categories": {
+    "red circle": {
+      "rule": "circle(?X0) \u2227 vivid_red(?X0) \u2192 cat325339cire(?X0)",
+      "status": "rule_learned",
+      "recall": 1.0,
+      "abstention": 1.0,
+      "false_namings": 0
+    },
+    "blue square": {
+      "rule": "square(?X0) \u2227 vivid_blue(?X0) \u2192 cat325339sqbl(?X0)",
+      "status": "rule_learned",
+      "recall": 1.0,
+      "abstention": 1.0,
+      "false_namings": 0
+    },
+    "green triangle": {
+      "rule": null,
+      "status": "multiple_hypotheses",
+      "recall": 0.333,
+      "abstention": 1.0,
+      "false_namings": 0
+    }
+  },
+  "summary": {
+    "images_seen": 30,
+    "blobs_admitted": 30,
+    "blobs_holding_every_measured_feature": 30,
+    "categories": 3,
+    "mean_recall": 0.778,
+    "mean_abstention": 1.0,
+    "false_namings": 0,
+    "wall_clock_s": 56.9
+  },
+  "run_at": "2026-09-19T15:27:41.015181+00:00"
+}

@@ -92,16 +92,19 @@ async def test_structural_similarities(reasoner, source, target):
 
     print(f"\n3. Finding structural similarities...")
     try:
-        mappings = await reasoner._find_structural_similarities(source, target)
-        print(f"   ✓ Found {len(mappings)} structural mappings")
+        from core.integration.universal_domain_master import get_universal_domain_master
+        found = await get_universal_domain_master().structural_similarities(
+            source.domain_id, target.domain_id,
+            threshold=reasoner.STRUCTURAL_SIMILARITY_THRESHOLD, keep=5)
+        print(f"   ✓ Found {found['pairs']} structural mappings")
 
-        for i, mapping in enumerate(mappings[:5]):
+        for i, (similarity, source_concept, target_concept) in enumerate(found["strongest"]):
             print(f"\n   Mapping {i+1}:")
-            print(f"     Source: {mapping['source_concept']}")
-            print(f"     Target: {mapping['target_concept']}")
-            print(f"     Similarity: {mapping['similarity']:.3f}")
+            print(f"     Source: {source_concept}")
+            print(f"     Target: {target_concept}")
+            print(f"     Similarity: {similarity:.3f}")
 
-        return mappings
+        return found["strongest"]
     except Exception as e:
         print(f"   ❌ ERROR: {e}")
         import traceback
