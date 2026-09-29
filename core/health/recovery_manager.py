@@ -15,7 +15,7 @@ import asyncio
 import logging
 import json
 from dataclasses import dataclass, field
-from typing import Dict, Any, List, Optional, Callable, Awaitable, Tuple
+from typing import Dict, Any, List, Optional, Callable, Awaitable
 from datetime import datetime
 from enum import Enum
 import time
@@ -44,7 +44,6 @@ class RecoveryAction(Enum):
     CLEANUP = "cleanup"
     ESCALATE = "escalate"
     THROTTLE = "throttle"
-    ISOLATE = "isolate"
     ALERT = "alert"
     # Read-only re-check. Verification is NOT a repair: mapping verify_* onto
     # CLEANUP made "confirm the database is intact" perform a mutation, the same
@@ -107,30 +106,15 @@ class RecoveryManager:
         # Signature: async (metadata: Dict[str, Any]) -> bool
         self._restart_handlers: Dict[str, Callable[[Dict[str, Any]], Awaitable[bool]]] = {}
 
-        # Runtime controls (in-process) used by THROTTLE / ISOLATE.
-        # These are intentionally lightweight and do not depend on DB.
+        # Runtime control (in-process) used by THROTTLE.
+        # Intentionally lightweight and does not depend on DB.
         #
         # Keying scheme:
         # - component keys are normalized (lowercase, stripped)
         # - special keys may be used for cross-cutting control:
-        #   - "tool_registry" / "tools" : gate tool execution
+        #   - "tool_registry" / "tools" : slow tool execution
         #   - "autonomous_coordinator"  : slow singleton thinking cycle
         self._throttle_state: Dict[str, Dict[str, Any]] = {}
-        self._isolation_state: Dict[str, Dict[str, Any]] = {}
-
-        # Tool gating allowlist during isolation. Everything else is blocked.
-        self._tool_isolation_allowlist = {
-            # Read-only introspection
-            "read_file",
-            "list_directory",
-            "search_files",
-            "grep_search",
-            "semantic_search",
-            "system_info",
-            # Notifications
-            "notification",
-            "notify",
-        }
 
         # Failure tracking
         self.failures: List[FailureEvent] = []
@@ -176,7 +160,6 @@ class RecoveryManager:
                 RecoveryAction.ALERT
             ],
             FailureType.SECURITY_VIOLATION: [
-                RecoveryAction.ISOLATE,
                 RecoveryAction.ALERT,
                 RecoveryAction.ESCALATE
             ],
@@ -221,16 +204,11 @@ class RecoveryManager:
         self._restart_handlers[component.strip().lower()] = handler
 
     # ---------------------------------------------------------------------
-    # Throttle/Isolation public helpers
+    # Throttle public helpers
     # ---------------------------------------------------------------------
     @staticmethod
     def _norm_key(component: str) -> str:
         return (component or "").strip().lower()
-
-    def is_component_isolated(self, component: str) -> bool:
-        key = self._norm_key(component)
-        state = self._isolation_state.get(key)
-        return bool(state and state.get("active"))
 
     def get_throttle_delay_seconds(self, component: str) -> float:
         """Return fixed delay (seconds) to apply while a throttle is active."""
@@ -245,38 +223,12 @@ class RecoveryManager:
             return 0.0
         return float(state.get("delay_s", 0.0))
 
-    def tool_execution_policy(
-        self,
-        tool_name: str,
-        tool_category: Optional[str] = None,
-        tool_safety_level: Optional[str] = None,
-    ) -> Tuple[bool, Optional[str], float]:
-        """Policy check for tool execution.
-
-        Returns:
-            (allowed, reason_if_blocked, throttle_delay_seconds)
-        """
-        name = (tool_name or "").strip().lower()
-        category = (tool_category or "").strip().lower()
-        safety = (tool_safety_level or "").strip().lower()
-
-        # Global/tool-level isolation gates
-        for key in ("tool_registry", "tools", "system"):
-            state = self._isolation_state.get(key)
-            if state and state.get("active"):
-                if name in self._tool_isolation_allowlist:
-                    break
-
-                # During isolation, block anything that can mutate state or touch the network.
-                if category in {"network", "execution", "filesystem", "database"} or safety in {"dangerous", "moderate"}:
-                    reason = state.get("reason") or "Tool execution is isolated by RecoveryManager"
-                    return False, reason, 0.0
-
-        # Throttle policy: apply a small fixed delay if configured
+    def tool_throttle_delay(self) -> float:
+        """Seconds to wait before a tool runs while a tool throttle is active."""
         delay = 0.0
         for key in ("tool_registry", "tools", "system"):
             delay = max(delay, self.get_throttle_delay_seconds(key))
-        return True, None, delay
+        return delay
 
     #: Subsystems this manager can actually restart, and the call that does it.
     #:
@@ -488,7 +440,6 @@ class RecoveryManager:
                 'restart': RecoveryAction.RESTART,
                 'cleanup': RecoveryAction.CLEANUP,
                 'throttle': RecoveryAction.THROTTLE,
-                'isolate': RecoveryAction.ISOLATE,
                 'backup': RecoveryAction.BACKUP,
                 # Playbook-defined aliases
                 'backup_before_repair': RecoveryAction.BACKUP,
@@ -599,7 +550,7 @@ class RecoveryManager:
             # Check if component has failed too many times
             if self.failure_counts.get(component, 0) > 5:
                 logger.error(f"Component {component} has failed {self.failure_counts[component]} times")
-                strategy = [RecoveryAction.ISOLATE, RecoveryAction.ESCALATE]
+                strategy = [RecoveryAction.ESCALATE]
 
             # Execute recovery actions
             actions_taken = []
@@ -714,10 +665,6 @@ class RecoveryManager:
             elif action == RecoveryAction.THROTTLE:
                 # Throttle component activity
                 return await self._throttle_component(component, metadata)
-
-            elif action == RecoveryAction.ISOLATE:
-                # Isolate component from system
-                return await self._isolate_component(component)
 
             elif action == RecoveryAction.ALERT:
                 # Send alert to monitoring systems
@@ -994,39 +941,6 @@ class RecoveryManager:
         logger.warning(
             f"Throttling '{component_key}' for {duration_s}s "
             f"(delay_s={delay_s}, until={datetime.fromtimestamp(until_ts).isoformat()})"
-        )
-        return True
-
-    async def _isolate_component(self, component: str) -> bool:
-        """Isolate component from system.
-
-        Isolation is used for SECURITY_VIOLATION scenarios. It records an
-        isolation flag that enforcement points can consult (e.g., tool registry).
-
-        Note: Isolation here is logical (policy gating), not OS-level sandboxing.
-        """
-        component_key = self._norm_key(component)
-        state = {
-            "active": True,
-            "set_at": time.time(),
-            "reason": f"isolated by RecoveryManager: {component_key}",
-        }
-
-        self._isolation_state[component_key] = state
-
-        # SECURITY_VIOLATION isolation should be protective at the system boundary.
-        # If a specific component is isolated, also raise a conservative global
-        # isolation gate that blocks risky tools until humans intervene.
-        if component_key not in {"tool_registry", "tools", "system"}:
-            self._isolation_state["system"] = {
-                "active": True,
-                "set_at": state["set_at"],
-                "reason": f"system isolation due to component isolation: {component_key}",
-            }
-
-        logger.critical(
-            f"Component '{component_key}' isolated from system (logical policy gating). "
-            f"Manual intervention may be required."
         )
         return True
 

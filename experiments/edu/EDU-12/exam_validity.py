@@ -27,7 +27,7 @@ from typing import Any, Dict, List, Sequence
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
-from core.learning.learning_authority import get_learning_authority  # noqa: E402
+from core.learning.unified_learning_system import get_learning_authority  # noqa: E402
 
 #: The stated answer must lead the runner-up by this factor. A MARGIN, not an
 #: absolute mass: the hypothesis space is 3^n, so absolute posterior mass shrinks

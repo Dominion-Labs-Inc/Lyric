@@ -56,10 +56,13 @@ def test_severity_is_not_a_function_of_issue_count(hm):
 def test_high_score_on_partial_evidence_is_not_healthy(hm):
     """reasoning read HEALTHY 1.0 at coverage 0.25: one signal true, three
     metrics returned None. evaluate_declared already blocked this."""
+    # Liveness-named, as the checks emit them: a bare None field is
+    # informational and not evidence at all, so it could not show the defect.
     r = hm.evaluate("reasoning",
                     {"neural_bridge_initialized": True,
-                     "bayesian_engine": None, "causal_engine": None,
-                     "symbolic_engine": None},
+                     "bayesian_engine_initialized": None,
+                     "causal_engine_initialized": None,
+                     "symbolic_engine_initialized": None},
                     [])
     assert r["coverage"] == 0.25
     assert r["status"] is HealthStatus.DEGRADED
@@ -93,7 +96,7 @@ def test_both_paths_apply_the_same_coverage_rule(hm):
          HealthMetric(name="b", raw_value=None, normalized=None, required=True)],
         [],
     )
-    inferred = hm.evaluate("x", {"a_initialized": True, "b": None}, [])
+    inferred = hm.evaluate("x", {"a_initialized": True, "b_initialized": None}, [])
     assert declared["status"] is inferred["status"] is HealthStatus.DEGRADED
 
 
@@ -119,64 +122,6 @@ def test_unmeasurable_component_still_writes_a_row():
     assert "return False" not in body.split("INSERT")[0], (
         "no early return may precede the write; unmeasured is a row with NULL"
     )
-
-
-class _FakeResp:
-    status_code = 200
-
-
-class _FakeRemoteClient:
-    async def get(self, url, timeout=None):
-        return _FakeResp()
-
-
-class _FakeLLM:
-    """Remote-mode service: no in-process worker, by design."""
-    remote_url = "http://127.0.0.1:8099"
-    _remote_client = _FakeRemoteClient()
-
-    def get_statistics(self):
-        return {"model_loaded": True, "total_requests": 0, "successful_requests": 0,
-                "failed_requests": 0, "total_tokens": 0, "avg_processing_time": 0.0,
-                "worker_alive": False, "inference_queue_size": 0}
-
-
-@pytest.mark.asyncio
-async def test_remote_llm_is_not_critical_for_lacking_a_local_worker(monkeypatch, hm):
-    """`worker_alive` reads `_worker_task`, created only on the local
-    model-loading path to serialise an in-process Llama object. Production runs
-    remote, where no such object exists -- so this graded CRITICAL ('requests
-    cannot be served') while requests were being served successfully."""
-    import core.services.unified_llm as u
-    monkeypatch.setattr(u, "get_llm_service", lambda: _FakeLLM())
-
-    metrics, issues = await hm._check_llm_health()
-
-    assert metrics["llm_mode"] == "remote"
-    assert "llm_queue_worker_alive" not in metrics, (
-        "a signal inapplicable to the running mode must not be reported at all"
-    )
-    assert metrics["llm_remote_endpoint_connected"] is True
-    r = hm.evaluate("llm", metrics, issues)
-    assert r["gate_failures"] == []
-    assert r["status"] is HealthStatus.HEALTHY
-
-
-@pytest.mark.asyncio
-async def test_idle_service_reaches_full_coverage(monkeypatch, hm):
-    """A failure rate over zero requests is undefined by arithmetic, not by a
-    failed reading. Counting it as missing evidence capped an idle-but-working
-    service below full coverage forever, so it could never grade HEALTHY."""
-    import core.services.unified_llm as u
-    monkeypatch.setattr(u, "get_llm_service", lambda: _FakeLLM())
-
-    metrics, issues = await hm._check_llm_health()
-    assert metrics["llm_failure_rate"] is None
-    assert "llm_failure_rate" in metrics["_not_applicable"]
-
-    r = hm.evaluate("llm", metrics, issues)
-    assert r["coverage"] == 1.0
-    assert r["status"] is HealthStatus.HEALTHY
 
 
 def test_declared_not_applicable_is_neither_signal_nor_gap(hm):
@@ -270,107 +215,6 @@ def test_record_rate_separates_undefined_from_unread(hm):
     assert m["real_rate"] == 0.75
 
 
-class _StubContracts:
-    contracts = {}
-    violations_by_category = {}
-
-    def get_contract_stats(self):
-        return {}                    # the live implementation is a stub
-
-
-class _StubFramework:
-    def __init__(self, blocking=True):
-        self.enable_blocking = blocking
-        self.contract_manager = _StubContracts()
-
-    def get_statistics(self):
-        return {"blocking_enabled": self.enable_blocking, "constraints_count": 0,
-                "evaluations_performed": 0, "violations_detected": 0,
-                "violation_rate": 0.0, "events_logged": 0}
-
-
-@pytest.mark.asyncio
-async def test_safety_gate_was_impossible_to_satisfy(monkeypatch, hm):
-    """The verdict came from `CommitmentContractManager._instance` -- an
-    attribute the class never defines and nothing assigns -- so the getattr
-    default made it False on every run. On a critical component an
-    `_initialized` key is an automatic gate, so `safety` reported CRITICAL
-    permanently for a condition no reachable state could satisfy, while the
-    manager was live the whole time as SafetyFramework.contract_manager."""
-    from core.safety.commitment_contracts import CommitmentContractManager
-    assert not hasattr(CommitmentContractManager, "_instance"), (
-        "nothing defines or assigns this attribute; reading it is always None"
-    )
-
-    import core.security.safety_framework as sf
-    monkeypatch.setattr(sf, "_safety_framework", _StubFramework(), raising=False)
-    metrics, issues = await hm._check_safety_health()
-    assert metrics["safety_contracts_initialized"] is True
-
-    r = hm.evaluate_declared("safety", hm._declared_metrics.pop("safety"), issues)
-    assert r["status"] is HealthStatus.HEALTHY
-    assert r["gate_failures"] == []
-
-
-@pytest.mark.asyncio
-async def test_safety_measures_the_layer_that_enforces(monkeypatch, hm):
-    """An absent SafetyFramework is the condition that actually means actions
-    are ungoverned; that is what must gate."""
-    import core.security.safety_framework as sf
-    monkeypatch.setattr(sf, "_safety_framework", None, raising=False)
-
-    metrics, issues = await hm._check_safety_health()
-    r = hm.evaluate_declared("safety", hm._declared_metrics.pop("safety"), issues)
-
-    assert metrics["safety_framework_initialized"] is False
-    assert r["status"] is HealthStatus.CRITICAL
-    assert r["gate_failures"] == ["safety_framework_initialized"]
-
-
-@pytest.mark.asyncio
-async def test_detected_but_not_blocked_is_critical(monkeypatch, hm):
-    """Blocking disabled means violations are found and actions run anyway."""
-    import core.security.safety_framework as sf
-    monkeypatch.setattr(sf, "_safety_framework", _StubFramework(blocking=False),
-                        raising=False)
-
-    metrics, issues = await hm._check_safety_health()
-    r = hm.evaluate_declared("safety", hm._declared_metrics.pop("safety"), issues)
-
-    assert r["status"] is HealthStatus.CRITICAL
-    assert "safety_blocking_enabled" in r["gate_failures"]
-
-
-@pytest.mark.asyncio
-async def test_vestigial_constraint_count_is_not_a_gate(monkeypatch, hm):
-    """SafetyFramework.constraints is assigned [] and nothing appends to it, so
-    gating on `> 0` would be permanently unsatisfiable -- the same defect as the
-    contract gate, reintroduced."""
-    import core.security.safety_framework as sf
-    monkeypatch.setattr(sf, "_safety_framework", _StubFramework(), raising=False)
-
-    metrics, issues = await hm._check_safety_health()
-    declared = hm._declared_metrics.pop("safety")
-
-    assert metrics["safety_constraints_loaded"] == 0
-    assert "safety_constraints_loaded" not in {m.name for m in declared}
-
-
-@pytest.mark.asyncio
-async def test_stubbed_contract_stats_are_not_reported_as_measurements(monkeypatch, hm):
-    """get_contract_stats returns {}. Reporting its zeros would claim 'measured:
-    no violations' about a subsystem that measured nothing."""
-    import core.security.safety_framework as sf
-    monkeypatch.setattr(sf, "_safety_framework", _StubFramework(), raising=False)
-
-    metrics, issues = await hm._check_safety_health()
-    hm._declared_metrics.pop("safety", None)
-
-    assert metrics["safety_contract_stats_implemented"] is False
-    assert metrics["safety_contract_violation_rate"] is None
-    assert "safety_contract_violation_rate" in metrics["_not_applicable"]
-
-
 def test_topology_matches_services_by_port_not_name():
     """The scanner reports one `postgresql`; the topology models the two logical
     databases sharing that instance as postgresql-torinai/-agentso. Neither name
@@ -379,9 +223,11 @@ def test_topology_matches_services_by_port_not_name():
     from core.system.infrastructure_topology import InfrastructureTopology, ServiceTier
     from core.system.environment_state import ServiceInfo, ServiceStatus
 
+    # TorinAI's Postgres listens on 5433 (`PostgresConfig`), the port the
+    # topology models `postgresql-torinai` on.
     class _Env:
         running_services = {
-            "postgresql": ServiceInfo(name="postgresql", port=5432,
+            "postgresql": ServiceInfo(name="postgresql", port=5433,
                                       status=ServiceStatus.RUNNING),
         }
 

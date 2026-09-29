@@ -156,7 +156,8 @@ def test_exemption_policy_lives_in_one_place():
     of the policy that can drift from it."""
     import inspect
     from core.agents.memory_agent import MemoryAgent
-    src = inspect.getsource(MemoryAgent.store_memory)
+    # The storing pipeline, behind the door that decides whose a memory is.
+    src = inspect.getsource(MemoryAgent._store_memory)
     assert "exemption_for" in src
 
 

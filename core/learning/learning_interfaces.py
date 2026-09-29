@@ -133,6 +133,9 @@ class LearningExample:
     """Example for learning systems"""
     example_id: str
     inputs: Dict[str, Any]
+    #: Whose experience it is: a person's actor id, or the substrate's own
+    #: (`SUBSTRATE_ACTOR`). No default: whatever is remembered of it is filed by it.
+    actor: str
     targets: Optional[Dict[str, Any]] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
 
@@ -206,8 +209,7 @@ class LearningResult:
 #                           cannot validate itself using the evidence it was
 #                           induced from
 #     merge_knowledge    -> RuleStore.supersede, which keeps the refuted rule,
-#                           its refuting evidence AND its replacement;
-#                           MemoryAgent.consolidate_old_duplicates
+#                           its refuting evidence AND its replacement
 #
 # IT ASSUMED ONE KNOWLEDGE STORE WITH ONE NOTION OF VALIDITY. The substrate
 # has three, separated on purpose: concepts promoted by independent evidence
@@ -311,10 +313,12 @@ class IMemoryConsolidation(ABC):
     Drawn from `MemoryAgent`'s real surface. `UnifiedLearningSystem` refuses
     `consolidate_learning` and names the owner: "Memory consolidation is owned
     by MemoryAgent (hot/cold tiering); call it there." Behind that refusal sit
-    four working methods -- `consolidate_memories`, `consolidate_old_duplicates`,
-    `_consolidate_cluster`, `migrate_to_cold_tier` --
+    working methods -- `consolidate_memories` and `migrate_to_cold_tier` --
     and none of them were typed as consolidating anything, so a search for the
     capability found the stub that raises and not the code that works.
+
+    Consolidation never merges memories. The substrate doing the same thing on
+    two days is two memories; merging them by likeness wiped one.
 
     THAT IS THE DEFECT THIS INTERFACE EXISTS TO FIX. Not a missing capability:
     a working one nothing could name.
@@ -324,21 +328,6 @@ class IMemoryConsolidation(ABC):
     async def consolidate_memories(self) -> Any:
         """Fold recent memory into longer-lived structure."""
         raise NotImplementedError("Subclasses must implement consolidate_memories()")
-
-    @abstractmethod
-    async def consolidate_old_duplicates(self, days_back: int = 30,
-                                         batch_size: int = 100,
-                                         similarity_threshold: float = 0.85) -> Any:
-        """Merge memories that say the same thing.
-
-        DEDUPLICATION IS LOSSY AND THE THRESHOLD DECIDES WHAT IS LOST. It is a
-        parameter here rather than a constant inside, because a store that
-        silently merged near-duplicates once destroyed performance history --
-        failures were kept and successes discarded, and the survivorship was
-        invisible from the outside.
-        """
-        raise NotImplementedError(
-            "Subclasses must implement consolidate_old_duplicates()")
 
     @abstractmethod
     async def migrate_to_cold_tier(self, memory_id: str, force: bool = False,

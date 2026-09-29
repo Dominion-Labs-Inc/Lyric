@@ -1,0 +1,86 @@
+{
+  "experiment": "ENCODER-09 \u2014 interference: does new teaching damage old knowledge?",
+  "seed": 20260922,
+  "hypotheses": [
+    "H1 retrieval in the first domain survives teaching a second",
+    "H2 separation in the first domain survives teaching a second",
+    "H3 damage does not accumulate over five further domains",
+    "H4 the newly taught domain is itself learned (control)"
+  ],
+  "data": {
+    "stages": {
+      "A alone": {
+        "a_mrr": 0.75,
+        "a_p1": 0.5,
+        "a_sep": 0.19384256704031788,
+        "props": 20
+      },
+      "A + B": {
+        "a_mrr": 0.75,
+        "a_p1": 0.5,
+        "a_sep": 0.2500050206723827,
+        "props": 40
+      },
+      "A + B + C": {
+        "a_mrr": 0.75,
+        "a_p1": 0.5,
+        "a_sep": 0.28375122842542,
+        "props": 60
+      },
+      "A..D": {
+        "a_mrr": 0.75,
+        "a_p1": 0.5,
+        "a_sep": 0.30731533645509035,
+        "props": 80
+      },
+      "A..E": {
+        "a_mrr": 0.75,
+        "a_p1": 0.5,
+        "a_sep": 0.3252354220351883,
+        "props": 100
+      },
+      "A..E + real": {
+        "a_mrr": 0.75,
+        "a_p1": 0.5,
+        "a_sep": 0.14410458068801313,
+        "props": 130
+      }
+    },
+    "domain_b_after_all": {
+      "mrr": 0.75,
+      "p_at_1": 0.5,
+      "recall_at_3": 1.0,
+      "n": 20
+    }
+  },
+  "checks": [
+    {
+      "name": "H1 domain-A retrieval survives a second domain",
+      "passed": true,
+      "detail": "0.750 -> 0.750"
+    },
+    {
+      "name": "H2 domain-A separation survives a second domain",
+      "passed": true,
+      "detail": "+0.194 -> +0.250"
+    },
+    {
+      "name": "H3 no accumulated damage after five further domains",
+      "passed": true,
+      "detail": "0.750 -> 0.750 over 20 -> 130 propositions"
+    },
+    {
+      "name": "H3b separation does not accumulate damage",
+      "passed": true,
+      "detail": "+0.194 -> +0.144"
+    },
+    {
+      "name": "H4 control \u2014 the later-taught domain is itself learned",
+      "passed": true,
+      "detail": "domain-B MRR 0.750 after teaching everything"
+    }
+  ],
+  "passed": 5,
+  "total": 5,
+  "verdict": "domain-A separation moved -0.050 across 110 newly taught propositions"
+}

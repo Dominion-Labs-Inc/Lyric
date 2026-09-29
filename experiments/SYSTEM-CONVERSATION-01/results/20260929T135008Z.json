@@ -1,0 +1,362 @@
+{
+  "experiment": "SYSTEM-CONVERSATION-01",
+  "claim": "A conversation is a speaker's: what they tell is held in their context in the door's terms, answered back to them from it and to no one else, a conditional asserts neither side, and what is reasoned for them is remembered as theirs.",
+  "hypothesis": "A told name the speaker cannot ask back, a reply calling it unknown, another speaker answered from it, a conditional's clause held as fact, a refused promotion flagged promoted, or an unowned memory of it would each fail here.",
+  "started_at": "2026-09-29T13:50:08.133299+00:00",
+  "duration_seconds": 23.119,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/TorinAI/venv_torin/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/TorinAI",
+    "shadow_mode": null,
+    "git_commit": "20deb447498593391eca0286916b8f986c560a26",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "torinai_dev",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "torinai_dev",
+        "model": "torinai_dev",
+        "user_context": "torinai_dev",
+        "learning": "torinai_dev"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "dotenv:.env.postgres",
+        "database": "environment",
+        "user": "dotenv:.env.postgres",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 1791,
+    "database_verified": null,
+    "database_verified_reason": "no initialized connection in this process"
+  },
+  "summary": {
+    "checks": 38,
+    "passed": 38,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [
+    {
+      "name": "nonce",
+      "value": "tvgtb",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "conversation_public_methods",
+      "value": 16,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "conversation_internal_only_public_methods",
+      "value": 5,
+      "unit": "count",
+      "note": "used only inside their own file: resolve_name, subject_of, look_up, is_question, feedback_of"
+    },
+    {
+      "name": "conversation_experiments_only",
+      "value": 0,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "conversation_uncalled",
+      "value": 1,
+      "unit": "count",
+      "note": "beliefs_about_user"
+    },
+    {
+      "name": "conversation_not_implemented",
+      "value": 0,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "conversation_constant",
+      "value": 0,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "conversation_empty",
+      "value": 0,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "memories_written_about_the_nonce",
+      "value": 5,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "rows_removed",
+      "value": 38,
+      "unit": "count",
+      "note": "{\"concepts\": 2, \"beliefs\": 1, \"knowledge_updates\": 2, \"evidence_envelopes\": 1, \"held_conditionals\": 0, \"memory_hot\": 5, \"experience_pool\": 18, \"scoped_beliefs\": 5, \"scoped_concept_relations\": 4}"
+    },
+    {
+      "name": "behaviour_checks_passed",
+      "value": 38,
+      "unit": "count",
+      "note": "of 38"
+    },
+    {
+      "name": "wiring_findings",
+      "value": 1,
+      "unit": "count",
+      "note": "0 exercised only by experiments/tests, 1 called by nothing"
+    },
+    {
+      "name": "completeness_findings",
+      "value": 0,
+      "unit": "count",
+      "note": "0 NotImplementedError, 0 return a literal, 0 empty"
+    }
+  ],
+  "checks": [
+    {
+      "label": "the substrate knows a mammal is an animal (held, or taught now)",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-29T13:50:27.094762+00:00"
+    },
+    {
+      "label": "the same session is the same held conversation",
+      "passed": true,
+      "detail": "Conversation",
+      "at": "2026-09-29T13:50:27.094783+00:00"
+    },
+    {
+      "label": "a different session is a different one",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-29T13:50:27.094789+00:00"
+    },
+    {
+      "label": "a session is a user actor, not the substrate",
+      "passed": true,
+      "detail": "['SYSTEM-CONVERSATION-01-tvgtb-a', 'SYSTEM-CONVERSATION-01-tvgtb-b']",
+      "at": "2026-09-29T13:50:27.094806+00:00"
+    },
+    {
+      "label": "the one-word telling is a scoped edge in canonical terms",
+      "passed": true,
+      "detail": "[('glinttvgtb_heron', 'isa', 'glinttvgtb_bird', 'positive'), ('vextvgtb', 'isa', 'mammal', 'positive')]",
+      "at": "2026-09-29T13:50:29.673736+00:00"
+    },
+    {
+      "label": "the two-word telling is a scoped edge in canonical terms",
+      "passed": true,
+      "detail": "[('glinttvgtb_heron', 'isa', 'glinttvgtb_bird', 'positive'), ('vextvgtb', 'isa', 'mammal', 'positive')]",
+      "at": "2026-09-29T13:50:29.673749+00:00"
+    },
+    {
+      "label": "nothing told reached the shared graph or beliefs",
+      "passed": true,
+      "detail": "shared rows=0",
+      "at": "2026-09-29T13:50:29.676606+00:00"
+    },
+    {
+      "label": "'is a vextvgtb a mammal' is affirmed",
+      "passed": true,
+      "detail": "Yes. A vextvgtb is a mammal.",
+      "at": "2026-09-29T13:50:29.852745+00:00"
+    },
+    {
+      "label": "'is a vextvgtb a mammal': the reply does not call what it answered unknown",
+      "passed": true,
+      "detail": "Yes. A vextvgtb is a mammal.",
+      "at": "2026-09-29T13:50:29.852756+00:00"
+    },
+    {
+      "label": "'is a vextvgtb an animal' is affirmed",
+      "passed": true,
+      "detail": "Yes. A vextvgtb is an animal.",
+      "at": "2026-09-29T13:50:30.049118+00:00"
+    },
+    {
+      "label": "'is a vextvgtb an animal': the reply does not call what it answered unknown",
+      "passed": true,
+      "detail": "Yes. A vextvgtb is an animal.",
+      "at": "2026-09-29T13:50:30.049128+00:00"
+    },
+    {
+      "label": "'is a glinttvgtb heron a glinttvgtb bird' is affirmed",
+      "passed": true,
+      "detail": "Yes. A glinttvgtb heron is a glinttvgtb bird.",
+      "at": "2026-09-29T13:50:30.227445+00:00"
+    },
+    {
+      "label": "'is a glinttvgtb heron a glinttvgtb bird': the reply does not call what it answered unknown",
+      "passed": true,
+      "detail": "Yes. A glinttvgtb heron is a glinttvgtb bird.",
+      "at": "2026-09-29T13:50:30.227454+00:00"
+    },
+    {
+      "label": "the two-word told name resolves whole, from the speaker's context",
+      "passed": true,
+      "detail": "[('glinttvgtb heron', True, True), ('glinttvgtb bird', True, False)]",
+      "at": "2026-09-29T13:50:30.234426+00:00"
+    },
+    {
+      "label": "another speaker is not answered from the first one's context",
+      "passed": true,
+      "detail": "I remember: mammal isa animal.\nI hold nothing for vextvgtb. Tell me what it is and I will keep it.",
+      "at": "2026-09-29T13:50:30.382029+00:00"
+    },
+    {
+      "label": "another speaker resolves nothing the first one told",
+      "passed": true,
+      "detail": "[('glinttvgtb heron', False, False), ('glinttvgtb bird', False, False)]",
+      "at": "2026-09-29T13:50:30.390625+00:00"
+    },
+    {
+      "label": "the conditional is held",
+      "passed": true,
+      "detail": "[('if the vextvgtb is hot then the valve is hot', True, 'held as a conditional rule')]",
+      "at": "2026-09-29T13:50:30.402255+00:00"
+    },
+    {
+      "label": "neither clause is a scoped edge",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-09-29T13:50:30.402892+00:00"
+    },
+    {
+      "label": "the implication is the speaker's one belief about it",
+      "passed": true,
+      "detail": "['if vextvgtb has_property hot then valve has_property hot']",
+      "at": "2026-09-29T13:50:30.404130+00:00"
+    },
+    {
+      "label": "asked whether the antecedent holds, it is not affirmed",
+      "passed": true,
+      "detail": "I hold nothing for hot. Tell me and I will keep it.",
+      "at": "2026-09-29T13:50:30.634623+00:00"
+    },
+    {
+      "label": "a subject that names nothing is refused for the speaker",
+      "passed": true,
+      "detail": "[\"subject 'you' not admitted: 'you' is made only of words that name nothing\"]",
+      "at": "2026-09-29T13:50:30.634677+00:00"
+    },
+    {
+      "label": "an empty subject is refused for the speaker",
+      "passed": true,
+      "detail": "['subject is empty: a proposition about nothing is not admitted']",
+      "at": "2026-09-29T13:50:30.634698+00:00"
+    },
+    {
+      "label": "a telling below the support floor is refused for the speaker",
+      "passed": true,
+      "detail": "['insufficient support: quality 0.200 < floor 0.5']",
+      "at": "2026-09-29T13:50:30.634709+00:00"
+    },
+    {
+      "label": "nothing refused was written to the speaker's context",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-09-29T13:50:30.635684+00:00"
+    },
+    {
+      "label": "(setup) the shared mind holds pa isa pb",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-09-29T13:50:30.770737+00:00"
+    },
+    {
+      "label": "both speakers hold the corroborated claim",
+      "passed": true,
+      "detail": "[{'scope_actor': 'SYSTEM-CONVERSATION-01-tvgtb-a', 'promoted': False}, {'scope_actor': 'SYSTEM-CONVERSATION-01-tvgtb-b', 'promoted': False}]",
+      "at": "2026-09-29T13:50:30.787430+00:00"
+    },
+    {
+      "label": "a claim the shared door refused is not flagged promoted",
+      "passed": true,
+      "detail": "[{'scope_actor': 'SYSTEM-CONVERSATION-01-tvgtb-a', 'promoted': False}, {'scope_actor': 'SYSTEM-CONVERSATION-01-tvgtb-b', 'promoted': False}]",
+      "at": "2026-09-29T13:50:30.787441+00:00"
+    },
+    {
+      "label": "and the shared graph does not hold it",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-29T13:50:30.789314+00:00"
+    },
+    {
+      "label": "a relation never told is not affirmed",
+      "passed": true,
+      "detail": "I remember: .dockerignore isa file.\nA glinttvgtb heron is a glinttvgtb bird.\nI hold nothing for glin",
+      "at": "2026-09-29T13:50:30.929612+00:00"
+    },
+    {
+      "label": "a question about nothing held is not answered yes",
+      "passed": true,
+      "detail": "I remember: tvgtbpa isa tvgtbpb.",
+      "at": "2026-09-29T13:50:31.025630+00:00"
+    },
+    {
+      "label": "the record of this exchange answers a question about it",
+      "passed": true,
+      "detail": "You told me: \"if the vextvgtb is hot then the valve is hot\"",
+      "at": "2026-09-29T13:50:31.027835+00:00"
+    },
+    {
+      "label": "the conversation remembered something about what it was told",
+      "passed": true,
+      "detail": "5 rows",
+      "at": "2026-09-29T13:50:31.029540+00:00"
+    },
+    {
+      "label": "every such memory belongs to a speaker, none to the shared mind",
+      "passed": true,
+      "detail": "0 unowned: []",
+      "at": "2026-09-29T13:50:31.029547+00:00"
+    },
+    {
+      "label": "nothing the second speaker holds affirms the first one's telling",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-09-29T13:50:31.029556+00:00"
+    },
+    {
+      "label": "the speaker recalls their own",
+      "passed": true,
+      "detail": "3 of 10",
+      "at": "2026-09-29T13:50:31.064393+00:00"
+    },
+    {
+      "label": "another speaker's recall does not reach it, by meaning or by wording",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-09-29T13:50:31.064413+00:00"
+    },
+    {
+      "label": "the substrate's own recall does not reach it",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-09-29T13:50:31.064424+00:00"
+    },
+    {
+      "label": "everything this run wrote is removed",
+      "passed": true,
+      "detail": "{'concepts': 0, 'beliefs': 0, 'knowledge_updates': 0, 'evidence_envelopes': 0, 'held_conditionals': 0, 'memory_hot': 0, 'experience_pool': 0, 'scoped_beliefs': 0, 'scoped_concept_relations': 0}",
+      "at": "2026-09-29T13:50:31.111338+00:00"
+    }
+  ],
+  "notes": [
+    "residue snapshot: data/snapshots/system_conversation_01_tvgtb_20260929T135031Z.json"
+  ]
+}

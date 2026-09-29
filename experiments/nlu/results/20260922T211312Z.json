@@ -1,0 +1,858 @@
+{
+  "suite": "NLU \u2014 natural-language understanding and expression",
+  "stamp": "20260922T211312Z",
+  "substrate": {
+    "live": true,
+    "word_classes_warm": 10669
+  },
+  "passed": 93,
+  "total": 103,
+  "experiments": [
+    {
+      "experiment": "NLU-01 \u2014 What share of REAL prose does the substrate read?",
+      "writes_to_store": false,
+      "notes": [
+        "corpus: 300 human-written sentences from the repo's docs (median 13 words)",
+        "READ 26 (8.7%) \u00b7 DECLINED 274 (91.3%) \u00b7 RAISED 0",
+        "which reader answered: extractor=23, derived:subject_relation_object_polarity=3",
+        "read  \u201cThe canonical architecture document.\u201d -> canonical_architecture_document [derived:subject_relation_object_polarity]",
+        "read  \u201cCognition is one body \u2014 not a bus between independent services.\u201d -> cognition_one_body__not_a_bus_between_independent_service [extractor]",
+        "read  \u201cThere is no longer any path from the substrate to a generative model.\u201d -> there_no_longer_any_path_from_the_substrate_to_a_generative_model [extractor]",
+        "read  \u201cPerception classifiers are owned here.\u201d -> perception_classifiers_owned_here [extractor]"
+      ],
+      "data": {
+        "sentences": 300,
+        "read": 26,
+        "declined": 274,
+        "raised": 0,
+        "yield_pct": 8.67,
+        "by_reader": {
+          "derived:subject_relation_object_polarity": 3,
+          "extractor": 23
+        }
+      },
+      "checks": [
+        {
+          "name": "no sentence made the reader raise",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "every reading names at least one atom",
+          "passed": true,
+          "detail": ""
+        }
+      ],
+      "passed": 2,
+      "total": 2,
+      "seconds": 2.22
+    },
+    {
+      "experiment": "NLU-02 \u2014 Which CONSTRUCTIONS of English does it hold?",
+      "writes_to_store": false,
+      "notes": [
+        "reads: copular 3/3, copular negated 3/3, subject-verb-object 2/3, yes/no question 3/3, multi-word subject 3/3, ditransitive 1/3, apposition 2/3, modal 2/3, prepositional claim 3/3",
+        "refuses entirely: relative clause 0/3, NP coordination 0/3, object coordination 0/3, VP coordination 0/3, subordination 0/3, complement clause 0/3, comparative 0/3, quantified 0/3, passive 0/3, possessive 0/3, multi-clause definition 0/3"
+      ],
+      "data": {
+        "copular": {
+          "read": 3,
+          "of": 3,
+          "claimed": true
+        },
+        "copular negated": {
+          "read": 3,
+          "of": 3,
+          "claimed": true
+        },
+        "subject-verb-object": {
+          "read": 2,
+          "of": 3,
+          "claimed": true
+        },
+        "yes/no question": {
+          "read": 3,
+          "of": 3,
+          "claimed": true
+        },
+        "multi-word subject": {
+          "read": 3,
+          "of": 3,
+          "claimed": true
+        },
+        "relative clause": {
+          "read": 0,
+          "of": 3,
+          "claimed": false
+        },
+        "NP coordination": {
+          "read": 0,
+          "of": 3,
+          "claimed": false
+        },
+        "object coordination": {
+          "read": 0,
+          "of": 3,
+          "claimed": false
+        },
+        "VP coordination": {
+          "read": 0,
+          "of": 3,
+          "claimed": false
+        },
+        "subordination": {
+          "read": 0,
+          "of": 3,
+          "claimed": false
+        },
+        "complement clause": {
+          "read": 0,
+          "of": 3,
+          "claimed": false
+        },
+        "ditransitive": {
+          "read": 1,
+          "of": 3,
+          "claimed": false
+        },
+        "apposition": {
+          "read": 2,
+          "of": 3,
+          "claimed": false
+        },
+        "comparative": {
+          "read": 0,
+          "of": 3,
+          "claimed": false
+        },
+        "quantified": {
+          "read": 0,
+          "of": 3,
+          "claimed": false
+        },
+        "passive": {
+          "read": 0,
+          "of": 3,
+          "claimed": false
+        },
+        "possessive": {
+          "read": 0,
+          "of": 3,
+          "claimed": false
+        },
+        "modal": {
+          "read": 2,
+          "of": 3,
+          "claimed": false
+        },
+        "prepositional claim": {
+          "read": 3,
+          "of": 3,
+          "claimed": true
+        },
+        "multi-clause definition": {
+          "read": 0,
+          "of": 3,
+          "claimed": false
+        }
+      },
+      "checks": [
+        {
+          "name": "CLAIMED: copular reads",
+          "passed": true,
+          "detail": "read 3/3"
+        },
+        {
+          "name": "CLAIMED: copular negated reads",
+          "passed": true,
+          "detail": "read 3/3"
+        },
+        {
+          "name": "CLAIMED: subject-verb-object reads",
+          "passed": true,
+          "detail": "read 2/3"
+        },
+        {
+          "name": "CLAIMED: yes/no question reads",
+          "passed": true,
+          "detail": "read 3/3"
+        },
+        {
+          "name": "CLAIMED: multi-word subject reads",
+          "passed": true,
+          "detail": "read 3/3"
+        },
+        {
+          "name": "not claimed: relative clause refuses",
+          "passed": true,
+          "detail": "read 0/3 \u2014 it guessed where it cannot represent"
+        },
+        {
+          "name": "not claimed: NP coordination refuses",
+          "passed": true,
+          "detail": "read 0/3 \u2014 it guessed where it cannot represent"
+        },
+        {
+          "name": "not claimed: object coordination refuses",
+          "passed": true,
+          "detail": "read 0/3 \u2014 it guessed where it cannot represent"
+        },
+        {
+          "name": "not claimed: VP coordination refuses",
+          "passed": true,
+          "detail": "read 0/3 \u2014 it guessed where it cannot represent"
+        },
+        {
+          "name": "not claimed: subordination refuses",
+          "passed": true,
+          "detail": "read 0/3 \u2014 it guessed where it cannot represent"
+        },
+        {
+          "name": "not claimed: complement clause refuses",
+          "passed": true,
+          "detail": "read 0/3 \u2014 it guessed where it cannot represent"
+        },
+        {
+          "name": "not claimed: ditransitive refuses",
+          "passed": false,
+          "detail": "read 1/3 \u2014 it guessed where it cannot represent"
+        },
+        {
+          "name": "not claimed: apposition refuses",
+          "passed": false,
+          "detail": "read 2/3 \u2014 it guessed where it cannot represent"
+        },
+        {
+          "name": "not claimed: comparative refuses",
+          "passed": true,
+          "detail": "read 0/3 \u2014 it guessed where it cannot represent"
+        },
+        {
+          "name": "not claimed: quantified refuses",
+          "passed": true,
+          "detail": "read 0/3 \u2014 it guessed where it cannot represent"
+        },
+        {
+          "name": "not claimed: passive refuses",
+          "passed": true,
+          "detail": "read 0/3 \u2014 it guessed where it cannot represent"
+        },
+        {
+          "name": "not claimed: possessive refuses",
+          "passed": true,
+          "detail": "read 0/3 \u2014 it guessed where it cannot represent"
+        },
+        {
+          "name": "not claimed: modal refuses",
+          "passed": false,
+          "detail": "read 2/3 \u2014 it guessed where it cannot represent"
+        },
+        {
+          "name": "CLAIMED: prepositional claim reads",
+          "passed": true,
+          "detail": "read 3/3"
+        },
+        {
+          "name": "not claimed: multi-clause definition refuses",
+          "passed": true,
+          "detail": "read 0/3 \u2014 it guessed where it cannot represent"
+        }
+      ],
+      "passed": 17,
+      "total": 20,
+      "seconds": 0.15
+    },
+    {
+      "experiment": "NLU-03 \u2014 Does it generalise to words it was never taught?",
+      "writes_to_store": false,
+      "notes": [
+        "every content word below is absent from the reader's evidence, so nothing here can be answered by having memorised a sentence"
+      ],
+      "data": {},
+      "checks": [
+        {
+          "name": "reads 'The kidney filters plasma.'",
+          "passed": true,
+          "detail": "got 'kidney_filter_plasma'; expected subject=kidney relation=filter object=plasma positive=True"
+        },
+        {
+          "name": "reads 'The tank stores water.'",
+          "passed": true,
+          "detail": "got 'tank_store_water'; expected subject=tank relation=store object=water positive=True"
+        },
+        {
+          "name": "reads 'A crucible melts ore.'",
+          "passed": false,
+          "detail": "declined []"
+        },
+        {
+          "name": "reads 'The turbine is not silent.'",
+          "passed": true,
+          "detail": "got '~turbine_silent'; expected subject=turbine relation=None object=silent positive=False"
+        },
+        {
+          "name": "reads 'The control rod is heavy.'",
+          "passed": true,
+          "detail": "got 'control_rod_heavy'; expected subject=control_rod relation=None object=heavy positive=True"
+        },
+        {
+          "name": "reads 'Is the reactor stable?'",
+          "passed": true,
+          "detail": "got 'reactor_stable'; expected subject=reactor relation=None object=stable positive=True"
+        }
+      ],
+      "passed": 5,
+      "total": 6,
+      "seconds": 0.01
+    },
+    {
+      "experiment": "NLU-04 \u2014 Does reading survive surface noise?",
+      "writes_to_store": false,
+      "notes": [],
+      "data": {},
+      "checks": [
+        {
+          "name": "uppercase: 'A robin is a bird.' not MISread",
+          "passed": true,
+          "detail": "clean ('robin_bird',) -> noisy ('robin_bird',)"
+        },
+        {
+          "name": "lowercase: 'A robin is a bird.' not MISread",
+          "passed": true,
+          "detail": "clean ('robin_bird',) -> noisy ('robin_bird',)"
+        },
+        {
+          "name": "no final stop: 'A robin is a bird.' not MISread",
+          "passed": true,
+          "detail": "clean ('robin_bird',) -> noisy ('robin_bird',)"
+        },
+        {
+          "name": "double spaces: 'A robin is a bird.' not MISread",
+          "passed": true,
+          "detail": "clean ('robin_bird',) -> noisy ('robin_bird',)"
+        },
+        {
+          "name": "leading/trailing space: 'A robin is a bird.' not MISread",
+          "passed": true,
+          "detail": "clean ('robin_bird',) -> noisy ('robin_bird',)"
+        },
+        {
+          "name": "doubled final stop: 'A robin is a bird.' not MISread",
+          "passed": true,
+          "detail": "clean ('robin_bird',) -> noisy ('robin_bird',)"
+        },
+        {
+          "name": "uppercase: 'The kidney filters plasma.' not MISread",
+          "passed": true,
+          "detail": "clean ('kidney_filter_plasma',) -> noisy ('kidney_filter_plasma',)"
+        },
+        {
+          "name": "lowercase: 'The kidney filters plasma.' not MISread",
+          "passed": true,
+          "detail": "clean ('kidney_filter_plasma',) -> noisy ('kidney_filter_plasma',)"
+        },
+        {
+          "name": "no final stop: 'The kidney filters plasma.' not MISread",
+          "passed": true,
+          "detail": "clean ('kidney_filter_plasma',) -> noisy ('kidney_filter_plasma',)"
+        },
+        {
+          "name": "double spaces: 'The kidney filters plasma.' not MISread",
+          "passed": true,
+          "detail": "clean ('kidney_filter_plasma',) -> noisy ('kidney_filter_plasma',)"
+        },
+        {
+          "name": "leading/trailing space: 'The kidney filters plasma.' not MISread",
+          "passed": true,
+          "detail": "clean ('kidney_filter_plasma',) -> noisy ('kidney_filter_plasma',)"
+        },
+        {
+          "name": "doubled final stop: 'The kidney filters plasma.' not MISread",
+          "passed": true,
+          "detail": "clean ('kidney_filter_plasma',) -> noisy ('kidney_filter_plasma',)"
+        },
+        {
+          "name": "uppercase: 'The vault is locked.' not MISread",
+          "passed": true,
+          "detail": "clean ('vault_locked',) -> noisy ('vault_locked',)"
+        },
+        {
+          "name": "lowercase: 'The vault is locked.' not MISread",
+          "passed": true,
+          "detail": "clean ('vault_locked',) -> noisy ('vault_locked',)"
+        },
+        {
+          "name": "no final stop: 'The vault is locked.' not MISread",
+          "passed": true,
+          "detail": "clean ('vault_locked',) -> noisy ('vault_locked',)"
+        },
+        {
+          "name": "double spaces: 'The vault is locked.' not MISread",
+          "passed": true,
+          "detail": "clean ('vault_locked',) -> noisy ('vault_locked',)"
+        },
+        {
+          "name": "leading/trailing space: 'The vault is locked.' not MISread",
+          "passed": true,
+          "detail": "clean ('vault_locked',) -> noisy ('vault_locked',)"
+        },
+        {
+          "name": "doubled final stop: 'The vault is locked.' not MISread",
+          "passed": true,
+          "detail": "clean ('vault_locked',) -> noisy ('vault_locked',)"
+        },
+        {
+          "name": "uppercase: 'The tank stores water.' not MISread",
+          "passed": true,
+          "detail": "clean ('tank_store_water',) -> noisy ('tank_store_water',)"
+        },
+        {
+          "name": "lowercase: 'The tank stores water.' not MISread",
+          "passed": true,
+          "detail": "clean ('tank_store_water',) -> noisy ('tank_store_water',)"
+        },
+        {
+          "name": "no final stop: 'The tank stores water.' not MISread",
+          "passed": true,
+          "detail": "clean ('tank_store_water',) -> noisy ('tank_store_water',)"
+        },
+        {
+          "name": "double spaces: 'The tank stores water.' not MISread",
+          "passed": true,
+          "detail": "clean ('tank_store_water',) -> noisy ('tank_store_water',)"
+        },
+        {
+          "name": "leading/trailing space: 'The tank stores water.' not MISread",
+          "passed": true,
+          "detail": "clean ('tank_store_water',) -> noisy ('tank_store_water',)"
+        },
+        {
+          "name": "doubled final stop: 'The tank stores water.' not MISread",
+          "passed": true,
+          "detail": "clean ('tank_store_water',) -> noisy ('tank_store_water',)"
+        }
+      ],
+      "passed": 24,
+      "total": 24,
+      "seconds": 0.03
+    },
+    {
+      "experiment": "NLU-05 \u2014 Is polarity ever silently wrong?",
+      "writes_to_store": false,
+      "notes": [],
+      "data": {},
+      "checks": [
+        {
+          "name": "polarity of 'A robin is a bird.'",
+          "passed": true,
+          "detail": "got 'robin_bird', expected affirmative"
+        },
+        {
+          "name": "polarity of 'A robin is not a mammal.'",
+          "passed": true,
+          "detail": "got '~robin_mammal', expected negative"
+        },
+        {
+          "name": "polarity of 'The engine is not cold.'",
+          "passed": true,
+          "detail": "got '~engine_cold', expected negative"
+        },
+        {
+          "name": "polarity of 'The vault is locked.'",
+          "passed": true,
+          "detail": "got 'vault_locked', expected affirmative"
+        },
+        {
+          "name": "polarity of 'The turbine is not silent.'",
+          "passed": true,
+          "detail": "got '~turbine_silent', expected negative"
+        },
+        {
+          "name": "polarity of 'The reactor is stable.'",
+          "passed": true,
+          "detail": "got 'reactor_stable', expected affirmative"
+        }
+      ],
+      "passed": 6,
+      "total": 6,
+      "seconds": 0.02
+    },
+    {
+      "experiment": "NLU-06 \u2014 Does a question relate the same things as its statement?",
+      "writes_to_store": false,
+      "notes": [
+        "a question and its statement make the SAME claim and differ only in what the asker wants done with it, so they must formalise alike"
+      ],
+      "data": {},
+      "checks": [
+        {
+          "name": "'Is the vault locked?' pairs with its statement",
+          "passed": true,
+          "detail": "('vault_locked',) vs ('vault_locked',)"
+        },
+        {
+          "name": "'Is a robin a bird?' pairs with its statement",
+          "passed": true,
+          "detail": "('robin_bird',) vs ('robin_bird',)"
+        },
+        {
+          "name": "'Is the reactor stable?' pairs with its statement",
+          "passed": true,
+          "detail": "('reactor_stable',) vs ('reactor_stable',)"
+        },
+        {
+          "name": "'Is the engine not cold?' pairs with its statement",
+          "passed": true,
+          "detail": "('~engine_cold',) vs ('~engine_cold',)"
+        }
+      ],
+      "passed": 4,
+      "total": 4,
+      "seconds": 0.03
+    },
+    {
+      "experiment": "NLU-07 \u2014 Read -> said -> read: does meaning survive a round trip?",
+      "writes_to_store": false,
+      "notes": [
+        "`_triple_sentence` is the ONE place a held fact becomes words, so this measures understanding against expression: what the substrate SAYS of a claim must read back as the same claim",
+        "cannot judge the article in \u201ca robin is a bird\u201d \u2014 the store holds no word class for the complement",
+        "cannot judge the article in \u201ca vault is a locked\u201d \u2014 the store holds no word class for the complement",
+        "cannot judge the article in \u201ca dog is an animal\u201d \u2014 the store holds no word class for the complement",
+        "cannot judge the article in \u201ca robin is not a mammal\u201d \u2014 the store holds no word class for the complement",
+        "said back: 'A robin is a bird.' -> \u201ca robin is a bird\u201d",
+        "said back: 'The vault is locked.' -> \u201ca vault is a locked\u201d",
+        "said back: 'A dog is an animal.' -> \u201ca dog is an animal\u201d",
+        "said back: 'A robin is not a mammal.' -> \u201ca robin is not a mammal\u201d"
+      ],
+      "data": {},
+      "checks": [
+        {
+          "name": "round trip: 'A robin is a bird.'",
+          "passed": true,
+          "detail": "said \u201ca robin is a bird\u201d -> ('robin_bird',) [derived:subject_relation_object_polarity], wanted ('robin_bird',)"
+        },
+        {
+          "name": "round trip: 'The vault is locked.'",
+          "passed": true,
+          "detail": "said \u201ca vault is a locked\u201d -> ('vault_locked',) [derived:subject_relation_object_polarity], wanted ('vault_locked',)"
+        },
+        {
+          "name": "can say back: 'The control rod is heavy.'",
+          "passed": false,
+          "detail": "the chain read it as ('control_rod_heavy',) but no clause parts exist to render, so it cannot state what it understood"
+        },
+        {
+          "name": "round trip: 'A dog is an animal.'",
+          "passed": true,
+          "detail": "said \u201ca dog is an animal\u201d -> ('dog_animal',) [derived:subject_relation_object_polarity], wanted ('dog_animal',)"
+        },
+        {
+          "name": "can say back: 'The engine is not cold.'",
+          "passed": false,
+          "detail": "the chain read it as ('~engine_cold',) but no clause parts exist to render, so it cannot state what it understood"
+        },
+        {
+          "name": "round trip: 'A robin is not a mammal.'",
+          "passed": true,
+          "detail": "said \u201ca robin is not a mammal\u201d -> ('~robin_mammal',) [derived:subject_relation_object_polarity], wanted ('~robin_mammal',)"
+        },
+        {
+          "name": "can say back: 'The smoke alarm is red.'",
+          "passed": false,
+          "detail": "the chain read it as ('smoke_alarm_red',) but no clause parts exist to render, so it cannot state what it understood"
+        },
+        {
+          "name": "can say back: 'The reactor is stable.'",
+          "passed": false,
+          "detail": "the chain read it as ('reactor_stable',) but no clause parts exist to render, so it cannot state what it understood"
+        }
+      ],
+      "passed": 4,
+      "total": 8,
+      "seconds": 0.05
+    },
+    {
+      "experiment": "NLU-08 \u2014 Does it ANSWER the question, or recite what it holds?",
+      "writes_to_store": true,
+      "notes": [
+        "runs the real conversation path \u2014 understand() then say() \u2014 which STORES what it is told; the taught claims below enter the store",
+        "asked \u201cWhat does a glarnick shape?\u201d -> \u201cA glarnick shapes metal.\u201d",
+        "asked \u201cIs a glarnick heavy?\u201d -> \u201cI remember: A glarnick shapes metal.\nA glarnick is a tool. It shapes metal.\nI hold nothing for heavy. Tell me what it is and I will keep it.\u201d",
+        "asked \u201cWhat is a glarnick?\u201d -> \u201cI remember: A glarnick shapes metal.\nA glarnick is a tool. It shapes metal.\u201d"
+      ],
+      "data": {},
+      "checks": [
+        {
+          "name": "answers 'What does a glarnick shape?'",
+          "passed": true,
+          "detail": "looked for 'metal' in the reply"
+        },
+        {
+          "name": "does not recite everything for 'What does a glarnick shape?'",
+          "passed": true,
+          "detail": "reply names 1 of the 3 held facts"
+        },
+        {
+          "name": "answers 'Is a glarnick heavy?'",
+          "passed": true,
+          "detail": "looked for 'heavy' in the reply"
+        },
+        {
+          "name": "does not recite everything for 'Is a glarnick heavy?'",
+          "passed": false,
+          "detail": "reply names 3 of the 3 held facts"
+        },
+        {
+          "name": "answers 'What is a glarnick?'",
+          "passed": true,
+          "detail": "looked for 'tool' in the reply"
+        },
+        {
+          "name": "does not recite everything for 'What is a glarnick?'",
+          "passed": true,
+          "detail": "reply names 2 of the 3 held facts"
+        }
+      ],
+      "passed": 5,
+      "total": 6,
+      "seconds": 8.5
+    },
+    {
+      "experiment": "NLU-09 \u2014 When it cannot represent a sentence, does it SAY so?",
+      "writes_to_store": false,
+      "notes": [
+        "the false-positive rate is the safety number here: a reading becomes a premise the solver cannot doubt, so a confident wrong reading is worse than no reading at all",
+        "false-positive rate on structures it cannot represent: 8.3% (1/12)"
+      ],
+      "data": {
+        "structures": 12,
+        "guessed": 1,
+        "false_positive_rate_pct": 8.33,
+        "guesses": [
+          {
+            "class": "bare fragment",
+            "atom": [
+              "why"
+            ],
+            "reader": "passthrough"
+          }
+        ]
+      },
+      "checks": [
+        {
+          "name": "refuses relative clause",
+          "passed": true,
+          "detail": "guessed None []"
+        },
+        {
+          "name": "refuses NP coordination",
+          "passed": true,
+          "detail": "guessed None []"
+        },
+        {
+          "name": "refuses object coordination",
+          "passed": true,
+          "detail": "guessed None []"
+        },
+        {
+          "name": "refuses VP coordination",
+          "passed": true,
+          "detail": "guessed None []"
+        },
+        {
+          "name": "refuses subordination",
+          "passed": true,
+          "detail": "guessed None []"
+        },
+        {
+          "name": "refuses complement clause",
+          "passed": true,
+          "detail": "guessed None []"
+        },
+        {
+          "name": "refuses ditransitive",
+          "passed": true,
+          "detail": "guessed None []"
+        },
+        {
+          "name": "refuses apposition",
+          "passed": true,
+          "detail": "guessed None []"
+        },
+        {
+          "name": "refuses comparative",
+          "passed": true,
+          "detail": "guessed None []"
+        },
+        {
+          "name": "refuses quantified",
+          "passed": true,
+          "detail": "guessed None []"
+        },
+        {
+          "name": "refuses multi-clause definition",
+          "passed": true,
+          "detail": "guessed None []"
+        },
+        {
+          "name": "refuses bare fragment",
+          "passed": false,
+          "detail": "guessed ('why',) [passthrough]"
+        }
+      ],
+      "passed": 11,
+      "total": 12,
+      "seconds": 0.03
+    },
+    {
+      "experiment": "NLU-10 \u2014 Where BOTH readers apply, do they agree?",
+      "writes_to_store": false,
+      "notes": [
+        "the written patterns and the derived reading are separate readers; a rule learned through one must fire on a fact admitted through the other, which needs one atom vocabulary rather than two",
+        "only one reader applies to 'A robin is a bird.' (written=False derived=True)",
+        "only one reader applies to 'A robin is not a mammal.' (written=False derived=True)",
+        "only one reader applies to 'The control rod is heavy.' (written=False derived=True)",
+        "only one reader applies to 'Is the vault locked?' (written=False derived=True)",
+        "only one reader applies to 'A crucible melts ore.' (written=False derived=False)",
+        "both readers applied to 3/8 sentences"
+      ],
+      "data": {},
+      "checks": [
+        {
+          "name": "agree on 'The vault is locked.'",
+          "passed": true,
+          "detail": "written 'vault_locked' vs derived 'vault_locked'"
+        },
+        {
+          "name": "agree on 'The kidney filters plasma.'",
+          "passed": true,
+          "detail": "written 'kidney_filter_plasma' vs derived 'kidney_filter_plasma'"
+        },
+        {
+          "name": "agree on 'The tank stores water.'",
+          "passed": true,
+          "detail": "written 'tank_store_water' vs derived 'tank_store_water'"
+        }
+      ],
+      "passed": 3,
+      "total": 3,
+      "seconds": 0.03
+    },
+    {
+      "experiment": "NLU-11 \u2014 Is reading deterministic and order-independent?",
+      "writes_to_store": false,
+      "notes": [
+        "the same sentence must read the same way however often it is asked and whatever was asked before it; a reader whose answer drifts makes every other measurement here unrepeatable"
+      ],
+      "data": {},
+      "checks": [
+        {
+          "name": "stable: 'Is the reactor stable?'",
+          "passed": true,
+          "detail": "('reactor_stable',) then ('reactor_stable',)"
+        },
+        {
+          "name": "stable: 'A robin is not a mammal.'",
+          "passed": true,
+          "detail": "('~robin_mammal',) then ('~robin_mammal',)"
+        },
+        {
+          "name": "stable: 'The vault is locked.'",
+          "passed": true,
+          "detail": "('vault_locked',) then ('vault_locked',)"
+        },
+        {
+          "name": "stable: 'The kidney filters plasma.'",
+          "passed": true,
+          "detail": "('kidney_filter_plasma',) then ('kidney_filter_plasma',)"
+        },
+        {
+          "name": "stable: 'A robin is a bird.'",
+          "passed": true,
+          "detail": "('robin_bird',) then ('robin_bird',)"
+        },
+        {
+          "name": "stable: 'Is the reactor stable?'",
+          "passed": true,
+          "detail": "('reactor_stable',) then ('reactor_stable',)"
+        },
+        {
+          "name": "stable: 'A robin is not a mammal.'",
+          "passed": true,
+          "detail": "('~robin_mammal',) then ('~robin_mammal',)"
+        },
+        {
+          "name": "stable: 'The vault is locked.'",
+          "passed": true,
+          "detail": "('vault_locked',) then ('vault_locked',)"
+        },
+        {
+          "name": "stable: 'The kidney filters plasma.'",
+          "passed": true,
+          "detail": "('kidney_filter_plasma',) then ('kidney_filter_plasma',)"
+        },
+        {
+          "name": "stable: 'A robin is a bird.'",
+          "passed": true,
+          "detail": "('robin_bird',) then ('robin_bird',)"
+        }
+      ],
+      "passed": 10,
+      "total": 10,
+      "seconds": 0.04
+    },
+    {
+      "experiment": "NLU-12 \u2014 Where in sentence LENGTH does understanding fail?",
+      "writes_to_store": false,
+      "notes": [
+        "04-08 words: 17/85 read (20%)",
+        "09-12 words: 6/60 read (10%)",
+        "13-18 words: 3/69 read (4%)",
+        "19-25 words: 0/39 read (0%)",
+        "26-40 words: 0/47 read (0%)"
+      ],
+      "data": {
+        "04-08": {
+          "read": 17,
+          "of": 85,
+          "pct": 20.0
+        },
+        "09-12": {
+          "read": 6,
+          "of": 60,
+          "pct": 10.0
+        },
+        "13-18": {
+          "read": 3,
+          "of": 69,
+          "pct": 4.3
+        },
+        "19-25": {
+          "read": 0,
+          "of": 39,
+          "pct": 0.0
+        },
+        "26-40": {
+          "read": 0,
+          "of": 47,
+          "pct": 0.0
+        }
+      },
+      "checks": [
+        {
+          "name": "short sentences read more often than long ones",
+          "passed": true,
+          "detail": "short 17/85 vs long 0/47"
+        },
+        {
+          "name": "every bucket was populated",
+          "passed": true,
+          "detail": "buckets: ['04-08', '09-12', '13-18', '19-25', '26-40']"
+        }
+      ],
+      "passed": 2,
+      "total": 2,
+      "seconds": 2.23
+    }
+  ]
+}

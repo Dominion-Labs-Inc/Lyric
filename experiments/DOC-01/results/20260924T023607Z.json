@@ -1,0 +1,93 @@
+{
+  "experiment": "DOC-01 \u2014 What share of REAL documents can it perceive, and read?",
+  "writes_to_store": false,
+  "notes": [
+    "corpus: 4,404 real document(s) across 10 format(s) (every one found)",
+    "bound: the first 12 sentence(s) of each document are read, and that bound is stated rather than silent",
+    "PERCEIVED 4,404/4,404 (100.0%) \u00b7 refused 0 \u00b7 raised 0 \u00b7 in 710s",
+    "DOCUMENT  (written by a person): 1,735 file(s) \u00b7 1,783,569 word(s) \u00b7 16,015 claim(s) from 11,603 sentence(s) (1.380 per sentence) \u00b7 1,703 yielded a claim",
+    "MACHINE   (emitted by a machine): 2,669 file(s) \u00b7 618,515,982 word(s) \u00b7 5,254 claim(s) from 8,798 sentence(s) (0.597 per sentence) \u00b7 2,495 yielded a claim",
+    "34 document(s) opened but carried NO text \u2014 a scanned page has no text layer, and that is this number"
+  ],
+  "data": {
+    "corpus": {
+      "documents": 4404,
+      "seconds": 710.2
+    },
+    "perceive": {
+      "perceived": 4404,
+      "refused": 0,
+      "raised": 0,
+      "pct": 100.0
+    },
+    "by_format": {
+      ".json": 2179,
+      ".md": 1251,
+      ".log": 382,
+      ".txt": 359,
+      ".yml": 100,
+      ".pdf": 81,
+      ".docx": 27,
+      ".csv": 15,
+      ".yaml": 8,
+      ".xlsx": 2
+    },
+    "could_not_open": {},
+    "reasons": {},
+    "text": {
+      "words": 620299551,
+      "documents_with_no_text": 34
+    },
+    "read": {
+      "sentences": 20401,
+      "claims": 21269,
+      "claims_per_sentence": 1.043
+    },
+    "by_kind": {
+      "document": {
+        "perceived": 1735,
+        "words": 1783569,
+        "sentences": 11603,
+        "claims": 16015,
+        "with_claims": 1703
+      },
+      "machine": {
+        "perceived": 2669,
+        "words": 618515982,
+        "sentences": 8798,
+        "claims": 5254,
+        "with_claims": 2495
+      }
+    }
+  },
+  "checks": [
+    {
+      "name": "no document made the reader raise",
+      "passed": true,
+      "detail": "0 raised: {}"
+    },
+    {
+      "name": "every perceived document reported its format",
+      "passed": true,
+      "detail": "4404 of 4404 carried a format"
+    },
+    {
+      "name": "PDFs are perceived",
+      "passed": true,
+      "detail": "81 PDF(s) opened"
+    },
+    {
+      "name": "text is actually extracted, not just opened",
+      "passed": true,
+      "detail": "1,783,569 word(s) from documents"
+    },
+    {
+      "name": "a document written by a person yields a claim",
+      "passed": true,
+      "detail": "1,703 of 1,735 document(s)"
+    }
+  ],
+  "passed": 5,
+  "total": 5,
+  "seconds": 0.0
+}

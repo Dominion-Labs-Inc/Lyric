@@ -128,6 +128,9 @@ class Claim:
     confidence: float = 0.5
     source: str = ""
     timestamp: datetime = field(default_factory=datetime.now)
+    #: Whose claim this is: a person's actor id when it was made reasoning for
+    #: them, None for the substrate's own. Its argument and fallacies are theirs too.
+    owner: Optional[str] = None
 
 
 @dataclass
@@ -251,74 +254,105 @@ class FormalArgumentationSystem:
         from core.database import get_database_manager
         return get_database_manager()
 
+    #: The argumentation tables. Each row is whoever's its claim is: a person's in
+    #: their context, the substrate's own in the model (a per-owner table,
+    #: `postgres_config.PER_OWNER_TABLES`), so each is kept in every store its
+    #: rows can be kept in.
+    _SCHEMA = (
+        "CREATE TABLE IF NOT EXISTS unified.reasoning_arg_claims ("
+        "claim_id TEXT PRIMARY KEY, statement TEXT NOT NULL, warrant TEXT, "
+        "qualifier TEXT, confidence REAL, source TEXT, "
+        "created_at TIMESTAMPTZ DEFAULT NOW(), owner TEXT)",
+        "ALTER TABLE unified.reasoning_arg_claims ADD COLUMN IF NOT EXISTS owner TEXT",
+        "CREATE TABLE IF NOT EXISTS unified.reasoning_arguments ("
+        "argument_id TEXT PRIMARY KEY, claim_id TEXT, argument_type TEXT, "
+        "conclusion TEXT, strength TEXT, validity BOOLEAN, soundness BOOLEAN, "
+        "refuted_by TEXT, created_at TIMESTAMPTZ DEFAULT NOW(), owner TEXT)",
+        "ALTER TABLE unified.reasoning_arguments ADD COLUMN IF NOT EXISTS owner TEXT",
+        "CREATE TABLE IF NOT EXISTS unified.reasoning_arg_fallacies ("
+        "fallacy_id TEXT PRIMARY KEY, fallacy_type TEXT, argument_id TEXT, "
+        "description TEXT, severity REAL, "
+        "created_at TIMESTAMPTZ DEFAULT NOW(), owner TEXT)",
+        "ALTER TABLE unified.reasoning_arg_fallacies ADD COLUMN IF NOT EXISTS owner TEXT",
+    )
+
     async def _ensure_schema(self):
         """Create the argumentation tables in the unified DB if absent. Idempotent."""
         db = self._db()
         if not getattr(db, "initialized", False):
             await db.initialize()
-        await db.execute_query(
-            "CREATE TABLE IF NOT EXISTS unified.reasoning_arg_claims ("
-            "claim_id TEXT PRIMARY KEY, statement TEXT NOT NULL, warrant TEXT, "
-            "qualifier TEXT, confidence REAL, source TEXT, "
-            "created_at TIMESTAMPTZ DEFAULT NOW())", commit=True)
-        await db.execute_query(
-            "CREATE TABLE IF NOT EXISTS unified.reasoning_arguments ("
-            "argument_id TEXT PRIMARY KEY, claim_id TEXT, argument_type TEXT, "
-            "conclusion TEXT, strength TEXT, validity BOOLEAN, soundness BOOLEAN, "
-            "refuted_by TEXT, created_at TIMESTAMPTZ DEFAULT NOW())", commit=True)
-        await db.execute_query(
-            "CREATE TABLE IF NOT EXISTS unified.reasoning_arg_fallacies ("
-            "fallacy_id TEXT PRIMARY KEY, fallacy_type TEXT, argument_id TEXT, "
-            "description TEXT, severity REAL, "
-            "created_at TIMESTAMPTZ DEFAULT NOW())", commit=True)
+        for store in db.schema_stores():
+            for statement in self._SCHEMA:
+                await db.execute_query(statement, commit=True, store=store)
 
     async def persist(self):
         """Persist argumentation knowledge to the unified PostgreSQL DB.
         Off the critical path and non-fatal: reasoning is in-memory and a
         persistence failure must never break it (the old SQLite write was a
-        synchronous filesystem write inside the reasoning path)."""
+        synchronous filesystem write inside the reasoning path).
+
+        Each record goes to its owner's store. A person's are then let go: they
+        are kept in their context, not in the substrate's working set, which
+        holds only its own."""
         try:
             await self._ensure_schema()
-            db = self._db()
+            from core.agents.memory_agent import memory_agent
+            from core.memory import Origin
+            memory = memory_agent()
             for c in self.claims.values():
-                await db.execute_query(
-                    "INSERT INTO unified.reasoning_arg_claims "
-                    "(claim_id, statement, warrant, qualifier, confidence, source) "
-                    "VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (claim_id) DO UPDATE SET "
-                    "statement=EXCLUDED.statement, confidence=EXCLUDED.confidence",
-                    (c.claim_id, c.statement, c.warrant, c.qualifier,
-                     float(c.confidence), c.source), commit=True)
+                await memory.hold_argument_claim(
+                    claim_id=c.claim_id, statement=c.statement, warrant=c.warrant,
+                    qualifier=c.qualifier, confidence=float(c.confidence), source=c.source,
+                    origin=Origin.of(c.owner, "argument"))
             for a in self.arguments.values():
-                await db.execute_query(
-                    "INSERT INTO unified.reasoning_arguments "
-                    "(argument_id, claim_id, argument_type, conclusion, strength, "
-                    "validity, soundness, refuted_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) "
-                    "ON CONFLICT (argument_id) DO UPDATE SET validity=EXCLUDED.validity, "
-                    "soundness=EXCLUDED.soundness, refuted_by=EXCLUDED.refuted_by",
-                    (a.argument_id, a.claim.claim_id, a.argument_type.value,
-                     a.conclusion, a.strength.value, bool(a.validity),
-                     bool(a.soundness), a.refuted_by), commit=True)
+                await memory.hold_argument(
+                    argument_id=a.argument_id, claim_id=a.claim.claim_id,
+                    argument_type=a.argument_type.value, conclusion=a.conclusion,
+                    strength=a.strength.value, validity=bool(a.validity),
+                    soundness=bool(a.soundness), refuted_by=a.refuted_by,
+                    origin=Origin.of(a.claim.owner, "argument"))
             for f in self.fallacies.values():
-                await db.execute_query(
-                    "INSERT INTO unified.reasoning_arg_fallacies "
-                    "(fallacy_id, fallacy_type, argument_id, description, severity) "
-                    "VALUES ($1,$2,$3,$4,$5) ON CONFLICT (fallacy_id) DO UPDATE SET "
-                    "description=EXCLUDED.description, severity=EXCLUDED.severity",
-                    (f.fallacy_id, f.fallacy_type.value, f.argument_id,
-                     f.description, float(f.severity)), commit=True)
+                argument = self.arguments.get(f.argument_id)
+                await memory.hold_fallacy(
+                    fallacy_id=f.fallacy_id, fallacy_type=f.fallacy_type.value,
+                    argument_id=f.argument_id, description=f.description,
+                    severity=float(f.severity),
+                    origin=Origin.of(argument.claim.owner if argument else None, "argument"))
+            self._let_go_of_theirs()
         except Exception as error:
             logger.debug("argumentation persist skipped (non-fatal): %s", error)
 
+    def forget(self, argument: "Argument") -> None:
+        """Drop one argument, with its claim and fallacies, without keeping it."""
+        for fid in [fid for fid, f in self.fallacies.items()
+                    if f.argument_id == argument.argument_id]:
+            del self.fallacies[fid]
+        self.arguments.pop(argument.argument_id, None)
+        self.claims.pop(argument.claim.claim_id, None)
+
+    def _let_go_of_theirs(self) -> None:
+        """Drop every person's claim, argument and fallacy from the working set."""
+        theirs = {cid for cid, c in self.claims.items() if c.owner}
+        gone = {aid for aid, a in self.arguments.items() if a.claim.claim_id in theirs}
+        for fid in [fid for fid, f in self.fallacies.items() if f.argument_id in gone]:
+            del self.fallacies[fid]
+        for aid in gone:
+            del self.arguments[aid]
+        for cid in theirs:
+            del self.claims[cid]
+
     async def load(self, limit: int = 1000):
-        """Bring prior claims and arguments into memory so argument evaluation
-        consults what earlier sessions established. Non-fatal."""
+        """Bring the substrate's own prior claims and arguments into memory so
+        argument evaluation consults what earlier sessions established. A
+        person's stay in their context. Non-fatal."""
         try:
             await self._ensure_schema()
             db = self._db()
             rows = await db.execute_query(
                 "SELECT claim_id, statement, warrant, qualifier, confidence, source "
-                "FROM unified.reasoning_arg_claims ORDER BY created_at DESC LIMIT $1",
-                (int(limit),), fetch_all=True) or []
+                "FROM unified.reasoning_arg_claims WHERE owner IS NULL "
+                "ORDER BY created_at DESC LIMIT $1",
+                (int(limit),), fetch_all=True, store="model") or []
             for r in rows:
                 if r["claim_id"] not in self.claims:
                     self.claims[r["claim_id"]] = Claim(
@@ -328,7 +362,8 @@ class FormalArgumentationSystem:
             rows = await db.execute_query(
                 "SELECT argument_id, claim_id, argument_type, conclusion, strength, "
                 "validity, soundness, refuted_by FROM unified.reasoning_arguments "
-                "ORDER BY created_at DESC LIMIT $1", (int(limit),), fetch_all=True) or []
+                "WHERE owner IS NULL ORDER BY created_at DESC LIMIT $1", (int(limit),),
+                fetch_all=True, store="model") or []
             for r in rows:
                 claim = self.claims.get(r["claim_id"])
                 if claim is None or r["argument_id"] in self.arguments:
@@ -422,11 +457,13 @@ class FormalArgumentationSystem:
         qualifier: str = "probably",
         rebuttal: Optional[List[str]] = None,
         confidence: float = 0.5,
-        source: str = ""
+        source: str = "",
+        owner: Optional[str] = None
     ) -> Claim:
-        """Create a claim with Toulmin structure"""
+        """Create a claim with Toulmin structure. `owner` is whose it is: a
+        person's actor id, or None for the substrate's own."""
         claim_id = f"claim_{uuid.uuid4().hex[:12]}"
-        
+
         claim = Claim(
             claim_id=claim_id,
             statement=statement,
@@ -436,7 +473,8 @@ class FormalArgumentationSystem:
             qualifier=qualifier,
             rebuttal=rebuttal or [],
             confidence=confidence,
-            source=source
+            source=source,
+            owner=owner
         )
         
         self.claims[claim_id] = claim

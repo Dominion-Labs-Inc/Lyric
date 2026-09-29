@@ -1,0 +1,164 @@
+{
+  "experiment": "ENCODER-03 \u2014 merge safety: which encoder destroys fewer memories?",
+  "seed": 20260922,
+  "hypotheses": [
+    "H1 native makes fewer false merges at the live threshold (0.75)",
+    "H2 native has a threshold with ZERO false merges and useful dedup",
+    "H3 MiniLM has no such threshold"
+  ],
+  "data": {
+    "n_must_differ": 90,
+    "n_must_match": 90,
+    "sweep": {
+      "MiniLM": {
+        "0.5": {
+          "false_merge_rate": 0.6666666666666666,
+          "dedup_rate": 1.0
+        },
+        "0.6": {
+          "false_merge_rate": 0.4111111111111111,
+          "dedup_rate": 1.0
+        },
+        "0.7": {
+          "false_merge_rate": 0.14444444444444443,
+          "dedup_rate": 1.0
+        },
+        "0.75": {
+          "false_merge_rate": 0.1,
+          "dedup_rate": 1.0
+        },
+        "0.8": {
+          "false_merge_rate": 0.011111111111111112,
+          "dedup_rate": 1.0
+        },
+        "0.85": {
+          "false_merge_rate": 0.011111111111111112,
+          "dedup_rate": 0.9888888888888889
+        },
+        "0.9": {
+          "false_merge_rate": 0.0,
+          "dedup_rate": 0.9333333333333333
+        },
+        "0.95": {
+          "false_merge_rate": 0.0,
+          "dedup_rate": 0.34444444444444444
+        },
+        "0.99": {
+          "false_merge_rate": 0.0,
+          "dedup_rate": 0.0
+        }
+      },
+      "native": {
+        "0.5": {
+          "false_merge_rate": 1.0,
+          "dedup_rate": 1.0
+        },
+        "0.6": {
+          "false_merge_rate": 1.0,
+          "dedup_rate": 1.0
+        },
+        "0.7": {
+          "false_merge_rate": 1.0,
+          "dedup_rate": 1.0
+        },
+        "0.75": {
+          "false_merge_rate": 1.0,
+          "dedup_rate": 1.0
+        },
+        "0.8": {
+          "false_merge_rate": 0.7222222222222222,
+          "dedup_rate": 1.0
+        },
+        "0.85": {
+          "false_merge_rate": 0.6666666666666666,
+          "dedup_rate": 1.0
+        },
+        "0.9": {
+          "false_merge_rate": 0.16666666666666666,
+          "dedup_rate": 1.0
+        },
+        "0.95": {
+          "false_merge_rate": 0.0,
+          "dedup_rate": 1.0
+        },
+        "0.99": {
+          "false_merge_rate": 0.0,
+          "dedup_rate": 0.0
+        }
+      },
+      "structural": {
+        "0.5": {
+          "false_merge_rate": 0.05555555555555555,
+          "dedup_rate": 1.0
+        },
+        "0.6": {
+          "false_merge_rate": 0.05555555555555555,
+          "dedup_rate": 1.0
+        },
+        "0.7": {
+          "false_merge_rate": 0.05555555555555555,
+          "dedup_rate": 1.0
+        },
+        "0.75": {
+          "false_merge_rate": 0.05555555555555555,
+          "dedup_rate": 1.0
+        },
+        "0.8": {
+          "false_merge_rate": 0.022222222222222223,
+          "dedup_rate": 1.0
+        },
+        "0.85": {
+          "false_merge_rate": 0.0,
+          "dedup_rate": 1.0
+        },
+        "0.9": {
+          "false_merge_rate": 0.0,
+          "dedup_rate": 1.0
+        },
+        "0.95": {
+          "false_merge_rate": 0.0,
+          "dedup_rate": 1.0
+        },
+        "0.99": {
+          "false_merge_rate": 0.0,
+          "dedup_rate": 1.0
+        }
+      }
+    }
+  },
+  "checks": [
+    {
+      "name": "H1 native destroys fewer distinct memories at the live threshold",
+      "passed": false,
+      "detail": "native 100.0% vs MiniLM 10.0% false merges at 0.75"
+    },
+    {
+      "name": "H1b STRUCTURAL destroys fewer distinct memories at the live threshold",
+      "passed": true,
+      "detail": "structural 5.6% vs MiniLM 10.0% false merges at 0.75"
+    },
+    {
+      "name": "H1c STRUCTURAL destroys nothing at the live threshold",
+      "passed": false,
+      "detail": "structural 5.6% false merges at 0.75"
+    },
+    {
+      "name": "H2b STRUCTURAL has a zero-destruction threshold that still dedups",
+      "passed": true,
+      "detail": "t=0.85 dedup 100.0%"
+    },
+    {
+      "name": "H2 native has a zero-destruction threshold that still dedups",
+      "passed": true,
+      "detail": "t=0.95 dedup 100.0%"
+    },
+    {
+      "name": "H3 MiniLM has no zero-destruction threshold that still dedups",
+      "passed": false,
+      "detail": "it does: t=0.9 dedup 93.3%"
+    }
+  ],
+  "passed": 3,
+  "total": 6,
+  "verdict": "safer at the merge gate: neither"
+}

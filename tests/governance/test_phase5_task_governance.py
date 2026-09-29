@@ -20,7 +20,22 @@ from core.agents.autonomous.shared_types import Task, TaskType, TaskSource, Prio
 
 
 class TestPhase5ATaskGovernance(TestBase):
-    """Phase 5A: Task Creation Governance - MySQL Logged Tests"""
+    """Phase 5A: who bounds the creation of work, now that the queue holds no governance.
+
+    These tests used to count a sliding window of autonomous tasks and "trigger
+    governance" at the 20th. That mechanism was removed from the queue on
+    2026-09-01: governance is a blanket authority applied where the substrate
+    DECIDES to act (the Constitution), never reached up into from inside the
+    queue. What bounds a flood of self-created work now is the queue's own
+    admission control -- capacity, not permission -- and that is what is tested:
+    discretionary autonomous work is deferred under backlog pressure, work a
+    user directed never is, and pressure clears as work drains.
+
+    EVERY QUEUE HERE IS BUILT WITHOUT PERSISTENCE. The old tests wrote each task
+    into the durable queue, and 184 fixtures from a 2026-09-20 run were sitting
+    there PENDING -- restored and run at the next boot. Removed 2026-09-26
+    (snapshot `data/snapshots/phase5a_queue_residue_20260926T151108Z.json`).
+    """
 
     def __init__(self):
         super().__init__(
@@ -29,153 +44,101 @@ class TestPhase5ATaskGovernance(TestBase):
         )
         self.queue = None
 
+    @staticmethod
+    def _queue(**config):
+        queue = TaskQueue({"persist": False, **config})
+        assert queue._persistence_or_none() is None, "a test queue must never reach the durable queue"
+        return queue
+
+    @staticmethod
+    def _task(task_id, source, description):
+        return Task(id=task_id, type=TaskType.ANALYSIS, source=source,
+                    description=description)
+
     @pytest.mark.asyncio
     async def test_1_normal_task_creation(self):
-        """Single autonomous task should not trigger governance"""
-        self.queue = TaskQueue()
+        """A single autonomous task on a quiet queue is admitted."""
+        self.queue = self._queue()
 
-        task = Task(
-            id="task_1",
-            type=TaskType.ANALYSIS,
-            source=TaskSource.AUTONOMOUS,
-            description="Analyze system metrics"
-        )
-
-        result = await self.queue.add_task(task)
+        result = await self.queue.add_task(
+            self._task("task_1", TaskSource.AUTONOMOUS, "Analyze system metrics"))
 
         assert result is True, "Task should be added"
         assert self.queue.get_queue_length() == 1, "Queue should have 1 task"
-        assert self.queue.governance_triggered_count == 0, "Governance should not trigger for 1 task"
+        assert self.queue.pressure() == "nominal"
+        assert self.queue.metrics["tasks_deferred"] == 0
 
     @pytest.mark.asyncio
     async def test_2_user_defined_tasks_exempt(self):
-        """100 user tasks should not trigger governance"""
-        self.queue = TaskQueue()
+        """Work a user directed is never deferred, even past the hard limit."""
+        self.queue = self._queue(soft_limit=5, hard_limit=10)
 
-        # Add 100 user tasks
-        for i in range(100):
+        for i in range(30):
             source = [TaskSource.API, TaskSource.MANUAL, TaskSource.API][i % 3]
-            task = Task(
-                id=f"user_task_{i}",
-                type=TaskType.ANALYSIS,
-                source=source,
-                description=f"User task {i}"
-            )
-            result = await self.queue.add_task(task)
+            result = await self.queue.add_task(
+                self._task(f"user_task_{i}", source, f"User task {i}"))
             assert result is True, f"User task {i} should be added"
 
-        assert self.queue.get_queue_length() == 100, "Should have 100 tasks"
-        assert self.queue.governance_triggered_count == 0, "User tasks never trigger governance"
-        assert self.queue.user_tasks_exempt_count == 100, "All 100 should be exempt"
+        assert self.queue.get_queue_length() == 30, "Should have 30 tasks"
+        assert self.queue.pressure() == "hard", "the backlog is past the hard limit"
+        assert self.queue.metrics["tasks_deferred"] == 0, "user-directed work is never deferred"
 
     @pytest.mark.asyncio
     async def test_3_bulk_autonomous_triggers_governance(self):
-        """20+ autonomous tasks should trigger governance"""
-        self.queue = TaskQueue()
+        """A burst of discretionary autonomous work is deferred once the backlog is under pressure."""
+        self.queue = self._queue(soft_limit=5, hard_limit=10)
 
-        # Add 19 tasks - should all succeed
-        for i in range(19):
-            task = Task(
-                id=f"auto_{i}",
-                type=TaskType.ANALYSIS,
-                source=TaskSource.AUTONOMOUS,
-                description=f"Auto task {i}"
-            )
-            result = await self.queue.add_task(task)
-            assert result is True, f"Task {i} should be added (below threshold)"
+        admitted = 0
+        for i in range(20):
+            admitted += await self.queue.add_task(
+                self._task(f"auto_{i}", TaskSource.AUTONOMOUS, f"Auto task {i}"))
 
-        assert self.queue.governance_triggered_count == 0, "No governance yet"
+        assert admitted == 5, f"only the work below the soft limit is admitted, got {admitted}"
+        assert self.queue.get_queue_length() == 5
+        assert self.queue.metrics["tasks_deferred"] == 15, "the rest is deferred, and counted"
+        assert self.queue.pressure() == "soft"
 
-        # Add 20th task - triggers governance
-        task_20 = Task(
-            id="auto_19",
-            type=TaskType.ANALYSIS,
-            source=TaskSource.AUTONOMOUS,
-            description="20th task"
-        )
-        await self.queue.add_task(task_20)
-
-        # Governance should have been triggered
-        assert self.queue.governance_triggered_count >= 1, "Governance should trigger on 20th task"
+        # An obligation is not discretionary: high-priority autonomous work still enters.
+        urgent = await self.queue.add_task(
+            self._task("auto_19", TaskSource.AUTONOMOUS, "20th task"), Priority.HIGH)
+        assert urgent is True, "high-priority autonomous work is admitted under soft pressure"
 
     @pytest.mark.asyncio
     async def test_4_mixed_source_only_counts_autonomous(self):
-        """User + autonomous mix should only count autonomous toward threshold"""
-        # Backpressure limits raised so they do not decide this test. The
-        # default soft_limit is 25, and the 50 user tasks below push the queue
-        # into soft pressure, at which point discretionary AUTONOMOUS work is
-        # correctly deferred -- so the 10 autonomous tasks never entered the
-        # queue and the count came to 55. That is backpressure working, not the
-        # governance exemption this test is about, and the two must not be
-        # measured through each other.
-        self.queue = TaskQueue({"soft_limit": 500, "hard_limit": 1000})
+        """Under pressure, only the discretionary autonomous work is deferred."""
+        self.queue = self._queue(soft_limit=5, hard_limit=10)
 
-        # 50 user tasks
-        for i in range(50):
-            task = Task(
-                id=f"user_{i}",
-                type=TaskType.ANALYSIS,
-                source=TaskSource.MANUAL,
-                description=f"User {i}"
-            )
-            await self.queue.add_task(task)
+        for i in range(8):
+            await self.queue.add_task(self._task(f"user_{i}", TaskSource.MANUAL, f"User {i}"))
+        autonomous = [await self.queue.add_task(
+                          self._task(f"auto_{i}", TaskSource.AUTONOMOUS, f"Auto {i}"))
+                      for i in range(5)]
+        users_after = [await self.queue.add_task(
+                           self._task(f"api_{i}", TaskSource.API, f"API {i}"))
+                       for i in range(3)]
 
-        # 10 autonomous tasks
-        for i in range(10):
-            task = Task(
-                id=f"auto_{i}",
-                type=TaskType.ANALYSIS,
-                source=TaskSource.AUTONOMOUS,
-                description=f"Auto {i}"
-            )
-            await self.queue.add_task(task)
-
-        # 5 more user tasks
-        for i in range(5):
-            task = Task(
-                id=f"api_{i}",
-                type=TaskType.ANALYSIS,
-                source=TaskSource.API,
-                description=f"API {i}"
-            )
-            await self.queue.add_task(task)
-
-        assert self.queue.get_queue_length() == 65, "Should have 65 total tasks"
-        assert self.queue.user_tasks_exempt_count == 55, "55 user tasks exempt"
-        assert len(self.queue.autonomous_task_window) == 10, "Only 10 autonomous tracked"
-        assert self.queue.governance_triggered_count == 0, "Below 20 threshold"
+        assert not any(autonomous), "discretionary autonomous work is deferred under pressure"
+        assert all(users_after), "user-directed work still enters"
+        assert self.queue.get_queue_length() == 11, "8 + 3 user tasks, no autonomous"
+        assert self.queue.metrics["tasks_deferred"] == 5
 
     @pytest.mark.asyncio
     async def test_5_window_cleanup(self):
-        """Task window should cleanup old entries"""
-        self.queue = TaskQueue()
+        """Pressure clears as work drains, and autonomous work is admitted again."""
+        self.queue = self._queue(soft_limit=3, hard_limit=10)
 
-        # Add 10 tasks
-        for i in range(10):
-            task = Task(
-                id=f"task_{i}",
-                type=TaskType.ANALYSIS,
-                source=TaskSource.AUTONOMOUS,
-                description=f"Task {i}"
-            )
-            await self.queue.add_task(task)
+        for i in range(3):
+            await self.queue.add_task(self._task(f"task_{i}", TaskSource.AUTONOMOUS, f"Task {i}"))
+        assert self.queue.pressure() == "soft"
+        deferred = await self.queue.add_task(
+            self._task("task_3", TaskSource.AUTONOMOUS, "Task 3"))
+        assert deferred is False, "deferred while the backlog is at the soft limit"
 
-        assert len(self.queue.autonomous_task_window) == 10, "Should have 10 in window"
-
-        # Force window expiry
-        import datetime
-        self.queue.task_window_duration = datetime.timedelta(seconds=0)
-
-        # Add new task - should cleanup old ones
-        task = Task(
-            id="new_task",
-            type=TaskType.ANALYSIS,
-            source=TaskSource.AUTONOMOUS,
-            description="New task"
-        )
-        await self.queue.add_task(task)
-
-        assert len(self.queue.autonomous_task_window) == 1, "Old entries should be removed"
+        assert await self.queue.get_next_task(timeout=0) is not None, "a worker draws one job"
+        assert self.queue.pressure() == "nominal"
+        admitted = await self.queue.add_task(
+            self._task("new_task", TaskSource.AUTONOMOUS, "New task"))
+        assert admitted is True, "admitted again once the backlog drained"
 
     async def run_all_tests(self):
         """Run all Phase 5A tests"""
@@ -185,9 +148,8 @@ class TestPhase5ATaskGovernance(TestBase):
             "test_1_normal_task_creation",
             self.test_1_normal_task_creation,
             metadata={
-                "description": "Single autonomous task should not trigger governance",
-                "expected_behavior": "Task added to queue without governance trigger",
-                "governance_threshold": 20,
+                "description": "A single autonomous task on a quiet queue is admitted",
+                "expected_behavior": "Admitted at nominal pressure, nothing deferred",
                 "tasks_added": 1
             }
         )
@@ -196,10 +158,10 @@ class TestPhase5ATaskGovernance(TestBase):
             "test_2_user_defined_tasks_exempt",
             self.test_2_user_defined_tasks_exempt,
             metadata={
-                "description": "100 user tasks should not trigger governance",
-                "expected_behavior": "All user tasks exempt from governance",
-                "governance_threshold": 20,
-                "tasks_added": 100,
+                "description": "User-directed work is never deferred, even past the hard limit",
+                "expected_behavior": "All 30 admitted at hard pressure",
+                "soft_limit": 5, "hard_limit": 10,
+                "tasks_added": 30,
                 "task_sources": ["API", "MANUAL"]
             }
         )
@@ -208,10 +170,10 @@ class TestPhase5ATaskGovernance(TestBase):
             "test_3_bulk_autonomous_triggers_governance",
             self.test_3_bulk_autonomous_triggers_governance,
             metadata={
-                "description": "20+ autonomous tasks should trigger governance",
-                "expected_behavior": "Governance triggered on 20th autonomous task",
-                "governance_threshold": 20,
-                "tasks_added": 20,
+                "description": "A burst of discretionary autonomous work is deferred under pressure",
+                "expected_behavior": "5 admitted, 15 deferred; high priority still admitted",
+                "soft_limit": 5, "hard_limit": 10,
+                "tasks_added": 21,
                 "task_source": "AUTONOMOUS"
             }
         )
@@ -220,12 +182,10 @@ class TestPhase5ATaskGovernance(TestBase):
             "test_4_mixed_source_only_counts_autonomous",
             self.test_4_mixed_source_only_counts_autonomous,
             metadata={
-                "description": "User + autonomous mix should only count autonomous toward threshold",
-                "expected_behavior": "Only autonomous tasks counted, user tasks exempt",
-                "governance_threshold": 20,
-                "user_tasks": 55,
-                "autonomous_tasks": 10,
-                "total_tasks": 65
+                "description": "Under pressure only discretionary autonomous work is deferred",
+                "expected_behavior": "11 user tasks admitted, 5 autonomous deferred",
+                "user_tasks": 11,
+                "autonomous_tasks": 5
             }
         )
 
@@ -233,10 +193,9 @@ class TestPhase5ATaskGovernance(TestBase):
             "test_5_window_cleanup",
             self.test_5_window_cleanup,
             metadata={
-                "description": "Task window should cleanup old entries",
-                "expected_behavior": "Expired tasks removed from tracking window",
-                "window_duration": "5 minutes (forced to 0 for test)",
-                "tasks_added": 11
+                "description": "Pressure clears as work drains",
+                "expected_behavior": "Deferred at the soft limit, admitted again after a job is drawn",
+                "tasks_added": 5
             }
         )
 

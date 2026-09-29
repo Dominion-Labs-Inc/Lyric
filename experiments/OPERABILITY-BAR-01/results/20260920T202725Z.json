@@ -1,0 +1,54 @@
+{
+  "experiment": "OPERABILITY-BAR-01",
+  "run": "2026-09-20T20:27:25.904806+00:00",
+  "outcome": "PASS",
+  "exit_code": 0,
+  "checks_passed": 11,
+  "checks_total": 11,
+  "checks": [
+    {
+      "kind": "PASS",
+      "text": "no history \u2192 earned is NEUTRAL (0.5), bar sits at the stakes base \u2014 earned=0.5 bar=0.5 stakes=0.5"
+    },
+    {
+      "kind": "PASS",
+      "text": "at fixed satisfaction 0.55, neutral bar 0.5 \u2192 operable=True \u2014 reason=satisfied"
+    },
+    {
+      "kind": "PASS",
+      "text": "below min sample \u2192 earned still neutral (a handful of wins does not swing trust) \u2014 attempts=3 earned=0.5"
+    },
+    {
+      "kind": "PASS",
+      "text": "proven-correct operation \u2192 earned > 0.5 (Wilson lower bound climbed) \u2014 earned=0.918 win_rate=1.0"
+    },
+    {
+      "kind": "PASS",
+      "text": "bar DROPPED below the stakes base (earned trust eases the KNOW requirement) \u2014 bar 0.5 \u2192 0.3746"
+    },
+    {
+      "kind": "PASS",
+      "text": "gate is operable now that the bar eased under fixed satisfaction \u2014 sat=0.55 bar=0.3746 reason=satisfied"
+    },
+    {
+      "kind": "PASS",
+      "text": "consistently WRONG operation \u2192 earned < 0.5 \u2014 earned=0.0 win_rate=0.0"
+    },
+    {
+      "kind": "PASS",
+      "text": "bar ROSE above the stakes base (being wrong demands MORE knowledge) \u2014 bar 0.5 \u2192 0.65"
+    },
+    {
+      "kind": "PASS",
+      "text": "gate now abstains \u2014 the poor record pushed the bar past fixed satisfaction \u2014 sat=0.55 bar=0.65 reason=below-bar-earning"
+    },
+    {
+      "kind": "PASS",
+      "text": "earned record is persisted (read straight from the store) \u2014 {'domain': 'test_operability_synthetic_domain', 'attempts': 40, 'wins': 0, 'win_rate': 0.0, 'wilson_lower': 0.0, 'wilson_upper': 0.0876, 'earned': 0.0, 'enough_history': True}"
+    },
+    {
+      "kind": "PASS",
+      "text": "LIVE earned is flat-neutral everywhere (no operating history yet \u2014 honest) \u2014 earned differentiation is earned from runtime, not a cold snapshot"
+    }
+  ]
+}

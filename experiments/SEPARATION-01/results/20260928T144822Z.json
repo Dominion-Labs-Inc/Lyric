@@ -1,0 +1,276 @@
+{
+  "experiment": "SEPARATION-01",
+  "claim": "Staging serves a frozen release of the model taught in development, and keeps its runtime, the model and each person's context in separate databases: what was taught is in the release, what a person tells it lands in that person's context, what the substrate remembers while serving waits in the learning store, and no search, answer or research done for one owner reaches another's.",
+  "hypothesis": "A statement refused or sent to a database without its table; a write the frozen release refused; a lesson row in user context or the learning store; a person's fact or memory in the release or the learning store; the substrate's new memory in the release or read back while serving; a search or answer for one person reaching the other's context; a research topic carrying a person's context; memory in runtime; a changed release; or any row written to development by staging or to the main line would each show here.",
+  "started_at": "2026-09-28T14:48:22.755426+00:00",
+  "duration_seconds": 82.564,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/TorinAI/venv_torin/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/TorinAI",
+    "shadow_mode": null,
+    "git_commit": "20deb447498593391eca0286916b8f986c560a26",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "torinai_dev",
+      "environment": "staging",
+      "release": 1,
+      "databases": {
+        "runtime": "torinai_dev_staging_runtime",
+        "model": "torinai_dev_model_v1",
+        "user_context": "torinai_dev_staging_user_context",
+        "learning": "torinai_dev_staging_learning"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "environment",
+        "database": "environment",
+        "user": "environment",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "environment": "environment",
+        "release": "environment"
+      }
+    },
+    "git_uncommitted_changes": 1501,
+    "database_verified": null,
+    "database_verified_reason": "not verified"
+  },
+  "summary": {
+    "checks": 33,
+    "passed": 33,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [
+    {
+      "name": "rows_runtime",
+      "value": 400,
+      "unit": "rows",
+      "note": ""
+    },
+    {
+      "name": "rows_model",
+      "value": 10958,
+      "unit": "rows",
+      "note": ""
+    },
+    {
+      "name": "rows_user_context",
+      "value": 6,
+      "unit": "rows",
+      "note": ""
+    },
+    {
+      "name": "rows_learning",
+      "value": 1,
+      "unit": "rows",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "release 1 is cut from development and staged",
+      "passed": true,
+      "detail": "staging",
+      "at": "2026-09-28T14:49:17.661466+00:00"
+    },
+    {
+      "label": "it is read-only and intact",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-09-28T14:49:17.661508+00:00"
+    },
+    {
+      "label": "it holds no person's memory and no person's context table",
+      "passed": true,
+      "detail": "0 people's memories, 0 context tables",
+      "at": "2026-09-28T14:49:17.698664+00:00"
+    },
+    {
+      "label": "this process is staging serving release 1",
+      "passed": true,
+      "detail": "staging, release 1",
+      "at": "2026-09-28T14:49:18.525724+00:00"
+    },
+    {
+      "label": "it checked its release before serving",
+      "passed": true,
+      "detail": "torinai_dev_model_v1",
+      "at": "2026-09-28T14:49:18.525744+00:00"
+    },
+    {
+      "label": "it holds one pool per store, each for its own database",
+      "passed": true,
+      "detail": "['torinai_dev_model_v1', 'torinai_dev_staging_learning', 'torinai_dev_staging_runtime', 'torinai_dev_staging_user_context']",
+      "at": "2026-09-28T14:49:18.525760+00:00"
+    },
+    {
+      "label": "each pool reaches the database it is for",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-28T14:49:18.529058+00:00"
+    },
+    {
+      "label": "the tools that reach its own databases are not carried",
+      "passed": true,
+      "detail": "344 tools; reaching its databases: []",
+      "at": "2026-09-28T14:49:18.529213+00:00"
+    },
+    {
+      "label": "the substrate is running",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-28T14:49:23.827838+00:00"
+    },
+    {
+      "label": "no statement was refused, reached a database without its table, or tried to change the release during boot",
+      "passed": true,
+      "detail": "logged 0: []; raised 0: []; frozen []",
+      "at": "2026-09-28T14:49:43.829358+00:00"
+    },
+    {
+      "label": "the lesson's patterns are memories in the release",
+      "passed": true,
+      "detail": "9",
+      "at": "2026-09-28T14:49:43.955374+00:00"
+    },
+    {
+      "label": "its facts about the world are in the release",
+      "passed": true,
+      "detail": "2 robin facts",
+      "at": "2026-09-28T14:49:43.955389+00:00"
+    },
+    {
+      "label": "its beliefs and ledger entries are in the release",
+      "passed": true,
+      "detail": "10 english beliefs, 9 pattern updates",
+      "at": "2026-09-28T14:49:43.955393+00:00"
+    },
+    {
+      "label": "nothing of the lesson is in user context or the learning store",
+      "passed": true,
+      "detail": "{'user_context': {}, 'learning': {}}",
+      "at": "2026-09-28T14:49:44.025770+00:00"
+    },
+    {
+      "label": "each person's fact is in user context",
+      "passed": true,
+      "detail": "{'user:alice:separation01': 1, 'user:bob:separation01': 1}",
+      "at": "2026-09-28T14:49:44.202120+00:00"
+    },
+    {
+      "label": "neither person's fact is in the release",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-09-28T14:49:44.225407+00:00"
+    },
+    {
+      "label": "each person's memory is in user context, and only there",
+      "passed": true,
+      "detail": "{'mem_5fb0b0af634c4683a3aa063a3e09f94a': ['user_context'], 'mem_94b5cd26b57f47a1a45f57b2e9ac62d6': ['user_context']}",
+      "at": "2026-09-28T14:49:44.301914+00:00"
+    },
+    {
+      "label": "the substrate's new memory is in the learning store, not the release",
+      "passed": true,
+      "detail": "['learning']",
+      "at": "2026-09-28T14:49:44.301926+00:00"
+    },
+    {
+      "label": "the release holds the memory development made",
+      "passed": true,
+      "detail": "{'mem_daf8624ac2944b3ebfdf59ff396ac9e1'}",
+      "at": "2026-09-28T14:49:44.335959+00:00"
+    },
+    {
+      "label": "Alice finds her memory and the release's, not Bob's",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-28T14:49:44.335969+00:00"
+    },
+    {
+      "label": "Bob finds his memory and the release's, not Alice's",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-28T14:49:44.335972+00:00"
+    },
+    {
+      "label": "the substrate's own search finds the release's memory, and neither a person's nor what it remembered while serving",
+      "passed": true,
+      "detail": "{'mem_daf8624ac2944b3ebfdf59ff396ac9e1'}",
+      "at": "2026-09-28T14:49:44.335974+00:00"
+    },
+    {
+      "label": "for Alice, her context answers it",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-28T14:49:44.355811+00:00"
+    },
+    {
+      "label": "for Bob and for the substrate, it does not",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-28T14:49:44.355820+00:00"
+    },
+    {
+      "label": "research topics come from the release and carry no person's context",
+      "passed": true,
+      "detail": "8 topics",
+      "at": "2026-09-28T14:49:44.356086+00:00"
+    },
+    {
+      "label": "runtime holds the substrate's running records",
+      "passed": true,
+      "detail": "7 tables",
+      "at": "2026-09-28T14:49:44.497412+00:00"
+    },
+    {
+      "label": "and no memory at all",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-28T14:49:44.497428+00:00"
+    },
+    {
+      "label": "no statement was refused or reached a database without its table during the whole run",
+      "passed": true,
+      "detail": "logged 0: []; raised 0: []",
+      "at": "2026-09-28T14:49:44.497435+00:00"
+    },
+    {
+      "label": "nothing tried to change the frozen release",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-09-28T14:49:44.497438+00:00"
+    },
+    {
+      "label": "none of the errors the substrate recorded is a missing table, a refusal or a frozen write",
+      "passed": true,
+      "detail": "0 recorded; structural: []",
+      "at": "2026-09-28T14:49:44.513470+00:00"
+    },
+    {
+      "label": "the release is still exactly what was cut",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-09-28T14:49:44.784560+00:00"
+    },
+    {
+      "label": "development received nothing from staging",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-28T14:49:44.987359+00:00"
+    },
+    {
+      "label": "the main line is untouched",
+      "passed": true,
+      "detail": "(9372, []) before, (9372, []) after (rows, releases)",
+      "at": "2026-09-28T14:49:45.170737+00:00"
+    }
+  ],
+  "notes": []
+}

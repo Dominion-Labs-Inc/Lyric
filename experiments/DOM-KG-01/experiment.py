@@ -48,7 +48,8 @@ async def run() -> dict:
         UniversalDomainMaster, DeficitType, EpistemicDeficit, LearningOperation,
         get_universal_domain_master)
     from core.database import get_database_manager
-    from core.semantics.conversation import Conversation
+    from core.learning.unified_learning_system import get_learning_authority
+    from core.semantics.cognitive_ingress import Provenance
     from core.domain.domain_registry import get_domain_registry
     from core.reasoning.bayesian_uncertainty import get_uncertainty_system
 
@@ -80,15 +81,55 @@ async def run() -> dict:
     NAMES = ["glindar", "morphel", "brythe", "quennel", "vornak", "drayle",
              "zephinx", "merlex", "hoblin", "peregor", "vorm"]
     async def scrub():
+        # EVERYTHING the teaching wrote, not only the concepts. Since this run
+        # teaches through the learning authority, each fact also leaves a memory,
+        # a belief and a knowledge update; scrubbing concepts alone left 60
+        # `brythe isa glindar`-style beliefs and their memories behind after a
+        # handful of runs, where recall offered them to unrelated questions.
+        pattern = [f"%{n}%" for n in NAMES]
+        await db.execute_query(
+            "DELETE FROM unified.beliefs WHERE memory_id IN (SELECT memory_id FROM "
+            "memory_hot.memory_hot WHERE content ILIKE ANY($1))", (pattern,))
+        await db.execute_query(
+            "DELETE FROM memory_hot.memory_hot WHERE content ILIKE ANY($1)", (pattern,))
+        await db.execute_query(
+            "DELETE FROM unified.beliefs WHERE claim ILIKE ANY($1)", (pattern,))
+        await db.execute_query(
+            "DELETE FROM unified.knowledge_updates WHERE subject_id ILIKE ANY($1)",
+            (pattern,))
+        # The edges too: deleting a concept left its edges pointing from nothing,
+        # and the ingress then read the next run's identical facts as held.
+        await db.execute_query(
+            "DELETE FROM unified.concept_relations WHERE source_concept_id IN "
+            "(SELECT concept_id FROM unified.concepts WHERE name = ANY($1)) "
+            "OR split_part(source_concept_id, ':', 2) = ANY($1)", (NAMES,))
         await db.execute_query("DELETE FROM unified.concepts WHERE name = ANY($1)", (NAMES,))
         await db.execute_query("DELETE FROM unified.concept_aliases WHERE alias = ANY($1)", (NAMES,))
         for f in NAMES:
             await db.execute_query("DELETE FROM unified.domains WHERE domain_id = $1", (f"domain_{f}",))
     await scrub()
-    c = Conversation()
-    for s in ["a zephinx is a morphel", "a morphel is a glindar", "a brythe is a glindar",
-              "a quennel is a glindar", "a vornak is a glindar", "a drayle is a glindar"]:
-        await c.teach(s)
+
+    # THE SUBSTRATE'S OWN READING, NOT A USER'S CONVERSATION. This used to teach
+    # through `Conversation()`, and PATHS-01 now asserts the opposite of what
+    # that relied on: "what a conversation is told reaches the SPEAKER'S context"
+    # and "NOTHING of it reaches the shared concept graph". An unbound
+    # Conversation is a user scope, so every fact below landed in the scoped
+    # store, `unified.concepts` stayed empty, discovery found no cluster and
+    # `domain_id` came back None -- a KeyError, not a failed check. The channel
+    # itself is unchanged; what changed is who may write to the shared mind.
+    learning = get_learning_authority()
+    prov = Provenance(producer="dom_kg_01", source_id="dom_kg_01",
+                      source_type="USER_SUPPLIED")
+
+    async def teach(subject, relation, obj, surface):
+        return await learning.learn_fact(
+            subject, relation, obj, surface=surface, domain="conversation",
+            provenance=prov, quality=0.95)
+
+    for subj, obj in [("zephinx", "morphel"), ("morphel", "glindar"),
+                      ("brythe", "glindar"), ("quennel", "glindar"),
+                      ("vornak", "glindar"), ("drayle", "glindar")]:
+        await teach(subj, "isa", obj, f"a {subj} is a {obj}")
     udm = get_universal_domain_master(); await udm.initialize()
     res = await udm.discover_concept_domains(from_field="conversation")
     dom = next((o for o in res["outcomes"] if o["field"] in NAMES), None)
@@ -102,8 +143,8 @@ async def run() -> dict:
     print("H3  axis orthogonality")
     m1 = reg.domains[domain_id].maturity_score
     c1 = (await udm.ensure_competence_belief(domain_id)).posterior_probability
-    for s in ["a merlex is a morphel", "a hoblin is a morphel", "a peregor is a morphel"]:
-        await c.teach(s)
+    for subj in ["merlex", "hoblin", "peregor"]:
+        await teach(subj, "isa", "morphel", f"a {subj} is a morphel")
     await udm.discover_concept_domains(from_field="conversation")
     await reg.initialize()
     m2 = reg.domains[domain_id].maturity_score
@@ -131,7 +172,7 @@ async def run() -> dict:
               f"info_value={round(gap.information_value,3)} resolvable={gap.can_be_resolved}")
         oob = await detect(domain_id, subject="not_a_member", relation="eats")
         check("H4.no_false_gap_oob", oob is None, "out-of-domain subject -> no gap")
-        await c.teach("a zephinx eats vorm")
+        await teach("zephinx", "eats", "vorm", "a zephinx eats vorm")
         await udm.discover_concept_domains(from_field="conversation")
         present = await detect(domain_id, subject="zephinx", relation="eats")
         check("H4.no_false_gap_present", present is None, "relation present -> no fabricated gap")
@@ -141,7 +182,8 @@ async def run() -> dict:
     from core.reasoning.epistemic_engine import get_epistemic_engine
     ku = unc.register_known_unknown(
         question="what is a glindar made of", domain=domain_id,
-        blocking_factors=["unrepresented relation (test)"])
+        blocking_factors=["unrepresented relation (test)"],
+        target={"kind": "relation", "subject": "glindar", "relation": "made of"})
     targets = get_epistemic_engine().get_unstable_regions()
     gap_targets = [t for t in targets if t.target_type == "knowledge_gap"
                    and t.metadata.get("known_unknown_id") == ku.unknown_id]

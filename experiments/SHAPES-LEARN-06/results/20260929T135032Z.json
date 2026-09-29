@@ -1,0 +1,151 @@
+{
+  "experiment": "SHAPES-LEARN-06",
+  "claim": "The engine that reads is the one that speaks: taught a sentence for every link kind, the substrate says facts of those kinds with the sentences it was taught, what it says reads back to what it meant, it reads sentences of those kinds never taught, and its conversation notes and answers with them.",
+  "hypothesis": "A lesson pair refused; a taught sentence that no longer reads; a fact not said, or said as a sentence reading back to another meaning; a probe unread or misread; a reply speaking the store's words or failing to say the fact; a reading or saying that writes; or a write to the main store would each show here.",
+  "started_at": "2026-09-29T13:50:32.197760+00:00",
+  "duration_seconds": 59.097,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/TorinAI/venv_torin/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/TorinAI",
+    "shadow_mode": null,
+    "git_commit": "20deb447498593391eca0286916b8f986c560a26",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "torinai_dev",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "torinai_dev",
+        "model": "torinai_dev",
+        "user_context": "torinai_dev",
+        "learning": "torinai_dev"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "environment",
+        "database": "environment",
+        "user": "environment",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 1791,
+    "database_verified": null,
+    "database_verified_reason": "not verified"
+  },
+  "summary": {
+    "checks": 16,
+    "passed": 16,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [],
+  "checks": [
+    {
+      "label": "the run is in the sandbox",
+      "passed": true,
+      "detail": "connected to torinai_dev",
+      "at": "2026-09-29T13:50:34.187416+00:00"
+    },
+    {
+      "label": "the substrate is running",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-29T13:50:57.207046+00:00"
+    },
+    {
+      "label": "english_01.json is learned, none refused",
+      "passed": true,
+      "detail": "{'learned': 235, 'linked': 323, 'already': 1, 'understood': 60, 'refused': 0, 'total': 228, 'repair_holophrase': 19, 'repair_substitution': 26, 'repair_lexical_item_based': 58, 'repair_item_based_lexical': 65, 'repair_add_links': 59}",
+      "at": "2026-09-29T13:51:10.419235+00:00"
+    },
+    {
+      "label": "english_02.json is learned, none refused",
+      "passed": true,
+      "detail": "{'learned': 22, 'linked': 65, 'already': 0, 'understood': 8, 'refused': 0, 'total': 29, 'repair_lexical_item_based': 11, 'repair_add_links': 8, 'repair_item_based_lexical': 10}",
+      "at": "2026-09-29T13:51:12.770230+00:00"
+    },
+    {
+      "label": "english_03.json is learned, none refused",
+      "passed": true,
+      "detail": "{'learned': 17, 'linked': 44, 'already': 0, 'understood': 4, 'refused': 0, 'total': 21, 'repair_item_based_lexical': 5, 'repair_add_links': 4, 'repair_phrase_in_slot': 11, 'repair_addition': 1}",
+      "at": "2026-09-29T13:51:14.340117+00:00"
+    },
+    {
+      "label": "english_04.json is learned, none refused",
+      "passed": true,
+      "detail": "{'learned': 101, 'linked': 109, 'already': 0, 'understood': 4, 'refused': 0, 'total': 70, 'repair_item_based_lexical': 26, 'repair_holophrase': 4, 'repair_substitution': 1, 'repair_lexical_item_based': 35, 'repair_add_links': 4}",
+      "at": "2026-09-29T13:51:29.414274+00:00"
+    },
+    {
+      "label": "every taught sentence of the four lessons reads to its meaning",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-09-29T13:51:30.011975+00:00"
+    },
+    {
+      "label": "each is said, and what is said reads back to exactly what it meant",
+      "passed": true,
+      "detail": "8/8",
+      "at": "2026-09-29T13:51:30.054905+00:00"
+    },
+    {
+      "label": "each reads whole, to the meaning it has",
+      "passed": true,
+      "detail": "7/7",
+      "at": "2026-09-29T13:51:30.068156+00:00"
+    },
+    {
+      "label": "what it was told is noted as it was taught to say it",
+      "passed": true,
+      "detail": "Noted \u2014 A vexayjcdq is used for cutting.",
+      "at": "2026-09-29T13:51:30.811232+00:00"
+    },
+    {
+      "label": "asked what it is for, it says the fact",
+      "passed": true,
+      "detail": "A vexayjcdq is used for cutting.",
+      "at": "2026-09-29T13:51:30.811240+00:00"
+    },
+    {
+      "label": "asked whether it is, it says yes and the fact",
+      "passed": true,
+      "detail": "Yes. A vexayjcdq is used for cutting.",
+      "at": "2026-09-29T13:51:30.811243+00:00"
+    },
+    {
+      "label": "asked about what it was never told, it does not say yes",
+      "passed": true,
+      "detail": "I remember: README.md has extension md.\nA vexayjcdq is used for cutting.\nI hold nothing for writing. Tell me what it is and I will keep it.",
+      "at": "2026-09-29T13:51:30.811246+00:00"
+    },
+    {
+      "label": "no reply speaks the store's own words",
+      "passed": true,
+      "detail": "Noted \u2014 A vexayjcdq is used for cutting. | A vexayjcdq is used for cutting. | Yes. A vexayjcdq is used for cutting. | I remember: README.md has extension md.\nA vexayjcdq is used for cutting.\nI hold nothing for writing. Tell me what it is and I will keep it.",
+      "at": "2026-09-29T13:51:30.811252+00:00"
+    },
+    {
+      "label": "the view is as teaching left it",
+      "passed": true,
+      "detail": "916 -> 916",
+      "at": "2026-09-29T13:51:30.811257+00:00"
+    },
+    {
+      "label": "the main model's store is untouched",
+      "passed": true,
+      "detail": "192294 rows before, 192294 after",
+      "at": "2026-09-29T13:51:31.285993+00:00"
+    }
+  ],
+  "notes": [
+    "Cleanup by nonce ayjcdq: 0 concepts; 0 left."
+  ]
+}

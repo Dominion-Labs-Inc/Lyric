@@ -1,0 +1,216 @@
+{
+  "seed": 20260922,
+  "invented": {
+    "MiniLM": {
+      "mrr": 0.75,
+      "p_at_1": 0.5,
+      "recall_at_3": 1.0,
+      "n": 40,
+      "paraphrase": 0.9210107899111973,
+      "minimal_pair": 0.5722293280257199,
+      "separation": 0.34878146188547743,
+      "untaught_pair": 0.5565598794302644
+    },
+    "native": {
+      "mrr": 0.75,
+      "p_at_1": 0.5,
+      "recall_at_3": 1.0,
+      "n": 40,
+      "paraphrase": 1.0,
+      "minimal_pair": 0.6990345155013717,
+      "separation": 0.30096548449862826,
+      "untaught_pair": 0.8717315787908424
+    },
+    "structural": {
+      "mrr": 0.75,
+      "p_at_1": 0.5,
+      "recall_at_3": 1.0,
+      "n": 40,
+      "paraphrase": 0.9751068077137293,
+      "minimal_pair": 0.2803870220358785,
+      "separation": 0.6947197856778508,
+      "untaught_pair": 0.2649725494564182
+    },
+    "native\u2212idf": {
+      "mrr": 0.75,
+      "p_at_1": 0.5,
+      "recall_at_3": 1.0,
+      "n": 40,
+      "paraphrase": 1.0,
+      "minimal_pair": 0.6538077179255773,
+      "separation": 0.34619228207442265,
+      "untaught_pair": 0.8204365044777694
+    },
+    "native\u2212assoc": {
+      "mrr": 0.75,
+      "p_at_1": 0.5,
+      "recall_at_3": 1.0,
+      "n": 40,
+      "paraphrase": 1.0,
+      "minimal_pair": 0.5338344669814511,
+      "separation": 0.4661655330185489,
+      "untaught_pair": 0.726669122092755
+    }
+  },
+  "real_world": {
+    "MiniLM": {
+      "mrr": 0.8,
+      "p_at_1": 0.6,
+      "recall_at_3": 1.0,
+      "n": 20,
+      "paraphrase": 0.8733394185219417,
+      "minimal_pair": 0.5402178911936655,
+      "separation": 0.33312152732827627,
+      "untaught_pair": 0.5239184921281241
+    },
+    "native": {
+      "mrr": 0.75,
+      "p_at_1": 0.5,
+      "recall_at_3": 1.0,
+      "n": 20,
+      "paraphrase": 0.9811882028542162,
+      "minimal_pair": 0.8874495989869582,
+      "separation": 0.09373860386725796,
+      "untaught_pair": 0.9596970242765084
+    },
+    "structural": {
+      "mrr": 0.75,
+      "p_at_1": 0.5,
+      "recall_at_3": 1.0,
+      "n": 20,
+      "paraphrase": 0.9781874765552155,
+      "minimal_pair": 0.30740949149058483,
+      "separation": 0.6707779850646307,
+      "untaught_pair": 0.27490152484916414
+    },
+    "native\u2212idf": {
+      "mrr": 0.825,
+      "p_at_1": 0.65,
+      "recall_at_3": 1.0,
+      "n": 20,
+      "paraphrase": 0.9339342068404581,
+      "minimal_pair": 0.8526915084625368,
+      "separation": 0.08124269837792131,
+      "untaught_pair": 0.9312199035515434
+    },
+    "native\u2212assoc": {
+      "mrr": 0.75,
+      "p_at_1": 0.5,
+      "recall_at_3": 1.0,
+      "n": 20,
+      "paraphrase": 0.9479570786322256,
+      "minimal_pair": 0.7568032649005496,
+      "separation": 0.19115381373167595,
+      "untaught_pair": 0.8699226967441047
+    }
+  },
+  "length_minilm": {
+    "0": 0.6019969865503321,
+    "50": 0.44634260547809995,
+    "150": 0.43445440765258164,
+    "300": 0.15851454403317464,
+    "600": 0.15851454403317464
+  },
+  "length_native": {
+    "0": 0.7733918326918827,
+    "50": 0.2378804902440277,
+    "150": 0.07632212244547242,
+    "300": 0.037087814517914826,
+    "600": 0.01855352967377924
+  },
+  "checks": [
+    {
+      "name": "H1 retrieval \u2014 STRUCTURAL MRR >= MiniLM (invented)",
+      "passed": true,
+      "detail": "structural 0.750 vs MiniLM 0.750"
+    },
+    {
+      "name": "H2 discrimination \u2014 STRUCTURAL scores minimal pairs LOWER (invented)",
+      "passed": true,
+      "detail": "structural 0.280 vs MiniLM 0.572"
+    },
+    {
+      "name": "H3 separation \u2014 STRUCTURAL separates better (invented)",
+      "passed": true,
+      "detail": "structural 0.695 vs MiniLM 0.349"
+    },
+    {
+      "name": "H1 retrieval \u2014 native MRR >= MiniLM (invented)",
+      "passed": true,
+      "detail": "native 0.750 vs MiniLM 0.750"
+    },
+    {
+      "name": "H2 discrimination \u2014 native scores taught minimal pairs LOWER (invented)",
+      "passed": false,
+      "detail": "native 0.699 vs MiniLM 0.572"
+    },
+    {
+      "name": "H3 separation \u2014 native separates better (invented)",
+      "passed": false,
+      "detail": "native 0.301 vs MiniLM 0.349"
+    },
+    {
+      "name": "H1 retrieval \u2014 STRUCTURAL MRR >= MiniLM (real-world)",
+      "passed": false,
+      "detail": "structural 0.750 vs MiniLM 0.800"
+    },
+    {
+      "name": "H2 discrimination \u2014 STRUCTURAL scores minimal pairs LOWER (real-world)",
+      "passed": true,
+      "detail": "structural 0.307 vs MiniLM 0.540"
+    },
+    {
+      "name": "H3 separation \u2014 STRUCTURAL separates better (real-world)",
+      "passed": true,
+      "detail": "structural 0.671 vs MiniLM 0.333"
+    },
+    {
+      "name": "H1 retrieval \u2014 native MRR >= MiniLM (real-world)",
+      "passed": false,
+      "detail": "native 0.750 vs MiniLM 0.800"
+    },
+    {
+      "name": "H2 discrimination \u2014 native scores taught minimal pairs LOWER (real-world)",
+      "passed": false,
+      "detail": "native 0.887 vs MiniLM 0.540"
+    },
+    {
+      "name": "H3 separation \u2014 native separates better (real-world)",
+      "passed": false,
+      "detail": "native 0.094 vs MiniLM 0.333"
+    },
+    {
+      "name": "H4 length \u2014 MiniLM degrades with depth",
+      "passed": true,
+      "detail": "0.602 at 0 words -> 0.159 at 600"
+    },
+    {
+      "name": "H4 length \u2014 native does NOT degrade with depth",
+      "passed": false,
+      "detail": "0.773 at 0 words -> 0.019 at 600"
+    },
+    {
+      "name": "ABLATION \u2014 idf contributes (invented)",
+      "passed": false,
+      "detail": "full 0.301 vs without idf 0.346"
+    },
+    {
+      "name": "ABLATION \u2014 association expansion contributes (invented)",
+      "passed": true,
+      "detail": "full MRR 0.750 vs without expansion 0.750"
+    },
+    {
+      "name": "ABLATION \u2014 idf contributes (real-world)",
+      "passed": true,
+      "detail": "full 0.094 vs without idf 0.081"
+    },
+    {
+      "name": "ABLATION \u2014 association expansion contributes (real-world)",
+      "passed": true,
+      "detail": "full MRR 0.750 vs without expansion 0.750"
+    }
+  ],
+  "passed": 10,
+  "total": 18,
+  "native_earns_the_job": false
+}

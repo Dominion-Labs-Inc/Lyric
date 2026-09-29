@@ -59,6 +59,7 @@ def yes_no(answer):
 
 
 async def main() -> int:
+    from core.memory import Origin
     STIM.mkdir(exist_ok=True)
     t0 = time.perf_counter()
     RUN = uuid4().hex[:6]
@@ -92,8 +93,13 @@ async def main() -> int:
             draw(path, shape, colour, radius)
             drawn = vision.describe_image(str(path))
             measured = [r for r in drawn["regions"] if r["area_fraction"] <= 0.9]
-            await coord.see(str(path), source=name, domain=DOMAIN)
-            blob = await blob_of(name)
+            percept = await coord.see(str(path), source=name, domain=DOMAIN, actor_identity=None)
+            # THE PERCEPT NAMES ITSELF FROM THE IMAGE'S CONTENT, not from the
+            # label handed in: `name` becomes `<name>x<digest>`, because a
+            # caller's label is not an identity. Looking the concept up by the
+            # bare label found nothing, so every `blob` was "" and
+            # `induce_category` refused with "example '' has no feature facts".
+            blob = await blob_of(getattr(percept, "source", None) or name)
             feats = sorted(await instance_predicates(db, blob)) if blob else []
             report["admission"].append({
                 "image": name, "drawn": [shape, colour],
@@ -118,11 +124,11 @@ async def main() -> int:
                         await see(other_shape, other_colour, SIZES[2])]
             named, declined = 0, 0
             for blob in held_pos:
-                res = await coord.reason_about(f"is {blob} a {cat}?")
+                res = await coord.reason_about(f"is {blob} a {cat}?", origin=Origin.own("PERCEIVE-SEE-01"))
                 named += int(yes_no(getattr(res, "answer", "")) is True)
             false_namings = 0
             for blob in held_neg:
-                res = await coord.reason_about(f"is {blob} a {cat}?")
+                res = await coord.reason_about(f"is {blob} a {cat}?", origin=Origin.own("PERCEIVE-SEE-01"))
                 verdict = yes_no(getattr(res, "answer", ""))
                 declined += int(verdict is not True)
                 false_namings += int(verdict is True)

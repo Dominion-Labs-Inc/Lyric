@@ -1,0 +1,113 @@
+{
+  "experiment": "TEACH-ACTION-01",
+  "claim": "A curriculum of acts in a sandbox the substrate may practise in produces operators from its own readings, and experience separates copy from move.",
+  "hypothesis": "If every before/action/after is the substrate's own reading, then practising copy and move yields two executable operators that differ exactly in whether the source survives.",
+  "started_at": "2026-09-28T16:14:40.776192+00:00",
+  "duration_seconds": 1.609,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/TorinAI/venv_torin/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/TorinAI",
+    "shadow_mode": null,
+    "git_commit": "20deb447498593391eca0286916b8f986c560a26",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "torinai_dev",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "torinai_dev",
+        "model": "torinai_dev",
+        "user_context": "torinai_dev",
+        "learning": "torinai_dev"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "environment",
+        "database": "environment",
+        "user": "environment",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 1632,
+    "database_verified": "torinai_dev",
+    "database_verified_reason": "asked the server"
+  },
+  "summary": {
+    "checks": 10,
+    "passed": 7,
+    "failed": 3,
+    "outcome": "FAIL"
+  },
+  "metrics": [],
+  "checks": [
+    {
+      "label": "the registry names the LIVE substrate",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-28T16:14:40.776206+00:00"
+    },
+    {
+      "label": "both operators derived from the tools themselves",
+      "passed": true,
+      "detail": "operators=['COPY_FILE', 'MOVE_FILE'] refused=[]",
+      "at": "2026-09-28T16:14:40.778280+00:00"
+    },
+    {
+      "label": "its world contains the FILES, not only the directories it was shown",
+      "passed": true,
+      "detail": "7 resources, 4 file(s)",
+      "at": "2026-09-28T16:14:40.778653+00:00"
+    },
+    {
+      "label": "it can read its world",
+      "passed": true,
+      "detail": "11 facts, 2 predicate(s)",
+      "at": "2026-09-28T16:14:40.779366+00:00"
+    },
+    {
+      "label": "it performed real acts in the real sandbox",
+      "passed": true,
+      "detail": "31 act(s) over 8 cycle(s)",
+      "at": "2026-09-28T16:14:42.338989+00:00"
+    },
+    {
+      "label": "and some of them WORKED \u2014 a positive transition at last",
+      "passed": true,
+      "detail": "+10 / -21",
+      "at": "2026-09-28T16:14:42.339000+00:00"
+    },
+    {
+      "label": "both operators gathered before/action/after demonstrations",
+      "passed": true,
+      "detail": "/0 +0 -5; COPY_FILE/2 +4 -13; MOVE_FILE/2 +6 -8",
+      "at": "2026-09-28T16:14:42.361127+00:00"
+    },
+    {
+      "label": "it INDUCED an executable operator from its own experience",
+      "passed": false,
+      "detail": "[]",
+      "at": "2026-09-28T16:14:42.381312+00:00"
+    },
+    {
+      "label": "it learned BOTH \u2014 copy and move are not one operator to it",
+      "passed": false,
+      "detail": "executable kinds: []",
+      "at": "2026-09-28T16:14:42.381322+00:00"
+    },
+    {
+      "label": "and it learned the difference \u2014 a move deletes the source, a copy does not",
+      "passed": false,
+      "detail": "IDENTICAL \u2014 the distinction was not learned",
+      "at": "2026-09-28T16:14:42.381328+00:00"
+    }
+  ],
+  "notes": []
+}

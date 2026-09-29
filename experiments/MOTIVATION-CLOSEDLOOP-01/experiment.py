@@ -73,6 +73,10 @@ async def main():
         _score_pursuits = C._score_pursuits
         _frontier_of = staticmethod(C._frontier_of)
     me = _Self(); me.learning = None; me.domain_registry = None
+    # The real constitution, as the real self has: choosing a pursuit asks it
+    # which way the substrate bears toward each subject.
+    from core.agents.autonomous.autonomous_coordinator import get_constitution
+    me.constitution = get_constitution()
 
     # two unknown-capability domains: max-uncertainty competence beliefs (prior 0.5 → entropy ~1.0)
     A = unc.create_belief("the substrate has learned the operators of domain test_capA", "test_capA", prior=0.5)

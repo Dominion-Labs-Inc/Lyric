@@ -113,36 +113,35 @@ class ScopedContextStore:
         self._schema_ready = True
 
     async def observe(self, actor: str, subject: str, relation: str,
-                      obj: Optional[str], *, positive: bool = True,
+                      obj: Optional[str], *, claim: str,
+                      positive: bool = True,
                       quality: float = 0.9, domain: str = "conversation",
                       surface: Optional[str] = None,
                       source: str = "taught") -> Dict[str, Any]:
         """Record one telling of `subject relation obj` within `actor`'s context:
         the scoped EDGE (skipped for a bare node with no object — nothing to
         chain) and the scoped BELIEF on the claim. The belief moves with the same
-        kernel the shared graph uses. Returns the scoped state."""
+        kernel the shared graph uses. Returns the scoped state.
+
+        The parts are the EDGE and must already be the ingress's canonical terms
+        (`shape_proposition`) — the overlay matches them against concept names.
+        `claim` is the BELIEF's proposition, spelled as the shared side spells it
+        so the promotion gate can match the two."""
         if not actor:
             raise ValueError("a scoped fact must name the actor it belongs to")
+        if not claim:
+            raise ValueError("a scoped fact must name the claim its belief is in")
         await self._ready()
-        claim = " ".join(str(p) for p in (subject, relation, obj) if p)
         surface = surface or claim
 
         # EDGE: only when there is an object to point at (a real relation to
         # chain). A bare node ("X is") makes no edge, exactly as on the shared side.
         if obj:
-            await self.db.execute_query(
-                """
-                INSERT INTO unified.scoped_concept_relations
-                    (scope_actor, subj, rel, obj, polarity, surface, domain,
-                     source, last_updated)
-                VALUES ($1,$2,$3,$4,$5,$6,$7,$8, now())
-                ON CONFLICT (scope_actor, subj, rel, obj) DO UPDATE SET
-                    polarity = EXCLUDED.polarity, surface = EXCLUDED.surface,
-                    domain = EXCLUDED.domain, last_updated = now()
-                """,
-                (actor, str(subject), str(relation), str(obj),
-                 "positive" if positive else "negative", surface, domain, source),
-                commit=True)
+            from core.agents.memory_agent import memory_agent
+            await memory_agent().hold_scoped_relation(
+                actor=actor, subject=str(subject), relation=str(relation), obj=str(obj),
+                polarity="positive" if positive else "negative", surface=surface,
+                domain=domain, source=source)
 
         # BELIEF: find-or-create by (actor, claim_key), move the posterior.
         belief = await self._observe_belief(actor, claim, domain,
@@ -153,6 +152,20 @@ class ScopedContextStore:
                 "posterior": belief["posterior"],
                 "update_count": belief["update_count"],
                 "edge": bool(obj), "created": belief["created"]}
+
+    async def observe_claim(self, actor: str, claim: str, *, domain: str,
+                            supports: bool = True, quality: float = 0.9,
+                            source: str = "taught",
+                            surface: Optional[str] = None) -> Dict[str, Any]:
+        """Move `actor`'s scoped BELIEF in `claim` with no edge — for a claim
+        that asserts no relation of its own, such as a told conditional, whose
+        clauses are hypotheses and must not be walked as facts."""
+        if not actor:
+            raise ValueError("a scoped claim must name the actor it belongs to")
+        await self._ready()
+        return await self._observe_belief(actor, claim, domain, supports=supports,
+                                          quality=quality, source=source,
+                                          surface=surface or claim)
 
     async def _observe_belief(self, actor: str, claim: str, domain: str, *,
                               supports: bool, quality: float, source: str,
@@ -171,21 +184,11 @@ class ScopedContextStore:
             posterior, _ = posterior_from_evidence(prior, quality, supports)
             update_count = int(row["update_count"]) + 1
         posterior = clamp_posterior(posterior)
-        await self.db.execute_query(
-            """
-            INSERT INTO unified.scoped_beliefs
-                (scope_actor, claim_key, claim, domain, prior, posterior,
-                 supports, update_count, surface, source, last_updated)
-            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10, now())
-            ON CONFLICT (scope_actor, claim_key) DO UPDATE SET
-                claim = EXCLUDED.claim, domain = EXCLUDED.domain,
-                posterior = EXCLUDED.posterior, supports = EXCLUDED.supports,
-                update_count = EXCLUDED.update_count, surface = EXCLUDED.surface,
-                source = EXCLUDED.source, last_updated = now()
-            """,
-            (actor, key, str(claim), domain, prior, posterior, supports,
-             update_count, surface, source),
-            commit=True)
+        from core.agents.memory_agent import memory_agent
+        await memory_agent().hold_scoped_belief(
+            actor=actor, claim_key=key, claim=str(claim), domain=domain, prior=prior,
+            posterior=posterior, supports=supports, update_count=update_count,
+            surface=surface, source=source)
         return {"claim_key": key, "posterior": posterior,
                 "update_count": update_count, "created": row is None}
 
@@ -202,6 +205,22 @@ class ScopedContextStore:
             "FROM unified.scoped_concept_relations "
             "WHERE scope_actor = $1 AND subj = ANY($2)",
             (actor, [str(r) for r in roots]), fetch_all=True)
+        return [dict(r) for r in (rows or [])]
+
+    async def edges_naming(self, actor: str, names: List[str]
+                           ) -> List[Dict[str, Any]]:
+        """This actor's scoped edges that NAME any of `names`, as subject or as
+        object, with the surface they were told in -- what a conversation needs
+        to know that the speaker has told it about a thing, including a thing
+        they only ever named as what something else is."""
+        if not actor or not names:
+            return []
+        await self._ready()
+        rows = await self.db.execute_query(
+            "SELECT subj, rel, obj, polarity AS pol, surface "
+            "FROM unified.scoped_concept_relations "
+            "WHERE scope_actor = $1 AND (subj = ANY($2) OR obj = ANY($2))",
+            (actor, [str(n) for n in names]), fetch_all=True)
         return [dict(r) for r in (rows or [])]
 
     async def beliefs_for_actor(self, actor: str, domain: Optional[str] = None,
@@ -226,6 +245,18 @@ class ScopedContextStore:
                 (actor, limit), fetch_all=True)
         return [dict(r) for r in (rows or [])]
 
+    async def belief(self, actor: str, claim: str) -> Optional[Dict[str, Any]]:
+        """This actor's belief in one claim (its posterior and how often it was
+        moved), or None when they hold none. Read only on their behalf."""
+        if not actor:
+            return None
+        await self._ready()
+        row = await self.db.execute_query(
+            "SELECT claim, posterior, update_count FROM unified.scoped_beliefs "
+            "WHERE scope_actor = $1 AND claim_key = $2",
+            (actor, scoped_claim_key(claim)), fetch_one=True)
+        return dict(row) if row else None
+
     async def independent_holders(self, claim: str, *, exclude_actor: str,
                                   min_posterior: float = 0.5) -> List[str]:
         """The OTHER actors who hold `claim` as believed (posterior ≥ threshold),
@@ -245,9 +276,8 @@ class ScopedContextStore:
         lifted into the shared mind exactly once, not on every re-telling."""
         await self._ready()
         key = scoped_claim_key(claim)
-        await self.db.execute_query(
-            "UPDATE unified.scoped_beliefs SET promoted = TRUE WHERE claim_key = $1",
-            (key,), commit=True)
+        from core.agents.memory_agent import memory_agent
+        await memory_agent().mark_scoped_belief_promoted(key)
 
     async def is_promoted(self, claim: str) -> bool:
         """Whether this claim has already been promoted to the shared mind."""

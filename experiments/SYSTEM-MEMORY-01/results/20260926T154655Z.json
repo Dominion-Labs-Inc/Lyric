@@ -1,0 +1,152 @@
+{
+  "experiment": "SYSTEM-MEMORY-01",
+  "claim": "Memory is one authority: a memory stored is found by content and by id, superseding keeps what it used to say, an unknown id is None, and a delete without governance's token is refused.",
+  "hypothesis": "A second agent, a stored memory that cannot be found, a delete that succeeds without a token, or a dead public method would each fail here.",
+  "started_at": "2026-09-26T15:46:55.103511+00:00",
+  "duration_seconds": 94.779,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/TorinAI/venv_torin/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/TorinAI",
+    "shadow_mode": null,
+    "git_commit": "20deb447498593391eca0286916b8f986c560a26",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "torinai_db",
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "dotenv:.env.postgres",
+        "database": "dotenv:.env.postgres",
+        "user": "dotenv:.env.postgres",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres"
+      }
+    },
+    "git_uncommitted_changes": 1073,
+    "database_verified": null,
+    "database_verified_reason": "no initialized connection in this process"
+  },
+  "summary": {
+    "checks": 14,
+    "passed": 11,
+    "failed": 3,
+    "outcome": "FAIL"
+  },
+  "metrics": [
+    {
+      "name": "memory_construction_sites",
+      "value": 1,
+      "unit": "count",
+      "note": "core/agents/memory_agent.py:4295"
+    },
+    {
+      "name": "memory_public_methods",
+      "value": 45,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "memory_unreached_public_methods",
+      "value": 14,
+      "unit": "count",
+      "note": "bulk_import, begin_word_class_warm, get_memory_by_content, claim_tags, find_open, increment_access_count, update_importance, update_tags, add_related_memory, permanent_delete, retrieve_from_archive, cleanup_cache, start_memory_loops, form_abstractions"
+    },
+    {
+      "name": "memory_stub_public_methods",
+      "value": 0,
+      "unit": "count",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "memory: the coordinator holds the instance the accessor returns",
+      "passed": true,
+      "detail": "held=MemoryAgent same=True",
+      "at": "2026-09-26T15:48:23.441933+00:00"
+    },
+    {
+      "label": "memory: MemoryAgent is constructed in one place",
+      "passed": true,
+      "detail": "in its module: ['core/agents/memory_agent.py:4295']; elsewhere: []",
+      "at": "2026-09-26T15:48:26.076846+00:00"
+    },
+    {
+      "label": "memory: every public method of MemoryAgent is reached by something in core",
+      "passed": false,
+      "detail": "14/45 unreached: ['bulk_import', 'begin_word_class_warm', 'get_memory_by_content', 'claim_tags', 'find_open', 'increment_access_count', 'update_importance', 'update_tags', 'add_related_memory', 'permanent_delete', 'retrieve_from_archive', 'cleanup_cache', 'start_memory_loops', 'form_abstractions']",
+      "at": "2026-09-26T15:48:28.850110+00:00"
+    },
+    {
+      "label": "memory: no public method of MemoryAgent is a stub body",
+      "passed": true,
+      "detail": "stubs: []",
+      "at": "2026-09-26T15:48:28.850131+00:00"
+    },
+    {
+      "label": "store_memory returns (True, memory_id)",
+      "passed": true,
+      "detail": "ok=True id=mem_e7677170c9904a3ab854f1fa7053ca6d",
+      "at": "2026-09-26T15:48:28.957310+00:00"
+    },
+    {
+      "label": "the memory is found by its content",
+      "passed": true,
+      "detail": "1 hit(s): ['mem_e7677170c9904a3ab854f1fa7053ca6d']",
+      "at": "2026-09-26T15:48:29.440591+00:00"
+    },
+    {
+      "label": "and read back by id",
+      "passed": true,
+      "detail": "content='isolation probe: the qzxmem lamp in the study is on'",
+      "at": "2026-09-26T15:48:29.449453+00:00"
+    },
+    {
+      "label": "an unknown id is None",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-26T15:48:29.455816+00:00"
+    },
+    {
+      "label": "supersede replaces the content",
+      "passed": false,
+      "detail": "supersede=True content='isolation probe: the qzxmem lamp in the study is on'",
+      "at": "2026-09-26T15:48:29.457599+00:00"
+    },
+    {
+      "label": "and keeps what it used to say",
+      "passed": false,
+      "detail": "metadata keys=[]",
+      "at": "2026-09-26T15:48:29.457610+00:00"
+    },
+    {
+      "label": "a delete without a valid token is refused",
+      "passed": true,
+      "detail": "deleted=False still_present=True",
+      "at": "2026-09-26T15:48:29.457653+00:00"
+    },
+    {
+      "label": "and with no token at all",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-26T15:48:29.457688+00:00"
+    },
+    {
+      "label": "metrics are a dict",
+      "passed": true,
+      "detail": "keys=['abstractions_formed', 'beliefs_updated', 'cache_hits', 'cache_size', 'consolidations_run', 'embedding_available', 'initialized', 'maintenance_cycles']",
+      "at": "2026-09-26T15:48:29.457696+00:00"
+    },
+    {
+      "label": "everything this run wrote is removed",
+      "passed": true,
+      "detail": "left=0",
+      "at": "2026-09-26T15:48:29.719526+00:00"
+    }
+  ],
+  "notes": []
+}

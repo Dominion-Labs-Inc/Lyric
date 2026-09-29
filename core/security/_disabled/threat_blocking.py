@@ -12,7 +12,7 @@ from typing import Dict, Any, List, Optional, Set
 from datetime import datetime, timedelta
 from collections import defaultdict
 
-from .active_defense_types import (
+from core.agents.autonomous.threat_sense import (
     BlockedEntity, AttackType, DefenseAction, BlockDuration,
     ThreatConfidence, DefensePolicy, DefenseMetrics,
     calculate_threat_score, should_block, determine_block_duration
@@ -176,7 +176,7 @@ class ThreatBlockingEngine:
         # Layer 2: Cloudflare WAF
         if self.waf and self.policy.auto_block_enabled:
             try:
-                from .active_defense_types import WAFRuleMode
+                from core.agents.autonomous.threat_sense import WAFRuleMode
                 waf_mode = WAFRuleMode.BLOCK if threat_score > 0.8 else WAFRuleMode.CHALLENGE
                 
                 if await self.waf.block_ip(ip_address, f"Attack: {attack_type.value}", waf_mode):
@@ -343,7 +343,7 @@ class ThreatBlockingEngine:
             return False
         
         try:
-            from .active_defense_types import WAFRuleMode
+            from core.agents.autonomous.threat_sense import WAFRuleMode
             success = await self.waf.create_rate_limit_rule(
                 ip_address=ip_address,
                 requests_per_minute=requests_per_minute,

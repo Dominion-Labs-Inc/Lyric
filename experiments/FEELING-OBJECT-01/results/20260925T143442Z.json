@@ -1,0 +1,168 @@
+{
+  "experiment": "FEELING-OBJECT-01",
+  "claim": "An emotion can name WHAT it is about, and a doubt that fades leaves its question behind as a known-unknown.",
+  "hypothesis": "If the object of a feeling is named by whoever met it and carried onto the appraisal, then alleviation by addressing the cause becomes reachable \u2014 and a doubt that only fades stops being a question the substrate silently drops.",
+  "started_at": "2026-09-25T14:34:42.808525+00:00",
+  "duration_seconds": 67.26,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/TorinAI/venv_torin/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/TorinAI",
+    "shadow_mode": null,
+    "git_commit": "20deb447498593391eca0286916b8f986c560a26",
+    "postgres": {
+      "host": "localhost",
+      "database": null,
+      "port": "5433"
+    },
+    "git_uncommitted_changes": 830,
+    "database_verified": null,
+    "database_verified_reason": "not verified"
+  },
+  "summary": {
+    "checks": 20,
+    "passed": 20,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [
+    {
+      "name": "questions_kept",
+      "value": 1,
+      "unit": "known-unknowns",
+      "note": ""
+    },
+    {
+      "name": "questions_lost",
+      "value": 1,
+      "unit": "doubts with no object",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "nothing met has no object either",
+      "passed": true,
+      "detail": "dominant()=None",
+      "at": "2026-09-25T14:35:48.795136+00:00"
+    },
+    {
+      "label": "the only event met IS the dominant one",
+      "passed": true,
+      "detail": "refusal:feeling_object_01.minor",
+      "at": "2026-09-25T14:35:48.958934+00:00"
+    },
+    {
+      "label": "the heavier event becomes what the worry is about",
+      "passed": true,
+      "detail": "integrity:feeling_object_01.probe_module at felt=1.0000",
+      "at": "2026-09-25T14:35:48.958956+00:00"
+    },
+    {
+      "label": "status() reports it",
+      "passed": true,
+      "detail": "integrity:feeling_object_01.probe_module",
+      "at": "2026-09-25T14:35:48.958972+00:00"
+    },
+    {
+      "label": "appraisal's `about` is measured",
+      "passed": true,
+      "detail": "about='integrity:feeling_object_01.probe_module'",
+      "at": "2026-09-25T14:35:49.618236+00:00"
+    },
+    {
+      "label": "and it is filed in the domain the memory went to",
+      "passed": true,
+      "detail": "'substrate_safety'",
+      "at": "2026-09-25T14:35:49.618259+00:00"
+    },
+    {
+      "label": "`about` is not `attribution` \u2014 the two answer different questions",
+      "passed": true,
+      "detail": "attribution=None about='integrity:feeling_object_01.probe_module'",
+      "at": "2026-09-25T14:35:49.618264+00:00"
+    },
+    {
+      "label": "the object survives an update that says nothing about it",
+      "passed": true,
+      "detail": "about='integrity:feeling_object_01.probe_module'",
+      "at": "2026-09-25T14:35:49.618307+00:00"
+    },
+    {
+      "label": "the substrate feels doubt",
+      "passed": true,
+      "detail": "emotion=doubt intensity=0.8567",
+      "at": "2026-09-25T14:35:49.638106+00:00"
+    },
+    {
+      "label": "and it knows what the doubt is about",
+      "passed": true,
+      "detail": "about='integrity:feeling_object_01.probe_module'",
+      "at": "2026-09-25T14:35:49.638121+00:00"
+    },
+    {
+      "label": "the object is durable, like the feeling it belongs to",
+      "passed": true,
+      "detail": "stored about='integrity:feeling_object_01.probe_module'",
+      "at": "2026-09-25T14:35:49.639156+00:00"
+    },
+    {
+      "label": "and it rehydrates",
+      "passed": true,
+      "detail": "rehydrated about='integrity:feeling_object_01.probe_module'",
+      "at": "2026-09-25T14:35:49.644318+00:00"
+    },
+    {
+      "label": "it names the object, not the outcome class",
+      "passed": true,
+      "detail": "Right now what I mostly feel is doubt, about integrity:feeling_object_01.probe_module.",
+      "at": "2026-09-25T14:35:49.644353+00:00"
+    },
+    {
+      "label": "the question is not already open",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-25T14:35:49.644362+00:00"
+    },
+    {
+      "label": "the feeling is gone",
+      "passed": true,
+      "detail": "emotion=None about=None",
+      "at": "2026-09-25T14:35:49.662733+00:00"
+    },
+    {
+      "label": "but the QUESTION is not",
+      "passed": true,
+      "detail": "+1 open question(s)",
+      "at": "2026-09-25T14:35:49.662746+00:00"
+    },
+    {
+      "label": "it was counted honestly",
+      "passed": true,
+      "detail": "kept=1 lost=0",
+      "at": "2026-09-25T14:35:49.662750+00:00"
+    },
+    {
+      "label": "fading again does not pile up duplicates",
+      "passed": true,
+      "detail": "1 question(s), kept=1",
+      "at": "2026-09-25T14:35:49.796239+00:00"
+    },
+    {
+      "label": "a doubt with nothing naming it still fades",
+      "passed": true,
+      "detail": "emotion=doubt about=None",
+      "at": "2026-09-25T14:35:49.832065+00:00"
+    },
+    {
+      "label": "and NO question is invented for it",
+      "passed": true,
+      "detail": "lost=1 (counted, not hidden)",
+      "at": "2026-09-25T14:35:49.832080+00:00"
+    }
+  ],
+  "notes": [
+    "the substrate said: Right now what I mostly feel is doubt, about integrity:feeling_object_01.probe_module."
+  ]
+}

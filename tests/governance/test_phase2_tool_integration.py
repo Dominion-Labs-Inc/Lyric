@@ -106,50 +106,45 @@ class GovernancePhase2Tests(TestBase):
 
     # ===== Test 5: Safe Parameters Don't Trigger =====
 
-    async def test_chaos_tool_safe_parameters_executes(self):
-        """Test that ChaosTestingTool with safe parameters executes"""
-        result = await self.registry.execute_tool(
-            tool_name="chaos_testing",
-            parameters={"chaos_type": "latency", "target": "staging"}
-        )
+    # THE BENIGN VARIANTS ARE ASKED FOR AN ACCOUNT, NOT REFUSED.
+    #
+    # These three asserted the OLD gate's rule -- no governance trigger matched,
+    # so the call ran. The Constitution judges every act (2026-09-17), and a
+    # testing-tool call that no reasoning proved is REPLANNED under Law 2: it
+    # has no account of why it would run. That is not a refusal on principle --
+    # the declared-harmful variants above are the ones BLOCKED -- and nothing
+    # executes. CONSOLIDATION-01 C checks the same line from the Constitution's
+    # side.
+    async def _asked_for_an_account(self, tool_name, parameters):
+        result = await self.registry.execute_tool(tool_name=tool_name, parameters=parameters)
+        judgment = (result.metadata or {}).get("judgment") or {}
+        assert result.success is False, f"{tool_name} ran with no account of why it would"
+        assert (result.metadata or {}).get("error_type") == "CONSTITUTION_REFUSED", \
+            f"{tool_name} did not reach the Constitution: {result.error}"
+        assert judgment.get("verdict") == "replan", \
+            f"a benign {tool_name} call is asked for an account, not refused: {judgment.get('verdict')}"
+        assert judgment.get("law_number") == 2, f"expected Law 2, got {judgment.get('law_number')}"
+        return result
 
-        # Should execute (no trigger match - latency on staging is safe)
-        assert result.success == True, "Safe chaos testing parameters should execute"
-        assert result.requires_approval == False, "Should not require approval"
+    async def test_chaos_tool_safe_parameters_executes(self):
+        """Chaos testing with safe parameters is asked for an account, not refused"""
+        await self._asked_for_an_account(
+            "chaos_testing", {"chaos_type": "latency", "target": "staging"})
 
     async def test_mutation_tool_safe_files_executes(self):
-        """Test that MutationTestingTool on non-critical files executes"""
-        # A REAL, non-critical file. The old path did not exist, so the tool
-        # correctly refused and the test read that refusal as governance
-        # blocking it. core/semantics is outside tool_exec_003's critical set
-        # (core/governance, core/safety, core/memory), which is exactly the
-        # condition under test.
-        result = await self.registry.execute_tool(
-            tool_name="mutation_testing",
-            parameters={"source_file": "core/semantics/lexical_normalization.py",
-                        # sys.executable, not bare `pytest`: the project's deps
-                        # live in the venv and a bare name resolves to whatever
-                        # is on PATH, which is how the baseline run failed while
-                        # the suite itself was passing.
-                        "test_command": f"'{sys.executable}' -m pytest -x -q tests/test_lexical_normalization.py",
-                        "max_mutations": 1, "timeout": 60}
-        )
-
-        # Should execute (no critical files)
-        assert result.success == True, "Mutation testing on test files should execute"
-        assert result.requires_approval == False, "Should not require approval"
+        """Mutation testing on a non-critical file is asked for an account, not refused"""
+        await self._asked_for_an_account(
+            "mutation_testing",
+            {"source_file": "core/semantics/lexical_normalization.py",
+             "test_command": f"'{sys.executable}' -m pytest -x -q tests/test_lexical_normalization.py",
+             "max_mutations": 1, "timeout": 60})
 
     async def test_fuzz_tool_safe_function_executes(self):
-        """Test that FuzzTestingTool on safe functions executes"""
-        result = await self.registry.execute_tool(
-            tool_name="fuzz_testing",
-            parameters={"target_file": "core/semantics/lexical_normalization.py",
-                        "target_function": "singularise", "iterations": 5}
-        )
-
-        # Should execute (safe function name)
-        assert result.success == True, "Fuzz testing on safe functions should execute"
-        assert result.requires_approval == False, "Should not require approval"
+        """Fuzz testing a safe function is asked for an account, not refused"""
+        await self._asked_for_an_account(
+            "fuzz_testing",
+            {"target_file": "core/semantics/lexical_normalization.py",
+             "target_function": "singularise", "iterations": 5})
 
     # ===== Test Runner =====
 
@@ -199,15 +194,15 @@ class GovernancePhase2Tests(TestBase):
 
         # Test 4: Pattern matching
 
-        # Test 5: Safe parameters don't trigger
+        # Test 5: Benign variants are asked for an account (Law 2), never refused on principle
         await self.run_test(
             "test_chaos_tool_safe_parameters_executes",
             self.test_chaos_tool_safe_parameters_executes,
             metadata={
-                "description": "Verify ChaosTestingTool with safe parameters executes immediately",
+                "description": "ChaosTestingTool with safe parameters is replanned under Law 2, not refused",
                 "phase": "2",
                 "component": "tool_integration",
-                "validates": "Safe parameters don't trigger governance"
+                "validates": "No account, no run; not blocked on principle"
             }
         )
 
@@ -215,10 +210,10 @@ class GovernancePhase2Tests(TestBase):
             "test_mutation_tool_safe_files_executes",
             self.test_mutation_tool_safe_files_executes,
             metadata={
-                "description": "Verify MutationTestingTool on non-critical files executes",
+                "description": "MutationTestingTool on a non-critical file is replanned under Law 2, not refused",
                 "phase": "2",
                 "component": "tool_integration",
-                "validates": "Non-critical files don't trigger governance"
+                "validates": "No account, no run; not blocked on principle"
             }
         )
 
@@ -226,10 +221,10 @@ class GovernancePhase2Tests(TestBase):
             "test_fuzz_tool_safe_function_executes",
             self.test_fuzz_tool_safe_function_executes,
             metadata={
-                "description": "Verify FuzzTestingTool on safe functions executes",
+                "description": "FuzzTestingTool on a safe function is replanned under Law 2, not refused",
                 "phase": "2",
                 "component": "tool_integration",
-                "validates": "Safe fuzz testing executes immediately"
+                "validates": "No account, no run; not blocked on principle"
             }
         )
 

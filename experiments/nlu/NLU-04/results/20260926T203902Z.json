@@ -1,0 +1,131 @@
+{
+  "experiment": "NLU-04 \u2014 Does reading survive surface noise?",
+  "writes_to_store": false,
+  "notes": [],
+  "data": {},
+  "checks": [
+    {
+      "name": "uppercase: 'A robin is a bird.' not MISread",
+      "passed": true,
+      "detail": "clean ('robin_bird',) -> noisy ('robin_bird',)"
+    },
+    {
+      "name": "lowercase: 'A robin is a bird.' not MISread",
+      "passed": true,
+      "detail": "clean ('robin_bird',) -> noisy ('robin_bird',)"
+    },
+    {
+      "name": "no final stop: 'A robin is a bird.' not MISread",
+      "passed": true,
+      "detail": "clean ('robin_bird',) -> noisy ('robin_bird',)"
+    },
+    {
+      "name": "double spaces: 'A robin is a bird.' not MISread",
+      "passed": true,
+      "detail": "clean ('robin_bird',) -> noisy ('robin_bird',)"
+    },
+    {
+      "name": "leading/trailing space: 'A robin is a bird.' not MISread",
+      "passed": true,
+      "detail": "clean ('robin_bird',) -> noisy ('robin_bird',)"
+    },
+    {
+      "name": "doubled final stop: 'A robin is a bird.' not MISread",
+      "passed": true,
+      "detail": "clean ('robin_bird',) -> noisy ('robin_bird',)"
+    },
+    {
+      "name": "uppercase: 'The kidney filters plasma.' not MISread",
+      "passed": true,
+      "detail": "clean ('kidney_filter_plasma',) -> noisy ('kidney_filter_plasma',)"
+    },
+    {
+      "name": "lowercase: 'The kidney filters plasma.' not MISread",
+      "passed": true,
+      "detail": "clean ('kidney_filter_plasma',) -> noisy ('kidney_filter_plasma',)"
+    },
+    {
+      "name": "no final stop: 'The kidney filters plasma.' not MISread",
+      "passed": true,
+      "detail": "clean ('kidney_filter_plasma',) -> noisy ('kidney_filter_plasma',)"
+    },
+    {
+      "name": "double spaces: 'The kidney filters plasma.' not MISread",
+      "passed": true,
+      "detail": "clean ('kidney_filter_plasma',) -> noisy ('kidney_filter_plasma',)"
+    },
+    {
+      "name": "leading/trailing space: 'The kidney filters plasma.' not MISread",
+      "passed": true,
+      "detail": "clean ('kidney_filter_plasma',) -> noisy ('kidney_filter_plasma',)"
+    },
+    {
+      "name": "doubled final stop: 'The kidney filters plasma.' not MISread",
+      "passed": true,
+      "detail": "clean ('kidney_filter_plasma',) -> noisy ('kidney_filter_plasma',)"
+    },
+    {
+      "name": "uppercase: 'The vault is locked.' not MISread",
+      "passed": true,
+      "detail": "clean ('vault_locked',) -> noisy ('vault_locked',)"
+    },
+    {
+      "name": "lowercase: 'The vault is locked.' not MISread",
+      "passed": true,
+      "detail": "clean ('vault_locked',) -> noisy ('vault_locked',)"
+    },
+    {
+      "name": "no final stop: 'The vault is locked.' not MISread",
+      "passed": true,
+      "detail": "clean ('vault_locked',) -> noisy ('vault_locked',)"
+    },
+    {
+      "name": "double spaces: 'The vault is locked.' not MISread",
+      "passed": true,
+      "detail": "clean ('vault_locked',) -> noisy ('vault_locked',)"
+    },
+    {
+      "name": "leading/trailing space: 'The vault is locked.' not MISread",
+      "passed": true,
+      "detail": "clean ('vault_locked',) -> noisy ('vault_locked',)"
+    },
+    {
+      "name": "doubled final stop: 'The vault is locked.' not MISread",
+      "passed": true,
+      "detail": "clean ('vault_locked',) -> noisy ('vault_locked',)"
+    },
+    {
+      "name": "uppercase: 'The tank stores water.' not MISread",
+      "passed": true,
+      "detail": "clean ('tank_store_water',) -> noisy ('tank_store_water',)"
+    },
+    {
+      "name": "lowercase: 'The tank stores water.' not MISread",
+      "passed": true,
+      "detail": "clean ('tank_store_water',) -> noisy ('tank_store_water',)"
+    },
+    {
+      "name": "no final stop: 'The tank stores water.' not MISread",
+      "passed": true,
+      "detail": "clean ('tank_store_water',) -> noisy ('tank_store_water',)"
+    },
+    {
+      "name": "double spaces: 'The tank stores water.' not MISread",
+      "passed": true,
+      "detail": "clean ('tank_store_water',) -> noisy ('tank_store_water',)"
+    },
+    {
+      "name": "leading/trailing space: 'The tank stores water.' not MISread",
+      "passed": true,
+      "detail": "clean ('tank_store_water',) -> noisy ('tank_store_water',)"
+    },
+    {
+      "name": "doubled final stop: 'The tank stores water.' not MISread",
+      "passed": true,
+      "detail": "clean ('tank_store_water',) -> noisy ('tank_store_water',)"
+    }
+  ],
+  "passed": 24,
+  "total": 24,
+  "seconds": 0.08
+}

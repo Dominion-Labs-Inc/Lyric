@@ -1,0 +1,264 @@
+{
+  "experiment": "SYSTEM-LEARNING-01",
+  "claim": "The learning faculty is one authority: a told fact enters the concept graph once and moves a belief, a malformed one is refused, demonstrations become a rule through the substrate's own induction, and every public method is reached.",
+  "hypothesis": "A second learning system, a fact admitted twice, a belief that did not move, or a dead public method would each fail a check here.",
+  "started_at": "2026-09-28T17:15:24.198621+00:00",
+  "duration_seconds": 32.571,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/TorinAI/venv_torin/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/TorinAI",
+    "shadow_mode": null,
+    "git_commit": "20deb447498593391eca0286916b8f986c560a26",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "torinai_dev",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "torinai_dev",
+        "model": "torinai_dev",
+        "user_context": "torinai_dev",
+        "learning": "torinai_dev"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "dotenv:.env.postgres",
+        "database": "environment",
+        "user": "dotenv:.env.postgres",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 1688,
+    "database_verified": null,
+    "database_verified_reason": "no initialized connection in this process"
+  },
+  "summary": {
+    "checks": 23,
+    "passed": 23,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [
+    {
+      "name": "learning_construction_sites",
+      "value": 1,
+      "unit": "count",
+      "note": "core/learning/unified_learning_system.py:4976"
+    },
+    {
+      "name": "learning_public_methods",
+      "value": 74,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "learning_internal_only_public_methods",
+      "value": 8,
+      "unit": "count",
+      "note": "used only inside their own file: drain_events, get_domain_learning_stats, register_contributor, register_clause_classifier, save_classifiers, load_classifiers, resolve_open_unknowns, resolution_grounds"
+    },
+    {
+      "name": "learning_experiments_only",
+      "value": 2,
+      "unit": "count",
+      "note": "induce_causal_structure (experiments/edu/EDU-12/attempt.py; experiments/edu/EDU-12/exam_validity.py), train_clause_classifier (experiments/FALSIFY-01/experiment.py; experiments/RECOGNISE-02/experiment.py)"
+    },
+    {
+      "name": "learning_uncalled",
+      "value": 1,
+      "unit": "count",
+      "note": "process_interaction"
+    },
+    {
+      "name": "learning_not_implemented",
+      "value": 0,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "learning_constant",
+      "value": 0,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "learning_empty",
+      "value": 0,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "rules_induced",
+      "value": 1,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "behaviour_checks_passed",
+      "value": 23,
+      "unit": "count",
+      "note": "of 23"
+    },
+    {
+      "name": "wiring_findings",
+      "value": 3,
+      "unit": "count",
+      "note": "2 exercised only by experiments/tests, 1 called by nothing"
+    },
+    {
+      "name": "completeness_findings",
+      "value": 0,
+      "unit": "count",
+      "note": "0 NotImplementedError, 0 return a literal, 0 empty"
+    }
+  ],
+  "checks": [
+    {
+      "label": "learning: the coordinator holds the instance the accessor returns",
+      "passed": true,
+      "detail": "held=UnifiedLearningSystem same=True",
+      "at": "2026-09-28T17:15:44.783088+00:00"
+    },
+    {
+      "label": "learning: UnifiedLearningSystem is constructed in one place",
+      "passed": true,
+      "detail": "in its module: ['core/learning/unified_learning_system.py:4976']; elsewhere: []",
+      "at": "2026-09-28T17:15:46.656271+00:00"
+    },
+    {
+      "label": "the two accessors name the same authority",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-28T17:15:55.778261+00:00"
+    },
+    {
+      "label": "the fact is admitted",
+      "passed": true,
+      "detail": "created=['isolation_probe_learning:isoprobe_finch', 'isolation_probe_learning:isoprobe_bird'] reinforced=[] memory=mem_dba91f6dc93249389aaa299e1a89c751",
+      "at": "2026-09-28T17:15:56.047180+00:00"
+    },
+    {
+      "label": "the admission moved a belief through the one belief door",
+      "passed": true,
+      "detail": "belief=belief_23fb8a19a9fd posterior=0.992588067773443",
+      "at": "2026-09-28T17:15:56.047199+00:00"
+    },
+    {
+      "label": "the relation is in the concept graph the reasoner walks",
+      "passed": true,
+      "detail": "isa edges from isoprobe_finch: 1",
+      "at": "2026-09-28T17:15:56.049035+00:00"
+    },
+    {
+      "label": "telling it again does not admit it twice",
+      "passed": true,
+      "detail": "already_present=True created=[]",
+      "at": "2026-09-28T17:15:56.050565+00:00"
+    },
+    {
+      "label": "an empty subject is refused",
+      "passed": true,
+      "detail": "admitted=False refusals=['subject is empty: a proposition about nothing is not admitted']",
+      "at": "2026-09-28T17:15:56.051528+00:00"
+    },
+    {
+      "label": "demonstrations are recorded",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-28T17:15:56.129963+00:00"
+    },
+    {
+      "label": "the pending induction drains",
+      "passed": true,
+      "detail": "{'drained': 1, 'induced': [{'status': 'operator_executable', 'demonstrations': 3, 'contrastive': 0, 'positives': 3, 'domain_id': 'isolation_probe_learning', 'signature': 'ISOMOVE/3', 'rule_id': 'rule_24875345595e', 'executable': True, 'projected_to_concepts': True}], 'by_domain': {'isolation_probe_learning': True}}",
+      "at": "2026-09-28T17:15:56.350548+00:00"
+    },
+    {
+      "label": "a rule was induced for the domain",
+      "passed": true,
+      "detail": "1 rule(s): ['ISOAT(?X0, ?X2) \u2227 ISOMOVE(a, ?X2, ?X1) \u2192 ISOAT(?X0, ?X1) \u2296 I'] status={'validated'}",
+      "at": "2026-09-28T17:15:56.359247+00:00"
+    },
+    {
+      "label": "with no outcome recorded, nothing is predicted",
+      "passed": true,
+      "detail": "{'predicted_success': None, 'interval': None, 'evidence': 0, 'basis': 'no outcome recorded for isoprobe_arm:steady'}",
+      "at": "2026-09-28T17:15:56.359272+00:00"
+    },
+    {
+      "label": "recorded outcomes move the prediction: 5 of 6 -> (5+1)/(6+2)",
+      "passed": true,
+      "detail": "{'predicted_success': 0.75, 'interval': (0.43649056343635395, 0.9699474141282697), 'evidence': 6, 'basis': '5/6 outcomes for isoprobe_arm:steady'}",
+      "at": "2026-09-28T17:15:56.415358+00:00"
+    },
+    {
+      "label": "the evidence recommends the arm that wins over the one that loses",
+      "passed": true,
+      "detail": "[('isoprobe_arm:steady', 5, 6, 0.43649056343635395), ('isoprobe_arm:flaky', 1, 6, 0.03005258587173032)]",
+      "at": "2026-09-28T17:15:56.415382+00:00"
+    },
+    {
+      "label": "a prediction made at decision time is checked against the outcome",
+      "passed": true,
+      "detail": "predictions checked=6",
+      "at": "2026-09-28T17:15:56.415394+00:00"
+    },
+    {
+      "label": "an unknown task family is refused",
+      "passed": true,
+      "detail": "'not_a_family' is not a task family; one of ['classification', 'regres",
+      "at": "2026-09-28T17:15:56.415414+00:00"
+    },
+    {
+      "label": "a retry wait is one the learner chooses among",
+      "passed": true,
+      "detail": "[15.0, 30.0, 60.0]",
+      "at": "2026-09-28T17:15:56.415612+00:00"
+    },
+    {
+      "label": "after short waits keep failing and 120 s keeps recovering, 120 s is chosen most",
+      "passed": true,
+      "detail": "{15.0: 12, 30.0: 3, 120.0: 45}",
+      "at": "2026-09-28T17:15:56.534743+00:00"
+    },
+    {
+      "label": "and long waits no evidence supports are not chosen",
+      "passed": true,
+      "detail": "[15.0, 30.0, 120.0]",
+      "at": "2026-09-28T17:15:56.534754+00:00"
+    },
+    {
+      "label": "a wait it does not choose among is refused as evidence",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-28T17:15:56.534761+00:00"
+    },
+    {
+      "label": "consolidation settles unknowns, closes abandoned decisions, persists classifiers",
+      "passed": true,
+      "detail": "{'refreshed': {'known_unknowns': {'open': 1, 'added': 0, 'dropped': 0}, 'strategy_arms': 26}, 'known_unknowns': {'open': 1, 'resolved': 0, 'not_yet': 1, 'no_target': 0}, 'abandoned_decisions_closed': 0, 'classifiers_saved': 0}",
+      "at": "2026-09-28T17:15:56.540867+00:00"
+    },
+    {
+      "label": "metrics are a dict",
+      "passed": true,
+      "detail": "keys=['contributions_accepted', 'contributions_promoted_to_knowledge', 'contributions_seen', 'contributors']",
+      "at": "2026-09-28T17:15:56.540880+00:00"
+    },
+    {
+      "label": "everything this run wrote is removed",
+      "passed": true,
+      "detail": "left=0",
+      "at": "2026-09-28T17:15:56.588223+00:00"
+    }
+  ],
+  "notes": []
+}

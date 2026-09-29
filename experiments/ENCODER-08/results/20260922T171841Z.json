@@ -1,0 +1,60 @@
+{
+  "experiment": "ENCODER-08 \u2014 the untaught-term fix",
+  "seed": 20260922,
+  "hypotheses": [
+    "H1 untaught pairs score LOWER than taught pairs, with the fix",
+    "H2 retrieval is not degraded",
+    "H3 paraphrase similarity is not degraded",
+    "H4 the false-merge rate falls at the live threshold"
+  ],
+  "data": {
+    "native": {
+      "mrr": 0.7466666666666667,
+      "p_at_1": 0.5,
+      "taught_pair": 0.8607323338201329,
+      "untaught_pair": 0.9440847413233759,
+      "paraphrase": 0.9788806078407553,
+      "false_merges": 180,
+      "n_pairs": 180
+    },
+    "native+unk": {
+      "mrr": 0.7466666666666667,
+      "p_at_1": 0.5,
+      "taught_pair": 0.8607323338201329,
+      "untaught_pair": 0.9114281199920924,
+      "paraphrase": 0.8860508989210639,
+      "false_merges": 180,
+      "n_pairs": 180
+    }
+  },
+  "checks": [
+    {
+      "name": "H1 with the fix, an untaught subject reads as MORE different",
+      "passed": false,
+      "detail": "untaught 0.911 vs taught 0.861"
+    },
+    {
+      "name": "H1b without the fix the ordering is inverted (the defect)",
+      "passed": true,
+      "detail": "untaught 0.944 vs taught 0.861"
+    },
+    {
+      "name": "H2 retrieval is not degraded",
+      "passed": true,
+      "detail": "0.747 -> 0.747"
+    },
+    {
+      "name": "H3 paraphrase similarity is not degraded",
+      "passed": false,
+      "detail": "0.979 -> 0.886"
+    },
+    {
+      "name": "H4 the false-merge count falls",
+      "passed": false,
+      "detail": "180 -> 180 of 180 pairs"
+    }
+  ],
+  "passed": 2,
+  "total": 5,
+  "verdict": "the unknown-term signal does not fully repair the defect"
+}

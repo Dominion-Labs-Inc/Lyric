@@ -1,0 +1,43 @@
+{
+  "experiment": "NLU-03 \u2014 Does it generalise to words it was never taught?",
+  "writes_to_store": false,
+  "notes": [
+    "every content word below is absent from the reader's evidence, so nothing here can be answered by having memorised a sentence"
+  ],
+  "data": {},
+  "checks": [
+    {
+      "name": "reads 'The kidney filters plasma.'",
+      "passed": true,
+      "detail": "got 'kidney_filter_plasma'; expected subject=kidney relation=filter object=plasma positive=True"
+    },
+    {
+      "name": "reads 'The tank stores water.'",
+      "passed": true,
+      "detail": "got 'tank_store_water'; expected subject=tank relation=store object=water positive=True"
+    },
+    {
+      "name": "reads 'A crucible melts ore.'",
+      "passed": true,
+      "detail": "got 'crucible_melt_ore'; expected subject=crucible relation=melt object=ore positive=True"
+    },
+    {
+      "name": "reads 'The turbine is not silent.'",
+      "passed": true,
+      "detail": "got '~turbine_silent'; expected subject=turbine relation=None object=silent positive=False"
+    },
+    {
+      "name": "reads 'The control rod is heavy.'",
+      "passed": true,
+      "detail": "got 'control_rod_heavy'; expected subject=control_rod relation=None object=heavy positive=True"
+    },
+    {
+      "name": "reads 'Is the reactor stable?'",
+      "passed": true,
+      "detail": "got 'reactor_stable'; expected subject=reactor relation=None object=stable positive=True"
+    }
+  ],
+  "passed": 6,
+  "total": 6,
+  "seconds": 0.01
+}

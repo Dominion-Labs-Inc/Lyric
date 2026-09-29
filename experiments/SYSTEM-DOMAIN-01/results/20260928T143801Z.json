@@ -1,0 +1,204 @@
+{
+  "experiment": "SYSTEM-DOMAIN-01",
+  "claim": "Domains have one authority: a domain comes into existence once and idempotently, competence evidence moves its learning progress, a knowledge gap is detected against what it holds, and every public method is reached.",
+  "hypothesis": "Two domain masters, a domain created twice, progress that did not move, or a dead public method would each fail here.",
+  "started_at": "2026-09-28T14:38:01.868581+00:00",
+  "duration_seconds": 26.519,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/TorinAI/venv_torin/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/TorinAI",
+    "shadow_mode": null,
+    "git_commit": "20deb447498593391eca0286916b8f986c560a26",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "torinai_dev",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "torinai_dev",
+        "model": "torinai_dev",
+        "user_context": "torinai_dev",
+        "learning": "torinai_dev"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "dotenv:.env.postgres",
+        "database": "environment",
+        "user": "dotenv:.env.postgres",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 1483,
+    "database_verified": null,
+    "database_verified_reason": "no initialized connection in this process"
+  },
+  "summary": {
+    "checks": 14,
+    "passed": 14,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [
+    {
+      "name": "domain_construction_sites",
+      "value": 1,
+      "unit": "count",
+      "note": "core/integration/universal_domain_master.py:3979"
+    },
+    {
+      "name": "domain_public_methods",
+      "value": 45,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "domain_internal_only_public_methods",
+      "value": 5,
+      "unit": "count",
+      "note": "used only inside their own file: is_learned_domain, embed_pending_concepts, is_crystallized, provisional_domains, crystallize_taxonomic_domains"
+    },
+    {
+      "name": "domain_experiments_only",
+      "value": 0,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "domain_uncalled",
+      "value": 0,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "domain_not_implemented",
+      "value": 0,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "domain_constant",
+      "value": 0,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "domain_empty",
+      "value": 0,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "behaviour_checks_passed",
+      "value": 14,
+      "unit": "count",
+      "note": "of 14"
+    },
+    {
+      "name": "wiring_findings",
+      "value": 0,
+      "unit": "count",
+      "note": "0 exercised only by experiments/tests, 0 called by nothing"
+    },
+    {
+      "name": "completeness_findings",
+      "value": 0,
+      "unit": "count",
+      "note": "0 NotImplementedError, 0 return a literal, 0 empty"
+    }
+  ],
+  "checks": [
+    {
+      "label": "domain: the coordinator holds the instance the accessor returns",
+      "passed": true,
+      "detail": "held=UniversalDomainMaster same=True",
+      "at": "2026-09-28T14:38:20.615507+00:00"
+    },
+    {
+      "label": "domain: UniversalDomainMaster is constructed in one place",
+      "passed": true,
+      "detail": "in its module: ['core/integration/universal_domain_master.py:3979']; elsewhere: []",
+      "at": "2026-09-28T14:38:22.828707+00:00"
+    },
+    {
+      "label": "ensure_domain returns the domain",
+      "passed": true,
+      "detail": "Domain id=isolation_probe_domain",
+      "at": "2026-09-28T14:38:27.968075+00:00"
+    },
+    {
+      "label": "a second call returns the same domain, not a second one",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-28T14:38:27.968090+00:00"
+    },
+    {
+      "label": "exactly one durable row",
+      "passed": true,
+      "detail": "rows=1",
+      "at": "2026-09-28T14:38:27.976523+00:00"
+    },
+    {
+      "label": "it is a learned domain, and the others are untouched",
+      "passed": true,
+      "detail": "learned=33 (was 32)",
+      "at": "2026-09-28T14:38:27.976552+00:00"
+    },
+    {
+      "label": "a fresh domain reads optimistic, not zero",
+      "passed": true,
+      "detail": "1.0",
+      "at": "2026-09-28T14:38:27.978481+00:00"
+    },
+    {
+      "label": "learned outcomes make progress positive",
+      "passed": true,
+      "detail": "1.0 -> 0.24750965441559902",
+      "at": "2026-09-28T14:38:28.062760+00:00"
+    },
+    {
+      "label": "failed outcomes turn it negative",
+      "passed": true,
+      "detail": "0.24750965441559902 -> -0.3581489882610514",
+      "at": "2026-09-28T14:38:28.104351+00:00"
+    },
+    {
+      "label": "a subject the domain does not hold is not a gap in it",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-28T14:38:28.104366+00:00"
+    },
+    {
+      "label": "a held concept lacking a relation is registered as a known unknown",
+      "passed": true,
+      "detail": "domain=environment_ed9c1a7ba71c7df3 subject=darwin -> what does darwin isoprobe_relation_qzx?",
+      "at": "2026-09-28T14:38:28.104462+00:00"
+    },
+    {
+      "label": "nothing is strongly similar to an empty domain",
+      "passed": true,
+      "detail": "0 at >= 0.5",
+      "at": "2026-09-28T14:38:28.162306+00:00"
+    },
+    {
+      "label": "statistics are a dict",
+      "passed": true,
+      "detail": "keys=['cached_mappings', 'domains_loaded', 'failed_queries', 'successful_queries', 'total_mappings', 'total_queries']",
+      "at": "2026-09-28T14:38:28.162325+00:00"
+    },
+    {
+      "label": "everything this run wrote is removed",
+      "passed": true,
+      "detail": "left=0",
+      "at": "2026-09-28T14:38:28.199457+00:00"
+    }
+  ],
+  "notes": []
+}

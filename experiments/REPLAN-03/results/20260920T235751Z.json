@@ -1,0 +1,68 @@
+{
+  "experiment": "REPLAN-03",
+  "at": "20260920T235751Z",
+  "passed": 10,
+  "total": 12,
+  "checks": [
+    {
+      "name": "the registry names the LIVE substrate",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "the domain is bound \u2014 observable and actable",
+      "passed": true,
+      "detail": "operators: ['MOVE_FILE', 'REMOVE_FILE']"
+    },
+    {
+      "name": "it reads the real directory as its world",
+      "passed": true,
+      "detail": "['FILE_IN(Freport_2etxt, Finbox)']"
+    },
+    {
+      "name": "it tried real actions in the real world to find out what they do",
+      "passed": true,
+      "detail": "6 action(s) over 2 cycle(s)"
+    },
+    {
+      "name": "it INDUCED an executable MOVE_FILE operator from what happened",
+      "passed": true,
+      "detail": "[('rule_780ee61ba', 'validated')]"
+    },
+    {
+      "name": "the first attempt did NOT reach the goal straight away",
+      "passed": true,
+      "detail": "success=False stopped_at=MOVE_FILE(Freport_2etxt, Finbox, Farchive)"
+    },
+    {
+      "name": "nothing was refuted \u2014 MOVE_FILE is still true of this world",
+      "passed": false,
+      "detail": "{'rule_780ee61ba': 'refuted'}"
+    },
+    {
+      "name": "IT REPLANNED FROM WHERE THE FILE ACTUALLY WENT AND FINISHED THE JOB",
+      "passed": false,
+      "detail": "report.txt is in Freview (expected Farchive)"
+    },
+    {
+      "name": "it did not claim to have filed a report into a place that is gone",
+      "passed": true,
+      "detail": "success=False status=unreachable"
+    },
+    {
+      "name": "the file is still somewhere real \u2014 nothing was destroyed chasing it",
+      "passed": true,
+      "detail": "report.txt is in Freview"
+    },
+    {
+      "name": "a route that stopped was recorded as WITHDRAWN, not left standing",
+      "passed": true,
+      "detail": "1 withdrawn for staleness; planning_status=unreachable"
+    },
+    {
+      "name": "an unchanged world does not spawn endless replans",
+      "passed": true,
+      "detail": "150 -> 151 plans"
+    }
+  ]
+}

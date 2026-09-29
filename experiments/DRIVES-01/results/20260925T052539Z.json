@@ -1,0 +1,247 @@
+{
+  "experiment": "DRIVES-01",
+  "claim": "Every drive is the mean of terms READ from the authorities that own them \u2014 several authorities per drive, never one axis \u2014 with unreadable terms named and excluded rather than defaulted. A drive nothing can be measured for is absent, not 0.5. Motivation computes no pressure of its own: it reads appraisal's. And every drive is consumed \u2014 through the drive level into appraisal's activation, and through the situation features the substrate conditions its own performance claims on.",
+  "hypothesis": "If the drives were still keyword-scored, changing the WORDING of the goals in context would move them. If they were still baseline-filled, a drive with no readable source would come back 0.5 instead of absent. If the drive level still went nowhere, feeding it to appraisal would leave `activation` unmeasured.",
+  "started_at": "2026-09-25T05:25:39.581404+00:00",
+  "duration_seconds": 5.545,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/TorinAI/venv_torin/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/TorinAI",
+    "shadow_mode": null,
+    "git_commit": "20deb447498593391eca0286916b8f986c560a26",
+    "postgres": {
+      "host": "localhost",
+      "database": null,
+      "port": "5433"
+    },
+    "git_uncommitted_changes": 803,
+    "database_verified": null,
+    "database_verified_reason": "not verified"
+  },
+  "summary": {
+    "checks": 25,
+    "passed": 25,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [
+    {
+      "name": "drives_measured",
+      "value": 6,
+      "unit": "count",
+      "note": "of seven, this run"
+    },
+    {
+      "name": "drive_curiosity",
+      "value": 0.0,
+      "unit": "level [0,1]",
+      "note": "terms: open_questions, unsettled_belief"
+    },
+    {
+      "name": "drive_competence",
+      "value": 0.4207,
+      "unit": "level [0,1]",
+      "note": "terms: room_to_grow, skill_within_reach"
+    },
+    {
+      "name": "drive_novelty",
+      "value": 0.5886,
+      "unit": "level [0,1]",
+      "note": "terms: untried_ground, unmet_concepts"
+    },
+    {
+      "name": "drive_mastery",
+      "value": 1.0,
+      "unit": "level [0,1]",
+      "note": "terms: thin_evidence"
+    },
+    {
+      "name": "drive_autonomy",
+      "value": 1.0,
+      "unit": "level [0,1]",
+      "note": "terms: room_to_act"
+    },
+    {
+      "name": "drive_impact",
+      "value": 0.25,
+      "unit": "level [0,1]",
+      "note": "terms: work_is_failing, unclosed_ignorance"
+    },
+    {
+      "name": "drives_moved_by_wording",
+      "value": 0,
+      "unit": "count",
+      "note": "every keyword the old scorers matched on, in one goal"
+    },
+    {
+      "name": "drives_with_no_consumer_before",
+      "value": 3,
+      "unit": "count",
+      "note": "mastery, autonomy, social \u2014 read by nothing in the tree"
+    },
+    {
+      "name": "appraisals_with_unmeasured_activation_before",
+      "value": 1.0,
+      "unit": "fraction",
+      "note": "no appraisal.update() call in the tree passed motivation_state"
+    }
+  ],
+  "checks": [
+    {
+      "label": "all seven drives were attempted",
+      "passed": true,
+      "detail": "['autonomy', 'competence', 'curiosity', 'impact', 'mastery', 'novelty', 'social']",
+      "at": "2026-09-25T05:25:43.992503+00:00"
+    },
+    {
+      "label": "no drive rests on a single axis (every one declares >= 2 terms)",
+      "passed": true,
+      "detail": "curiosity=3; competence=3; novelty=2; mastery=2; autonomy=2; social=2; impact=3",
+      "at": "2026-09-25T05:25:43.992537+00:00"
+    },
+    {
+      "label": "each level IS the mean of the terms actually measured \u2014 nothing added",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-25T05:25:43.992551+00:00"
+    },
+    {
+      "label": "an unreadable term is NAMED, never counted as zero",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-25T05:25:43.992558+00:00"
+    },
+    {
+      "label": "every measured level carries the raw counts it was derived from",
+      "passed": true,
+      "detail": "curiosity:['open_questions', 'unstable_regions']; competence:['executable_operators', 'pending_induction']; novelty:['untried_domains', 'concepts_held_by_name_only']; mastery:['thinly_evidenced_operators']; autonomy:['free_slots']; impact:['failure_rate', 'attempts']",
+      "at": "2026-09-25T05:25:43.992573+00:00"
+    },
+    {
+      "label": "goal wording, 'novel_elements' and 'collaboration_tasks' move NOTHING",
+      "passed": true,
+      "detail": "moved=none",
+      "at": "2026-09-25T05:25:44.741107+00:00"
+    },
+    {
+      "label": "no measurable term -> level is None",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-25T05:25:44.741121+00:00"
+    },
+    {
+      "label": "and both terms are named unmeasured",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-25T05:25:44.741126+00:00"
+    },
+    {
+      "label": "one measurable term -> the mean is over THAT term, not over two",
+      "passed": true,
+      "detail": "level=0.8",
+      "at": "2026-09-25T05:25:44.741131+00:00"
+    },
+    {
+      "label": "a None level never enters `dimensions`",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-25T05:25:44.741137+00:00"
+    },
+    {
+      "label": "the reading dataclass admits an unmeasured drive at all",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-25T05:25:44.741145+00:00"
+    },
+    {
+      "label": "total drive level is the weighted mean of the MEASURED drives only",
+      "passed": true,
+      "detail": "one=0.8 two=0.5",
+      "at": "2026-09-25T05:25:44.741150+00:00"
+    },
+    {
+      "label": "nothing measured -> no drive level at all (was 0.5)",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-25T05:25:44.741153+00:00"
+    },
+    {
+      "label": "`_experience_pressure` is gone from the motivation system",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-25T05:25:44.741155+00:00"
+    },
+    {
+      "label": "curiosity declares exploration_pressure as one of its terms",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-25T05:25:44.741157+00:00"
+    },
+    {
+      "label": "with NO appraisal, the pressure term is unmeasured \u2014 not invented",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-25T05:25:44.741179+00:00"
+    },
+    {
+      "label": "with a state that WANTS to explore, curiosity reads that pressure",
+      "passed": true,
+      "detail": "pressure=0.9 curiosity 0.0 -> 0.3",
+      "at": "2026-09-25T05:25:44.741241+00:00"
+    },
+    {
+      "label": "an outcome alone leaves activation UNMEASURED (the old steady state)",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-25T05:25:44.741297+00:00"
+    },
+    {
+      "label": "and it records the attribution of that outcome",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-25T05:25:44.741299+00:00"
+    },
+    {
+      "label": "feeding the drive level MEASURES activation",
+      "passed": true,
+      "detail": "activation=0.5045290163423599 total_reward=0.5045290163423599",
+      "at": "2026-09-25T05:25:45.126680+00:00"
+    },
+    {
+      "label": "the attribution of the last outcome SURVIVES the partial update",
+      "passed": true,
+      "detail": "it was overwritten with None before this",
+      "at": "2026-09-25T05:25:45.126686+00:00"
+    },
+    {
+      "label": "approach pressure \u2014 which the arbiter reads \u2014 now includes the drive",
+      "passed": true,
+      "detail": "approach=0.486",
+      "at": "2026-09-25T05:25:45.126689+00:00"
+    },
+    {
+      "label": "so does eagerness, the named emotion built on activation",
+      "passed": true,
+      "detail": "eagerness=0.42613225408559",
+      "at": "2026-09-25T05:25:45.126693+00:00"
+    },
+    {
+      "label": "all seven drives condition what the substrate concludes about itself",
+      "passed": true,
+      "detail": "missing=[]",
+      "at": "2026-09-25T05:25:45.126712+00:00"
+    },
+    {
+      "label": "and they carry the MEASURED values, not placeholders",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-25T05:25:45.126716+00:00"
+    }
+  ],
+  "notes": [
+    "Drive levels depend on the live store, so absolute values differ between runs. Every check here is about the SHAPE of the reading \u2014 what it was derived from, what is excluded, and what consumes it.",
+    "`_drive_level` and `_calculate_total_reward` are exercised directly for the absence cases, because a store that happens to have data for every drive cannot demonstrate what happens when one has none."
+  ]
+}

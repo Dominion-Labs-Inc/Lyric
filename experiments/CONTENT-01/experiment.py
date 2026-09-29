@@ -95,8 +95,8 @@ async def main() -> int:
 
     # ── A. WHAT VIEWING AN IMAGE ACTUALLY DELIVERS ──────────────────────────
     print("\n== A. What the substrate gets from looking at a picture ==")
-    from core.perception.vision_faculty import VisionFaculty
-    eyes = VisionFaculty()
+    from core.perception.perception_faculty import PerceptionFaculty
+    eyes = PerceptionFaculty()
     modality, sensed = await eyes.sense(str(image), source="photo")
     check("the image was really perceived", modality == "image" and sensed,
           f"{sensed.get('caption')}")
@@ -139,12 +139,12 @@ async def main() -> int:
     # forgotten again at the end for the same reason — teaching the repo's test
     # card that it IS famine is a fixture, and a durable one is a lie the
     # substrate keeps.
-    eyes.forget_instance(INSTANCE)
+    await eyes.forget_instance(INSTANCE)
     _, sensed = await eyes.sense(str(image), source="photo")
     check("an unfamiliar photograph names nothing it depicts",
           not (sensed.get("detections") or []),
           "detections: [] — no detector, no known instance")
-    keypoints = eyes.learn_instance(INSTANCE, str(image))
+    keypoints = await eyes.learn_instance(INSTANCE, str(image))
     _, recognised = await eyes.sense(str(image), source="photo")
     named = [d.get("label") for d in (recognised.get("detections") or [])]
     check("once the instance is KNOWN, viewing it names what it is",
@@ -159,7 +159,7 @@ async def main() -> int:
     # recognition's confidence moved onto its own edge, that raised the evidence
     # quality of every MEASURED property in the same percept: `has_width 800`
     # went from prior 0.900 to 1.000 on the strength of a descriptor match.
-    eyes.forget_instance(INSTANCE)
+    await eyes.forget_instance(INSTANCE)
     EV.note("`learn_instance` is ORB keypoint matching — recognition by "
             "matching, no model, entirely offline. So the image channel is not "
             "closed: an unfamiliar photograph is appearance only, and a "

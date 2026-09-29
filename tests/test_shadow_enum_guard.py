@@ -44,20 +44,14 @@ CORE = os.path.join(REPO, "core")
 #: Resolved so far: ConceptType, ReasoningStrategy, DomainType (all collapsed
 #: onto their owning module), MemoryType (the core_types copy deleted).
 KNOWN_SHADOW_DEBT = {
-    "ActionCategory",     # slack_notifier vs unified_governance_trigger_system
-    "AlertSeverity",      # security_types vs health_interfaces
     "AttackType",         # security_training_pipeline vs active_defense_types
-    "DecisionTier",       # slack_notifier vs unified_governance_trigger_system
     "DecisionType",       # memory_worthiness vs autonomous_interfaces
     "EvolutionType",      # directive_types vs directive_evolution_engine
     "ExperimentStatus",   # hypothesis_testing vs chaos.types
     "HealthStatus",       # FIVE definitions across learning/health/system
     "LogicType",          # logical_integration vs advanced_proof_engine
-    "Priority",           # security_types vs autonomous.shared_types
-    "RecoveryAction",     # security_types vs recovery_manager
     "ServiceStatus",      # service_configuration vs environment_state
     "TestStatus",         # testing_validation_tools vs directive_ab_testing
-    "ViolationSeverity",  # governance_agent vs commitment_contracts
 }
 
 

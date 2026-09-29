@@ -1,0 +1,83 @@
+{
+  "experiment": "REPLAN-01",
+  "at": "20260925T223634Z",
+  "passed": 15,
+  "total": 15,
+  "checks": [
+    {
+      "name": "ROUTE_WITHDRAWN has a registered reaction",
+      "passed": true,
+      "detail": "reactions: ['replan_withdrawn_routes']"
+    },
+    {
+      "name": "it is DEFERRED, so it never runs on the dispatch path",
+      "passed": true,
+      "detail": "mode=deferred"
+    },
+    {
+      "name": "the registry still names the LIVE substrate",
+      "passed": true,
+      "detail": "a later AutonomousCoordinator() would have displaced it"
+    },
+    {
+      "name": "the act ran and the world CONTRADICTED the rule",
+      "passed": true,
+      "detail": "outcome=runtime_contradiction refused=None"
+    },
+    {
+      "name": "the rule lost VALIDATED",
+      "passed": true,
+      "detail": "status=refuted"
+    },
+    {
+      "name": "the plan standing on it was withdrawn by DISPATCH",
+      "passed": true,
+      "detail": "active -> invalidated"
+    },
+    {
+      "name": "a plan on an unrelated rule was NOT touched",
+      "passed": true,
+      "detail": "status=active"
+    },
+    {
+      "name": "the stranded goal has a LIVE plan again, without anything asking",
+      "passed": true,
+      "detail": "plan=e1199d09-8018-4df0-b2d7-c090bddd24b3 (goal status=active)"
+    },
+    {
+      "name": "the withdrawn plan is still recorded as withdrawn, not rewritten",
+      "passed": true,
+      "detail": "status=invalidated"
+    },
+    {
+      "name": "before the repair, z is still where the withdrawal left it",
+      "passed": true,
+      "detail": "['SBAT(z, HALL)']"
+    },
+    {
+      "name": "THE WORLD MOVED \u2014 the repaired route was carried out, not just formed",
+      "passed": true,
+      "detail": "LAB/z=True HALL/z=False"
+    },
+    {
+      "name": "the pursuit was RECONCILED \u2014 meant vs happened is recorded on it",
+      "passed": true,
+      "detail": "intent=8e6daa0cb7f04fbda00e242a091346ad outcome={'detail': '1 step(s) ran', 'intent_id': '8e6daa0cb7f04fbda00e242a091346ad', 'matched_aim': True, 'outcome_class': 'success', 'goal_conditions': ['SBAT(z, LAB)'], 'goal_conditions_met': ['SBAT(z, LAB)']}"
+    },
+    {
+      "name": "a goal that already has a live plan is NOT replanned again",
+      "passed": true,
+      "detail": "stranded=0 replanned=0"
+    },
+    {
+      "name": "a state goal whose world cannot be observed is reported UNOBSERVABLE",
+      "passed": true,
+      "detail": "{'stranded': 1, 'replanned': 0, 'unreachable': 0, 'indeterminate': 0, 'unobservable': 1, 'routes': []}"
+    },
+    {
+      "name": "...and it was not abandoned on a world nobody read",
+      "passed": true,
+      "detail": "status=active"
+    }
+  ]
+}

@@ -1,0 +1,180 @@
+{
+  "experiment": "SHAPES-LEARN-03",
+  "claim": "Taught one lesson of basic English, sentence by sentence with each sentence's meaning, the substrate reads sentences it was never taught: fillers of a kind it learned, names it has never seen in frames it knows, sentences heard without capitals or marks, and paragraphs. It says what kind of utterance each is, and holds nothing the lesson's examples state.",
+  "hypothesis": "A lesson pair refused or left unread; a fact, rule or relation held from an example; a taught sentence that does not read; a probe read to the wrong meaning, or an untaught shape read at all; a reading that writes; or any write to the main store would each show here. The prose sample is measured, not checked: one basic lesson is not expected to read documentation.",
+  "started_at": "2026-09-29T01:34:29.273363+00:00",
+  "duration_seconds": 38.124,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/TorinAI/venv_torin/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/TorinAI",
+    "shadow_mode": null,
+    "git_commit": "20deb447498593391eca0286916b8f986c560a26",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "torinai_dev",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "torinai_dev",
+        "model": "torinai_dev",
+        "user_context": "torinai_dev",
+        "learning": "torinai_dev"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "environment",
+        "database": "environment",
+        "user": "environment",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 1776,
+    "database_verified": null,
+    "database_verified_reason": "not verified"
+  },
+  "summary": {
+    "checks": 11,
+    "passed": 9,
+    "failed": 2,
+    "outcome": "FAIL"
+  },
+  "metrics": [
+    {
+      "name": "probes read as they mean",
+      "value": "35/35",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "baseline statements read",
+      "value": "8/35",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "baseline kind right",
+      "value": "11/45",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "prose read whole",
+      "value": "3/300",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "prose read in part",
+      "value": "3/300",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "constructions: holophrase",
+      "value": 19,
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "constructions: item_based",
+      "value": 84,
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "constructions: lexical",
+      "value": 132,
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "constructions: link",
+      "value": 323,
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "communicative success, first hearing",
+      "value": "60/228",
+      "unit": "",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "the run is in the sandbox",
+      "passed": true,
+      "detail": "connected to torinai_dev",
+      "at": "2026-09-29T01:34:31.312239+00:00"
+    },
+    {
+      "label": "the substrate is running",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-29T01:34:54.187965+00:00"
+    },
+    {
+      "label": "every pair is read or repaired, none refused",
+      "passed": true,
+      "detail": "{'learned': 235, 'linked': 323, 'already': 1, 'understood': 60, 'refused': 0, 'total': 228, 'repair_holophrase': 19, 'repair_substitution': 26, 'repair_lexical_item_based': 58, 'repair_item_based_lexical': 65, 'repair_add_links': 59}",
+      "at": "2026-09-29T01:35:06.056028+00:00"
+    },
+    {
+      "label": "every one of the seven repairs ran",
+      "passed": false,
+      "detail": "['add_links', 'holophrase', 'item_based_lexical', 'lexical_item_based', 'substitution']",
+      "at": "2026-09-29T01:35:06.056050+00:00"
+    },
+    {
+      "label": "every sentence was taken as an example",
+      "passed": true,
+      "detail": "{'bound': 0, 'speaker_context': 0, 'no_speaker': 0, 'open': 0, 'not_told': 0, 'rule': 0, 'rule_not_held': 0, 'example': 228}",
+      "at": "2026-09-29T01:35:06.056270+00:00"
+    },
+    {
+      "label": "no relation, rule or fact from the lesson is held",
+      "passed": false,
+      "detail": "{'relations': 1864, 'facts': 0, 'rules': 0}",
+      "at": "2026-09-29T01:35:06.060335+00:00"
+    },
+    {
+      "label": "every taught sentence reads to its meaning",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-09-29T01:35:06.283166+00:00"
+    },
+    {
+      "label": "every probe reads to the meaning it has, and the untaught stay unread",
+      "passed": true,
+      "detail": "35/35",
+      "at": "2026-09-29T01:35:06.343703+00:00"
+    },
+    {
+      "label": "tell, ask and request come from each reading",
+      "passed": true,
+      "detail": "33/33",
+      "at": "2026-09-29T01:35:06.343713+00:00"
+    },
+    {
+      "label": "the view is as teaching left it",
+      "passed": true,
+      "detail": "558 -> 558",
+      "at": "2026-09-29T01:35:07.036939+00:00"
+    },
+    {
+      "label": "the main model's store is untouched",
+      "passed": true,
+      "detail": "188529 rows before, 188529 after",
+      "at": "2026-09-29T01:35:07.397860+00:00"
+    }
+  ],
+  "notes": []
+}

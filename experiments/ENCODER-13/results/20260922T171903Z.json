@@ -1,0 +1,130 @@
+{
+  "experiment": "ENCODER-13 \u2014 chaotic environment: no coherent structure",
+  "seed": 20260922,
+  "hypotheses": [
+    "H1 ORDER INVARIANCE: teaching order cannot change the representation",
+    "H2 interleaving five domains costs nothing against teaching them apart",
+    "H3 symbol chaos does not degrade retrieval of ordinary claims",
+    "H4 extreme length variance does not degrade retrieval",
+    "H5 chaos creates no false matches among clean facts"
+  ],
+  "data": {
+    "native": {
+      "order_delta": 0.0,
+      "alone": {
+        "mrr": 0.75,
+        "p_at_1": 0.5,
+        "separation": 0.19384256704031788,
+        "false_matches": 10,
+        "props": 20
+      },
+      "interleaved": {
+        "mrr": 0.75,
+        "p_at_1": 0.5,
+        "separation": 0.3252354220351883,
+        "false_matches": 10,
+        "props": 100
+      },
+      "with symbol chaos": {
+        "mrr": 0.75,
+        "p_at_1": 0.5,
+        "separation": 0.08958536355330882,
+        "false_matches": 10,
+        "props": 110
+      },
+      "chaos + shuffled": {
+        "mrr": 0.75,
+        "p_at_1": 0.5,
+        "separation": 0.08958536355330882,
+        "false_matches": 10,
+        "props": 110
+      }
+    },
+    "structural": {
+      "order_delta": 0.0,
+      "alone": {
+        "mrr": 0.75,
+        "p_at_1": 0.5,
+        "separation": 0.6722279292213278,
+        "false_matches": 0,
+        "props": 20
+      },
+      "interleaved": {
+        "mrr": 0.75,
+        "p_at_1": 0.5,
+        "separation": 0.7146992752877898,
+        "false_matches": 0,
+        "props": 100
+      },
+      "with symbol chaos": {
+        "mrr": 0.75,
+        "p_at_1": 0.5,
+        "separation": 0.6568987487596345,
+        "false_matches": 0,
+        "props": 110
+      },
+      "chaos + shuffled": {
+        "mrr": 0.75,
+        "p_at_1": 0.5,
+        "separation": 0.6568987487596345,
+        "false_matches": 0,
+        "props": 110
+      }
+    }
+  },
+  "checks": [
+    {
+      "name": "H1 native: teaching order does not change the representation",
+      "passed": true,
+      "detail": "delta 0.000e+00"
+    },
+    {
+      "name": "H2 native: interleaving five domains costs no retrieval",
+      "passed": true,
+      "detail": "0.750 alone -> 0.750 interleaved"
+    },
+    {
+      "name": "H3 native: symbol chaos does not degrade retrieval",
+      "passed": true,
+      "detail": "0.750 -> 0.750"
+    },
+    {
+      "name": "H4 native: length variance does not degrade retrieval",
+      "passed": true,
+      "detail": "0.750 clean -> 0.750 with a 200-char token and a 30-word proposition present"
+    },
+    {
+      "name": "H5 native: chaos creates no false matches among clean facts",
+      "passed": true,
+      "detail": "10 -> 10 of 20"
+    },
+    {
+      "name": "H1 structural: teaching order does not change the representation",
+      "passed": true,
+      "detail": "delta 0.000e+00"
+    },
+    {
+      "name": "H2 structural: interleaving five domains costs no retrieval",
+      "passed": true,
+      "detail": "0.750 alone -> 0.750 interleaved"
+    },
+    {
+      "name": "H3 structural: symbol chaos does not degrade retrieval",
+      "passed": true,
+      "detail": "0.750 -> 0.750"
+    },
+    {
+      "name": "H4 structural: length variance does not degrade retrieval",
+      "passed": true,
+      "detail": "0.750 clean -> 0.750 with a 200-char token and a 30-word proposition present"
+    },
+    {
+      "name": "H5 structural: chaos creates no false matches among clean facts",
+      "passed": true,
+      "detail": "0 -> 0 of 20"
+    }
+  ],
+  "passed": 10,
+  "total": 10,
+  "verdict": "order-invariant and chaos-tolerant"
+}

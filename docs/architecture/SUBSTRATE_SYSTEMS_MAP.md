@@ -30,7 +30,7 @@ Files:
 `UnifiedLearningSystem` (`coord.learning`). The one learning authority; driven by acting/experience.
 
 - **Lifecycle:** `__init__` (287), `start` (408), `initialize` (1040), `shutdown` (2860), `scoped` (227)
-- **Ingestion fan-out (facts/rules/words → reasoning+beliefs+lexicon+domain+memory):** `learn_fact` (2111), `learn_facts` (2141), `learn_concept` (2192), `learn_rule` (2223), `learn_word`/`learn_words` (2254/2265), `learn_with_domain_context` (1839), `fan_out_ingested` (2375), `_fan_out_learning` (2407)
+- **Ingestion fan-out (facts/rules/word classes → reasoning+beliefs+domain+memory):** `learn_fact` (2875), `learn_facts` (3014), `learn_concept` (3114), `learn_rule` (3147), `learn_word_classes` (2941), `learn_with_domain_context`, `fan_out_ingested`, `_fan_out_learning` (3415). There is no lexicon arm: a word class is a MEMORY, told through `learn_word_classes` or derived by `warm_word_classes`.
 - **Experience learning:** `learn_from_experience` (1075), `learn_from_example` (566), `learn_from_data` (1049), `learn_from_event` (1268), `learn_from_feedback` (1079), `process_experience` (1325), `process_interaction` (1016), `query_experiences` (1381), `get_experience_count` (1435)
 - **Operator induction (growth loop):** `induce` (2090), `record` (2094), `record_demonstration` (2486), `reinduce_operator` (2497), `drain_pending_induction` (2505), `_induce_signature` (2539), `_project_operator_to_concepts` (2605), `induce_causal_structure` (2648), `induce_sequence_rule` (2687), `derive_procedure` (2636), `inducer` (2076)
 - **Beliefs (belief substrate interface):** `create_belief` (2297), `update_belief` (2324), `get_belief` (2333), `belief_for_claim` (2339), `beliefs_for_domain` (2345), `flush_belief` (2351), `observe_claim` (2358)
@@ -70,11 +70,11 @@ All pipelines live here. Grouped by sub-pipeline.
 - **Health / recovery (event-driven):** `_receive_health_event` (10443), `_diagnose_health` (10664), `_health_action_risk` (10722), `_execute_recovery` (10735), `_verify_recovery` (10872), `_create_recovery_goal_from_health_event` (9560)
 - **Knowledge refresh (research cadence):** `_idle_knowledge_refresh_work` (5183), `_load_knowledge_cutoff_state` (5326), `_save_knowledge_cutoff_state` (5358), `_get_declared_model_cutoff_date` (5425), `_get_knowledge_cutoff_snapshot` (5449), `_on_knowledge_refresh_complete` (5475)
 - **Capability registry / agents-of-self:** `register_capability` (1471), `unregister_capability` (1555), `_execute_registered_capabilities` (9779), `_check_capability_conditions` (9942), `deploy_agent` (1385), `await_agent` (1409), `collect_agent_findings` (1417), `pending_agents` (1426), `_calculate_exploration_quota` (1457), `_record_exploration_decision` (1441)
-- **Handlers / status:** `handle_user_request` (8891), `process_input` (1946), `_request_kind` (8995), `_handle_error` (7144), `get_system_status` (3952), `_update_system_state` (10295), `model_available` (3237), `agent_allowance` (3243), `_check_task_completions` (10035)
+- **Handlers / status:** `handle_user_request` (8891), `process_input` (1946), `_request_kind` (8995), `_handle_error` (7144), `get_system_status` (3952), `_update_system_state` (10295), `model_available` (3237), `agent_allowance` (3243)
 
 ## 5. Conversation pipeline  [live ✓ via execution knowledge-loop]
 `Conversation` (same file, 12330+): the language-facing pipeline into the substrate.
-- **Speak / understand:** `teach` (13294), `understand` (13616), `look_up` (13386), `say` (13830), `natural_reply` (13799), `classify` (13589), `is_question` (13488), `read` (12781), `asked` (12799)
+- **Speak / understand:** `teach` (18503), `understand` (18904), `look_up` (18630), `say` (19291), `classify` (18877), `is_question` (18776), `read` (17955), `asked` (17979). `natural_reply` is DELETED and its absence is load-bearing: `say()` is the only path from a held fact to words, so there is no second renderer to disagree with it and no dump fallback when it declines.
 - **Recall / resolve:** `recall` (12771), `recalling` (12764), `resolve` (12574), `subject_of` (12676), `_incoming_relations` (12534), `_concept` (12527), `about_this_conversation` (12690), `_from_the_record` (12721)
 - **Ingest / gaps / reasoning:** `_ingest` (13179), `_register_domain_gap` (13227), `_held_premises` (12990), `_reasoned_answers` (13056), `_grounded` (12953), `_affirmed` (12972), `_support_used` (12928), `_render_atom` (12917)
 - **User model + feedback (the third channel):** `beliefs_about_user` (12460), `_learn_about_user` (12434), `_ensure_user_beliefs` (12412), `_about_speaker` (12405), `_admissible_world_fact` (12472), `feedback_of` (13530), `_take_feedback` (13547), `_feedback_referent` (13518), `_read_disposition` (13501)
@@ -122,7 +122,7 @@ subsystem, its singleton accessor, and whether it owns all routes for its subsys
 | beliefs | `BayesianUncertaintySystem` — `get_uncertainty_system()` (the one-door belief store) | `core/reasoning/bayesian_uncertainty.py` |
 | domain | `UniversalDomainMaster` — `get_universal_domain_master()` | `core/integration/universal_domain_master.py` |
 | semantics (write) | `CognitiveIngress` — `get_cognitive_ingress()` (admit/relation/conditional) | `core/semantics/cognitive_ingress.py` |
-| internal safety | `SafetyFramework` — `get_safety_framework()` (the gate: input validation, ASI assessment, RuntimeGovernance) | `core/security/safety_framework.py` |
+| internal safety | `Constitution` — `get_constitution()` (the one gate: five laws, input screen, declared policy, halt, integrity; with `ThreatSense`, self-defense) | `core/agents/autonomous/autonomous_coordinator.py`, `threat_sense.py` |
 | control plane / self | `AutonomousCoordinator` — `get_autonomous_coordinator()` (holds every authority; task queue → `QueueAuthority`) | `core/agents/autonomous/autonomous_coordinator.py` |
 
 Belief ops on the learning authority delegate to the single `BayesianUncertaintySystem`, so
@@ -134,17 +134,14 @@ health metrics") but not the *sole* one (seam 4).
 1. **`core/domain/` has no authority in its own folder.** Owner `UniversalDomainMaster` lives in
    `core/integration/`; `core/domain/` is a bag of unowned services (registry, concept_ingestion,
    grounding, ontology, evidence_producers) with no authority getter.
-2. **`core/security/` is mid-rework.** The live internal gate is `SafetyFramework`; the old perimeter is
-   archived in `_disabled/`; `threat_intelligence` + `active_defense_types` wait to be consolidated
-   into the coordinator; `get_integrated_security_system()` is a None-returning stub.
-3. **Direct concept-graph writes bypass the learning fan-out** — producers call
+2. **Direct concept-graph writes bypass the learning fan-out** — producers call
    `concept_ingestion.ingest` directly; `fan_out_ingested` exists only to retro-repair this.
-4. **Coordinator is not the SOLE learning entry** — `analogy_discovery`, `hypothesis_testing`,
-   `evidence_producers`, `derived_reader`, `list_synthesis` reach `get_learning_authority()`
+3. **Coordinator is not the SOLE learning entry** — `analogy_discovery`, `hypothesis_testing`,
+   `evidence_producers`, `list_synthesis` reach `get_learning_authority()`
    directly (they honor the authority, but not coordinator-as-sole-entry).
-5. **Semantics split** — write-side owned (`CognitiveIngress`); read-side fragmented (no reading
-   authority; sentence_reader/machine/registry/lexicon loose).
-6. **Memory class misfiled** — `MemoryAgent` lives in `core/agents/`, not `core/memory/` (which
+4. **Semantics split** — write-side owned (`CognitiveIngress`); read-side fragmented (no reading
+   authority; sentence_reader/machine/registry loose; `semantics/lexicon.py` deleted).
+5. **Memory class misfiled** — `MemoryAgent` lives in `core/agents/`, not `core/memory/` (which
    holds a dead `AsyncMemoryAgent` stub); legacy aliases (`MemoryManager`/`CentralizedMemoryManager`/
    `UnifiedMemorySystem`) blur the one-name ideal.
 

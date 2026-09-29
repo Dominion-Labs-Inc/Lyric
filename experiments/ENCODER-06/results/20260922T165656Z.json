@@ -1,0 +1,153 @@
+{
+  "experiment": "ENCODER-06 \u2014 polysemy: one word, two taught senses",
+  "seed": 20260922,
+  "hypotheses": [
+    "H1 two senses of one word score below the merge threshold",
+    "H2 the native encoder separates senses better than MiniLM",
+    "H3 same-sense pairs still score high"
+  ],
+  "data": {
+    "MiniLM": {
+      "cross_sense_mean": 0.46157238637970277,
+      "same_sense_mean": 0.8441163814539537,
+      "margin": 0.38254399507425096,
+      "senses_merge_eligible": 0,
+      "n": 5,
+      "per_word": [
+        {
+          "word": "bank",
+          "cross_sense": 0.5595957371377434,
+          "same_sense": 0.8196815564474151
+        },
+        {
+          "word": "plant",
+          "cross_sense": 0.4746916863070613,
+          "same_sense": 0.7070178782280981
+        },
+        {
+          "word": "charge",
+          "cross_sense": 0.435517425026408,
+          "same_sense": 0.8776366961313949
+        },
+        {
+          "word": "current",
+          "cross_sense": 0.37772161433865287,
+          "same_sense": 0.8794759067458673
+        },
+        {
+          "word": "filter",
+          "cross_sense": 0.4603354690886482,
+          "same_sense": 0.9367698697169938
+        }
+      ]
+    },
+    "native": {
+      "cross_sense_mean": 0.37120030557165656,
+      "same_sense_mean": 0.7105239662220547,
+      "margin": 0.33932366065039815,
+      "senses_merge_eligible": 0,
+      "n": 5,
+      "per_word": [
+        {
+          "word": "bank",
+          "cross_sense": 0.32469841999258825,
+          "same_sense": 0.6902136632305431
+        },
+        {
+          "word": "plant",
+          "cross_sense": 0.32427924515982715,
+          "same_sense": 0.32427924515982715
+        },
+        {
+          "word": "charge",
+          "cross_sense": 0.40234128756862253,
+          "same_sense": 0.8460423075733011
+        },
+        {
+          "word": "current",
+          "cross_sense": 0.4023412875686226,
+          "same_sense": 0.8460423075733009
+        },
+        {
+          "word": "filter",
+          "cross_sense": 0.40234128756862253,
+          "same_sense": 0.8460423075733011
+        }
+      ]
+    },
+    "structural": {
+      "cross_sense_mean": 0.7924414504920716,
+      "same_sense_mean": 0.8911811521808076,
+      "margin": 0.09873970168873603,
+      "senses_merge_eligible": 5,
+      "n": 5,
+      "per_word": [
+        {
+          "word": "bank",
+          "cross_sense": 0.7823870123706403,
+          "same_sense": 0.8978643879125958
+        },
+        {
+          "word": "plant",
+          "cross_sense": 0.7793416236971448,
+          "same_sense": 0.7763987153210667
+        },
+        {
+          "word": "charge",
+          "cross_sense": 0.7975183824704366,
+          "same_sense": 0.927686216240265
+        },
+        {
+          "word": "current",
+          "cross_sense": 0.8023464816824399,
+          "same_sense": 0.9266636904753741
+        },
+        {
+          "word": "filter",
+          "cross_sense": 0.8006137522396969,
+          "same_sense": 0.9272927509547364
+        }
+      ]
+    }
+  },
+  "checks": [
+    {
+      "name": "H1 MiniLM: different senses fall below the merge threshold",
+      "passed": true,
+      "detail": "0/5 sense pairs score >= 0.75"
+    },
+    {
+      "name": "H3 MiniLM: same-sense pairs still score high",
+      "passed": true,
+      "detail": "0.844"
+    },
+    {
+      "name": "H1 native: different senses fall below the merge threshold",
+      "passed": true,
+      "detail": "0/5 sense pairs score >= 0.75"
+    },
+    {
+      "name": "H3 native: same-sense pairs still score high",
+      "passed": true,
+      "detail": "0.711"
+    },
+    {
+      "name": "H1 structural: different senses fall below the merge threshold",
+      "passed": false,
+      "detail": "5/5 sense pairs score >= 0.75"
+    },
+    {
+      "name": "H3 structural: same-sense pairs still score high",
+      "passed": true,
+      "detail": "0.891"
+    },
+    {
+      "name": "H2 native separates senses better than MiniLM",
+      "passed": false,
+      "detail": "native margin +0.339 vs MiniLM +0.383"
+    }
+  ],
+  "passed": 5,
+  "total": 7,
+  "verdict": "sense separation margin: native +0.339, MiniLM +0.383"
+}

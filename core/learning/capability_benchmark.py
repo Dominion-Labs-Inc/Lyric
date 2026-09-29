@@ -323,10 +323,12 @@ class CapabilityBenchmarkSuite:
             from core.reasoning.neural_bridge import (ReasoningMode,
                                                       ReasoningRequest)
 
+            from core.agents.autonomous.shared_types import SUBSTRATE_ACTOR
             request = ReasoningRequest(
                 query=benchmark.prompt,
                 context=[f"Capability benchmark {benchmark.test_id}",
                          f"Domain: {benchmark.domain}"],
+                task_metadata={"actor": SUBSTRATE_ACTOR},
             )
             result = await self._reasoner().reason(request)
 

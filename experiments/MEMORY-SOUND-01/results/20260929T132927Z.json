@@ -1,0 +1,163 @@
+{
+  "experiment": "MEMORY-SOUND-01",
+  "claim": "The memory agent recalls a sound by the sound itself: a recording heard again, through a room and a codec, is known as heard before -- in words, in the graph and as a belief -- each memory keeping its own sound; a song taught later names the hearings that came before; recall by sound is injected into what is thought; and a person's hearing is recalled only for that person.",
+  "hypothesis": "H1 the second hearing of a recording recalls the first by landmark agreement. H2 six seconds of it, in a real room through a 64 kbit/s codec, recall it. H3 a different recording recalls nothing. H4 a song taught names its earlier hearing. H5 recall by sound respects whose memories may be seen.",
+  "started_at": "2026-09-29T13:29:27.403182+00:00",
+  "duration_seconds": 27.407,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/TorinAI/venv_torin/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/TorinAI",
+    "shadow_mode": null,
+    "git_commit": "20deb447498593391eca0286916b8f986c560a26",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "torinai_dev",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "torinai_dev",
+        "model": "torinai_dev",
+        "user_context": "torinai_dev",
+        "learning": "torinai_dev"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "dotenv:.env.postgres",
+        "database": "environment",
+        "user": "dotenv:.env.postgres",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 1790,
+    "database_verified": "torinai_dev",
+    "database_verified_reason": "asked the server"
+  },
+  "summary": {
+    "checks": 18,
+    "passed": 18,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [],
+  "checks": [
+    {
+      "label": "two memories, each keeping its own trace",
+      "passed": true,
+      "detail": "mem_8fde0f35f27d4744b5166d554c5ac8de, mem_79113e8348144c5b9e3f353474dd7d76",
+      "at": "2026-09-29T13:29:48.309936+00:00"
+    },
+    {
+      "label": "and each trace keeps the sound's landmarks",
+      "passed": true,
+      "detail": "[9352, 9352]",
+      "at": "2026-09-29T13:29:48.310637+00:00"
+    },
+    {
+      "label": "the first hearing is recalled, fully resolved",
+      "passed": true,
+      "detail": "[('mem_8fde0f35f27d4744b5166d554c5ac8de', 1.0, 1.0)]",
+      "at": "2026-09-29T13:29:48.310652+00:00"
+    },
+    {
+      "label": "and first had nothing to recall",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-09-29T13:29:48.310657+00:00"
+    },
+    {
+      "label": "the hearing says so in words, and when",
+      "passed": true,
+      "detail": "pitched sound; about 160 beats a minute; heard before, 1 time(s), last on 2026-09-29 09:29",
+      "at": "2026-09-29T13:29:48.310762+00:00"
+    },
+    {
+      "label": "and its memory says so",
+      "passed": true,
+      "detail": "itched sound; about 160 beats a minute; heard before, 1 time(s), last on 2026-09-29 09:29\"",
+      "at": "2026-09-29T13:29:48.312653+00:00"
+    },
+    {
+      "label": "the graph holds it: the second recording is the same sound as the first",
+      "passed": true,
+      "detail": "ma776a7x2xc8c288f975 ('same_sound_as', 'ma776a7x1xc8c288f975')",
+      "at": "2026-09-29T13:29:48.313388+00:00"
+    },
+    {
+      "label": "and believes it",
+      "passed": true,
+      "detail": "ma776a7x2xc8c288f975 same_sound_as ma776a7x1xc8c288f975",
+      "at": "2026-09-29T13:29:48.313902+00:00"
+    },
+    {
+      "label": "both hearings are recalled",
+      "passed": true,
+      "detail": "[('mem_8fde0f35f27d4744b5166d554c5ac8de', 0.7377), ('mem_79113e8348144c5b9e3f353474dd7d76', 0.7377)]",
+      "at": "2026-09-29T13:29:48.776506+00:00"
+    },
+    {
+      "label": "nothing is recalled",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-09-29T13:29:49.973519+00:00"
+    },
+    {
+      "label": "by the sound, with how much agreed",
+      "passed": true,
+      "detail": "{'mem_a1e7b80ebbd4462098ca4a82f031348a': 1.0, 'mem_8fde0f35f27d4744b5166d554c5ac8de': 0.7377, 'mem_79113e8348144c5b9e3f353474dd7d76': 0.7377}",
+      "at": "2026-09-29T13:29:50.084556+00:00"
+    },
+    {
+      "label": "and recall by words is as it was",
+      "passed": true,
+      "detail": "2 found by words",
+      "at": "2026-09-29T13:29:50.086834+00:00"
+    },
+    {
+      "label": "the lesson recalled the earlier hearing",
+      "passed": true,
+      "detail": "['mem_97c07f8d2595488694533a443d3ec6d5']",
+      "at": "2026-09-29T13:29:52.170422+00:00"
+    },
+    {
+      "label": "and the earlier recording is now said to play the song",
+      "passed": true,
+      "detail": "ma776a7songx080134338b plays rock_twenty_a776a7",
+      "at": "2026-09-29T13:29:52.171354+00:00"
+    },
+    {
+      "label": "they are injected, saying they are this sound heard before",
+      "passed": true,
+      "detail": "\u2022 6.0s mp3 recording, 3 sound(s): an unpitched sound, an abrupt low-pitched sound, an abrupt mid-pitched sound; in D-sharp major, about 118 beats a minute; heard before, 2 time(s), last on 2026-09-29 ",
+      "at": "2026-09-29T13:29:52.253168+00:00"
+    },
+    {
+      "label": "not for another person",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-09-29T13:29:54.784314+00:00"
+    },
+    {
+      "label": "nor for the substrate's own",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-09-29T13:29:54.784326+00:00"
+    },
+    {
+      "label": "but for them",
+      "passed": true,
+      "detail": "['mem_015ebb473a4247eeb5de2a05b2724ba8', 'mem_d969bdee24c7491283b183cb0472b15c']",
+      "at": "2026-09-29T13:29:54.784332+00:00"
+    }
+  ],
+  "notes": [
+    "Cleanup by nonce a776a7 and exact memory id: 316 tagged row(s) written, 0 left."
+  ]
+}

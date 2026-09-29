@@ -1,0 +1,125 @@
+{
+  "experiment": "REPLAN-03",
+  "claim": "The substrate learns its own operator by practice in a directory it was given, and pursues a goal over it while the world changes under it: it replans when the route goes stale and never claims a goal the world refused.",
+  "hypothesis": "If practice teaches the operator and repair is driven by the world, then a moved file is re-routed without refuting the rule, a destination the tool cannot use stops the pursuit honestly, and an unchanged world spawns no endless replans.",
+  "started_at": "2026-09-28T17:35:14.395458+00:00",
+  "duration_seconds": 14.912,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/TorinAI/venv_torin/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/TorinAI",
+    "shadow_mode": null,
+    "git_commit": "20deb447498593391eca0286916b8f986c560a26",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "torinai_dev",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "torinai_dev",
+        "model": "torinai_dev",
+        "user_context": "torinai_dev",
+        "learning": "torinai_dev"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "environment",
+        "database": "environment",
+        "user": "environment",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 1718,
+    "database_verified": "torinai_dev",
+    "database_verified_reason": "asked the server"
+  },
+  "summary": {
+    "checks": 12,
+    "passed": 12,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [],
+  "checks": [
+    {
+      "label": "the registry names the LIVE substrate",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-28T17:35:14.395471+00:00"
+    },
+    {
+      "label": "the domain is bound \u2014 observable and actable",
+      "passed": true,
+      "detail": "operators: ['MOVE_FILE']",
+      "at": "2026-09-28T17:35:14.403112+00:00"
+    },
+    {
+      "label": "it reads the real directory as its world",
+      "passed": true,
+      "detail": "11 fact(s)",
+      "at": "2026-09-28T17:35:14.403980+00:00"
+    },
+    {
+      "label": "it tried real actions in the real world to find out what they do",
+      "passed": true,
+      "detail": "8 action(s) over 2 cycle(s)",
+      "at": "2026-09-28T17:35:15.465976+00:00"
+    },
+    {
+      "label": "it INDUCED an executable MOVE_FILE operator from what happened",
+      "passed": true,
+      "detail": "[('rule_1d40edaa1', 'refuted'), ('rule_adf1cc12b', 'validated')]",
+      "at": "2026-09-28T17:35:15.482482+00:00"
+    },
+    {
+      "label": "the first attempt did NOT reach the goal straight away",
+      "passed": true,
+      "detail": "success=False stopped_at=MOVE_FILE(F_2fprivate_2fvar_2ffolders_2f0y_2f66ltqc9s0xs5h7yhj_5fvv5ct80000gn_2fT_2freplan03_5ftr6dmuug_2finbox_2freport_2etxt, F_2fprivate_2fvar_2ffolders_2f0y_2f66ltqc9s0xs5h7yhj_5fvv5ct80000gn_2fT_2freplan03_5ftr6dmuug_2farchive_2freport_2etxt)",
+      "at": "2026-09-28T17:35:22.824953+00:00"
+    },
+    {
+      "label": "nothing was refuted \u2014 MOVE_FILE is still true of this world",
+      "passed": true,
+      "detail": "{'rule_1d40edaa1': 'refuted', 'rule_adf1cc12b': 'validated'}; standing before: ['rule_adf1cc12b']",
+      "at": "2026-09-28T17:35:22.834362+00:00"
+    },
+    {
+      "label": "IT REPLANNED FROM WHERE THE FILE ACTUALLY WENT AND FINISHED THE JOB",
+      "passed": true,
+      "detail": "report.txt is in archive (expected archive)",
+      "at": "2026-09-28T17:35:22.842550+00:00"
+    },
+    {
+      "label": "it did not claim to have filed a report into a place that is gone",
+      "passed": true,
+      "detail": "success=False status=None",
+      "at": "2026-09-28T17:35:26.248839+00:00"
+    },
+    {
+      "label": "the file is still somewhere real \u2014 nothing was destroyed chasing it",
+      "passed": true,
+      "detail": "report.txt is in inbox",
+      "at": "2026-09-28T17:35:26.250110+00:00"
+    },
+    {
+      "label": "a route that stopped was recorded as WITHDRAWN, not left standing",
+      "passed": true,
+      "detail": "1 withdrawn for staleness; planning_status=None",
+      "at": "2026-09-28T17:35:26.250143+00:00"
+    },
+    {
+      "label": "an unchanged world does not spawn endless replans",
+      "passed": true,
+      "detail": "29 -> 29 plans",
+      "at": "2026-09-28T17:35:29.276771+00:00"
+    }
+  ],
+  "notes": []
+}

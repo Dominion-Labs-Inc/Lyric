@@ -1,0 +1,109 @@
+{
+  "experiment": "INSTANCES-01",
+  "claim": "Several instances of the model share one store without undoing each other: every instance's evidence, outcomes and attempts count, a resolution is final, and a queued job is run by exactly one instance.",
+  "hypothesis": "A lost belief update, a lost strategy outcome, a reopened unknown, a claimed living instance's job, or a job claimed twice would each show here.",
+  "started_at": "2026-09-26T18:51:44.099881+00:00",
+  "duration_seconds": 5.594,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/TorinAI/venv_torin/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/TorinAI",
+    "shadow_mode": null,
+    "git_commit": "20deb447498593391eca0286916b8f986c560a26",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "torinai_db",
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "dotenv:.env.postgres",
+        "database": "dotenv:.env.postgres",
+        "user": "dotenv:.env.postgres",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres"
+      }
+    },
+    "git_uncommitted_changes": 1089,
+    "database_verified": "torinai_db",
+    "database_verified_reason": "asked the server"
+  },
+  "summary": {
+    "checks": 11,
+    "passed": 11,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [],
+  "checks": [
+    {
+      "label": "both instances' evidence is in the stored belief",
+      "passed": true,
+      "detail": "evidence=['instance A', 'instance B'] update_count=2",
+      "at": "2026-09-26T18:51:49.618191+00:00"
+    },
+    {
+      "label": "the stored posterior is A's update with B's evidence applied on top",
+      "passed": true,
+      "detail": "stored=0.993940 expected=0.993940",
+      "at": "2026-09-26T18:51:49.618208+00:00"
+    },
+    {
+      "label": "the stored arm holds all five outcomes",
+      "passed": true,
+      "detail": "[{'strategy_id': 'control_instances_probe_jwhwvh', 'trials': 5, 'successes': 5}]",
+      "at": "2026-09-26T18:51:49.641817+00:00"
+    },
+    {
+      "label": "and the second instance's copy took the store's totals back",
+      "passed": true,
+      "detail": "B sees 5",
+      "at": "2026-09-26T18:51:49.641836+00:00"
+    },
+    {
+      "label": "a stale instance cannot reopen a resolved unknown",
+      "passed": true,
+      "detail": "{'knowledge_state': 'known_known', 'resolved_at': datetime.datetime(2026, 9, 26, 14, 51, 49, 648587), 'resolution_attempts': 0}",
+      "at": "2026-09-26T18:51:49.655283+00:00"
+    },
+    {
+      "label": "and its refresh drops it from its open set",
+      "passed": true,
+      "detail": "{'open': 236, 'added': 236, 'dropped': 1}",
+      "at": "2026-09-26T18:51:49.657592+00:00"
+    },
+    {
+      "label": "attempts from both instances count",
+      "passed": true,
+      "detail": "stored attempts=2",
+      "at": "2026-09-26T18:51:49.660136+00:00"
+    },
+    {
+      "label": "a living instance's running job is not claimed by another",
+      "passed": true,
+      "detail": "B claimed []",
+      "at": "2026-09-26T18:51:49.679838+00:00"
+    },
+    {
+      "label": "once its instance has stopped, the job is claimed",
+      "passed": true,
+      "detail": "B claimed ['instances_job_jwhwvh']",
+      "at": "2026-09-26T18:51:49.681334+00:00"
+    },
+    {
+      "label": "two instances racing for one job: exactly one gets it",
+      "passed": true,
+      "detail": "taken by ['B']",
+      "at": "2026-09-26T18:51:49.686322+00:00"
+    },
+    {
+      "label": "everything this run wrote is removed",
+      "passed": true,
+      "detail": "left=0",
+      "at": "2026-09-26T18:51:49.693264+00:00"
+    }
+  ],
+  "notes": []
+}

@@ -1,7 +1,7 @@
 {
   "experiment": "PERCEIVE-03",
   "purpose": "perceive -> teach features -> induce naming rule -> name held-out blob / abstain",
-  "run_at": "2026-09-19T15:28:37.982346+00:00",
+  "run_at": "2026-09-24T20:20:55.025670+00:00",
   "perceived": {
     "reda": [
       "vivid_red",
@@ -34,9 +34,9 @@
       "medium"
     ]
   },
-  "induced_rule": "circle(?X0) \u2227 vivid_red(?X0) \u2192 stopsignd885e3(?X0)",
+  "induced_rule": "circle(?X0) \u2227 vivid_red(?X0) \u2192 stopsignfcdd52(?X0)",
   "held_out_red": {
-    "answer": "Yes: redc_d885e3 isa stopsignd885e3",
+    "answer": "Yes: redc_fcdd52 isa stopsignfcdd52",
     "verdict": true,
     "confidence": 0.7,
     "route": [
@@ -48,9 +48,9 @@
     "reason": "derived_by_kind",
     "rule_status": "candidate",
     "steps": [
-      "induced rule (candidate): circle & vivid_red -> stopsignd885e3",
-      "redc_d885e3 is circle, medium, vivid_red",
-      "therefore redc_d885e3 is a stopsignd885e3"
+      "induced rule (candidate): circle & vivid_red -> stopsignfcdd52",
+      "redc_fcdd52 is circle, medium, vivid_red",
+      "therefore redc_fcdd52 is a stopsignfcdd52"
     ]
   },
   "held_out_blue": {
@@ -76,7 +76,7 @@
       "did_not_hallucinate_on_blue": true
     },
     "all_pass": true,
-    "induced_rule": "circle(?X0) \u2227 vivid_red(?X0) \u2192 stopsignd885e3(?X0)",
+    "induced_rule": "circle(?X0) \u2227 vivid_red(?X0) \u2192 stopsignfcdd52(?X0)",
     "perceived": {
       "reda": [
         "vivid_red",

@@ -1,0 +1,174 @@
+{
+  "experiment": "SHAPES-LEARN-05",
+  "claim": "A slot holds a phrase as well as a word. Taught noun phrases by example through its one teaching path, the substrate reads noun phrases it was never taught -- other words in a learned phrase, phrases inside phrases, phrases in frames they were never taught in -- to the meaning they have, and every sentence it was taught before still reads.",
+  "hypothesis": "A lesson pair refused; a taught sentence that no longer reads; a probe unread or read to the wrong meaning; an untaught shape read whole; a reading that writes; or any write to the main store would each show here. The prose sample is measured, not checked.",
+  "started_at": "2026-09-29T13:51:32.330513+00:00",
+  "duration_seconds": 511.555,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/TorinAI/venv_torin/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/TorinAI",
+    "shadow_mode": null,
+    "git_commit": "20deb447498593391eca0286916b8f986c560a26",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "torinai_dev",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "torinai_dev",
+        "model": "torinai_dev",
+        "user_context": "torinai_dev",
+        "learning": "torinai_dev"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "environment",
+        "database": "environment",
+        "user": "environment",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 1791,
+    "database_verified": null,
+    "database_verified_reason": "not verified"
+  },
+  "summary": {
+    "checks": 11,
+    "passed": 11,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [
+    {
+      "name": "constructions: holophrase",
+      "value": 19,
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "constructions: item_based",
+      "value": 96,
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "constructions: phrase",
+      "value": 9,
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "constructions: lexical",
+      "value": 150,
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "constructions: link",
+      "value": 432,
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "noun-phrase probes read as they mean",
+      "value": "9/9",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "prose read whole",
+      "value": "3/300",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "prose words read in whole sentences",
+      "value": "15/4081",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "prose words read in parts",
+      "value": "271/4081",
+      "unit": "",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "the run is in the sandbox",
+      "passed": true,
+      "detail": "connected to torinai_dev",
+      "at": "2026-09-29T13:51:34.295294+00:00"
+    },
+    {
+      "label": "the substrate is running",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-29T13:51:57.031389+00:00"
+    },
+    {
+      "label": "english_01.json is learned, none refused",
+      "passed": true,
+      "detail": "{'learned': 235, 'linked': 323, 'already': 1, 'understood': 60, 'refused': 0, 'total': 228, 'repair_holophrase': 19, 'repair_substitution': 26, 'repair_lexical_item_based': 58, 'repair_item_based_lexical': 65, 'repair_add_links': 59}",
+      "at": "2026-09-29T13:52:12.105533+00:00"
+    },
+    {
+      "label": "english_02.json is learned, none refused",
+      "passed": true,
+      "detail": "{'learned': 22, 'linked': 65, 'already': 0, 'understood': 8, 'refused': 0, 'total': 29, 'repair_lexical_item_based': 11, 'repair_add_links': 8, 'repair_item_based_lexical': 10}",
+      "at": "2026-09-29T13:52:14.316436+00:00"
+    },
+    {
+      "label": "english_03.json is learned, none refused",
+      "passed": true,
+      "detail": "{'learned': 17, 'linked': 44, 'already': 0, 'understood': 4, 'refused': 0, 'total': 21, 'repair_item_based_lexical': 5, 'repair_add_links': 4, 'repair_phrase_in_slot': 11, 'repair_addition': 1}",
+      "at": "2026-09-29T13:52:15.921708+00:00"
+    },
+    {
+      "label": "phrases were learned, by the phrase repair",
+      "passed": true,
+      "detail": "11 repairs, 9 phrases",
+      "at": "2026-09-29T13:52:15.922057+00:00"
+    },
+    {
+      "label": "every taught sentence of the three lessons reads to its meaning",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-09-29T13:52:18.262108+00:00"
+    },
+    {
+      "label": "each reads whole, to the meaning it has",
+      "passed": true,
+      "detail": "9/9",
+      "at": "2026-09-29T13:52:18.393196+00:00"
+    },
+    {
+      "label": "shapes no lesson taught stay unread whole",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-09-29T13:52:18.469191+00:00"
+    },
+    {
+      "label": "the view is as teaching left it",
+      "passed": true,
+      "detail": "706 -> 706",
+      "at": "2026-09-29T13:59:59.690025+00:00"
+    },
+    {
+      "label": "the main model's store is untouched",
+      "passed": true,
+      "detail": "192294 rows before, 192294 after",
+      "at": "2026-09-29T14:00:03.933766+00:00"
+    }
+  ],
+  "notes": []
+}

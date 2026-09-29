@@ -136,7 +136,7 @@ async def main() -> int:
         draw(path, shape, colour, radius)
         with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
             percept = await coord.see(str(path), source=name, domain=DOMAIN,
-                                      recognize=clf)
+                                      recognize=clf, actor_identity=None)
             await get_uncertainty_system().drain_writes()
         # The substrate names a percept from the image's own content digest, so
         # the label handed in is no longer the concept's name. Ask, don't rebuild.
@@ -286,35 +286,39 @@ async def main() -> int:
 
         # ── H. DURABLE ──────────────────────────────────────────────────────
         print("\n== H. A trained population survives WITH its encoder ==")
-        import tempfile
+        # Into the STORE, where the classifier lives -- and read back by an
+        # authority that never trained it, as the next process would.
         from core.learning.unified_learning_system import (
             FeatureEncoder, UnifiedLearningSystem)
-        with tempfile.TemporaryDirectory() as tmp:
-            saved = coord.learning.save_classifiers(tmp)
-            check("the mechanism persists", saved >= 1, f"{saved} classifier(s)")
-            fresh = UnifiedLearningSystem()
-            restored = fresh.load_classifiers(tmp)
-            check("a fresh authority restores it", restored >= 1,
-                  f"{restored} classifier(s)")
-            check("with its feature vocabulary intact",
-                  fresh.clause_classifier_vocabulary(CLF) == trained["vocabulary"],
-                  f"{len(trained['vocabulary'])} feature(s)")
-            entry = fresh._clause_classifiers[CLF]
-            check("and a REBUILT encoder, not None — it can read an instance",
-                  isinstance(entry.get("encode"), FeatureEncoder),
-                  type(entry.get("encode")).__name__)
-            check("its rejection class survived too",
-                  entry.get("reject_label") == trained["reject_label"],
-                  str(entry.get("reject_label")))
-            bits = entry["encode"](obs_red)
-            check("and it encodes the same instance the same way",
-                  list(bits) == list(FeatureEncoder(trained["vocabulary"])(obs_red)),
-                  f"{int(sum(bits))} bit(s) set")
+        saved = await coord.learning.save_classifiers()
+        check("the mechanism persists", saved >= 1, f"{saved} classifier(s)")
+        fresh = UnifiedLearningSystem()
+        restored = await fresh.load_classifiers()
+        check("a fresh authority restores it", fresh.has_clause_classifier(CLF),
+              f"{restored} classifier(s) in the store")
+        check("with its feature vocabulary intact",
+              fresh.clause_classifier_vocabulary(CLF) == trained["vocabulary"],
+              f"{len(trained['vocabulary'])} feature(s)")
+        entry = fresh._clause_classifiers[CLF]
+        check("and a REBUILT encoder, not None — it can read an instance",
+              isinstance(entry.get("encode"), FeatureEncoder),
+              type(entry.get("encode")).__name__)
+        check("its rejection class survived too",
+              entry.get("reject_label") == trained["reject_label"],
+              str(entry.get("reject_label")))
+        bits = entry["encode"](obs_red)
+        check("and it encodes the same instance the same way",
+              list(bits) == list(FeatureEncoder(trained["vocabulary"])(obs_red)),
+              f"{int(sum(bits))} bit(s) set")
 
     finally:
         with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
             with contextlib.suppress(Exception):
                 await get_rule_store().forget_domain(DOMAIN)
+        # The trained classifier is this run's fixture: out of the store too.
+        from core.database import get_database_manager
+        await get_database_manager().execute_query(
+            "DELETE FROM unified.clause_classifiers WHERE name = $1", (CLF,))
 
     passed = sum(results)
     print(f"\n==== RECOGNISE-02: {passed}/{len(results)} checks passed ====\n")

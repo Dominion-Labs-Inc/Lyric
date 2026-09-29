@@ -20,7 +20,6 @@ from core.agents.autonomous.directive_types import (
     ContextType,
     DirectiveEvolution,
     EvolutionType,
-    GovernanceLaw,
     DirectiveABTest,
     ABTestStatus,
     DirectivePerformanceReport
@@ -28,6 +27,11 @@ from core.agents.autonomous.directive_types import (
 from core.database import TorinUnifiedDatabase, get_unified_db
 
 logger = logging.getLogger(__name__)
+
+#: Where directives are kept: the substrate's own running record of how it is directed
+#: (postgres_config.STORE_TABLES, runtime). Its raw connections name it, because
+#: nothing else can place the statements run on them.
+DIRECTIVES_STORE = "runtime"
 
 
 class DirectiveManager:
@@ -64,71 +68,6 @@ class DirectiveManager:
         return True
 
     # =========================================================================
-    # GOVERNANCE LAWS - Read Only (Immutable)
-    # =========================================================================
-
-    async def get_all_governance_laws(self) -> List[GovernanceLaw]:
-        """
-        Get all governance laws from database.
-        These laws are immutable and guide all directive evaluations.
-
-        Returns:
-            List of GovernanceLaw objects
-        """
-        async with self.db.get_connection() as conn:
-            rows = await conn.fetch(
-                "SELECT law_id, law_number, law_name, law_description, "
-                "requirements, created_at, immutable "
-                "FROM governance_laws ORDER BY law_number"
-            )
-
-        laws = []
-        for row in rows:
-            laws.append(GovernanceLaw(
-                law_id=row[0],
-                law_number=row[1],
-                law_name=row[2],
-                law_description=row[3],
-                requirements=json.loads(row[4]),
-                created_at=row[5],
-                immutable=bool(row[6])
-            ))
-
-        logger.info(f"Loaded {len(laws)} governance laws")
-        return laws
-
-    async def get_governance_law(self, law_number: int) -> Optional[GovernanceLaw]:
-        """
-        Get specific governance law by number.
-
-        Args:
-            law_number: Law number (1-5)
-
-        Returns:
-            GovernanceLaw object or None
-        """
-        async with self.db.get_connection() as conn:
-            row = await conn.fetchrow(
-                "SELECT law_id, law_number, law_name, law_description, "
-                "requirements, created_at, immutable "
-                "FROM governance_laws WHERE law_number = $1",
-                law_number
-            )
-
-        if not row:
-            return None
-
-        return GovernanceLaw(
-            law_id=row[0],
-            law_number=row[1],
-            law_name=row[2],
-            law_description=row[3],
-            requirements=json.loads(row[4]),
-            created_at=row[5],
-            immutable=bool(row[6])
-        )
-
-    # =========================================================================
     # DIRECTIVE - CRUD Operations
     # =========================================================================
 
@@ -142,7 +81,7 @@ class DirectiveManager:
         Returns:
             True if successful
         """
-        async with self.db.get_connection() as conn:
+        async with self.db.get_connection(store=DIRECTIVES_STORE) as conn:
             await conn.execute(
                 """
                 INSERT INTO internal_directives (
@@ -198,7 +137,7 @@ class DirectiveManager:
         Returns:
             InternalDirective object or None
         """
-        async with self.db.get_connection() as conn:
+        async with self.db.get_connection(store=DIRECTIVES_STORE) as conn:
             row = await conn.fetchrow(
                 """
                 SELECT directive_id, directive_name, directive_category,
@@ -232,7 +171,7 @@ class DirectiveManager:
         Returns:
             List of InternalDirective objects
         """
-        async with self.db.get_connection() as conn:
+        async with self.db.get_connection(store=DIRECTIVES_STORE) as conn:
             rows = await conn.fetch(
                 """
                 SELECT directive_id, directive_name, directive_category,
@@ -269,7 +208,7 @@ class DirectiveManager:
         Returns:
             List of InternalDirective objects
         """
-        async with self.db.get_connection() as conn:
+        async with self.db.get_connection(store=DIRECTIVES_STORE) as conn:
             if status:
                 rows = await conn.fetch(
                     """
@@ -318,7 +257,7 @@ class DirectiveManager:
         Returns:
             List of all InternalDirective objects, ordered by performance
         """
-        async with self.db.get_connection() as conn:
+        async with self.db.get_connection(store=DIRECTIVES_STORE) as conn:
             rows = await conn.fetch(
                 """
                 SELECT directive_id, directive_name, directive_category,
@@ -350,7 +289,7 @@ class DirectiveManager:
         """
         directive.updated_at = datetime.now()
 
-        async with self.db.get_connection() as conn:
+        async with self.db.get_connection(store=DIRECTIVES_STORE) as conn:
             await conn.execute(
                 """
                 UPDATE internal_directives SET
@@ -412,7 +351,7 @@ class DirectiveManager:
         Returns:
             True if successful
         """
-        async with self.db.get_connection() as conn:
+        async with self.db.get_connection(store=DIRECTIVES_STORE) as conn:
             await conn.execute(
                 "DELETE FROM internal_directives WHERE directive_id = $1",
                 directive_id
@@ -469,7 +408,7 @@ class DirectiveManager:
         Returns:
             True if successful
         """
-        async with self.db.get_connection() as conn:
+        async with self.db.get_connection(store=DIRECTIVES_STORE) as conn:
             await conn.execute(
                 """
                 INSERT INTO directive_applications (
@@ -523,7 +462,7 @@ class DirectiveManager:
         Returns:
             True if successful
         """
-        async with self.db.get_connection() as conn:
+        async with self.db.get_connection(store=DIRECTIVES_STORE) as conn:
             await conn.execute(
                 """
                 UPDATE directive_applications SET
@@ -546,7 +485,7 @@ class DirectiveManager:
             )
 
         # Trigger directive performance update
-        async with self.db.get_connection() as conn:
+        async with self.db.get_connection(store=DIRECTIVES_STORE) as conn:
             # Get directive_id from application
             row = await conn.fetchrow(
                 "SELECT directive_id FROM directive_applications WHERE application_id = $1",
@@ -574,7 +513,7 @@ class DirectiveManager:
         Returns:
             List of DirectiveApplication objects
         """
-        async with self.db.get_connection() as conn:
+        async with self.db.get_connection(store=DIRECTIVES_STORE) as conn:
             if hours_lookback:
                 cutoff = datetime.now() - timedelta(hours=hours_lookback)
                 rows = await conn.fetch(
@@ -639,7 +578,7 @@ class DirectiveManager:
         Returns:
             True if successful
         """
-        async with self.db.get_connection() as conn:
+        async with self.db.get_connection(store=DIRECTIVES_STORE) as conn:
             # Call the stored procedure
             await conn.execute(
                 "CALL update_directive_performance($1)",
@@ -682,7 +621,7 @@ class DirectiveManager:
         """
         evolution_id = DirectiveEvolution.generate_id()
 
-        async with self.db.get_connection() as conn:
+        async with self.db.get_connection(store=DIRECTIVES_STORE) as conn:
             await conn.execute(
                 """
                 INSERT INTO directive_evolution_log (
@@ -735,7 +674,7 @@ class DirectiveManager:
         Returns:
             True if successful
         """
-        async with self.db.get_connection() as conn:
+        async with self.db.get_connection(store=DIRECTIVES_STORE) as conn:
             await conn.execute(
                 """
                 INSERT INTO directive_ab_tests (
@@ -778,7 +717,7 @@ class DirectiveManager:
         Returns:
             True if successful
         """
-        async with self.db.get_connection() as conn:
+        async with self.db.get_connection(store=DIRECTIVES_STORE) as conn:
             await conn.execute(
                 """
                 UPDATE directive_ab_tests SET
@@ -812,7 +751,7 @@ class DirectiveManager:
         Returns:
             DirectiveABTest object or None
         """
-        async with self.db.get_connection() as conn:
+        async with self.db.get_connection(store=DIRECTIVES_STORE) as conn:
             row = await conn.fetchrow(
                 """
                 SELECT test_id, test_name,
@@ -854,7 +793,7 @@ class DirectiveManager:
         Returns:
             List of DirectiveABTest objects
         """
-        async with self.db.get_connection() as conn:
+        async with self.db.get_connection(store=DIRECTIVES_STORE) as conn:
             rows = await conn.fetch(
                 """
                 SELECT test_id, test_name,

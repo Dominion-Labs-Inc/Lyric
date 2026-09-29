@@ -122,7 +122,8 @@ async def main() -> int:
     # 5. NAME a held-out perceived blob, and ABSTAIN on an unlearned one -- via
     #    the ordinary reasoning entry point, question only.
     async def ask(subject):
-        res = await coord.reason_about(f"is {sid(subject)} a stopsign{RUN}?")
+        from core.memory import Origin
+        res = await coord.reason_about(f"is {sid(subject)} a stopsign{RUN}?", origin=Origin.own("PERCEIVE-03"))
         md = dict(getattr(res, "metadata", {}) or {})
         return {"answer": str(getattr(res, "answer", "") or ""),
                 "verdict": _yes_no(getattr(res, "answer", "")),

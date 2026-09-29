@@ -1,0 +1,274 @@
+{
+  "experiment": "SYSTEM-SELF-01",
+  "claim": "The self's faculties are each one authority: appraisal builds a disposition from measured signals and can say what it is made of, the arbiter decides from it and real capacity, and motivation reports a mood, a valence and a state.",
+  "hypothesis": "A second appraisal or arbiter, a disposition that ignores its signals, an arbiter that ignores capacity, or a dead public method would each fail here.",
+  "started_at": "2026-09-26T17:11:12.711515+00:00",
+  "duration_seconds": 99.614,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/TorinAI/venv_torin/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/TorinAI",
+    "shadow_mode": null,
+    "git_commit": "20deb447498593391eca0286916b8f986c560a26",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "torinai_db",
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "dotenv:.env.postgres",
+        "database": "dotenv:.env.postgres",
+        "user": "dotenv:.env.postgres",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres"
+      }
+    },
+    "git_uncommitted_changes": 1079,
+    "database_verified": null,
+    "database_verified_reason": "no initialized connection in this process"
+  },
+  "summary": {
+    "checks": 23,
+    "passed": 22,
+    "failed": 1,
+    "outcome": "FAIL"
+  },
+  "metrics": [
+    {
+      "name": "appraisal_construction_sites",
+      "value": 1,
+      "unit": "count",
+      "note": "core/agents/autonomous/appraisal.py:928"
+    },
+    {
+      "name": "appraisal_public_methods",
+      "value": 2,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "appraisal_dead_public_methods",
+      "value": 0,
+      "unit": "count",
+      "note": "used nowhere in core, not even in their own file: "
+    },
+    {
+      "name": "appraisal_internal_only_public_methods",
+      "value": 0,
+      "unit": "count",
+      "note": "used only inside their own file: "
+    },
+    {
+      "name": "appraisal_stub_public_methods",
+      "value": 0,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "arbiter_construction_sites",
+      "value": 1,
+      "unit": "count",
+      "note": "core/agents/autonomous/behavior_arbiter.py:266"
+    },
+    {
+      "name": "arbiter_public_methods",
+      "value": 1,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "arbiter_dead_public_methods",
+      "value": 0,
+      "unit": "count",
+      "note": "used nowhere in core, not even in their own file: "
+    },
+    {
+      "name": "arbiter_internal_only_public_methods",
+      "value": 0,
+      "unit": "count",
+      "note": "used only inside their own file: "
+    },
+    {
+      "name": "arbiter_stub_public_methods",
+      "value": 0,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "motivation_construction_sites",
+      "value": 1,
+      "unit": "count",
+      "note": "core/agents/autonomous/intrinsic_motivation.py:3812"
+    },
+    {
+      "name": "motivation_public_methods",
+      "value": 23,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "motivation_dead_public_methods",
+      "value": 1,
+      "unit": "count",
+      "note": "used nowhere in core, not even in their own file: get_skill_recommendations"
+    },
+    {
+      "name": "motivation_internal_only_public_methods",
+      "value": 4,
+      "unit": "count",
+      "note": "used only inside their own file: log_intrinsic_reward, save_profile, load_profile, sense_fitness"
+    },
+    {
+      "name": "motivation_stub_public_methods",
+      "value": 0,
+      "unit": "count",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "appraisal: the coordinator holds the instance the accessor returns",
+      "passed": true,
+      "detail": "held=AppraisalSystem same=True",
+      "at": "2026-09-26T17:12:40.781541+00:00"
+    },
+    {
+      "label": "appraisal: AppraisalSystem is constructed in one place",
+      "passed": true,
+      "detail": "in its module: ['core/agents/autonomous/appraisal.py:928']; elsewhere: []",
+      "at": "2026-09-26T17:12:43.010170+00:00"
+    },
+    {
+      "label": "appraisal: no public method of AppraisalSystem is dead (used nowhere in core)",
+      "passed": true,
+      "detail": "0/2 dead: []",
+      "at": "2026-09-26T17:12:43.274047+00:00"
+    },
+    {
+      "label": "appraisal: no public method of AppraisalSystem is a stub body",
+      "passed": true,
+      "detail": "stubs: []",
+      "at": "2026-09-26T17:12:43.274079+00:00"
+    },
+    {
+      "label": "arbiter: the coordinator holds the instance the accessor returns",
+      "passed": true,
+      "detail": "held=BehaviorArbiter same=True",
+      "at": "2026-09-26T17:12:43.292459+00:00"
+    },
+    {
+      "label": "arbiter: BehaviorArbiter is constructed in one place",
+      "passed": true,
+      "detail": "in its module: ['core/agents/autonomous/behavior_arbiter.py:266']; elsewhere: []",
+      "at": "2026-09-26T17:12:45.482335+00:00"
+    },
+    {
+      "label": "arbiter: no public method of BehaviorArbiter is dead (used nowhere in core)",
+      "passed": true,
+      "detail": "0/1 dead: []",
+      "at": "2026-09-26T17:12:45.615399+00:00"
+    },
+    {
+      "label": "arbiter: no public method of BehaviorArbiter is a stub body",
+      "passed": true,
+      "detail": "stubs: []",
+      "at": "2026-09-26T17:12:45.615434+00:00"
+    },
+    {
+      "label": "motivation: the coordinator holds the instance the accessor returns",
+      "passed": true,
+      "detail": "held=IntrinsicMotivationSystem same=True",
+      "at": "2026-09-26T17:12:45.633645+00:00"
+    },
+    {
+      "label": "motivation: IntrinsicMotivationSystem is constructed in one place",
+      "passed": true,
+      "detail": "in its module: ['core/agents/autonomous/intrinsic_motivation.py:3812']; elsewhere: []",
+      "at": "2026-09-26T17:12:47.876966+00:00"
+    },
+    {
+      "label": "motivation: no public method of IntrinsicMotivationSystem is dead (used nowhere in core)",
+      "passed": false,
+      "detail": "1/23 dead: ['get_skill_recommendations']",
+      "at": "2026-09-26T17:12:50.315884+00:00"
+    },
+    {
+      "label": "motivation: no public method of IntrinsicMotivationSystem is a stub body",
+      "passed": true,
+      "detail": "stubs: []",
+      "at": "2026-09-26T17:12:50.315921+00:00"
+    },
+    {
+      "label": "a worse world raises caution",
+      "passed": true,
+      "detail": "caution 0.2 -> 0.6499999999999999",
+      "at": "2026-09-26T17:12:50.316636+00:00"
+    },
+    {
+      "label": "standing names every dimension and where it came from",
+      "passed": true,
+      "detail": "keys=['appraised', 'attribution', 'derived', 'dimensions', 'pressures', 'unmeasured', 'updated_at', 'updates'] dims=12",
+      "at": "2026-09-26T17:12:50.316669+00:00"
+    },
+    {
+      "label": "an unmeasured dimension says so rather than reading as zero",
+      "passed": true,
+      "detail": "{'appraised': True, 'dimensions': {'valence': {'measured': True, 'value': -0.039999999999999925, 'answers': 'was this ex",
+      "at": "2026-09-26T17:12:50.316782+00:00"
+    },
+    {
+      "label": "a directive is returned with a mode",
+      "passed": true,
+      "detail": "free=persist full=persist",
+      "at": "2026-09-26T17:12:50.316818+00:00"
+    },
+    {
+      "label": "no free slot and a hard backlog take away permission to explore",
+      "passed": true,
+      "detail": "should_explore=False max_goals=0 codes=['dominant:persist:0.48', 'queue_pressure:hard', 'mood_explore:+0.00', 'elevated_verification:0.82']",
+      "at": "2026-09-26T17:12:50.316830+00:00"
+    },
+    {
+      "label": "unknown capacity is not permission",
+      "passed": true,
+      "detail": "['dominant:persist:0.48', 'capacity_unknown', 'mood_explore:+0.00', 'elevated_verification:0.82']",
+      "at": "2026-09-26T17:12:50.316846+00:00"
+    },
+    {
+      "label": "no appraisal at all still yields a directive, not a crash",
+      "passed": true,
+      "detail": "proceed",
+      "at": "2026-09-26T17:12:50.316855+00:00"
+    },
+    {
+      "label": "motivation state is a dict with dimensions",
+      "passed": true,
+      "detail": "keys=['active', 'dimensions', 'influence_percentage', 'last_updated', 'total_reward']",
+      "at": "2026-09-26T17:12:50.316876+00:00"
+    },
+    {
+      "label": "mood, valence and affect are readable now, without a loop",
+      "passed": true,
+      "detail": "mood=Mood(valence=0.0008, arousal=0.0, baseline=0.0009, event_count=922, loaded=True) valence=0.001 affect=AffectState",
+      "at": "2026-09-26T17:12:50.316907+00:00"
+    },
+    {
+      "label": "motivation is calculated from a context",
+      "passed": true,
+      "detail": "keys=['dimensions', 'drive_readings', 'drives_unmeasured', 'event_reward_count', 'influence_percentage', 'mean_event_reward', 'timestamp', 'total_reward']",
+      "at": "2026-09-26T17:12:52.156448+00:00"
+    },
+    {
+      "label": "the coordinator's disposition is the appraisal's, not a second one",
+      "passed": true,
+      "detail": "BehavioralDirective",
+      "at": "2026-09-26T17:12:52.156491+00:00"
+    }
+  ],
+  "notes": [
+    "motivation: 4 public method(s) are used only inside their own file (public in name only, not dead): log_intrinsic_reward, save_profile, load_profile, sense_fitness"
+  ]
+}

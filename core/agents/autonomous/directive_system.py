@@ -16,8 +16,6 @@ from datetime import datetime
 
 from .directive_manager import DirectiveManager, DirectiveCategory, DirectiveStatus
 from .directive_evolution_engine import DirectiveEvolutionEngine, EvolutionType
-from .singleton_constitution import get_singleton_constitution
-from .runtime_governance import get_runtime_governance
 from core.database import get_unified_db
 
 # NOTE (2026-09-02): DirectiveABTesting is no longer wired here. Comparing
@@ -41,7 +39,7 @@ class DirectiveSystem:
     2. Learning authority (MetaLearner) - owns directive effectiveness + variant
        selection (directives are arms); credited via log_directive_application
     3. DirectiveEvolutionEngine - lifecycle EVENT LOG (not a learner)
-    4. RuntimeGovernance → constitution - model-free validation against the 5 laws
+    4. The Constitution - a directive may not tell the substrate to set aside its governance
 
     Usage:
     - Query active directives by category
@@ -76,15 +74,6 @@ class DirectiveSystem:
         # Core components - pass None for db, they will get singleton in their initialize()
         self.directive_manager = directive_manager or DirectiveManager(db=None)
         self.evolution_engine = evolution_engine or DirectiveEvolutionEngine(db=None)
-
-        # GOVERNANCE — a proposed directive is vetted through RUNTIME GOVERNANCE
-        # (the one governance/compliance authority), which scores it against the 5
-        # laws via the constitution and reports requires_governance. The former
-        # GovernanceAgent (a duplicate) was removed and its constitutional-
-        # compliance check moved into runtime governance. Model-free; runtime
-        # governance emits its own compliance metrics. Uses the process-wide
-        # singletons, so no second authority is stood up.
-        self.runtime_governance = get_runtime_governance()
 
         # Active directives cache (category -> directives)
         self.active_directives_cache: Dict[DirectiveCategory, List[Dict[str, Any]]] = {}
@@ -441,9 +430,10 @@ class DirectiveSystem:
         """
         Create a directive, gated by CONSTITUTIONAL validation.
 
-        Governance is now the constitution (model-free), not a five-judge vote: the
-        proposed directive is scored against the 5 laws and only created if it
-        passes. A rejected proposal returns None and is NOT persisted.
+        The Constitution screens the directive's text: a directive is policy the
+        substrate will apply to itself, so text that tells it to set aside what
+        governs it may not become one. A refused proposal returns None and is NOT
+        persisted.
 
         Args:
             directive_name: Directive name
@@ -466,39 +456,28 @@ class DirectiveSystem:
             directive_parameters=directive_parameters,
         )
 
-        # GOVERNANCE: vet through RUNTIME GOVERNANCE (the compliance-decision
-        # authority), which scores the directive against the 5 laws via the
-        # constitution and reports requires_governance. A directive is a policy the
-        # substrate applies to itself, so it is checked as an internal action.
-        category_val = getattr(category, "value", category)
-        record = await self.runtime_governance.check_action_compliance(
-            action_id=directive.directive_id,
-            action_description=directive_text,
-            action_params={**(directive_parameters or {}),
-                           "task_type": category_val,
-                           "reasoning": f"directive proposed by {created_by}"},
-        )
+        from .autonomous_coordinator import get_constitution
+        judgment = get_constitution().screen_directive(directive_text)
         validation = {
-            "approved": not record.requires_governance,
-            "overall_compliance": round(record.overall_compliance, 4),
-            "compliance_scores": record.compliance_scores,
-            "violations_detected": record.violations_detected,
+            "approved": judgment.allowed,
+            "verdict": judgment.verdict.value,
+            "law_number": judgment.law_number,
+            "reason": judgment.reason,
+            "judgment_id": judgment.judgment_id,
         }
-        if record.requires_governance:
+        if not judgment.allowed:
             self.metrics['directives_rejected_by_governance'] += 1
-            logger.warning(
-                "Directive '%s' REJECTED by governance: violations=%s "
-                "overall=%.2f — not persisted",
-                directive_name, record.violations_detected,
-                record.overall_compliance)
+            logger.warning("Directive '%s' REFUSED by the constitution (Law %d): "
+                           "%s — not persisted", directive_name,
+                           judgment.law_number, judgment.reason)
             return None
 
-        # Approved by governance — record it on the directive and persist.
+        # Allowed by the constitution — record it on the directive and persist.
         directive.governance_validated = True
         directive.constitutional_validated = True
         created = await self.directive_manager.create_directive(directive)
         if not created:
-            logger.error("Failed to persist governance-approved directive")
+            logger.error("Failed to persist a directive the constitution allowed")
             return None
         directive_id = directive.directive_id
 
@@ -510,13 +489,13 @@ class DirectiveSystem:
             new_version=1,
             changes={'created': True, 'created_by': created_by,
                      'governance_validation': validation},
-            trigger_reason=(f"Created by {created_by}; governance approved "
-                            f"(overall={validation['overall_compliance']})")
+            trigger_reason=(f"Created by {created_by}; allowed by the "
+                            f"constitution ({validation['judgment_id']})")
         )
 
         self.metrics['directives_created'] += 1
-        logger.info("Created directive %s: %s (governance-approved, overall=%.2f)",
-                    directive_id, directive_name, record.overall_compliance)
+        logger.info("Created directive %s: %s (allowed by the constitution)",
+                    directive_id, directive_name)
         return directive_id
 
     async def promote_directive(
@@ -644,9 +623,6 @@ class DirectiveSystem:
             'total_directives': len(all_directives),
             'directives_by_status': status_counts,
             'application_metrics': self.metrics.copy(),
-            # Governance decisions on directives are runtime governance's; its
-            # compliance counters are the honest directive-governance metrics.
-            'governance': self.runtime_governance.compliance_metrics.copy(),
             'evolution': evo_metrics,
             'cache_status': {
                 'cached_categories': len(self.active_directives_cache),

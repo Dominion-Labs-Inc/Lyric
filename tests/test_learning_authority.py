@@ -9,13 +9,24 @@ call sites.
 
 These tests pin the inversion: the model-free stack is the authority, and a
 model is a contributor whose proposals are never evidence.
+
+THE INVERSION COMPLETED, AND THIS MODULE STOPPED RUNNING. `learning_authority.py`
+was deleted and its model-free implementation folded INTO `UnifiedLearningSystem`,
+so there is no longer an authority class and a contributor class -- there is one
+authority, and `core/learning/__init__.py` says so: "`UnifiedLearningSystem` IS
+this authority. The correct model-free ILearningAuthority (once a separate
+`SubstrateLearning` in a deleted module)". The import here still named the
+deleted module, so all eight of these tests raised ModuleNotFoundError at
+collection and the propose/attest boundary -- the load-bearing property of the
+whole design -- has been unguarded ever since.
 """
 
 import pytest
 
-from core.learning.learning_authority import (Admission, Contribution,
-                                              ContributionKind, SubstrateLearning,
-                                              get_learning_authority)
+from core.learning.unified_learning_system import (Admission, Contribution,
+                                                   ContributionKind,
+                                                   UnifiedLearningSystem,
+                                                   get_learning_authority)
 from core.learning.rule_induction import CandidateRule, Fact, RuleEffects
 from core.learning.rule_store import EpistemicStatus
 
@@ -41,17 +52,27 @@ def _rule():
 
 @pytest.fixture
 def authority():
-    learner = SubstrateLearning(_store=_Store())
+    # `_store` is the lazy rule-store handle, not a constructor argument, so the
+    # recording double is installed on the instance.
+    learner = UnifiedLearningSystem()
+    learner._store = _Store()
     learner.register_contributor("qwen", "model-based proposer")
     return learner
 
 
-def test_the_package_names_the_authority_not_the_contributor():
+def test_the_package_names_ONE_authority():
+    """There were two names and the distinction between them was the point:
+    the model-free stack was the authority, `UnifiedLearningSystem` was the
+    contributor. The collapse folded the implementation in, so the assertion is
+    no longer that both names exist -- it is that the two ways of reaching the
+    authority reach the SAME object, which is what leaves no second owner."""
     import core.learning as package
     assert hasattr(package, "get_learning_authority")
-    assert hasattr(package, "SubstrateLearning")
-    # The former declared authority is still reachable -- as a contributor.
     assert hasattr(package, "UnifiedLearningSystem")
+    assert not hasattr(package, "SubstrateLearning"), (
+        "the deleted class is exported again -- there is a second authority")
+    from core.learning import get_unified_learning_system
+    assert get_learning_authority() is get_unified_learning_system()
 
 
 def test_the_authority_owns_the_model_free_stack():

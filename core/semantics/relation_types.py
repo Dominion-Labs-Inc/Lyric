@@ -102,6 +102,9 @@ class SemanticRelation(Enum):
     # ── temporal ─────────────────────────────────────────────────────────
     PRECEDES = "precedes"          # ignition PRECEDES combustion
     FOLLOWS = "follows"            # combustion FOLLOWS ignition (inverse)
+    # ── event participants ───────────────────────────────────────────────
+    DONE_BY = "done_by"            # tying DONE_BY listener: who did the event
+    DONE_TO = "done_to"            # tying DONE_TO shoe: what it was done to
 
     # ── dispositional ────────────────────────────────────────────────────
     CAPABLE_OF = "capable_of"      # a disposition/ability: birds CAPABLE_OF fly
@@ -324,6 +327,15 @@ _SPECS: Tuple[RelationSpec, ...] = (
     RelationSpec(SemanticRelation.FOLLOWS,
                  frozenset({"follows", "comes after", "is after"}),
                  inverse=SemanticRelation.PRECEDES, generic_safe=False),
+    # event participants. "Tie your shoe." is a tying, done by the listener, done
+    # to the shoe, and no other kind can say who did an event or what it was done
+    # to. NO SURFACE FORMS: which English says them is learned, not written here.
+    # Nothing chains through them, nothing inherits them and neither has an
+    # inverse, so a participant stays a fact about that one event.
+    RelationSpec(SemanticRelation.DONE_BY, frozenset(), generic_safe=False,
+                 gloss="an event and who did it"),
+    RelationSpec(SemanticRelation.DONE_TO, frozenset(), generic_safe=False,
+                 gloss="an event and what it was done to"),
     # dispositional
     RelationSpec(SemanticRelation.CAPABLE_OF,
                  frozenset({"can", "is able to", "able to", "can do",
@@ -336,6 +348,10 @@ _SPECS: Tuple[RelationSpec, ...] = (
 )
 
 SPEC: Dict[SemanticRelation, RelationSpec] = {s.name: s for s in _SPECS}
+
+#: A kind by its own name: `synonym_of`, `done_by`. The name is the store's, not
+#: English, which is why `classify` resolves it before any phrase is looked up.
+_BY_NAME: Dict[str, SemanticRelation] = {r.value: r for r in SemanticRelation}
 
 #: surface phrase -> type, built once from the specs. Longest phrase wins so a
 #: specific construction is never shadowed by a copula it contains.
@@ -377,6 +393,65 @@ def _normalize(span: str) -> str:
     return " ".join(str(span).replace("_", " ").lower().split())
 
 
+DETERMINER = "DETERMINER"
+
+
+def complement_class(surface: str, class_evidence) -> Optional[str]:
+    """What class a COPULAR COMPLEMENT is being used as, from the surface and
+    what the substrate has observed about its words. None = no opinion.
+
+    `class_evidence(word) -> Dict[str, int]`, the observed counts per class.
+
+    WHY THE MAJORITY CLASS IS THE WRONG QUESTION. `classify` needs to know what
+    the complement IS HERE, and the obvious answer -- the word's most-observed
+    class -- gets it backwards for exactly the words that matter. Measured on the
+    live vocabulary: `white` is ADJECTIVE 1 / NOUN 12, `red` 2 / 7, `closed` 1 /
+    NOUN 8 / VERB 3, because a dictionary has many noun senses for a colour and
+    one adjective sense. Asking "what is this word usually" therefore answers
+    NOUN for every colour and every state, and "snow is white" becomes a KIND
+    edge -- which `isa` then carries transitively into everything under snow.
+
+    STRUCTURE DECIDES, EVIDENCE PERMITS. A complement introduced by a DETERMINER
+    is a noun phrase and so a kind: "a robin is A BIRD". A BARE complement is
+    predicative, and is a property when the substrate has ever observed its head
+    as an adjective at all: "snow is WHITE", "inheritance is X-LINKED RECESSIVE".
+    The determiner test is syntax, which is what this substrate reads; the
+    evidence test only has to permit, not to win a vote.
+
+    A bare complement whose head has never been observed as an adjective yields
+    None, and `classify` keeps ISA -- the copula's default relational reading.
+    """
+    words = str(surface or "").replace("_", " ").strip().split()
+    if not words:
+        return None
+    if len(words) > 1 and _observed(class_evidence(words[0].lower()), DETERMINER):
+        # Introduced by a determiner: a noun phrase, hence a kind.
+        return NOUN
+    if _observed(class_evidence(words[-1].lower()), ADJECTIVE):
+        return ADJECTIVE
+    return None
+
+
+def _observed(evidence, word_class: str) -> bool:
+    """Whether `evidence` says this word has been seen in `word_class`.
+
+    Two shapes reach here and both are legitimate: the memory authority answers
+    with COUNTS per class, and `genericity._word_classes` answers with the set of
+    classes the evidence is already net-positive for. Counts must be positive to
+    count as an observation — a class that has been leaned on and failed more
+    often than it succeeded is one the substrate tried and lost, not one it saw.
+    """
+    if not evidence:
+        return False
+    getter = getattr(evidence, "get", None)
+    if getter is not None:
+        try:
+            return float(getter(word_class, 0) or 0) > 0
+        except (TypeError, ValueError):
+            return word_class in evidence
+    return word_class in evidence
+
+
 def classify(span: str, *,
              object_word_class: Optional[str] = None,
              generic: bool = True,
@@ -391,6 +466,16 @@ def classify(span: str, *,
     """
     norm = _normalize(span)
     words = norm.split()
+
+    # A KIND'S OWN NAME RESOLVES TO THE KIND. A relation read back from the store
+    # arrives as its kind's name, and a kind needs no English phrase to be
+    # recognised as itself. Measured before this: `synonym_of` resolved to
+    # RELATED_TO, because its name was not among its phrases, and a kind with no
+    # phrases at all could not be named.
+    by_name = _BY_NAME.get(norm.replace(" ", "_"))
+    if by_name is not None:
+        return TypedRelation(by_name, span, by_name.value, "relation_kind",
+                             generic and SPEC[by_name].generic_safe)
 
     # Longest-match over the surface table.
     match: Optional[str] = None
@@ -445,4 +530,5 @@ def all_surface_forms() -> Dict[str, SemanticRelation]:
 __all__ = ["SemanticRelation", "Transitivity", "EvidenceBehavior",
            "RelationSpec", "TypedRelation", "SPEC",
            "classify", "get_spec", "all_surface_forms",
-           "NOUN", "ADJECTIVE", "VERB"]
+           "NOUN", "ADJECTIVE", "VERB", "DETERMINER",
+           "complement_class"]

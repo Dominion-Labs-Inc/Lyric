@@ -97,6 +97,10 @@ class Hypothesis:
     proposed_by: str = "singleton"
     revisions: int = 0
     parent_hypothesis_id: Optional[str] = None  # If revised from another
+    #: Whose hypothesis this is: a person's actor id when their reasoning or
+    #: their work proposed it, None for the substrate's own. Its experiments,
+    #: its evidence and its belief are theirs too.
+    owner: Optional[str] = None
 
 
 @dataclass
@@ -127,6 +131,7 @@ class Experiment:
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
     execution_time: float = 0.0
+    owner: Optional[str] = None   # its hypothesis's
 
 
 @dataclass
@@ -155,6 +160,7 @@ class Evidence:
     
     # Metadata
     collected_at: datetime = field(default_factory=datetime.now)
+    owner: Optional[str] = None   # its hypothesis's
 
 
 class HypothesisTestingSystem:
@@ -170,6 +176,36 @@ class HypothesisTestingSystem:
     6. Revise or reject hypotheses based on results
     """
     
+    #: The tables this system keeps, defined here, where they are written from.
+    #: `experiments` and `evidence` were written to and defined nowhere, so no
+    #: experiment or evidence was ever kept. Each row is whoever's its hypothesis
+    #: is (a per-owner table), so each table is kept in every store its rows
+    #: can be kept in.
+    _SCHEMA = (
+        """CREATE TABLE IF NOT EXISTS unified.hypotheses (
+               hypothesis_id VARCHAR PRIMARY KEY, claim TEXT NOT NULL, domain VARCHAR,
+               is_falsifiable BOOLEAN DEFAULT TRUE, null_hypothesis TEXT,
+               status VARCHAR DEFAULT 'proposed', confidence NUMERIC DEFAULT 0.5,
+               proposed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, revisions INTEGER DEFAULT 0,
+               parent_hypothesis_id VARCHAR, falsification_criteria JSONB,
+               verification_criteria JSONB, predictions JSONB, testable_predictions JSONB,
+               alternative_hypotheses JSONB, supporting_evidence JSONB,
+               contradicting_evidence JSONB, metadata JSONB, owner TEXT)""",
+        "ALTER TABLE unified.hypotheses ADD COLUMN IF NOT EXISTS owner TEXT",
+        """CREATE TABLE IF NOT EXISTS unified.experiments (
+               experiment_id VARCHAR PRIMARY KEY, hypothesis_id VARCHAR, name TEXT,
+               description TEXT, expected_outcome TEXT, status VARCHAR,
+               outcome_supports_hypothesis BOOLEAN, designed_at TIMESTAMP,
+               completed_at TIMESTAMP, execution_time DOUBLE PRECISION, owner TEXT)""",
+        "ALTER TABLE unified.experiments ADD COLUMN IF NOT EXISTS owner TEXT",
+        """CREATE TABLE IF NOT EXISTS unified.evidence (
+               evidence_id VARCHAR PRIMARY KEY, hypothesis_id VARCHAR, evidence_type VARCHAR,
+               description TEXT, quality_score DOUBLE PRECISION, supports_hypothesis BOOLEAN,
+               strength DOUBLE PRECISION, source TEXT, experiment_id VARCHAR,
+               collected_at TIMESTAMP, owner TEXT)""",
+        "ALTER TABLE unified.evidence ADD COLUMN IF NOT EXISTS owner TEXT",
+    )
+
     def __init__(self, uncertainty_system=None):
         # Use unified PostgreSQL database
         self.db = None  # Will be set to TorinUnifiedDatabase in initialize()
@@ -207,6 +243,9 @@ class HypothesisTestingSystem:
 
             if not self.db.initialized:
                 await self.db.initialize()
+            for store in self.db.schema_stores():
+                for statement in self._SCHEMA:
+                    await self.db.execute_query(statement, commit=True, store=store)
 
             logger.info("✓ Connected to PostgreSQL for hypothesis testing persistence")
 
@@ -236,7 +275,8 @@ class HypothesisTestingSystem:
         claim: str,
         domain: str,
         predictions: Optional[List[str]] = None,
-        alternatives: Optional[List[str]] = None
+        alternatives: Optional[List[str]] = None,
+        owner: Optional[str] = None
     ) -> Hypothesis:
         """
         Generate a falsifiable hypothesis with null hypothesis and predictions.
@@ -246,6 +286,9 @@ class HypothesisTestingSystem:
             domain: Domain of inquiry
             predictions: What this hypothesis predicts
             alternatives: Alternative explanations
+            owner: Whose it is -- a person's actor id, or None for the
+                substrate's own. A person's is kept, and believed, in their
+                context.
         """
         hypothesis_id = f"hyp_{uuid.uuid4().hex[:12]}"
 
@@ -277,7 +320,8 @@ class HypothesisTestingSystem:
             predictions=predictions or [],
             testable_predictions=testable_predictions,
             null_hypothesis=null_hypothesis,
-            alternative_hypotheses=alternatives or []
+            alternative_hypotheses=alternatives or [],
+            owner=owner
         )
 
         self.hypotheses[hypothesis_id] = hypothesis
@@ -286,8 +330,16 @@ class HypothesisTestingSystem:
         # Persist to database
         await self._save_hypothesis(hypothesis)
         
-        # Create belief in uncertainty system
-        if self.uncertainty:
+        # Create belief in uncertainty system: a person's in their context
+        if owner:
+            try:
+                from core.learning.scoped_context_store import get_scoped_context_store
+                await get_scoped_context_store().observe_claim(
+                    owner, claim, domain=domain, supports=True, quality=0.5,
+                    source="hypothesis")   # start neutral
+            except Exception as e:
+                logger.warning(f"Failed to create belief for hypothesis: {e}")
+        elif self.uncertainty:
             try:
                 from core.learning.unified_learning_system import get_unified_learning_system
                 uncertainty = get_unified_learning_system()  # one authority
@@ -521,7 +573,8 @@ class HypothesisTestingSystem:
             dependent_variables=dependent_vars,
             control_variables=control_vars or [],
             expected_outcome=expected_outcome,
-            procedure=procedure
+            procedure=procedure,
+            owner=hypothesis.owner
         )
 
         self.experiments[experiment_id] = experiment
@@ -733,7 +786,8 @@ class HypothesisTestingSystem:
             supports_hypothesis=supports,
             strength=strength,
             source=source,
-            experiment_id=experiment_id
+            experiment_id=experiment_id,
+            owner=self.hypotheses[hypothesis_id].owner
         )
         
         self.evidence[evidence_id] = evidence
@@ -952,7 +1006,8 @@ class HypothesisTestingSystem:
             claim=new_claim,
             domain=old_hypothesis.domain,
             predictions=old_hypothesis.predictions,
-            alternatives=old_hypothesis.alternative_hypotheses
+            alternatives=old_hypothesis.alternative_hypotheses,
+            owner=old_hypothesis.owner
         )
 
         new_hypothesis.parent_hypothesis_id = hypothesis_id
@@ -977,63 +1032,31 @@ class HypothesisTestingSystem:
             return
 
         try:
-            await self.db.execute_query(
-                """
-                INSERT INTO unified.hypotheses
-                (hypothesis_id, claim, domain, is_falsifiable, null_hypothesis,
-                 status, confidence, proposed_at, revisions, parent_hypothesis_id,
-                 falsification_criteria, verification_criteria, predictions,
-                 testable_predictions, alternative_hypotheses,
-                 supporting_evidence, contradicting_evidence)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
-                        $11, $12, $13, $14, $15, $16, $17)
-                ON CONFLICT (hypothesis_id) DO UPDATE SET
-                    claim = EXCLUDED.claim,
-                    domain = EXCLUDED.domain,
-                    is_falsifiable = EXCLUDED.is_falsifiable,
-                    null_hypothesis = EXCLUDED.null_hypothesis,
-                    status = EXCLUDED.status,
-                    confidence = EXCLUDED.confidence,
-                    proposed_at = EXCLUDED.proposed_at,
-                    revisions = EXCLUDED.revisions,
-                    parent_hypothesis_id = EXCLUDED.parent_hypothesis_id,
-                    falsification_criteria = EXCLUDED.falsification_criteria,
-                    verification_criteria = EXCLUDED.verification_criteria,
-                    predictions = EXCLUDED.predictions,
-                    testable_predictions = EXCLUDED.testable_predictions,
-                    alternative_hypotheses = EXCLUDED.alternative_hypotheses,
-                    supporting_evidence = EXCLUDED.supporting_evidence,
-                    contradicting_evidence = EXCLUDED.contradicting_evidence
-                """,
-                (
-                    hypothesis.hypothesis_id,
-                    hypothesis.claim,
-                    hypothesis.domain,
-                    hypothesis.is_falsifiable,
-                    hypothesis.null_hypothesis,
-                    hypothesis.status.value,
-                    hypothesis.confidence,
-                    # asyncpg wants a datetime for a TIMESTAMP column. Passing
-                    # .isoformat() raised on every call, so this table has never
-                    # received a row -- the except logged it and the in-memory
-                    # object looked saved.
-                    hypothesis.proposed_at,
-                    hypothesis.revisions,
-                    hypothesis.parent_hypothesis_id,
-                    # These eight JSONB columns were declared and never written.
-                    # Without falsification_criteria a restored hypothesis comes
-                    # back unfalsifiable, which is the only property that makes
-                    # it a hypothesis rather than an assertion.
-                    json.dumps(hypothesis.falsification_criteria or []),
-                    json.dumps(hypothesis.verification_criteria or []),
-                    json.dumps(hypothesis.predictions or []),
-                    json.dumps(hypothesis.testable_predictions or []),
-                    json.dumps(hypothesis.alternative_hypotheses or []),
-                    json.dumps(hypothesis.supporting_evidence or []),
-                    json.dumps(hypothesis.contradicting_evidence or []),
-                ),
-                commit=True
-            )
+            from core.agents.memory_agent import memory_agent
+            from core.memory import Origin
+            await memory_agent().hold_hypothesis(
+                origin=Origin.of(hypothesis.owner, "hypothesis testing"),
+                hypothesis_id=hypothesis.hypothesis_id, claim=hypothesis.claim,
+                domain=hypothesis.domain, is_falsifiable=hypothesis.is_falsifiable,
+                null_hypothesis=hypothesis.null_hypothesis,
+                status=hypothesis.status.value, confidence=hypothesis.confidence,
+                # asyncpg wants a datetime for a TIMESTAMP column. Passing
+                # .isoformat() raised on every call, so this table has never
+                # received a row -- the except logged it and the in-memory
+                # object looked saved.
+                proposed_at=hypothesis.proposed_at, revisions=hypothesis.revisions,
+                parent_hypothesis_id=hypothesis.parent_hypothesis_id,
+                # These eight JSONB columns were declared and never written.
+                # Without falsification_criteria a restored hypothesis comes
+                # back unfalsifiable, which is the only property that makes
+                # it a hypothesis rather than an assertion.
+                falsification_criteria=json.dumps(hypothesis.falsification_criteria or []),
+                verification_criteria=json.dumps(hypothesis.verification_criteria or []),
+                predictions=json.dumps(hypothesis.predictions or []),
+                testable_predictions=json.dumps(hypothesis.testable_predictions or []),
+                alternative_hypotheses=json.dumps(hypothesis.alternative_hypotheses or []),
+                supporting_evidence=json.dumps(hypothesis.supporting_evidence or []),
+                contradicting_evidence=json.dumps(hypothesis.contradicting_evidence or []))
         except Exception as e:
             logger.error(f"Error saving hypothesis: {e}")
     
@@ -1044,39 +1067,20 @@ class HypothesisTestingSystem:
             return
 
         try:
-            await self.db.execute_query(
-                """
-                INSERT INTO unified.experiments
-                (experiment_id, hypothesis_id, name, description, expected_outcome,
-                 status, outcome_supports_hypothesis, designed_at, completed_at, execution_time)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-                ON CONFLICT (experiment_id) DO UPDATE SET
-                    hypothesis_id = EXCLUDED.hypothesis_id,
-                    name = EXCLUDED.name,
-                    description = EXCLUDED.description,
-                    expected_outcome = EXCLUDED.expected_outcome,
-                    status = EXCLUDED.status,
-                    outcome_supports_hypothesis = EXCLUDED.outcome_supports_hypothesis,
-                    designed_at = EXCLUDED.designed_at,
-                    completed_at = EXCLUDED.completed_at,
-                    execution_time = EXCLUDED.execution_time
-                """,
-                (
-                    experiment.experiment_id,
-                    experiment.hypothesis_id,
-                    experiment.name,
-                    experiment.description,
-                    experiment.expected_outcome,
-                    experiment.status.value,
-                    experiment.outcome_supports_hypothesis,
-                    # Same defect as _save_hypothesis: asyncpg needs a datetime
-                    # for a TIMESTAMP column, so every experiment write raised.
-                    experiment.designed_at,
-                    experiment.completed_at,
-                    experiment.execution_time
-                ),
-                commit=True
-            )
+            from core.agents.memory_agent import memory_agent
+            from core.memory import Origin
+            await memory_agent().hold_experiment(
+                origin=Origin.of(experiment.owner, "hypothesis testing"),
+                experiment_id=experiment.experiment_id,
+                hypothesis_id=experiment.hypothesis_id, name=experiment.name,
+                description=experiment.description,
+                expected_outcome=experiment.expected_outcome,
+                status=experiment.status.value,
+                outcome_supports_hypothesis=experiment.outcome_supports_hypothesis,
+                # Same defect as _save_hypothesis: asyncpg needs a datetime
+                # for a TIMESTAMP column, so every experiment write raised.
+                designed_at=experiment.designed_at, completed_at=experiment.completed_at,
+                execution_time=experiment.execution_time)
         except Exception as e:
             logger.error(f"Error saving experiment: {e}")
 
@@ -1307,7 +1311,9 @@ class HypothesisTestingSystem:
                     })
 
             # Store to memory agent with full chain of thought
+            from core.memory import Origin
             success, memory_id = await self.memory_agent.store_memory(
+                origin=Origin.of(experiment.owner, "hypothesis testing"),
                 memory_type=MemoryType.EPISODIC,  # Experiments are episodic events
                 content=content_summary,
                 importance_score=0.8,  # Experiments are important
@@ -1361,37 +1367,18 @@ class HypothesisTestingSystem:
             return
 
         try:
-            await self.db.execute_query(
-                """
-                INSERT INTO unified.evidence
-                (evidence_id, hypothesis_id, evidence_type, description, quality_score,
-                 supports_hypothesis, strength, source, experiment_id, collected_at)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-                ON CONFLICT (evidence_id) DO UPDATE SET
-                    hypothesis_id = EXCLUDED.hypothesis_id,
-                    evidence_type = EXCLUDED.evidence_type,
-                    description = EXCLUDED.description,
-                    quality_score = EXCLUDED.quality_score,
-                    supports_hypothesis = EXCLUDED.supports_hypothesis,
-                    strength = EXCLUDED.strength,
-                    source = EXCLUDED.source,
-                    experiment_id = EXCLUDED.experiment_id,
-                    collected_at = EXCLUDED.collected_at
-                """,
-                (
-                    evidence.evidence_id,
-                    evidence.hypothesis_id,
-                    evidence.evidence_type.value,
-                    evidence.description,
-                    evidence.quality_score,
-                    evidence.supports_hypothesis,
-                    evidence.strength,
-                    evidence.source,
-                    evidence.experiment_id,
-                    evidence.collected_at.isoformat()
-                ),
-                commit=True
-            )
+            from core.agents.memory_agent import memory_agent
+            from core.memory import Origin
+            await memory_agent().hold_hypothesis_evidence(
+                origin=Origin.of(evidence.owner, "hypothesis testing"),
+                evidence_id=evidence.evidence_id, hypothesis_id=evidence.hypothesis_id,
+                evidence_type=evidence.evidence_type.value,
+                description=evidence.description, quality_score=evidence.quality_score,
+                supports_hypothesis=evidence.supports_hypothesis,
+                strength=evidence.strength, source=evidence.source,
+                experiment_id=evidence.experiment_id,
+                # A datetime for a TIMESTAMP column, as the other two saves.
+                collected_at=evidence.collected_at)
         except Exception as e:
             logger.error(f"Error saving evidence: {e}")
     

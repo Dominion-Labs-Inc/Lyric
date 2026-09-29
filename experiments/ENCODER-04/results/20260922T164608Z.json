@@ -1,0 +1,60 @@
+{
+  "experiment": "ENCODER-04 \u2014 negation: a claim versus its denial",
+  "seed": 20260922,
+  "hypotheses": [
+    "H1 negated pairs fall below the live merge threshold (0.75)",
+    "H2 negation is separated as well as unrelated sentences are",
+    "H3 polarity survives paraphrase ('does not' and 'never')"
+  ],
+  "data": {
+    "MiniLM": {
+      "negated_mean": 0.8508554234494066,
+      "never_mean": 0.756268361499263,
+      "unrelated_mean": 0.1710899389827477,
+      "negated_above_threshold": 71,
+      "n": 80
+    },
+    "native": {
+      "negated_mean": 0.9873465913885033,
+      "never_mean": 1.0000000000000002,
+      "unrelated_mean": 0.14976733272765064,
+      "negated_above_threshold": 80,
+      "n": 80
+    }
+  },
+  "checks": [
+    {
+      "name": "H1 MiniLM: denials fall below the merge threshold",
+      "passed": false,
+      "detail": "71/80 denials score >= 0.75"
+    },
+    {
+      "name": "H2 MiniLM: a denial is as far as an unrelated sentence",
+      "passed": false,
+      "detail": "negated 0.851 vs unrelated 0.171"
+    },
+    {
+      "name": "H3 MiniLM: polarity survives paraphrase",
+      "passed": true,
+      "detail": "'does not' 0.851 vs 'never' 0.756"
+    },
+    {
+      "name": "H1 native: denials fall below the merge threshold",
+      "passed": false,
+      "detail": "80/80 denials score >= 0.75"
+    },
+    {
+      "name": "H2 native: a denial is as far as an unrelated sentence",
+      "passed": false,
+      "detail": "negated 0.987 vs unrelated 0.150"
+    },
+    {
+      "name": "H3 native: polarity survives paraphrase",
+      "passed": true,
+      "detail": "'does not' 0.987 vs 'never' 1.000"
+    }
+  ],
+  "passed": 2,
+  "total": 6,
+  "verdict": "NEITHER encoder separates a claim from its denial \u2014 polarity must be decided outside the vector, as recall already does"
+}

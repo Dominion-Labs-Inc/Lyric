@@ -110,9 +110,9 @@ async def test_a_clean_examination_records_no_breach(monkeypatch):
 @pytest.mark.asyncio
 async def test_taught_material_never_becomes_knowledge():
     """"25% means 25 out of 100" is not evidence because a teacher said it."""
-    from core.learning.learning_authority import SubstrateLearning
+    from core.learning.unified_learning_system import UnifiedLearningSystem
 
-    authority = SubstrateLearning()
+    authority = UnifiedLearningSystem()
     authority.register_contributor("qwen", "teacher")
 
     admitted = await teach(authority, "qwen",
@@ -128,9 +128,9 @@ async def test_taught_material_never_becomes_knowledge():
 
 @pytest.mark.asyncio
 async def test_an_unregistered_teacher_cannot_teach():
-    from core.learning.learning_authority import SubstrateLearning
+    from core.learning.unified_learning_system import UnifiedLearningSystem
 
-    authority = SubstrateLearning()
+    authority = UnifiedLearningSystem()
     admitted = await teach(authority, "stranger", [{"id": "l1"}], domain_id="x")
     assert admitted[0]["accepted"] is False
 
@@ -194,74 +194,3 @@ def test_teaching_takes_lessons_and_has_no_way_to_receive_exam_items():
     assert "lessons" in signature.parameters
     assert not any(p in signature.parameters
                    for p in ("posttest", "transfer", "exam", "answers"))
-
-
-# ---- severance must be global, or the exam leaks -------------------------
-
-def test_detaching_the_coordinator_alone_leaves_the_model_reachable():
-    """THE HOLE THIS CLOSES.
-
-    Clearing `coordinator.llm` and the bridge's `llm_service` does not detach
-    the model from TOOLS: they fetch it themselves via `get_llm_service()`. A
-    programming item routed to `generate_function` would therefore have been
-    answered by the teacher during a held-out exam while the harness reported
-    model_calls=0 -- the reasoning route would look clean because the model was
-    reached down an entirely different path.
-    """
-    import inspect
-
-    from core.tools import code_generation_tools
-
-    source = inspect.getsource(code_generation_tools.GenerateFunctionTool.execute)
-    assert "get_llm_service" in source, (
-        "if this tool no longer fetches the model itself, revisit whether "
-        "global severance is still required")
-
-
-def test_severance_replaces_the_global_accessor_and_verifies_it_took():
-    import core.services.unified_llm as unified_llm
-    from lesson import TeacherStillReachable, attach_teacher, detach_teacher
-
-    class _Coordinator:
-        llm = object()
-        teacher_model = object()
-        neural_bridge = None
-
-        @property
-        def model_available(self):
-            return self.llm is not None
-
-    original = unified_llm.get_llm_service
-    coordinator = _Coordinator()
-    try:
-        detach_teacher(coordinator)
-        assert coordinator.llm is None
-        # The path tools use must now refuse rather than hand back a model.
-        with pytest.raises(TeacherStillReachable):
-            unified_llm.get_llm_service()
-    finally:
-        attach_teacher(coordinator, original and object())
-        unified_llm.get_llm_service = original
-
-    assert unified_llm.get_llm_service is original, "severance was not reversed"
-
-
-def test_reattaching_restores_the_original_accessor():
-    import core.services.unified_llm as unified_llm
-    from lesson import attach_teacher, detach_teacher
-
-    class _Coordinator:
-        llm = object()
-        teacher_model = None
-        neural_bridge = None
-
-        @property
-        def model_available(self):
-            return self.llm is not None
-
-    original = unified_llm.get_llm_service
-    coordinator = _Coordinator()
-    detach_teacher(coordinator)
-    attach_teacher(coordinator, "teacher")
-    assert unified_llm.get_llm_service is original
-    assert coordinator.teacher_model == "teacher"

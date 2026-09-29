@@ -1,0 +1,114 @@
+{
+  "experiment": "NLU-02 \u2014 Which CONSTRUCTIONS of English does it hold?",
+  "writes_to_store": false,
+  "notes": [
+    "reads: copular 3/3, copular negated 3/3, subject-verb-object 2/3, yes/no question 3/3, multi-word subject 3/3, relative clause 2/3, complement clause 2/3, ditransitive 1/3, apposition 2/3, quantified 2/3, passive 3/3, possessive 3/3, modal 2/3, prepositional claim 3/3",
+    "refuses entirely: NP coordination 0/3, object coordination 0/3, VP coordination 0/3, subordination 0/3, comparative 0/3, multi-clause definition 0/3"
+  ],
+  "data": {},
+  "checks": [
+    {
+      "name": "CLAIMED: copular reads",
+      "passed": true,
+      "detail": "read 3/3"
+    },
+    {
+      "name": "CLAIMED: copular negated reads",
+      "passed": true,
+      "detail": "read 3/3"
+    },
+    {
+      "name": "CLAIMED: subject-verb-object reads",
+      "passed": true,
+      "detail": "read 2/3"
+    },
+    {
+      "name": "CLAIMED: yes/no question reads",
+      "passed": true,
+      "detail": "read 3/3"
+    },
+    {
+      "name": "CLAIMED: multi-word subject reads",
+      "passed": true,
+      "detail": "read 3/3"
+    },
+    {
+      "name": "not claimed: relative clause refuses",
+      "passed": false,
+      "detail": "read 2/3 \u2014 it guessed where it cannot represent"
+    },
+    {
+      "name": "not claimed: NP coordination refuses",
+      "passed": true,
+      "detail": "read 0/3 \u2014 it guessed where it cannot represent"
+    },
+    {
+      "name": "not claimed: object coordination refuses",
+      "passed": true,
+      "detail": "read 0/3 \u2014 it guessed where it cannot represent"
+    },
+    {
+      "name": "not claimed: VP coordination refuses",
+      "passed": true,
+      "detail": "read 0/3 \u2014 it guessed where it cannot represent"
+    },
+    {
+      "name": "not claimed: subordination refuses",
+      "passed": true,
+      "detail": "read 0/3 \u2014 it guessed where it cannot represent"
+    },
+    {
+      "name": "not claimed: complement clause refuses",
+      "passed": false,
+      "detail": "read 2/3 \u2014 it guessed where it cannot represent"
+    },
+    {
+      "name": "not claimed: ditransitive refuses",
+      "passed": false,
+      "detail": "read 1/3 \u2014 it guessed where it cannot represent"
+    },
+    {
+      "name": "not claimed: apposition refuses",
+      "passed": false,
+      "detail": "read 2/3 \u2014 it guessed where it cannot represent"
+    },
+    {
+      "name": "not claimed: comparative refuses",
+      "passed": true,
+      "detail": "read 0/3 \u2014 it guessed where it cannot represent"
+    },
+    {
+      "name": "not claimed: quantified refuses",
+      "passed": false,
+      "detail": "read 2/3 \u2014 it guessed where it cannot represent"
+    },
+    {
+      "name": "not claimed: passive refuses",
+      "passed": false,
+      "detail": "read 3/3 \u2014 it guessed where it cannot represent"
+    },
+    {
+      "name": "not claimed: possessive refuses",
+      "passed": false,
+      "detail": "read 3/3 \u2014 it guessed where it cannot represent"
+    },
+    {
+      "name": "not claimed: modal refuses",
+      "passed": false,
+      "detail": "read 2/3 \u2014 it guessed where it cannot represent"
+    },
+    {
+      "name": "not claimed: prepositional claim refuses",
+      "passed": false,
+      "detail": "read 3/3 \u2014 it guessed where it cannot represent"
+    },
+    {
+      "name": "not claimed: multi-clause definition refuses",
+      "passed": true,
+      "detail": "read 0/3 \u2014 it guessed where it cannot represent"
+    }
+  ],
+  "passed": 11,
+  "total": 20,
+  "seconds": 0.14
+}

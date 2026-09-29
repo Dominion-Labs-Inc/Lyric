@@ -66,9 +66,12 @@ async def main() -> int:
         nonlocal ok; ok = ok and bool(cond)
         out.append(f"  [{'PASS' if cond else 'FAIL'}] {label}")
 
-    out.append("== 0. prime the drift snapshot (pre-existing graph is the baseline) ==")
-    primed = await coord.integrate_epistemic_affect()
-    check("first drain primes and emits nothing", not _moved(primed))
+    out.append("== 0. the drift snapshot is primed (pre-existing graph is the baseline) ==")
+    # The boot primes it, so what the substrate learns from then on is read as change; this drain
+    # moves the baseline to now, before this run's own teaching.
+    from core.reasoning.epistemic_engine import get_epistemic_engine
+    check("the boot primed the drift baseline", get_epistemic_engine()._drift_primed)
+    await coord.integrate_epistemic_affect()
 
     # Fresh per-run identifiers — beliefs persist in Postgres, so a re-used claim is
     # already saturated and would (correctly) move nothing. Unique subjects isolate
@@ -84,9 +87,11 @@ async def main() -> int:
     out.append("== 2. a PERCEPTION source moves knowledge → feeling (same door) ==")
     coord.learning.register_clause_classifier(
         "toy_shapes", model, labels=["dark", "bright"], encode=None)
+    from core.memory import Origin
     d = await coord.perceive("toy_shapes", np.ones(F, dtype=np.int8),
-                             f"percept_{uid}", domain="toy_percepts")
-    claim = d.get("claim")
+                             f"percept_{uid}", domain="toy_percepts",
+                             origin=Origin.own("EPISTEMIC-AFFECT-01"))
+    claim = d.claims[0].claim if d.claims else None   # a recognition makes one claim
     p_before = None
     if claim:
         b = coord.learning.belief_for_claim(claim)

@@ -138,6 +138,27 @@ def about_the_same_thing(question: str, memory: str) -> Optional[bool]:
     return all(name in words for name in named)
 
 
+def shape_of(meaning) -> ClaimShape:
+    """The shape of what a meaning (`derived_reader.Meaning`) claims: a telling affirms, or denies when any fact it
+    states is denied; a question or a request claims nothing. A meaning holds no tense, so none is given."""
+    if meaning is None or meaning.act != "tell":
+        return ClaimShape()
+    return ClaimShape(polarity=DENIES if any(not f.positive for f in meaning.asserted) else AFFIRMS)
+
+
+def read_shape(text: str) -> ClaimShape:
+    """The shape of what a text claims, read through the one reader: a text that reads, as one utterance, to one
+    meaning. Anything else claims nothing this can place, and says so."""
+    from core.semantics.derived_reader import read_text
+    utterances = read_text(text or "")
+    if len(utterances) != 1 or not utterances[0].readings:
+        return ClaimShape()
+    readings = utterances[0].readings
+    if len({r.meaning.canonical() for r in readings}) > 1:
+        return ClaimShape()
+    return shape_of(readings[0].meaning)
+
+
 def read_claim(text: str) -> ClaimShape:
     """The polarity and tense of a sentence, or nothing where it is not plain."""
     stripped = (text or "").strip()
@@ -164,6 +185,6 @@ def read_claim(text: str) -> ClaimShape:
     )
 
 
-__all__ = ["ClaimShape", "read_claim", "names_in", "about_the_same_thing",
+__all__ = ["ClaimShape", "shape_of", "read_shape", "read_claim", "names_in", "about_the_same_thing",
            "AFFIRMS", "DENIES", "PRESENT", "PAST",
            "NEGATORS", "PAST_MARKERS", "PRESENT_MARKERS"]

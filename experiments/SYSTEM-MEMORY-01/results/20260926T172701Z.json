@@ -1,0 +1,218 @@
+{
+  "experiment": "SYSTEM-MEMORY-01",
+  "claim": "Memory is one authority: a memory stored is found by content and by id, superseding keeps what it used to say, an unknown id is None, and a delete without governance's token is refused.",
+  "hypothesis": "A second agent, a stored memory that cannot be found, a delete that succeeds without a token, or a dead public method would each fail here.",
+  "started_at": "2026-09-26T17:27:01.151782+00:00",
+  "duration_seconds": 99.205,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/TorinAI/venv_torin/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/TorinAI",
+    "shadow_mode": null,
+    "git_commit": "20deb447498593391eca0286916b8f986c560a26",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "torinai_db",
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "dotenv:.env.postgres",
+        "database": "dotenv:.env.postgres",
+        "user": "dotenv:.env.postgres",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres"
+      }
+    },
+    "git_uncommitted_changes": 1079,
+    "database_verified": null,
+    "database_verified_reason": "no initialized connection in this process"
+  },
+  "summary": {
+    "checks": 18,
+    "passed": 17,
+    "failed": 1,
+    "outcome": "FAIL"
+  },
+  "metrics": [
+    {
+      "name": "memory_construction_sites",
+      "value": 1,
+      "unit": "count",
+      "note": "core/agents/memory_agent.py:4322"
+    },
+    {
+      "name": "memory_public_methods",
+      "value": 45,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "memory_internal_only_public_methods",
+      "value": 4,
+      "unit": "count",
+      "note": "used only inside their own file: begin_word_class_warm, find_open, permanent_delete, start_memory_loops"
+    },
+    {
+      "name": "memory_experiments_only",
+      "value": 0,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "memory_uncalled",
+      "value": 10,
+      "unit": "count",
+      "note": "bulk_import, get_memory_by_content, claim_tags, increment_access_count, update_importance, update_tags, add_related_memory, retrieve_from_archive, cleanup_cache, form_abstractions"
+    },
+    {
+      "name": "memory_not_implemented",
+      "value": 0,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "memory_constant",
+      "value": 0,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "memory_empty",
+      "value": 0,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "behaviour_checks_passed",
+      "value": 17,
+      "unit": "count",
+      "note": "of 18"
+    },
+    {
+      "name": "wiring_findings",
+      "value": 10,
+      "unit": "count",
+      "note": "0 exercised only by experiments/tests, 10 called by nothing"
+    },
+    {
+      "name": "completeness_findings",
+      "value": 0,
+      "unit": "count",
+      "note": "0 NotImplementedError, 0 return a literal, 0 empty"
+    }
+  ],
+  "checks": [
+    {
+      "label": "memory: the coordinator holds the instance the accessor returns",
+      "passed": true,
+      "detail": "held=MemoryAgent same=True",
+      "at": "2026-09-26T17:28:29.770729+00:00"
+    },
+    {
+      "label": "memory: MemoryAgent is constructed in one place",
+      "passed": true,
+      "detail": "in its module: ['core/agents/memory_agent.py:4322']; elsewhere: []",
+      "at": "2026-09-26T17:28:32.036105+00:00"
+    },
+    {
+      "label": "store_memory returns (True, memory_id)",
+      "passed": true,
+      "detail": "ok=True id=mem_950f3e9970ed44cba879f8eca3af0147",
+      "at": "2026-09-26T17:28:37.616128+00:00"
+    },
+    {
+      "label": "the memory is found by its content",
+      "passed": true,
+      "detail": "1 hit(s): ['mem_950f3e9970ed44cba879f8eca3af0147']",
+      "at": "2026-09-26T17:28:38.031806+00:00"
+    },
+    {
+      "label": "and read back by id",
+      "passed": true,
+      "detail": "content='isolation probe: the qzxmem lamp in the study is on'",
+      "at": "2026-09-26T17:28:38.037675+00:00"
+    },
+    {
+      "label": "an unknown id is None",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-26T17:28:38.042783+00:00"
+    },
+    {
+      "label": "supersede replaces the content",
+      "passed": true,
+      "detail": "supersede=True content='isolation probe: the qzxmem lamp in the study is OFF'",
+      "at": "2026-09-26T17:28:38.061028+00:00"
+    },
+    {
+      "label": "and keeps what it used to say",
+      "passed": true,
+      "detail": "metadata keys=['superseded']",
+      "at": "2026-09-26T17:28:38.061060+00:00"
+    },
+    {
+      "label": "a delete without a valid token is refused",
+      "passed": true,
+      "detail": "deleted=False still_present=True",
+      "at": "2026-09-26T17:28:38.061135+00:00"
+    },
+    {
+      "label": "and with no token at all",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-26T17:28:38.061180+00:00"
+    },
+    {
+      "label": "a user's memory is stored as theirs",
+      "passed": true,
+      "detail": "mem_aac186121bd84ed289e18fd84876b713",
+      "at": "2026-09-26T17:28:38.417200+00:00"
+    },
+    {
+      "label": "by semantic: its owner finds it, another user and the substrate do not",
+      "passed": true,
+      "detail": "owner=True other=False substrate=False",
+      "at": "2026-09-26T17:28:38.447786+00:00"
+    },
+    {
+      "label": "by keyword: its owner finds it, another user and the substrate do not",
+      "passed": true,
+      "detail": "owner=True other=False substrate=False",
+      "at": "2026-09-26T17:28:39.035560+00:00"
+    },
+    {
+      "label": "by tags: its owner finds it, another user and the substrate do not",
+      "passed": true,
+      "detail": "owner=True other=False substrate=False",
+      "at": "2026-09-26T17:28:39.650280+00:00"
+    },
+    {
+      "label": "the same words from the substrate are its own memory, not merged into the user's",
+      "passed": true,
+      "detail": "user=mem_aac186121bd84ed289e18fd84876b713 substrate=mem_c13d310692824b4fa710e36cad5f29b0",
+      "at": "2026-09-26T17:28:39.687751+00:00"
+    },
+    {
+      "label": "the same words from the same user merge into their own memory",
+      "passed": false,
+      "detail": "first=mem_aac186121bd84ed289e18fd84876b713 again=mem_4ea202ae34fe48818bdbc61204dc9e84",
+      "at": "2026-09-26T17:28:39.882186+00:00"
+    },
+    {
+      "label": "metrics are a dict",
+      "passed": true,
+      "detail": "keys=['abstractions_formed', 'beliefs_updated', 'cache_hits', 'cache_size', 'consolidations_run', 'embedding_available', 'initialized', 'maintenance_cycles']",
+      "at": "2026-09-26T17:28:39.882221+00:00"
+    },
+    {
+      "label": "everything this run wrote is removed",
+      "passed": true,
+      "detail": "left=0",
+      "at": "2026-09-26T17:28:40.154294+00:00"
+    }
+  ],
+  "notes": []
+}

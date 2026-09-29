@@ -16,11 +16,12 @@ integration into the learning system.
 
 import logging
 from enum import Enum
-from typing import Dict, Any, Optional, List, Tuple
+from typing import Dict, Any, Optional, List, Tuple, TYPE_CHECKING
 from datetime import datetime
 from dataclasses import dataclass, field
 
-from .singleton_constitution import SingletonConstitution
+if TYPE_CHECKING:
+    from .autonomous_coordinator import Constitution
 from .intrinsic_motivation import IntrinsicMotivationSystem
 
 logger = logging.getLogger(__name__)
@@ -150,7 +151,7 @@ class ExperienceEvaluator:
 
     async def initialize(
         self,
-        constitution: SingletonConstitution,
+        constitution: "Constitution",
         intrinsic_motivation: IntrinsicMotivationSystem
     ) -> bool:
         """

@@ -1,0 +1,34 @@
+{
+  "experiment": "NLU-10 \u2014 Where BOTH readers apply, do they agree?",
+  "writes_to_store": false,
+  "notes": [
+    "the written patterns and the derived reading are separate readers; a rule learned through one must fire on a fact admitted through the other, which needs one atom vocabulary rather than two",
+    "only one reader applies to 'A robin is a bird.' (written=False derived=True)",
+    "only one reader applies to 'A robin is not a mammal.' (written=False derived=True)",
+    "only one reader applies to 'The control rod is heavy.' (written=False derived=True)",
+    "only one reader applies to 'Is the vault locked?' (written=False derived=True)",
+    "only one reader applies to 'A crucible melts ore.' (written=False derived=False)",
+    "both readers applied to 3/8 sentences"
+  ],
+  "data": {},
+  "checks": [
+    {
+      "name": "agree on 'The vault is locked.'",
+      "passed": true,
+      "detail": "written 'vault_locked' vs derived 'vault_locked'"
+    },
+    {
+      "name": "agree on 'The kidney filters plasma.'",
+      "passed": true,
+      "detail": "written 'kidney_filter_plasma' vs derived 'kidney_filter_plasma'"
+    },
+    {
+      "name": "agree on 'The tank stores water.'",
+      "passed": true,
+      "detail": "written 'tank_store_water' vs derived 'tank_store_water'"
+    }
+  ],
+  "passed": 3,
+  "total": 3,
+  "seconds": 0.03
+}

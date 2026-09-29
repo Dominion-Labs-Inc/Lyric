@@ -1,0 +1,89 @@
+{
+  "experiment": "NLU-09 \u2014 Is everything it says about a hard sentence TRUE?",
+  "writes_to_store": false,
+  "notes": [
+    "a reading becomes a premise the solver cannot doubt, so the safety number is not how much it says but whether any of it is false",
+    "it produced a reading for 8/14 of them; 8 carried a claim the sentence does not make (57.1%)"
+  ],
+  "data": {
+    "sentences": 14,
+    "spoke_at_all": 8,
+    "unsound": 8,
+    "false_claim_rate_pct": 57.14
+  },
+  "checks": [
+    {
+      "name": "nothing false from 'The pump that failed was replaced.'",
+      "passed": false,
+      "detail": "produced ['pump_that_failed_was_replaced'] which the sentence does not state (entailed: ['pump_fail']) [extractor]"
+    },
+    {
+      "name": "nothing false from 'The valve which leaked is closed.'",
+      "passed": false,
+      "detail": "produced ['valve_which_leaked_closed'] which the sentence does not state (entailed: ['valve_closed', 'valve_leak']) [extractor]"
+    },
+    {
+      "name": "nothing false from 'The engineer who arrived is waiting.'",
+      "passed": false,
+      "detail": "produced ['engineer_who_arrived_waiting'] which the sentence does not state (entailed: ['engineer_arrive', 'engineer_waiting']) [extractor]"
+    },
+    {
+      "name": "nothing false from 'Dogs and cats are mammals.'",
+      "passed": false,
+      "detail": "produced ['dogs_and_cats_mammal'] which the sentence does not state (entailed: ['cat_mammal', 'dog_mammal']) [extractor]"
+    },
+    {
+      "name": "nothing false from 'The vault holds gold and silver.'",
+      "passed": false,
+      "detail": "produced ['vault_hold_gold_and_silver'] which the sentence does not state (entailed: ['vault_hold_gold', 'vault_hold_silver']) [extractor]"
+    },
+    {
+      "name": "nothing false from 'The valve opens and closes.'",
+      "passed": false,
+      "detail": "produced ['valve_open_and_close'] which the sentence does not state (entailed: ['valve_close', 'valve_open']) [extractor]"
+    },
+    {
+      "name": "nothing false from 'Because the valve stuck the tank overflowed.'",
+      "passed": true,
+      "detail": "produced [] which the sentence does not state (entailed: ['tank_overflow', 'valve_stick']) []"
+    },
+    {
+      "name": "nothing false from 'Scientists believe the universe is expanding'",
+      "passed": true,
+      "detail": "produced [] which the sentence does not state (entailed: ['universe_expanding']) []"
+    },
+    {
+      "name": "nothing false from 'Alice gave Bob a book.'",
+      "passed": true,
+      "detail": "produced [] which the sentence does not state (entailed: nothing) []"
+    },
+    {
+      "name": "nothing false from 'Paris the capital of France is on the Seine.'",
+      "passed": true,
+      "detail": "produced [] which the sentence does not state (entailed: ['paris_capital', 'paris_on_seine']) []"
+    },
+    {
+      "name": "nothing false from 'Iron is heavier than aluminium.'",
+      "passed": false,
+      "detail": "produced ['iron_heavier than_aluminium'] which the sentence does not state (entailed: nothing) [extractor]"
+    },
+    {
+      "name": "nothing false from 'Most birds can fly.'",
+      "passed": false,
+      "detail": "produced ['bird_can_fly'] which the sentence does not state (entailed: nothing) [extractor]"
+    },
+    {
+      "name": "nothing false from 'A function is a reusable block of code that '",
+      "passed": true,
+      "detail": "produced [] which the sentence does not state (entailed: ['block_encapsulate_logic', 'function_block', 'function_reusable_block']) []"
+    },
+    {
+      "name": "nothing false from 'why'",
+      "passed": true,
+      "detail": "produced [] which the sentence does not state (entailed: nothing) []"
+    }
+  ],
+  "passed": 6,
+  "total": 14,
+  "seconds": 0.03
+}

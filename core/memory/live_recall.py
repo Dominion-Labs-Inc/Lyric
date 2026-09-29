@@ -165,8 +165,11 @@ class LiveRecall:
     """Recall that runs alongside the turn rather than in front of it."""
 
     def __init__(self, agent=None, deadline: float = DEFAULT_DEADLINE,
-                 per_wave: int = 5):
+                 per_wave: int = 5, actor: Optional[str] = None):
         self._agent = agent
+        #: Whose recall this is: the speaker's own memories and the
+        #: substrate's, never another speaker's.
+        self.actor = actor
         self.deadline = deadline
         self.per_wave = per_wave
         #: query -> task, and the subject each was sought under.
@@ -222,7 +225,8 @@ class LiveRecall:
                                         min_similarity=ADMISSION,
                                         relative_to_best=KEEP_WITHIN,
                                         require_named_match=True,
-                                        include_events=False)
+                                        include_events=False,
+                                        actor=self.actor)
         except Exception as error:
             logger.info("live recall wave %r failed: %s", query[:40], error)
             return []
@@ -234,6 +238,15 @@ class LiveRecall:
             memory_id = getattr(item, "memory_id", None) or _text_of(item)[:60]
             text = _text_of(item)
             if not text:
+                continue
+            # THE RECORD OF AN EXCHANGE IS NOT KNOWLEDGE OF THE WORLD. The front
+            # door files each question it answers as "Asked: … — answered from
+            # held knowledge"; recalled here, that record was recited back as
+            # "I remember: Asked: What is a peristaltic pump? …", and its mere
+            # presence made the next asking of any question count as answerable
+            # from memory. What was said in a conversation is answered from the
+            # conversation's own record (`about_this_conversation`), not here.
+            if "user_exchange" in (getattr(item, "tags", None) or ()):
                 continue
             score = float(getattr(item, "similarity_score", 0) or 0)
             # A verdict the user left on this memory. metadata carries the flag
@@ -289,11 +302,11 @@ class LiveRecall:
         own = {mid: m for mid, m in self._landed.get(subject, {}).items()
                if not m.corrected}
         if claim:
-            from core.semantics.claim_shape import read_claim
+            from core.semantics.claim_shape import read_shape
 
-            asked_shape = read_claim(claim)
+            asked_shape = read_shape(claim)
             for recalled in own.values():
-                recalled.agrees = asked_shape.agrees_with(read_claim(recalled.text))
+                recalled.agrees = asked_shape.agrees_with(read_shape(recalled.text))
 
         ranked = sorted(own.values(),
                         key=lambda m: (m.similarity, m.corroboration, m.importance),

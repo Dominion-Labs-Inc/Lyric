@@ -1,0 +1,269 @@
+{
+  "experiment": "SHAPES-LEARN-01",
+  "claim": "Sentences taught with their meaning through the one teaching path become patterns: held in memory, scored by beliefs, in the English domain, their facts held in the graph; a taught sentence then reads to its meaning and its meaning is said back as the sentence.",
+  "hypothesis": "A pattern not stored, merged, or read as a claim; a belief missing or not grounded in its pattern's memory; no English domain; a fact missing, or held from a question or a request; a denial held as an assertion; a sentence that does not read back, or an untaught one that does; a re-teach that counts twice; or any write to the main store would each show here.",
+  "started_at": "2026-09-29T12:11:42.179694+00:00",
+  "duration_seconds": 106.229,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/TorinAI/venv_torin/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/TorinAI",
+    "shadow_mode": null,
+    "git_commit": "20deb447498593391eca0286916b8f986c560a26",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "torinai_dev",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "torinai_dev",
+        "model": "torinai_dev",
+        "user_context": "torinai_dev",
+        "learning": "torinai_dev"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "environment",
+        "database": "environment",
+        "user": "environment",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 1783,
+    "database_verified": "torinai_dev",
+    "database_verified_reason": "asked the server"
+  },
+  "summary": {
+    "checks": 36,
+    "passed": 36,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [],
+  "checks": [
+    {
+      "label": "the run is in the sandbox",
+      "passed": true,
+      "detail": "connected to torinai_dev",
+      "at": "2026-09-29T12:11:44.405745+00:00"
+    },
+    {
+      "label": "the substrate is running",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-29T12:12:07.268808+00:00"
+    },
+    {
+      "label": "every sentence became a pattern",
+      "passed": true,
+      "detail": "{'learned': 9, 'linked': 0, 'already': 0, 'understood': 0, 'refused': 0, 'total': 9, 'repair_holophrase': 9}",
+      "at": "2026-09-29T12:12:07.827583+00:00"
+    },
+    {
+      "label": "meaning facts: the model's, the speaker's, and none from questions or requests",
+      "passed": true,
+      "detail": "{'bound': 2, 'speaker_context': 3, 'no_speaker': 1, 'open': 0, 'not_told': 7, 'rule': 0, 'rule_not_held': 0, 'alternative': 0, 'example': 0}",
+      "at": "2026-09-29T12:12:07.827599+00:00"
+    },
+    {
+      "label": "each told fact is admitted once, where it belongs",
+      "passed": true,
+      "detail": "{'admitted': 5, 'already': 0, 'refused': 0, 'total': 5}",
+      "at": "2026-09-29T12:12:07.827604+00:00"
+    },
+    {
+      "label": "one pattern memory per sentence, none merged",
+      "passed": true,
+      "detail": "9 memories, 9 keys",
+      "at": "2026-09-29T12:12:07.829217+00:00"
+    },
+    {
+      "label": "no pattern memory was read as a claim about the world",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-29T12:12:07.829224+00:00"
+    },
+    {
+      "label": "one belief per pattern",
+      "passed": true,
+      "detail": "9/9",
+      "at": "2026-09-29T12:12:07.829302+00:00"
+    },
+    {
+      "label": "each belief is grounded in its pattern's memory",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-29T12:12:07.829363+00:00"
+    },
+    {
+      "label": "each belief is in the English domain",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-29T12:12:07.829368+00:00"
+    },
+    {
+      "label": "the pattern beliefs are persisted",
+      "passed": true,
+      "detail": "10 belief row(s) in the English domain",
+      "at": "2026-09-29T12:12:07.830418+00:00"
+    },
+    {
+      "label": "every admission reached the running substrate",
+      "passed": true,
+      "detail": "0 unannounced",
+      "at": "2026-09-29T12:12:07.830425+00:00"
+    },
+    {
+      "label": "English is a domain",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-29T12:12:07.830432+00:00"
+    },
+    {
+      "label": "English is judged by its patterns",
+      "passed": true,
+      "detail": "maturity 0.4383 (expected 0.4383, after 72s)",
+      "at": "2026-09-29T12:13:27.182006+00:00"
+    },
+    {
+      "label": "the lesson's domain is judged by what it now holds",
+      "passed": true,
+      "detail": "maturity 0.135 (registered at 0.1)",
+      "at": "2026-09-29T12:13:27.182018+00:00"
+    },
+    {
+      "label": "no domain record stores a copy of what it holds",
+      "passed": true,
+      "detail": "{'english': [], 'shapes_learn_01': []}",
+      "at": "2026-09-29T12:13:27.183346+00:00"
+    },
+    {
+      "label": "the thinnest knowledge is what proactive research would go after",
+      "passed": true,
+      "detail": "13 topic(s)",
+      "at": "2026-09-29T12:13:27.184087+00:00"
+    },
+    {
+      "label": "the general facts are held in the model's graph",
+      "passed": true,
+      "detail": "2808 edge(s)",
+      "at": "2026-09-29T12:13:27.190110+00:00"
+    },
+    {
+      "label": "no fact about the situation is in the model",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-09-29T12:13:27.190507+00:00"
+    },
+    {
+      "label": "the facts about the teacher's shoe are the teacher's context",
+      "passed": true,
+      "detail": "teacher holds [('teachers_shoe', 'has_property', 'black', 'positive'), ('teachers_shoe', 'instance_of', 'shoe', 'positive'), ('teachers_shoe', 'owned_by', 'teacher', 'positive')]",
+      "at": "2026-09-29T12:13:27.191356+00:00"
+    },
+    {
+      "label": "a denial is held as a denial",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-29T12:13:27.191362+00:00"
+    },
+    {
+      "label": "nothing is held from a question or a request",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-29T12:13:27.191534+00:00"
+    },
+    {
+      "label": "every pattern is recorded as new",
+      "passed": true,
+      "detail": "{'new': 9}",
+      "at": "2026-09-29T12:13:27.192244+00:00"
+    },
+    {
+      "label": "every taught sentence reads to its meaning",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-29T12:13:27.193389+00:00"
+    },
+    {
+      "label": "every taught meaning is said back as its sentence",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-29T12:13:27.193673+00:00"
+    },
+    {
+      "label": "an untaught sentence reads to nothing",
+      "passed": true,
+      "detail": "[('This is my hat.', 0), ('A robin is a fish.', 0), ('My shoe is red.', 0)]",
+      "at": "2026-09-29T12:13:27.193838+00:00"
+    },
+    {
+      "label": "a taught sentence heard without its capital reads loosely, and says so",
+      "passed": true,
+      "detail": "[('tell: instance_of(?shown, shoe) & owned_by(?shown, ?speaker)', True)]",
+      "at": "2026-09-29T12:13:27.193947+00:00"
+    },
+    {
+      "label": "the view rebuilt from memory reads every taught sentence",
+      "passed": true,
+      "detail": "9 pattern(s) after the warm",
+      "at": "2026-09-29T12:13:27.417223+00:00"
+    },
+    {
+      "label": "nothing is learned twice",
+      "passed": true,
+      "detail": "{'learned': 0, 'linked': 0, 'already': 9, 'understood': 9, 'refused': 0, 'total': 9}",
+      "at": "2026-09-29T12:13:27.804031+00:00"
+    },
+    {
+      "label": "no belief moved",
+      "passed": true,
+      "detail": "[1, 1, 1, 1, 1, 1, 1, 1, 1] -> [1, 1, 1, 1, 1, 1, 1, 1, 1]",
+      "at": "2026-09-29T12:13:27.804043+00:00"
+    },
+    {
+      "label": "still one memory per pattern",
+      "passed": true,
+      "detail": "9",
+      "at": "2026-09-29T12:13:27.805334+00:00"
+    },
+    {
+      "label": "a second source is a second observation of each pattern",
+      "passed": true,
+      "detail": "[1, 1, 1, 1, 1, 1, 1, 1, 1] -> [2, 2, 2, 2, 2, 2, 2, 2, 2]",
+      "at": "2026-09-29T12:13:28.170851+00:00"
+    },
+    {
+      "label": "the ledger records the second source as an update",
+      "passed": true,
+      "detail": "9; report {'learned': 0, 'linked': 0, 'already': 9, 'understood': 9, 'refused': 0, 'total': 9}",
+      "at": "2026-09-29T12:13:28.172022+00:00"
+    },
+    {
+      "label": "a taught question and a taught premise formalize without a model",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-29T12:13:28.173162+00:00"
+    },
+    {
+      "label": "an untaught question is declined",
+      "passed": true,
+      "detail": "this input was not taught with its meaning",
+      "at": "2026-09-29T12:13:28.173217+00:00"
+    },
+    {
+      "label": "the main model's store is untouched",
+      "passed": true,
+      "detail": "188529 rows before, 188529 after",
+      "at": "2026-09-29T12:13:28.409155+00:00"
+    }
+  ],
+  "notes": []
+}

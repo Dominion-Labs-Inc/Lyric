@@ -12,17 +12,16 @@ from typing import Dict, List, Optional, Any, Union, Tuple
 from dataclasses import dataclass
 from enum import Enum
 
-# Import ASI Safety framework
-try:
-    from core.security.asi_safety import ASISafetyFramework, ASISafetyAssessment
-    from core.security.security_master import SecurityMaster
-    from core.intelligence.safety_monitor import SafetyMonitor
-except ImportError:
-    # Fallback in case of import issues
-    ASISafetyFramework = None
-    ASISafetyAssessment = None
-    SecurityMaster = None
-    SafetyMonitor = None
+# THE ASI SAFETY FRAMEWORK IS GONE (consolidation §6: DROP, LLM-era).
+#
+# This module never used it. Two of the three imports in the try block named
+# modules that DO NOT EXIST -- `core.security.security_master` and
+# `core.intelligence.safety_monitor` -- so `except ImportError` fired on every
+# load and set ALL FOUR names to None, including `ASISafetyFramework`. The
+# `if self.asi_safety_framework` branch in `_assess_classical_safety` was
+# therefore unreachable for the life of the file, and the heuristics in its
+# `else` are what has always run. Removing the framework changes nothing here;
+# the silent fallback that hid that is what is removed with it.
 
 # Import quantum components
 from .quantum_safety import QuantumSafetyValidator, QuantumASISafetyBridge
@@ -71,7 +70,6 @@ class ASIQuantumSafetyIntegration:
     """Integrates quantum computing with ASI Safety framework"""
     
     def __init__(self):
-        self.asi_safety_framework: Optional[Any] = None
         self.quantum_safety_validator = QuantumSafetyValidator()
         self.quantum_processor: Optional[HybridQuantumProcessor] = None
         
@@ -93,32 +91,26 @@ class ASIQuantumSafetyIntegration:
             quantum_config = create_quantum_config(use_error_mitigation=True)
             self.quantum_processor = await create_quantum_processor(quantum_config)
             
-            # Connect to ASI Safety framework
-            if ASISafetyFramework:
-                self.asi_safety_framework = ASISafetyFramework()
-                # The result of initialize() was discarded, and so was the state
-                # of the quantum processor built above -- which has no backend
-                # whenever there is no valid API token. So this reported
-                # "ASI Quantum Safety integration initialized successfully" on a bridge with nothing
-                # to execute on, which is the claim a caller acts upon.
-                if hasattr(self.asi_safety_framework, 'initialize'):
-                    started = await self.asi_safety_framework.initialize()
-                    if started is False:
-                        logger.error("ASI Quantum Safety integration NOT initialized: "
-                                     "asi_safety_framework.initialize() reported failure")
-                        return False
-
-                if not getattr(self.quantum_processor, "initialized", False):
-                    logger.error(
-                        "ASI Quantum Safety integration NOT initialized: the quantum processor has no "
-                        "usable backend, so no quantum work can run")
-                    return False
-
-                logger.info("ASI Quantum Safety integration initialized successfully")
-                return True
-            else:
-                logger.warning("ASI Safety framework not available, quantum safety in limited mode")
+            # THE ASI SAFETY FRAMEWORK IS GONE, AND WAS NEVER CONNECTED.
+            #
+            # Its import had always failed (see the note at the top of this
+            # file), so `ASISafetyFramework` was None on every load, the
+            # connect branch never ran, and the `else` that returned False is
+            # what executed every time: **this integration has never once
+            # initialized successfully.** The processor check below was
+            # unreachable for the life of the file.
+            #
+            # What remains is the check that was always the real one: this
+            # bridge is initialized when it has a quantum processor it can
+            # actually run on, and not otherwise.
+            if not getattr(self.quantum_processor, "initialized", False):
+                logger.error(
+                    "ASI Quantum Safety integration NOT initialized: the quantum "
+                    "processor has no usable backend, so no quantum work can run")
                 return False
+
+            logger.info("ASI Quantum Safety integration initialized successfully")
+            return True
                 
         except Exception as e:
             logger.error(f"Failed to initialize ASI quantum safety integration: {e}")
@@ -274,32 +266,11 @@ class ASIQuantumSafetyIntegration:
         """Assess classical ASI safety factors"""
         
         try:
-            # Use ASI Safety framework if available
-            if self.asi_safety_framework and hasattr(self.asi_safety_framework, 'assess_safety'):
-                safety_request = {
-                    'operation': operation_data,
-                    'context': asi_context or {},
-                    'assessment_type': 'quantum_operation'
-                }
-                
-                assessment = await self.asi_safety_framework.assess_safety(safety_request)
-
-                if ASISafetyAssessment and isinstance(assessment, ASISafetyAssessment):
-                    risk_score = assessment.risk_score
-                    serialized_assessment = assessment.to_dict()
-                elif isinstance(assessment, dict):
-                    risk_score = assessment.get('risk_score', 0.5)
-                    serialized_assessment = assessment
-                else:
-                    risk_score = 0.5
-                    serialized_assessment = {'raw_assessment': str(assessment)}
-
-                return {
-                    'classical_risk_score': risk_score,
-                    'safety_assessment': serialized_assessment,
-                    'assessment_method': 'asi_safety_framework'
-                }
-            else:
+            # THE ASI BRANCH THAT USED TO STAND HERE IS GONE, and it never ran:
+            # `self.asi_safety_framework` was set only inside `if
+            # ASISafetyFramework:`, and that name was None on every load. The
+            # heuristics below are what this method has always done.
+            if True:
                 # Basic safety heuristics
                 risk_factors = []
                 
@@ -520,10 +491,10 @@ class ASIQuantumSafetyIntegration:
         else:
             confidence_factors.append(0.6)
         
-        if classical_risks.get('assessment_method') == 'asi_safety_framework':
-            confidence_factors.append(0.9)
-        else:
-            confidence_factors.append(0.5)
+        # `asi_safety_framework` was never a value this key could hold — the
+        # framework never loaded — so the 0.9 arm was unreachable and 0.5 is
+        # what every assessment has actually scored.
+        confidence_factors.append(0.5)
         
         return float(np.mean(confidence_factors))
     

@@ -15,6 +15,18 @@ import time
 import uuid
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
+from experiments._evidence import RunRecord  # noqa: E402
+
+# THE STANDARD RECORD. This printed a table and wrote nothing; the only record in
+# `results/` was from 2026-09-20, so every later run of it was lost.
+EV = RunRecord(
+    "CHAT-CONCURRENCY-01",
+    claim=("Chat through the real front door stays up under rising concurrency: every "
+           "simultaneous user gets an answer, with no errors, while latency degrades."),
+    hypothesis=("Questions run as coroutines on one event loop, not through the "
+                "work-job cap, so they all complete and the cost of concurrency shows "
+                "up as latency rather than as refusals or errors."))
+
 
 async def main() -> int:
     from core.database import get_database_manager
@@ -44,6 +56,7 @@ async def main() -> int:
                                            metadata={"session_id": "warm", "actor_identity": "warm"})
     warm_dt = time.monotonic() - t0
     print(f"warm-up: {warm_dt*1000:.0f} ms  answered={'answer' in (warm or {})}")
+    EV.metric("warm_up_ms", round(warm_dt * 1000), "ms")
 
     async def one(i):
         t = time.monotonic()
@@ -70,10 +83,25 @@ async def main() -> int:
               f"{len(errs):>7} {answered:>4}/{level}")
         if errs:
             print(f"       first error: {errs[0]}")
+        EV.check(f"{level} simultaneous user(s): every one got an answer, with no errors",
+                 answered == level and not errs,
+                 f"answered {answered}/{level}, errors {len(errs)}"
+                 + (f", first: {errs[0]}" if errs else ""))
+        EV.metric(f"users_{level}_wall_s", round(wall, 2), "s")
+        EV.metric(f"users_{level}_q_per_s", round(level / wall, 2), "q/s")
+        EV.metric(f"users_{level}_p50_ms", round(p50), "ms")
+        EV.metric(f"users_{level}_p95_ms", round(p95), "ms")
 
     print("\nNote: chat/Q&A is NOT gated by the work-job concurrency cap — these run as "
           "coroutines on one event loop; the numbers above show where latency degrades.")
-    return 0
+    EV.note("'Answered' means an answer came back — NOT that it was correct. The docstring "
+            "says correctness is measured; it is not.")
+    EV.note("Each run teaches the SHARED mind two facts under fresh names "
+            "(robin<hex> isa bird<hex>, bird<hex> isa animal) and does not remove them.")
+    await EV.verify_database()
+    written = EV.write()
+    print(f"run record: {written}")
+    return 0 if EV.failed == 0 else 1
 
 
 sys.exit(asyncio.run(main()))

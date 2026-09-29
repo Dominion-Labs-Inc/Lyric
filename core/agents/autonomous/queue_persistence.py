@@ -30,6 +30,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from .shared_types import (
     Task, TaskType, TaskStatus, Priority, TaskSource,
 )
+from .queue_authority import ACTIVE_STATUSES
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +48,12 @@ CREATE TABLE IF NOT EXISTS unified.task_queue (
 );
 CREATE INDEX IF NOT EXISTS task_queue_status_priority
     ON unified.task_queue (status, priority DESC, updated_at);
+ALTER TABLE unified.task_queue ADD COLUMN IF NOT EXISTS owner TEXT;
+CREATE TABLE IF NOT EXISTS unified.queue_instances (
+    instance_id  TEXT PRIMARY KEY,
+    started_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    heartbeat_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
 """
 
 
@@ -124,9 +131,14 @@ def task_from_jsonable(d: Dict[str, Any]) -> Task:
 class QueuePersistence:
     """Durable backing for the queue authority's work jobs."""
 
-    def __init__(self, db_manager=None):
+    def __init__(self, db_manager=None, instance_id: Optional[str] = None):
         self._db = db_manager
         self._schema_ready = False
+        #: WHICH INSTANCE OF THE MODEL holds the jobs this store writes. Many
+        #: instances share one queue table; a job is owned by the instance that
+        #: holds it, and only a job whose owner has stopped may be taken over.
+        import uuid as _uuid
+        self.instance_id = instance_id or f"queue_{_uuid.uuid4().hex[:12]}"
 
     def db(self):
         if self._db is None:
@@ -158,18 +170,59 @@ class QueuePersistence:
         payload = {"task": task_to_jsonable(task), "queued": queued_meta or {}}
         await self.db().execute_query(
             "INSERT INTO unified.task_queue"
-            " (task_id, status, priority, payload, result, error, updated_at)"
-            " VALUES ($1, $2, $3, $4, $5, $6, NOW())"
+            " (task_id, status, priority, payload, result, error, owner, updated_at)"
+            " VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())"
             " ON CONFLICT (task_id) DO UPDATE SET"
             "   status = EXCLUDED.status, priority = EXCLUDED.priority,"
             "   payload = EXCLUDED.payload, result = EXCLUDED.result,"
-            "   error = EXCLUDED.error, updated_at = NOW()",
+            "   error = EXCLUDED.error, owner = EXCLUDED.owner, updated_at = NOW()",
             (task.id, status, int(priority),
              json.dumps(payload, default=str),
              json.dumps(result, default=str) if result is not None else None,
-             error),
+             error, self.instance_id),
             commit=True,
         )
+
+    async def claim_new(self, *, task: Task, status: str, priority: int,
+                        result: Optional[Dict[str, Any]] = None,
+                        error: Optional[str] = None,
+                        queued_meta: Optional[Dict[str, Any]] = None,
+                        lease_s: float) -> bool:
+        """Write a NEW job's row for this instance, unless the same id is already
+        owed work held by another LIVING instance. Returns True when written,
+        False when another instance holds it (nothing is changed).
+
+        One statement, so two instances adding the same id cannot both win. An
+        existing row is overwritten only when it is finished history, has no
+        owner, is this instance's own, or belongs to an instance whose heartbeat
+        is older than `lease_s` — the same rule `claim_restorable` uses for
+        taking over a stopped instance's work."""
+        await self.ensure_schema()
+        payload = {"task": task_to_jsonable(task), "queued": queued_meta or {}}
+        owed = self.RESTORABLE_STATUSES
+        owed_ph = ", ".join(f"${i + 8}" for i in range(len(owed)))
+        lease = f"${len(owed) + 8}"
+        rows = await self.db().execute_query(
+            "INSERT INTO unified.task_queue AS t"
+            " (task_id, status, priority, payload, result, error, owner, updated_at)"
+            " VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())"
+            " ON CONFLICT (task_id) DO UPDATE SET"
+            "   status = EXCLUDED.status, priority = EXCLUDED.priority,"
+            "   payload = EXCLUDED.payload, result = EXCLUDED.result,"
+            "   error = EXCLUDED.error, owner = EXCLUDED.owner, updated_at = NOW()"
+            f" WHERE t.status NOT IN ({owed_ph})"
+            "    OR t.owner IS NULL OR t.owner = EXCLUDED.owner"
+            "    OR NOT EXISTS (SELECT 1 FROM unified.queue_instances i"
+            "                   WHERE i.instance_id = t.owner"
+            f"                    AND i.heartbeat_at >= NOW() - make_interval(secs => {lease}))"
+            " RETURNING task_id",
+            (task.id, status, int(priority),
+             json.dumps(payload, default=str),
+             json.dumps(result, default=str) if result is not None else None,
+             error, self.instance_id, *owed, float(lease_s)),
+            fetch_all=True,
+        )
+        return bool(rows)
 
     async def update_status(self, task_id: str, status: str, *,
                             result: Optional[Dict[str, Any]] = None,
@@ -190,54 +243,101 @@ class QueuePersistence:
         return bool(rows)
 
     #: The lifecycle states that are NOT terminal — work still owed. These are
-    #: what boot rehydrates; COMPLETED/FAILED/CANCELLED stay as history rows.
-    RESTORABLE_STATUSES: Tuple[str, ...] = (
-        TaskStatus.PLANNED.value, TaskStatus.PENDING.value,
-        TaskStatus.IN_PROGRESS.value, TaskStatus.AWAITING_VERIFICATION.value,
-        TaskStatus.BLOCKED.value,
-    )
+    #: what boot rehydrates; every other status is a history row. Taken from
+    #: the authority's ACTIVE_STATUSES, not declared again here.
+    RESTORABLE_STATUSES: Tuple[str, ...] = tuple(sorted(
+        s.value for s in ACTIVE_STATUSES))
 
-    async def load_restorable(self) -> List[Dict[str, Any]]:
-        """Every not-yet-terminal work job, highest priority first. Each dict is
-        {task, status, priority, queued}. A row that cannot be decoded RAISES via
-        task_from_jsonable — a corrupt backlog row must be seen, not skipped."""
+    async def heartbeat(self) -> None:
+        """Say this instance is alive, so the jobs it owns are not taken over."""
         await self.ensure_schema()
-        placeholders = ", ".join(f"${i+1}" for i in range(len(self.RESTORABLE_STATUSES)))
+        await self.db().execute_query(
+            "INSERT INTO unified.queue_instances (instance_id) VALUES ($1)"
+            " ON CONFLICT (instance_id) DO UPDATE SET heartbeat_at = NOW()",
+            (self.instance_id,), commit=True)
+
+    async def release(self) -> None:
+        """This instance is stopping: remove its heartbeat, so the work it still
+        owes can be claimed by another instance at once rather than after the
+        lease runs out."""
+        await self.ensure_schema()
+        await self.db().execute_query(
+            "DELETE FROM unified.queue_instances WHERE instance_id = $1",
+            (self.instance_id,), commit=True)
+
+    @staticmethod
+    def _decode(row) -> Dict[str, Any]:
+        payload = row["payload"]
+        if isinstance(payload, str):
+            payload = json.loads(payload)
+        return {
+            "task": task_from_jsonable(payload["task"]),
+            "status": row["status"],
+            "priority": int(row["priority"]),
+            "queued": payload.get("queued", {}),
+        }
+
+    async def claim_restorable(self, lease_s: float) -> List[Dict[str, Any]]:
+        """CLAIM the owed work no living instance holds, atomically, and return
+        it, highest priority first. A job is claimable when it has no owner or
+        its owner's heartbeat is older than `lease_s`; `FOR UPDATE SKIP LOCKED`
+        means two instances booting together never claim the same job. This
+        replaces reading every owed row: with several instances each boot
+        re-queued the others' work and reset their running jobs, so a task could
+        run twice. A row that cannot be decoded RAISES -- a corrupt backlog row
+        must be seen, not skipped."""
+        await self.ensure_schema()
+        statuses = tuple(self.RESTORABLE_STATUSES)
+        placeholders = ", ".join(f"${i+1}" for i in range(len(statuses)))
+        me, lease = f"${len(statuses) + 1}", f"${len(statuses) + 2}"
         rows = await self.db().execute_query(
-            f"SELECT task_id, status, priority, payload FROM unified.task_queue"
-            f" WHERE status IN ({placeholders})"
-            f" ORDER BY priority DESC, updated_at",
-            tuple(self.RESTORABLE_STATUSES),
+            f"UPDATE unified.task_queue t SET owner = {me}, updated_at = NOW()"
+            f" WHERE t.task_id IN ("
+            f"   SELECT q.task_id FROM unified.task_queue q"
+            f"   LEFT JOIN unified.queue_instances i ON i.instance_id = q.owner"
+            f"   WHERE q.status IN ({placeholders})"
+            f"     AND (q.owner IS NULL OR i.instance_id IS NULL"
+            f"          OR i.heartbeat_at < NOW() - make_interval(secs => {lease}))"
+            f"   FOR UPDATE OF q SKIP LOCKED)"
+            f" RETURNING t.task_id, t.status, t.priority, t.payload",
+            (*statuses, self.instance_id, float(lease_s)),
             fetch_all=True,
         ) or []
-        out: List[Dict[str, Any]] = []
-        for row in rows:
-            payload = row["payload"]
-            if isinstance(payload, str):
-                payload = json.loads(payload)
-            out.append({
-                "task": task_from_jsonable(payload["task"]),
-                "status": row["status"],
-                "priority": int(row["priority"]),
-                "queued": payload.get("queued", {}),
-            })
+        claimed = [self._decode(row) for row in rows]
+        claimed.sort(key=lambda r: -r["priority"])
+        return claimed
+
+    async def load_one(self, task_id: str) -> Optional[Dict[str, Any]]:
+        """One job's stored state (any status), or None -- for reading a job
+        this instance does not hold."""
+        await self.ensure_schema()
+        row = await self.db().execute_query(
+            "SELECT task_id, status, priority, payload, result, error FROM unified.task_queue"
+            " WHERE task_id = $1", (task_id,), fetch_one=True)
+        if row is None:
+            return None
+        out = self._decode(row)
+        result = row["result"]
+        out["result"] = json.loads(result) if isinstance(result, str) else result
+        out["error"] = row["error"]
         return out
 
     async def prune_terminal(self, keep_last: int = 500) -> int:
         """Bound the history: keep the most recent `keep_last` terminal rows,
         delete older ones. Returns how many were deleted. Prevents the table from
-        growing without limit while keeping recent history for diagnostics."""
+        growing without limit while keeping recent history for diagnostics.
+        Terminal = any status that is not restorable, so a row is always one or
+        the other: owed work is never pruned, and no status is left in neither."""
         await self.ensure_schema()
-        terminal = (TaskStatus.COMPLETED.value, TaskStatus.VERIFIED.value,
-                    TaskStatus.FAILED.value, TaskStatus.CANCELLED.value)
-        placeholders = ", ".join(f"${i+1}" for i in range(len(terminal)))
+        owed = self.RESTORABLE_STATUSES
+        placeholders = ", ".join(f"${i+1}" for i in range(len(owed)))
         status = await self.db().execute_query(
             f"DELETE FROM unified.task_queue WHERE task_id IN ("
             f"  SELECT task_id FROM unified.task_queue"
-            f"  WHERE status IN ({placeholders})"
+            f"  WHERE status NOT IN ({placeholders})"
             f"  ORDER BY updated_at DESC OFFSET {int(keep_last)}"
             f")",
-            tuple(terminal),
+            tuple(owed),
         )
         # asyncpg returns e.g. "DELETE 12"
         try:

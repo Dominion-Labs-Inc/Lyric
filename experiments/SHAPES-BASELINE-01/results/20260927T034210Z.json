@@ -1,0 +1,226 @@
+{
+  "experiment": "SHAPES-BASELINE-01",
+  "claim": "With nothing learned, the sentence and word shapes written into the code read every kind of sentence a speaker of American English uses, tell a question from a statement from a request, and reduce every word form to the word it is a form of.",
+  "hypothesis": "The hand-written shapes cover a narrow slice: copular and simple subject-verb-object sentences whose subject is a noun phrase. Pronoun subjects, African American English, slang, commands and most contractions will not read; plural and past-tense reduction will fail on irregular forms and on words that end in -es or -s but are not plurals.",
+  "started_at": "2026-09-27T03:42:10.447556+00:00",
+  "duration_seconds": 3.717,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/TorinAI/venv_torin/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/TorinAI",
+    "shadow_mode": null,
+    "git_commit": "20deb447498593391eca0286916b8f986c560a26",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "torinai_db",
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "dotenv:.env.postgres",
+        "database": "dotenv:.env.postgres",
+        "user": "dotenv:.env.postgres",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres"
+      }
+    },
+    "git_uncommitted_changes": 1148,
+    "database_verified": null,
+    "database_verified_reason": "not verified"
+  },
+  "summary": {
+    "checks": 6,
+    "passed": 0,
+    "failed": 6,
+    "outcome": "FAIL"
+  },
+  "metrics": [
+    {
+      "name": "preschool: gave a reading",
+      "value": "2/10",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "preschool: kind right",
+      "value": "2/10",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "questions: gave a reading",
+      "value": "0/5",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "questions: kind right",
+      "value": "5/5",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "commands: gave a reading",
+      "value": "0/3",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "commands: kind right",
+      "value": "3/3",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "paragraph: gave a reading",
+      "value": "1/1",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "paragraph: kind right",
+      "value": "0/1",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "joined clauses: gave a reading",
+      "value": "1/3",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "joined clauses: kind right",
+      "value": "0/3",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "African American English: gave a reading",
+      "value": "0/7",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "African American English: kind right",
+      "value": "0/7",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "slang: gave a reading",
+      "value": "0/4",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "slang: kind right",
+      "value": "0/4",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "abbreviations: gave a reading",
+      "value": "2/6",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "abbreviations: kind right",
+      "value": "1/6",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "punctuation: gave a reading",
+      "value": "3/6",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "punctuation: kind right",
+      "value": "2/6",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "statements that gave a reading",
+      "value": "9/35",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "sentences whose kind was right",
+      "value": "13/45",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "questions the question reader parsed",
+      "value": "4/6",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "written forms split into the words they stand for",
+      "value": "0/7",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "plurals reduced to their singular",
+      "value": "9/12",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "verb forms whose base is among the candidates",
+      "value": "7/10",
+      "unit": "",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "every statement gave a reading",
+      "passed": false,
+      "detail": "9/35",
+      "at": "2026-09-27T03:42:14.165004+00:00"
+    },
+    {
+      "label": "every sentence's kind was right",
+      "passed": false,
+      "detail": "13/45",
+      "at": "2026-09-27T03:42:14.165011+00:00"
+    },
+    {
+      "label": "every question was parsed",
+      "passed": false,
+      "detail": "4/6",
+      "at": "2026-09-27T03:42:14.165013+00:00"
+    },
+    {
+      "label": "every written form split into its words",
+      "passed": false,
+      "detail": "0/7",
+      "at": "2026-09-27T03:42:14.165014+00:00"
+    },
+    {
+      "label": "every plural reduced to its singular",
+      "passed": false,
+      "detail": "9/12",
+      "at": "2026-09-27T03:42:14.165015+00:00"
+    },
+    {
+      "label": "every verb form's base was found",
+      "passed": false,
+      "detail": "7/10",
+      "at": "2026-09-27T03:42:14.165016+00:00"
+    }
+  ],
+  "notes": [
+    "No database was opened and nothing was written. The memory authority was not up, so every word-class lookup answered 'never observed', which is what an empty store answers."
+  ]
+}

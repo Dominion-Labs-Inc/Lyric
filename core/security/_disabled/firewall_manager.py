@@ -15,7 +15,7 @@ from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional, Set, Tuple
 from collections import defaultdict
 
-from .active_defense_types import (
+from core.agents.autonomous.threat_sense import (
     FirewallRule, FirewallRuleAction, FirewallChain,
     BlockedEntity, DefenseAction
 )

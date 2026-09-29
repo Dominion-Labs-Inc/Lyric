@@ -57,7 +57,7 @@ from experiments._evidence import RunRecord  # noqa: E402
 
 os.environ.setdefault("TORIN_SHADOW_MODE", "1")
 
-DOMAIN = "fs_g2_real1"
+from experiments.fs_move_teach import DOMAIN, ensure_taught  # noqa: E402
 SYN = f"credit01_syn_{uuid.uuid4().hex[:8]}"
 REACHED_RUNS = 5
 
@@ -105,7 +105,7 @@ async def main():
     from core.database import get_database_manager
     from core.agents.autonomous.autonomous_coordinator import AutonomousCoordinator
     from core.agents.autonomous.shared_types import Task, TaskType, TaskSource
-    from core.execution.filesystem_domain import install_filesystem_domain, _encode
+    from core.execution.tool_domain import sensed_fact, take_up_workspace, term
     from core.integration.universal_domain_master import get_universal_domain_master
     from core.learning.meta_learning import OutcomeClass
 
@@ -157,9 +157,13 @@ async def main():
           f"attempts={att} wins={win}")
 
     # ── the live substrate ───────────────────────────────────────────────────
+    # THE PRECONDITION IS DECLARED, NOT ASSUMED: the drives below plan over a
+    # MOVE_FILE the substrate learned from its own acts, taught if it is not
+    # there.
+    check("the MOVE_FILE operator is held, or taught", await ensure_taught())
     coord = AutonomousCoordinator()
     await coord.initialize(start_loop=False)
-    install_filesystem_domain(DOMAIN, root)
+    take_up_workspace(DOMAIN, str(root))
 
     completed = []
 
@@ -189,6 +193,43 @@ async def main():
     # must not leave that behind.
     failed_fps_before = set(coord._permanently_failed_fps)
 
+    # THE STORE AT REST BEFORE THE BASELINE. It is shared with every run before
+    # this one, and the induction drain processes EVERY pending signature, whoever
+    # filed it — so a backlog left by an earlier run is induced on this run's
+    # first act and reads as "this miss taught the substrate something". Measured:
+    # run right after RECONCILE-01, a new rule appeared 0.4 s into this run, over a
+    # batch holding six of that run's demonstrations. Drained here, through the
+    # coordinator's own drain, so the baseline is the store at rest and the check
+    # measures only what this run does.
+    coord._induction_dirty = True
+    await coord._coalesced_induction_drain()
+
+    # WHAT THIS RUN WRITES IS REMOVED WITH IT. The cleanup below used to delete
+    # only the intents the run formed, leaving the goals and plans that name them
+    # — `active` goals whose steps point at intents that no longer exist (this
+    # experiment's `MOVE_FILE(report.txt, inbox, archive)` was 166 of the 673 such
+    # steps on the live store) — and the demonstrations its acts filed, which the
+    # next process to wake the induction drain would learn from. Recorded at the
+    # one place each is made, and removed by id.
+    from core.learning.demonstration_store import get_demonstration_store
+    demos = get_demonstration_store()
+    filed, created_goals = [], []
+    pending_before = {tuple(row) for row in await demos.pending_signatures()}
+    _append, _create_goal = demos.append, coord.planning.create_goal
+
+    async def recorded_append(example, *, domain_id):
+        written = await _append(example, domain_id=domain_id)
+        if written:          # every domain: its reading steps file into `tools:path` too
+            filed.append(example.evidence_id)
+        return written
+
+    async def recorded_goal(*args, **kwargs):
+        made = await _create_goal(*args, **kwargs)
+        if made is not None:
+            created_goals.append(made.id)
+        return made
+    demos.append, coord.planning.create_goal = recorded_append, recorded_goal
+
     att0, win0 = await counters(db, DOMAIN)
     rules_before = await rule_statuses(DOMAIN)
     intents_before = {r["intent_id"] for r in (await db.execute_query(
@@ -196,7 +237,9 @@ async def main():
     print(f"\nBASELINE {DOMAIN}: attempts={att0} wins={win0} "
           f"rules={len(rules_before)}")
 
-    GOAL = f"FILE_IN({_encode('report.txt')}, {_encode('archive')})"
+    # "Put report.txt in archive", in perception's words.
+    GOAL = [sensed_fact("kind", "path", str(root / "archive" / "report.txt"), "file").to_formula(),
+            "¬" + sensed_fact("kind", "path", str(root / "inbox" / "report.txt"), "file").to_formula()]
 
     def goal_task(conditions, desc):
         return Task(
@@ -228,7 +271,7 @@ async def main():
         unplannable = []
         for _ in range(2):
             stage()
-            _, result = await drive([f"PAINTED({_encode('report.txt')}, RED)"],
+            _, result = await drive([f"PAINTED({term('path', str(root / 'inbox' / 'report.txt'))}, RED)"],
                                     "paint the report red")
             unplannable.append(result)
         att1, win1 = await counters(db, DOMAIN)
@@ -255,7 +298,7 @@ async def main():
         reached_results, reached_tasks = [], []
         for _ in range(REACHED_RUNS):
             stage()
-            task, result = await drive([GOAL], "put report.txt in archive")
+            task, result = await drive(GOAL, "put report.txt in archive")
             reached_tasks.append(task)
             reached_results.append(result)
         on_disk = (root / "archive" / "report.txt").exists()
@@ -319,7 +362,7 @@ async def main():
         coord._execute_grounded_operator = step_then_world_changes
         try:
             missed_task, missed_result = await drive(
-                [GOAL], "put report.txt in archive")
+                GOAL, "put report.txt in archive")
         finally:
             coord._execute_grounded_operator = original
         att3, win3 = await counters(db, DOMAIN)
@@ -428,7 +471,7 @@ async def main():
         from core.agents.autonomous.shared_types import Priority
         goal_obj = await engine.create_goal(
             "[substrate goal] put report.txt in archive", Priority.MEDIUM,
-            state_conditions=[GOAL])
+            state_conditions=GOAL)
         inputs = await engine.assemble_inputs(
             "state", goal_obj, {"domain_id": DOMAIN,
                                 "world_state": sorted(str(f) for f in
@@ -456,8 +499,32 @@ async def main():
         for table in ("unified.domain_controllability", "unified.domains"):
             await db.execute_query(f"DELETE FROM {table} WHERE domain_id=$1",
                                    (SYN,), commit=True)
+        # The failed-work store is insert-only; this run's rows are removed by
+        # fingerprint, the ones recorded before it are left as they were.
+        added_fps = sorted(set(coord._permanently_failed_fps) - failed_fps_before)
         coord._permanently_failed_fps = failed_fps_before
-        coord._save_permanently_failed_fps()
+        if added_fps:
+            await db.execute_query(
+                "DELETE FROM unified.failed_task_fingerprints "
+                "WHERE fingerprint = ANY($1::text[])", (added_fps,), commit=True,
+                store="runtime")
+        del demos.append                     # the store's own method again
+        coord.planning.create_goal = _create_goal
+        if filed:
+            await db.execute_query(
+                "DELETE FROM unified.operator_demonstrations "
+                "WHERE evidence_id = ANY($1::text[])", (filed,), commit=True)
+        for domain_id, predicate, arity in await demos.pending_signatures():
+            if (domain_id, predicate, arity) not in pending_before:
+                await demos.clear_pending(domain_id=domain_id, predicate=predicate,
+                                          arity=arity)
+        if created_goals:
+            await db.execute_query(
+                "DELETE FROM unified.plans WHERE goal_id = ANY($1::text[])",
+                (created_goals,), commit=True)
+            await db.execute_query(
+                "DELETE FROM unified.goals WHERE id::text = ANY($1::text[])",
+                (created_goals,), commit=True)
         rows = await db.execute_query(
             "SELECT intent_id FROM unified.intents", (), fetch_all=True) or []
         for row in rows:

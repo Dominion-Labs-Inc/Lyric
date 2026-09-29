@@ -411,38 +411,49 @@ remains is the shared front end from text to a Z3 boolean expression:
 - **`is_formal`** (`:230`): true iff `parse_ast` succeeds — the bridge's passthrough
   formalizer gate.
 
-### 3.2 `AdvancedProofEngine` — SMT refutation and direct proof (`advanced_proof_engine.py`)
+### 3.2 `AdvancedProofEngine` — two provers, each checkable (`advanced_proof_engine.py`)
 
-- **Method selection** (`_select_proof_method`, `:233`): if Z3 is available and the
-  logic is propositional/first-order → **SMT**; otherwise → **DIRECT**. Only these two
-  are ever selected.
-- **`_smt_proof`** (`:248`): parse every premise and the goal to ASTs; declare one Z3
-  boolean per atom; assert all premises **plus the negated goal**; check with a
-  millisecond timeout off the event loop. **Refutation encoding**: premises + ¬goal
-  are unsatisfiable exactly when the premises entail the goal.
-  - `unsat` → **proved**, confidence `0.98`.
-  - `sat` → **not proved** (a model falsifies the goal — an *authoritative* negative),
-    confidence `0.0`.
-  - `unknown`/timeout → **undecided**, confidence `0.0`, error "entailment undecided"
-    (explicitly *not* a decided negative).
-  - Z3 absent → `capability_unavailable`, `0.0`, and **no fallback** — a weaker method
-    would make the solver decorative.
-- **Three separable "not proved" semantics**: `sat` (refutation), `unknown`
-  (undecided), and `capability_unavailable` / `NEGATIVE_NOT_AUTHORITATIVE` (could not
-  derive) are kept distinct so "could not settle" never becomes evidence.
-- **`_direct_proof`** (`:380`): forward chaining — seed facts from premises, apply
-  **modus ponens** (`_apply_inference_rules`, `:468`: split an `X -> Y` fact and, if
-  `X` is known, derive `Y`) up to `max_steps`, succeed when a derived statement equals
-  the goal. Proved → `0.95`, else `0.0`.
-- **`verify_proof`** (`:497`) re-derives independently: any rule the checker cannot
-  re-derive is counted UNCHECKED and *blocks* verification; SMT proofs are re-verified
-  by re-running the solver.
-- **Removed stub (2026-09-01)**: `_resolution_proof` was a stub that always returned
-  `proved=False` with a fabricated `0.6` — deleted; propositional proofs without Z3
-  now route to the real `_direct_proof`.
+- **Two provers, neither a stand-in for the other.** Where the solver applies
+  (propositional / first-order, Z3 present) `prove_theorem` runs **both** and reconciles
+  them. Otherwise natural deduction runs on its own and says exactly what it established.
+- **`_smt_proof`** — the authoritative verdict. Each premise is asserted **tracked**
+  (`assert_and_track`) with the negated goal; checked with `core.minimize` and a timeout,
+  off the event loop. `unsat` → proved, `0.98`, with **`premises_used`** = the minimised
+  unsat core. `sat` → an authoritative negative. `unknown`/timeout → undecided (not a
+  negative). Z3 absent → `capability_unavailable`. Only core premises carry `Premise`;
+  the rest are `Given, not needed` — the bridge renders `[{justification}]`, which is how
+  `[Premise]` reaches support attribution as an assembled string.
+- **Natural deduction** (`_natural_deduction`) — a derivation a reader can follow and a
+  checker can re-derive. On the solver's own AST (`LogicalFormulaParser`), not strings.
+  - `_direct_proof`: derive the goal forward; `_proof_by_contradiction`: assume ¬goal and
+    derive ⊥. Rules: modus ponens/tollens, ∧-elim, disjunctive syllogism, ↔-elim, double
+    negation, negated →/∨/∧, and ∧/∨-introduction at the goal. All sound.
+  - The closure adds **only what is new**, in a **fixed order**, so the same premises give
+    the same derivation on every run and every hash seed.
+  - Every step cites the steps it came from (`metadata["from"]`); the premises reached by
+    walking those citations back are its `premises_used`.
+  - **Incomplete** — no case split — so a failure is `NEGATIVE_NOT_AUTHORITATIVE`, never a
+    refutation. Example beyond it: `p∨q, p∨¬q, ¬p∨q ⊢ p∧q`.
+- **Reconciliation** (`_reconcile`) → `agreement`: `both` (the verdict plus a derivation),
+  `solver_only` (right, but beyond these rules), `derivation_only` (the solver was
+  undecided; a sound derivation proves it), or `disagree` → **fails closed** with
+  `provers_disagree`: a sound derivation and a countermodel cannot both be right, and
+  neither is allowed to win silently.
+- **`verify_proof`** never trusts the proof's own `proved=True`. A derivation is re-checked
+  step by step by `_licensed`, written apart from the prover's rule-firing so the two do
+  not agree by construction; an SMT verdict is re-run against its theorem. When re-running
+  the solver is the only check, the reason says it is the same method, not an independent
+  one.
+- **History.** Until 2026-09-25 natural deduction did not work: it split formulas on the
+  substring `"->"`, re-derived one known fact until its budget ran out (in an order set by
+  the hash seed), never proved a goal that was already a premise, and
+  `_proof_by_contradiction` was a stub returning `0.5`. It ran only when Z3 was missing, as
+  a fallback. It was briefly deleted that day in error, then rebuilt as a first-class
+  prover. Earlier (2026-09-01) `_resolution_proof`, a stub returning a fabricated `0.6`,
+  was deleted.
 
 **Honesty note for a scientific reader**: proof confidences are **fixed constants per
-outcome path** (0.98 / 0.95 / 0.5 / 0.0), not calibrated measures. They read as
+outcome path** (0.98 solver / 0.95 derivation / 0.0), not calibrated measures. They read as
 numbers; they are code paths.
 
 ### 3.3 `ConstraintSolver` — CSP and optimization (`constraint_solver.py`)

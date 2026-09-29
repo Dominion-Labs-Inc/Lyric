@@ -1,0 +1,147 @@
+{
+  "experiment": "ENCODER-07 \u2014 robustness: the same claim, typed differently",
+  "seed": 20260922,
+  "hypotheses": [
+    "H1 every perturbation stays above the 0.5 recall floor",
+    "H2 mean similarity shift under perturbation is under 0.15",
+    "H3 a typo in the SUBJECT is the native encoder's worst case (registered)"
+  ],
+  "data": {
+    "MiniLM": {
+      "upper case": {
+        "mean": 1.0,
+        "below_floor": 0,
+        "n": 80
+      },
+      "no full stop": {
+        "mean": 0.9863457528935717,
+        "below_floor": 0,
+        "n": 80
+      },
+      "doubled spaces": {
+        "mean": 1.0,
+        "below_floor": 0,
+        "n": 80
+      },
+      "filler word": {
+        "mean": 0.9725412022514117,
+        "below_floor": 0,
+        "n": 80
+      },
+      "typo in object": {
+        "mean": 0.7671944297199985,
+        "below_floor": 0,
+        "n": 80
+      },
+      "typo in subject": {
+        "mean": 0.709363565848198,
+        "below_floor": 11,
+        "n": 80
+      }
+    },
+    "native": {
+      "upper case": {
+        "mean": 1.0000000000000002,
+        "below_floor": 0,
+        "n": 80
+      },
+      "no full stop": {
+        "mean": 1.0000000000000002,
+        "below_floor": 0,
+        "n": 80
+      },
+      "doubled spaces": {
+        "mean": 1.0000000000000002,
+        "below_floor": 0,
+        "n": 80
+      },
+      "filler word": {
+        "mean": 1.0000000000000002,
+        "below_floor": 0,
+        "n": 80
+      },
+      "typo in object": {
+        "mean": 0.9588054095089305,
+        "below_floor": 0,
+        "n": 80
+      },
+      "typo in subject": {
+        "mean": 0.9473371697677553,
+        "below_floor": 0,
+        "n": 80
+      }
+    },
+    "structural": {
+      "upper case": {
+        "mean": 1.0,
+        "below_floor": 0,
+        "n": 80
+      },
+      "no full stop": {
+        "mean": 1.0,
+        "below_floor": 0,
+        "n": 80
+      },
+      "doubled spaces": {
+        "mean": 1.0,
+        "below_floor": 0,
+        "n": 80
+      },
+      "filler word": {
+        "mean": 0.999450799439485,
+        "below_floor": 0,
+        "n": 80
+      },
+      "typo in object": {
+        "mean": 0.3584332776259595,
+        "below_floor": 78,
+        "n": 80
+      },
+      "typo in subject": {
+        "mean": 0.9545831755067999,
+        "below_floor": 4,
+        "n": 80
+      }
+    }
+  },
+  "checks": [
+    {
+      "name": "H1 MiniLM: no perturbation drops a claim below the recall floor",
+      "passed": false,
+      "detail": "11 claim(s) fell below 0.5; worst: typo in subject at 0.709"
+    },
+    {
+      "name": "H2 MiniLM: mean shift under perturbation is under 0.15",
+      "passed": true,
+      "detail": "mean shift 0.094"
+    },
+    {
+      "name": "H1 native: no perturbation drops a claim below the recall floor",
+      "passed": true,
+      "detail": "0 claim(s) fell below 0.5; worst: typo in subject at 0.947"
+    },
+    {
+      "name": "H2 native: mean shift under perturbation is under 0.15",
+      "passed": true,
+      "detail": "mean shift 0.016"
+    },
+    {
+      "name": "H1 structural: no perturbation drops a claim below the recall floor",
+      "passed": false,
+      "detail": "82 claim(s) fell below 0.5; worst: typo in object at 0.358"
+    },
+    {
+      "name": "H2 structural: mean shift under perturbation is under 0.15",
+      "passed": true,
+      "detail": "mean shift 0.115"
+    },
+    {
+      "name": "H3 a subject typo is the native encoder's worst case (as registered)",
+      "passed": true,
+      "detail": "worst was: typo in subject"
+    }
+  ],
+  "passed": 5,
+  "total": 7,
+  "verdict": "native worst case: typo in subject (0.947)"
+}

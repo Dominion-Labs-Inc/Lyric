@@ -457,13 +457,32 @@ def structural_complexity(domain: Domain) -> float:
     Size, connectedness and relational variety, each saturating so a large
     domain does not dominate.
     """
-    n = len(domain.concepts)
-    if not n:
+    return coverage_from_counts(
+        len(domain.concepts),
+        sum(len(c.related_concepts or ()) for c in domain.concepts.values()),
+        len(_relation_vocabulary(domain)))
+
+
+def coverage_from_counts(concepts: int, edges: int, relation_kinds: int) -> float:
+    """The complexity formula itself, over COUNTS rather than a loaded graph.
+
+    Split out because the same measurement has two legitimate sources. An
+    in-memory `Domain` carries its concepts, and `structural_complexity` reads
+    them. A TAUGHT domain does not: teaching writes to `unified.concepts` with a
+    `domain` column and never fills the registry object's `concepts` dict — so
+    measuring a taught domain from the object returns 0.0 no matter how much it
+    holds. Measured: wiring knowledge coverage to fire on admission moved a
+    freshly taught domain from 0.1 to 0.0, because the thing being measured was
+    empty while the store held six concepts.
+
+    Both callers now compute the same number from whichever source actually
+    knows, instead of one of them silently measuring nothing.
+    """
+    if not concepts:
         return 0.0
-    edges = sum(len(c.related_concepts or ()) for c in domain.concepts.values())
-    size = min(1.0, n / 20.0)
-    density = min(1.0, (edges / n) / 4.0) if n else 0.0
-    variety = min(1.0, len(_relation_vocabulary(domain)) / 12.0)
+    size = min(1.0, concepts / 20.0)
+    density = min(1.0, (edges / concepts) / 4.0)
+    variety = min(1.0, relation_kinds / 12.0)
     return round(0.4 * size + 0.3 * density + 0.3 * variety, 4)
 
 

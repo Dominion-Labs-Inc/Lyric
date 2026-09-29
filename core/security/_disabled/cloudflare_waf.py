@@ -14,7 +14,7 @@ from datetime import datetime
 
 import aiohttp
 
-from .active_defense_types import (
+from core.agents.autonomous.threat_sense import (
     WAFRule, WAFRuleMode, BlockedEntity, AttackType, DefenseAction
 )
 

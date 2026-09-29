@@ -130,7 +130,8 @@ async def main() -> int:
             return name, feats
 
         async def ask(subject, cat):
-            res = await coord.reason_about(f"is {subject} a {cat}?")
+            from core.memory import Origin
+            res = await coord.reason_about(f"is {subject} a {cat}?", origin=Origin.own("PERCEIVE-AMBIG-01"))
             md = dict(getattr(res, "metadata", {}) or {})
             return yes_no(getattr(res, "answer", "")), md
 

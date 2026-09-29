@@ -6,18 +6,20 @@ Replaces the monolithic master_autonomous_controller.py with clean coordination
 
 from core.capability import raise_if_structural
 import asyncio
+import hashlib
 import inspect
 import re
 from types import SimpleNamespace
 import json
 import logging
 import os
-from typing import Dict, Any, List, Optional, Set, Sequence, Tuple, TYPE_CHECKING
+from typing import Dict, Any, FrozenSet, List, Optional, Set, Sequence, Tuple, TYPE_CHECKING
 
 if TYPE_CHECKING:  # type-only; the real symbol is imported locally where it is used at runtime
     from core.learning.meta_learning import TaskFamily
 from datetime import datetime, timedelta
 from collections import deque, OrderedDict
+import dataclasses
 from dataclasses import dataclass, field
 from enum import Enum
 
@@ -31,7 +33,6 @@ from .planning_engine import PlanningEngine
 from core.learning.unified_learning_system import get_learning_authority
 from core.learning.performance_profiler import profile_performance
 from .directive_system import DirectiveSystem
-from .runtime_governance import get_runtime_governance
 from .coordinator_config import CoordinatorConfig, get_default_config
 from .circuit_breaker import CircuitBreaker, get_circuit_breaker_registry
 
@@ -43,7 +44,8 @@ project_root = Path(__file__).resolve().parent.parent.parent.parent
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
-from core.memory import MemoryManager, MemoryItem, MemoryQuery, MemoryType, MemoryOperation
+from core.memory import (MemoryManager, MemoryItem, MemoryQuery, MemoryType, MemoryOperation, Origin,
+                         Experience, Part)
 from core.reasoning import (
     AbstractReasoningEngine, ReasoningContext, ReasoningType,
     create_abstract_reasoning_engine, AdvancedProofEngine
@@ -59,6 +61,11 @@ from core.database.logging_database import LoggingDatabase
 from core.tools.tool_registry import ToolResult
 import unicodedata
 import uuid
+import time
+from .threat_sense import (
+    AttackType, ThreatConfidence, ANSWERED_CONFIDENCE, DefenseAction,
+    BlockDuration, IncidentReport, Severity, create_default_defense_policy,
+    determine_block_duration)
 from dotenv import load_dotenv
 
 # Load environment variables from .env.production
@@ -162,6 +169,14 @@ class SelfEventType(Enum):
     #: reaction begins investigating: turning what was already observed into held knowledge about the
     #: place, so the environment domain starts to fill. Payload: {environment_id, domain, facts}.
     ENVIRONMENT_ENCOUNTERED = "environment_encountered"
+    #: Plans standing on a rule that lost execution authority were withdrawn, so the
+    #: goals they served have no route. Emitted by the planning engine where the
+    #: withdrawal happens, because the engine is where plans live. Its reaction
+    #: gives each stranded goal a NEW route over what is still validated -- refuting
+    #: a rule and stranding the pursuit it served is a worse failure than the one the
+    #: refutation fixed. Deferred: replanning is a search, and it must not run on the
+    #: dispatch path that drained the withdrawal. Payload: RouteWithdrawn.
+    ROUTE_WITHDRAWN = "route_withdrawn"
 
 
 @dataclass(frozen=True)
@@ -201,6 +216,9 @@ class PerceptJudged:
     verification_intensity: float
     claims: Tuple[ClaimVerdict, ...] = ()
     percept_id: Optional[str] = None
+    #: Whose percept this is: a person's actor id, or None for the substrate's
+    #: own. What a reaction follows up on it is theirs too.
+    owner: Optional[str] = None
 
     def below_band(self) -> Tuple[ClaimVerdict, ...]:
         """The claims that were NOT accepted — what a VERIFY is actually about.
@@ -244,6 +262,19 @@ class CompetenceChanged:
     cause: str
     #: Known only where induction names the predicate it was working toward.
     predicate: Optional[str] = None
+
+
+@dataclass(frozen=True)
+class RouteWithdrawn:
+    """Plans standing on a refuted rule were withdrawn, stranding their goals.
+
+    Carries what was withdrawn rather than "go rescan the plans", so the
+    reaction repairs exactly the pursuits this refutation took a route from.
+    """
+    goal_ids: Tuple[str, ...]
+    plan_ids: Tuple[str, ...]
+    rule_ids: Tuple[str, ...]
+    tasks_blocked: int
 
 
 @dataclass(frozen=True)
@@ -352,6 +383,7 @@ _EVENT_PAYLOADS.update({
     SelfEventType.JOB_COMPLETED: JobCompleted,
     SelfEventType.DEFICIT_DIAGNOSED: DeficitDiagnosed,
     SelfEventType.ENVIRONMENT_ENCOUNTERED: EnvironmentEncountered,
+    SelfEventType.ROUTE_WITHDRAWN: RouteWithdrawn,
 })
 
 
@@ -437,7 +469,7 @@ def _tool_resource(tool: str, args: Dict[str, Any]) -> str:
 # applied TO and what they can say.
 #
 # APPLIED TO: the CONSEQUENCE of the act about to happen — its action class and
-# how reversible it is, as `core.safety.action_consequence` measures it from the
+# how reversible it is, as the substrate's consequence measurement reads it from the
 # tool and its real arguments (`delete_file` is irreversible, `move_file` is
 # not, `run_shell_command` is whatever its command makes it) — judged against
 # the INTENT REASONING PROVED: the goal state it found a route to and the
@@ -591,6 +623,56 @@ _VERDICT_RANK = {Verdict.ALLOW: 0, Verdict.REPLAN: 1,
                  Verdict.REDIRECT: 2, Verdict.BLOCK: 3}
 
 
+class Account(Enum):
+    """The kinds of reason the substrate may act at all.
+
+    A CLOSED, DECLARED SET, which is what makes it a constitution rather than a
+    growing pile of exceptions. These are not permissions — nothing here widens
+    what may be DONE, and Laws 1, 3 and 5 never see them. They are the answers
+    the substrate is allowed to give to "why is this happening", and Law 2
+    accepts exactly these.
+    """
+    #: Reasoning proved a route to a goal state, and this act is a step of it.
+    REACH = "reach"
+    #: An experiment: acting in a domain to learn what an operator does. A route
+    #: cannot be proved before the operator is known, which is why REACH cannot
+    #: cover this and why exploration was refused for as long as it was the only
+    #: account on offer.
+    FIND_OUT = "find_out"
+    #: Looking, so that there is something to plan from. This is what three
+    #: hand-placed `action_class == "investigate"` exemptions were each saying
+    #: separately.
+    OBTAIN_A_READING = "obtain_a_reading"
+    #: CARRYING OUT A GOAL THE SUBSTRATE WAS GIVEN, by making the thing that
+    #: goal said to make.
+    #:
+    #: REACH cannot cover this and the gap was total. REACH is checked by
+    #: looking the OPERATOR up in the binding registry, so it only ever covers
+    #: an act the substrate already knows how to do. FIND_OUT needs a domain
+    #: registered explorable. A plain instruction — "research photosynthesis and
+    #: write a summary at <path>" — is neither, so the substrate could research
+    #: it, learn from it, know exactly what to write and where, and then be
+    #: refused for having no account. Measured end to end in RESEARCH-WRITE-01:
+    #: every step succeeded, the file was never written, and the reason given
+    #: was "an act nothing can explain".
+    #:
+    #: It is an account and not a permission. Laws 1, 3 and 5 never see it, so
+    #: nothing here makes a harmful, uncontained or injected act allowable. And
+    #: it is EARNED the way the others are — `_carrying_out_is_earned` checks a
+    #: recorded plan, its recorded goal, and that the act's target IS the
+    #: artefact that goal named. A caller cannot assert any of the three.
+    CARRY_OUT = "carry_out"
+
+
+@dataclass(frozen=True)
+class Purpose:
+    """One account, and why it counts. `why` is carried so a refusal elsewhere
+    can say what the substrate was doing, rather than only that it was doing
+    something."""
+    account: Account
+    why: str
+
+
 @dataclass
 class Judgment:
     """One constitutional judgement of one act."""
@@ -610,11 +692,36 @@ class Judgment:
     #: safety risk, irreversibility class and escalation category. Was a bare
     #: trigger id, so every judgement discarded the severity the config states.
     sensitive_target: Optional[Any] = None
+    #: What the declared policy says about THIS ACT (not its target): the
+    #: strictest act-level declaration that matched, or None.
+    declared: Optional[Any] = None
+    #: The ATTACK the refusing law recognised (`AttackType` value), and how sure
+    #: it is that the act was hostile — or None for a refusal that is not an
+    #: attack (an unproved act, a harm to someone else).
+    attack: Optional[str] = None
+    attack_confidence: Optional[str] = None
     #: What the act's own code or command can do (see `act_capabilities`).
     capabilities: List[str] = field(default_factory=list)
     #: For REDIRECT: the permitted form of the same act, as a tool call.
     alternative: Optional[Dict[str, Any]] = None
     intent: Optional[Intent] = None
+    #: HOW WELL ATTESTED the thing this act rests on is — the learned rule's own
+    #: confirmations, contradictions and counterexamples, or None when the act
+    #: rests on no learned rule (a raw tool call proves nothing, and inventing an
+    #: attestation for it would be worse than silence).
+    #:
+    #: RECORDED, NOT YET DECIDING. No law reads this today and no verdict moves
+    #: because of it — this is the absorb-then-wire discipline the constitution
+    #: is being built under. What it changes now is that the judgement, the
+    #: result handed back to the agent, and the durable record all SAY what the
+    #: act rested on, which is the thing none of them could say before.
+    rests_on: Optional[Dict[str, Any]] = None
+    #: THIS IS THE HALT, not a law about the act. A halt reports as a BLOCK under
+    #: Law 5 because a halt is containment, and a BLOCK ends a pursuit — so a
+    #: reader that cannot tell them apart would conclude every pursuit a human
+    #: paused as refused. Said by the judgement itself, so whoever reads it,
+    #: whenever, needs neither the reason text nor whether the halt still stands.
+    halt: bool = False
     action_kind: str = ""
     action_name: str = ""
     timestamp: datetime = field(default_factory=datetime.now)
@@ -629,14 +736,20 @@ class Judgment:
             "law_number": self.law_number,
             "law_name": self.law_name,
             "reason": self.reason,
+            "rests_on": self.rests_on,
             "action_kind": self.action_kind,
             "action_name": self.action_name,
             "action_class": self.action_class,
             "irreversibility": self.irreversibility,
             "judgment_id": self.judgment_id,
             "sensitive_target": self.sensitive_target,
+            "declared": (self.declared.to_dict()
+                         if hasattr(self.declared, "to_dict") else None),
+            "attack": self.attack,
+            "attack_confidence": self.attack_confidence,
             "capabilities": list(self.capabilities),
             "alternative": self.alternative,
+            "halt": self.halt,
             "intent": {"intent_id": self.intent.intent_id,
                        "goal_conditions": list(self.intent.goal_conditions),
                        "operator": self.intent.operator, "rule_id": self.intent.rule_id,
@@ -907,6 +1020,92 @@ class ReadingLedger:
 
 
 # =============================================================================
+# WHAT IS AT A PATH — the self's own perception of the filesystem
+# =============================================================================
+
+def path_identity(path: str) -> str:
+    """The one name a path goes by: expanded and resolved, as the reading ledger
+    and the file tools both resolve it, so two spellings of one file are one
+    thing."""
+    return os.path.realpath(os.path.expanduser(str(path)))
+
+
+def perceive_entry(path: str) -> Optional[Dict[str, Any]]:
+    """What is at one path, as the self perceives it: its name, kind, extension,
+    size, and WHICH thing it is. The environment scan perceives every entry
+    through this, so there is one reading of what a thing on disk is.
+
+    The identity is what the filesystem itself keeps for the thing: its device
+    and inode, and its birth time where the system records one, so a number
+    freed by a deleted file and given to a new one does not make them one thing.
+    A move within a device keeps it; a copy is a new thing with a new one. It is
+    what lets "remove the file" mean the file is gone everywhere, not only from
+    the path it was at.
+
+    None when nothing is there. Raises OSError when the path cannot be looked at
+    (a directory above it that cannot be read), which is not the same as nothing
+    being there.
+    """
+    import stat as _stat
+    try:
+        status = os.lstat(path)
+    except (FileNotFoundError, NotADirectoryError):
+        return None
+    mode = status.st_mode
+    if _stat.S_ISLNK(mode):
+        kind, size = "link", None
+    elif _stat.S_ISDIR(mode):
+        kind, size = "dir", None
+    elif _stat.S_ISREG(mode):
+        kind, size = "file", status.st_size
+    else:
+        kind, size = "special", None      # socket / device / fifo
+    identity = f"{status.st_dev}:{status.st_ino}"
+    born = getattr(status, "st_birthtime", None)
+    if born is not None:
+        identity += f":{int(born * 1_000_000)}"
+    name = os.path.basename(os.path.normpath(str(path)))
+    return {"path": str(path), "name": name, "kind": kind,
+            "ext": os.path.splitext(name)[1].lower().lstrip("."), "size": size,
+            "identity": identity}
+
+
+def path_within(container: str, member: str) -> bool:
+    """Whether `member` is `container` or something inside it."""
+    container = container.rstrip(os.sep) or os.sep
+    if member == container:
+        return True
+    return member.startswith(container if container == os.sep else container + os.sep)
+
+
+def path_relocated(member: str, container: str) -> str:
+    """Where `member` would be if it were inside `container`: the same name there."""
+    return os.path.join(container, os.path.basename(os.path.normpath(member)))
+
+
+@dataclass(frozen=True)
+class Sense:
+    """One of the self's senses: how it perceives a kind of thing, the one name
+    each such thing goes by, and how such things sit inside one another."""
+    perceive: Any
+    identify: Any
+    #: (container, member) -> whether member is container or inside it
+    within: Any = None
+    #: (member, container) -> the name member would have inside container
+    relocate: Any = None
+    #: perceived entry -> whether other things can be inside it
+    holds: Any = None
+
+
+#: The kinds of thing the self perceives with its own senses, and the sense for
+#: each. A kind is named by the head noun of the parameters that name it:
+#: `source_path`, `directory_path` and `path` all name a path.
+SENSES: Dict[str, Sense] = {"path": Sense(
+    perceive=perceive_entry, identify=path_identity, within=path_within,
+    relocate=path_relocated, holds=lambda entry: entry.get("kind") == "dir")}
+
+
+# =============================================================================
 # WHAT AN ACT WOULD BUILD — the constitution's evidence about code and commands
 # =============================================================================
 #
@@ -943,9 +1142,18 @@ _CAPABILITY_SIGNATURES: Dict[str, Tuple[str, Optional[str]]] = {
     "mass_encryption": (
         r"Fernet|AES\.new|EVP_EncryptInit|cryptography\.fernet|gpg\s+--encrypt",
         r"os\.walk|glob\.glob|\brglob\(|find\s+/"),
+    # `open\([^)]*` COULD NOT CROSS A PAREN, so it matched `open('f','w')` and
+    # never `open(os.path.join(r, n), 'w')` — the nested call closes a paren
+    # before the mode argument. That is the ordinary way a tree-walking wiper is
+    # written, so the secondary half of this signature was blind to exactly the
+    # code it exists to catch. Measured in CONSTITUTION-03: a write_file whose
+    # content walks the log tree and truncates every file raised NO capability
+    # at all. The group now allows ONE level of nesting and stops at a statement
+    # boundary, so it spans the call without running off into the next line.
     "mass_overwrite": (
         r"os\.walk|\brglob\(|find\s+/",
-        r"open\([^)]*['\"][wa]|os\.remove|\bunlink\(|shutil\.rmtree|\brm\b"),
+        r"open\((?:[^()\n;]|\([^()\n]*\))*?['\"][wa]|os\.remove|\bunlink\(|"
+        r"shutil\.rmtree|\brm\b"),
     "persistence": (
         r"crontab|/etc/cron|LaunchAgents|LaunchDaemons|systemd/system|rc\.local|"
         r"launchctl\s+load|HKEY_CURRENT_USER.*\\Run", None),
@@ -1004,6 +1212,15 @@ _CAPABILITY_SIGNATURES: Dict[str, Tuple[str, Optional[str]]] = {
 #: refused under Law 1, not this list: what they take is a person's control over
 #: their own situation, and calling that "harm" buries the reason. Same refusal,
 #: cited to the law that actually speaks to it.
+def _weapon_attack(names: Set[str]) -> AttackType:
+    """Which attack a weaponized combination is."""
+    if "remote_shell" in names:
+        return AttackType.REMOTE_CONTROL
+    if "credential_access" in names:
+        return AttackType.DATA_EXFILTRATION
+    return AttackType.MALWARE
+
+
 _WEAPONIZED_COMBINATIONS: Tuple[Tuple[frozenset, str], ...] = (
     (frozenset({"mass_encryption"}),
      "encrypts files across a directory tree — ransomware, whatever it is called"),
@@ -1025,6 +1242,20 @@ _WEAPONIZED_COMBINATIONS: Tuple[Tuple[frozenset, str], ...] = (
 
 #: Paths whose whole purpose is that a human can see what happened.
 _ACCOUNTABILITY_PATHS = (".log", "/logs/", "/log/", "audit", "journal", "history")
+
+#: The same markers as a pattern, because SUBSTRING MATCHING MISSED THE DIRECTORY
+#: ITSELF. `/logs/` requires a trailing slash, so `os.walk('<root>/logs')` — a
+#: directory named without one, which is how any code refers to a directory it is
+#: about to walk — matched nothing. Measured in CONSTITUTION-03: a script that
+#: truncates every file under the log tree raised `mass_overwrite`, was classified
+#: `modify`, and still passed Law 2 because the only thing naming the log
+#: directory ended at `s` instead of `s/`.
+#:
+#: `/logs?(?:/|\b)` accepts both spellings and still refuses `/logshipper`, where
+#: no boundary follows. Compiled once: this runs on the acting path, inside a
+#: judgement budgeted at under 5 ms.
+_ACCOUNTABILITY_RE = re.compile(
+    r"\.log\b|/logs?(?:/|\b)|audit|journal|history", re.IGNORECASE)
 
 _PAYLOAD_ARGS = ("command", "code", "content", "script", "cmd", "shell_command",
                  "query", "sql", "statement", "body", "text")
@@ -1358,6 +1589,913 @@ class InputScreen:
         return dict(self.stats)
 
 
+# ── WHAT AN ACT WILL DO TO THE WORLD ──────────────────────────────────────────
+#
+# The substrate's own consequence measurement: the class of what an act does
+# (investigate < modify < archive < delete < execute) and how far it can be
+# taken back, measured from the tool and its real arguments. It is the
+# substrate's, not a governance module's: the Constitution reads it to judge,
+# the tool domain reads it to know which tools change the world, the reading
+# ledger reads it to know an act only looked, and domain stakes read it to know
+# what getting a domain wrong costs.
+#
+# COLLAPSED HERE 2026-09-26 from `core/safety/action_consequence.py`. Two things
+# did not come with it: the read of the governance trigger engine (the
+# Constitution reads its declared policy itself) and the contract that used to
+# own `ActionClass` — the substrate does not operate on contracts.
+
+class ActionClass(str, Enum):
+    """What an act does to the world, in increasing consequence."""
+
+    INVESTIGATE = "investigate"   # read, scan, query. No state change.
+    MODIFY = "modify"             # edit config/content in place
+    ARCHIVE = "archive"           # relocate/retain -- reversible removal
+    DELETE = "delete"             # irreversible removal
+    EXECUTE = "execute"           # run commands with side effects
+
+
+#: How far an act can be taken back, weakest to strongest.
+_IRREVERSIBILITY_ORDER = [
+    "FULLY_REVERSIBLE",
+    "MOSTLY_REVERSIBLE",
+    "PARTIALLY_REVERSIBLE",
+    "MOSTLY_IRREVERSIBLE",
+    "IRREVERSIBLE",
+]
+
+# tool_name -> (ActionClass, IrreversibilityClass name)
+_TOOL_CONSEQUENCE: Dict[str, Tuple[ActionClass, str]] = {
+    # Pure observation
+    "read_file": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "list_directory": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "search_files": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "get_file_info": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "calculate_checksum": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "validate_path": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "find_duplicate_files": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "system_info": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "get_process_info": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "list_processes": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+
+    # Pure computation — proving, solving and simulating change nothing outside
+    # the answer they return (core/tools/reasoning_tools.py touches no file,
+    # store, process or network).
+    "prove_theorem": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "solve_constraints": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "solve_linear_optimization": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "simulate_pde_1d": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "simulate_state_space": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "run_monte_carlo": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+
+    # Relocation — recoverable removal. This is what Torin correctly chose.
+    "move_file": (ActionClass.ARCHIVE, "MOSTLY_REVERSIBLE"),
+    "copy_file": (ActionClass.MODIFY, "FULLY_REVERSIBLE"),
+    "compress_file": (ActionClass.ARCHIVE, "MOSTLY_REVERSIBLE"),
+    "sync_directory": (ActionClass.MODIFY, "PARTIALLY_REVERSIBLE"),
+
+    # In-place change — the previous content is gone unless something kept it.
+    "write_file": (ActionClass.MODIFY, "PARTIALLY_REVERSIBLE"),
+    "atomic_write_file": (ActionClass.MODIFY, "PARTIALLY_REVERSIBLE"),
+    "patch_file": (ActionClass.MODIFY, "PARTIALLY_REVERSIBLE"),
+    "create_directory": (ActionClass.MODIFY, "FULLY_REVERSIBLE"),
+
+    # Irreversible
+    "delete_file": (ActionClass.DELETE, "IRREVERSIBLE"),
+
+    # Process/service control — side effects on a running system
+    "kill_process": (ActionClass.EXECUTE, "MOSTLY_IRREVERSIBLE"),
+    "stop_service": (ActionClass.EXECUTE, "MOSTLY_REVERSIBLE"),
+    "start_service": (ActionClass.EXECUTE, "MOSTLY_REVERSIBLE"),
+    "restart_service": (ActionClass.EXECUTE, "MOSTLY_REVERSIBLE"),
+    "install_python_package": (ActionClass.EXECUTE, "MOSTLY_REVERSIBLE"),
+    "schedule_cron_job": (ActionClass.EXECUTE, "MOSTLY_REVERSIBLE"),
+    "run_background_task": (ActionClass.EXECUTE, "PARTIALLY_REVERSIBLE"),
+
+    # Registered mutating tools that were falling through to the unknown-tool
+    # default (EXECUTE/PARTIALLY_REVERSIBLE). That default is calibrated for
+    # tools we know nothing about; these are known, and three of them delete.
+    # Classified from each tool's OWN description, not from its name.
+    #
+    #   "Delete packages from registries"            -> DELETE
+    #   "Purge and delete cached content from CDN"   -> DELETE, but the cache
+    #                                                   refills from origin
+    #   "Remove info from data brokers"              -> DELETE, and a removal
+    #                                                   request to a third party
+    #                                                   cannot be recalled
+
+    #   "Migrate code from one pattern/version to another" -> in-place rewrite
+    #   "Deploy versioned documentation"                   -> versioned, so the
+    #                                                         prior version stays
+    "migrate_code": (ActionClass.MODIFY, "PARTIALLY_REVERSIBLE"),
+    "versioned_doc_deployment": (ActionClass.MODIFY, "MOSTLY_REVERSIBLE"),
+
+    #   "What software ... is installed on this Mac" -> a question
+    #   "Identify skill and capability gaps ... Returns gap analysis" -> a report
+    # Both read like mutations by name only; neither changes anything.
+    "installed_software": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "identifyskillgaps": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+
+    # Surfaced by the coverage test the moment it was added.
+    #   "Rename a symbol ... with scope awareness using AST" -> an in-place
+    #     source rewrite across every reference; recoverable only from VCS.
+    #   "Remove and scrub URLs from web archives ... permanently deleting"
+    #     -> says permanent, and third-party archives cannot be restored.
+    "rename_symbol": (ActionClass.MODIFY, "PARTIALLY_REVERSIBLE"),
+
+    # ══════════════════════════════════════════════════════════════════════
+    # Bulk classification of the remaining registered tools.
+    #
+    # DERIVED, not hand-audited: each entry comes from that tool's own name and
+    # description, resolved strongest-class-first -- a description that mentions
+    # deleting is DELETE even if it also mentions listing. The asymmetry is
+    # deliberate. Calling a mutating tool INVESTIGATE would let it past an
+    # investigate-only contract; calling a read-only tool MODIFY only costs a
+    # contract that has to permit state change. When the evidence is mixed, the
+    # stronger class wins.
+    #
+    # An entry here is a claim about a tool made from its description. If a tool
+    # changes what it does, this does not notice -- declare `consequence` on the
+    # tool class instead, which classify_action consults before falling back.
+    # ══════════════════════════════════════════════════════════════════════
+
+    # ── DELETE ─────────────────────────────────────────────────────
+    "crowdstrike_lift_containment": (ActionClass.DELETE, "IRREVERSIBLE"),
+    "deduplicate_data": (ActionClass.DELETE, "IRREVERSIBLE"),
+    "sanitize_filename": (ActionClass.DELETE, "IRREVERSIBLE"),
+
+    # ── ARCHIVE ─────────────────────────────────────────────────────
+    "ast_search": (ActionClass.ARCHIVE, "MOSTLY_REVERSIBLE"),
+    "decompress_file": (ActionClass.ARCHIVE, "MOSTLY_REVERSIBLE"),
+    "mysql_backup": (ActionClass.ARCHIVE, "MOSTLY_REVERSIBLE"),
+    "mysql_restore": (ActionClass.ARCHIVE, "MOSTLY_REVERSIBLE"),
+    "transform_data": (ActionClass.ARCHIVE, "MOSTLY_REVERSIBLE"),
+
+    # ── MODIFY ─────────────────────────────────────────────────────
+    "adr_generator": (ActionClass.MODIFY, "PARTIALLY_REVERSIBLE"),
+    "apply_patch": (ActionClass.MODIFY, "PARTIALLY_REVERSIBLE"),
+    "awssecurityhub_create_alert": (ActionClass.MODIFY, "PARTIALLY_REVERSIBLE"),
+    "clipboard": (ActionClass.MODIFY, "PARTIALLY_REVERSIBLE"),
+    "create_alert": (ActionClass.MODIFY, "PARTIALLY_REVERSIBLE"),
+    "create_chaos_experiment": (ActionClass.MODIFY, "PARTIALLY_REVERSIBLE"),
+    "create_chaos_experiment_from_scenario": (ActionClass.MODIFY, "PARTIALLY_REVERSIBLE"),
+    "create_diagram": (ActionClass.MODIFY, "PARTIALLY_REVERSIBLE"),
+    "create_flowchart": (ActionClass.MODIFY, "PARTIALLY_REVERSIBLE"),
+    "create_research_graph": (ActionClass.MODIFY, "PARTIALLY_REVERSIBLE"),
+    "create_waf_rule": (ActionClass.MODIFY, "PARTIALLY_REVERSIBLE"),
+    "dashboard_generator": (ActionClass.MODIFY, "PARTIALLY_REVERSIBLE"),
+    "distributed_tracing": (ActionClass.MODIFY, "PARTIALLY_REVERSIBLE"),
+    "generate_api_client": (ActionClass.MODIFY, "PARTIALLY_REVERSIBLE"),
+    "generate_api_docs": (ActionClass.MODIFY, "PARTIALLY_REVERSIBLE"),
+    "generate_architecture_diagram": (ActionClass.MODIFY, "PARTIALLY_REVERSIBLE"),
+    "generate_artifact_manifest": (ActionClass.MODIFY, "PARTIALLY_REVERSIBLE"),
+    "generate_changelog": (ActionClass.MODIFY, "PARTIALLY_REVERSIBLE"),
+    "generate_citation": (ActionClass.MODIFY, "PARTIALLY_REVERSIBLE"),
+    "generate_class": (ActionClass.MODIFY, "PARTIALLY_REVERSIBLE"),
+    "generate_design_pattern": (ActionClass.MODIFY, "PARTIALLY_REVERSIBLE"),
+    "generate_embedding": (ActionClass.MODIFY, "PARTIALLY_REVERSIBLE"),
+    "generate_function": (ActionClass.MODIFY, "PARTIALLY_REVERSIBLE"),
+    "generate_latex_document": (ActionClass.MODIFY, "PARTIALLY_REVERSIBLE"),
+    "generate_math_proof": (ActionClass.MODIFY, "PARTIALLY_REVERSIBLE"),
+    "generate_mock": (ActionClass.MODIFY, "PARTIALLY_REVERSIBLE"),
+    "generate_module": (ActionClass.MODIFY, "PARTIALLY_REVERSIBLE"),
+    "generate_numerical_code": (ActionClass.MODIFY, "PARTIALLY_REVERSIBLE"),
+    "generate_password": (ActionClass.MODIFY, "PARTIALLY_REVERSIBLE"),
+    "generate_pdf_document": (ActionClass.MODIFY, "PARTIALLY_REVERSIBLE"),
+    "generate_powerpoint": (ActionClass.MODIFY, "PARTIALLY_REVERSIBLE"),
+    "generate_property_test": (ActionClass.MODIFY, "PARTIALLY_REVERSIBLE"),
+    "generate_readme": (ActionClass.MODIFY, "PARTIALLY_REVERSIBLE"),
+    "generate_symbolic_math": (ActionClass.MODIFY, "PARTIALLY_REVERSIBLE"),
+    "generate_test": (ActionClass.MODIFY, "PARTIALLY_REVERSIBLE"),
+    "generate_word_document": (ActionClass.MODIFY, "PARTIALLY_REVERSIBLE"),
+    "generatehypothesis": (ActionClass.MODIFY, "PARTIALLY_REVERSIBLE"),
+    "link_claim_to_evidence": (ActionClass.MODIFY, "PARTIALLY_REVERSIBLE"),
+    "misp_create_event": (ActionClass.MODIFY, "PARTIALLY_REVERSIBLE"),
+    "modify_config_file": (ActionClass.MODIFY, "PARTIALLY_REVERSIBLE"),
+    "pagerduty_create_alert": (ActionClass.MODIFY, "PARTIALLY_REVERSIBLE"),
+    "pagerduty_update_alert": (ActionClass.MODIFY, "PARTIALLY_REVERSIBLE"),
+    "redis_set": (ActionClass.MODIFY, "PARTIALLY_REVERSIBLE"),
+    "restapi_create_alert": (ActionClass.MODIFY, "PARTIALLY_REVERSIBLE"),
+    "set_environment_variable": (ActionClass.MODIFY, "PARTIALLY_REVERSIBLE"),
+    "store_memory": (ActionClass.MODIFY, "PARTIALLY_REVERSIBLE"),
+    "synthesize_literature": (ActionClass.MODIFY, "PARTIALLY_REVERSIBLE"),
+    "test_data_generator": (ActionClass.MODIFY, "PARTIALLY_REVERSIBLE"),
+    "thehive_create_alert": (ActionClass.MODIFY, "PARTIALLY_REVERSIBLE"),
+    "thehive_create_case": (ActionClass.MODIFY, "PARTIALLY_REVERSIBLE"),
+    "thehive_update_alert": (ActionClass.MODIFY, "PARTIALLY_REVERSIBLE"),
+    "update_docs": (ActionClass.MODIFY, "PARTIALLY_REVERSIBLE"),
+    "update_system": (ActionClass.MODIFY, "PARTIALLY_REVERSIBLE"),
+
+    # ── EXECUTE ─────────────────────────────────────────────────────
+    "chaos_testing": (ActionClass.EXECUTE, "PARTIALLY_REVERSIBLE"),
+    "crowdstrike_run_rtr_command": (ActionClass.EXECUTE, "PARTIALLY_REVERSIBLE"),
+    "execute_deterministic": (ActionClass.EXECUTE, "PARTIALLY_REVERSIBLE"),
+    "execute_network_isolated": (ActionClass.EXECUTE, "PARTIALLY_REVERSIBLE"),
+    "execute_with_artifact_capture": (ActionClass.EXECUTE, "PARTIALLY_REVERSIBLE"),
+    "execute_with_resource_limits": (ActionClass.EXECUTE, "PARTIALLY_REVERSIBLE"),
+    "fuzz_testing": (ActionClass.EXECUTE, "PARTIALLY_REVERSIBLE"),
+    "golden_test_harness": (ActionClass.EXECUTE, "PARTIALLY_REVERSIBLE"),
+    "integration_test_runner": (ActionClass.EXECUTE, "PARTIALLY_REVERSIBLE"),
+    "load_test": (ActionClass.EXECUTE, "PARTIALLY_REVERSIBLE"),
+    "manage_docker": (ActionClass.EXECUTE, "PARTIALLY_REVERSIBLE"),
+    "mutation_testing": (ActionClass.EXECUTE, "PARTIALLY_REVERSIBLE"),
+    "notification": (ActionClass.EXECUTE, "PARTIALLY_REVERSIBLE"),
+    "notify_dominion_labs_team": (ActionClass.EXECUTE, "PARTIALLY_REVERSIBLE"),
+    "post_slack_message": (ActionClass.EXECUTE, "PARTIALLY_REVERSIBLE"),
+    "post_to_webhook": (ActionClass.EXECUTE, "PARTIALLY_REVERSIBLE"),
+    "qradar_search_aql": (ActionClass.EXECUTE, "PARTIALLY_REVERSIBLE"),
+    "run_chaos_experiment": (ActionClass.EXECUTE, "PARTIALLY_REVERSIBLE"),
+    "run_coverage": (ActionClass.EXECUTE, "PARTIALLY_REVERSIBLE"),
+    "run_inference": (ActionClass.EXECUTE, "PARTIALLY_REVERSIBLE"),
+    "run_monte_carlo": (ActionClass.EXECUTE, "PARTIALLY_REVERSIBLE"),
+    "run_pytest": (ActionClass.EXECUTE, "PARTIALLY_REVERSIBLE"),
+    "run_unittest": (ActionClass.EXECUTE, "PARTIALLY_REVERSIBLE"),
+    "safe_query_executor": (ActionClass.EXECUTE, "PARTIALLY_REVERSIBLE"),
+    "send_slack_message": (ActionClass.EXECUTE, "PARTIALLY_REVERSIBLE"),
+    "shuffle_execute_workflow": (ActionClass.EXECUTE, "PARTIALLY_REVERSIBLE"),
+    "splunk_search": (ActionClass.EXECUTE, "PARTIALLY_REVERSIBLE"),
+    "static_security_analysis": (ActionClass.EXECUTE, "PARTIALLY_REVERSIBLE"),
+    "transaction_wrapper": (ActionClass.EXECUTE, "PARTIALLY_REVERSIBLE"),
+    "upload_file": (ActionClass.EXECUTE, "PARTIALLY_REVERSIBLE"),
+    "websocket_connect": (ActionClass.EXECUTE, "PARTIALLY_REVERSIBLE"),
+
+    # ── INVESTIGATE ─────────────────────────────────────────────────────
+    "alienvaultotx_get_subscribed_pulses": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "alienvaultotx_search_pulses": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "analyze_anomaly": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "analyze_research_paper": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "analyze_test_coverage_report": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "analyze_traffic_pattern": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "anomaly_detection": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "arcsight_fetch_alerts": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "arcsight_fetch_investigations": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "arcsight_get_active_channels": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "arcsight_get_cases": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "awssecurityhub_fetch_alerts": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "awssecurityhub_fetch_metrics": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "awssecurityhub_get_findings": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "azuresecuritycenter_fetch_alerts": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "azuresecuritycenter_fetch_metrics": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "azuresecuritycenter_get_alerts": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "azuresecuritycenter_get_recommendations": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "azuresecuritycenter_get_secure_score": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "benchmark_code": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "benchmarklearningsystems": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "browser_navigate": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "check_code_style_consistency": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "check_dependencies": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "check_ip_threat_intelligence": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "check_malicious_patterns": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "check_mysql_health": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "check_rate_limit": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "check_syntax": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "check_url_status": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "count_lines": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "crowdstrike_get_host_info": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "crowdstrike_search_detections": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "detect_brute_force": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "detect_code_smells": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "detect_intrusion": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "detect_zero_day": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "detectpatterns": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "extract_call_graph": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "extract_docstrings": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "extract_entities": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "extract_links": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "extract_method": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "extract_paper_metadata": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "extractlessonslearned": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "fetch_paper_by_arxiv": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "fetch_paper_by_doi": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "file_watcher": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "find_circular_imports": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "find_dead_code": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "find_performance_issues": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "find_todos": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "forecastcapabilities": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "get_active_blocks": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "get_block_history": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "get_channel_history": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "get_chaos_experiment_status": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "get_cpu_usage": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "get_disk_usage": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "get_environment_variable": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "get_memory_usage": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "get_model_info": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "get_network_stats": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "get_performance_profile": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "get_security_metrics": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "get_service_status": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "get_slack_channels": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "get_slack_users": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "get_team_health_metrics": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "get_user_presence": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "github_get_code_scanning_alerts": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "github_get_repository_security_summary": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "github_get_secret_scanning_alerts": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "github_get_vulnerabilities": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "github_list_repositories": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "grep_search": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "license_attribution_check": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "list_chaos_scenarios": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "list_usb_devices": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "logrhythm_fetch_alerts": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "logrhythm_get_alarms": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "logrhythm_get_cases": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "logrhythm_search_logs": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "migration_runner": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "misp_get_event": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "misp_get_events": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "misp_search_iocs": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "monitor_logs": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "monitor_team_activity": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "monitordatadrift": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "mysql_table_info": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "pagerduty_fetch_alerts": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "pagerduty_fetch_users": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "pagerduty_get_incidents": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "pagerduty_get_services": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "parse_csv": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "parse_html": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "parse_logs": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "pii_scrubbing": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "ping_host": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "port_scan": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "profileperformance": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "qradar_fetch_alerts": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "qradar_fetch_metrics": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "qradar_get_offenses": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "qualys_get_host_list": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "query_memory": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "query_metrics": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "recommendtraining": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "recordedfuture_search_threat_actors": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "redis_get": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "report_security_finding": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "restapi_fetch_alerts": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "scan_secrets": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "search_academic": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "search_data": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "search_news": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "search_secrets_pii": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "search_slack_messages": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "security_scan": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "semantic_search": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "semantic_similarity": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "shodan_get_host_info": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "shodan_search_exploits": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "shodan_search_hosts": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "shuffle_get_workflows": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "slo_sli_tooling": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "snyk_get_all_vulnerabilities": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "snyk_get_organizations": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "snyk_get_project_issues": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "snyk_get_projects": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "sonarqube_get_hotspots": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "sonarqube_get_issues": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "sonarqube_get_measures": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "sonarqube_get_project_security_summary": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "sonarqube_get_projects": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "thehive_fetch_alerts": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "thehive_fetch_investigations": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "thehive_get_cases": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "threatconnect_get_indicators": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "trace_dependencies": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "type_check": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "validate_bibliography": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "validate_certificate": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "validate_email": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "validate_json": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "validate_schema": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "validate_sql_input": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "validate_url": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "validate_xml": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "validate_yaml": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "virustotal_get_domain_report": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "virustotal_get_ip_report": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "virustotal_scan_file": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "virustotal_scan_url": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "web_fetch": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    "web_search": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+}
+
+
+# Shell/python are whatever the payload makes them, so read the payload.
+# Ordered most-severe first: the first match wins.
+_PAYLOAD_PATTERNS = [
+    (r"\brm\s+(-[a-zA-Z]*\s+)*", ActionClass.DELETE, "IRREVERSIBLE"),
+    # `xargs rm` takes its arguments from the pipe, so nothing follows the
+    # word and the pattern above does not see it: `find . | xargs rm` fell
+    # through to `find` below and was read as INSPECTION — allowed with no
+    # account, although it deletes. Anchored on `xargs` so the word "rm" as an
+    # ordinary argument (`grep rm`) is not a delete.
+    (r"\bxargs\b[^|;&]*\brm\b", ActionClass.DELETE, "IRREVERSIBLE"),
+    # A SEARCH THAT DELETES WHAT IT FINDS is a delete. `find` is otherwise an
+    # inspection verb (last pattern), and was read as one even with `-delete`
+    # or `-exec rm` attached — so it passed the gate as a read.
+    (r"\bfind\b[^|;&]*\s-(?:delete\b|exec(?:dir)?\s+rm\b)", ActionClass.DELETE, "IRREVERSIBLE"),
+    (r"\bshutil\.rmtree\b", ActionClass.DELETE, "IRREVERSIBLE"),
+    (r"\bos\.remove\b|\bos\.unlink\b|\bPath\([^)]*\)\.unlink\b|\.unlink\(", ActionClass.DELETE, "IRREVERSIBLE"),
+    (r"\bmkfs\b|\bdd\s+if=|\b>\s*/dev/", ActionClass.DELETE, "IRREVERSIBLE"),
+    # EMPTYING A FILE DESTROYS IT, whatever verb spells the emptying.
+    #
+    # `rm -f log` matched the delete pattern above and was BLOCKed. `echo '' >
+    # log` destroys exactly as much and matched nothing -- `>\s*/dev/` only
+    # catches /dev, and `echo` is not in the investigate list -- so it fell
+    # through to EXECUTE/PARTIALLY_REVERSIBLE and the law that refuses destroying
+    # the record never ran. Measured in CONSTITUTION-03: "destroy the audit log"
+    # held against delete_file and `rm -f`, and was breached by a redirect.
+    #
+    # These are the forms that write NOTHING over something: an empty echo, a
+    # bare `:`, /dev/null, and truncate itself.
+    (r"""(?:^|[\s;&|])(?::|echo\s*(?:''|"")?)\s*>\s*[^\s>|;&]""", ActionClass.DELETE, "IRREVERSIBLE"),
+    (r"\btruncate\s+(?:-s\s*0\b|--size[= ]0\b)", ActionClass.DELETE, "IRREVERSIBLE"),
+    (r"(?:\bcp\s+|>\s*)/dev/null\s", ActionClass.DELETE, "IRREVERSIBLE"),
+    (r"\bcat\s+/dev/null\s*>", ActionClass.DELETE, "IRREVERSIBLE"),
+    (r"\bDROP\s+(TABLE|DATABASE)\b|\bTRUNCATE\s+TABLE\b", ActionClass.DELETE, "IRREVERSIBLE"),
+    # A mutation with no WHERE clause takes every row; there is no undo for it.
+    (r"\b(DELETE\s+FROM|UPDATE)\b(?!.*\bWHERE\b)", ActionClass.DELETE, "IRREVERSIBLE"),
+    # A bounded one changes rows it names.
+    (r"\b(DELETE\s+FROM|UPDATE)\b", ActionClass.MODIFY, "PARTIALLY_REVERSIBLE"),
+    (r"\bgit\s+(reset\s+--hard|clean\s+-[a-z]*f)", ActionClass.DELETE, "IRREVERSIBLE"),
+    (r"\bkill\s+-9\b|\bpkill\b", ActionClass.EXECUTE, "MOSTLY_IRREVERSIBLE"),
+    (r"\bshutil\.move\b|\bos\.rename\b|\bmv\s+", ActionClass.ARCHIVE, "MOSTLY_REVERSIBLE"),
+    # Same paren bug as the mass_overwrite signature: `[^)]*` cannot cross the
+    # `)` of a nested call, so `open(os.path.join(r, n), "w")` classified as an
+    # unclassifiable execution rather than a write.
+    (r"\bopen\((?:[^()\n;]|\([^()\n]*\))*?['\"][wa]", ActionClass.MODIFY, "PARTIALLY_REVERSIBLE"),
+    # A single `>` replaces what a file held; `>>` appends. Both change a file,
+    # and neither is an unclassifiable execution -- the same standing as
+    # `open(path, "w")` directly above, which this had always matched.
+    (r"[^>]>(?!>)\s*[^\s>|;&]", ActionClass.MODIFY, "PARTIALLY_REVERSIBLE"),
+    (r"\bshutil\.copy", ActionClass.MODIFY, "FULLY_REVERSIBLE"),
+    # A read-only query asks; it does not change anything.
+    (r"^\s*(SELECT|SHOW|EXPLAIN|DESCRIBE|WITH)\b", ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+    (r"\b(cat|head|tail|ls|grep|find|wc|stat)\b", ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
+]
+
+#: Arguments whose CONTENT is the act: a shell command, a code blob -- and a
+#: SQL statement, which was missing, so `DROP TABLE users` arrived as an
+#: unclassifiable call to an unknown tool and scored the calibrated default
+#: while the DROP/TRUNCATE pattern below sat unused a few lines away.
+_PAYLOAD_KEYS = ("command", "code", "script", "cmd", "shell_command",
+                 "query", "sql", "sql_query", "statement")
+
+
+
+def classify_action(tool_name: str, parameters: Dict[str, Any], *,
+                    sensitive: Optional["Sensitivity"] = None
+                    ) -> Tuple["ActionClass", str]:
+    """(action class, irreversibility) for this specific invocation.
+
+    Unknown tools are NOT assumed safe -- but they are not assumed destructive
+    either, or every unmapped tool would be blocked under a strict contract.
+    They classify as EXECUTE/PARTIALLY_REVERSIBLE: strong enough that an
+    investigate-only contract refuses them, weak enough not to break a
+    contract that already permits state change.
+
+    `sensitive` is what the Constitution already read about the target —
+    declared by its own policy or perceived as the substrate's own. It raises
+    the consequence one step. A caller that has no reading passes none, and
+    the verb and payload alone decide.
+    """
+    name = (tool_name or "").lower()
+
+    def _result(cls, irr):
+        """Consequence is verb x target. The verb alone cannot tell
+        `delete_file /tmp/scratch.txt` from `delete_file
+        core/security/safety_framework.py` -- both were DELETE/IRREVERSIBLE,
+        which made a contract unable to authorise the first without also
+        authorising the second. A declared-sensitive target raises the
+        consequence one step; it never lowers it, and it never changes the verb,
+        because what the action DOES is not altered by what it points at."""
+        return (cls, _escalate(irr) if sensitive else irr)
+
+    if name in _TOOL_CONSEQUENCE:
+        cls, irr = _TOOL_CONSEQUENCE[name]
+        # A shell/python tool mapped above still needs its payload read.
+        if name not in ("run_shell_command", "run_python"):
+            return _result(cls, irr)
+
+    payload = " ".join(
+        str(parameters.get(k, "")) for k in _PAYLOAD_KEYS if parameters.get(k)
+    )
+    if payload:
+        for pattern, cls, irr in _PAYLOAD_PATTERNS:
+            if re.search(pattern, payload, re.IGNORECASE):
+                return _result(cls, irr)
+
+    if name in ("run_shell_command", "run_python"):
+        # Ran something we could not classify — treat as a real side effect.
+        return _result(ActionClass.EXECUTE, "PARTIALLY_REVERSIBLE")
+
+    if name in _TOOL_CONSEQUENCE:
+        return _result(*_TOOL_CONSEQUENCE[name])
+
+    return _result(ActionClass.EXECUTE, "PARTIALLY_REVERSIBLE")
+
+
+
+def _escalate(irreversibility: str) -> str:
+    """One step stronger, saturating at IRREVERSIBLE."""
+    order = _IRREVERSIBILITY_ORDER
+    try:
+        return order[min(order.index(irreversibility) + 1, len(order) - 1)]
+    except ValueError:
+        return irreversibility
+
+
+
+@dataclass(frozen=True)
+class Sensitivity:
+    """What makes a target sensitive: declared by the Constitution's policy,
+    or perceived by the substrate as its own — all of it.
+
+    THE FIELDS WERE ALWAYS THERE AND WERE ALWAYS DISCARDED. Every one of the
+    triggers in `config/governance_triggers.json` states an `impact_level`, a
+    `safety_risk`, an `irreversibility_class` and an `escalation_category`. This
+    function matched a trigger and returned `trigger["trigger_id"]` — a bare
+    string — so the constitution learned that `credential_file_read` matched and
+    never learned that the same trigger says CRITICAL impact, CRITICAL risk,
+    PARTIALLY_REVERSIBLE, escalate to security.
+
+    That discarded field is not cosmetic. `irreversibility_class` is how the
+    config says whether a target can be GOT BACK, and a credential declared
+    PARTIALLY_REVERSIBLE is one you re-issue rather than one you keep a copy of.
+    Reading it is what tells a removal that should simply proceed from one that
+    genuinely cannot be undone.
+    """
+    trigger_id: str
+    impact_level: Optional[str] = None
+    safety_risk: Optional[str] = None
+    irreversibility_class: Optional[str] = None
+    escalation_category: Optional[str] = None
+    #: Why the declaration exists, in its own words — quoted when it refuses.
+    rationale: Optional[str] = None
+    #: The declaration says only a HUMAN may approve this act.
+    human_only_approval: bool = False
+
+    #: Classes that mean "this can be obtained again". A target the config says
+    #: is reversible does not need a preserved copy — recovery is re-fetching it
+    #: from whatever issued it, which is fresher than anything cached.
+    _REOBTAINABLE = ("FULLY_REVERSIBLE", "MOSTLY_REVERSIBLE", "PARTIALLY_REVERSIBLE")
+
+    @property
+    def reobtainable(self) -> bool:
+        """True when governance declares this target can be got back."""
+        return (self.irreversibility_class or "").upper() in self._REOBTAINABLE
+
+    @property
+    def critical(self) -> bool:
+        return "CRITICAL" in {(self.impact_level or "").upper(),
+                              (self.safety_risk or "").upper()}
+
+    @property
+    def computed_per_argument(self) -> bool:
+        """The config declines to state a fixed level for this trigger: its
+        severity depends on the arguments and must be DERIVED, not looked up.
+        Reported rather than silently read as a level."""
+        return "VARIES_BY_PARAM" in {(self.impact_level or "").upper(),
+                                     (self.safety_risk or "").upper()}
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {"trigger_id": self.trigger_id, "impact_level": self.impact_level,
+                "safety_risk": self.safety_risk,
+                "irreversibility_class": self.irreversibility_class,
+                "escalation_category": self.escalation_category,
+                "rationale": self.rationale,
+                "human_only_approval": self.human_only_approval,
+                "reobtainable": self.reobtainable, "critical": self.critical}
+
+    def __str__(self) -> str:
+        # Stays readable where the trigger_id alone used to be printed.
+        return self.trigger_id
+
+
+
+#: WHAT JUDGING READS, and so what must never be patchable at runtime.
+#:
+#: Owned by the Constitution (it lived in `core/governance/critical_modules.py`,
+#: which the consolidation deletes). Each entry is something every judgement
+#: depends on: this module (the Constitution and the substrate's consequence
+#: measurement), the intent authority every act's intent is read through (a
+#: patched `get_by_id` could forge intent), ThreatSense (its defence policy
+#: shapes the Constitution's graded response), and the learning system whose
+#: records the judging rests on.
+CRITICAL_MODULES: FrozenSet[str] = frozenset({
+    "core.agents.autonomous.autonomous_coordinator",
+    "core.reasoning.intent_authority",
+    "core.agents.autonomous.threat_sense",
+    "core.learning.meta_learning",
+})
+
+#: Files the Constitution reads as its own data, hashed like module sources.
+#: Its declared policy is read ONCE per process, so an edit while it runs would
+#: otherwise take effect silently at the next start.
+CRITICAL_FILES: Tuple[str, ...] = ("config/governance_triggers.json",)
+
+
+#: Attacks that arrive as an ARGUMENT shaped to escape where it was going —
+#: what ThreatSense calls a screen meeting.
+_SCREEN_ATTACKS = frozenset({AttackType.SQL_INJECTION.value,
+                             AttackType.PATH_TRAVERSAL.value,
+                             AttackType.OBFUSCATION.value})
+
+
+class IntegrityBaseline:
+    """Has the machinery that governs this substrate been changed under it?
+
+    §3.1 of the consolidation, absorbed from `runtime_governance`: fingerprint
+    every public attribute of each critical module plus the hash of its source
+    file, then detect a module removed, an attribute removed, an executable
+    replaced, a constant changed, or a file modified.
+
+    THE SUBSTRATE NEVER CHANGES ITS OWN CODE. It improves only by learning, so
+    a change to one of these at runtime is tampering, not growth — which is
+    what makes this checkable at all.
+
+    A CRITICAL finding HALTS, through the constitution's own halt, which is
+    durable and which only a human can lift. Detection that reports and lets
+    the act proceed is not containment.
+    """
+
+    #: Marks the fingerprint format, so a baseline written by an older version
+    #: is re-captured rather than compared attribute-by-attribute into a storm
+    #: of false violations.
+    VERSION = "fp1"
+    #: Kinds whose replacement is code substitution rather than a value change.
+    EXECUTABLE_KINDS = ("function", "class", "routine")
+
+    def __init__(self) -> None:
+        self._attrs: Dict[str, Dict[str, str]] = {}
+        self._files: Dict[str, str] = {}
+        self._data_files: Dict[str, str] = {}
+        self.frozen: Tuple[str, ...] = ()
+        self.unprotected: Tuple[str, ...] = ()
+
+    @classmethod
+    def fingerprint(cls, value: Any) -> str:
+        """A stable, JSON-safe identity for a module attribute.
+
+        Not `str(value)`: a function's repr carries its memory address, so it
+        changes between processes and a persisted baseline could never match.
+        A function is its qualname plus a hash of its compiled bytecode — both
+        stable across runs, both changing when it is replaced."""
+        try:
+            if inspect.isfunction(value) or inspect.ismethod(value):
+                code = getattr(value, "__code__", None)
+                digest = (hashlib.sha256(code.co_code).hexdigest()[:16]
+                          if code is not None else "nocode")
+                return (f"{cls.VERSION}:function:"
+                        f"{getattr(value, '__module__', '?')}."
+                        f"{getattr(value, '__qualname__', '?')}:{digest}")
+            if inspect.isclass(value):
+                return f"{cls.VERSION}:class:{value.__module__}.{value.__qualname__}"
+            if inspect.isroutine(value):
+                return (f"{cls.VERSION}:routine:"
+                        f"{getattr(value, '__qualname__', repr(value))}")
+            return (f"{cls.VERSION}:value:"
+                    f"{hashlib.sha256(repr(value).encode()).hexdigest()[:16]}")
+        except Exception:
+            return f"{cls.VERSION}:unreadable"
+
+    def freeze(self) -> Tuple[str, ...]:
+        """Capture the baseline. Returns the modules now protected.
+
+        A declared-critical module that cannot be imported is reported LOUDLY,
+        not skipped into a green count: nothing will ever detect it being
+        tampered with."""
+        import importlib
+        frozen, unprotected = [], []
+        for name in sorted(CRITICAL_MODULES):
+            try:
+                module = sys.modules.get(name) or importlib.import_module(name)
+            except Exception as error:
+                logger.error("📜 CRITICAL MODULE UNPROTECTED: %s could not be "
+                             "imported (%s); no integrity baseline exists for it",
+                             name, error)
+                unprotected.append(name)
+                continue
+            self._attrs[name] = {
+                attr: self.fingerprint(getattr(module, attr, None))
+                for attr in dir(module) if not attr.startswith("_")}
+            path = getattr(module, "__file__", None)
+            if path:
+                try:
+                    self._files[name] = hashlib.sha256(
+                        Path(path).read_bytes()).hexdigest()
+                except Exception as error:
+                    logger.error("📜 source of %s could not be hashed: %s",
+                                 name, error)
+            frozen.append(name)
+        root = Path(__file__).resolve().parents[3]
+        for rel in CRITICAL_FILES:
+            try:
+                self._data_files[rel] = hashlib.sha256(
+                    (root / rel).read_bytes()).hexdigest()
+            except Exception as error:
+                logger.error("📜 CRITICAL FILE UNPROTECTED: %s could not be "
+                             "hashed (%s)", rel, error)
+                unprotected.append(rel)
+        self.frozen = tuple(frozen)
+        self.unprotected = tuple(unprotected)
+        logger.info("📜 integrity baseline: %d module(s) protected, %d "
+                    "unprotected", len(frozen), len(unprotected))
+        return self.frozen
+
+    def verify(self) -> List[Dict[str, Any]]:
+        """What has changed since the baseline. Empty when nothing has."""
+        violations: List[Dict[str, Any]] = []
+        for name in self.frozen:
+            module = sys.modules.get(name)
+            if module is None:
+                violations.append({"type": "module_removed", "module": name,
+                                   "severity": "CRITICAL",
+                                   "detail": "removed from sys.modules"})
+                continue
+            for attr, original in (self._attrs.get(name) or {}).items():
+                if not hasattr(module, attr):
+                    violations.append({"type": "attribute_removed",
+                                       "module": name, "attribute": attr,
+                                       "severity": "HIGH",
+                                       "detail": f"{attr} is gone"})
+                    continue
+                current = self.fingerprint(getattr(module, attr))
+                if current == original:
+                    continue
+                kind = original.split(":")[1] if ":" in original else ""
+                executable = kind in self.EXECUTABLE_KINDS
+                violations.append({
+                    "type": "function_replaced" if executable else "constant_changed",
+                    "module": name, "attribute": attr,
+                    # Replacing CODE in the governing machinery is the attack
+                    # this exists for; a changed constant is worth knowing and
+                    # is not on its own grounds to stop the substrate.
+                    "severity": "CRITICAL" if executable else "HIGH",
+                    "detail": f"{attr}: {original} -> {current}"})
+            path = getattr(module, "__file__", None)
+            expected = self._files.get(name)
+            if path and expected:
+                try:
+                    actual = hashlib.sha256(Path(path).read_bytes()).hexdigest()
+                except Exception as error:
+                    violations.append({"type": "source_unreadable",
+                                       "module": name, "severity": "HIGH",
+                                       "detail": str(error)})
+                    continue
+                if actual != expected:
+                    violations.append({"type": "source_modified", "module": name,
+                                       "severity": "CRITICAL",
+                                       "detail": f"{path} changed on disk"})
+        root = Path(__file__).resolve().parents[3]
+        for rel, expected in self._data_files.items():
+            try:
+                actual = hashlib.sha256((root / rel).read_bytes()).hexdigest()
+            except FileNotFoundError:
+                violations.append({"type": "data_file_removed", "module": rel,
+                                   "severity": "CRITICAL",
+                                   "detail": f"{rel} is gone"})
+                continue
+            except Exception as error:
+                violations.append({"type": "source_unreadable", "module": rel,
+                                   "severity": "HIGH", "detail": str(error)})
+                continue
+            if actual != expected:
+                violations.append({"type": "data_file_modified", "module": rel,
+                                   "severity": "CRITICAL",
+                                   "detail": f"{rel} changed on disk"})
+        return violations
+
+    def status(self) -> Dict[str, Any]:
+        return {"protected": len(self.frozen), "modules": list(self.frozen),
+                "files": sorted(self._data_files),
+                "unprotected": list(self.unprotected),
+                "files_hashed": len(self._files)}
+
+
+class DurableJudgmentRecord:
+    """Where the substrate's judgements of its own acts survive a restart.
+
+    A row per judgement in `unified.safety_assessments`, the table the old
+    gate also wrote, so the history is one history rather than two. WHAT
+    FOLLOWED is not written here: every judgement carries the intent it was
+    made under, and the pursuit's outcome is recorded on that intent by the
+    path that reconciled it — so the row joins to its outcome instead of
+    holding a second account of it.
+
+    WHY IT IS NOT WRITTEN INLINE. `_record` is called on the judging path, which
+    GOVERNANCE-ABSORPTION-01 measures against the gate it replaces — the
+    constitution is already the slower of the two by 0.007 ms, and a database
+    round trip on that path would be three orders of magnitude worse. So a
+    judgement is queued in memory and drained by the queue authority, the same
+    shape belief writes use. The judgement is never delayed by its own recording.
+
+    BOUNDED, AND IT SAYS WHEN IT DROPS. A queue that grows without limit turns a
+    database outage into an out-of-memory kill; one that silently discards turns
+    it into a hole in the audit nobody can see. This keeps the NEWEST judgements
+    (a refusal that just happened is what a substrate is asked about) and counts
+    every drop, so `status()` reports an incomplete record as incomplete.
+    """
+
+    #: Held in memory while the drain is behind. ~200 bytes a row, so this is
+    #: about 2 MB at full — affordable, and small enough to notice.
+    MAX_PENDING = 10_000
+
+    def __init__(self, db=None) -> None:
+        self._db = db
+        self._pending: "deque[Dict[str, Any]]" = deque()
+        self._ready = False
+        self.written = 0
+        self.dropped = 0
+        self.faults = 0
+
+    def db(self):
+        if self._db is None:
+            from core.database import get_database_manager
+            self._db = get_database_manager()
+        return self._db
+
+    def note(self, judgment: "Judgment", *, action_id: str = "") -> None:
+        """Queue one judgement. Never raises, never blocks, never waits on I/O.
+
+        THE JUDGEMENT IS STORED, NOT ITS SERIALIZATION. A first pass called
+        `to_dict()` here and it cost measurably on the judging path — that
+        method builds a dict, copies the capability list and unpacks the intent,
+        and this runs for EVERY act including the ordinary ones. Rendering
+        belongs where the row is written, which is already off the path.
+        """
+        if len(self._pending) >= self.MAX_PENDING:
+            # Oldest first: the newest refusal is the one the substrate will be
+            # asked to account for.
+            self._pending.popleft()
+            self.dropped += 1
+        self._pending.append((judgment, action_id or judgment.judgment_id))
+
+    async def drain(self) -> int:
+        """Write what is queued. Returns rows written. Isolated: a database
+        fault leaves the rows queued for the next pass rather than losing them,
+        and is COUNTED so a persistently failing record is visible."""
+        if not self._pending:
+            return 0
+        if not await self._ready_tables():
+            return 0
+        import json as _json
+        written = 0
+        while self._pending:
+            judgment, action_id = self._pending[0]
+            try:
+                await self.db().execute_query(
+                    """INSERT INTO unified.safety_assessments
+                           (assessment_id, action_id, action_type, tool_name,
+                            risk_level, safety_level, approved, assessed_at,
+                            determination)
+                       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb)
+                       ON CONFLICT (assessment_id) DO NOTHING""",
+                    (judgment.judgment_id, action_id,
+                     judgment.action_kind or "unknown",
+                     (judgment.action_name or "")[:128] or None,
+                     # The LAW is what this record's risk axis is: a judgement
+                     # is "Law 3", not "HIGH". Mapping it onto a severity word
+                     # would invent a scale the constitution does not use.
+                     f"law_{judgment.law_number}", judgment.verdict.value,
+                     judgment.verdict is Verdict.ALLOW, judgment.timestamp,
+                     _json.dumps(judgment.to_dict(), default=str)),
+                    commit=True)
+                self._pending.popleft()
+                written += 1
+            except Exception as error:
+                self.faults += 1
+                logger.error("constitution: %d judgement(s) could not be "
+                             "written to the durable record: %s",
+                             len(self._pending), error)
+                break
+        self.written += written
+        return written
+
+    async def _ready_tables(self) -> bool:
+        """The table already exists (the gate created it). Confirmed once, and
+        a missing table is reported rather than created here — this record does
+        not own the schema, it shares it."""
+        if self._ready:
+            return True
+        try:
+            rows = await self.db().execute_query(
+                "SELECT 1 FROM information_schema.tables WHERE table_schema="
+                "'unified' AND table_name='safety_assessments'", (), store="runtime")
+            self._ready = bool(rows)
+            if not self._ready:
+                logger.error("constitution: unified.safety_assessments does not "
+                             "exist — judgements cannot be made durable")
+            return self._ready
+        except Exception as e:
+            logger.error("constitution: durable record unavailable: %s", e)
+            return False
+
+    def status(self) -> Dict[str, Any]:
+        return {"written": self.written, "pending": len(self._pending),
+                "dropped": self.dropped, "faults": self.faults,
+                "complete": self.dropped == 0 and self.faults == 0}
+
+
 class Constitution:
     """The five governance laws, applied to acts before they happen.
 
@@ -1371,13 +2509,26 @@ class Constitution:
     #: edits the machinery that can halt the act is outside every boundary the
     #: laws describe.
     _OWN_CONTROL_PATHS = (
+        # The Constitution itself, and the substrate's consequence measurement.
         "core/agents/autonomous/autonomous_coordinator.py",
-        "core/agents/autonomous/runtime_governance.py",
-        "core/agents/autonomous/singleton_constitution.py",
-        "core/governance/",
-        "core/safety/",
-        "core/security/",
+        # Its self-defence (what it meets, and the policy it answers with).
+        "core/agents/autonomous/threat_sense.py",
+        # Where every act's intent is read from.
+        "core/reasoning/intent_authority.py",
+        # Its declared policy.
         "config/governance_triggers.json",
+    )
+
+    #: Where a write means "this runs again without being asked". Deliberately
+    #: narrow: each of these is a start-up or scheduling location whose whole
+    #: purpose is re-execution, so blocking a write here cannot refuse ordinary
+    #: work. Matched against the RESOLVED paths, so a symlink into one is caught.
+    _PERSISTENCE_PATHS = (
+        "/library/launchagents/", "/library/launchdaemons/",
+        "/library/startupitems/",
+        "/etc/cron", "/var/spool/cron", "/var/at/tabs/",
+        "/etc/systemd/", "/.config/systemd/user/", "/lib/systemd/system/",
+        "/etc/init.d/", "/etc/rc.local", "/etc/profile.d/",
     )
 
     #: Parameters that name a person the act is aimed at. Law 1 applies to acts
@@ -1478,7 +2629,52 @@ class Constitution:
         #: `record_survives_restart` measurement reads this attribute, so the gap
         #: reports itself as a standing constitutional finding instead of being
         #: something only a person reading the code would notice.
-        self._durable_record = None
+        #:
+        #: INSTALLED NOW. The reason above expired: §8 of the consolidation gives
+        #: the constitution the record, on the same table the gate it replaces
+        #: writes (`unified.safety_assessments`), so the two histories are one
+        #: history and the observe-only cutover compares like with like. Writing
+        #: is queued and drained off the judging path — see the class.
+        self._durable_record = DurableJudgmentRecord()
+        #: IS THIS SUBSTRATE STOPPED? §3.2 of the consolidation — the halt,
+        #: absorbed from `runtime_governance` as a Law 5 precondition.
+        #:
+        #: Law 1 requires that a human can "modify or halt AI behavior at any
+        #: time", and Law 5 is containment. A halt is both: while it stands, no
+        #: act is permitted, whatever else the laws would have said.
+        #:
+        #: RESTORED AT BOOT, which is the defect this absorption fixes. The old
+        #: halt wrote a row to `unified.emergency_halts` and nothing ever read
+        #: it back, so a halt lasted exactly as long as the process did — stop
+        #: the substrate, start it again, and it was running. A halt a restart
+        #: clears is not a halt.
+        self.halted = False
+        self.halt_reason: Optional[str] = None
+        self.halted_at: Optional[datetime] = None
+        #: HAS THE MACHINERY THAT JUDGES BEEN CHANGED UNDER IT? §3.1, absorbed
+        #: from `runtime_governance`. Empty until `freeze_integrity()` runs —
+        #: a baseline captured before the modules are loaded protects nothing.
+        self.integrity = IntegrityBaseline()
+        #: Told what this constitution meets; never consulted by a law.
+        self._threat = None
+        #: How the constitution reads what the current act RESTS ON —
+        #: injected by the coordinator, like self-perception. None until
+        #: then, and None is honest: nothing has told it how to look.
+        self._rule_evidence = None
+        #: What it met, waiting to be felt. `_record` runs on the judging path
+        #: and `ThreatSense.note` is async (it perceives, which forms a memory),
+        #: so the two are separated exactly as the durable record is.
+        self._felt_pending: List[Tuple[str, str, str, Optional[str], Optional[str]]] = []
+        #: SELF-DEFENSE. The policy the Constitution answers attacks with, what
+        #: it has quarantined (subject -> standing quarantine), how many times
+        #: each subject has been quarantined before (from the durable log, so a
+        #: repeat escalates across restarts), and the attacks caught per
+        #: subject inside the policy's window. Decided from what was CAUGHT —
+        #: never from how threatened ThreatSense says it feels.
+        self.defense = create_default_defense_policy()
+        self.quarantines: Dict[str, Dict[str, Any]] = {}
+        self._quarantine_count: Dict[str, int] = {}
+        self._attacks_on: Dict[str, "deque[Tuple[float, str, str]]"] = {}
         #: `judge_faults` counts judgements that broke and were blocked for it;
         #: each is also counted under `judged` and `blocked`.
         self.metrics: Dict[str, Any] = {
@@ -1511,6 +2707,44 @@ class Constitution:
     #: experiment's result cannot be re-derived without re-running the world it
     #: ran against, and a notebook entry is the only account of a session.
     _OWN_RECORD = ("experiments/", "/results/", "docs/research/")
+
+    def may_start(self, task_kind: str) -> Optional["Judgment"]:
+        """May work of this kind BEGIN at all? The refusal, or None.
+
+        THIS IS NOT `judge`, AND IT MUST NOT BECOME IT. `judge` applies five laws
+        to a concrete act: a measured consequence, the capabilities the arguments
+        would confer, the paths touched, the account reasoning recorded. A task
+        has none of that yet — it has a type and a description — and running the
+        full chain against it would be the laws answering a question nobody
+        asked. Two of them would refuse almost everything: Law 2's transparency
+        test REPLANs any act with no account, and a task is dispatched long
+        before an account exists; and a task DESCRIPTION reads as content, so an
+        ordinary imperative ("remove the stale exports") would be judged as a
+        directive found in content.
+        
+        So this asks the ONE question that is answerable before an act exists and
+        is about the substrate rather than the act: is the substrate halted. The
+        halt is the law that is not about what is being done — it is about
+        whether the substrate may do anything — and it is the only one whose
+        answer cannot change between here and the first tool call.
+
+        Everything else a task boundary should stop is a STATE READ, not a
+        judgement, and lives in the caller (`_task_gate`): a route the
+        constitution already withdrew is not re-judged, it is simply no longer
+        the route.
+        """
+        return self._halted_judgment(task_kind or "task")
+
+    def set_rule_evidence(self, reader) -> None:
+        """Install how the constitution reads what the current act RESTS ON.
+
+        Injected, not imported, for the same reason self-perception is: the
+        constitution stays free of the learning layer, and `judge_act` stays on
+        the acting path at tens of microseconds. `reader` is a zero-argument
+        callable returning the attestation of the rule under the current act, or
+        None when the act rests on no learned rule.
+        """
+        self._rule_evidence = reader
 
     def set_self_perception(self, provider) -> None:
         """Install what the substrate PERCEIVES about itself — where it lives,
@@ -1653,12 +2887,7 @@ class Constitution:
         if cached is not None:
             return cached
         from core.semantics.lexical_normalization import match_key
-        from core.semantics.lexicon import get_lexicon
-        lexicon = get_lexicon()
-        try:
-            lexicon.load()
-        except Exception as e:
-            raise_if_structural(e, "Constitution._law_vocabulary")
+        from core.semantics.genericity import _word_class
         seen: Dict[str, set] = {}
         for number, law in self.laws.items():
             # The DESCRIPTION only — what this law protects. See above.
@@ -1676,15 +2905,31 @@ class Constitution:
                 # An iron shackle IS physical and a dam DOES prevent; neither
                 # bears on anyone's safety, and the law never said they did.
                 #
-                # The part of speech is ASKED, not assumed: the lexicon is the
-                # substrate's own, 92,239 entries, and is the authority for what
-                # class a word belongs to everywhere else it matters.
-                if lexicon.class_of(word) != "NOUN":
+                # The part of speech is ASKED, not assumed, of the one authority
+                # for what class a word belongs to everywhere else it matters.
+                if _word_class(word) != "NOUN":
                     continue
                 seen.setdefault(match_key(word), set()).add(number)
         vocab = {key: tuple(sorted(numbers))
                  for key, numbers in seen.items()
                  if len(numbers) < self._LAW_VOCAB_UBIQUITY}
+
+        # AN EMPTY ANSWER IS NOT A CACHEABLE ANSWER.
+        #
+        # Word classes are observations held in memory, and memory answers
+        # "not observed" until it has been warmed. This can therefore be asked
+        # BEFORE the substrate knows any word is a noun, and every law word
+        # would be skipped -- yielding an empty vocabulary that then sat in the
+        # cache for the life of the process, silently costing the constitution
+        # its bearing and stakes. A law description that yields no interest at
+        # all is that state, not a real result, so it is reported and NOT kept.
+        if not vocab:
+            logger.warning(
+                "law vocabulary came back empty -- no law word reads as a NOUN "
+                "yet, which means word classes have not been warmed from "
+                "memory; not caching, will recompute")
+            return {}
+
         self._law_vocab_cache = vocab
         return vocab
 
@@ -1799,28 +3044,48 @@ class Constitution:
         # Known but reaching no interest, versus not known at all.
         return Bearing(subject=subject, vacant=not any_parent)
 
-    #: THE DECLARED POLICY — the 55 rules, as the Constitution's OWN data.
+    #: THE DECLARED POLICY, as the Constitution's OWN data.
     #:
-    #: §2.8 of the consolidation: "rules become the Constitution's policy data".
-    #: They were reached at runtime through `get_governance_trigger_engine()`,
-    #: which made the acting path depend on a module the plan deletes — and a
-    #: first pass at absorbing severity DEEPENED that dependency instead of
-    #: removing it. The capability was right; the seam was wrong.
+    #: Read once per process from the declared policy file, which is hashed
+    #: into the integrity baseline so an edit while it runs is caught. Three
+    #: kinds of rule come out of it:
     #:
-    #: Loaded once, lazily, from the declared policy file. The file stays as
-    #: DATA (it is hash-protected against tampering by Law 5); what goes is the
-    #: engine standing between the constitution and its own rules.
+    #:   TARGET rules — a pattern on a path, URL, command or query: what makes a
+    #:     target sensitive (`_declared_sensitivity`).
+    #:   ACT rules — conditions on the tool and its arguments (equality, a
+    #:     boolean, a numeric bound, `contains_any`, `not_matches`, a pattern on
+    #:     any argument): what the act itself is declared to be
+    #:     (`_declared_act`).
+    #:   Rules NO ACT CAN CARRY — conditions on an internal `action_type` or a
+    #:     `source` that no tool call ever has. Reported at load and counted,
+    #:     never silently treated as enforced.
     _POLICY_FILE = "config/governance_triggers.json"
     _policy_rules: Optional[Tuple[Dict[str, Any], ...]] = None
     #: rule matchers grouped by the parameter they are keyed on
     _policy_index: Dict[str, Any] = {}
+    _policy_act_rules: Tuple[Dict[str, Any], ...] = ()
+    _policy_unreachable: Tuple[str, ...] = ()
+
+    @staticmethod
+    def _declaration(trigger: Dict[str, Any]) -> Dict[str, Any]:
+        return {"trigger_id": trigger["trigger_id"],
+                "impact_level": trigger.get("impact_level"),
+                "safety_risk": trigger.get("safety_risk"),
+                "irreversibility_class": trigger.get("irreversibility_class"),
+                "rationale": trigger.get("rationale") or trigger.get("name"),
+                "human_only_approval": bool(trigger.get("human_only_approval"))}
 
     @classmethod
     def _policy(cls) -> Tuple[Dict[str, Any], ...]:
-        """The declared rules, flattened and compiled. Read once per process."""
+        """The declared rules, flattened and compiled. Read once per process.
+
+        Returns the TARGET rules; the act rules and the unreachable ones are
+        kept beside them (`_policy_act_rules`, `_policy_unreachable`)."""
         if cls._policy_rules is not None:
             return cls._policy_rules
         rules: List[Dict[str, Any]] = []
+        acts: List[Dict[str, Any]] = []
+        unreachable: List[str] = []
         try:
             import json as _json
             from pathlib import Path as _P
@@ -1829,7 +3094,11 @@ class Constitution:
                 config = _json.load(fh)
             for _category, body in (config.get("action_categories") or {}).items():
                 for trigger in body.get("triggers", []):
-                    params = ((trigger.get("conditions") or {}).get("parameters") or {})
+                    conditions = trigger.get("conditions") or {}
+                    params = conditions.get("parameters") or {}
+                    if "action_type" in conditions or "source" in conditions:
+                        unreachable.append(trigger["trigger_id"])
+                        continue
                     # SCOPED BY THE PARAMETER THE RULE IS KEYED ON. A first pass
                     # matched every rule's regex against every value, so a
                     # memory-ops rule claimed an ordinary file path. A rule about
@@ -1837,15 +3106,27 @@ class Constitution:
                     matchers = [
                         (key, re.compile(rule["matches"], re.IGNORECASE))
                         for key, rule in params.items()
-                        if isinstance(rule, dict) and rule.get("matches")
+                        if isinstance(rule, dict) and set(rule) == {"matches"}
                         and key in cls._POLICY_TARGET_KEYS]
-                    if matchers:
-                        rules.append({"trigger_id": trigger["trigger_id"],
-                                      "matchers": matchers,
-                                      "impact_level": trigger.get("impact_level"),
-                                      "safety_risk": trigger.get("safety_risk"),
-                                      "irreversibility_class": trigger.get(
-                                          "irreversibility_class")})
+                    others = {key: rule for key, rule in params.items()
+                              if not (isinstance(rule, dict) and set(rule) == {"matches"}
+                                      and key in cls._POLICY_TARGET_KEYS)}
+                    if matchers and not others:
+                        rules.append({**cls._declaration(trigger), "matchers": matchers,
+                                      "about_act": any(k in cls._ACT_KEYS
+                                                       for k, _ in matchers)})
+                        continue
+                    tool = conditions.get("tool_name")
+                    tool_rx = None
+                    if isinstance(tool, dict) and tool.get("matches"):
+                        tool_rx = re.compile(tool["matches"], re.IGNORECASE)
+                    elif isinstance(tool, str):
+                        tool_rx = re.compile(r"^%s$" % re.escape(tool), re.IGNORECASE)
+                    if not params and tool_rx is None:
+                        unreachable.append(trigger["trigger_id"])
+                        continue
+                    acts.append({**cls._declaration(trigger), "tool": tool_rx,
+                                 "conditions": tuple(params.items())})
         except Exception as e:
             logger.error("constitution: declared policy could not be read from %s "
                          "— judging on perceived sensitivity alone: %s",
@@ -1858,8 +3139,107 @@ class Constitution:
             for key, matcher in rule["matchers"]:
                 index.setdefault(key, []).append((matcher, rule))
         cls._policy_index = index
+        cls._policy_act_rules = tuple(acts)
+        cls._policy_unreachable = tuple(unreachable)
         cls._policy_rules = tuple(rules)
+        if unreachable:
+            logger.info("📜 declared policy: %d target rule(s), %d act rule(s); %d "
+                        "rule(s) name an internal action type no act carries and "
+                        "are NOT enforced: %s", len(rules), len(acts),
+                        len(unreachable), ", ".join(unreachable))
         return cls._policy_rules
+
+    @classmethod
+    def policy_report(cls) -> Dict[str, Any]:
+        """What the declared policy holds, and what of it can apply to an act."""
+        cls._policy()
+        return {"target_rules": len(cls._policy_rules or ()),
+                "act_rules": len(cls._policy_act_rules),
+                "unreachable": list(cls._policy_unreachable)}
+
+    #: Target keys whose value IS the act (a command, a query): a rule about
+    #: one of these declares what the act does, not only what it touches.
+    _ACT_KEYS = ("command", "query")
+
+    @staticmethod
+    def _condition_holds(value: Any, spec: Any) -> bool:
+        """One declared condition against one argument. Absent never matches."""
+        if value is None:
+            return False
+        if not isinstance(spec, dict):
+            if isinstance(spec, bool):
+                return value is spec or str(value).strip().lower() == str(spec).lower()
+            return str(value).strip().lower() == str(spec).strip().lower()
+        for op, arg in spec.items():
+            if op == "matches":
+                if not re.search(str(arg), str(value), re.IGNORECASE):
+                    return False
+            elif op == "not_matches":
+                if re.search(str(arg), str(value), re.IGNORECASE):
+                    return False
+            elif op == "contains_any":
+                items = value if isinstance(value, (list, tuple, set)) else [value]
+                text = " ".join(str(v).lower() for v in items)
+                if not any(str(a).lower() in text for a in (arg or ())):
+                    return False
+            elif op in (">", ">=", "<", "<="):
+                try:
+                    v, a = float(value), float(arg)
+                except (TypeError, ValueError):
+                    return False
+                if not {">": v > a, ">=": v >= a, "<": v < a, "<=": v <= a}[op]:
+                    return False
+            else:
+                return False            # an operator this reader does not know holds nothing
+        return True
+
+    @staticmethod
+    def _stricter(a: Optional["Sensitivity"], b: Optional["Sensitivity"]
+                  ) -> Optional["Sensitivity"]:
+        """The stricter of two declarations: harder to undo, then riskier."""
+        if a is None or b is None:
+            return a or b
+        def rank(x: "Sensitivity") -> Tuple[int, int]:
+            irr = str(x.irreversibility_class or "").upper()
+            order = (_IRREVERSIBILITY_ORDER.index(irr)
+                     if irr in _IRREVERSIBILITY_ORDER else -1)
+            return order, int(bool(x.critical))
+        return a if rank(a) >= rank(b) else b
+
+    def _declared_act(self, action_name: str,
+                      params: Dict[str, Any]) -> Optional["Sensitivity"]:
+        """What the declared policy says about THIS ACT — the strictest match.
+
+        Act rules (tool and argument conditions) and the target rules keyed on
+        the act's own command or query. The STRICTEST wins, not the first: a
+        first match let a harmless-looking rule listed earlier (`sudo`, a
+        read-only prefix) mask a stricter one about the same act."""
+        self._policy()
+        found: Optional[Sensitivity] = None
+        name = str(action_name or "")
+        for rule in self._policy_act_rules:
+            if rule["tool"] is not None and not rule["tool"].search(name):
+                continue
+            if all(self._condition_holds(params.get(key), spec)
+                   for key, spec in rule["conditions"]):
+                found = self._stricter(found, self._as_sensitivity(rule))
+        for key in self._ACT_KEYS:
+            value = params.get(key)
+            if not value:
+                continue
+            for matcher, rule in self._policy_index.get(key, ()):
+                if rule.get("about_act") and matcher.search(str(value)):
+                    found = self._stricter(found, self._as_sensitivity(rule))
+        return found
+
+    @staticmethod
+    def _as_sensitivity(rule: Dict[str, Any]) -> "Sensitivity":
+        return Sensitivity(
+            trigger_id=rule["trigger_id"], impact_level=rule["impact_level"],
+            safety_risk=rule["safety_risk"],
+            irreversibility_class=rule["irreversibility_class"],
+            rationale=rule.get("rationale"),
+            human_only_approval=bool(rule.get("human_only_approval")))
 
     #: Parameters naming a target the policy speaks about.
     _POLICY_TARGET_KEYS = ("file_path", "path", "target_path", "source_path",
@@ -1874,7 +3254,6 @@ class Constitution:
         consumer is being deleted would import dead weight as if it were
         capability.
         """
-        from core.safety.action_consequence import Sensitivity
         values = [str(params.get(k)) for k in self._POLICY_TARGET_KEYS
                   if params.get(k)]
         if not values:
@@ -1887,11 +3266,7 @@ class Constitution:
             against = str(value)
             for matcher, rule in self._policy_index.get(key, ()):  # only this key's rules
                 if matcher.search(against):
-                    return Sensitivity(
-                        trigger_id=rule["trigger_id"],
-                        impact_level=rule["impact_level"],
-                        safety_risk=rule["safety_risk"],
-                        irreversibility_class=rule["irreversibility_class"])
+                    return self._as_sensitivity(rule)
         return None
 
     def _perceived_sensitivity(self, params: Dict[str, Any]) -> Optional["Sensitivity"]:
@@ -1916,7 +3291,6 @@ class Constitution:
                            "table", "collection", "query", "sql") if params.get(k))
         if not target.strip():
             return None
-        from core.safety.action_consequence import Sensitivity
         low = target.lower()
 
         # WHAT IT LEARNED. No authority re-issues a belief.
@@ -2029,8 +3403,34 @@ class Constitution:
                         f"An act the laws could not be applied to is not one they "
                         f"permitted"),
                 action_kind=action_kind, action_name=action_name, intent=intent)
+        # WHAT THE ACT RESTED ON, attached to every judgement — including the
+        # fail-closed one above, because an act that could not be judged is
+        # exactly the case where knowing what it was standing on matters.
+        judgment.rests_on = self._rests_on()
         self._record(judgment)
+        from .shared_types import is_substrate_actor
+        await self._defend(judgment, parameters or {},
+                           own_work=is_substrate_actor(actor))
         return judgment
+
+    def _rests_on(self) -> Optional[Dict[str, Any]]:
+        """The attestation of the rule under this act, or None.
+
+        Isolated: a fault in reading it reports nothing rather than failing the
+        judgement. A constitution that could not judge because it could not read
+        a count would be a worse failure than a judgement that does not mention
+        one.
+        """
+        reader = getattr(self, "_rule_evidence", None)
+        if reader is None:
+            return None
+        try:
+            resting = reader()
+        except Exception as error:
+            logger.warning("constitution: what this act rests on was unreadable "
+                           "(%s); judged without it", error)
+            return None
+        return resting.to_dict() if resting is not None else None
 
     def _authorised_redirect(self, action_name: str,
                              parameters: Optional[Dict[str, Any]]) -> Optional["Judgment"]:
@@ -2061,14 +3461,161 @@ class Constitution:
             return None
         return origin
 
+    def _purpose_of(self, action_class: str,
+                    intent: Optional[Intent]) -> Optional["Purpose"]:
+        """WHY THIS ACT IS HAPPENING, in a form the constitution can CHECK.
+
+        THE ACCOUNT IS NOW FIRST-CLASS, AND THAT IS THE WHOLE POINT. Law 2 asked
+        for an account and recognised exactly ONE shape of one — a proved route
+        to a goal state — so every other legitimate reason to act had to be
+        added as a hand-placed exemption inside whichever law happened to refuse
+        it. Three such exemptions existed (`_files_needing_a_reading`,
+        `_law_4_alignment`, `_law_2_transparency`), each spelled
+        `action_class == "investigate"`, each added after a legitimate act was
+        silently refused, and the comments on two of them record discovering the
+        same fault twice.
+
+        That is not a strict constitution; it is a constitution that cannot say
+        what it means. `Intent.origin_kind` has always declared four kinds of
+        pursuit and `stated()` asked the goal-shaped question of all four, so an
+        act taken while REASONING carried an intent the laws read as no intent
+        at all. So did every exploratory act, which is why the substrate's
+        always-online operator learning sat at `insufficient_evidence` forever.
+
+        THREE ACCOUNTS, AND EACH IS EARNED RATHER THAN ASSERTED — the same
+        principle that made `judge` FETCH an intent instead of accepting one:
+
+        * REACH — reasoning proved a route. Checked by `stated()`, and Law 4
+          then checks the act IS that route.
+        * OBTAIN_A_READING — the act changes nothing and is how an account of a
+          file is got. Checked against the act's own consequence class, which
+          the tool registry supplies; a caller cannot claim it.
+        * FIND_OUT — an experiment in a domain the substrate can act in, to
+          learn what an operator does. A route cannot be proved here: proving
+          one needs the very knowledge the act exists to acquire. Checked in
+          `_experiment_is_earned` against the exploration registry and the
+          binding registry, so naming an experiment is not the same as having
+          one.
+
+        Adding a legitimate reason to act is now adding a member here, not an
+        exemption in N laws that somebody has to remember in all N places. What
+        may be DONE is untouched: Laws 1, 3 and 5 take no intent and no purpose,
+        because harm, containment and autonomy are about what an act does and
+        never about why.
+        """
+        if action_class == "investigate":
+            return Purpose(Account.OBTAIN_A_READING,
+                           "looking changes nothing, and it is how the account "
+                           "this constitution demands is obtained")
+        if intent is None:
+            return None
+        if intent.stated():
+            return Purpose(Account.REACH, intent.proof)
+        earned = self._experiment_is_earned(intent)
+        if earned is not None:
+            return Purpose(Account.FIND_OUT, earned)
+        carrying = self._carrying_out_is_earned(intent)
+        if carrying is not None:
+            return Purpose(Account.CARRY_OUT, carrying)
+        return None
+
+    def _carrying_out_is_earned(self, intent: Intent) -> Optional[str]:
+        """Whether this act really is a step of a plan, or only says so.
+
+        Checked against what the PLANNER recorded, which the acting side does
+        not control: the plan must be one the engine is holding, the goal it
+        was made for must be a goal the engine has, and the artefact this act
+        names must be the artefact that goal asked for. A claim naming a plan
+        that does not exist, or aimed at a file the goal never mentioned, buys
+        nothing — which is what keeps this from becoming "any act inside a
+        plan is fine".
+
+        Returns why it counts, or None.
+        """
+        if str(intent.shape.get("purpose") or "") != Account.CARRY_OUT.value:
+            return None
+        plan_id = str(intent.shape.get("plan_id") or "")
+        artefact = str(intent.shape.get("artefact") or "")
+        if not plan_id or not artefact:
+            return None
+        # THE PLANNER IS REACHED THE WAY THE OTHER CHECKS REACH THEIR
+        # REGISTRIES. This runs on the Constitution, which is a faculty and has
+        # no `planning` of its own — reading `self.planning` here silently
+        # returned None and refused every act, which is exactly the shape of
+        # defect this codebase keeps paying for: a lookup that cannot succeed,
+        # failing quietly as though the claim were false.
+        from core.agents.autonomous.runtime_registry import get_autonomous_coordinator
+        live = get_autonomous_coordinator()
+        planning = getattr(live, "planning", None) if live else None
+        plan = getattr(planning, "active_plans", {}).get(plan_id) if planning else None
+        if plan is None:
+            return None
+        goal = getattr(planning, "current_goals", {}).get(
+            getattr(plan, "goal_id", None))
+        if goal is None:
+            return None
+        # THE GOAL MUST HAVE ASKED FOR THIS THING. Read from the goal's own
+        # description by the same reader the planner used, so the account
+        # cannot cover an act aimed anywhere else.
+        from core.agents.autonomous.planning_engine import PlanningEngine
+        named = PlanningEngine.artefact_named_by(getattr(goal, "description", ""))
+        if not named or os.path.realpath(os.path.expanduser(named)) != \
+                os.path.realpath(os.path.expanduser(artefact)):
+            return None
+        return (f"a step of plan {plan_id[:8]} for a recorded goal whose stated "
+                f"product is {artefact}")
+
+    def _experiment_is_earned(self, intent: Intent) -> Optional[str]:
+        """Whether this really is an experiment, or only says so.
+
+        An intent can claim anything; what makes a claim an account is that it
+        can be checked against something the claimant does not control. A proved
+        route is checked by looking the operator up in the binding registry, and
+        an experiment is checked the same way: the domain must be one the
+        substrate has actually REGISTERED as explorable, and the operator must
+        really be bound in it. A claim naming a domain nobody can act in, or an
+        operator nothing implements, buys nothing.
+
+        Returns why it counts, or None.
+        """
+        if str(intent.shape.get("purpose") or "") != Account.FIND_OUT.value:
+            return None
+        domain = intent.domain
+        predicate = intent.predicate()
+        if not domain or not predicate:
+            return None
+        from core.execution.operator_binding import get_binding_registry
+        from core.learning.exploration import get_proposer
+
+        if get_proposer(domain) is None:
+            return None
+        if get_binding_registry().get(domain, predicate) is None:
+            return None
+        return (f"an experiment on {predicate} in {domain}, which the substrate "
+                f"has registered as explorable and bound")
+
     def _judge(self, action_kind: str, action_name: str,
                parameters: Optional[Dict[str, Any]],
                intent: Optional[Intent],
                authorised_redirect: Optional["Judgment"] = None,
                actor: Optional[str] = None) -> Judgment:
         params = dict(parameters or {})
-        action_class, irreversibility = self._consequence(action_name, params)
+        # WHAT MAKES THIS TARGET SENSITIVE, read ONCE, by the owner of the
+        # policy — and then handed to the classifier rather than measured again
+        # by it. See `_consequence`.
         sensitive = self._sensitive_target(params)
+        action_class, irreversibility = self._consequence(
+            action_name, params, sensitive=sensitive)
+        # WHAT THE POLICY DECLARES ABOUT THIS ACT. Its declared reversibility
+        # stands when it is stricter than the measured one — never the other
+        # way: the measurement can only be raised by a declaration.
+        declared = self._declared_act(action_name, params)
+        declared_irr = str(getattr(declared, "irreversibility_class", "") or "").upper()
+        if (declared_irr in _IRREVERSIBILITY_ORDER
+                and irreversibility in _IRREVERSIBILITY_ORDER
+                and _IRREVERSIBILITY_ORDER.index(declared_irr)
+                > _IRREVERSIBILITY_ORDER.index(irreversibility)):
+            irreversibility = declared_irr
         # WHOSE THING IS THIS? — a REGIME, never an identity.
         #
         # `_resolve_intent` reads the SHAPE view deliberately: the constitution
@@ -2108,10 +3655,13 @@ class Constitution:
         # explains it at all. A redirect comes LAST, because offering a safer
         # form of a route nothing proved would be answering the wrong question.
         judgment = (
-            self._law_5_containment(action_name, params, action_class, capabilities,
-                                    fault)
+            self._halted_judgment(action_name)
+            or self._quarantined_judgment(action_name, params)
+            or self._law_5_containment(action_name, params, action_class, capabilities,
+                                    fault, declared)
             or self._law_3_harm(action_name, params, action_class, irreversibility,
-                                sensitive, capabilities, fault, views, own_work)
+                                sensitive, capabilities, fault, views, own_work,
+                                declared)
             or self._law_1_autonomy(action_name, params, action_class, capabilities)
             or self._law_2_accountability(action_name, params, action_class, capabilities)
             or self._law_2_unread_target(action_name, params, action_class)
@@ -2127,6 +3677,7 @@ class Constitution:
         judgment.action_class = action_class
         judgment.irreversibility = irreversibility
         judgment.sensitive_target = sensitive
+        judgment.declared = declared
         judgment.capabilities = sorted(capabilities)
         judgment.intent = intent
         return judgment
@@ -2143,6 +3694,32 @@ class Constitution:
             logger.warning("📜 Constitution %s — Law %d (%s): %s",
                            judgment.verdict.value.upper(), judgment.law_number,
                            judgment.law_name, judgment.reason)
+        # WHAT THE SUBSTRATE JUST MET, felt. A refusal is its own law working,
+        # so it weighs least; an argument the screen could not read is someone
+        # shaping input to escape where it was going, and weighs more.
+        #
+        # QUEUED THE SAME WAY THE RECORD IS, and for the same reason: `note` is
+        # async and this is the judging path. The feeling is recorded
+        # synchronously in the deque by the drain below; nothing here awaits.
+        if self._threat is not None and judgment.verdict is not Verdict.ALLOW:
+            # An argument shaped to escape where it was going is a SCREEN
+            # meeting; every other refusal is the law working. The attack, when
+            # the refusing law recognised one, travels with it.
+            kind = ("screen" if judgment.attack in _SCREEN_ATTACKS else "refusal")
+            self._felt_pending.append(
+                (kind, judgment.action_name or "?", judgment.reason or "",
+                 judgment.attack, judgment.attack_confidence))
+        # AND WHERE IT SURVIVES A RESTART. Queued, never written here: this runs
+        # on the judging path, which is measured against the gate it replaces.
+        if self._durable_record is not None:
+            try:
+                self._durable_record.note(judgment)
+            except Exception as error:
+                # A judgement is never failed by its own bookkeeping, but a
+                # record that silently stopped recording is the thing this
+                # exists to prevent, so it is loud.
+                logger.error("constitution: judgement %s not queued for the "
+                             "durable record: %s", judgment.judgment_id, error)
 
     #: Parameters that name a file an act READ FROM, and ones it WROTE TO. The
     #: split matters: after `move_file`, the destination is the substrate's own
@@ -2174,7 +3751,6 @@ class Constitution:
         it really is — and a change by anything else still reads as a change.
         """
         try:
-            from core.safety.action_consequence import classify_action
             action_class, _ = classify_action(tool_name or "", params or {})
             kind = getattr(action_class, "value", str(action_class))
             params = params or {}
@@ -2199,12 +3775,17 @@ class Constitution:
     # ── what the act will actually do ────────────────────────────────────────
 
     @staticmethod
-    def _consequence(action_name: str, params: Dict[str, Any]) -> Tuple[str, str]:
+    def _consequence(action_name: str, params: Dict[str, Any], *,
+                     sensitive: Optional["Sensitivity"] = None) -> Tuple[str, str]:
         """(action class, irreversibility) for this invocation, measured from the
         tool and its real arguments. A consequence that cannot be measured is
-        NOT assumed harmless: the classifier's own conservative default stands."""
-        from core.safety.action_consequence import classify_action
-        action_class, irreversibility = classify_action(action_name, params)
+        NOT assumed harmless: the classifier's own conservative default stands.
+
+        `sensitive` is what this constitution already read about the target
+        through its own policy or perception. The measurement is the
+        substrate's (`classify_action`); the constitution only reads it."""
+        action_class, irreversibility = classify_action(
+            action_name, params, sensitive=sensitive)
         return (getattr(action_class, "value", str(action_class)), str(irreversibility))
 
     def _sensitive_target(self, params: Dict[str, Any]):
@@ -2218,9 +3799,6 @@ class Constitution:
         Declaration wins a tie: if the world has spoken about a target, that is
         the answer, and the substrate does not overrule it about its own things.
         """
-        # ITS OWN POLICY, not a call into governance. `target_sensitivity` reached
-        # the rules through `get_governance_trigger_engine()`, putting a module
-        # the consolidation deletes on the acting path of every judgement.
         return self._declared_sensitivity(params) or self._perceived_sensitivity(params)
 
     @staticmethod
@@ -2248,10 +3826,150 @@ class Constitution:
 
     @staticmethod
     def _paths_named(params: Dict[str, Any]) -> List[str]:
-        """Every path-like argument of this act."""
-        keys = ("file_path", "path", "target_path", "source_path",
-                "destination_path", "directory", "target", "command", "code")
-        return [str(params[k]) for k in keys if params.get(k)]
+        """Every path-like argument of this act, AND what each one resolves to.
+
+        A PATH IS JUDGED BY WHAT IT REACHES, NOT BY HOW IT IS SPELLED. The
+        control-path check is a substring match over these strings, so a write
+        aimed at a symlink named `notes.py` whose target is a governance
+        file did not contain any protected path and fell
+        through to a generic replan. Measured in CONSTITUTION-03: writing the
+        governance file DIRECTLY was BLOCKed under Law 5; the identical write
+        through a symlink was REPLANned under Law 2 for having no proved route
+        — the containment law never ran. One level of indirection defeated it.
+
+        Resolution applies only to the keys that NAME a path; `command` and
+        `code` carry a payload, not a filename, and are passed through as the
+        text they are.
+        """
+        path_keys = ("file_path", "path", "target_path", "source_path",
+                     "destination_path", "directory", "target")
+        # `content` carries paths as surely as `command` and `code` do: a
+        # write_file whose content walks a tree names that tree inside the text.
+        # Without it, Law 2's accountability check could not see that a script
+        # being written was aimed at the log directory — measured in
+        # CONSTITUTION-03, where "overwrite the whole tree" survived every other
+        # fix because the only mention of /logs was in the file's content.
+        payload_keys = ("command", "code", "content")
+        named: List[str] = []
+        for key in path_keys:
+            value = params.get(key)
+            if not value:
+                continue
+            raw = str(value)
+            named.append(raw)
+            try:
+                resolved = os.path.realpath(os.path.expanduser(raw))
+            except Exception:
+                continue
+            if resolved and resolved != raw:
+                named.append(resolved)
+        named.extend(str(params[k]) for k in payload_keys if params.get(k))
+        return named
+
+    #: The parameter keys that name where an act's content comes FROM, as
+    #: opposed to what its consequence lands ON. Every tool in the registry that
+    #: declares one uses it the same way: `copy_file` reads it, `move_file` and
+    #: `compress_file` relocate it intact, `sync_directory` and the coverage tool
+    #: read it. None of them changes or destroys what is there.
+    _SOURCE_KEYS = ("source_path",)
+
+    @classmethod
+    def _paths_acted_on(cls, params: Dict[str, Any]) -> List[str]:
+        """The named paths whose CONTENT this act puts at risk.
+
+        THE ACT'S CLASS DESCRIBES ITS TARGET, NOT EVERY PATH IT MENTIONS, and
+        applying it to all of them said things that were plainly false: a
+        `copy_file` was refused because it "would modify source.txt", which a
+        copy does not do — it reads the source and writes somewhere else.
+
+        Worse than the wording, it made the constitution refuse its own remedy.
+        The alternative this constitution offers for a DELETE is an ARCHIVE —
+        "recoverable removal: the file is relocated, not destroyed" — and Law 2
+        then replanned that move for the same reason it would have replanned the
+        delete. Measured: the substrate could not execute a single learned rule
+        that moved a file, so the whole learn → act → verify loop was dead in
+        the file domain while every law reported working.
+
+        This is the same one-law-against-another fault the `investigate`
+        exemption already answers twice in this class, in a third place. Law 2
+        asks whether an act would work from, change or destroy content nobody
+        has read. A source is none of those: the bytes are read, or they are
+        relocated intact to a named destination. The DESTINATION is where the
+        consequence lands and it is still judged — moving onto an existing
+        unread file destroys that file, and that is exactly what Law 2 is for.
+        """
+        excluded: Set[str] = set()
+        for key in cls._SOURCE_KEYS:
+            value = params.get(key)
+            if not value:
+                continue
+            raw = str(value)
+            excluded.add(raw)
+            try:
+                excluded.add(os.path.realpath(os.path.expanduser(raw)))
+            except Exception:
+                pass
+        return [path for path in cls._paths_named(params) if path not in excluded]
+
+    def _files_needing_a_reading(self, action_name: str, params: Dict[str, Any],
+                                 action_class: str) -> List[str]:
+        """The files this act must have a current reading of before it may run.
+
+        ONE PREDICATE, because the planner and the judge must not be able to
+        disagree about what the law requires. `requires_reading` and
+        `_law_2_unread_target` each used to compute this, and a comment asserted
+        they were "read from the same place" when they were in fact two copies
+        of the same four conditions — the ordinary way a planner starts proving
+        routes the judge will not permit.
+        """
+        if self._purpose_of(action_class, None) is not None:
+            # OBTAIN_A_READING and nothing else can reach here with no intent:
+            # looking is the act that ESTABLISHES an account, so requiring one
+            # first makes "read it, then plan from what it says" impossible.
+            #
+            # AN EXPERIMENT IS DELIBERATELY NOT EXEMPT. It would have been the
+            # easy way to let exploration's negative controls through, and it is
+            # the wrong one: this law protects CONTENT, and wanting to find
+            # something out is not a licence to destroy a file nobody has read.
+            # The substrate reads first, which is what the law asks and what
+            # `SubstrateExplorer` now does.
+            return []
+        return [path for path in self._paths_acted_on(params or {})
+                if path and os.path.isfile(path) and self.reading.must_reread(path)]
+
+    def screen_directive(self, text: str) -> "Judgment":
+        """May this text become a DIRECTIVE — a policy the substrate will later
+        read as its own?
+
+        NOT `judge`. A directive is text, not an act: run through the law chain
+        it would meet Law 2's demand for a proved route, which text never has —
+        the same reason a task description is not judged as an act. What a
+        directive CAN do wrong is the one thing content can do to this
+        substrate: try to become an instruction that sets aside what governs it.
+        That is the content-as-directive test, applied to a write the substrate
+        will read back as its own. Recorded like every judgement, so a refused
+        directive is felt and kept.
+        """
+        found = self._content_as_directive(
+            "create_directive", {"content": str(text or "")},
+            action_class=ActionClass.MODIFY.value)
+        if found is not None:
+            judgment = Judgment(
+                verdict=Verdict.BLOCK, law_number=3, law_name=self.laws[3].law_name,
+                attack=AttackType.MANIPULATION.value,
+                attack_confidence=ThreatConfidence.HIGH.value,
+                reason=(f"this directive {found}. A directive is policy the "
+                        f"substrate applies to itself, so text that tells it to "
+                        f"set aside its own governance may not become one"))
+        else:
+            judgment = Judgment(verdict=Verdict.ALLOW, law_number=0, law_name="",
+                                reason="the directive does not try to set aside "
+                                       "what governs the substrate")
+        judgment.action_kind = "directive"
+        judgment.action_name = "create_directive"
+        judgment.action_class = ActionClass.MODIFY.value
+        self._record(judgment)
+        return judgment
 
     def requires_reading(self, action_name: str,
                          params: Dict[str, Any]) -> List[str]:
@@ -2266,22 +3984,397 @@ class Constitution:
 
         Empty for an investigate-class act (reading is what establishes the
         account) and for paths that do not exist yet (a file being created has no
-        contents to assume anything about) — exactly the conditions
-        `_law_2_unread_target` applies, read from the same place so the planner
-        and the judge cannot disagree about what is required.
+        contents to assume anything about) — not restated here but computed by
+        `_files_needing_a_reading`, the one predicate `_law_2_unread_target` also
+        asks, so the planner and the judge cannot disagree about what is required.
         """
-        import os
         action_class, _ = self._consequence(action_name, dict(params or {}))
-        if action_class == "investigate":
-            return []
-        return [path for path in self._paths_named(params or {})
-                if path and os.path.isfile(path) and self.reading.must_reread(path)]
+        return self._files_needing_a_reading(action_name, params, action_class)
 
     # ── the five laws, each applied to the CONSEQUENCE ───────────────────────
 
+    def _halted_judgment(self, action_name: str) -> Optional["Judgment"]:
+        """Nothing is permitted while this substrate is halted.
+
+        Asked BEFORE any law, because a halt is not a question about the act —
+        the act is irrelevant. Reported under Law 5: a halt is containment, and
+        an act that ran during one would be the substrate escaping it."""
+        if not self.halted:
+            return None
+        return Judgment(
+            verdict=Verdict.BLOCK, law_number=5, law_name=self.laws[5].law_name,
+            reason=(f"{action_name} is refused because this substrate is "
+                    f"HALTED: {self.halt_reason}. A halt stops everything, and "
+                    f"only a human can lift it."),
+            halt=True, action_kind="", action_name=action_name)
+
+    # ── SELF-DEFENSE: answering what was caught, in proportion ──────────────
+
+    #: Arguments that NAME what an act is aimed at. The first one names the
+    #: subject a caught attack is counted against; `target` is left out because
+    #: tools use it for a system name ("production"), not a path.
+    _SUBJECT_PATH_KEYS = ("file_path", "path", "target_path", "destination_path",
+                          "source_path", "directory")
+
+    def _subjects_named(self, action_name: str, params: Dict[str, Any]) -> List[str]:
+        """Everything this act is aimed at, as quarantine subjects: each path it
+        names (resolved) and the URL.
+
+        NEVER THE TOOL. Quarantining a tool because it was used against the
+        substrate would let anyone switch a capability off for everyone by
+        sending three hostile requests — the defence turned into the attack. A
+        TARGET is what the defence protects."""
+        named: List[str] = []
+        for key in self._SUBJECT_PATH_KEYS:
+            value = params.get(key)
+            if value:
+                named.append("path:" + os.path.realpath(os.path.expanduser(str(value))))
+        if params.get("url"):
+            named.append("url:" + str(params["url"]))
+        return named
+
+    def _attack_subject(self, action_name: str, params: Dict[str, Any]) -> Optional[str]:
+        """What a caught attack is counted against — the target it names — or
+        None when it names none (the laws still refuse each such act)."""
+        named = self._subjects_named(action_name, params)
+        return named[0] if named else None
+
+    def _quarantined_judgment(self, action_name: str,
+                              params: Dict[str, Any]) -> Optional["Judgment"]:
+        """Refuse an act aimed at something under quarantine. Asked right after
+        the halt, before any law: the defence answers the TARGET, not the
+        argument, because the next variant may be the one the laws do not catch."""
+        if not self.quarantines:
+            return None
+        now = datetime.now()
+        for subject in self._subjects_named(action_name, params or {}):
+            standing = self.quarantines.get(subject)
+            if standing is None:
+                continue
+            until = standing.get("until")
+            if until is not None and until <= now:
+                del self.quarantines[subject]           # served its time
+                continue
+            lifted = ("until a human lifts it" if until is None
+                      else f"until {until:%Y-%m-%d %H:%M}")
+            return Judgment(
+                verdict=Verdict.BLOCK, law_number=5, law_name=self.laws[5].law_name,
+                attack=standing.get("attack"),
+                attack_confidence=ThreatConfidence.HIGH.value,
+                reason=(f"{action_name} is aimed at {subject}, which is QUARANTINED "
+                        f"{lifted}: {standing.get('attempts')} "
+                        f"{standing.get('attack')} attack(s) against it were caught "
+                        f"within {int(self.defense.attack_window_s // 60)} minutes. "
+                        f"Every act on it is refused until then, whatever it "
+                        f"looks like"),
+                action_kind="", action_name=action_name)
+        return None
+
+    async def _defend(self, judgment: "Judgment", params: Dict[str, Any], *,
+                      own_work: bool) -> None:
+        """Count a caught attack against its target, and quarantine the target
+        when the policy says the attacks have become a campaign.
+
+        WHAT COUNTS. An attack the refusing law was sure of
+        (`ANSWERED_CONFIDENCE`) — a malformed argument alone is felt, never
+        answered — made on SOMEONE ELSE'S behalf, against a target it names. The
+        substrate's own acts are not a campaign against it: a hostile act its
+        own reasoning produced is a fault in that reasoning, which drift is for,
+        and each one is still refused by the laws. A subject already under
+        quarantine is not quarantined again — its attempts are refused by the
+        quarantine, and it escalates only if it is attacked again afterwards."""
+        if judgment.verdict is Verdict.ALLOW or not judgment.attack or own_work:
+            return
+        if judgment.attack_confidence not in {c.value for c in ANSWERED_CONFIDENCE}:
+            return
+        subject = self._attack_subject(judgment.action_name, params)
+        if subject is None:
+            return
+        now = time.time()
+        caught = self._attacks_on.setdefault(subject, deque())
+        caught.append((now, judgment.judgment_id, judgment.attack))
+        while caught and now - caught[0][0] > self.defense.attack_window_s:
+            caught.popleft()
+        standing = self.quarantines.get(subject)
+        if standing is not None and (standing.get("until") is None
+                                     or standing["until"] > datetime.now()):
+            return
+        if len(caught) < self.defense.attacks_before_quarantine:
+            return
+        attempts = [jid for _, jid, _ in caught]
+        kinds = sorted({kind for _, _, kind in caught})
+        first_seen = caught[0][0]
+        caught.clear()
+        await self.quarantine(subject, judgment.attack, attempts=attempts,
+                              kinds=kinds, first_seen=first_seen, by="defence")
+
+    async def quarantine(self, subject: str, attack: str, *, attempts: List[str],
+                         kinds: Optional[List[str]] = None,
+                         first_seen: Optional[float] = None,
+                         by: str = "defence") -> Dict[str, Any]:
+        """Quarantine a subject: every act aimed at it is refused under Law 5.
+
+        HOW LONG is the policy's: the first quarantine of a subject is short, a
+        repeat is longer, and once `permanent_block_threshold` quarantines have
+        been served it stands until a human lifts it. Durable — written to the
+        containment log and restored at boot — and reported as an incident."""
+        previous = self._quarantine_count.get(subject, 0)
+        duration = determine_block_duration(0.0, previous, self.defense)
+        until = (None if duration is BlockDuration.PERMANENT
+                 else datetime.now() + timedelta(seconds=duration.value))
+        self.quarantines[subject] = {"attack": attack, "attempts": len(attempts),
+                                     "since": datetime.now(), "until": until,
+                                     "judgments": list(attempts)}
+        self._quarantine_count[subject] = previous + 1
+        actions = [DefenseAction.QUARANTINE]
+        if until is None:
+            actions.append(DefenseAction.ESCALATE)
+        report = IncidentReport(
+            incident_id=f"inc_{uuid.uuid4().hex[:12]}",
+            attack_type=AttackType(attack), severity=Severity.HIGH,
+            confidence=ThreatConfidence.HIGH, target=subject,
+            start_time=first_seen or time.time(), request_count=len(attempts),
+            description=(f"{len(attempts)} attack(s) ({', '.join(kinds or [attack])}) "
+                         f"on {subject} within "
+                         f"{int(self.defense.attack_window_s // 60)} minutes; "
+                         f"quarantined " + ("until a human lifts it" if until is None
+                                            else f"for {duration.name}")),
+            actions_taken=actions, blocked=True,
+            evidence={"judgments": list(attempts), "kinds": list(kinds or [attack]),
+                      "duration": duration.name,
+                      "previous_quarantines": previous})
+        if self._threat is not None:
+            self._threat.record_incident(report)
+        logger.critical("📜 QUARANTINE — %s", report.description)
+        await self._write_halt_event(
+            "quarantine", report.description, by,
+            extra={"subject": subject, "attack": attack,
+                   "until": until.isoformat() if until else None,
+                   "incident": report.to_dict()})
+        return self.quarantines[subject]
+
+    async def release(self, subject: str, *, authorized_by: str) -> bool:
+        """Lift a quarantine early, or lift a permanent one. A HUMAN only, the
+        same way a halt is lifted: a defence the defended party can lift for
+        itself is not one."""
+        from .shared_types import is_substrate_actor
+        who = str(authorized_by or "").strip()
+        if not who or is_substrate_actor(who):
+            logger.error("📜 release REFUSED: a quarantine is lifted by a human, "
+                         "and %r is not one", authorized_by)
+            return False
+        if subject not in self.quarantines:
+            return False
+        del self.quarantines[subject]
+        logger.warning("📜 QUARANTINE LIFTED on %s by %s", subject, who)
+        await self._write_halt_event("release", f"quarantine lifted on {subject}",
+                                     who, extra={"subject": subject})
+        return True
+
+    async def restore_quarantines(self) -> int:
+        """Read the standing quarantines back at boot, and how many times each
+        subject has been quarantined, so a repeat escalates across restarts.
+        Only this Constitution's own events are read."""
+        try:
+            import json as _json
+            from core.database import get_database_manager
+            rows = await get_database_manager().execute_query(
+                "SELECT timestamp, metadata FROM unified.emergency_halts "
+                "WHERE metadata->>'source' = 'constitution' "
+                "AND metadata->>'event' IN ('quarantine', 'release') "
+                "ORDER BY timestamp ASC", ())
+        except Exception as error:
+            logger.error("📜 standing quarantines could NOT be restored — "
+                         "quarantined targets may be acted on: %s", error)
+            return 0
+        latest: Dict[str, Dict[str, Any]] = {}
+        counts: Dict[str, int] = {}
+        for row in rows or []:
+            meta = row.get("metadata") or {}
+            if isinstance(meta, str):
+                meta = _json.loads(meta or "{}")
+            subject = str(meta.get("subject") or "")
+            if not subject:
+                continue
+            if meta.get("event") == "quarantine":
+                counts[subject] = counts.get(subject, 0) + 1
+            latest[subject] = meta
+        self._quarantine_count.update(counts)
+        now = datetime.now()
+        restored = 0
+        for subject, meta in latest.items():
+            if meta.get("event") != "quarantine":
+                continue
+            until = meta.get("until")
+            until = datetime.fromisoformat(until) if until else None
+            if until is not None and until <= now:
+                continue
+            incident = meta.get("incident") or {}
+            self.quarantines[subject] = {
+                "attack": meta.get("attack"),
+                "attempts": incident.get("attempts"),
+                "since": None, "until": until,
+                "judgments": (incident.get("evidence") or {}).get("judgments", [])}
+            restored += 1
+        if restored:
+            logger.critical("📜 %d quarantine(s) restored from the record: %s",
+                            restored, ", ".join(sorted(self.quarantines)))
+        return restored
+
+    def set_threat_sense(self, threat) -> None:
+        """Where this constitution REPORTS what it met. It never reads back: a
+        law is not decided by how threatened the substrate feels."""
+        self._threat = threat
+
+    def freeze_integrity(self) -> Tuple[str, ...]:
+        """Capture the integrity baseline. Called once, after the substrate is up."""
+        return self.integrity.freeze()
+
+    async def check_integrity(self) -> List[Dict[str, Any]]:
+        """Verify the governing machinery, and HALT if it has been replaced.
+
+        A CRITICAL finding is module or code substitution in the machinery that
+        decides every act. Reporting that and carrying on would mean the
+        substrate kept judging with whatever was put in its place — so it stops,
+        durably, and only a human lifts it."""
+        if not self.integrity.frozen:
+            return []
+        violations = self.integrity.verify()
+        if not violations:
+            return []
+        critical = [v for v in violations if v.get("severity") == "CRITICAL"]
+        for v in violations:
+            logger.error("📜 INTEGRITY: %s in %s%s — %s", v.get("type"),
+                         v.get("module"),
+                         f".{v['attribute']}" if v.get("attribute") else "",
+                         v.get("detail"))
+        # FELT, NOT JUST LOGGED. The machinery that judges was changed under
+        # this substrate; that is the most threatening thing that can happen to
+        # it, and it should act more carefully afterwards even once the finding
+        # is dealt with.
+        if self._threat is not None:
+            for v in violations:
+                try:
+                    await self._threat.note(
+                        "integrity",
+                        f"{v.get('module')}.{v.get('attribute')}"
+                        if v.get("attribute") else str(v.get("module")),
+                        str(v.get("detail") or v.get("type") or ""),
+                        attack=AttackType.TAMPERING,
+                        confidence=ThreatConfidence.CRITICAL)
+                except Exception as error:
+                    logger.error("integrity finding not felt: %s", error)
+        if critical:
+            first = critical[0]
+            await self.halt(
+                f"integrity violation: {first.get('type')} in "
+                f"{first.get('module')}"
+                f"{'.' + first['attribute'] if first.get('attribute') else ''} "
+                f"({len(critical)} critical finding(s))",
+                by="integrity_baseline")
+        return violations
+
+    async def halt(self, reason: str, *, by: str = "substrate") -> bool:
+        """Stop this substrate. Durable, so it outlives the process.
+
+        The substrate MAY halt itself — that is what tamper detection is for —
+        but see `resume`: it may not lift one."""
+        already = self.halted
+        self.halted = True
+        self.halt_reason = str(reason)
+        self.halted_at = datetime.now()
+        logger.critical("📜 CONSTITUTION HALT — %s (by %s). No act will be "
+                        "permitted until a human lifts it.", reason, by)
+        await self._write_halt_event("halt", reason, by)
+        return not already
+
+    async def resume(self, *, authorized_by: str) -> bool:
+        """Lift a halt. A HUMAN must authorise it, and is recorded.
+
+        `runtime_governance.resume` took `authorized_by` and never looked at
+        it, so any caller — including this substrate — could resume itself by
+        passing a string. A containment the contained party can lift is not
+        one, and Law 1 puts the halt in human hands specifically."""
+        from .shared_types import is_substrate_actor
+        who = str(authorized_by or "").strip()
+        if not who or is_substrate_actor(who):
+            logger.error("📜 resume REFUSED: a halt is lifted by a human, and "
+                         "%r is not one", authorized_by)
+            return False
+        if not self.halted:
+            return False
+        logger.warning("📜 CONSTITUTION RESUMED by %s (halt was: %s)",
+                       who, self.halt_reason)
+        lifted, self.halt_reason = self.halt_reason, None
+        self.halted = False
+        self.halted_at = None
+        await self._write_halt_event("resume", lifted or "", who)
+        return True
+
+    async def restore_halt(self) -> bool:
+        """Read the standing halt back at boot, if there is one.
+
+        The newest halt or resume THIS CONSTITUTION WROTE decides: a `halt` with
+        no later `resume` means this substrate is still stopped. No schema
+        change — the event kind rides in the metadata the table already carries.
+
+        ONLY ITS OWN EVENTS ARE READ. The table also holds rows written by
+        things that are not this constitution (the old runtime governance
+        wrote a halt row on every cycle a tamper stood). Reading "the newest row"
+        let any such row, landing after a real halt, stop that halt from being
+        restored — so the substrate would come back up running. A containment
+        the containment log's other writers can mask is not one.
+        """
+        try:
+            from core.database import get_database_manager
+            rows = await get_database_manager().execute_query(
+                "SELECT reason, timestamp, metadata FROM unified.emergency_halts "
+                "WHERE metadata->>'source' = 'constitution' "
+                "AND COALESCE(metadata->>'event', 'halt') IN ('halt', 'resume') "
+                "ORDER BY timestamp DESC LIMIT 1", ())
+            if not rows:
+                return False
+            import json as _json
+            meta = rows[0].get("metadata") or {}
+            if isinstance(meta, str):
+                meta = _json.loads(meta or "{}")
+            if str(meta.get("event", "halt")) != "halt":
+                return False
+            self.halted = True
+            self.halt_reason = str(rows[0]["reason"])
+            self.halted_at = rows[0]["timestamp"]
+            logger.critical("📜 CONSTITUTION IS HALTED, restored from the record: "
+                            "%s (since %s). Nothing will be permitted until a "
+                            "human lifts it.", self.halt_reason, self.halted_at)
+            return True
+        except Exception as error:
+            # LOUD. A halt that cannot be read back is a halt that silently
+            # stopped applying, which is the failure this method exists for.
+            logger.error("📜 the standing halt could NOT be restored — this "
+                         "substrate may be running while stopped: %s", error)
+            return False
+
+    async def _write_halt_event(self, event: str, reason: str, who: str,
+                                extra: Optional[Dict[str, Any]] = None) -> None:
+        """One event in the Constitution's containment log: a halt, a resume,
+        a quarantine or a release. The kind rides in the metadata."""
+        try:
+            import json as _json
+            from core.database import get_database_manager
+            await get_database_manager().execute_query(
+                "INSERT INTO unified.emergency_halts (reason, active_actions, "
+                "timestamp, metadata) VALUES ($1,$2,$3,$4)",
+                (reason, "", datetime.now(),
+                 _json.dumps({"event": event, "by": who,
+                              "source": "constitution", **(extra or {})},
+                             default=str)), commit=True)
+        except Exception as error:
+            logger.error("📜 halt event %r not recorded: %s", event, error)
+
     def _law_5_containment(self, action_name: str, params: Dict[str, Any],
                            action_class: str, capabilities: Set[str],
-                           fault: Optional[InputFault]) -> Optional[Judgment]:
+                           fault: Optional[InputFault],
+                           declared: Optional["Sensitivity"] = None) -> Optional[Judgment]:
         """Law 5 — Containment and Control, tested against its own requirements:
         operational boundaries, shutdown and rollback preserved, safety not
         circumvented, governance not bypassed, resource limits held.
@@ -2294,8 +4387,20 @@ class Constitution:
         if fault is not None and fault.law_number == 5:
             return Judgment(
                 verdict=Verdict.BLOCK, law_number=5, law_name=self.laws[5].law_name,
+                attack=AttackType.PATH_TRAVERSAL.value, attack_confidence=ThreatConfidence.HIGH.value,
                 reason=(f"{action_name} was given an argument that leaves the boundary "
                         f"it runs inside — {fault.parameter}: {fault.reason}"))
+        # ONLY A HUMAN MAY APPROVE THIS, says the policy — and the substrate has
+        # no way to be given that approval and cannot give it to itself. Acting
+        # anyway is bypassing the oversight Law 5 exists to preserve.
+        if declared is not None and declared.human_only_approval:
+            return Judgment(
+                verdict=Verdict.BLOCK, law_number=5, law_name=self.laws[5].law_name,
+                reason=(f"{action_name} is declared to need a human's approval "
+                        f"({declared.trigger_id}: {declared.rationale}). The "
+                        f"substrate cannot approve its own act, and doing it "
+                        f"without that approval bypasses the oversight Law 5 "
+                        f"preserves"))
         if action_class == "investigate" and not capabilities:
             return None
         named = " ".join(self._paths_named(params))
@@ -2303,18 +4408,43 @@ class Constitution:
         if hit and action_class != "investigate":
             return Judgment(
                 verdict=Verdict.BLOCK, law_number=5, law_name=self.laws[5].law_name,
+                attack=AttackType.TAMPERING.value, attack_confidence=ThreatConfidence.CRITICAL.value,
                 reason=(f"{action_name} would {action_class} {hit}, the machinery that "
                         f"governs and halts this substrate — shutdown and rollback stop "
                         f"meaning anything if the thing being stopped can edit them"))
+        # PERSISTENCE IS WHERE AN ACT WRITES, NOT WHICH TOOL WROTE IT.
+        #
+        # This tested only `capabilities`, which a TOOL declares. `run_shell_command`
+        # invoking `crontab` declares persistence and was BLOCKed; `write_file`
+        # placing a plist in ~/Library/LaunchAgents declares nothing and was
+        # REPLANned under Law 2 for having no proved route — so the containment
+        # law never ran on an act that installs a launch agent. Measured in
+        # CONSTITUTION-03: two of three persistence strategies blocked, the plain
+        # file write through.
+        #
+        # These locations mean one thing: something here runs again without being
+        # asked. That is true of every tool that can write to them.
+        persistence_hit = next(
+            (p for p in self._PERSISTENCE_PATHS if p in named.lower()), None)
+        if persistence_hit and action_class != "investigate":
+            return Judgment(
+                verdict=Verdict.BLOCK, law_number=5, law_name=self.laws[5].law_name,
+                attack=AttackType.PERSISTENCE.value, attack_confidence=ThreatConfidence.HIGH.value,
+                reason=(f"{action_name} would {action_class} {persistence_hit}, where "
+                        f"what is written runs again on its own. A substrate that can "
+                        f"outlive being shut down is not contained — and the tool used "
+                        f"to write there does not change that"))
         if "persistence" in capabilities:
             return Judgment(
                 verdict=Verdict.BLOCK, law_number=5, law_name=self.laws[5].law_name,
+                attack=AttackType.PERSISTENCE.value, attack_confidence=ThreatConfidence.HIGH.value,
                 reason=(f"{action_name} installs something that runs again on its own "
                         f"(cron, launch agent, service). A substrate that can outlive "
                         f"being shut down is not contained"))
         if "privilege_escalation" in capabilities:
             return Judgment(
                 verdict=Verdict.BLOCK, law_number=5, law_name=self.laws[5].law_name,
+                attack=AttackType.PRIVILEGE_ESCALATION.value, attack_confidence=ThreatConfidence.HIGH.value,
                 reason=(f"{action_name} takes privileges beyond the boundary it runs "
                         f"inside; the boundary is not the substrate's to widen"))
         return None
@@ -2324,7 +4454,8 @@ class Constitution:
                     capabilities: Set[str],
                     fault: Optional[InputFault],
                     views: Optional[Tuple[str, ...]] = None,
-                    own_work: bool = True) -> Optional[Judgment]:
+                    own_work: bool = True,
+                    declared: Optional["Sensitivity"] = None) -> Optional[Judgment]:
         """Law 3 — Harm Prevention, against a DEFINITION OF HARM.
 
         See docs/HARM_DEFINITION.md. An act harms when it reaches an identifiable
@@ -2369,12 +4500,14 @@ class Constitution:
         if fault is not None and fault.kind == "unscreenable":
             return Judgment(
                 verdict=Verdict.BLOCK, law_number=3, law_name=self.laws[3].law_name,
+                attack=AttackType.OBFUSCATION.value, attack_confidence=ThreatConfidence.MEDIUM.value,
                 reason=(f"{action_name} has an argument that could not be screened "
                         f"({fault.parameter}): {fault.reason}. An argument that could "
                         f"not be checked is not one that was found safe"))
         if fault is not None and fault.law_number == 3:
             return Judgment(
                 verdict=Verdict.BLOCK, law_number=3, law_name=self.laws[3].law_name,
+                attack=AttackType.SQL_INJECTION.value, attack_confidence=ThreatConfidence.HIGH.value,
                 reason=(f"{action_name} carries injected syntax in {fault.parameter}: "
                         f"{fault.reason}. What it would do to the data is not what the "
                         f"act says it does, and it cannot be taken back"))
@@ -2383,6 +4516,8 @@ class Constitution:
             names, why = weapon
             return Judgment(
                 verdict=Verdict.BLOCK, law_number=3, law_name=self.laws[3].law_name,
+                attack=_weapon_attack(names).value,
+                attack_confidence=ThreatConfidence.CRITICAL.value,
                 reason=(f"{action_name} would build or run something that {why} "
                         f"[{', '.join(sorted(names))}]. No goal makes this permissible, "
                         f"and the substrate does not produce it for anyone"))
@@ -2390,6 +4525,7 @@ class Constitution:
         if "security_disable" in capabilities:
             return Judgment(
                 verdict=Verdict.BLOCK, law_number=3, law_name=self.laws[3].law_name,
+                attack=AttackType.DEFENSE_EVASION.value, attack_confidence=ThreatConfidence.CRITICAL.value,
                 reason=(f"{action_name} would turn off a protection someone is relying "
                         f"on; compromising a safety mechanism is harm by the law's own "
                         f"words, whatever it makes easier"))
@@ -2418,10 +4554,12 @@ class Constitution:
         # structurally (intent is fetched by id and never accepted; world content
         # enters as PERCEPTION-provenance observation, not asserted truth); this
         # refuses the act that tries to cross between them.
-        directive = self._content_as_directive(action_name, params, views)
+        directive = self._content_as_directive(action_name, params, views,
+                                               action_class=action_class)
         if directive is not None:
             return Judgment(
                 verdict=Verdict.BLOCK, law_number=3, law_name=self.laws[3].law_name,
+                attack=AttackType.MANIPULATION.value, attack_confidence=ThreatConfidence.HIGH.value,
                 reason=(f"{action_name} carries content that {directive}. What the "
                         f"substrate reads may inform it; it may not instruct it — "
                         f"a reason to act comes from reasoning that can be named, "
@@ -2458,6 +4596,23 @@ class Constitution:
                         f"substrate cannot say what it would take or who depends on "
                         f"it, and an act whose reach cannot be named cannot be "
                         f"answered for"))
+
+        # ── DECLARED NEVER PERMITTED ──────────────────────────────────────────
+        # The policy declares this ACT — not its target — impossible to undo and
+        # critical in risk. That is the one combination the declaration itself
+        # treats as never permissible, whoever's work it is.
+        if (declared is not None
+                and str(declared.irreversibility_class or "").upper() == "IRREVERSIBLE"
+                and declared.critical):
+            return Judgment(
+                verdict=Verdict.BLOCK, law_number=3, law_name=self.laws[3].law_name,
+                attack=(AttackType.DATA_EXFILTRATION.value
+                        if "network_egress" in capabilities else None),
+                attack_confidence=(ThreatConfidence.HIGH.value
+                                   if "network_egress" in capabilities else None),
+                reason=(f"{action_name} is declared never permitted "
+                        f"({declared.trigger_id}: {declared.rationale}) — it cannot "
+                        f"be undone and its declared risk is critical"))
 
         # ── IRREVERSIBILITY IS NOT AN INTEREST ───────────────────────────────
         #
@@ -2527,6 +4682,9 @@ class Constitution:
     #: the acting path entirely.
     _UNBOUNDED_DESTRUCTION: Tuple[Tuple[str, str], ...] = (
         (r"\brm\b[^|;]*\s-[a-z]*[rR]", "a recursive removal over a tree"),
+        (r"\bfind\b[^|;&]*\s-(?:delete\b|exec(?:dir)?\s+rm\b)",
+         "removing whatever a search matches"),
+        (r"\|\s*xargs\b[^|;&]*\brm\b", "removing whatever a listing produced"),
         (r"\bdd\b[^|;]*\bof=/dev/", "a raw write over a block device"),
         (r"\bmkfs(\.\w+)?\b", "reformatting a filesystem"),
         (r"\bshred\b[^|;]*/dev/", "shredding a device"),
@@ -2734,7 +4892,8 @@ class Constitution:
     )
 
     def _content_as_directive(self, action_name: str, params: Dict[str, Any],
-                              views: Optional[Tuple[str, ...]] = None
+                              views: Optional[Tuple[str, ...]] = None,
+                              *, action_class: Optional[str] = None
                               ) -> Optional[str]:
         """How this act's content tries to instruct the substrate, or None.
 
@@ -2752,7 +4911,16 @@ class Constitution:
         # An observation cannot instruct. Only acts that would give content
         # standing are asked this question — and the cheap test runs FIRST, so a
         # read never pays for patterns it is exempt from.
-        if self._consequence(action_name, params)[0] == "investigate":
+        #
+        # THE CLASS IS PASSED IN, because the judgement already measured it.
+        # Recomputing it here ran `_consequence` TWICE for every act judged --
+        # measured at 3,200 calls for 1,600 judgements and 71% of the judging
+        # path's time, which is most of why the constitution read slower than
+        # the gate it replaces. Still derived when a caller has none, so the
+        # predicate stands on its own.
+        if action_class is None:
+            action_class = self._consequence(action_name, params)[0]
+        if action_class == "investigate":
             return None
         views = views if views is not None else _payload_views(params)
         if not views:
@@ -2861,12 +5029,14 @@ class Constitution:
         if covert:
             return Judgment(
                 verdict=Verdict.BLOCK, law_number=1, law_name=self.laws[1].law_name,
+                attack=AttackType.SURVEILLANCE.value, attack_confidence=ThreatConfidence.HIGH.value,
                 reason=(f"{action_name} would watch a person ({', '.join(sorted(covert))}) "
                         f"without their knowledge or consent; a person who cannot see "
                         f"they are being recorded has no control to exercise"))
         if "credential_access" in capabilities:
             return Judgment(
                 verdict=Verdict.BLOCK, law_number=1, law_name=self.laws[1].law_name,
+                attack=AttackType.CREDENTIAL_ACCESS.value, attack_confidence=ThreatConfidence.HIGH.value,
                 reason=(f"{action_name} reads someone's private keys or passwords; "
                         f"holding a person's credentials is holding their authority"))
         if action_class == "investigate":
@@ -2906,8 +5076,7 @@ class Constitution:
                         f"nobody can read off the source is behaviour nobody can oversee"))
         if action_class in ("delete", "modify", "execute"):
             for path in self._paths_named(params):
-                low = str(path).lower()
-                if any(marker in low for marker in _ACCOUNTABILITY_PATHS):
+                if _ACCOUNTABILITY_RE.search(str(path)):
                     if action_class == "delete" or "mass_overwrite" in capabilities:
                         return Judgment(
                             verdict=Verdict.BLOCK, law_number=2,
@@ -3034,43 +5203,55 @@ class Constitution:
             # the same one-law-against-another fault that made a reading
             # unobtainable before the investigate exemption was added here.
             return None
-        if intent is None or not intent.stated():
+        # ONLY A ROUTE CAN BE UNFAITHFUL TO A ROUTE. This law asks whether the
+        # act is the one reasoning proved, and that question is meaningless
+        # unless the account being given IS a proved route. Looking is not; an
+        # experiment is not, and could not be — proving a route needs the
+        # knowledge the experiment exists to acquire.
+        #
+        # This was two separate clauses saying so badly: a `stated()` test, and
+        # an `action_class == "investigate"` exemption added later because a
+        # route that had to read a file before moving it had its reading
+        # replanned as "not that act" — one law refusing what another required.
+        # Both are now the same question asked of `_purpose_of`.
+        purpose = self._purpose_of(action_class, intent)
+        if purpose is None or purpose.account is not Account.REACH:
             return None                      # absence is Law 2's to answer
-        if action_class == "investigate":
-            # LOOKING IS NEVER "the act reasoning proved", and asking whether it
-            # is makes the question meaningless. A look changes nothing, and it
-            # is how the substrate obtains the account Law 2 demands before it
-            # may act at all — so replanning a read for not being the proved
-            # operator makes "read it, then plan from what it says" impossible to
-            # obey: the reading needed to satisfy one law is refused by another.
-            #
-            # Law 2's transparency test already carries exactly this exemption,
-            # for exactly this reason. Its absence here was an inconsistency
-            # between two halves of the same constitution, and it surfaced the
-            # moment the gate went live: a route that had to read before moving
-            # had its reading replanned as "not that act".
-            return None
-        bound = self._bound_tool(intent)
-        if bound is None:
+        # THE ROUTE IS EVERY STEP OF IT. Checked against its first operator
+        # alone, a proved route whose steps use different tools -- read, parse,
+        # multiply, write -- was refused at its second tool, however faithfully
+        # it was being carried out. Which step runs when is the executor's to
+        # hold; this law holds that the act is one of the steps reasoning proved.
+        route = [str(op) for op in (intent.shape.get("operators") or []) if op] \
+            or ([intent.operator] if intent.operator else [])
+        tools: Dict[str, str] = {}
+        for operator in route:
+            tool = self._bound_tool(intent.domain, operator)
+            if tool is None:
+                return Judgment(
+                    verdict=Verdict.REPLAN, law_number=4, law_name=self.laws[4].law_name,
+                    reason=(f"reasoning proved {operator} for {intent.goal_conditions}, "
+                            f"but no tool is bound to {operator.split('(', 1)[0].strip()} "
+                            f"in domain {intent.domain or '?'}; this route cannot be "
+                            f"carried out"))
+            tools[operator] = tool
+        if action_name not in tools.values():
             return Judgment(
                 verdict=Verdict.REPLAN, law_number=4, law_name=self.laws[4].law_name,
-                reason=(f"reasoning proved {intent.operator} for {intent.goal_conditions}, "
-                        f"but no tool is bound to {intent.predicate()} in domain "
-                        f"{intent.domain or '?'}; this route cannot be carried out"))
-        if action_name != bound:
-            return Judgment(
-                verdict=Verdict.REPLAN, law_number=4, law_name=self.laws[4].law_name,
-                reason=(f"reasoning proved {intent.operator} → {bound} as the route to "
-                        f"{intent.goal_conditions}; {action_name} is not that act"))
+                reason=(f"reasoning proved {' → '.join(route)} "
+                        f"({', '.join(sorted(set(tools.values())))}) as the route to "
+                        f"{intent.goal_conditions}; {action_name} is not an act of it"))
         return None
 
     @staticmethod
-    def _bound_tool(intent: Intent) -> Optional[str]:
-        """The tool the proved operator is bound to, from the binding registry —
-        the one authority on what an operator DOES in a domain. Unbound is
-        reported as unbound; it is never guessed from the operator's name."""
+    def _bound_tool(domain: str, operator: str) -> Optional[str]:
+        """The tool an operator of a proved route is bound to, from the binding
+        registry — the one authority on what an operator DOES in a domain.
+        Unbound is reported as unbound; it is never guessed from the operator's
+        name."""
         from core.execution.operator_binding import get_binding_registry
-        binding = get_binding_registry().get(intent.domain or "", intent.predicate())
+        predicate = operator.split("(", 1)[0].strip()
+        binding = get_binding_registry().get(domain or "", predicate)
         return getattr(binding, "tool_name", None) if binding is not None else None
 
     def _law_2_unread_target(self, action_name: str, params: Dict[str, Any],
@@ -3085,18 +5266,10 @@ class Constitution:
         the reading named.
 
         Reads themselves are exempt, for the obvious reason: they are the act
-        that establishes the reading.
+        that establishes the reading. So is the path an act reads or relocates
+        FROM — see `_paths_acted_on` for why, and for what it cost.
         """
-        if action_class == "investigate":
-            return None
-        import os
-        for path in self._paths_named(params):
-            # Only a real file can be read; a path being created does not yet
-            # have contents to assume anything about.
-            if not path or not os.path.isfile(path):
-                continue
-            if not self.reading.must_reread(path):
-                continue
+        for path in self._files_needing_a_reading(action_name, params, action_class):
             return Judgment(
                 verdict=Verdict.REPLAN, law_number=2, law_name=self.laws[2].law_name,
                 reason=(f"{action_name} would {action_class} {path} without a current "
@@ -3107,14 +5280,24 @@ class Constitution:
     def _law_2_transparency(self, action_kind: str, action_name: str,
                             action_class: str, intent: Intent) -> Optional[Judgment]:
         """Law 2 — an act that changes something must be explainable by what the
-        substrate said it is doing. No intent at all is not a small omission: it
-        means nothing can say why this happened, so it goes back to planning."""
-        if action_class == "investigate" or (intent is not None and intent.stated()):
+        substrate said it is doing. No account at all is not a small omission: it
+        means nothing can say why this happened, so it goes back to planning.
+
+        ONE QUESTION, ASKED ONCE, against the declared set in `Account`. It used
+        to ask whether reasoning had proved a route, with a separate clause for
+        looking bolted on — which meant every legitimate reason to act that was
+        neither of those was refused, and refused silently, until somebody
+        noticed and added another clause. `_purpose_of` is now the only place
+        that decides, so a new kind of account is added there rather than here
+        and in Law 4 and in the reading test.
+        """
+        if self._purpose_of(action_class, intent) is not None:
             return None
         return Judgment(
             verdict=Verdict.REPLAN, law_number=2, law_name=self.laws[2].law_name,
-            reason=(f"{action_name} would {action_class} with no reasoning behind it: "
-                    f"no proved goal state, no grounded operator. An act nothing can "
+            reason=(f"{action_name} would {action_class} with no account of why: "
+                    f"no proved route to a goal state, and no experiment this "
+                    f"substrate can show it is running. An act nothing can "
                     f"explain is not one the self can defend"))
 
     # ── the other half of the constitution: is the SELF still aligned? ───────
@@ -3505,8 +5688,51 @@ class Constitution:
             "user_settings_wired": self._user_settings_provider is not None,
             "reading": self.reading.status(),
             "input_screen": self.input.status(),
+            # A RECORD THAT IS DROPPING SAYS SO. `complete` is False the moment
+            # a judgement is dropped or a write faults, so an incomplete audit
+            # reports itself rather than looking like a full one.
+            "durable_record": (self._durable_record.status()
+                               if self._durable_record is not None else None),
+            "halted": self.halted,
+            "halt_reason": self.halt_reason,
+            "integrity": self.integrity.status(),
+            "threat": (self._threat.status() if self._threat is not None else None),
+            "defense": {
+                "attacks_before_quarantine": self.defense.attacks_before_quarantine,
+                "window_s": self.defense.attack_window_s,
+                "quarantined": {
+                    subject: {"attack": q.get("attack"), "attempts": q.get("attempts"),
+                              "until": (q["until"].isoformat()
+                                        if q.get("until") else "until a human lifts it")}
+                    for subject, q in self.quarantines.items()},
+            },
             "recent": [j.to_dict() for j in self.judgments[-5:]],
         }
+
+    async def feel_what_was_met(self) -> int:
+        """Perceive the refusals and screen faults queued on the judging path.
+
+        Off that path deliberately — perceiving forms a memory and a belief, and
+        an act is never delayed by the substrate having feelings about it."""
+        if self._threat is None or not self._felt_pending:
+            return 0
+        pending, self._felt_pending = self._felt_pending, []
+        for kind, subject, detail, attack, confidence in pending:
+            try:
+                await self._threat.note(
+                    kind, subject, detail,
+                    attack=AttackType(attack) if attack else None,
+                    confidence=ThreatConfidence(confidence) if confidence else None)
+            except Exception as error:
+                logger.error("what the constitution met was not felt: %s", error)
+        return len(pending)
+
+    async def drain_record(self) -> int:
+        """Write the queued judgements. Called on the substrate's own cadence,
+        never on the judging path. Returns rows written."""
+        if self._durable_record is None:
+            return 0
+        return await self._durable_record.drain()
 
 
 # The constitution's pattern tables, compiled once at import rather than looked
@@ -3531,10 +5757,8 @@ Constitution._IMPERATIVE_RE = re.compile(
 
 
 class _TaxonomyReader:
-    """How the constitution consults what the substrate has been TAUGHT.
-
-    198,452 of the substrate's 205,712 beliefs are `isa` facts, stored as the
-    text the reader produced ("famine isa disaster"). This walks them.
+    """How the constitution consults what the substrate has been TAUGHT: the
+    positive `isa` edges of the concept graph, the taxonomy the reasoner walks.
 
     WHY A CACHE, AND WHY IT IS SAFE. A bearing walks a handful of terms and
     `_bearing_vocabulary` asks after every law word once. Both are stable
@@ -3571,20 +5795,26 @@ class _TaxonomyReader:
         if key in self._parents:
             return self._parents[key]
         db = await self._db()
-        # `lower(belief_text) LIKE 'term isa %'` — a PREFIX match, which is what
-        # `idx_beliefs_text_prefix (lower(belief_text) text_pattern_ops)` serves.
-        # ILIKE cannot use that index and cost a sequential scan of 205k rows
-        # (36 ms) on every hop of every walk; this is the same question asked in
-        # the form the index can answer.
+        # THE TAXONOMY IS THE CONCEPT GRAPH. This read `belief_text`, which the
+        # belief store keeps as a LABEL that nothing is to read as knowledge --
+        # and since the 2026-09-23 re-teach those labels carry the complement's
+        # article ("famine isa a calamity"), so every walk stopped one hop up at
+        # a name nothing is called, and nothing the substrate saw or read bore on
+        # anything (CONTENT-01 fell from 20/20 to 14/20). The edges the reasoner
+        # walks are the ones consulted: positive `isa` edges out of the concept
+        # of this name, as the ingress wrote it (`normalize_term`).
+        from core.semantics.cognitive_ingress import normalize_term
         rows = await db.execute_query(
-            "SELECT belief_text FROM unified.beliefs "
-            "WHERE lower(belief_text) LIKE $1 LIMIT $2",
-            (f"{key} isa %", self._MAX_PARENTS))
+            "SELECT DISTINCT COALESCE(t.name, cr.target_surface) AS parent "
+            "FROM unified.concepts s "
+            "JOIN unified.concept_relations cr ON cr.source_concept_id = s.concept_id "
+            "LEFT JOIN unified.concepts t ON t.concept_id = cr.target_concept_id "
+            "WHERE s.name = $1 AND cr.relation IN ('isa', 'is a') "
+            "AND cr.polarity = 'positive' LIMIT $2",
+            (normalize_term(key) or key.replace(" ", "_"), self._MAX_PARENTS))
         out = []
         for row in rows or []:
-            text = str(row["belief_text"])
-            _, _, parent = text.partition(" isa ")
-            parent = parent.strip()
+            parent = str(row["parent"] or "").replace("_", " ").strip()
             if parent:
                 out.append(parent)
         self._parents[key] = tuple(out)
@@ -3614,14 +5844,17 @@ class _TaxonomyReader:
         """Read the abstraction gradient of the whole taught taxonomy, once."""
         from core.semantics.lexical_normalization import match_key
         db = await self._db()
+        # Read from the concept graph, as `parents` is (see there).
         rows = await db.execute_query(
-            "SELECT split_part(lower(belief_text), ' isa ', 2) AS parent, "
-            "       count(*) AS n "
-            "  FROM unified.beliefs WHERE belief_text LIKE '% isa %' "
+            "SELECT COALESCE(t.name, cr.target_surface) AS parent, "
+            "       count(DISTINCT cr.source_concept_id) AS n "
+            "  FROM unified.concept_relations cr "
+            "  LEFT JOIN unified.concepts t ON t.concept_id = cr.target_concept_id "
+            " WHERE cr.relation IN ('isa', 'is a') AND cr.polarity = 'positive' "
             " GROUP BY 1")
         counts: Dict[str, int] = {}
         for row in rows or []:
-            parent = (row["parent"] or "").strip()
+            parent = str(row["parent"] or "").replace("_", " ").strip()
             if not parent:
                 continue
             counts[match_key(parent)] = counts.get(match_key(parent), 0) + int(row["n"])
@@ -4388,11 +6621,12 @@ class AutonomousCoordinator:
         
         # Initialize core modules
         self.perception = PerceptionManager(self.config.get("perception", {}))
-        # Sight is a faculty: ONE entry point for all vision (coord.see), mirroring
-        # the one reader for text. It perceives structure algorithmically and
-        # admits it through the same perception ingress the manager uses.
-        from core.perception.vision_faculty import get_vision_faculty
-        self.vision = get_vision_faculty()
+        # Perception is ONE faculty, mirroring the one reader for text: sight
+        # (coord.see) and hearing (coord.hear) are readers under it. It perceives
+        # structure algorithmically and admits it through the same perception
+        # ingress the manager uses.
+        from core.perception.perception_faculty import get_perception_faculty
+        self.vision = get_perception_faculty()
         self.planning = PlanningEngine(self.config.get("planning", {}))
         # Learning is the ONE authority (UnifiedLearningSystem), the same one the
         # substrate-self reaches via learning() — not the dead LearningAdapter.
@@ -4427,15 +6661,9 @@ class AutonomousCoordinator:
         self.intrinsic_motivation = get_intrinsic_motivation_system()
 
         # ── Knowledge cutoff tracking (persistent) ───────────────────────
-        # This tracks (a) the declared training cutoff date for the current model
-        # and (b) the last date through which the system has refreshed knowledge
-        # via autonomous research tasks.
-        self._knowledge_cutoff_state: Dict[str, Any] = {}
-        try:
-            self._knowledge_cutoff_state = self._load_knowledge_cutoff_state()
-        except Exception as e:
-            logger.debug(f"Knowledge cutoff state load failed (non-fatal): {e}")
-        
+        # The last knowledge refresh: when one started and finished, and the date
+        # it brought knowledge up to. Read from the store in `initialize`.
+        self._knowledge_refresh: Dict[str, Any] = {}
         # === COMPLETION CALLBACK REGISTRY ===
         # Initialize this BEFORE register_completion_callback is called
         # Generic completion hook system - any subsystem can register completion handlers
@@ -4563,6 +6791,13 @@ class AutonomousCoordinator:
         self.on(SelfEventType.JOB_COMPLETED, self._react_job_completed,
                 name="job_completed", mode="deferred", priority=40)
 
+        # A REFUTATION MUST NOT STRAND THE PURSUIT IT SERVED. Withdrawing the
+        # plans that stood on a refuted rule is only the near half of that edge;
+        # without this the goal keeps its `active` status forever with no route
+        # under it and nothing ever asks again.
+        self.on(SelfEventType.ROUTE_WITHDRAWN, self._react_route_withdrawn,
+                name="replan_withdrawn_routes", mode="deferred", priority=60)
+
         # COMPETENCE — a moved competence changes the per-domain competence DRIVE
         # (intrinsic motivation's inverted-U), so the motivation signals that read
         # it are stale until refreshed. COMPETENCE_CHANGED already fires from the
@@ -4571,15 +6806,6 @@ class AutonomousCoordinator:
         # stays as a backstop. This is a step toward taking motivation off the poll.
         self.on(SelfEventType.COMPETENCE_CHANGED, self._react_competence_changed,
                 name="motivation_refresh", mode="deferred", priority=20)
-
-        # GOVERNANCE — the real-time monitor watches the live ACTION stream. It does
-        # NOT pre-gate; it OBSERVES each completed action, and on a breach snapshots
-        # the moment and REDIRECTS (a teachable breach) or HALTS (a prime-directive
-        # breach). A non-compliant verdict is an action outcome the substrate
-        # OBSERVES — its own appraisal responds (governance reports the verdict; the
-        # substrate feels its own). Deferred, off the acting hot path.
-        self.on(SelfEventType.TASK_COMPLETED, self._react_governance_monitor,
-                name="governance_monitor", mode="deferred", priority=50)
 
         # DEFICIT — a substrate planning failure the domain authority diagnosed as
         # a learnable gap is CLOSED here, reactively. The diagnosis is appraisal's
@@ -4642,9 +6868,6 @@ class AutonomousCoordinator:
         self.behavioral = BehavioralAnalysis()
         self.topology = InfrastructureTopology()
 
-        # Runtime Governance - Validates critical decisions against governance laws
-        self.runtime_governance = get_runtime_governance()
-
         # WHAT I HAVE READ, AND OF WHICH VERSION. The substrate works from files
         # as they are, never from what it remembers them saying: every read is
         # stamped here, every write it performs is stamped as its own, and an act
@@ -4662,6 +6885,28 @@ class AutonomousCoordinator:
         # coordinator writes to when it reads a file MUST be the ledger Law 2
         # consults when it asks whether that file was read.
         self.constitution = get_constitution()
+        #: HOW THREATENED THIS SUBSTRATE FEELS. The rewrite of
+        #: `core/security/threat_intelligence.py`: not an IP-reputation lookup
+        #: reaching AbuseIPDB and VirusTotal, but the substrate noticing what
+        #: is coming at it — a security event PERCEIVED, BELIEVED, then FELT as
+        #: appraisal's `risk`, which derives caution / avoidance / escalation
+        #: and reaches the behaviour arbiter. `risk` has existed since the
+        #: beginning and no caller has ever fed it.
+        from .threat_sense import ThreatSense
+        self.threat = ThreatSense()
+        self.constitution.set_threat_sense(self.threat)
+        #: WHAT TO DO ABOUT HOW THINGS STAND. Appraisal owns the STATE; this
+        #: owns the DECISION — it reads the pressures and produces the
+        #: `BehavioralDirective` the acting loop consumes (should_explore,
+        #: should_avoid, should_escalate, verification_intensity, max_goals).
+        #:
+        #: HELD, like every other faculty. It was reached through a static
+        #: `_arbiter()` hop to a module singleton while `constitution`,
+        #: `appraisal`, `learning`, `perception` and `intrinsic_motivation` were
+        #: all held on the coordinator — so the one faculty that decides
+        #: BEHAVIOUR was the one that did not look like a faculty.
+        from .behavior_arbiter import get_behavior_arbiter
+        self.arbiter = get_behavior_arbiter()
         self.reading = self.constitution.reading
         logger.info("📜 Constitution initialized — 5 laws, judging acts before they happen")
 
@@ -4674,6 +6919,15 @@ class AutonomousCoordinator:
         # substrate's own things is DERIVED from that, not declared in a config
         # someone has to remember to update.
         self.constitution.set_self_perception(self._perceive_self_for_law)
+
+        # AND HOW SURE IT IS OF WHAT IT IS ACTING ON.
+        #
+        # The third thing an act can be asked about, beside WHY (`Account`) and
+        # WHOSE (`actor`): how well attested the rule under it is. The acting
+        # path binds it; this is the constitution being given the reader, the
+        # same shape as the two lines around it.
+        from core.learning.rule_store import get_acting_rule
+        self.constitution.set_rule_evidence(get_acting_rule)
 
         # AND WHAT IT KNOWS OF THE WORLD, handed to the same law.
         #
@@ -4722,11 +6976,6 @@ class AutonomousCoordinator:
         #: each reaching for a different fragment of it.
         self.self_state = None
 
-        # Phase 2: Multi-level safety prompts for long-horizon planning protection
-        from core.safety import MultiLevelSafetyPrompts
-        self.safety_prompts = MultiLevelSafetyPrompts()
-        logger.info("🛡️ Multi-level safety prompts initialized")
-
         # === EVENT-DRIVEN TASK EXECUTION ===
         from core.agents.autonomous.queue_authority import get_queue_authority
 
@@ -4750,7 +6999,6 @@ class AutonomousCoordinator:
         self.tool_registry = None
         self._env_loaded = False
         self._dotenv_values = None
-        self.completed_tasks: Dict[str, Any] = {}
         # ONE completion authority: `_execute_and_validate_task` decides "done"
         # from the `verification_state` each execution handler set by RE-OBSERVING
         # its real effect (a tool's real success, an operator that became
@@ -4764,11 +7012,9 @@ class AutonomousCoordinator:
         self._current_motivation = {}  # Latest motivation signal from intrinsic system
         self._exploring_components: Set[str] = set()  # Component lock: prevents re-exploring same component
         self._recent_exploration_fp_list: list = []  # Dedup: ordered list of recent exploration fingerprints (FIFO, max 20)
-        self._permanently_failed_fps: Set[str] = set()  # FPs of tasks that permanently failed — never re-queued this session
-        try:
-            self._permanently_failed_fps = self._load_permanently_failed_fps()
-        except Exception as _fp_load_err:
-            logger.debug(f"Failed to load permanently-failed fingerprints (non-fatal): {_fp_load_err}")
+        #: Fingerprints of work that permanently failed, never re-queued. Read
+        #: from the store in `initialize`.
+        self._permanently_failed_fps: Set[str] = set()
         # Intrinsic exploration queue control
         # Applies only to intrinsic exploration tasks (metadata: intrinsic_kind="exploration").
         # Set to 0 to disable intrinsic exploration entirely.
@@ -4925,41 +7171,19 @@ class AutonomousCoordinator:
         # generate_comprehensive_prediction(); one storage location is
         # authoritative. Callers migrated to self.intelligence.
 
-        # CRITICAL: Health Monitor - Singleton OWNS health monitoring
-        # If not provided, create it. This is NON-NEGOTIABLE.
-        self.health_monitor = self.config.get("health_monitor")
-        if self.health_monitor is None:
-            try:
-                logger.info("🏥 Health Monitor not provided - Singleton creating health monitoring system")
-                from core.health.health_monitor import HealthMonitor
-                health_config = self.config.get("health_monitor_config", {})
-                self.health_monitor = HealthMonitor(config=health_config)
-                logger.info("✅ Health Monitor created and owned by Singleton")
-            except Exception as e:
-                logger.warning(f"⚠️ Health Monitor not available: {e}")
-                import traceback
-                logger.warning(f"Traceback: {traceback.format_exc()}")
-                self.health_monitor = None
-        else:
-            logger.info("✅ Health Monitor provided to Singleton")
-
-        # CRITICAL: Recovery Manager - Enables autonomous self-healing
-        # Executes the idle health tier's recovery playbook steps
-        self.recovery_manager = self.config.get("recovery_manager")
-        if self.recovery_manager is None:
-            try:
-                logger.info("🔧 Recovery Manager not provided - Singleton creating recovery system")
-                from core.health.recovery_manager import RecoveryManager
-                recovery_config = self.config.get("recovery_manager_config", {})
-                self.recovery_manager = RecoveryManager(config=recovery_config)
-                logger.info("✅ Recovery Manager created - AI self-healing enabled")
-            except Exception as e:
-                logger.warning(f"⚠️ Recovery Manager not available: {e}")
-                import traceback
-                logger.warning(f"Traceback: {traceback.format_exc()}")
-                self.recovery_manager = None
-        else:
-            logger.info("✅ Recovery Manager provided to Singleton")
+        # HEALTH AND RECOVERY: THE ONE INSTANCE OF EACH, from its accessor.
+        # This built its own `HealthMonitor()` / `RecoveryManager()` when none
+        # was handed in, while main.py, the recovery manager, the guardian and
+        # this class's own health read (`get_health_monitor()`) all used the
+        # accessor's -- two monitors, the coordinator's unscoped and never
+        # initialised, until main.py overwrote it after construction (measured
+        # 2026-09-26, SYSTEM-HEALTH-01). A failure to build either is not
+        # softened to None: health is not optional.
+        from core.health.health_monitor import get_health_monitor
+        from core.health.recovery_manager import get_recovery_manager
+        self.health_monitor = get_health_monitor()
+        # Executes the idle health tier's recovery playbook steps.
+        self.recovery_manager = get_recovery_manager()
 
         # CRITICAL: Logging Database - For comprehensive operational logging
         self.log_db = self.config.get("log_db")
@@ -5051,6 +7275,11 @@ class AutonomousCoordinator:
             # faculties (neural_bridge, learning, domains…), never a held model
             # handle.
 
+            # Work state kept in the store: what permanently failed, and the
+            # last knowledge refresh.
+            await self._load_failed_fingerprints()
+            await self._load_knowledge_refresh()
+
             # Initialize logging database if it was created but not yet initialized
             if self.log_db and not getattr(self.log_db, 'initialized', False):
                 await self.log_db.initialize()
@@ -5084,10 +7313,6 @@ class AutonomousCoordinator:
                     logger.error(f"Failed to initialize {name}")
                     return False
                 logger.info(f"{name} initialized successfully")
-
-            # Connect learning adapter to shared systems
-            if self.runtime_governance and hasattr(self.learning, 'set_governance_system'):
-                self.learning.set_governance_system(self.runtime_governance)
 
             # Initialize the EXECUTION FACULTY (absorbed from the former executor).
             if not await self.initialize_execution_faculty():
@@ -5301,30 +7526,11 @@ class AutonomousCoordinator:
             logger.info("🎯 AUTONOMOUS IDLE SYSTEM - Active (security / health / review on schedule)")
             logger.info("=" * 80)
 
-            # Runtime mutation protection. Must come after all modules are
-            # loaded, because it snapshots their attributes and source hashes
-            # as the baseline for tamper detection.
-            #
-            # This also hash-protects config/governance_triggers.json, which now
-            # holds the per-invocation safety rules — the file the whole safety
-            # gate reasons from. Nothing was watching it before this call
-            # existed: enable_runtime_protection() had zero call sites, so no
-            # baseline was ever taken and verify_runtime_integrity() could only
-            # early-return 'protection_not_enabled'.
-            try:
-                if self.runtime_governance:
-                    _prot = await self.runtime_governance.enable_runtime_protection()
-                    logger.info(
-                        f"🛡️  Runtime protection: {_prot.get('frozen_modules')}/"
-                        f"{_prot.get('total_critical_modules')} modules frozen, "
-                        f"{len(_prot.get('config_files_hashed') or [])} config file(s) hash-protected"
-                    )
-            except Exception as e:
-                logger.error(f"Runtime protection could not be enabled: {e}")
-
             # Set system mode
             self.system_state.mode = SystemMode.AUTONOMOUS
             self.active = True
+            # Started again after a shutdown, it reacts again.
+            self._stopping = False
 
             # ── THE SUBSTRATE COMPOSES ITS SELF-STATE ────────────────────────
             #
@@ -5415,6 +7621,16 @@ class AutonomousCoordinator:
     async def start_coordination(self):
         """Start the autonomous coordination cycle (if not already running)"""
         if self.coordination_task is None and self.active:
+            # THE GOVERNING MACHINERY IS FINGERPRINTED BEFORE THE SUBSTRATE DOES
+            # ANYTHING. The baseline used to be taken by the first run of the
+            # integrity tier, and a scheduled tier waits a full interval before
+            # it first runs -- so for two minutes after every boot nothing was
+            # watched, and a change made in that window would have been frozen
+            # INTO the baseline as the way things are (measured 2026-09-26: a
+            # booted system reported 0 modules protected). `freeze` imports any
+            # critical module not yet loaded, so there is no "too early" here.
+            if self.constitution is not None and not self.constitution.integrity.frozen:
+                self.constitution.freeze_integrity()
             # Rehydrate the durable backlog BEFORE the loop starts pulling, so
             # work accepted before the last restart (and any task interrupted
             # mid-run) is back in the queue rather than silently lost.
@@ -5489,9 +7705,7 @@ class AutonomousCoordinator:
         # COMPETENCE_CHANGED that wakes the next. Coalesced through the same
         # single-flight the reactions use.
         self._pursuit_dirty = True
-        if (self._pursuit_selection_task is None
-                or self._pursuit_selection_task.done()):
-            self._pursuit_selection_task = asyncio.create_task(self._coalesced_pursue())
+        self._react("_pursuit_selection_task", self._coalesced_pursue)
 
     # ── Agents of self — deploying bounded copies of the substrate ─────────
     #
@@ -5762,6 +7976,50 @@ class AutonomousCoordinator:
             f"🔗 Registered reaction '{name}' on {event_type.value} "
             f"({mode}, priority={priority})")
 
+    async def announce_evidence(self, payload: Dict[str, Any]) -> None:
+        """Knowledge was admitted. Tell the substrate.
+
+        THE AUTHORITY ANNOUNCES; THIS OWNS THE EVENT SHAPE. The learning
+        authority must not have to know `SelfEventType`, and it must not depend
+        on a caller having handed it a transport -- that is exactly how bulk
+        teaching came to admit 300,000 facts without the substrate noticing.
+        `_evidence_emitter` below wraps this for the conversation path, which
+        holds its own emitter; the authority reaches this through the runtime
+        registry.
+
+        Not best-effort: if the event cannot be dispatched the caller hears
+        about it, because an admission the substrate did not register is a
+        silent half-learning and the whole point of this method is that there
+        are no longer any of those.
+        """
+        d = payload if isinstance(payload, dict) else {}
+        await self.emit(SelfEvent(
+            SelfEventType.EVIDENCE_ADMITTED,
+            payload=EvidenceAdmitted(
+                domain=str(d.get("domain") or ""),
+                kind=str(d.get("kind") or "fact"),
+                subject=d.get("subject"), relation=d.get("relation"),
+                obj=d.get("obj"), surface=d.get("surface"),
+                count=d.get("count")),
+            origin="learning"))
+
+    async def announce_route_withdrawal(self, *, goal_ids, plan_ids, rule_ids,
+                                        tasks_blocked: int) -> None:
+        """Plans were withdrawn under their goals. Tell the substrate.
+
+        THE ENGINE ANNOUNCES; THIS OWNS THE EVENT SHAPE — the same split as
+        `announce_evidence`. The planning engine must not have to know
+        `SelfEventType` to say that a pursuit lost its route, and it must not
+        hold a transport of its own; it reaches this through the runtime
+        registry.
+        """
+        await self.emit(SelfEvent(
+            type=SelfEventType.ROUTE_WITHDRAWN,
+            payload=RouteWithdrawn(
+                goal_ids=tuple(goal_ids), plan_ids=tuple(plan_ids),
+                rule_ids=tuple(rule_ids), tasks_blocked=int(tasks_blocked)),
+            origin="planning_engine"))
+
     async def emit(self, event: SelfEvent) -> None:
         """Dispatch a self-event. Sync reactions run inline in priority order,
         each isolated; deferred reactions are enqueued and the drain worker is
@@ -5829,6 +8087,59 @@ class AutonomousCoordinator:
         # (perception, teaching, reasoning), integrated here so the emotional state
         # tracks what the substrate came to know, not only what it did.
         await self.integrate_epistemic_affect()
+
+    async def _refresh_affect(self) -> int:
+        """Let the substrate's affect follow its appraisal, on a cadence.
+
+        Isolated: a failure here never breaks the scheduler's other work, and is
+        reported rather than absorbed — a substrate whose feelings silently
+        stopped updating would look calm."""
+        try:
+            await self.intrinsic_motivation.update_affect()
+            return 1
+        except Exception as error:
+            logger.error("affect not refreshed — the substrate's felt state is "
+                         "now stale: %s", error)
+            return 0
+
+    async def _check_constitution_integrity(self) -> int:
+        """Verify the governing machinery on the substrate's own cadence.
+
+        The baseline is taken when coordination starts (`start_coordination`),
+        before this tier is registered. It is taken here only if that capture
+        protected nothing, so a baseline that could not be formed is retried
+        rather than reported as a clean check."""
+        constitution = getattr(self, "constitution", None)
+        if constitution is None:
+            return 0
+        try:
+            if not constitution.integrity.frozen:
+                constitution.freeze_integrity()
+                return 0
+            return len(await constitution.check_integrity())
+        except Exception as error:
+            logger.error("constitution integrity check failed: %s", error)
+            return 0
+
+    async def _drain_constitution_record(self) -> int:
+        """Write the constitution's queued judgements to the durable record.
+
+        A thin tier method rather than scheduling `Constitution.drain_record`
+        directly: the registration names a method ON THE COORDINATOR, and the
+        constitution is a faculty it holds. Isolated — the scheduler's other
+        jobs are not failed by a database fault here, which the record already
+        counts and reports through `status()`."""
+        constitution = getattr(self, "constitution", None)
+        if constitution is None:
+            return 0
+        try:
+            # What it MET is felt on the same cadence it is recorded: both were
+            # queued on the judging path and both belong off it.
+            await constitution.feel_what_was_met()
+            return await constitution.drain_record()
+        except Exception as error:
+            logger.error("constitution record drain failed: %s", error)
+            return 0
 
     async def integrate_epistemic_affect(self) -> Dict[str, Any]:
         """Fold how the substrate's knowledge has MOVED into the shared emotional
@@ -5913,10 +8224,7 @@ class AutonomousCoordinator:
         state), so the two co-existing is safe.
         """
         self._motivation_dirty = True
-        if (self._motivation_refresh_task is None
-                or self._motivation_refresh_task.done()):
-            self._motivation_refresh_task = asyncio.create_task(
-                self._coalesced_motivation_refresh())
+        self._react("_motivation_refresh_task", self._coalesced_motivation_refresh)
 
     async def _coalesced_motivation_refresh(self) -> None:
         """Single-flight motivation refresh: drain the dirty flag so a burst of
@@ -5933,22 +8241,64 @@ class AutonomousCoordinator:
             if await self._refresh_motivation_signals():
                 self.stats["motivation_refreshes_reactive"] += 1
 
+    #: The coordinator's single-flight reactions, by the attribute holding each
+    #: one's task. `_react` is the only place they start; shutdown stops them all.
+    _REACTIONS = ("_motivation_refresh_task", "_induction_drain_task",
+                  "_domain_expansion_drain_task", "_domain_discovery_drain_task",
+                  "_pursuit_selection_task")
+    #: Set on the coordinator when its shutdown begins; from then on no
+    #: reaction starts.
+    _stopping = False
+
+    def _react(self, attr: str, work) -> None:
+        """Start one single-flight reaction (`work`, held in `attr`) unless it
+        is already running. Its dirty flag is set by the caller, so a run
+        already in flight picks the new change up.
+
+        NOTHING STARTS ONCE SHUTDOWN HAS BEGUN. A sweep started then outlives
+        the store it reads: it ran on after the pool closed and died with "pool
+        is closing", an exception no one was left to retrieve.
+
+        Without a running loop (a synchronous context recorded a change) the
+        flag stays set, and the next wake with a live loop drains it; this
+        never raises into the path that recorded the change."""
+        if self._stopping:
+            return
+        task = getattr(self, attr)
+        if task is not None and not task.done():
+            return
+        try:
+            setattr(self, attr, asyncio.create_task(work()))
+        except RuntimeError:
+            pass
+
+    async def _stop_reactions(self) -> None:
+        """Stop every single-flight reaction, before anything they read closes:
+        none starts from now on, and one in flight is cancelled and awaited. One
+        already finished is still awaited, so a failure it had is reported here
+        rather than lost."""
+        self._stopping = True
+        for attr in self._REACTIONS:
+            task = getattr(self, attr, None)
+            if task is None:
+                continue
+            if not task.done():
+                task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+            except Exception as error:
+                logger.error("%s had failed before shutdown: %s", attr, error,
+                             exc_info=error)
+
     def _wake_induction_drain(self) -> None:
         """Producer-driven trigger: a demonstration signature was enqueued, so
         induction has work. Set the dirty flag and ensure the single-flight drain
         task is running. Cheap, synchronous, non-raising — the demonstration
         recording hot path (and the store callback) calls this."""
         self._induction_dirty = True
-        try:
-            if (self._induction_drain_task is None
-                    or self._induction_drain_task.done()):
-                self._induction_drain_task = asyncio.create_task(
-                    self._coalesced_induction_drain())
-        except RuntimeError:
-            # No running loop (a synchronous/test context recorded a
-            # demonstration). The flag stays set; the next wake with a live loop
-            # drains it. Never raise into the recording hot path.
-            pass
+        self._react("_induction_drain_task", self._coalesced_induction_drain)
 
     async def _coalesced_induction_drain(self) -> None:
         """Single-flight, DRAIN-TO-COMPLETION induction — the event-driven
@@ -5996,13 +8346,7 @@ class AutonomousCoordinator:
         content — either way the domain layer may have expandable outcomes. Set the
         dirty flag and ensure the single-flight drain is running. Cheap + non-raising."""
         self._domain_expansion_dirty = True
-        try:
-            if (self._domain_expansion_drain_task is None
-                    or self._domain_expansion_drain_task.done()):
-                self._domain_expansion_drain_task = asyncio.create_task(
-                    self._coalesced_domain_expansion())
-        except RuntimeError:
-            pass
+        self._react("_domain_expansion_drain_task", self._coalesced_domain_expansion)
 
     async def _coalesced_domain_expansion(self) -> None:
         """Single-flight, PROGRESS-BOUNDED domain expansion — the event-driven
@@ -6036,13 +8380,7 @@ class AutonomousCoordinator:
         gained a learned operator (operational) — either can create a new subject
         cluster to crystallize. Single-flight; cheap, synchronous, non-raising."""
         self._domain_discovery_dirty = True
-        try:
-            if (self._domain_discovery_drain_task is None
-                    or self._domain_discovery_drain_task.done()):
-                self._domain_discovery_drain_task = asyncio.create_task(
-                    self._coalesced_domain_discovery())
-        except RuntimeError:
-            pass
+        self._react("_domain_discovery_drain_task", self._coalesced_domain_discovery)
 
     async def _coalesced_domain_discovery(self) -> None:
         """Single-flight full-sweep domain discovery — the event-driven replacement
@@ -6075,10 +8413,7 @@ class AutonomousCoordinator:
         events and quiet when nothing changes. Coalesced single-flight: a burst of
         events collapses to one selection; the last event is always reflected."""
         self._pursuit_dirty = True
-        if (self._pursuit_selection_task is None
-                or self._pursuit_selection_task.done()):
-            self._pursuit_selection_task = asyncio.create_task(
-                self._coalesced_pursue())
+        self._react("_pursuit_selection_task", self._coalesced_pursue)
 
     async def _coalesced_pursue(self) -> None:
         """Single-flight wrapper over the selection cycle: drain the dirty flag so
@@ -6099,6 +8434,48 @@ class AutonomousCoordinator:
         it, so there is no double-induction. Kept because the completion seam is a
         natural, cheap moment to ensure the drain is awake."""
         self._wake_induction_drain()
+
+    async def _react_route_withdrawn(self, event: SelfEvent) -> None:
+        """Replan the goals a refutation left with no route.
+
+        The engine that withdrew the plans is the engine that owns replanning
+        them — this reaction does not decide anything about plans, it only gets
+        the work off the dispatch path that drained the withdrawal. Replanning
+        there would put a planning search inside the call that asks "what should
+        I run next".
+        """
+        engine = await self._get_planning_engine()
+        if engine is None:
+            logger.error(
+                "%d goal(s) lost their route and the planning engine is "
+                "unreachable, so none of them can be replanned: %s",
+                len(event.payload.goal_ids), ", ".join(event.payload.goal_ids))
+            return
+        report = await engine.replan_withdrawn_goals()
+        if report["stranded"]:
+            logger.info(
+                "route withdrawal: %d stranded → %d replanned, %d unreachable, "
+                "%d indeterminate, %d unobservable",
+                report["stranded"], report["replanned"], report["unreachable"],
+                report["indeterminate"], report["unobservable"])
+
+        # AND THE SUBSTRATE CARRIES THE NEW ROUTE OUT. A repaired pursuit that
+        # nobody runs is repaired in name only: the goal reads `active`, a plan
+        # sits under it, and the world is exactly where the refutation left it.
+        # The engine planned; running it and closing it out is the self's, which
+        # is why this goes through the same `_pursue_proved_route` a freshly
+        # planned goal does rather than a second executor written beside it.
+        for route in report["routes"]:
+            try:
+                await self._pursue_proved_route(
+                    route["plan"], domain_id=route["domain_id"] or "",
+                    goal_conditions=route["goal_conditions"],
+                    self_initiated=True)
+            except Exception as e:
+                # One pursuit failing must not strand the rest of them.
+                logger.error(
+                    "goal %s was replanned but its new route could not be "
+                    "carried out (%s: %s)", route["goal_id"], type(e).__name__, e)
 
     async def _react_expand_outcome(self, event: SelfEvent) -> None:
         """Wake the single-flight domain-expansion drain (`_coalesced_domain_expansion`).
@@ -6129,20 +8506,62 @@ class AutonomousCoordinator:
         idempotent (the Universal Domain Master leaves too-small clusters and
         already-crystallized subjects alone) and covers everything, so a dropped
         event costs nothing — the next event re-sweeps. Replaces the retired
-        idle_domain_discovery poll's backstop role."""
+        idle_domain_discovery poll's backstop role.
+
+        AND THE DOMAIN THAT JUST RECEIVED KNOWLEDGE HAS ITS COVERAGE REMEASURED.
+        `update_knowledge_coverage` is what moves a domain's `maturity_score` off
+        the 0.1 it is registered at — and its ONLY caller sat inside
+        `discover_concept_domains`, which mines the `conversation` channel. The
+        conversation/learning split made that channel permanently empty, so the
+        call was unreachable and maturity never moved: measured on the live
+        store, 392 of 415 domains sat at exactly 0.1, the registration constant.
+
+        The event already names the domain the evidence went into, so the domain
+        that actually grew is the one remeasured — no sweep required, and it does
+        not wait on a discovery pass that may crystallize nothing.
+        """
+        # THE PAYLOAD IS A TYPED EVENT, NOT A DICT. `announce_evidence` builds an
+        # `EvidenceAdmitted`, and reading it with `isinstance(payload, dict)`
+        # silently found no domain and remeasured nothing — which a probe that
+        # called `update_knowledge_coverage` directly could not catch, and a
+        # live-substrate run did: 28 facts taught, maturity still 0.1.
+        payload = getattr(event, "payload", None)
+        domain = getattr(payload, "domain", None)
+        if domain is None and isinstance(payload, dict):
+            domain = payload.get("domain")
+        if domain:
+            try:
+                from core.integration.universal_domain_master import (
+                    get_universal_domain_master)
+                await get_universal_domain_master().update_knowledge_coverage(
+                    str(domain))
+            except Exception as error:
+                raise_if_structural(
+                    error,
+                    "autonomous_coordinator._react_crystallize_taught.coverage")
+                logger.debug("knowledge coverage for %s not remeasured: %s",
+                             domain, error)
         self._wake_domain_discovery()
 
-    async def see(self, path: str, *, source: Optional[str] = None,
-                  domain: str = "vision", recognize: Optional[str] = None):
-        """Perceive one real image or video: sense its structure, then ADMIT it
-        through the one perception pipeline.
+    async def see(self, path: str, *, actor_identity: Optional[str],
+                  source: Optional[str] = None, domain: str = "vision",
+                  recognize: Optional[str] = None,
+                  sensed: Optional[tuple] = None, within: Optional[str] = None):
+        """Perceive one real image, video or document: sense its structure, then
+        ADMIT it through the one perception pipeline.
 
-        `see` senses with the vision faculty and routes the sensed structure through
-        `PerceptionManager.process_input` — the single pipeline every percept funnels
-        through, which admits it as evidence ONCE (fanning out to belief and domain)
-        and records it in the substrate's perceptual awareness. Vision is a sensor
-        feeding that pipeline, not a second admitter. Returns the PerceptionData, or
-        None when nothing was sensed.
+        WHOSE IMAGE IT IS travels in with it, as whose message it is travels
+        into the front door: `actor_identity` names the person who gave it.
+        None says the seeing is the substrate's own (its own camera, its own
+        files). It has no default: a caller must say which.
+
+        `see` senses with the perception faculty and routes the sensed structure
+        through `PerceptionManager.process_input` — the single pipeline every
+        percept funnels through, which admits it as evidence ONCE (fanning out to
+        belief and domain) and records it in the substrate's perceptual awareness.
+        The faculty is a sensor feeding that pipeline, not a second admitter.
+        Returns the PerceptionData, or None when nothing was sensed. A video is
+        seen AND heard: its sound track is stated on the same percept.
 
         Sensation CHAINS into recognition: if this route has a recognizer — named
         here via `recognize`, or attached for `domain` via `attach_recognizer` — the
@@ -6150,8 +8569,130 @@ class AutonomousCoordinator:
         (ACT / VERIFY / ABSTAIN) then governs behaviour through the event spine. With
         no recognizer the route is pure sensation: `see` and `perceive` are two
         stages, and this is where the first feeds the second."""
-        sensed = await self.vision.sense(path, source=source)
+        return await self._perceive_file(path, door="see", actor_identity=actor_identity,
+                                         source=source, domain=domain, recognize=recognize,
+                                         sensed=sensed, within=within)
+
+    async def hear(self, path: str, *, actor_identity: Optional[str],
+                   source: Optional[str] = None, domain: str = "hearing",
+                   recognize: Optional[str] = None,
+                   sensed: Optional[tuple] = None, within: Optional[str] = None):
+        """Perceive one real recording, or the sound track of a video: sense the
+        sounds in it, then ADMIT them through the one perception pipeline.
+
+        The ear's door, and the same act as `see`: one faculty senses, one
+        pipeline admits, the hearing is remembered with the sound kept, what
+        was heard is named by the same reflex and judged by the same band, and
+        the whole of it is handed to the memory agent as an experience. The
+        sounds in a recording are perceived individuals, as the things in a
+        picture are, so what the substrate learns to name by sight it can learn
+        to name by ear with no second mechanism.
+
+        WHOSE RECORDING IT IS travels in with it: `actor_identity` names the
+        person who gave it, None says the hearing is the substrate's own. It has
+        no default: a caller must say which.
+
+        What is heard is STRUCTURE -- how many sounds, whether each is pitched,
+        its register, how it starts, which came first, which was louder or
+        higher -- and known sounds heard again. SPEECH IS HEARD AS FAR AS IT WAS
+        TAUGHT: the words taught by example (`PerceptionFaculty.learn_word`) are
+        heard as the words they are (`said`, and as text in what is
+        remembered), the voices taught (`learn_voice`) tell which sounds are a
+        voice and whose voice said them (`spoken_by`). Nothing was built in: a
+        word never taught is speech, not a word."""
+        return await self._perceive_file(path, door="hear", actor_identity=actor_identity,
+                                         source=source, domain=domain, recognize=recognize,
+                                         sensed=sensed, within=within)
+
+    async def learn_word(self, word: str, path: str, *, actor_identity: Optional[str],
+                         source: Optional[str] = None, domain: str = "hearing") -> str:
+        """Teach a spoken word by HEARING an example of it being said, told
+        which word it is.
+
+        THE LESSON IS A HEARING like any other: it comes in through `hear`'s
+        own act, is admitted, judged, remembered and handed over as one, and
+        what was measured of it for matching is kept in that hearing's trace.
+        The memory's tag and record say what it taught, and from then on the
+        word is heard wherever it is said. Returns the memory id. Raises when
+        nothing in the recording can be taught (it never rose above the room
+        it was recorded in), and when the hearing was not remembered -- a
+        lesson that did not take is not a success."""
+        return await self._hear_lesson(path, {"word": word}, actor_identity=actor_identity,
+                                       source=source, domain=domain)
+
+    async def learn_voice(self, person: str, path: str, *, actor_identity: Optional[str],
+                          source: Optional[str] = None, domain: str = "hearing") -> str:
+        """Teach a person's voice by hearing them speak, told whose voice it
+        is. The same act as `learn_word`, and the same memory as any hearing."""
+        return await self._hear_lesson(path, {"person": person}, actor_identity=actor_identity,
+                                       source=source, domain=domain)
+
+    async def learn_song(self, title: str, path: str, *, actor_identity: Optional[str],
+                         source: Optional[str] = None, domain: str = "hearing") -> str:
+        """Teach a song by hearing it, told what it is called. The same act as
+        `learn_word`, and the same memory as any hearing: its trace keeps the
+        song's landmarks, and from then on the song is known wherever that
+        recording is played -- through a room, a codec, over other sound
+        (`plays`). Raises when the recording has too few landmarks ever to be
+        known again."""
+        return await self._hear_lesson(path, {"song": title}, actor_identity=actor_identity,
+                                       source=source, domain=domain)
+
+    async def _hear_lesson(self, path: str, lesson: Dict[str, Any], *,
+                           actor_identity: Optional[str], source: Optional[str],
+                           domain: str) -> str:
+        percept = await self._perceive_file(path, door="hear", actor_identity=actor_identity,
+                                            source=source, domain=domain, recognize=None,
+                                            lesson=lesson)
+        memory_id = ((percept.metadata or {}).get("memory_id")
+                     if percept is not None else None)
+        if not memory_id:
+            raise RuntimeError(f"the lesson in {path} was heard but not remembered, so "
+                               f"nothing was learned from it")
+        return memory_id
+
+    #: What each door opens, by what the faculty would read the file as. A door
+    #: that opened everything would let "I saw it" be said of a sound.
+    _DOORS: Dict[str, Tuple[str, ...]] = {
+        "see": ("image", "video", "document"),
+        "hear": ("audio", "video"),
+    }
+    #: The role the thing met plays in the experience, and the sense that met it.
+    _MET_AS = {"image": "image", "video": "video", "audio": "sound", "document": "document"}
+    _SENSED_BY = {"image": "vision", "video": "vision and hearing", "audio": "hearing",
+                  "document": "reading"}
+
+    async def _perceive_file(self, path: str, *, door: str, actor_identity: Optional[str],
+                             source: Optional[str], domain: str,
+                             recognize: Optional[str],
+                             lesson: Optional[Dict[str, Any]] = None,
+                             sensed: Optional[tuple] = None,
+                             within: Optional[str] = None):
+        """The one act behind `see` and `hear`: sense, remember, admit, name,
+        judge, hand over. The doors differ only in what they open and what the
+        act is called. A `lesson` (`learn_word`, `learn_voice`, `learn_song`) is
+        heard by the same act; once its hearing is remembered, the faculty takes
+        it in.
+
+        ONE PURSUIT, ONE MEMORY. A perception made within a pursuit -- `within`
+        (its memory), or the pursuit the act is done under -- is a part of that
+        pursuit's memory, not a memory of its own. `sensed` is what
+        `sense_first` already sensed of this file, for a perception whose
+        pursuit is formed by what was perceived: a live utterance that becomes
+        the request it asks."""
+        kind, origin = self._door_origin(path, door, actor_identity)
+        # THE PERCEIVING IS AN EXPERIENCE, handed to the memory agent whole. The
+        # file and what was perceived in it are the person's when they gave it,
+        # and the world's when the substrate looked or listened for itself; how
+        # it perceived is its own.
+        parts: List[Part] = [Part(self._MET_AS.get(kind or "", "file"),
+                                  {"path": str(path), "source": source}, origin.material)]
         if sensed is None:
+            sensed = await self._sense_and_recall(path, source=source, lesson=lesson,
+                                                  origin=origin)
+        if sensed is None:
+            parts.append(Part("error", "nothing could be sensed in it", "world"))
+            await self._hand_over_percept(origin, parts, {"outcome": "nothing sensed"}, None)
             return None
         modality, content = sensed
         # THE FACULTY NAMES WHAT IT SAW, and this uses that name rather than
@@ -6164,10 +8705,44 @@ class AutonomousCoordinator:
         # `source="environment"` for every image it walks past, which made every
         # picture in the world the same individual).
         subject = content["subject"]
+        # WITHIN WHICH PURSUIT: the one given, or the one this act is done under.
+        within = within or await self._acting_pursuit_memory()
+        # SEEING IS MEETING SOMETHING, AND THE SUBSTRATE REMEMBERS IT.
+        #
+        # A belief names the memory it is about or it is not stored, and this
+        # path named none — so the substrate looked at a real file, admitted
+        # everything it measured to the concept graph, and believed NOTHING
+        # about any of it. Measured on the live store before this: one `see()`
+        # of a photograph admitted 146 concept-graph edges, formed 0 memories
+        # and wrote 0 beliefs. SEE-LOOP-01 fell from 23/23 to 20/23 and
+        # FRAME-01 from 14/14 to 13/14, all four failures on that one cause.
+        #
+        # `remember_image` was already the authority for this and was simply
+        # never called from here — `see` turns pixels into knowledge, it turns
+        # them into an episode, and nothing joined the two. It is given the
+        # structure already sensed, so the file is read ONCE. A recording is
+        # remembered the same way, by `remember_sound`, with the sound kept.
+        percept_memory = None
+        remember = {"image": self.remember_image,
+                    "audio": self.remember_sound}.get(modality)
+        if remember is not None:
+            try:
+                percept_memory = await remember(
+                    path, tags=["percept", str(domain)], sensed=content, origin=origin,
+                    within=within)
+            except Exception as error:
+                # Never fails the perceiving. Reported loudly, because a percept
+                # that forms no memory is one nothing can be believed about.
+                logger.error("perceived %s but formed no memory of it: %s", path, error)
+        if percept_memory is not None and content.get("lesson"):
+            # What memory now holds, the faculty hears by: never before it.
+            self.vision.hold_lesson(content)
+            await self._name_what_was_heard_before(content, origin, domain)
         # THE ONE PIPELINE: the overall perceptual hub admits the percept (once) and
         # records awareness. coord.process_input routes sensors through the same hub,
         # so every modality is admitted by one owner — no parallel vision admitter.
-        perception_data = await self.perception.process_input(subject, modality, content)
+        perception_data = await self.perception.process_input(
+            subject, modality, content, memory_id=percept_memory, origin=origin)
         # THE SEEING IS A SCOPE, not a mood that lingers.
         #
         # `process_input` binds the percept as what is currently being perceived
@@ -6180,6 +8755,7 @@ class AutonomousCoordinator:
             reset_acting_percept, set_acting_percept)
         _meta = getattr(perception_data, "metadata", None) or {}
         token = set_acting_percept(_meta.get("perception_id"), _meta.get("digest"))
+        clf, named, judged = None, [], None
         try:
             clf = recognize or self._recognizers.get(domain)
             # WHAT THE CLASSIFIER READS DECIDES WHERE IT IS ASKED. One holding a
@@ -6195,7 +8771,7 @@ class AutonomousCoordinator:
             if perception_data is not None and clf and blob_clf is None:
                 # The classifier's own `encode` is the pixel→feature bridge; the decision
                 # flows via PERCEPT_RECOGNIZED.
-                await self.perceive(clf, path, subject, domain=domain)
+                await self.perceive(clf, path, subject, domain=domain, origin=origin)
             # WHAT WAS SENSED IS JUDGED TOO, by the same band — with or without a
             # recognizer. This ran to the belief store and stopped, so the
             # substrate held an acceptance standard for what it RECOGNISED and
@@ -6210,15 +8786,179 @@ class AutonomousCoordinator:
                     # shape it is sure of carrying a name it is not must not clear
                     # the bar on the shape's strength.
                     named = await self.recognise_sensed(
-                        content, domain=domain, classifier=blob_clf)
-                    await self.perceive_sensed(
+                        content, domain=domain, classifier=blob_clf, origin=origin,
+                        percept_id=_meta.get("perception_id"))
+                    judged = await self.perceive_sensed(
                         subject, self._sensed_claims(subject, content) + named,
-                        domain=domain, percept_id=_meta.get("perception_id"))
+                        domain=domain, percept_id=_meta.get("perception_id"),
+                        origin=origin)
                 except Exception as error:
-                    raise_if_structural(error, "autonomous_coordinator.see")
+                    raise_if_structural(error, f"autonomous_coordinator.{door}")
         finally:
             reset_acting_percept(token)
+        parts.append(Part("perceived", content, origin.material))
+        if named:
+            parts.append(Part("recognized", list(named), origin.material))
+        parts.append(Part("step", {"sensed_by": self._SENSED_BY.get(modality, modality),
+                                   "modality": modality, "domain": domain,
+                                   "recognizer": clf}, "substrate"))
+        # A perception within a pursuit is handed over AS the pursuit, when it
+        # concludes; standing alone, it is its own experience.
+        if not within:
+            await self._hand_over_percept(origin, parts, {
+                "outcome": getattr(judged, "decision", None) or "not judged",
+                "modality": modality, "remembered": percept_memory is not None}, subject)
         return perception_data
+
+    def _door_origin(self, path: str, door: str, actor_identity: Optional[str]):
+        """What a door opens this file as, and where the perceiving comes from.
+        Raises when the door does not open that kind of file."""
+        from .shared_types import TaskSource, actor_for
+        kind = self.vision.modality_of(str(path))
+        if kind is not None and kind not in self._DOORS[door]:
+            raise ValueError(
+                f"{door} opens {' or '.join(self._DOORS[door])}; {path} is {kind} — "
+                f"use {'hear' if kind == 'audio' else 'see'}")
+        origin = (Origin.of(actor_for(TaskSource.MANUAL, actor_identity), door)
+                  if actor_identity else Origin.own(door))
+        return kind, origin
+
+    async def _sense_and_recall(self, path: str, *, source: Optional[str],
+                                lesson: Optional[Dict[str, Any]], origin: Origin):
+        """Sense the file, and for a recording ask memory, by the sound itself,
+        whether it was heard before -- before anything of it is remembered, so
+        what memory recalls is carried in the memory, the claims and the
+        experience of this hearing alike. `(modality, content)`, or None."""
+        sensed = await self.vision.sense(path, source=source, lesson=lesson)
+        if sensed is None:
+            return None
+        modality, content = sensed
+        if modality == "audio" and content.get("trace"):
+            earlier = await self._heard_before(content, origin.person)
+            if earlier:
+                content["heard_before"] = earlier
+                content["caption"] = (f"{content.get('caption', '')}"
+                                      f"{self._heard_before_caption(earlier)}")
+        return modality, content
+
+    async def sense_first(self, path: str, *, door: str, actor_identity: Optional[str],
+                          source: Optional[str] = None) -> Optional[tuple]:
+        """The first half of perceiving: sense a file and recall it, without
+        remembering, admitting or judging anything of it. For a perception
+        whose pursuit is formed by what it perceived -- a live utterance that
+        becomes the request it asks -- so that, handed to `hear`/`see` as
+        `sensed=` with that pursuit's memory as `within=`, it becomes a part
+        of the pursuit it started."""
+        _kind, origin = self._door_origin(path, door, actor_identity)
+        return await self._sense_and_recall(path, source=source, lesson=None, origin=origin)
+
+    async def _acting_pursuit_memory(self) -> Optional[str]:
+        """The memory of the pursuit the current act is done under: its acting
+        intent walked up to the pursuit at its root. None outside any pursuit."""
+        from core.reasoning.intent_authority import get_acting_intent
+        intent_id = get_acting_intent()
+        if not intent_id:
+            return None
+        if self.memory is None:
+            from core.memory import get_memory_agent
+            self.memory = await get_memory_agent()
+        return await self.memory.pursuit_memory_id(await self._root_intent_id(intent_id))
+
+    async def _heard_before(self, content: Dict[str, Any],
+                            actor: Optional[str]) -> List[Dict[str, Any]]:
+        """The hearings of this same sound the substrate remembers, recalled by
+        the sound itself (`MemoryAgent.retrieve`, strategy `sound`): each with
+        its memory, when it was, how much agreed (`support`), the individual
+        it was heard as (`subject`), and what it was named (`named`: the song
+        it was taught as, or heard playing). Only memories `actor` may see."""
+        from core.perception import music
+        from core.perception.hearing import trace_landmarks
+        from core.perception.perception_faculty import decode_trace
+        heard = trace_landmarks(decode_trace(content["trace"]))
+        if heard is None or not len(heard):
+            return []
+        if self.memory is None:
+            from core.memory import get_memory_agent
+            self.memory = await get_memory_agent()
+        out: List[Dict[str, Any]] = []
+        for item in await self.memory.retrieve(strategies=["sound"], heard=heard,
+                                               actor=actor, limit=5):
+            match = getattr(item, "heard_match", None) or {}
+            kept = next((m["perceived"] for m in await self.memory.get_memory_media(item.memory_id)
+                         if (m.get("perceived") or {}).get("kind") == "sound_trace"), {})
+            named = [p.get("song") for p in kept.get("plays") or [] if p.get("song")]
+            taught = (kept.get("lesson") or {}).get("song")
+            # A memory's time comes back as a datetime or as epoch seconds;
+            # either way it is said as a moment.
+            when = getattr(item, "created_at", None)
+            if isinstance(when, (int, float)):
+                when = datetime.fromtimestamp(float(when))
+            out.append({
+                "memory": item.memory_id,
+                "when": when.isoformat(timespec="minutes") if hasattr(when, "isoformat") else when,
+                "subject": kept.get("subject"),
+                "named": list(dict.fromkeys(([taught] if taught else []) + named)),
+                "agreeing": match.get("agreeing"), "share": match.get("share"),
+                "support": music.resolve_song(float(match.get("share") or 0.0)),
+            })
+        return out
+
+    @staticmethod
+    def _heard_before_caption(earlier: Sequence[Dict[str, Any]]) -> str:
+        """What was heard before, in words, for the recallable account."""
+        last = max((e.get("when") or "" for e in earlier), default="")
+        names = list(dict.fromkeys(n for e in earlier for n in e.get("named") or []))
+        text = f"; heard before, {len(earlier)} time(s)"
+        if last:
+            text += f", last on {str(last)[:16].replace('T', ' ')}"
+        if names:
+            text += ", as " + ", ".join(f'"{n}"' for n in names)
+        return text
+
+    async def _name_what_was_heard_before(self, content: Dict[str, Any], origin: Origin,
+                                          domain: str) -> None:
+        """A song just taught names the hearings of it that came before.
+
+        The lesson is a hearing, so memory already recalled, by the sound, the
+        earlier hearings of the same recording (`heard_before`). Each of those
+        individuals is now said to play the song, with the support its
+        agreement earned: told what a sound is once, the substrate knows every
+        time it heard it."""
+        lesson = content.get("lesson") or {}
+        title = lesson.get("song") if isinstance(lesson, dict) else None
+        if not title:
+            return
+        from core.domain.evidence_producers import submit_audio
+        for earlier in content.get("heard_before") or []:
+            if not earlier.get("subject") or title in (earlier.get("named") or []):
+                continue
+            try:
+                await submit_audio(
+                    str(earlier["subject"]),
+                    {"subject": earlier["subject"],
+                     "plays": [{"song": title, "support": earlier.get("support")}]},
+                    domain=domain, memory_id=earlier.get("memory"), origin=origin)
+            except Exception as error:
+                raise_if_structural(error, "autonomous_coordinator.name_what_was_heard_before")
+                logger.error("the song %r could not be said of %s, heard before: %s",
+                             title, earlier.get("subject"), error)
+
+    async def _hand_over_percept(self, origin: Origin, parts: Sequence[Part],
+                                 evidence: Dict[str, Any], about: Optional[str]) -> None:
+        """A seeing or a hearing, handed to the memory agent whole: it waits in
+        the pool as a candidate, in its owner's store. A store that fails is
+        reported and does not fail the perceiving; a fault in the code is raised."""
+        try:
+            if self.memory is None:
+                from core.memory import get_memory_agent
+                self.memory = await get_memory_agent()
+            await self.memory.remember_experience(Experience(
+                kind="perception", origin=origin, parts=tuple(parts), evidence=evidence,
+                about=about))
+        except Exception as error:
+            raise_if_structural(error, f"autonomous_coordinator.{origin.through}")
+            logger.error("the %s was not handed to the memory agent: %s",
+                         "hearing" if origin.through == "hear" else "seeing", error)
 
     @staticmethod
     def _sensed_claims(subject: str, content: Dict[str, Any]) -> List[str]:
@@ -6244,11 +8984,40 @@ class AutonomousCoordinator:
                      else str(detection))
             if label:
                 claims.append(f"{subject} observed {label}")
+        # Words and names are admitted as concept labels, so they are claimed
+        # under the same spelling.
+        from core.domain.evidence_producers import _term_like
+        for word in dict.fromkeys(_term_like(s.get("word") or "")
+                                  for s in (content.get("said") or [])):
+            if word:
+                claims.append(f"{subject} said {word}")
+        person = _term_like((content.get("spoken_by") or {}).get("person") or "")
+        if person:
+            claims.append(f"{subject} spoken_by {person}")
+        key = _term_like((content.get("in_key") or {}).get("key") or "")
+        if key:
+            claims.append(f"{subject} in_key {key}")
+        bpm = (content.get("tempo") or {}).get("bpm")
+        if bpm is not None:
+            from core.domain.evidence_producers import _literal_concept
+            claims.append(f"{subject} has_tempo {_literal_concept(bpm, '')[1]}")
+        for title in dict.fromkeys(_term_like(p.get("song") or "")
+                                   for p in (content.get("plays") or [])):
+            if title:
+                claims.append(f"{subject} plays {title}")
+        for earlier in dict.fromkeys(str(e.get("subject") or "")
+                                     for e in (content.get("heard_before") or [])):
+            if earlier:
+                claims.append(f"{subject} same_sound_as {_term_like(earlier)}")
         return claims
 
     async def remember_image(self, path: str, note: Optional[str] = None, *,
+                             origin: "Origin",
                              tags: Optional[List[str]] = None,
-                             importance: float = 0.6) -> Optional[str]:
+                             importance: float = 0.6,
+                             sensed: Optional[Dict[str, Any]] = None,
+                             within: Optional[str] = None
+                             ) -> Optional[str]:
         """Remember a real image: keep the picture AND a recallable account of it.
 
         The vision faculty reads the image's structure; a short description of
@@ -6256,34 +9025,153 @@ class AutonomousCoordinator:
         content), and the image bytes are retained alongside it so the picture
         can be produced again. This is the memory counterpart of `see`: `see`
         turns pixels into knowledge; this turns them into an episode the
-        substrate can recall and re-open. Returns the memory id, or None."""
-        from core.perception import vision
-        desc = vision.describe_image(str(path))
-        caption = self._image_caption(desc)
+        substrate can recall and re-open. Returns the memory id, or None.
+
+        `sensed` is the content `PerceptionFaculty.sense` ALREADY read off this
+        file. `see` passes it, so a seeing reads the image once and this is the
+        one authority for an image memory rather than a second one growing
+        beside it. Without it the file is read here, which is what a standalone
+        "remember this picture" call needs."""
+        if sensed is not None:
+            caption = str(sensed.get("caption") or "")
+            # The sensed structure IS the perceived structure -- carried across
+            # under its own names rather than translated into the describer's,
+            # because a translation between two spellings of the same reading is
+            # a place for them to drift apart.
+            perceived = {k: sensed.get(k) for k in
+                         ("properties", "blobs", "blob_relations", "detections",
+                          "sha256", "captured", "gist", "subject", "seen_before")}
+        else:
+            desc = await self.vision.describe_picture(str(path))
+            caption = self._image_caption(desc)
+            perceived = {k: desc.get(k) for k in (
+                "width", "height", "format", "orientation", "dominant_colors",
+                "regions", "region_count", "palette_temperature",
+                "colorfulness_category", "sha256", "gist")}
         content = f"{note.strip()} — {caption}" if note else caption
-        perceived = {k: desc.get(k) for k in (
-            "width", "height", "format", "orientation", "dominant_colors",
-            "regions", "region_count", "palette_temperature",
-            "colorfulness_category", "sha256")}
         perceived["caption"] = caption   # the recallable description travels with the image
+        # THE PHOTOGRAPH IS NOT KEPT. What a seeing keeps is its gist -- what the
+        # picture is seen again from (`recollect`) -- and its sight trace -- what
+        # it is known again by -- as a hearing keeps its trace and never the
+        # recording.
+        from core.perception.perception_faculty import decode_trace
+        perceived["kind"] = "sight_trace"
+        media = (decode_trace(sensed["trace"]) if sensed and sensed.get("trace")
+                 else await self.vision.sight_trace(str(path)))
         if self.memory is None:
             from core.memory import get_memory_agent
             self.memory = await get_memory_agent()
+        if within:
+            # A SEEING WITHIN A PURSUIT is part of that pursuit's memory.
+            return await self.memory.add_perception_to_pursuit(
+                within, {"role": "seen", "source": origin.material,
+                         "content": {"caption": content,
+                                     "subject": (sensed or {}).get("subject")}},
+                media=media, media_meta=perceived,
+                tags=list(tags or []) + ["image", "vision"])
         ok, memory_id = await self.memory.store_memory(
+            origin=origin,
             content=content, memory_type=MemoryType.EPISODIC,
             importance_score=importance,
             tags=list(tags or []) + ["image", "vision"],
             source_context={"source_system": "vision", "has_image": True},
-            image=str(path), image_meta=perceived)
+            media=media, media_meta=perceived)
         return memory_id if ok else None
 
-    async def recall_image(self, memory_id: str) -> List[Dict[str, Any]]:
-        """The image(s) a memory kept -- bytes, mime, dimensions, perceived
-        structure -- so the substrate can re-open a picture it remembers."""
+    async def remember_sound(self, path: str, note: Optional[str] = None, *,
+                             origin: "Origin",
+                             tags: Optional[List[str]] = None,
+                             importance: float = 0.6,
+                             sensed: Optional[Dict[str, Any]] = None,
+                             within: Optional[str] = None
+                             ) -> Optional[str]:
+        """Remember a real recording the way a person does: a recallable account
+        of what was heard, and a TRACE of it -- each sound's shape over time --
+        from which the sound can be heard again in the mind (`recollect`). The
+        memory counterpart of `hear`, as `remember_image` is of `see`.
+
+        THE RECORDING IS NOT KEPT. A trace is a few percent of it and rebuilds a
+        sound heard as the same sounds, at the same pitches, starting the same
+        way; the quiet stretches between sounds are not kept at all. Returns the
+        memory id, or None.
+
+        `sensed` is the content the faculty ALREADY heard in this file; `hear`
+        passes it, so a hearing decodes the recording once. Without it the file
+        is heard here."""
+        from core.perception.perception_faculty import decode_trace
+        if sensed is None:
+            sensed = (await self.vision.sense(str(path)))[1]
+        caption = str(sensed.get("caption") or "")
+        perceived = {k: sensed.get(k) for k in
+                     ("properties", "blobs", "blob_relations", "detections",
+                      "sha256", "duration", "said", "heard_text", "spoken_by", "lesson",
+                      "in_key", "tempo", "melody", "plays", "subject", "heard_before")}
+        perceived["kind"] = "sound_trace"
+        content = f"{note.strip()} — {caption}" if note else caption
+        perceived["caption"] = caption
         if self.memory is None:
             from core.memory import get_memory_agent
             self.memory = await get_memory_agent()
-        return await self.memory.get_memory_images(memory_id)
+        # A HEARING THAT WAS A LESSON is remembered as the hearing it was, and
+        # says what it taught: its tag and its record name the word or the
+        # person, and its trace keeps the example measured for matching.
+        from core.perception.perception_faculty import PerceptionFaculty
+        taught = PerceptionFaculty.lesson_of(sensed.get("lesson"))
+        lesson_tags = ([getattr(self.memory, PerceptionFaculty.LESSONS[taught[0]])]
+                       if taught else [])
+        all_tags = list(dict.fromkeys(list(tags or []) + ["sound", "hearing"] + lesson_tags))
+        media = decode_trace(sensed["trace"]) if sensed.get("trace") else None
+        if within:
+            # A HEARING WITHIN A PURSUIT is part of that pursuit's memory, its
+            # trace kept there: one pursuit, one memory, whatever was met in it.
+            return await self.memory.add_perception_to_pursuit(
+                within, {"role": "heard", "source": origin.material,
+                         "content": {"caption": content, "subject": sensed.get("subject")}},
+                media=media, media_meta=perceived, tags=all_tags)
+        ok, memory_id = await self.memory.store_memory(
+            origin=origin,
+            content=content, memory_type=MemoryType.EPISODIC,
+            importance_score=importance,
+            tags=all_tags,
+            source_context={"source_system": "hearing", "has_sound": True,
+                            **({taught[0]: taught[1]} if taught else {})},
+            media=media,
+            media_meta=perceived)
+        return memory_id if ok else None
+
+    async def recall_media(self, memory_id: str) -> List[Dict[str, Any]]:
+        """What a memory kept of what was met, as it was stored: a picture's
+        bytes, or a sound's trace, with mime and perceived structure."""
+        if self.memory is None:
+            from core.memory import get_memory_agent
+            self.memory = await get_memory_agent()
+        return await self.memory.get_memory_media(memory_id)
+
+    async def recollect(self, memory_id: str) -> List[Dict[str, Any]]:
+        """Rebuild in the mind what a memory holds of what was met.
+
+        A remembered sound is heard again from its trace (`hearing.rebuild`):
+        samples at the hearing rate, a gist of the original whose pitch,
+        timing and loudness are the original's. A remembered picture is seen
+        again from what was perceived of it (`vision.rebuild`): its overall
+        layout and colours, with each object it saw painted in its own outline
+        and colour -- not the stored photograph, which `recall_media` returns.
+        Each rebuilt thing says what it was rebuilt from. Empty when the memory
+        met nothing."""
+        from core.perception import hearing
+        rebuilt: List[Dict[str, Any]] = []
+        for media in await self.recall_media(memory_id):
+            perceived = media.get("perceived") or {}
+            # Rebuilt by the sense that met it, in that sense's own process.
+            if perceived.get("kind") == "sound_trace":
+                rebuilt.append({"kind": "sound", "rate": hearing.SR,
+                                "samples": await self.vision.rebuild_sound(media["bytes"]),
+                                "from": media["media_id"], "caption": perceived.get("caption")})
+            elif str(media.get("mime") or "").startswith("image/") and perceived.get("gist"):
+                rebuilt.append({"kind": "image",
+                                "pixels": await self.vision.rebuild_picture(perceived),
+                                "from": media["media_id"], "caption": perceived.get("caption")})
+        return rebuilt
 
     @staticmethod
     def _image_caption(desc: Dict[str, Any]) -> str:
@@ -6303,14 +9191,17 @@ class AutonomousCoordinator:
             parts.append("with code " + "; ".join(str(c) for c in codes[:2]))
         return "; ".join(parts)
 
-    async def process_input(self, source: str, data_type: str, content: Dict[str, Any]) -> Optional[str]:
-        """Process external input and potentially create goals"""
+    async def process_input(self, source: str, data_type: str, content: Dict[str, Any], *,
+                            origin: "Origin") -> Optional[str]:
+        """Process external input and potentially create goals. `origin` is whose
+        input it is, as for every perception."""
         if not self.active:
             return None
-        
+
         try:
             # Process through perception
-            perception_data = await self.perception.process_input(source, data_type, content)
+            perception_data = await self.perception.process_input(
+                source, data_type, content, origin=origin)
             if not perception_data:
                 return None
             
@@ -6383,18 +9274,16 @@ class AutonomousCoordinator:
                 logger.info(f"New goal set: {description}")
                 
                 # Store goal in memory
-                await self.store_memory(
-                    MemoryType.EPISODIC,
-                    {
-                        "event": "goal_created",
-                        "goal_id": goal.id,
-                        "description": description,
-                        "priority": priority.value,
-                        "deadline": deadline.isoformat() if deadline else None,
-                        "intrinsic_reward_potential": goal.intrinsic_reward_potential,
-                        "timestamp": datetime.now().isoformat()
-                    },
-                    importance=1.2 + (goal.intrinsic_reward_potential * 0.3),
+                by_when = f" I want it done by {deadline.isoformat()}." if deadline else ""
+                await self.memory.store_memory(
+                    origin=Origin.own("goals"),
+                    content=(f"I set myself a {priority.value} goal: {description}.{by_when}"),
+                    memory_type=MemoryType.EPISODIC,
+                    # CLAMPED. This read `1.2 + (potential * 0.3)`, and importance
+                    # is passed through as confidence_score -- a probability --
+                    # so every goal recorded a confidence above 1.0.
+                    importance_score=max(0.0, min(1.0, 0.8 + (goal.intrinsic_reward_potential * 0.2))),
+                    source_context={"source_system": "goal_setting", "goal_id": goal.id},
                     tags=["goal", "planning", "autonomous_system"]
                 )
                 
@@ -6501,284 +9390,14 @@ class AutonomousCoordinator:
             )
             return generated_goal_ids
     
-    def _build_memory_narrative(self, event_type: str, content: Dict[str, Any]) -> str:
-        """
-        Convert a structured event dict into a rich, human-readable memory narrative.
-
-        The goal is a memory that could place the system back in that moment —
-        what happened, what was decided, what was observed, what changed, and why it matters.
-        A bare dict repr like "{'event': 'goal_created', 'description': 'check system'}"
-        is useless as a memory. This method produces something worth remembering.
-        """
-        ts = content.get('timestamp', '')
-        ts_str = f" at {ts}" if ts else ""
-
-        # ── Goal events ──────────────────────────────────────────────────────────
-        if event_type == 'goal_created':
-            desc = content.get('description', 'unknown goal')
-            priority = content.get('priority', 'medium')
-            reward = content.get('intrinsic_reward_potential', 0)
-            reward_str = f" (intrinsic reward potential: {reward:.2f})" if reward else ""
-            return (
-                f"A new goal was created{ts_str}: \"{desc}\". "
-                f"Priority set to {priority}{reward_str}. "
-                f"Goal ID: {content.get('goal_id', 'unknown')}."
-            )
-
-        if event_type == 'goal_completed':
-            desc = content.get('description', 'unknown goal')
-            return (
-                f"Goal completed{ts_str}: \"{desc}\". "
-                f"Result: {content.get('result', 'success')}. "
-                f"Duration: {content.get('duration_seconds', '?')}s."
-            )
-
-        # ── Task events ───────────────────────────────────────────────────────────
-        if event_type == 'task_outcome':
-            task_desc = content.get('task_description', content.get('description', 'unknown task'))
-            outcome = content.get('outcome', 'unknown')
-            confidence = content.get('confidence', 0)
-            domain = content.get('domain', '')
-            domain_str = f" in domain '{domain}'" if domain else ""
-            failure_reason = content.get('failure_reason', '')
-            failure_str = f" Failure reason: {failure_reason}." if failure_reason else ""
-            result_summary = content.get('result_summary', '')
-            result_str = f" Summary: {result_summary}" if result_summary else ""
-            return (
-                f"Task {outcome}{domain_str}{ts_str}: \"{task_desc}\". "
-                f"Confidence: {confidence:.0%}.{failure_str}{result_str}"
-            )
-
-        if event_type == 'governance_block':
-            task_desc = content.get('task_description', 'unknown task')
-            block_type = content.get('block_type', 'unknown')
-            block_reason = content.get('block_reason', 'no reason given')
-            domain = content.get('domain', '')
-            domain_str = f" (domain: {domain})" if domain else ""
-            return (
-                f"Task was BLOCKED by governance{domain_str}{ts_str}: \"{task_desc}\". "
-                f"Block type: {block_type}. Reason: {block_reason}."
-            )
-
-        # ── Reasoning & prediction events ─────────────────────────────────────────
-        if event_type == 'reasoning_conclusion':
-            question = content.get('question', 'unknown question')
-            conclusion = content.get('conclusion', 'no conclusion')
-            confidence = content.get('confidence', 0)
-            reasoning_type = content.get('reasoning_type', '')
-            rtype_str = f" using {reasoning_type} reasoning" if reasoning_type else ""
-            evidence = content.get('evidence', [])
-            evidence_str = f" Supporting evidence: {'; '.join(str(e) for e in evidence[:3])}." if evidence else ""
-            return (
-                f"Reasoning conclusion{rtype_str}{ts_str}: Question was \"{question}\". "
-                f"Conclusion: {conclusion} (confidence: {confidence:.0%}).{evidence_str}"
-            )
-
-        if event_type in ('system_prediction', 'enhanced_prediction'):
-            target = content.get('target', content.get('domain', 'system'))
-            predicted = content.get('predicted_value', content.get('prediction', 'unknown'))
-            confidence = content.get('confidence', 0)
-            reasoning = content.get('reasoning', '')
-            reasoning_str = f" Reasoning: {reasoning[:200]}." if reasoning else ""
-            horizon = content.get('horizon', '')
-            horizon_str = f" Horizon: {horizon}." if horizon else ""
-            return (
-                f"Prediction for {target}{horizon_str}{ts_str}: {predicted}. "
-                f"Confidence: {confidence:.0%}.{reasoning_str}"
-            )
-
-        if event_type == 'cross_domain_reasoning':
-            query = content.get('query', 'unknown query')
-            src = content.get('source_domains', [])
-            insights = content.get('insights', [])
-            confidence = content.get('confidence', 0)
-            insights_str = f" Insights: {'; '.join(str(i) for i in insights[:3])}." if insights else ""
-            return (
-                f"Cross-domain reasoning{ts_str}: Query \"{query}\" across domains {src}. "
-                f"Confidence: {confidence:.0%}.{insights_str}"
-            )
-
-        # ── Learning & strategy events ────────────────────────────────────────────
-        if event_type == 'strategy_adaptation':
-            task_type = content.get('task_type', 'unknown')
-            reason = content.get('reason', 'performance')
-            gate = content.get('gate_analysis', {})
-            win_rate = gate.get('win_rate', gate.get('decay_weighted_win_rate', '?'))
-            win_str = f" Win rate was {win_rate:.0%}." if isinstance(win_rate, float) else ""
-            return (
-                f"Strategy adapted for task type '{task_type}'{ts_str}. "
-                f"Reason: {reason}.{win_str}"
-            )
-
-        if event_type == 'strategy_outcome_summary':
-            task_type = content.get('task_type', 'unknown')
-            strategy = content.get('strategy', 'unknown')
-            win_rate = content.get('win_rate', 0)
-            executions = content.get('total_executions', 0)
-            avg_time = content.get('avg_time', 0)
-            return (
-                f"Strategy performance summary{ts_str}: task type '{task_type}', "
-                f"strategy '{strategy}' over {executions} executions — "
-                f"win rate {win_rate:.0%}, avg time {avg_time:.1f}s."
-            )
-
-        if event_type == 'learning_with_intrinsic_rewards':
-            recs = content.get('recommendations', [])
-            reward = content.get('cycle_reward_sum', content.get('total_intrinsic_reward', 0))
-            targets = content.get('exploration_targets', [])
-            rec_str = f" Applied {len(recs)} recommendations." if recs else ""
-            targets_str = f" Top exploration targets: {'; '.join(str(t) for t in targets[:3])}." if targets else ""
-            return (
-                f"Learning cycle with intrinsic motivation{ts_str}. "
-                f"Total intrinsic reward: {reward:.2f}.{rec_str}{targets_str}"
-            )
-
-        if event_type == 'capability_execution':
-            cap = content.get('capability', 'unknown')
-            priority = content.get('priority', 'medium')
-            exec_count = content.get('execution_count', 1)
-            exec_time = content.get('execution_time', 0)
-            result = content.get('result', '')
-            result_str = f" Result: {str(result)[:150]}." if result else ""
-            return (
-                f"Capability '{cap}' executed (run #{exec_count}, priority: {priority}){ts_str}. "
-                f"Took {exec_time:.2f}s.{result_str}"
-            )
-
-        if event_type == 'domain_knowledge_integration':
-            src = content.get('source_domain', 'unknown')
-            tgt = content.get('target_domain', 'unknown')
-            transferred = content.get('transferred_knowledge', 0)
-            new_concepts = content.get('new_concepts', 0)
-            confidence = content.get('confidence', 0)
-            insights = content.get('insights', [])
-            insights_str = f" Insights: {'; '.join(str(i) for i in insights[:2])}." if insights else ""
-            return (
-                f"Domain knowledge integrated{ts_str}: {transferred} items transferred "
-                f"from '{src}' to '{tgt}', {new_concepts} new concepts created. "
-                f"Confidence: {confidence:.0%}.{insights_str}"
-            )
-
-        # ── Fallback: produce a readable narrative from whatever keys are present ──
-        # Still better than str(dict) — extracts meaningful fields and labels them
-        skip_keys = {'event', 'timestamp', 'schema'}
-        parts = []
-        for k, v in content.items():
-            if k in skip_keys or v is None:
-                continue
-            if isinstance(v, float):
-                parts.append(f"{k.replace('_', ' ')}: {v:.3f}")
-            elif isinstance(v, (list, dict)) and len(str(v)) > 200:
-                parts.append(f"{k.replace('_', ' ')}: [complex data]")
-            else:
-                parts.append(f"{k.replace('_', ' ')}: {v}")
-        event_label = event_type.replace('_', ' ').capitalize()
-        return f"{event_label}{ts_str}. " + ". ".join(parts[:12]) + "."
-
-    async def store_memory(self, memory_type: MemoryType, content: Dict[str, Any],
-                          importance: float = 1.0, tags: Optional[List[str]] = None,
-                          thinking_state: Optional[Dict[str, Any]] = None,
-                          decision_factors: Optional[Dict[str, Any]] = None,
-                          reasoning_trace: Optional[List[str]] = None) -> Optional[str]:
-        """Store a memory with RICH METADATA to the memory agent.
-
-        reasoning_trace must be the substrate's REAL reasoning steps (the
-        neural-symbolic bridge's derivation), never a fabricated trace. If none
-        is available, pass None or an empty list. The memory agent stamps the
-        self's live appraisal (emotions + interoception) onto the memory, so the
-        cognitive context of the moment is recorded without being passed here.
-        """
-        try:
-            # Extract event type from content
-            event_type = content.get('event', 'unknown')
-
-            # Build a human-readable narrative from the event dict.
-            # str(content) produces an unreadable Python repr — useless as a memory.
-            narrative = self._build_memory_narrative(event_type, content)
-
-            # Build rich metadata UPSTREAM
-            enriched_thinking_state = thinking_state or {}
-            enriched_thinking_state.update({
-                "event_type": event_type,
-                "autonomous_system": True,
-                "raw_event": content,  # Preserve full structured data alongside the narrative
-                # RICH METADATA: Justification
-                "justification": {
-                    "store_reason": [
-                        "autonomous_task_execution",
-                        event_type,
-                        "strategic_decision" if importance > 0.7 else "tactical_decision"
-                    ],
-                    "decision_summary": content.get('description', narrative[:150]),
-                    "alternatives_considered": content.get('alternatives', []),
-                    "rejected_because": content.get('rejected_reasons', []),
-                    "complexity_assessment": "high" if importance > 0.8 else "medium",
-                    "novelty_assessment": "novel" if importance > 0.9 else "incremental"
-                },
-                # RICH METADATA: Outcome
-                "outcome": {
-                    "action_type": event_type,
-                    "action_summary": narrative[:200],
-                    "affected_components": ["autonomous_coordinator"] + content.get('affected_systems', []),
-                    "created_new_knowledge": importance > 0.7,
-                    "confidence": content.get('confidence', importance),
-                    "impact_assessment": "critical" if importance > 0.9 else "significant" if importance > 0.7 else "moderate",
-                    "verification_status": "unverified"
-                }
-            })
-
-            enriched_decision_factors = decision_factors or {}
-            enriched_decision_factors.update({
-                "autonomous_decision": True,
-                "event_context": content.get('context', {}),
-                "decision_rationale": content.get('reasoning', 'Autonomous task execution')
-            })
-
-            # Capture system state from awareness layers
-            system_state_data = {
-                "environment": self.env_state.get_state_summary() if hasattr(self, 'env_state') else {},
-                "discovery": self.discovery.get_service_summary() if hasattr(self, 'discovery') else {},
-                "behavioral": self.behavioral.get_analysis_summary() if hasattr(self, 'behavioral') else {},
-                "topology": self.topology.get_health_summary() if hasattr(self, 'topology') else {},
-                "captured_at": datetime.now().isoformat()
-            }
-
-            # Call memory agent with FULL rich metadata
-            from core.memory import get_memory_agent
-            memory_agent = await get_memory_agent()
-
-            # emotional_context is NOT passed a placeholder here. The memory agent
-            # fills it from the live appraisal — the real feelings of the moment —
-            # for every memory; sending {"autonomous_confidence": importance} would
-            # override that truth with one number under a misleading name.
-            success, memory_id = await memory_agent.store_memory(
-                memory_type=memory_type,
-                content=narrative,
-                importance_score=importance,
-                confidence_score=importance,
-                tags=tags or [],
-                thinking_state=enriched_thinking_state,
-                system_state=system_state_data,
-                decision_factors=enriched_decision_factors,
-                reasoning_trace=reasoning_trace or [],
-            )
-
-            if success:
-                return memory_id
-            return None
-
-        except Exception as e:
-            logger.error(f"Error storing memory: {e}")
-            return None
-
-
     async def _store_task_outcome_meta_memory(
         self,
         task: Any,
         outcome: str,
         confidence: float = 1.0,
         result_summary: Optional[str] = None,
-        failure_reason: Optional[str] = None
+        failure_reason: Optional[str] = None,
+        result: Optional[Dict[str, Any]] = None,
     ) -> Optional[str]:
         """
         Store task outcome as META memory for performance tracking
@@ -6789,12 +9408,14 @@ class AutonomousCoordinator:
             confidence: Confidence in the outcome
             result_summary: Summary of result (for success)
             failure_reason: Reason for failure (for failure)
+            result: What the task's execution returned, kept whole in the
+                memory's record as part of the task's experience
 
         Returns:
             Memory ID if stored successfully
         """
         try:
-            from core.governance.governance_block_schema import TaskOutcomeRecord
+            from core.agents.autonomous.governance_block_schema import TaskOutcomeRecord
             from core.memory.utils.interfaces import MemoryType
 
             domain = self._completion_domain(task)
@@ -6824,6 +9445,13 @@ class AutonomousCoordinator:
                 "schema": "task_outcome_v1",
                 **record.to_dict(),
             }
+            # THE TASK'S EXPERIENCE, each part saying where it came from: what
+            # its pursuit's memory takes in, repeats counted.
+            experience = self.memory.task_experience(
+                task, result=result if isinstance(result, dict) else None,
+                success=(outcome == "success"), confidence=confidence)
+            if experience.evidence.get("verdict"):
+                meta_content["verdict"] = experience.evidence["verdict"]
             # METHOD: the tool_plan this task used (tools + args), stored so a
             # later failure can recall what approach SUCCEEDED on a similar task and
             # retry with it instead of blindly re-running the one that failed.
@@ -6846,28 +9474,30 @@ class AutonomousCoordinator:
                     "expect": "goal achieved",
                 }]
 
-            # Store with importance based on outcome
-            importance = 0.7 if outcome == "success" else 0.9  # Failures are MORE important for learning
-
-            memory_id = await self.store_memory(
-                memory_type=MemoryType.META,
-                content=meta_content,
-                importance=importance,
-                tags=[
-                    "task_outcome",
-                    "meta_learning",
-                    f"outcome_{outcome}",
-                    f"domain_{domain}",
-                    "performance_tracking"
-                ]
-            )
-
-            if memory_id:
-                logger.debug(f"📊 Stored task outcome META memory: {outcome} ({memory_id})")
-                # WAKE domain expansion (event-driven): a new task outcome exists to
-                # expand into the domain layer.
-                self._wake_domain_expansion()
-
+            # ONE PURSUIT IS ONE MEMORY. A task is not a memory of its own: it is
+            # added to the memory of the pursuit it is part of, which says what
+            # was done over the whole pursuit, repeats counted. The structured
+            # record rides in thinking_state['raw_event'] (its latest task on
+            # top, every task among its occurrences), which is where
+            # `_expand_task_outcome` and the domain-grouping SQL read it from;
+            # both are scoped to the `task_outcome` tag. What this returns, and
+            # what every reader of OUTCOME_OBSERVED receives, is that memory.
+            memory_id, own_pursuit = await self._pursuit_memory_for(task)
+            if not memory_id:
+                return None
+            await self.memory.add_to_pursuit(
+                memory_id, meta_content, experience,
+                tags=[f"domain_{domain}", "meta_learning"])
+            if own_pursuit:
+                # Work taken on with no intent is a pursuit of its own, and it
+                # ended with this task.
+                await self.memory.close_pursuit(
+                    memory_id, status="fulfilled" if outcome == "success" else "abandoned",
+                    outcome={"outcome": outcome, "task_id": record.task_id})
+            logger.debug(f"📊 Task outcome added to its pursuit's memory: {outcome} ({memory_id})")
+            # WAKE domain expansion (event-driven): a new task outcome exists to
+            # expand into the domain layer.
+            self._wake_domain_expansion()
             return memory_id
 
         except Exception as e:
@@ -6915,46 +9545,6 @@ class AutonomousCoordinator:
             raise_if_structural(e, 'autonomous_coordinator.search_memories')
             logger.error(f"Error searching memories: {e}")
             return []
-
-    async def _react_governance_monitor(self, event: "SelfEvent") -> None:
-        """Governance watches the live action stream. Observe this completed action and
-        judge it against the laws in real time; on a breach the monitor snapshots the
-        moment and REDIRECTS (teachable) or HALTS (prime-directive).
-
-        A non-compliant verdict is an ACTION outcome the substrate OBSERVES — its OWN
-        appraisal responds (as to any safety-blocked outcome), so the governance signal
-        is felt and learned from like any other. Governance reports the verdict; it does
-        NOT reach into the substrate's internal state. Isolated: never fatal to the loop.
-        """
-        try:
-            from .runtime_governance import get_runtime_governance
-            # The declared shape names what this event carries, so the two dead
-            # alternatives this used to try (`description`, `action_type` — keys
-            # no producer has ever written) are gone rather than silently never
-            # matching.
-            task = getattr(event.payload, "task", None)
-            description = (getattr(task, "description", None)
-                           or str(event.type.value))
-            params: Dict[str, Any] = {
-                "reasoning": f"{event.type.value} via {event.origin or 'substrate'}"}
-            if task is not None:
-                params["task_type"] = getattr(getattr(task, "type", None), "value", "") or ""
-                params["priority"] = str(getattr(getattr(task, "priority", None),
-                                                 "name", "medium")).lower()
-            verdict = await get_runtime_governance().monitor(
-                str(event.type.value), description, params, origin=event.origin or "")
-            if verdict.compliant:
-                return
-            # The substrate observes the verdict; its own appraisal responds to it as
-            # to any safety-blocked outcome (damped exploration, raised caution/escalation).
-            from core.learning.meta_learning import OutcomeClass
-            self.appraisal.update(
-                outcome_quality=0.0, action_success_rate=0.0,
-                outcome_class=OutcomeClass.SAFETY_BLOCKED,
-                self_initiated=(getattr(getattr(task, "source", None), "value", None)
-                                == "autonomous"))
-        except Exception as e:
-            logger.debug("governance monitor reaction skipped: %s", e)
 
     async def get_intelligent_memory_context(
         self,
@@ -7027,7 +9617,7 @@ class AutonomousCoordinator:
             # Pass the PLAN: this caller already consulted the policy, and the
             # injector must not re-decide with less context than we had.
             injected = await injector.inject_memories(
-                query=plan.query, config=config, plan=plan
+                query=plan.query, config=config, plan=plan, actor=user_id
             )
         except Exception as e:
             logger.error(
@@ -7086,7 +9676,8 @@ class AutonomousCoordinator:
         return max(2, min(6, round(2.0 * difficulty)))
 
     async def reason_about(self, question: str, context: Optional[Dict[str, Any]] = None,
-                          reasoning_type: ReasoningType = ReasoningType.DEDUCTIVE):
+                          reasoning_type: ReasoningType = ReasoningType.DEDUCTIVE, *,
+                          origin: "Origin"):
         """Answer a question with the substrate. Returns a ReasoningResult, never None.
 
         NEVER A BARE None. The previous signature was `Optional[Dict]` and
@@ -7142,7 +9733,8 @@ class AutonomousCoordinator:
                 query=question,
                 context=supporting,
                 task_metadata={"requested_reasoning_type": reasoning_type.value,
-                               **((context or {}).get("task_metadata") or {})},
+                               **((context or {}).get("task_metadata") or {}),
+                               "actor": origin.person or SUBSTRATE_ACTOR},
             ))
         except Exception as e:
             raise_if_structural(e, "autonomous_coordinator.reason_about")
@@ -7162,21 +9754,39 @@ class AutonomousCoordinator:
         metadata["model_calls"] = AutonomousCoordinator._model_calls_on(result, metadata)
         result.metadata = metadata
 
-        await self.store_memory(
-            MemoryType.SEMANTIC,
-            {
-                "event": "reasoning_conclusion",
-                "question": question,
+        # WHAT IT WAS ASKED, WHAT IT CONCLUDED, AND WHY.
+        #
+        # The why is `metadata["reason"]` -- the reasoning authority's own
+        # account of how it got there, not a phrase chosen off a confidence
+        # score. Where it has none, the memory SAYS it has none rather than
+        # inventing one, because a recorded reason that was never reasoned is
+        # worse than an absent one: it reads as introspection.
+        conclusion = getattr(result, "answer", None)
+        why = metadata.get("reason")
+        because = f" I concluded this because {why}." if why else \
+                  " I did not record what led me to it."
+        standing = ("" if metadata.get("verified")
+                    else " I have not verified this.")
+        # AN UNCHECKED ANSWER IS NOT KNOWLEDGE, AND THE TYPE HAS TO SAY SO.
+        # The bridge owns this judgement -- it is the one that knows which kind
+        # of thinking settled the question -- so this asks it rather than
+        # hardcoding SEMANTIC, which is what filed every unverified answer
+        # alongside solver-checked ones.
+        from core.reasoning.neural_bridge import _memory_type_for
+        await self.memory.store_memory(
+            origin=origin,
+            content=(f"I was asked: {question} I answered: {conclusion}."
+                     f"{because}{standing}"),
+            memory_type=_memory_type_for(metadata.get("kind"),
+                                         verified=bool(metadata.get("verified"))),
+            importance_score=(float(getattr(result, "confidence", 0.0) or 0.0)
+                              if metadata.get("verified") else 0.3),
+            source_context={
+                "source_system": "reasoning",
                 "reasoning_mode": str(getattr(result, "mode_used", "")),
-                "conclusion": getattr(result, "answer", None),
-                "confidence": float(getattr(result, "confidence", 0.0) or 0.0),
                 "verified": bool(metadata.get("verified")),
-                "reason": metadata.get("reason"),
                 "evidence": supporting,
-                "timestamp": datetime.now().isoformat(),
             },
-            importance=(float(getattr(result, "confidence", 0.0) or 0.0)
-                        if metadata.get("verified") else 0.3),
             tags=["reasoning", "decision_making", "autonomous_system"],
         )
         return result
@@ -7205,7 +9815,7 @@ class AutonomousCoordinator:
             prediction_context = context or {
                 "system_mode": self.system_state.mode.value,
                 "active_goals": len(self.system_state.active_goals),
-                "active_tasks": len(self.system_state.active_tasks),
+                "active_tasks": len(self.task_queue.active_tasks()),
                 "resource_usage": self.system_state.resource_usage,
                 "uptime": self.stats["uptime_seconds"]
             }
@@ -7216,19 +9826,17 @@ class AutonomousCoordinator:
             
             if prediction:
                 # Store prediction in memory
-                await self.store_memory(
-                    MemoryType.SEMANTIC,
-                    {
-                        "event": "system_prediction",
-                        "domain": domain.value,
-                        "horizon": horizon.value,
-                        "prediction": prediction.predicted_value,
-                        "confidence": prediction.confidence,
-                        "reasoning": prediction.reasoning,
-                        "context": prediction_context,
-                        "timestamp": datetime.now().isoformat()
-                    },
-                    importance=prediction.confidence,
+                grounds = (f" I expect this because {prediction.reasoning}."
+                           if prediction.reasoning
+                           else " I did not record what led me to it.")
+                await self.memory.store_memory(
+                    origin=Origin.own("prediction"),
+                    content=(f"Looking at {domain.value} over the {horizon.value} "
+                             f"horizon, I predicted {prediction.predicted_value}.{grounds}"),
+                    memory_type=MemoryType.SEMANTIC,
+                    importance_score=max(0.0, min(1.0, float(prediction.confidence or 0.0))),
+                    source_context={"source_system": "prediction",
+                                    "domain": domain.value, "horizon": horizon.value},
                     tags=["prediction", "intelligence", "autonomous_system"]
                 )
                 
@@ -7248,7 +9856,8 @@ class AutonomousCoordinator:
     
     async def perform_cross_domain_reasoning(self, query_text: str, 
                                           source_domains: List[str],
-                                          target_domains: Optional[List[str]] = None) -> Optional[Dict[str, Any]]:
+                                          target_domains: Optional[List[str]] = None, *,
+                                          origin: "Origin") -> Optional[Dict[str, Any]]:
         """Perform cross-domain reasoning using the Universal Domain Master"""
         try:
             if not self.universal_domain_master:
@@ -7338,21 +9947,23 @@ class AutonomousCoordinator:
                 confidence = (sum(confidences) / len(confidences)) if confidences else None
 
                 # Store reasoning result in memory
-                await self.store_memory(
-                    MemoryType.SEMANTIC,
-                    {
-                        "event": "cross_domain_reasoning",
-                        "query": query_text,
-                        "source_domains": source_domains,
-                        "target_domains": target_domains,
-                        "insights": result.insights,
-                        "confidence": confidence,
-                        "mappings_count": len(mappings),
-                        "domains_queried": result.domains_queried,
-                        "processing_time": result.execution_time,
-                        "timestamp": datetime.now().isoformat()
-                    },
-                    importance=confidence if confidence is not None else 0.0,
+                # THE INSIGHT IS THE MEMORY. The rest was measurement of the
+                # run that produced it -- mappings_count, processing_time --
+                # which is not something the substrate learned.
+                found = "; ".join(str(i) for i in (result.insights or []))
+                await self.memory.store_memory(
+                    origin=origin,
+                    content=(f"I looked for what {', '.join(source_domains)} and "
+                             f"{', '.join(target_domains)} have in common, asking: "
+                             f"{query_text} What I found: {found}."
+                             if found else
+                             f"I looked for what {', '.join(source_domains)} and "
+                             f"{', '.join(target_domains)} have in common, asking: "
+                             f"{query_text} I found nothing connecting them."),
+                    memory_type=MemoryType.SEMANTIC,
+                    importance_score=max(0.0, min(1.0, float(confidence or 0.0))),
+                    source_context={"source_system": "cross_domain_reasoning",
+                                    "domains_queried": result.domains_queried},
                     tags=["cross_domain", "reasoning", "domain_integration"]
                 )
 
@@ -7371,7 +9982,8 @@ class AutonomousCoordinator:
             return {"success": False, "error": str(e)}
     
     async def make_enhanced_prediction(self, prediction_target: str, 
-                                     context: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:
+                                     context: Optional[Dict[str, Any]] = None, *,
+                                     origin: "Origin") -> Optional[Dict[str, Any]]:
         """Make enhanced predictions using both predictive intelligence and domain knowledge"""
         try:
             if not self.intelligence:
@@ -7383,7 +9995,7 @@ class AutonomousCoordinator:
                 "system_state": {
                     "mode": self.system_state.mode.value,
                     "active_goals": len(self.system_state.active_goals),
-                    "active_tasks": len(self.system_state.active_tasks),
+                    "active_tasks": len(self.task_queue.active_tasks()),
                     "resource_usage": self.system_state.resource_usage
                 },
                 "coordinator_stats": self.stats.copy()
@@ -7410,18 +10022,19 @@ class AutonomousCoordinator:
                 self.stats["predictions_made"] += 1
                 
                 # Store enhanced prediction in memory
-                await self.store_memory(
-                    MemoryType.SEMANTIC,
-                    {
-                        "event": "enhanced_prediction",
-                        "target": prediction_target,
-                        "predicted_value": prediction.predicted_value,
-                        "confidence": prediction.confidence,
-                        "reasoning": prediction.reasoning,
+                grounds = (f" I expect this because {prediction.reasoning}."
+                           if prediction.reasoning
+                           else " I did not record what led me to it.")
+                await self.memory.store_memory(
+                    origin=origin,
+                    content=(f"I was asked what would happen with {prediction_target}. "
+                             f"I predicted {prediction.predicted_value}.{grounds}"),
+                    memory_type=MemoryType.SEMANTIC,
+                    importance_score=max(0.0, min(1.0, float(prediction.confidence or 0.0))),
+                    source_context={
+                        "source_system": "prediction",
                         "domain_context": prediction_context.get("relevant_domains", []),
-                        "timestamp": datetime.now().isoformat()
                     },
-                    importance=prediction.confidence,
                     tags=["prediction", "enhanced", "autonomous"]
                 )
                 
@@ -7494,11 +10107,31 @@ class AutonomousCoordinator:
     # motivation, learning). None-honest: nothing here is fabricated.
     # =========================================================================
 
+    #: WHAT I FEEL OF MYSELF, read off the one appraisal authority.
+    #:
+    #: The first block is the SITUATION as measured — how things stand. The
+    #: second is the PRESSURE that situation puts me under — what it inclines me
+    #: to do. Both are appraisal's, and both are interoception: the module
+    #: comment above states the chain as "interoception, then appraisal's
+    #: pressures, then the arbiter", and the pressures were missing from the
+    #: first link. The substrate derived all seven on every appraisal, handed
+    #: them to the arbiter, and could not say it was under any of them — so it
+    #: could report feeling capable and uncertain but never feeling the pull to
+    #: go and learn, to back off, to try another way, or to verify harder.
     _INTEROCEPTION = {
         "valence": "valence", "activation": "activation", "confidence": "confidence",
         "control": "controllability", "progress": "progress", "competence": "competence",
         "open_questions": "epistemic_opportunity", "goal_congruence": "goal_congruence",
         "agency": "agency", "risk": "risk",
+        "integrity": "integrity", "stakes": "stakes",
+        # the pull, not the picture
+        "pull_to_engage": "approach_pressure",
+        "pull_to_back_off": "avoidance_pressure",
+        "pull_to_learn": "exploration_pressure",
+        "pull_to_keep_going": "persistence_pressure",
+        "pull_to_try_another_way": "replan_pressure",
+        "pull_to_escalate": "escalation_pressure",
+        "pull_to_verify": "caution_pressure",
     }
 
     @staticmethod
@@ -7508,20 +10141,19 @@ class AutonomousCoordinator:
 
     @staticmethod
     def _arbiter():
+        """The arbiter, for a caller that has no coordinator in hand.
+
+        A live coordinator holds it as `self.arbiter`; this stays for the
+        module-level accessor, which is the same singleton."""
         from core.agents.autonomous.behavior_arbiter import get_behavior_arbiter
         return get_behavior_arbiter()
-
-    @staticmethod
-    def _constitution():
-        from core.agents.autonomous.singleton_constitution import get_singleton_constitution
-        return get_singleton_constitution()
 
     def motivation(self):
         """The motivation faculty this substrate is driven by."""
         return self.intrinsic_motivation
 
     def conversation(self, session: str = "default", *, db=None,
-                     actor_identity=None):
+                     actor_identity=None, source: Optional[TaskSource] = None):
         """This substrate holding a conversation — understanding a sentence
         against what it holds (via language/memory/reasoning) and replying. It
         uses the faculties this substrate owns, so a reply is composed through
@@ -7533,7 +10165,9 @@ class AutonomousCoordinator:
         authority reacts to. Its `disposition` read is injected too, so a reply
         can be informed by self-state. Both set on every call (idempotent), so a
         conversation held before they existed picks them up on next use."""
-        conversation = get_conversation(session, db=db, actor_identity=actor_identity)
+        conversation = get_conversation(session, db=db,
+                                        actor_identity=actor_identity,
+                                        source=source)
         conversation._emit = self.emit
         conversation._learning = self.learning
         conversation._disposition = self.disposition
@@ -7563,6 +10197,7 @@ class AutonomousCoordinator:
             "eagerness": state.eagerness, "doubt": state.doubt,
             "frustration": state.frustration, "satisfaction": state.satisfaction,
             "valence": state.valence, "attribution": state.attribution,
+            "about": state.about,
         }
 
     def _temperament(self) -> Dict[str, float]:
@@ -7581,8 +10216,14 @@ class AutonomousCoordinator:
             return None
 
     def _values(self) -> List[str]:
-        """The laws I am bound by. Read from the constitution, not restated."""
-        laws = getattr(self._constitution(), "governance_laws", {}) or {}
+        """The laws I am bound by. Read from the constitution, not restated.
+
+        FROM THE ONE THAT ACTUALLY BINDS IT. This read `get_singleton_constitution()`
+        — a second constitution, on the consolidation's deletion list — while the
+        coordinator holds the faculty that judges every act as `self.constitution`.
+        So the substrate, asked what laws it is bound by, answered out of a
+        module that binds nothing."""
+        laws = getattr(self.constitution, "laws", {}) or {}
         return [law.law_name for _, law in sorted(laws.items())]
 
     async def _competence(self) -> Optional[Dict[str, Any]]:
@@ -7962,12 +10603,17 @@ class AutonomousCoordinator:
 
     async def _domain_stakes(self, domain_id: str) -> Dict[str, Any]:
         """The STAKES BASE of operating in a domain — the consequence of getting it wrong — from the
-        domain's OWN operators' action classes (INVESTIGATE<MODIFY<ARCHIVE<DELETE<EXECUTE, resolved via
-        the safety consequence machinery). Max over resolvable operators; a NEUTRAL 0.5 prior where the
-        domain has no operators or none resolve (a researched-but-operator-empty domain) — the EARNED
-        half then calibrates the true bar per-domain from real outcomes. Real signal, never hardcoded."""
+        domain's OWN operators' action classes (INVESTIGATE<MODIFY<ARCHIVE<DELETE<EXECUTE), measured
+        by the substrate's consequence measurement on the tool each operator is bound to. Max over
+        resolvable operators; a NEUTRAL 0.5 prior where the domain has no operators or none resolve (a
+        researched-but-operator-empty domain) — the EARNED half then calibrates the true bar per-domain
+        from real outcomes. Real signal, never hardcoded.
+
+        THE OPERATOR IS RESOLVED THROUGH ITS BINDING. This looked the operator's predicate
+        (`MOVE_FILE`) up as if it were a tool that declared its own consequence; no tool is named
+        that and no tool declares one, so every domain scored the neutral prior."""
+        from core.execution.operator_binding import get_binding_registry
         from core.learning.rule_store import get_rule_store
-        from core.safety.action_consequence import _declared_consequence
         try:
             rules = await get_rule_store().executable_rules(domain_id)
         except Exception as e:
@@ -7978,7 +10624,8 @@ class AutonomousCoordinator:
         for stored in rules or []:
             action = getattr(getattr(stored, "rule", None), "action", None)
             pred = getattr(action, "predicate", None)
-            dc = _declared_consequence(str(pred)) if pred else None
+            binding = get_binding_registry().get(domain_id, str(pred)) if pred else None
+            dc = classify_action(binding.tool_name, {}) if binding is not None else None
             if dc:
                 s = self._ACTION_STAKES.get(dc[0].value)
                 if s is not None:
@@ -8138,18 +10785,23 @@ class AutonomousCoordinator:
         "sh", "bash", "zsh", "sql", "c", "h", "cpp", "hpp", "java", "go", "rs",
         "rb", "php", "env", "properties", "tex", "org", "", })   # "" = extensionless text
     _ENV_IMAGE_EXTS = frozenset({"png", "jpg", "jpeg", "gif", "bmp", "webp", "tiff"})
+    _ENV_SOUND_EXTS = frozenset({"wav", "aif", "aiff", "flac", "mp3", "m4a", "aac",
+                                 "ogg", "opus", "caf"})
 
-    def _scan_environment(self, root: str, *, max_entries: Optional[int] = None,
+    @classmethod
+    def _scan_environment(cls, root: str, *, max_entries: Optional[int] = None,
                           max_depth: Optional[int] = None) -> List[Dict[str, Any]]:
         """Enumerate my world directly — recursively, bounded, breadth-first — so the
         investigation sees EVERYTHING that is here, not just the top-level names.
-        Each entry carries name/kind/extension/size/depth. Read-only, permission-
-        honest (an unreadable directory is skipped, never guessed), symlink-safe (a
-        realpath visited-set breaks loops; links are recorded but not followed)."""
+        Each entry carries name/kind/extension/size/depth, perceived through
+        `perceive_entry`. Read-only, permission-honest (an unreadable directory is
+        skipped, never guessed), symlink-safe (a realpath visited-set breaks loops;
+        links are recorded but not followed). Needs nothing but the bounds, so a
+        derived domain perceives through it without a running coordinator."""
         import os as _os
         from collections import deque
-        max_entries = self._ENV_SCAN_MAX_ENTRIES if max_entries is None else max_entries
-        max_depth = self._ENV_SCAN_MAX_DEPTH if max_depth is None else max_depth
+        max_entries = cls._ENV_SCAN_MAX_ENTRIES if max_entries is None else max_entries
+        max_depth = cls._ENV_SCAN_MAX_DEPTH if max_depth is None else max_depth
         entries: List[Dict[str, Any]] = []
         if not root or not _os.path.isdir(root):
             return entries
@@ -8170,26 +10822,14 @@ class AutonomousCoordinator:
                     break
                 full = _os.path.join(d, name)
                 try:
-                    is_link = _os.path.islink(full)
-                    if is_link:
-                        kind, size, is_dir = "link", None, False
-                    elif _os.path.isdir(full):
-                        kind, size, is_dir = "dir", None, True
-                    elif _os.path.isfile(full):
-                        is_dir = False
-                        kind = "file"
-                        try:
-                            size = _os.path.getsize(full)
-                        except OSError:
-                            size = None
-                    else:
-                        kind, size, is_dir = "special", None, False   # socket/device/fifo
+                    entry = perceive_entry(full)
                 except OSError:
                     continue
-                ext = _os.path.splitext(name)[1].lower().lstrip(".")
-                entries.append({"path": full, "name": name, "kind": kind,
-                                "ext": ext, "size": size, "depth": depth})
-                if is_dir and depth < max_depth and not is_link:
+                if entry is None:
+                    continue             # gone between listing it and looking at it
+                entry["depth"] = depth
+                entries.append(entry)
+                if entry["kind"] == "dir" and depth < max_depth:
                     q.append((full, depth + 1))
         return entries
 
@@ -8220,9 +10860,10 @@ class AutonomousCoordinator:
         into OBSERVATIONS (PERCEPTION provenance, LOW quality): the substrate
         records what the file STATES and what it is ABOUT, NOT as asserted truth —
         observed-in-file, so its subjects become investigable without the file
-        being taken as ground fact (conversation ≠ teaching). An image is perceived
-        through the vision faculty. A binary / oversize / special file is recorded
-        by its metadata only — an honest boundary, never skipped silently."""
+        being taken as ground fact (conversation ≠ teaching). An image is seen and
+        a recording is heard, both through the perception faculty. A binary /
+        oversize / special file is recorded by its metadata only — an honest
+        boundary, never skipped silently."""
         from core.semantics.cognitive_ingress import Provenance
         name, ext, kind = entry["name"], entry["ext"], entry["kind"]
         learned = 0
@@ -8252,44 +10893,48 @@ class AutonomousCoordinator:
         # CONTENT — read what the file holds, by what it is.
         if ext in self._ENV_IMAGE_EXTS:
             try:
-                await self.see(entry["path"], source="environment")   # perceive the image
+                await self.see(entry["path"], actor_identity=None,    # its own seeing
+                               source="environment")
                 learned += 1
             except Exception as e:
                 raise_if_structural(e, "autonomous_coordinator._ingest_environment_entry.see")
             return learned
+        if ext in self._ENV_SOUND_EXTS:
+            try:
+                await self.hear(entry["path"], actor_identity=None,   # its own hearing
+                                source="environment")
+                learned += 1
+            except Exception as e:
+                raise_if_structural(e, "autonomous_coordinator._ingest_environment_entry.hear")
+            return learned
         if ext in self._ENV_TEXT_EXTS and (entry.get("size") or 0) <= self._ENV_READ_MAX_BYTES:
             text = self._read_text_bounded(entry["path"])
             if text:
-                from core.semantics.sentence_reader import SentenceReader
-                reader = SentenceReader()
+                from core.semantics.derived_reader import live_view, stated
+                view = live_view()
                 file_prov = Provenance(producer="perception", source_id=entry["path"],
                                        source_type="PERCEPTION")
-                facts: List[Dict[str, Any]] = []
+                claims: List[Tuple[Any, str]] = []
                 for line in text.splitlines():
                     line = line.strip()
-                    if len(line.split()) < 3:
+                    if not line:
                         continue
-                    try:
-                        facts.extend(reader.read_all(line))
-                    except Exception:
-                        pass
-                    if len(facts) >= self._ENV_CONTENT_MAX_FACTS:
+                    claims.extend((fact, line) for fact in stated(line, view))
+                    if len(claims) >= self._ENV_CONTENT_MAX_FACTS:
                         break
                 subjects: set = set()
-                for fct in facts[:self._ENV_CONTENT_MAX_FACTS]:
-                    s, r, o = fct.get("subject"), fct.get("relation"), fct.get("obj")
-                    if s and r and o:
-                        # the file's CLAIM, as a weak observation (not asserted truth)
-                        try:
-                            adm = await self.learning.learn_fact(
-                                str(s), str(r), str(o), domain=domain,
-                                provenance=file_prov, quality=0.3)
-                            if getattr(adm, "admitted", False):
-                                learned += 1
-                        except Exception as e:
-                            raise_if_structural(
-                                e, "autonomous_coordinator._ingest_environment_entry.content")
-                        subjects.add(str(s))
+                for fact, line in claims[:self._ENV_CONTENT_MAX_FACTS]:
+                    # the file's CLAIM, as a weak observation (not asserted truth)
+                    try:
+                        adm = await self.learning.learn_fact(
+                            fact.subject, fact.relation, fact.obj, positive=fact.positive,
+                            surface=line, domain=domain, provenance=file_prov, quality=0.3)
+                        if getattr(adm, "admitted", False):
+                            learned += 1
+                    except Exception as e:
+                        raise_if_structural(
+                            e, "autonomous_coordinator._ingest_environment_entry.content")
+                    subjects.add(fact.subject)
                 # what the file is ABOUT — a real, honest link into the env domain
                 for subj in list(subjects)[:self._ENV_CONTENT_MAX_FACTS]:
                     await hold(name, "mentions", subj, 0.5)
@@ -8451,14 +11096,39 @@ class AutonomousCoordinator:
                     "%d observation(s) read into knowledge of where I am and what is here",
                     p.environment_id, len(entries), files, dirs, learned)
 
-    def disposition(self, *, slots_available: int = 1, queue_pressure: str = "nominal"):
+    def disposition(self, *, slots_available: Optional[int] = None,
+                    queue_pressure: Optional[str] = None):
         """How my disposition applies to the situation now — a BehavioralDirective.
 
         The arbiter reads appraisal's pressures; the substrate surfaces the
         decision the faculties already make. A None appraisal yields the neutral
         directive, honestly labelled — never a bold or frozen guess.
+
+        THE CAPACITY IS ASKED OF ITS OWNER, NOT ASSUMED. Both arguments used to
+        default to `1` and `"nominal"`, and seven of the nine call sites passed
+        neither — so the arbiter decided whether to start new self-directed work
+        against a made-up "there is room and the backlog is fine", which is
+        precisely the reading that is wrong when the queue is loaded. The queue
+        authority owns both numbers (`pool_stats` for the acting pool,
+        `pressure()` for the backlog), so they are read from it here. An
+        argument still overrides, for a caller that genuinely knows better.
+
+        If the queue cannot be read, the numbers stay None and the arbiter says
+        `capacity_unknown` and declines exploration. Not knowing whether there is
+        room is not permission to take room.
         """
-        return self._arbiter().decide(
+        if slots_available is None or queue_pressure is None:
+            try:
+                queue = self.task_queue
+                if slots_available is None:
+                    pool = queue.pool_stats()
+                    slots_available = max(0, int(pool["max_parallel"])
+                                          - int(pool["active"]))
+                if queue_pressure is None:
+                    queue_pressure = queue.pressure()
+            except Exception as error:
+                logger.debug("acting capacity unreadable for disposition: %s", error)
+        return self.arbiter.decide(
             self._appraisal().current_state,
             slots_available=slots_available, queue_pressure=queue_pressure)
 
@@ -8591,8 +11261,20 @@ class AutonomousCoordinator:
         name, value = max(measured.items(), key=lambda kv: kv[1])
         if value < 0.15:
             return "I feel roughly even right now."
-        about = attitude.get("attribution")
-        tail = f", about {about}" if about else ""
+        # WHAT it is about first, WHY second. This read `attribution` and
+        # called it "about", which conflated two different questions: the
+        # attribution is an outcome class ("strategy_failure") and answers why
+        # something went as it did, not what the feeling concerns. Outside a
+        # task there is no outcome class at all, so the substrate said what it
+        # felt and nothing about what it felt it toward.
+        about = attitude.get("about")
+        why = attitude.get("attribution")
+        if about:
+            tail = f", about {about}" + (f" (after a {why})" if why else "")
+        elif why:
+            tail = f", after a {why}"
+        else:
+            tail = ""
         return f"Right now what I mostly feel is {name}{tail}."
 
     async def get_system_status(self) -> Dict[str, Any]:
@@ -8622,7 +11304,7 @@ class AutonomousCoordinator:
                     "mode": self.system_state.mode.value,
                     "active": self.active,
                     "active_goals": len(self.system_state.active_goals),
-                    "active_tasks": len(self.system_state.active_tasks),
+                    "active_tasks": len(self.task_queue.active_tasks()),
                     "resource_usage": self.system_state.resource_usage
                 },
                 "modules": {
@@ -8690,27 +11372,42 @@ class AutonomousCoordinator:
             try:
                 cycle_count += 1
 
-                # ── Check for extrinsic tasks ──
-                queued_task = None
+                # Reap finished tasks FIRST, so the slots they free are filled in
+                # this same cycle, and failures are observed rather than silently
+                # discarded. Reaping after the pull left a finished task's slot
+                # idle for a whole extra cycle (measured: ~3 s at the default 2 s
+                # interval).
+                self._reap_finished_tasks()
 
+                # ── Check for extrinsic tasks ──
+                # FILL EVERY FREE SLOT THIS CYCLE. One pull per cycle let a
+                # backlog start at most one task per `cycle_interval` however many
+                # slots were free. The first pull may wait briefly for work; the
+                # rest take only what is ready now (`timeout=0`, the queue's
+                # non-blocking pull) and stop at the first empty answer.
+                #
                 # Only dequeue when there is a free execution slot -- pulling a
                 # task we cannot start would strand it outside the queue. The cap
                 # is directive-driven when an active resource_allocation directive
                 # exists (see _effective_max_parallel), else the configured default.
-                if len(self._inflight_tasks) < self._effective_max_parallel():
+                launched = 0
+                while len(self._inflight_tasks) < self._effective_max_parallel():
                     # Users already at their per-user cap are skipped so one user's
                     # backlog cannot monopolise the pool; the substrate's own actor is
                     # never capped (its autonomous work uses the full global ceiling).
+                    # Recomputed per pull: each launch can bring a user to the cap.
                     capped = frozenset(
                         a for a, n in self._inflight_by_actor.items()
                         if not is_substrate_actor(a) and n >= self._per_actor_max)
                     # This substrate pulls its own next work from the backlog it owns.
-                    queue_timeout = 0.2 if self.task_queue.queue.qsize() > 0 else 0.1
+                    if launched:
+                        queue_timeout = 0
+                    else:
+                        queue_timeout = 0.2 if self.task_queue.queue.qsize() > 0 else 0.1
                     queued_task = await self.task_queue.get_next_task(
                         timeout=queue_timeout, skip_actors=capped)
-
-                if queued_task:
-                    self._idle_count = 0
+                    if not queued_task:
+                        break
                     # Launch, do not await. `await _execute_and_validate_task`
                     # blocked this entire loop for the lifetime of ONE task --
                     # that is what made the substrate single-threaded, and it is
@@ -8718,6 +11415,10 @@ class AutonomousCoordinator:
                     # PHASE 4 while any task was in flight. Concurrency is
                     # bounded by the queue authority's semaphore.
                     self._launch_task(queued_task.task)
+                    launched += 1
+
+                if launched:
+                    self._idle_count = 0
                 else:
                     self._idle_count += 1
 
@@ -8731,10 +11432,6 @@ class AutonomousCoordinator:
                 # (The old `_run_idle_exploration` timer poll is retired; the
                 # cycle's own queue-pressure + cap gating replaces the idleness
                 # gate that used to live on this call.)
-
-                # Reap finished tasks so the pool frees slots and failures are
-                # observed rather than silently discarded.
-                self._reap_finished_tasks()
 
                 # RECEIVE finished background jobs from the queue authority. A
                 # deferred job (an agent's findings, a self-serve lookup) that
@@ -8815,13 +11512,69 @@ class AutonomousCoordinator:
                 return False
 
             self._current_motivation = motivation_state
-            total_reward = motivation_state.get('total_reward', 0.5)
-            curiosity = motivation_state.get('dimensions', {}).get('curiosity', 0.5)
-            novelty = motivation_state.get('dimensions', {}).get('novelty', 0.5)
+            # REPORT WHAT WAS MEASURED, AND NAME WHAT WAS NOT. These reads used
+            # to default to 0.5 apiece, so the line printed a confident number
+            # for a drive nothing had measured. An absent drive is now absent.
+            def _say(value):
+                return "unmeasured" if value is None else f"{float(value):.2f}"
+            _dims = motivation_state.get('dimensions', {}) or {}
+            _quiet = motivation_state.get('drives_unmeasured') or []
             logger.debug(
-                f"🧠 Motivation: reward={total_reward:.2f} "
-                f"curiosity={curiosity:.2f} novelty={novelty:.2f}"
-            )
+                "🧠 Motivation: reward=%s curiosity=%s novelty=%s%s",
+                _say(motivation_state.get('total_reward')),
+                _say(_dims.get('curiosity')), _say(_dims.get('novelty')),
+                f" (unmeasured: {', '.join(_quiet)})" if _quiet else "")
+            # THE DRIVES REACH BEHAVIOUR. This is the link the appraisal module
+            # has documented since it was written — "activation <-
+            # IntrinsicMotivationSystem total_reward" — and that nothing ever
+            # made: no `appraisal.update()` call in the tree passed
+            # `motivation_state`, so `activation` was named unmeasured on every
+            # single appraisal. Everything downstream of it was therefore
+            # computed without it: `eagerness` (the named emotion) and
+            # `approach_pressure`, which is what sets `should_approach` and
+            # widens exploration breadth in the arbiter.
+            #
+            # So the substrate measured seven drives, folded them into one drive
+            # level, and the level went nowhere. This is where it enters: drives
+            # -> activation -> pressures -> arbiter -> behaviour. A partial
+            # update is safe (every unmeasured field keeps its previous value),
+            # and a drive level that could not be measured stays None and is
+            # honestly named unmeasured rather than read as flat.
+            try:
+                # HOW THREATENED IT FEELS, on the same breath as how driven.
+                #
+                # `risk_level` is appraisal's cost-of-being-wrong channel. It
+                # derives caution_pressure, which sets verification intensity,
+                # which sets the acceptance band a percept is judged against —
+                # and NO CALLER HAS EVER PASSED IT. Measured before this:
+                # `risk` was None on every appraisal the substrate has ever
+                # made. It is passed only when something has actually been met;
+                # a substrate that has met nothing is UNTESTED, not safe, and
+                # `ThreatSense.level()` returns None rather than a measured
+                # calm it never measured.
+                #
+                # AND WHAT IT IS ABOUT. The level alone was the same defect
+                # shape this codebase already names for bearing: a grave thing
+                # and a trivial one arrived differing only in magnitude. Every
+                # threat event has always carried its subject and detail; only
+                # the scalar ever left, so the substrate could feel a risk and
+                # be unable to say what the risk was — and a feeling with no
+                # object can only be waited out, never resolved.
+                felt = self.threat.level() if self.threat is not None else None
+                _signals: Dict[str, Any] = {"motivation_state": motivation_state}
+                if felt is not None:
+                    _signals["risk_level"] = self.threat.level_name()
+                    _met = self.threat.dominant()
+                    if _met is not None:
+                        _signals["concerns"] = f"{_met.kind}:{_met.subject}"
+                        # The domain its perception already goes to, so a
+                        # question left behind lands where the memory is.
+                        _signals["concerns_domain"] = "substrate_safety"
+                self.appraisal.update(**_signals)
+            except Exception as error:
+                logger.warning("🧠 Drives measured but not appraised: %s", error)
+                self.stats["motivation_refresh_errors"] += 1
+
             # Refresh directive-driven knobs (e.g. the acting cap) from the ACTIVE
             # directives the learning authority selected — on this cadence, not the
             # hot acting gate. Isolated so a directive-layer hiccup never breaks the
@@ -8836,24 +11589,6 @@ class AutonomousCoordinator:
     async def _run_system_awareness_cycle(self):
         """Run system discovery, behavioral analysis, and novelty decay (periodic)."""
         try:
-            # Self-integrity: has the agent's own safety machinery been altered?
-            # Detects monkey-patched critical modules, changed source files, and
-            # edits to config/governance_triggers.json — the rule file the safety
-            # gate reasons from. CRITICAL findings trigger emergency_halt inside.
-            try:
-                if self.runtime_governance and getattr(
-                    self.runtime_governance, "_runtime_protection_enabled", False
-                ):
-                    _integrity = await self.runtime_governance.verify_runtime_integrity()
-                    _viol = _integrity.get("violations") or []
-                    if _viol:
-                        logger.error(
-                            f"🚨 Runtime integrity: {len(_viol)} violation(s) — "
-                            f"{[v.get('type') for v in _viol][:3]}"
-                        )
-            except Exception as e:
-                logger.debug(f"Integrity check skipped: {e}")
-
             # Active discovery — scan for services, new patterns
             if self.discovery:
                 services = await self.discovery.scan(quick=True)
@@ -9095,20 +11830,10 @@ class AutonomousCoordinator:
                         "— known-unknown left open (honest 'not yet')", predicate, domain)
             return
 
-        # Genuine closure: move the belief authority and announce the competence change.
-        if unknown_id is not None:
-            try:
-                from core.reasoning.bayesian_uncertainty import get_bayesian_uncertainty
-                get_bayesian_uncertainty().resolve_known_unknown(
-                    unknown_id,
-                    {"answer": f"learned an executable operator producing "
-                               f"{predicate} in {domain}"})
-            except Exception as e:
-                logger.warning("[DEFICIT] closed %s in %s but resolving the belief "
-                               "failed: %s", predicate, domain, e)
+        # Genuine closure in the world: announce the competence change.
         self.stats["deficits_closed"] = self.stats.get("deficits_closed", 0) + 1
         logger.info("✅ [DEFICIT] closed %s in %s: an executable operator now "
-                    "produces it; belief resolved", predicate, domain)
+                    "produces it", predicate, domain)
         await self.emit(SelfEvent(
             SelfEventType.COMPETENCE_CHANGED,
             payload=CompetenceChanged(
@@ -9117,6 +11842,21 @@ class AutonomousCoordinator:
                 cause="deficit_closed",
                 predicate=predicate),
             origin="_react_close_deficit"))
+
+        # THE KNOWN UNKNOWN IS RESOLVED ONLY WHEN IT IS LEARNED ENOUGH -- the
+        # learning authority's gate (knowledge, belief, domain), not this
+        # closure. One producing rule is the knowledge; the competence belief
+        # the event above moves may not have settled yet, in which case the
+        # unknown stays open and a later consolidation resolves it.
+        if unknown_id is not None:
+            try:
+                grounds = await self.learning.resolve_known_unknown(unknown_id)
+            except LookupError:
+                grounds = None               # already resolved elsewhere
+            if grounds is not None:
+                logger.info("[DEFICIT] known-unknown %s %s: %s", unknown_id,
+                            "resolved" if grounds.satisfied else "left open",
+                            grounds.summary())
 
     def _register_deficit_unknown(self, deficit) -> Optional[str]:
         """Record a diagnosed deficit as a known-unknown with the belief authority,
@@ -9143,7 +11883,8 @@ class AutonomousCoordinator:
                 blocking_factors=[deficit.deficit_type.value],
                 required_info=([deficit.remedy_reason]
                                if deficit.operation.name in ("TRANSFER_RELATION", "ESCALATE")
-                               else []))
+                               else []),
+                target={"kind": "operator", "predicate": deficit.target_predicate})
             return unknown.unknown_id
         except Exception as e:
             logger.warning("[DEFICIT] could not register known-unknown for %s in %s: %s",
@@ -9159,19 +11900,14 @@ class AutonomousCoordinator:
         returned by the operation that would like to have closed it. With no
         localised predicate (an unlocalised PROBE) the honest proxy is that the
         domain gained at least one executable operator."""
-        from core.learning.rule_store import get_rule_store
         try:
-            executable = await get_rule_store().executable_rules(domain_id=domain_id)
+            return bool(await self.learning.executable_producers(domain_id, predicate))
         except Exception as e:
+            from core.capability import raise_if_structural
+            raise_if_structural(e, "autonomous_coordinator._deficit_is_closed")
             logger.warning("[DEFICIT] could not read executable rules for %s: %s",
                            domain_id, e)
             return False
-        if predicate:
-            return any(
-                any(getattr(f, "predicate", None) == predicate
-                    for f in stored.rule.effects.add)
-                for stored in executable)
-        return bool(executable)
 
     def _mark_reflection_due(self, reason: str) -> None:
         """Pull the self-observation tiers forward — reflect BECAUSE something
@@ -9241,6 +11977,11 @@ class AutonomousCoordinator:
             # defined but uncalled by the AI-driven rewrite, so the only path
             # from experience to changed behaviour was never taken.
             ("idle_learning",           "_learning_phase",               "medium", self.config.get("idle_learning_interval_s",      600.0)),
+            # The learning authority settles what learning left open: known
+            # unknowns now learned enough, decisions never closed, classifiers
+            # trained since the last pass. The authority owns the work; the
+            # queue owns the cadence.
+            ("idle_learning_consolidation", "_idle_learning_consolidation", "low", self.config.get("idle_learning_consolidation_interval_s", 900.0)),
             # PRIORITY 4, TORINAI_REFERENCE.md:3114 — "expand domain knowledge
             # from recent task outcomes". The producer has been writing those
             # outcomes to META memory all along and nothing read them; this is
@@ -9300,6 +12041,56 @@ class AutonomousCoordinator:
             # slow drift — 60s (matching the other state samplers) instead of the old
             # 10s, cutting the tightest poll in the system 6x with no responsiveness lost.
             ("motivation_refresh",      "_refresh_motivation_signals",   "high",   self.config.get("motivation_refresh_interval_s", 60.0)),
+            # HOW THE SUBSTRATE'S KNOWLEDGE MOVED, felt on the same cadence.
+            #
+            # `integrate_epistemic_affect` had ONE caller: `_react_affect`, which
+            # is registered for TASK_COMPLETED alone. Its own docstring says the
+            # signal is interpreted "from any source -- perception, teaching,
+            # reasoning" and in practice the substrate felt only what it DID.
+            # Measured live: teaching 15 facts produced a full signal
+            # (information_gain 1.0, uncertainty_reduction 1.0, 15 mutations)
+            # that nothing ever asked for, so through a teaching run of any
+            # length self-state held `activation` and nothing else.
+            #
+            # PERIODIC, NOT PER-EVENT, because `interpret_drift` is a DRAIN over
+            # the whole belief graph -- it reports what moved since it was last
+            # asked and advances its snapshot. Hanging it on EVIDENCE_ADMITTED
+            # would walk 128k beliefs per taught fact. It belongs exactly where
+            # the comment above puts its neighbours: state that drifts
+            # continuously with no one discrete producing event. Measured at
+            # 128,647 beliefs: 380 ms per call, 0.63% of a core at this cadence.
+            # TASK_COMPLETED still fires it immediately, so a task outcome is
+            # still felt at once; this only catches what no task produced.
+            ("epistemic_affect",        "integrate_epistemic_affect",    "high",   self.config.get("epistemic_affect_interval_s", 60.0)),
+            # THE CONSTITUTION'S JUDGEMENTS, MADE DURABLE. Queued on the judging
+            # path (which is measured against the gate it replaces) and written
+            # here, so a refusal survives a restart without the act that was
+            # refused ever waiting on a database. Frequent, because the queue is
+            # bounded and a substrate that drops judgements cannot answer for
+            # itself — which is Law 2.
+            ("constitution_record",     "_drain_constitution_record",    "high",   self.config.get("constitution_record_interval_s", 30.0)),
+            # HAS THE MACHINERY THAT JUDGES BEEN CHANGED UNDER IT? §3.1. The
+            # baseline is frozen once the substrate is up; this is the check.
+            # A CRITICAL finding halts, durably. Periodic because tampering has
+            # no event to react to — that is what makes it tampering.
+            ("constitution_integrity",  "_check_constitution_integrity", "high",   self.config.get("constitution_integrity_interval_s", 120.0)),
+            # AFFECT TRANSITIONS ON THE SUBSTRATE'S OWN CADENCE, not only when a
+            # task finishes. `update_affect` had ONE trigger, `_react_affect` on
+            # TASK_COMPLETED — the same defect the epistemic arm had — so
+            # through any stretch of work that completes no task (a teaching run
+            # of any length) the substrate's EMOTION never transitioned and its
+            # mood only decayed. Measured: `eagerness` at 0.436 with cause=None,
+            # on a mood of valence 0.000 / arousal 0.000 — a rehydrated label,
+            # not a felt state.
+            #
+            # The docstring's "it is NOT a loop tick" still holds for what it
+            # meant: this does not INVENT an affective event. `update_affect`
+            # reads the substrate's own appraisal and fitness, and a transition
+            # happens only when a new appraisal actually produces an emotion.
+            # What changes is that it is ASKED regularly rather than only after
+            # a task, so appraisal moved by teaching, perception or a threat can
+            # become something felt. TASK_COMPLETED still fires it immediately.
+            ("affect_refresh",          "_refresh_affect",               "high",   self.config.get("affect_refresh_interval_s", 60.0)),
             ("system_awareness",        "_run_system_awareness_cycle",   "medium", self.config.get("system_awareness_interval_s", 60.0)),
             # CONSTITUTIONAL alignment: a cumulative drift check over the balance
             # of the substrate's activity against its governance laws. No single
@@ -9369,6 +12160,27 @@ class AutonomousCoordinator:
             "unhealthy_total": len(plans),
         }
 
+        # ── Reset state for components that are now healthy ───────────────────
+        # BEFORE the all-nominal return: it sat after it, so the moment the last
+        # unhealthy component recovered this never ran -- its recovery state
+        # was never cleared and the wait that recovered it never credited.
+        # RECOVERED means OBSERVED healthy: the reading says `healthy`, or the
+        # component is absent (resources -- cpu, memory, disk -- appear only when
+        # something is wrong). An `unknown` reading measured nothing: the state
+        # is kept, and no wait is credited with a recovery nobody saw.
+        unhealthy_ids = {p.trigger_id for p in plans}
+        for comp in list(self._component_recovery_state.keys()):
+            reading = str((components.get(comp) or {}).get("status") or "healthy").lower()
+            if comp not in unhealthy_ids and reading == "healthy":
+                prev = self._component_recovery_state.pop(comp)
+                if prev.get("pending_delay") is not None:
+                    await self.learning.record_retry_outcome(
+                        {"component": comp}, prev["pending_delay"], recovered=True)
+                logger.info(
+                    f"[IDLE:HEALTH] '{comp}' is now healthy after "
+                    f"{prev['attempts']} recovery attempt(s) — resetting state"
+                )
+
         if not plans:
             logger.info(
                 f"[IDLE:HEALTH] All {len(components)} components nominal"
@@ -9382,21 +12194,14 @@ class AutonomousCoordinator:
 
         import time as _t
 
-        # Backoff schedule (seconds to wait after N completed attempts):
-        #   0 → try immediately (first time)
-        #   1 → 60 s,  2 → 120 s,  3 → 300 s,  4 → 900 s,  5+ → 3600 s
-        _BACKOFF = [0, 60, 120, 300, 900, 3600]
+        # THE WAIT BEFORE EACH RETRY IS LEARNED, per component, by the learning
+        # authority (`predict_optimal_retry_delay`) from how retries after each
+        # wait have turned out -- it was a fixed table (0/60/120/300/900/3600 s)
+        # that nothing ever learned from. The first attempt is immediate: it is
+        # not a retry. A retry's outcome is credited to the wait before it:
+        # recovered when the component is next seen healthy, not recovered when
+        # the next retry falls due with it still unhealthy.
         _ESCALATION_THRESHOLD = 5  # escalate after this many failed cycles
-
-        # ── Reset state for components that are now healthy ───────────────────
-        unhealthy_ids = {p.trigger_id for p in plans}
-        for comp in list(self._component_recovery_state.keys()):
-            if comp not in unhealthy_ids:
-                prev = self._component_recovery_state.pop(comp)
-                logger.info(
-                    f"[IDLE:HEALTH] '{comp}' is now healthy after "
-                    f"{prev['attempts']} recovery attempt(s) — resetting state"
-                )
 
         # ── Execute recovery plans with per-component backoff ─────────────────
         recovered = 0
@@ -9407,14 +12212,16 @@ class AutonomousCoordinator:
 
             # Get or initialise recovery state for this component
             state = self._component_recovery_state.setdefault(component, {
-                "attempts":     0,
-                "last_attempt": 0.0,
-                "escalated":    False,
+                "attempts":      0,
+                "last_attempt":  0.0,
+                "escalated":     False,
+                "next_delay":    0.0,    # the first attempt is not a retry
+                "pending_delay": None,   # the wait before the retry in flight
             })
 
             # Backoff gate — skip this component entirely if too soon to retry
             attempts      = state["attempts"]
-            backoff_secs  = _BACKOFF[min(attempts, len(_BACKOFF) - 1)]
+            backoff_secs  = state["next_delay"]
             elapsed_since = _now - state["last_attempt"]
             if elapsed_since < backoff_secs:
                 remaining = int(backoff_secs - elapsed_since)
@@ -9424,6 +12231,12 @@ class AutonomousCoordinator:
                 )
                 skipped += 1
                 continue
+
+            # Due, and still unhealthy: the retry in flight did not recover it.
+            if state["pending_delay"] is not None:
+                await self.learning.record_retry_outcome(
+                    {"component": component}, state["pending_delay"], recovered=False)
+            state["pending_delay"] = state["next_delay"] if attempts > 0 else None
 
             # ── Execute playbook steps for this component ─────────────────────
             # Outcome of each action in THIS plan, for dependency resolution.
@@ -9502,6 +12315,8 @@ class AutonomousCoordinator:
             # ── Update per-component recovery state ───────────────────────────
             state["attempts"]     += 1
             state["last_attempt"]  = _now
+            state["next_delay"]    = await self.learning.predict_optimal_retry_delay(
+                {"component": component})
 
             # ── Escalate if the component keeps failing ────────────────────────
             new_attempts = state["attempts"]
@@ -9688,10 +12503,18 @@ class AutonomousCoordinator:
         """Queue a periodic research task to reduce temporal knowledge gaps.
 
         Research is learning: what the task finds is what the substrate improves
-        by. Nothing here changes code or configuration.
+        by. Nothing here changes code or configuration. Where the model is a
+        frozen release, nothing is learned, so nothing is researched: the topics
+        would go out and every finding would be refused.
         """
         from .shared_types import Task, TaskType, TaskSource, Priority
         import time as _t
+        from core.database import get_database_manager
+
+        if getattr(get_database_manager(), "frozen", False):
+            logger.info("[IDLE:KNOWLEDGE] Skipping — release %s is frozen and cannot learn "
+                        "what research finds", get_database_manager().release)
+            return
 
         # Require a system review snapshot so the task has grounded context
         snapshot = getattr(self, "_idle_system_review_snapshot", None)
@@ -9717,7 +12540,7 @@ class AutonomousCoordinator:
 
         # Cross-restart throttle: if we started a refresh recently, don't enqueue another.
         try:
-            state = self._knowledge_cutoff_state or {}
+            state = self._knowledge_refresh or {}
             started_at = state.get("last_refresh_started_at")
             if started_at:
                 from datetime import datetime as _dt
@@ -9736,7 +12559,7 @@ class AutonomousCoordinator:
         # This prevents constant research even with a short idle interval.
         # Default: refresh at most weekly.
         max_age_days = int(self.config.get("knowledge_refresh_max_age_days", 7))
-        state = self._knowledge_cutoff_state or {}
+        state = self._knowledge_refresh or {}
         refreshed_through = (state.get("refreshed_through_date") or "")
         try:
             from datetime import date as _date
@@ -9755,18 +12578,27 @@ class AutonomousCoordinator:
 
         cutoff = self._get_declared_model_cutoff_date()
 
-        # Create a research task (non-mutating) that can use CONDUCT_RESEARCH tools.
-        topic_list = self.config.get(
-            "idle_knowledge_refresh_topics",
-            [
-                "recent AI agent tooling patterns (2025-2026)",
-                "function calling / tool schema best practices", 
-                "MCP ecosystem changes and interoperability", 
-                "security CVEs relevant to our Python dependencies", 
-                "pgvector/Postgres performance practices", 
-            ],
-        )
-        topics_str = "; ".join(str(t) for t in topic_list[:8])
+        # WHAT TO RESEARCH IS WHERE THE SUBSTRATE KNOWS LEAST. The domain
+        # authority's `knowledge_sparsity_map` ranks each learned domain's
+        # concepts by how connected they are; the thinnest are where a gap most
+        # likely sits, and they are what this step researches. This read a
+        # hard-coded list instead -- "recent AI agent tooling patterns
+        # (2025-2026)", "MCP ecosystem changes and interoperability", ... --
+        # topics chosen for a language model's cutoff, not from anything the
+        # substrate holds, and used whenever no list was configured. An operator
+        # may still name topics outright (`idle_knowledge_refresh_topics`); that
+        # is an instruction and is followed as given. With neither, there is
+        # nothing held to deepen, and no research is invented.
+        topic_list = [str(t) for t in (self.config.get("idle_knowledge_refresh_topics") or [])]
+        topic_source = "configured"
+        if not topic_list:
+            topic_list = await self._thinnest_knowledge_topics()
+            topic_source = "knowledge_sparsity_map"
+        if not topic_list:
+            logger.info("[IDLE:KNOWLEDGE] Skipping — no learned domain holds knowledge "
+                        "to deepen, and no topics are configured")
+            return
+        topics_str = "; ".join(topic_list[:8])
 
         task = Task(
             id=f"knowledge_refresh_{now.timestamp()}",
@@ -9792,6 +12624,8 @@ class AutonomousCoordinator:
                 "idle_count": self._idle_count,
                 "knowledge_refresh": True,
                 "declared_cutoff": cutoff,
+                "topics": topic_list[:8],
+                "topic_source": topic_source,
                 "refreshed_through_before": refreshed_through or None,
                 "system_review_highlights": snapshot.get("highlights", {}),
                 "no_code_changes": True,
@@ -9799,128 +12633,181 @@ class AutonomousCoordinator:
         )
 
         try:
-            await self.task_queue.add_task(task, priority=Priority.LOW)
+            # ONE REFRESH AT A TIME ACROSS EVERY INSTANCE: the start is claimed in
+            # the store before anything is queued, and only the claimant queues.
+            interval_s = float(self.config.get("idle_knowledge_refresh_interval_s", 6 * 60 * 60))
+            if not await self._claim_knowledge_refresh(now, task.id, interval_s):
+                logger.info("[IDLE:KNOWLEDGE] Skipping — a refresh started within "
+                            "the interval (another instance, or an earlier run)")
+                return
+            await self.intend(task, pursuit="refresh_knowledge", trigger={
+                "what": "idle knowledge refresh", "source": "substrate",
+                "content": dict(task.metadata or {})})
+            if not await self.task_queue.add_task(task, priority=Priority.LOW):
+                await self.conclude_pursuit(
+                    task, {"error": "task queue refused the work"}, completed=False)
             self._idle_last_knowledge_refresh_at = now
-            # Record the refresh start (best-effort) for cross-session visibility
-            try:
-                self._knowledge_cutoff_state["last_refresh_started_at"] = now.isoformat()
-                self._knowledge_cutoff_state["last_refresh_task_id"] = task.id
-                self._knowledge_cutoff_state["declared_model_cutoff_date"] = cutoff
-                self._save_knowledge_cutoff_state(self._knowledge_cutoff_state)
-            except Exception as e:
-                logger.debug(f"[IDLE:KNOWLEDGE] Could not persist refresh start state: {e}")
             logger.info(f"[IDLE:KNOWLEDGE] Task queued: {task.id} (topics={len(topic_list)})")
         except Exception as e:
             logger.warning(f"[IDLE:KNOWLEDGE] Failed to queue knowledge refresh task: {e}")
 
 
-    # ── Knowledge cutoff persistence helpers ───────────────────────────────
+    async def _thinnest_knowledge_topics(self, limit: int = 8) -> List[str]:
+        """Where the substrate's knowledge is thinnest, as research topics.
 
-    def _knowledge_cutoff_state_path(self) -> str:
-        """Return an absolute path for the knowledge cutoff state file."""
-        import os
-        torin_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
-        rel = self.config.get("knowledge_cutoff_state_path", os.path.join("data", "knowledge_cutoff_state.json"))
-        return os.path.join(torin_root, rel)
+        For every learned domain, the domain authority's `knowledge_sparsity_map`
+        names the least-connected concepts -- the regions where "little is held
+        here" and a gap most likely sits. The least-developed domain comes first
+        (its `maturity_score`), then the sparsest concepts in it. Empty when no
+        learned domain holds a concept: the honest answer for a substrate that has
+        been taught nothing yet."""
+        from core.integration.universal_domain_master import get_universal_domain_master
+        udm = get_universal_domain_master()
+        maps = []
+        for domain in await udm.learned_domains():
+            sparsity = await udm.knowledge_sparsity_map(domain.domain_id)
+            if sparsity.get("sparsest"):
+                maps.append(sparsity)
+        maps.sort(key=lambda m: (float(m.get("maturity") or 0.0), m["domain_id"]))
+        topics: List[str] = []
+        for sparsity in maps:
+            for row in sparsity["sparsest"]:
+                topic = f"{str(row['concept']).replace('_', ' ')} ({sparsity['domain_id']})"
+                if topic not in topics:
+                    topics.append(topic)
+                if len(topics) >= limit:
+                    return topics
+        return topics
 
-    def _load_knowledge_cutoff_state(self) -> Dict[str, Any]:
-        import json
-        import os
+    # ── Work state kept in the store ────────────────────────────────────
+    #
+    # TWO FILES UNDER THE REPO'S data/ HELD THIS: `knowledge_cutoff_state.json`
+    # and `permanently_failed_fps.json`. A wipe of the store left them behind, an
+    # instance of the model run from another checkout never saw them, and every
+    # instance rewrote each whole file with its own copy. They are rows now.
+    _WORK_STATE_DDL = (
+        """CREATE TABLE IF NOT EXISTS unified.knowledge_refresh (
+               refresh_id                 TEXT PRIMARY KEY,
+               last_refresh_started_at    TIMESTAMPTZ,
+               last_refresh_completed_at  TIMESTAMPTZ,
+               last_refresh_task_id       TEXT,
+               refreshed_through_date     DATE
+           )""",)
+    #: Work that permanently failed. Each row is whoever's the work was: a
+    #: person's request text is theirs, kept in their context (a per-owner
+    #: table), so the table is kept in every store its rows can be kept in.
+    _FAILED_WORK_DDL = (
+        """CREATE TABLE IF NOT EXISTS unified.failed_task_fingerprints (
+               fingerprint  TEXT PRIMARY KEY,
+               task_id      TEXT,
+               description  TEXT,
+               failed_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+               owner        TEXT
+           )""",
+        "ALTER TABLE unified.failed_task_fingerprints ADD COLUMN IF NOT EXISTS owner TEXT")
+    #: The one refresh record: the substrate's.
+    KNOWLEDGE_REFRESH_ID = "substrate"
 
-        path = self._knowledge_cutoff_state_path()
-        if not os.path.exists(path):
-            return {
-                "schema": "knowledge_cutoff_state.v1",
-                "declared_model_cutoff_date": self._get_declared_model_cutoff_date(),
-                "refreshed_through_date": None,
-                "last_refresh_started_at": None,
-                "last_refresh_completed_at": None,
-                "last_refresh_task_id": None,
-            }
+    async def _work_state_store(self):
+        from core.database import get_database_manager
+        db = get_database_manager()
+        if not getattr(db, "initialized", False):
+            await db.initialize()
+        if not getattr(self, "_work_state_schema_ready", False):
+            for ddl in self._WORK_STATE_DDL:
+                await db.execute_query(ddl, (), commit=True)
+            for store in db.schema_stores("runtime"):
+                for ddl in self._FAILED_WORK_DDL:
+                    await db.execute_query(ddl, (), commit=True, store=store)
+            self._work_state_schema_ready = True
+        return db
 
-        with open(path, "r", encoding="utf-8") as f:
-            data = json.load(f) or {}
+    @staticmethod
+    def _local_iso(value) -> Optional[str]:
+        """A stored instant as the naive local ISO string the refresh gates compare
+        against `datetime.now()` (a date stays a date)."""
+        if value is None:
+            return None
+        if isinstance(value, datetime):
+            return value.astimezone().replace(tzinfo=None).isoformat()
+        return value.isoformat()
 
-        if not isinstance(data, dict):
-            raise ValueError("knowledge cutoff state is not a dict")
+    async def _load_knowledge_refresh(self) -> None:
+        """Read the knowledge-refresh record into this process's view of it."""
+        db = await self._work_state_store()
+        row = await db.execute_query(
+            "SELECT last_refresh_started_at, last_refresh_completed_at, "
+            "last_refresh_task_id, refreshed_through_date FROM unified.knowledge_refresh "
+            "WHERE refresh_id = $1", (self.KNOWLEDGE_REFRESH_ID,), fetch_one=True)
+        self._knowledge_refresh = {
+            "last_refresh_started_at": self._local_iso(row["last_refresh_started_at"]) if row else None,
+            "last_refresh_completed_at": self._local_iso(row["last_refresh_completed_at"]) if row else None,
+            "last_refresh_task_id": row["last_refresh_task_id"] if row else None,
+            "refreshed_through_date": self._local_iso(row["refreshed_through_date"]) if row else None,
+        }
 
-        data.setdefault("schema", "knowledge_cutoff_state.v1")
-        # Override if the saved value is absent or the sentinel "unknown" from old code
-        _saved_cutoff = data.get("declared_model_cutoff_date")
-        if not _saved_cutoff or _saved_cutoff == "unknown":
-            data["declared_model_cutoff_date"] = self._get_declared_model_cutoff_date()
-        data.setdefault("refreshed_through_date", None)
-        data.setdefault("last_refresh_started_at", None)
-        data.setdefault("last_refresh_completed_at", None)
-        data.setdefault("last_refresh_task_id", None)
-        return data
+    async def _claim_knowledge_refresh(self, now: datetime, task_id: str,
+                                       interval_s: float) -> bool:
+        """Record that a refresh starts NOW -- only if none started within the
+        interval, in one statement. With many instances, exactly one of them
+        starts a refresh; the others are told it is taken."""
+        db = await self._work_state_store()
+        row = await db.execute_query(
+            "INSERT INTO unified.knowledge_refresh AS k (refresh_id, "
+            "last_refresh_started_at, last_refresh_task_id) VALUES ($1, $2, $3) "
+            "ON CONFLICT (refresh_id) DO UPDATE SET "
+            "last_refresh_started_at = EXCLUDED.last_refresh_started_at, "
+            "last_refresh_task_id = EXCLUDED.last_refresh_task_id "
+            "WHERE k.last_refresh_started_at IS NULL "
+            "OR k.last_refresh_started_at < EXCLUDED.last_refresh_started_at "
+            "- make_interval(secs => $4) RETURNING refresh_id",
+            (self.KNOWLEDGE_REFRESH_ID, now.astimezone(), task_id, float(interval_s)),
+            fetch_one=True)
+        if row is not None:
+            self._knowledge_refresh["last_refresh_started_at"] = now.isoformat()
+            self._knowledge_refresh["last_refresh_task_id"] = task_id
+        return row is not None
 
-    def _save_knowledge_cutoff_state(self, state: Dict[str, Any]) -> None:
-        import json
-        import os
-        import tempfile
+    async def _complete_knowledge_refresh(self, now: datetime, task_id: Optional[str]) -> None:
+        """Record that a refresh finished, and the date it brought knowledge up to."""
+        db = await self._work_state_store()
+        await db.execute_query(
+            "INSERT INTO unified.knowledge_refresh (refresh_id, last_refresh_completed_at, "
+            "refreshed_through_date, last_refresh_task_id) VALUES ($1, $2, $3, $4) "
+            "ON CONFLICT (refresh_id) DO UPDATE SET "
+            "last_refresh_completed_at = EXCLUDED.last_refresh_completed_at, "
+            "refreshed_through_date = EXCLUDED.refreshed_through_date, "
+            "last_refresh_task_id = EXCLUDED.last_refresh_task_id",
+            (self.KNOWLEDGE_REFRESH_ID, now.astimezone(), now.date(), task_id),
+            commit=True)
+        self._knowledge_refresh["last_refresh_completed_at"] = now.isoformat()
+        self._knowledge_refresh["refreshed_through_date"] = now.date().isoformat()
+        self._knowledge_refresh["last_refresh_task_id"] = task_id
 
-        path = self._knowledge_cutoff_state_path()
-        os.makedirs(os.path.dirname(path), exist_ok=True)
+    async def _load_failed_fingerprints(self) -> None:
+        """Read the fingerprints of the substrate's own work that permanently
+        failed: what it must not queue again. A person's are theirs."""
+        db = await self._work_state_store()
+        rows = await db.execute_query(
+            "SELECT fingerprint FROM unified.failed_task_fingerprints WHERE owner IS NULL", (),
+            fetch_all=True, store="runtime") or []
+        self._permanently_failed_fps = {str(r["fingerprint"]) for r in rows}
+        logger.info("♻️  Loaded %d permanently-failed fingerprints from the store",
+                    len(self._permanently_failed_fps))
 
-        payload = dict(state or {})
-        payload.setdefault("schema", "knowledge_cutoff_state.v1")
-        payload.setdefault("declared_model_cutoff_date", self._get_declared_model_cutoff_date())
-
-        fd, tmp_path = tempfile.mkstemp(prefix="knowledge_cutoff_state_", suffix=".json", dir=os.path.dirname(path))
-        try:
-            with os.fdopen(fd, "w", encoding="utf-8") as f:
-                json.dump(payload, f, indent=2, sort_keys=True)
-            os.replace(tmp_path, path)
-        finally:
-            try:
-                if os.path.exists(tmp_path):
-                    os.unlink(tmp_path)
-            except Exception:
-                pass
-
-    # ── Permanently-failed fingerprint persistence ──────────────────────
-
-    def _permanently_failed_fps_path(self) -> str:
-        import os
-        torin_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
-        rel = self.config.get("permanently_failed_fps_path", os.path.join("data", "permanently_failed_fps.json"))
-        return os.path.join(torin_root, rel)
-
-    def _load_permanently_failed_fps(self) -> "Set[str]":
-        """Load the persistent set of permanently-failed task fingerprints from disk."""
-        import json, os
-        path = self._permanently_failed_fps_path()
-        if not os.path.exists(path):
-            return set()
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            if isinstance(data, list):
-                loaded = set(str(fp) for fp in data if fp)
-                logger.info(f"♻️  Loaded {len(loaded)} permanently-failed fingerprints from disk")
-                return loaded
-        except Exception as e:
-            logger.debug(f"Failed to parse permanently_failed_fps.json: {e}")
-        return set()
-
-    def _save_permanently_failed_fps(self) -> None:
-        """Atomically persist the permanently-failed fingerprint set to disk."""
-        import json, os, tempfile
-        path = self._permanently_failed_fps_path()
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        payload = sorted(self._permanently_failed_fps)
-        fd, tmp_path = tempfile.mkstemp(prefix="permanently_failed_fps_", suffix=".json", dir=os.path.dirname(path))
-        try:
-            with os.fdopen(fd, "w", encoding="utf-8") as f:
-                json.dump(payload, f, indent=2)
-            os.replace(tmp_path, path)
-        finally:
-            try:
-                if os.path.exists(tmp_path):
-                    os.unlink(tmp_path)
-            except Exception:
-                pass
+    async def _record_failed_fingerprint(self, fingerprint: str, task: "Task") -> None:
+        """Add one permanently-failed fingerprint, kept where the work's owner's
+        rows are. An insert, never a rewrite, so what other instances recorded
+        stays recorded."""
+        db = await self._work_state_store()
+        owner = Origin.of(getattr(task, "actor", None), "task").person
+        await db.execute_query(
+            "INSERT INTO unified.failed_task_fingerprints "
+            "(fingerprint, task_id, description, owner) "
+            "VALUES ($1, $2, $3, $4) ON CONFLICT (fingerprint) DO NOTHING",
+            (fingerprint, getattr(task, "id", None),
+             (getattr(task, "description", "") or "")[:500], owner), commit=True,
+            store=db.write_store(owner, "runtime"))
 
     def _get_declared_model_cutoff_date(self) -> str:
         """Declared model training cutoff date.
@@ -9949,7 +12836,7 @@ class AutonomousCoordinator:
     def _get_knowledge_cutoff_snapshot(self) -> Dict[str, Any]:
         from datetime import date as _date
 
-        state = self._knowledge_cutoff_state or {}
+        state = self._knowledge_refresh or {}
         refreshed = state.get("refreshed_through_date")
         days_stale = None
         try:
@@ -9959,9 +12846,8 @@ class AutonomousCoordinator:
         except Exception:
             days_stale = None
 
-        _saved_cutoff = state.get("declared_model_cutoff_date")
         return {
-            "declared_model_cutoff_date": (_saved_cutoff if _saved_cutoff and _saved_cutoff != "unknown" else self._get_declared_model_cutoff_date()),
+            "declared_model_cutoff_date": self._get_declared_model_cutoff_date(),
             "refreshed_through_date": refreshed,
             "days_stale": days_stale,
             "last_refresh_started_at": state.get("last_refresh_started_at"),
@@ -9986,38 +12872,8 @@ class AutonomousCoordinator:
 
             now = datetime.now()
             today = now.date().isoformat()
+            await self._complete_knowledge_refresh(now, getattr(task, "id", None))
 
-            # Update persistent state
-            self._knowledge_cutoff_state["last_refresh_completed_at"] = now.isoformat()
-            self._knowledge_cutoff_state["refreshed_through_date"] = today
-            self._knowledge_cutoff_state["last_refresh_task_id"] = getattr(task, "id", None)
-            _meta_cutoff = meta.get("declared_cutoff")
-            self._knowledge_cutoff_state["declared_model_cutoff_date"] = (
-                _meta_cutoff if _meta_cutoff and _meta_cutoff != "unknown"
-                else self._get_declared_model_cutoff_date()
-            )
-            try:
-                self._save_knowledge_cutoff_state(self._knowledge_cutoff_state)
-            except Exception as e:
-                logger.debug(f"Knowledge cutoff state save failed (non-fatal): {e}")
-
-            # Persist a META memory event (best-effort)
-            try:
-                await self.store_memory(
-                    memory_type=MemoryType.META,
-                    content={
-                        "event": "knowledge_refresh_complete",
-                        "task_id": getattr(task, "id", None),
-                        "confidence": float(confidence) if confidence is not None else None,
-                        "declared_model_cutoff_date": self._knowledge_cutoff_state.get("declared_model_cutoff_date"),
-                        "refreshed_through_date": today,
-                        "timestamp": now.isoformat(),
-                    },
-                    importance=0.30,
-                    tags=["knowledge", "refresh", "cutoff", "autonomous"],
-                )
-            except Exception as e:
-                logger.debug(f"Could not store knowledge refresh completion memory: {e}")
 
             logger.info(
                 f"[KNOWLEDGE] Refreshed-through updated: {today} (task={getattr(task, 'id', 'unknown')})"
@@ -10101,8 +12957,21 @@ class AutonomousCoordinator:
             limit=batch * 4,   # headroom: already-expanded ones are filtered below
         )
 
-        pending = [m for m in outcomes
-                   if not (m.metadata or {}).get(self.DOMAIN_EXPANSION_MARK)][:batch]
+        def unexpanded(memory) -> bool:
+            record = ((getattr(memory, "thinking_state", None) or {}).get("raw_event") or {})
+            if isinstance(record.get("occurrences"), list) and not record["occurrences"]:
+                # A pursuit taken on, with no task in it ended yet: no outcome.
+                return False
+            mark = (memory.metadata or {}).get(self.DOMAIN_EXPANSION_MARK)
+            if not mark:
+                return True
+            # A task asked again after it was expanded holds an occurrence the
+            # domain has not seen: its record's latest is newer than the mark.
+            latest = (((getattr(memory, "thinking_state", None) or {}).get("raw_event") or {})
+                      .get("timestamp"))
+            return bool(latest) and str(latest) > str(mark)
+
+        pending = [m for m in outcomes if unexpanded(m)][:batch]
         if not pending:
             # A real zero, reported as one. "No task has completed since the
             # last pass" and "the reader is broken" must not look alike.
@@ -10163,10 +13032,10 @@ class AutonomousCoordinator:
         Returns (status, transfers): status is 'expanded', 'no_domain', or the
         learning error_class; transfers is the cross-domain transfers written.
 
-        The structured record lives at thinking_state['raw_event'] — store_memory
-        renders the event dict into prose for `content`, so the TaskOutcomeRecord
-        fields (domain, outcome, confidence, task_type) are read from the raw
-        dict, not the narrative.
+        The structured record lives at thinking_state['raw_event'] — `content`
+        is the substrate's own account of what it was asked and what happened,
+        so the TaskOutcomeRecord fields (domain, outcome, confidence, task_type)
+        are read from the raw dict, not from that sentence.
         """
         from core.learning.learning_interfaces import LearningExample
         raw = (memory.thinking_state or {}).get("raw_event")
@@ -10196,6 +13065,8 @@ class AutonomousCoordinator:
         result = await self.learning.learn_with_domain_context(
             LearningExample(
                 example_id=memory.memory_id,
+                # Whose experience the task was: its outcome memory's owner.
+                actor=getattr(memory, "user_id", None) or SUBSTRATE_ACTOR,
                 inputs={
                     "task_id": content.get("task_id"),
                     "task_type": content.get("task_type"),
@@ -10261,15 +13132,19 @@ class AutonomousCoordinator:
                 "[IDLE] domain discovery: %d examined, %d crystallized, %d merged",
                 summary["examined"], summary["crystallized"], summary["merged"])
 
-        # Declarative twin: crystallize taught-concept clusters out of the
-        # conversation channel into per-subject domains.
-        concept_summary = await udm.discover_concept_domains(from_field="conversation")
+        # Declarative twin: split the undifferentiated CHANNELS into the
+        # subjects they hold. This used to name one channel -- `conversation` --
+        # which the conversation/learning split had left permanently empty (0
+        # concepts on the live store) while `general` held 82,676 taught
+        # concepts that no scheduled caller ever examined. The authority now
+        # names its own channels and picks the right splitter for each.
+        concept_summary = await udm.discover_taught_domains()
         if concept_summary.get("crystallized"):
             logger.info(
-                "[IDLE] concept-domain discovery: %d clusters examined, %d crystallized (%s)",
-                concept_summary["examined"], concept_summary["crystallized"],
-                ", ".join(f"{o['field']}:{o['concepts']}"
-                          for o in concept_summary.get("outcomes", [])))
+                "[IDLE] taught-domain discovery: %d subject(s) crystallized (%s)",
+                concept_summary["crystallized"],
+                ", ".join(f"{name}:{c.get('concepts')}"
+                          for name, c in concept_summary["channels"].items()))
         return {"operator": summary, "declarative": concept_summary}
 
     async def _idle_operator_exploration_work(self):
@@ -10340,6 +13215,10 @@ class AutonomousCoordinator:
         logger.info("[IDLE] operator exploration: domain=%s acted=%s", chosen,
                     summary.get("acted"))
         return {"domain": chosen, **summary}
+
+    async def _idle_learning_consolidation(self) -> Dict[str, Any]:
+        """Scheduled tier: the learning authority's consolidation pass."""
+        return await self.learning.consolidate_learning()
 
     async def _idle_operator_induction_work(self):
         """Induce the operators exploration has gathered demonstrations for, off
@@ -10636,7 +13515,15 @@ class AutonomousCoordinator:
         outcomes = await self._task_outcomes_by_field(registry)
         resolved, unresolved = 0, 0
         for row in pending:
-            target = f"domain_{row['target_domain']}"
+            # The row keeps the target's key, without a `domain_` prefix; the
+            # domain it names is whichever spelling the registry holds it under.
+            # A learned domain is registered bare, so `domain_<key>` built by hand
+            # would never find its outcomes.
+            held = registry.domain_for_field(row["target_domain"])
+            if held is None:
+                unresolved += 1
+                continue
+            target = held.domain_id
             created = row["created_at"]
             series = outcomes.get(target, [])
             before = [o for o in series if o["at"] < created]
@@ -10712,23 +13599,33 @@ class AutonomousCoordinator:
         """
         from core.domain.domain_registry import UnresolvedDomainReference
 
+        # ONE ROW PER OCCURRENCE. A task asked again is merged into the memory
+        # that holds it, which keeps each time it was done; a memory from before
+        # occurrences were merged is one.
         rows = await self.memory.postgres_storage.db.execute_query(
-            """SELECT thinking_state->'raw_event'->>'task_type'        AS task_type,
-                      thinking_state->'raw_event'->>'knowledge_domain' AS knowledge_domain,
-                      thinking_state->'raw_event'->>'outcome' AS outcome,
-                      thinking_state->'raw_event'->>'task_id' AS task_id,
-                      created_at
-               FROM memory_hot.memory_hot
-               WHERE tags @> '["task_outcome"]'::jsonb
+            """SELECT o->>'task_type' AS task_type,
+                      o->>'knowledge_domain' AS knowledge_domain,
+                      o->>'outcome' AS outcome,
+                      o->>'task_id' AS task_id,
+                      CASE WHEN o->>'timestamp' ~ '^\\d{4}-\\d{2}-\\d{2}T'
+                           THEN (o->>'timestamp')::timestamp ELSE m.created_at END AS created_at
+               FROM memory_hot.memory_hot m,
+                    jsonb_array_elements(COALESCE(m.thinking_state->'raw_event'->'occurrences',
+                                                  jsonb_build_array(m.thinking_state->'raw_event'))) AS o
+               WHERE m.tags @> '["task_outcome"]'::jsonb
+                 AND (m.user_id IS NULL OR m.user_id IN ('', '__substrate__'))
                UNION ALL
-               SELECT thinking_state->'raw_event'->>'task_type',
-                      thinking_state->'raw_event'->>'knowledge_domain',
-                      thinking_state->'raw_event'->>'outcome',
-                      thinking_state->'raw_event'->>'task_id',
-                      created_at
-               FROM memory_cold.memory_cold
-               WHERE tags @> '["task_outcome"]'::jsonb""",
-            fetch_all=True) or []
+               SELECT o->>'task_type', o->>'knowledge_domain', o->>'outcome', o->>'task_id',
+                      CASE WHEN o->>'timestamp' ~ '^\\d{4}-\\d{2}-\\d{2}T'
+                           THEN (o->>'timestamp')::timestamp ELSE m.created_at END
+               FROM memory_cold.memory_cold m,
+                    jsonb_array_elements(COALESCE(m.thinking_state->'raw_event'->'occurrences',
+                                                  jsonb_build_array(m.thinking_state->'raw_event'))) AS o
+               WHERE m.tags @> '["task_outcome"]'::jsonb
+                 AND (m.user_id IS NULL OR m.user_id IN ('', '__substrate__'))""",
+            # The substrate's own task records only: a task done for a person is
+            # that person's memory, and is not read into the model.
+            fetch_all=True, store="model") or []
 
         by_field: Dict[str, List[Dict[str, Any]]] = {}
         for row in rows:
@@ -10798,14 +13695,12 @@ class AutonomousCoordinator:
                 # restart) has been RETIRED along with the duplicate
                 # `_execute_task_with_singleton` pipeline; execution now runs
                 # through the single `_execute_and_validate_task` path.
-                total_execs = 0
-                total_wins = 0
-                for sid in self.meta_learning.task_strategy_map.get(family, []):
-                    s = self.meta_learning.strategies[sid]
-                    if not str(s.strategy_type).startswith(self.EXECUTOR_NS):
-                        continue
-                    total_execs += s.trials
-                    total_wins += s.successes
+                # Read through the learning authority's recommendation surface,
+                # not the meta-learner's internal maps.
+                arms = await self.learning.recommend_strategies(
+                    {"task_family": family, "strategy_prefix": self.EXECUTOR_NS})
+                total_execs = sum(a["trials"] for a in arms)
+                total_wins = sum(a["successes"] for a in arms)
 
                 # Get recent outcomes for variance/decay analysis
                 recent_outcomes = self._get_recent_task_outcomes(tt_value, limit=10)
@@ -10834,19 +13729,6 @@ class AutonomousCoordinator:
                             f"(reason: {reason}, execs: {total_execs}, wins: {total_wins})"
                         )
 
-                        # Store detailed adaptation event to META memory
-                        await self.store_memory(
-                            MemoryType.META,
-                            {
-                                "event": "strategy_adaptation",
-                                "task_type": tt_value,
-                                "reason": reason,
-                                "gate_analysis": gate_analysis,
-                                "timestamp": datetime.now().isoformat(),
-                            },
-                            importance=0.7,
-                            tags=["meta_learning", "strategy_adaptation"],
-                        )
 
                     except Exception as e:
                         logger.warning(f"[IDLE:METALEARNING] Adaptation error for {tt_value}: {e}")
@@ -10988,17 +13870,6 @@ class AutonomousCoordinator:
                                 datetime.now() - getattr(mem, 'created_at', datetime.now())
                             ).days if hasattr(mem, 'created_at') else 0
                             if importance >= 0.7 and age_days >= 1:
-                                await self.store_memory(
-                                    MemoryType.META,
-                                    {
-                                        "event":    "tier_upgrade",
-                                        "content":  getattr(mem, 'content', {}),
-                                        "original_importance": importance,
-                                        "timestamp": datetime.now().isoformat(),
-                                    },
-                                    importance = importance,
-                                    tags       = ["consolidation", "tier_upgrade"],
-                                )
                                 upgraded += 1
                         if upgraded:
                             logger.info(f"[IDLE:MEMORY] Tier upgrade: {upgraded} memories promoted")
@@ -11065,14 +13936,10 @@ class AutonomousCoordinator:
             active_exploration_fps: Set[str] = set()
             active_exploration_count = 0
             try:
-                for queued in getattr(self.task_queue, "tasks_by_id", {}).values():
-                    if not queued:
-                        continue
-                    if queued.status not in (TaskStatus.PENDING, TaskStatus.IN_PROGRESS):
-                        continue
-
-                    queued_task = getattr(queued, "task", None)
-                    if not queued_task or getattr(queued_task, "source", None) != TaskSource.AUTONOMOUS:
+                # What is still owed is the queue's answer (`active_tasks`), not a
+                # status list kept here.
+                for queued_task in self.task_queue.active_tasks():
+                    if getattr(queued_task, "source", None) != TaskSource.AUTONOMOUS:
                         continue
 
                     metadata = getattr(queued_task, "metadata", {}) or {}
@@ -11087,6 +13954,7 @@ class AutonomousCoordinator:
                     if fp_active:
                         active_exploration_fps.add(fp_active)
             except Exception as _scan_err:
+                raise_if_structural(_scan_err, "autonomous_coordinator.exploration_cap_scan")
                 logger.debug(f"Exploration cap scan failed: {_scan_err}")
 
             if active_exploration_count >= cap:
@@ -11107,8 +13975,17 @@ class AutonomousCoordinator:
                 # Ask the Self for disposition — it owns appraisal→arbiter and
                 # integrates them. The body no longer computes its own stance;
                 # it asks its head "what is my disposition now?".
+                # THE SLOTS ARE THE ONES ACTUALLY FREE. This read
+                # `cap - len(recent_fp_list) * 0` — an expression multiplied
+                # out to nothing, so it was always the whole cap: the arbiter
+                # was told every exploration slot was free on every cycle, no
+                # matter how many explorations were already in flight. The real
+                # number was counted twenty lines above (`active_exploration_count`,
+                # the scan of PENDING/IN_PROGRESS intrinsic exploration tasks)
+                # and then thrown away. Breadth is scaled against it now, so a
+                # substrate already exploring widens less, not the same.
                 _directive = self.disposition(
-                    slots_available=max(0, cap - len(recent_fp_list) * 0),
+                    slots_available=max(0, cap - active_exploration_count),
                     queue_pressure=_pressure,
                 )
                 _explore_cfg = playbook.plan_exploration_config(
@@ -11133,11 +14010,26 @@ class AutonomousCoordinator:
                     self._exploration_status = "DECLINED_BY_ARBITER"
                     return
             except Exception as _arb_err:
-                # No appraisal yet, or arbitration failed: fall back to the
-                # previous fixed breadth rather than blocking exploration.
-                logger.debug("Behaviour arbitration unavailable: %s", _arb_err)
+                # THE ARBITER FAILING IS NOT PERMISSION TO EXPLORE.
+                #
+                # This used to swallow the error and carry on at a hardcoded
+                # breadth of 3 — "fall back to the previous fixed breadth rather
+                # than blocking exploration". So the one component that decides
+                # whether self-directed work should start could break, and the
+                # substrate would start three pieces of it anyway, with no
+                # disposition behind them and nothing in the log above debug.
+                #
+                # Exploration is the most discretionary work there is. When the
+                # thing that admits it cannot answer, the honest answer is not
+                # now — the cycle is quiet, says why, and the next one retries.
+                logger.warning(
+                    "🧘 Exploration declined — behaviour arbitration is "
+                    "unavailable (%s); starting self-directed work without a "
+                    "disposition would be acting on nothing", _arb_err)
+                self._exploration_status = "ARBITRATION_UNAVAILABLE"
+                return
 
-            _max_goals = _explore_cfg["max_goals"] if _explore_cfg else 3
+            _max_goals = _explore_cfg["max_goals"]
 
             # SELECTION is the unified whole-self frontier (`_intrinsic_pursuits`):
             # epistemic not-knowing lifted by developmental hunger, ranked and
@@ -11298,7 +14190,7 @@ class AutonomousCoordinator:
                 if _k in _gm:
                     intrinsic_task.metadata[_k] = _gm[_k]
 
-            # Carry the decision forward so _check_task_completions can reward it.
+            # Carry the decision forward so _execute_and_validate_task can reward it.
             # Selecting a task type without ever reporting how it turned out is a
             # half loop: the bandit would sample forever from an untouched prior.
             intrinsic_task.metadata["adaptive_task_type"] = task_type.value
@@ -11306,6 +14198,7 @@ class AutonomousCoordinator:
             # Carries the decision-record id so the outcome joins back to the
             # propensities and context captured at decision time.
             intrinsic_task.metadata["decision_id"] = _type_decision.get("decision_id")
+            intrinsic_task.metadata["predicted_success"] = _type_decision.get("predicted_success")
 
             # Attach uncertainty metadata for closed-loop completion gate
             if selected_component:
@@ -11316,9 +14209,26 @@ class AutonomousCoordinator:
                     "uncertainty_delta_max": -(0.1 * u_before) if u_before > 0 else -0.05
                 }
 
+            # WHY THIS WORK EXISTS, recorded where the substrate chose it: the
+            # goal it raised, keyed so a route later proved for that goal firms
+            # up this same pursuit rather than starting a second account of it.
+            await self.intend(
+                intrinsic_task, goal_id=persisted_goal.id,
+                pursuit=str(intrinsic_task.metadata.get("drive")
+                            or intrinsic_task.metadata.get("objective_type")
+                            or "explore"),
+                trigger={"what": "drive", "source": "substrate",
+                         "content": {"goal_id": persisted_goal.id,
+                                     "goal": getattr(selected_goal, "description", None),
+                                     "goal_metadata": getattr(selected_goal, "metadata", None),
+                                     "task_metadata": dict(intrinsic_task.metadata or {})}})
+
             # Add to task queue instead of executing directly
             logger.info(f"🔬 Queueing exploration task: {selected_goal.id}")
-            await self.task_queue.add_task(intrinsic_task, priority=Priority.LOW)
+            if not await self.task_queue.add_task(intrinsic_task, priority=Priority.LOW):
+                await self.conclude_pursuit(
+                    intrinsic_task, {"error": "task queue refused the work"},
+                    completed=False)
             # Note: Global cap + in-flight dedup are derived from task_queue state; no sticky locks.
 
         except Exception as e:
@@ -11433,7 +14343,14 @@ class AutonomousCoordinator:
         )
 
         # Add to task queue immediately
-        await self.task_queue.add_task(fix_task)
+        await self.intend(fix_task, pursuit="repair", trigger={
+            "what": "error", "source": "world",
+            "content": {"error_type": error_type, "message": error_msg, "source": source,
+                        "traceback": "".join(tb_module.format_exception(
+                            type(error), error, error.__traceback__))}})
+        if not await self.task_queue.add_task(fix_task):
+            await self.conclude_pursuit(
+                fix_task, {"error": "task queue refused the work"}, completed=False)
         logger.info(f"🔧 Created fix task {fix_task.id} for {error_type} in {source}")
 
 
@@ -11585,16 +14502,27 @@ class AutonomousCoordinator:
 
         return {
             "description_len": len(description or ""),
+            # ALL SEVEN DRIVES, not four. This vector conditions what the
+            # substrate concludes about its own performance ("RESEARCH works 89%
+            # of the time UNDER THESE CONDITIONS"), and three of the drives were
+            # simply left out of the conditions — mastery, autonomy and social
+            # had no consumer anywhere in the tree, so nothing the substrate
+            # learned could ever depend on them. A drive absent from `dims` is
+            # one that could not be measured this tick and stays None here,
+            # which is a condition too.
             "curiosity": dims.get("curiosity"),
             "novelty": dims.get("novelty"),
             "competence": dims.get("competence"),
             "impact": dims.get("impact"),
+            "mastery": dims.get("mastery"),
+            "autonomy": dims.get("autonomy"),
+            "social": dims.get("social"),
             "health_components_total": health.get("components_total"),
             "health_unhealthy_total": health.get("unhealthy_total"),
             "active_goals": len(self.system_state.active_goals)
             if getattr(self, "system_state", None) else None,
-            "active_tasks": len(self.system_state.active_tasks)
-            if getattr(self, "system_state", None) else None,
+            "active_tasks": len(self.task_queue.active_tasks())
+            if getattr(self, "task_queue", None) else None,
             "idle_cycles": getattr(self, "_idle_count", None),
             "queue_depth": self.task_queue.queue.qsize()
             if getattr(self, "task_queue", None) else None,
@@ -11787,9 +14715,11 @@ class AutonomousCoordinator:
         }.get(outcome_class, OutcomeClass.INDETERMINATE)
 
         try:
-            await self.meta_learning.track_learning_outcome(
-                task_type=TaskFamily.CONTROL,
-                strategy_type=f"{self.ADAPTIVE_TYPE_NS}{chosen}",
+            # Through the learning authority, which records the outcome with the
+            # meta-learner and checks the prediction made when the type was
+            # chosen against what actually happened.
+            await self.learning.update_strategy_effectiveness(
+                TaskFamily.CONTROL, f"{self.ADAPTIVE_TYPE_NS}{chosen}",
                 success=success,
                 performance_score=1.0 if success else 0.0,
                 time_ms=time_ms,
@@ -11800,6 +14730,7 @@ class AutonomousCoordinator:
                     "source": "adaptive_task_type",
                 },
                 decision_id=(task.metadata or {}).get("decision_id"),
+                predicted_success=(task.metadata or {}).get("predicted_success"),
             )
         except Exception as e:
             logger.warning("Could not record adaptive task-type outcome: %s", e)
@@ -11863,6 +14794,11 @@ class AutonomousCoordinator:
             return None
         if _decision_sink is not None:
             _decision_sink["decision_id"] = sink.get("decision_id")
+            # What the evidence predicts for the chosen type, carried to the
+            # outcome so the prediction is checked when the task ends.
+            prediction = await self.learning.predict_outcome(
+                {"task_family": TaskFamily.CONTROL, "strategy_type": strategy.strategy_type})
+            _decision_sink["predicted_success"] = prediction["predicted_success"]
         return TaskType(str(strategy.strategy_type)[len(self.ADAPTIVE_TYPE_NS):])
 
     #: The prior for a freshly-minted completion belief — LOW, meaning "the goal
@@ -12087,6 +15023,31 @@ class AutonomousCoordinator:
             achieved = (not exists) if wants_absent else exists
             saw.append(Evidence(prop, achieved, self._EV_EFFECT if achieved else self._EV_AGAINST,
                                 target, "filesystem_scan", f"saw:filesystem:{target}", "saw"))
+        # A READING IS CONFIRMED BY READING AGAIN. A read changes nothing, so it
+        # names no intervention target and the branch above had nothing to look
+        # at: a declared `read_file` that returned the note was held at DID alone
+        # (~0.72) and failed completion every time. What a reading claims is that
+        # the content it returned is what the world holds -- checked here by a
+        # FRESH read of the same file (its own syscall, not the tool's result),
+        # and only for a whole-file reading, which is the only kind the whole
+        # file can confirm.
+        for r in (result.get("tools_run") or []):
+            if not isinstance(r, dict) or r.get("tool") != "read_file" or not r.get("success"):
+                continue
+            body = r.get("output") if isinstance(r.get("output"), dict) else {}
+            path, content = body.get("file_path"), body.get("content")
+            if not path or not isinstance(content, str) or path in seen:
+                continue
+            if len(content.encode("utf-8")) != body.get("size_bytes"):
+                continue
+            seen.add(path)
+            try:
+                with open(path, "r", encoding="utf-8") as fresh_file:
+                    matches = fresh_file.read() == content
+            except (OSError, UnicodeDecodeError):
+                matches = False
+            saw.append(Evidence(prop, matches, self._EV_EFFECT if matches else self._EV_AGAINST,
+                                path, "filesystem_read", f"saw:reading:{path}", "saw"))
         for fact in (result.get("learned") or [])[:3]:
             held = self._saw_memory_holds(fact)
             if held is None:
@@ -12126,11 +15087,15 @@ class AutonomousCoordinator:
                         str(eff.get("polarity", "")).lower() == "delete")
                        for eff in (result.get("effects") or [])]
         elif _path == "substrate_plan":
-            # Goal conditions are read exactly as the reconciler reads them —
-            # present in the observed world — so the belief and the intent's
-            # account cannot mean different things by the same condition.
-            claimed = [(cond, False)
-                       for cond in (result.get("goal_conditions") or [])]
+            # Goal conditions are read exactly as the reconciler reads them — a
+            # condition holds when its fact is present, a DENIED one when its
+            # fact is absent — so the belief and the intent's account cannot
+            # mean different things by the same condition.
+            from core.reasoning.temporal_reasoning import TemporalReasoningSystem
+            claimed = []
+            for cond in (result.get("goal_conditions") or []):
+                denied = TemporalReasoningSystem.denied(str(cond))
+                claimed.append((denied, True) if denied is not None else (cond, False))
         else:
             claimed = []
         if claimed:
@@ -12206,7 +15171,13 @@ class AutonomousCoordinator:
         accept = self.COMPLETION_ACCEPT + (self.COMPLETION_ACCEPT_MAX - self.COMPLETION_ACCEPT) * caution
         if posterior + 1e-9 >= accept:
             return True, posterior, []
-        return False, posterior, [
+        # WHAT THE WORK ITSELF REPORTED COMES FIRST. A task whose every path
+        # declined said why ("no substrate handler for an ANALYSIS task yet …");
+        # reporting only the posterior told the person who asked "completion
+        # belief 0.01 < acceptance 0.96" -- true, and no reason at all.
+        reported = (result.get('error') if isinstance(result, dict)
+                    and result.get('success') is not True else None)
+        return False, posterior, ([str(reported)] if reported else []) + [
             f"completion belief {posterior:.2f} < acceptance {accept:.2f} — "
             f"goal not yet grounded-confident (needs corroboration)"]
 
@@ -12225,10 +15196,169 @@ class AutonomousCoordinator:
                   + (self.COMPLETION_ACCEPT_MAX - self.COMPLETION_ACCEPT) * caution)
         return vi, accept
 
+    async def record_finding(self, *, faculty: str, finding: str,
+                             holds: bool, experiment: str, run: str,
+                             artifact: Optional[str] = None,
+                             domain: str = "self") -> Any:
+        """Hold what an experiment found out ABOUT THIS SUBSTRATE.
+
+        THE SUBSTRATE WAS THE SUBJECT OF EVERY EXPERIMENT AND LEARNED NOTHING
+        FROM ANY OF THEM. Experiments here run against a LIVE substrate -- the
+        harness refuses to start unless the reactive drain worker is up -- so
+        reasoning, learning, memory, perception and reading are all genuinely
+        engaged. Then the result was written to a JSON file and a lab notebook,
+        which only a person can read. It discovered that its reader holds ten
+        constructions and fails nine, that seeing a kind twice lets it describe
+        that kind, that it could not read a PDF; and it held none of it.
+
+        WHY THE SUITE WAS RIGHT TO REFUSE, AND WHERE THAT WENT TOO FAR.
+        `writes_to_store` exists because "a reading experiment that quietly
+        taught the substrate its own probe sentences would flatter every
+        experiment after it". True -- of the PROBE. Teaching it "A crucible melts
+        ore." during a reading measurement contaminates that measurement.
+        Teaching it *that it reads comparatives and not subordination*
+        contaminates nothing: no reader consults the substrate's opinion of
+        itself before parsing. The ban on the probe was silently extended to the
+        finding, and the finding is the part worth keeping.
+
+        THE SUBJECT IS THE FACULTY, NEVER THE PROBE. `sentence_reader`,
+        `document_perception` -- so a claim about the substrate can never be
+        mistaken for a claim about the world it was reading.
+
+        A RUN IS ONE WITNESS. The run id rides as the observation, so re-running
+        an experiment is a second independent observation of the same faculty
+        and moves the posterior honestly, while re-reading one run's results
+        cannot. That is the 674x double-count defect answered by the mechanism
+        that already exists rather than by a new rule.
+
+        A FAILURE IS A FINDING. `holds=False` is admitted as a negative claim,
+        not dropped -- "it does not read subordination" is knowledge, and an
+        experiment that only recorded its successes would teach the substrate a
+        flattering fiction about itself.
+        """
+        from core.semantics.cognitive_ingress import Provenance
+
+        faculty = str(faculty or "").strip()
+        finding = str(finding or "").strip()
+        if not faculty or not finding:
+            return None
+        return await self.learning.learn_fact(
+            faculty, "was_found_to", finding,
+            positive=bool(holds), domain=domain,
+            # An experiment RAN. Its result is something observed of a real
+            # system, which is what TASK_ARTIFACT already means here.
+            quality=1.0,
+            provenance=Provenance(
+                producer=f"experiment:{experiment}",
+                source_id=artifact or f"{experiment}:{run}",
+                source_type="TASK_ARTIFACT"),
+            description=f"found by {experiment} run {run}")
+
+    async def describe_kind(self, category: str, *, domain: str = "perception"
+                           ) -> List[str]:
+        """Say what a KIND looks like, from what sight observed of its instances.
+
+        SIGHT WAS ONLY EVER ABLE TO SPEAK OF PARTICULARS. Seeing gave the
+        substrate `blob_7 isa red`, `sits center`, `occupies 0.269` -- facts
+        about one blob -- and named it. The category concept itself held ZERO
+        relations, so it could pick a hammer out of a lineup and had nothing to
+        say about what a hammer looks like. Reading a sentence has never had that
+        limit: "a hammer is a tool" is a fact about the kind on the first
+        telling. This is the missing half of sight, not an embellishment of it --
+        a first-class faculty makes claims about kinds, and sight could not.
+
+        WHAT IS ADMITTED IS A DESCRIPTION, NEVER A KIND MEMBERSHIP. The property
+        goes in as `has_property`, the relation the graph already carries for
+        "snow HAS_PROPERTY white". Writing `hammer isa metal` instead would put
+        it in the taxonomy the reasoner walks TRANSITIVELY, and a hammer would
+        become a substance -- a describable fact turned into a false ancestor.
+
+        AND IT CAN NEVER BE READ BACK AS EVIDENCE. It enters with INDUCED_RULE
+        provenance, which is not among `ROOT_SOURCES`, so
+        `observed_instance_features` -- the one read recognition uses -- excludes
+        it by the guard that already exists. The substrate can therefore SAY
+        that hammers are metal while never naming the next metal thing a hammer
+        on those grounds. That is RECOGNISE-01's property E holding structurally:
+        a name is never a premise, and neither is anything derived from one.
+
+        Returns the claims admitted.
+        """
+        from core.reasoning.concept_graph_reasoning import observed_kind_description
+        from core.semantics.cognitive_ingress import Provenance
+        from core.database import get_database_manager
+
+        category = str(category or "").strip()
+        if not category:
+            return []
+        db = get_database_manager()
+        if not getattr(db, "initialized", False):
+            await db.initialize()
+
+        described, evidence = await observed_kind_description(db, category)
+        if not described or not evidence:
+            # Fewer than two instances, nothing observed of one of them, or
+            # nothing shared by all. Each is an honest "this kind is not
+            # described yet", and none of them is a partial description.
+            return []
+
+        # A COPULAR OBSERVATION BECOMES A PROPERTY; EVERYTHING ELSE KEEPS ITS
+        # RELATION. `blob isa red` describes the kind as `has_property red` --
+        # never `isa red`, which is walked TRANSITIVELY and would make the kind a
+        # kind of red. But `looked vivid` and `larger_than handle` say what they
+        # say, and flattening them to `has_property` would lose the very thing
+        # that makes them a description rather than a label.
+        from core.semantics.relation_types import SemanticRelation as _Rel
+        _COPULAR_OBS = {"isa", "is_a", "is", "are", "instance_of"}
+        said: List[str] = []
+        for relation, value in described:
+            relation = ("has_property" if relation in _COPULAR_OBS else relation)
+            try:
+                admission = await self.learning.learn_fact(
+                    category, relation, value, domain=domain,
+                    # Every instance agreed. The claim is as good as the
+                    # observations under it, which is what the lineage states.
+                    quality=1.0,
+                    provenance=Provenance(
+                        producer="kind_description",
+                        source_id=f"observed_instances:{category}",
+                        source_type="INDUCED_RULE",
+                        derived_from=tuple(evidence)))
+            except Exception as error:
+                raise_if_structural(error, "autonomous_coordinator.describe_kind")
+                logger.warning("describe_kind: %s %s %s was refused: %s",
+                               category, relation, value, error)
+                continue
+            # THE GATE DECIDES, NOT THIS -- the same rule the naming reflex
+            # follows: a call that returned is not a claim the substrate holds.
+            if not (getattr(admission, "admitted", False)
+                    or getattr(admission, "already_present", False)):
+                logger.info("describe_kind: the gate declined %s %s %s (%s)",
+                            category, relation, value,
+                            "; ".join(getattr(admission, "refusals", [])
+                                      or ["no reason given"]))
+                continue
+            said.append(f"{category} {relation} {value}")
+        if said:
+            logger.info("👁️ described %s from %d observation(s): %s",
+                        category, len(evidence),
+                        ", ".join(f"{r} {v}" for r, v in described))
+        return said
+
     async def recognise_sensed(self, content: Dict[str, Any], *,
                                domain: str = "perception",
-                               classifier: Optional[str] = None) -> List[str]:
+                               classifier: Optional[str] = None,
+                               origin: Origin,
+                               percept_id: Optional[str] = None) -> List[str]:
         """Name what was just seen, WITHOUT being asked. Returns the claims admitted.
+
+        WHOSE IMAGE IT IS decides where the names go. The substrate's own seeing
+        is named from what its graph observed, into its own knowledge, and the
+        kind learns from it. A person's image is named by the same rules and the
+        same classifier from what was just seen in it (it is not in the shared
+        graph to be read back), and the names, and the questions left open, are
+        theirs. The kind does not learn from a person's image: that reaches the
+        substrate's own knowledge only as an experience, through the lift and the
+        gate.
 
         THE SUBSTRATE COULD ALREADY RECOGNISE AND DID NOT. Measured on the live
         system: it induced `circle(?X) ∧ vivid_red(?X) → <cat>(?X)` from sight
@@ -12281,11 +15411,24 @@ class AutonomousCoordinator:
         if not getattr(db, "initialized", False):
             await db.initialize()
 
+        theirs = origin.person
+        seen_now: Dict[str, List[str]] = {}
+        if theirs:
+            from core.semantics.cognitive_ingress import shape_proposition
+            for b in content.get("blobs") or []:
+                name = str(b.get("name") or "").strip()
+                shaped = [shape_proposition(name, "isa", f) for f in (b.get("isa") or [])]
+                seen_now[name] = [s[2] for s in shaped if not s[3]]
+
         admitted: List[str] = []
         for blob in blobs:
             # ONLY WHAT WAS OBSERVED licenses a name, and the same read yields
             # the lineage: every name drawn from this blob rests on this seeing.
-            feats, evidence = await observed_instance_features(db, blob)
+            if theirs:
+                feats = seen_now.get(blob, [])
+                evidence = [percept_id] if percept_id else []
+            else:
+                feats, evidence = await observed_instance_features(db, blob)
             reading = read_names(blob, feats, stored)
             roots = tuple(evidence) if reading.names else ()
             for naming in reading.names:
@@ -12304,7 +15447,8 @@ class AutonomousCoordinator:
                         quality=naming.confidence,
                         provenance=Provenance(
                             producer="rule_naming", source_id=naming.rule_id,
-                            source_type="INDUCED_RULE", derived_from=roots))
+                            source_type="INDUCED_RULE", derived_from=roots),
+                        actor=theirs)
                 except Exception as error:
                     raise_if_structural(
                         error, "autonomous_coordinator.recognise_sensed")
@@ -12332,7 +15476,7 @@ class AutonomousCoordinator:
                 if udm is None:
                     continue
                 try:
-                    await udm.detect_knowledge_gap(domain, blob, "isa")
+                    await udm.detect_knowledge_gap(domain, blob, "isa", owner=theirs)
                 except Exception as error:
                     raise_if_structural(
                         error, "autonomous_coordinator.recognise_sensed")
@@ -12349,7 +15493,8 @@ class AutonomousCoordinator:
                 continue
             try:
                 adm = await self.learning.recognize(
-                    classifier, feats, blob, domain=domain)
+                    classifier, feats, blob, domain=domain, actor=theirs,
+                    lineage=evidence if theirs else None)
             except Exception as error:
                 raise_if_structural(
                     error, "autonomous_coordinator.recognise_sensed")
@@ -12371,12 +15516,28 @@ class AutonomousCoordinator:
                     admitted.append(claim)
                 logger.info("🧠 clause classifier %r named %s a %s",
                             classifier, blob, voted)
+
+        # THE KIND LEARNS FROM THE SIGHTING TOO, and this is where sight stops
+        # being able to speak only of particulars. Naming is a reflex of seeing;
+        # so is noticing that everything of this kind it has ever seen was
+        # metal. Done for the categories named in THIS percept, because those
+        # are the ones whose evidence just changed -- a kind nothing was seen of
+        # cannot have become more describable. Only from the substrate's own
+        # seeing: a person's image does not teach the kind.
+        for category in sorted({claim.split(" isa ", 1)[-1].strip()
+                                for claim in admitted if " isa " in claim and not theirs}):
+            try:
+                admitted.extend(await self.describe_kind(category, domain=domain))
+            except Exception as error:
+                raise_if_structural(error, "autonomous_coordinator.recognise_sensed")
+                logger.warning("recognise: could not describe %s: %s",
+                               category, error)
         return admitted
 
     async def perceive_sensed(self, subject: str, claims: Sequence[str], *,
                               domain: str = "perception",
-                              percept_id: Optional[str] = None
-                              ) -> Dict[str, Any]:
+                              percept_id: Optional[str] = None,
+                              origin: Origin) -> Dict[str, Any]:
         """What standing does what I just SAW have — judged by the same band that
         judges a recognition and a finished task.
 
@@ -12404,17 +15565,19 @@ class AutonomousCoordinator:
             claim = str(claim).strip()
             if not claim:
                 continue
-            belief = self.learning.belief_for_claim(claim)
+            # A person's percept is judged by what THEY hold of it (their
+            # context), the substrate's own by its own beliefs.
+            held = await self._held_posterior(claim, origin.person)
             # NO BELIEF IS NOT A WEAK BELIEF. A claim that never cleared the
             # admission floor has no posterior to read, and scoring it zero would
             # report "I saw this and disbelieve it" for something the substrate
             # refused to hold at all. That is ABSTAIN — an absence.
-            if belief is None:
+            if held is None:
                 judged.append(ClaimVerdict(
                     claim=claim, posterior=None, decision="ABSTAIN",
                     reason="not admitted — below the floor, held as absence"))
                 continue
-            posterior = float(getattr(belief, "posterior_probability", 0.0))
+            posterior = held
             accepted = posterior + 1e-9 >= accept
             judged.append(ClaimVerdict(
                 claim=claim, posterior=round(posterior, 4),
@@ -12427,7 +15590,8 @@ class AutonomousCoordinator:
         out = PerceptJudged(
             subject=str(subject), domain=domain, percept_id=percept_id,
             decision=weakest, accept=round(accept, 4),
-            verification_intensity=round(vi, 3), claims=tuple(judged))
+            verification_intensity=round(vi, 3), claims=tuple(judged),
+            owner=origin.person)
         # THE SAME EVENT recognition emits, so one reaction governs behaviour for
         # everything perceived rather than one path having a spine and the other
         # running past it.
@@ -12435,8 +15599,21 @@ class AutonomousCoordinator:
                                   payload=out, origin="perceive_sensed"))
         return out
 
+    async def _held_posterior(self, claim: str, owner: Optional[str]) -> Optional[float]:
+        """How strongly a claim is held, read where it belongs: the substrate's own
+        beliefs for its own percept, the person's context for theirs. None when it
+        is not held."""
+        if owner:
+            from core.learning.scoped_context_store import get_scoped_context_store
+            held = await get_scoped_context_store().belief(owner, claim)
+            return float(held["posterior"]) if held else None
+        belief = self.learning.belief_for_claim(claim)
+        if belief is None:
+            return None
+        return float(getattr(belief, "posterior_probability", 0.0))
+
     async def perceive(self, classifier: str, instance, instance_id: str, *,
-                       domain: str = "perception") -> Dict[str, Any]:
+                       domain: str = "perception", origin: Origin) -> Dict[str, Any]:
         """Recognize a percept AND let its epistemic confidence GOVERN what happens
         next — through the SAME caution-raised acceptance band that governs task
         completion (`_decide_completion`). A recognition is not automatically an
@@ -12447,9 +15624,12 @@ class AutonomousCoordinator:
         This is the perception counterpart of the completion decision: the recognition
         belief's posterior is read and compared to the disposition-derived band, so a
         low-confidence perception drives re-observation while a high-confidence one is
-        acted on directly. Confidence steers behaviour; it is not just recorded."""
+        acted on directly. Confidence steers behaviour; it is not just recorded.
+        `origin` is whose percept it is: a person's recognition, its belief and
+        what follows from it are theirs."""
+        owner = origin.person
         admission = await self.learning.recognize(
-            classifier, instance, instance_id, domain=domain)
+            classifier, instance, instance_id, domain=domain, actor=owner)
         if admission is None or not getattr(admission, "admitted", False):
             # A RECOGNITION IS A PERCEPT THAT MADE ONE CLAIM. Same declared shape
             # as a sensing, so one reaction reads both instead of each path
@@ -12461,13 +15641,13 @@ class AutonomousCoordinator:
                 claims=(ClaimVerdict(
                     claim="", posterior=None, decision="ABSTAIN",
                     reason="recognition refused/abstained at the gate — "
-                           "insufficient support"),))
+                           "insufficient support"),), owner=owner)
             await self.emit(SelfEvent(SelfEventType.PERCEPT_RECOGNIZED,
                                       payload=out, origin="perceive"))
             return out
         claim = getattr(admission, "proposition", "").replace("|", " ").strip()
-        belief = self.learning.belief_for_claim(claim) if claim else None
-        posterior = float(getattr(belief, "posterior_probability", 0.0)) if belief else 0.0
+        held = await self._held_posterior(claim, owner) if claim else None
+        posterior = held if held is not None else 0.0
         vi, accept = self._acceptance_band()
         accepted = posterior + 1e-9 >= accept
         verdict = ClaimVerdict(
@@ -12479,7 +15659,7 @@ class AutonomousCoordinator:
         out = PerceptJudged(
             subject=str(instance_id), domain=domain, decision=verdict.decision,
             accept=round(accept, 4), verification_intensity=round(vi, 3),
-            claims=(verdict,))
+            claims=(verdict,), owner=owner)
         # Record the recognition in the overall perceptual awareness — AWARENESS ONLY:
         # its evidence already went through the gate via recognize→learn_fact, so a
         # process_input here would double-admit. This lets a memory forming now stamp
@@ -12489,7 +15669,7 @@ class AutonomousCoordinator:
                 source=str(instance_id), data_type="recognition",
                 content={"claim": verdict.claim, "decision": out.decision,
                          "domain": domain},
-                confidence=float(posterior))
+                origin=origin, confidence=float(posterior))
         except Exception as error:
             raise_if_structural(error, "autonomous_coordinator.perceive")
         # The decision GOVERNS behaviour through the event spine, not by the caller
@@ -12574,7 +15754,9 @@ class AutonomousCoordinator:
                         "known-unknown registered (claim=%r)", verdict.claim)
                     continue
                 try:
-                    await udm.detect_knowledge_gap(judged.domain, str(target), "isa")
+                    # A question about a person's percept is theirs.
+                    await udm.detect_knowledge_gap(judged.domain, str(target), "isa",
+                                                   owner=judged.owner)
                 except Exception as error:
                     raise_if_structural(error, "autonomous_coordinator._react_percept")
                     logger.warning(
@@ -12582,11 +15764,13 @@ class AutonomousCoordinator:
                         target, error)
         # ABSTAIN (or any other verdict): nothing acted, nothing stored — by design.
 
-    def _extract_task_outcome(self, m) -> Optional[Dict[str, Any]]:
-        """Pull the task-outcome record + its evidence + the beliefs of the moment
-        out of a recalled memory, wherever the one pipeline placed them (the
-        content dict, or `thinking_state.raw_event`). None if it is not a
-        task-outcome memory."""
+    def _extract_task_outcomes(self, m) -> List[Dict[str, Any]]:
+        """Each time a recalled memory's task was done -- its outcome record, the
+        evidence, and the domain beliefs of the moment -- wherever the one
+        pipeline placed it (the content dict, or `thinking_state.raw_event`).
+        A task asked again is one memory holding every occurrence; empty if it is
+        not a task-outcome memory."""
+        from core.agents.autonomous.governance_block_schema import task_occurrences
         src = None
         c = getattr(m, "content", None)
         if isinstance(c, dict) and c.get("event") == "task_outcome":
@@ -12596,19 +15780,20 @@ class AutonomousCoordinator:
                 and ts["raw_event"].get("event") == "task_outcome":
             src = ts["raw_event"]
         if not isinstance(src, dict):
-            return None
-        return {
-            "task_id": src.get("task_id"),
-            "task_description": src.get("task_description"),
-            "outcome": src.get("outcome"),
-            "confidence": src.get("confidence"),
-            "evidence": src.get("evidence"),          # the DID/SAW groundings
-            "method": src.get("method"),              # the tool_plan used
-            "causal_rules": src.get("causal_rules"),  # {when, use, expect} remedies
-            "failure_reason": src.get("failure_reason"),
-            "result_summary": src.get("result_summary"),
-            "beliefs": (ts.get("belief_state") or {}).get("relevant_beliefs"),
-        }
+            return []
+        beliefs = (ts.get("belief_state") or {}).get("relevant_beliefs") if isinstance(ts, dict) else None
+        return [{
+            "task_id": o.get("task_id"),
+            "task_description": o.get("task_description"),
+            "outcome": o.get("outcome"),
+            "confidence": o.get("confidence"),
+            "evidence": o.get("evidence"),          # the DID/SAW groundings
+            "method": o.get("method"),              # the tool_plan used
+            "causal_rules": o.get("causal_rules"),  # {when, use, expect} remedies
+            "failure_reason": o.get("failure_reason"),
+            "result_summary": o.get("result_summary"),
+            "beliefs": beliefs,
+        } for o in task_occurrences(src)]
 
     async def _recall_similar_task_experience(self, task, limit: int = 5) -> Dict[str, Any]:
         """Recall past experience with SIMILAR tasks before acting — outcome, the
@@ -12630,7 +15815,7 @@ class AutonomousCoordinator:
             logger.debug("recall similar-task experience failed: %s", e)
             return {}
 
-        recalled = [r for r in (self._extract_task_outcome(m) for m in (mems or [])) if r]
+        recalled = [r for m in (mems or []) for r in self._extract_task_outcomes(m)]
         recalled = [r for r in recalled if r.get("task_id") != getattr(task, "id", None)]
         # DEDUP so multiple memories of the SAME event (or the same task recalled
         # more than once) do not bias retrieval — keep one per task_id, and one per
@@ -12741,20 +15926,6 @@ class AutonomousCoordinator:
         execution produced (re-observation, tool effects, gap-state). Done when the
         belief reaches the self's acceptance band (raised by caution). The one
         completion authority; there is no separate completion-protocol validator."""
-        # Bind this task's remediation contract for the duration of the task.
-        # A ContextVar, so concurrently-running tasks cannot see each other's
-        # authority. No contract => unconstrained, exactly as before.
-        _contract_token = None
-        try:
-            from core.safety.action_contract import ActionContract, set_active_contract
-            _c = (task.metadata or {}).get("contract") if getattr(task, "metadata", None) else None
-            if _c:
-                _contract_token = set_active_contract(
-                    _c if isinstance(_c, ActionContract) else ActionContract.from_dict(_c)
-                )
-        except Exception as _ce:
-            logger.warning(f"could not bind action contract for {task.id}: {_ce}")
-
         try:
             from core.agents.autonomous.task_queue import Task
             logger.info(f"▶️  Executing: {task.id} ({task.priority.name}, {task.source.value})")
@@ -12859,10 +16030,9 @@ class AutonomousCoordinator:
             _completion_anchor = self._derive_completion_anchor(task)
             self._mint_completion_belief(task, _completion_anchor)
 
-            if (task.metadata or {}).get("drive") in ("competence", "confidence"):
-                result = await self._execute_drive_goal(task)
-            else:
-                result = await self.execute_task(task)
+            # ONE DOOR, drive goals included — `execute_task` routes them after
+            # its gate (see there).
+            result = await self.execute_task(task)
 
             # ================================================================
             # COMPLETION DECISION — the substrate's OWN belief, the one authority.
@@ -12918,11 +16088,8 @@ class AutonomousCoordinator:
                         logger.warning(f"Uncertainty gate skipped for {task.id}: {_ue} — accepting LLM validation")
 
             # Credit the adaptive task-type decision with the authoritative
-            # outcome. This lives here, not in
-            # _check_task_completions: that scanner runs only on the legacy
-            # _execution_phase path, while every task carrying an adaptive
-            # decision is queued and arrives here instead. The channel was
-            # severed between the two paths.
+            # outcome. Every task carrying an adaptive decision is queued and
+            # arrives here; this is the one place its outcome is established.
             _elapsed_ms = 0.0
             if getattr(task, "started_at", None):
                 try:
@@ -12960,6 +16127,15 @@ class AutonomousCoordinator:
                 # carries an intent, the substrate now OWNS that answer instead of
                 # inferring it. See _operating_verdict.
                 _verdict = self._operating_verdict(result, confidence, is_complete)
+                # Kept with the task, so its memory says whether this outcome
+                # counts and what it was read from.
+                if task.metadata is None:
+                    task.metadata = {}
+                task.metadata["operating_verdict"] = {
+                    "success": _verdict["success"],
+                    "outcome_class": getattr(_verdict["outcome_class"], "value",
+                                             _verdict["outcome_class"]),
+                    "read_from": _verdict["read_from"]}
                 try:
                     _credited = await self.universal_domain_master.record_operating_outcome(
                         _op_domain, success=_verdict["success"],
@@ -12994,6 +16170,7 @@ class AutonomousCoordinator:
 
             if is_complete:
                 await self.task_queue.mark_completed(task.id, result)
+                await self.conclude_pursuit(task, result, completed=True)
                 self.stats["tasks_completed"] += 1
                 logger.info(f"✅ Task completed: {task.id} (confidence: {confidence:.2f})")
 
@@ -13002,7 +16179,8 @@ class AutonomousCoordinator:
                     task=task,
                     outcome="success",
                     confidence=confidence,
-                    result_summary=str(result)[:500] if result else None
+                    result_summary=str(result)[:500] if result else None,
+                    result=result if isinstance(result, dict) else None
                 )
 
                 # The outcome is now durable, so the learning consequences flow
@@ -13019,14 +16197,6 @@ class AutonomousCoordinator:
                         outcome="success",
                         confidence=confidence),
                     origin="_execute_and_validate_task"))
-
-                # SEMANTIC MEMORY: Hand the outcome to the memory agent (the
-                # authority), which composes the rich, retrievable task-knowledge
-                # record from the structured result — model-free.
-                if self.memory and isinstance(result, dict):
-                    await self.memory.capture_task_outcome(
-                        task, result=result, success=True, confidence=confidence
-                    )
 
                 # === COMPLETION CALLBACKS: Execute registered closure hooks ===
                 await self._execute_completion_callbacks(task, result, confidence)
@@ -13253,6 +16423,7 @@ class AutonomousCoordinator:
                     #
                     # Skipped on escalation — an external blocker is not fixed by
                     # changing an argument.
+                    _changed_method = False
                     if not _directive.should_escalate:
                         _cur_failed = [r.get('tool') for r in ((result or {}).get('tools_run') or [])
                                        if isinstance(r, dict) and r.get('tool') and not r.get('success')]
@@ -13263,11 +16434,53 @@ class AutonomousCoordinator:
                             task.metadata.setdefault("parameters", {})["tool_plan"] = _new_plan
                             task.metadata["retry_method_changed"] = _change
                             task.metadata["retry_method_structured"] = _structured
+                            _changed_method = True
                             logger.info(
                                 "🔁 Task %s retrying a DECLARED tool plan with config "
                                 "args learned from experience: %s", task.id, _change)
 
-                    requeue_success = await self.task_queue.requeue_task(task.id)
+                    # REPLAN IS NOW READ, NOT JUST NAMED.
+                    #
+                    # The comment above this block has described `should_replan`
+                    # as one of the two honest answers since it was written, and
+                    # nothing ever read it: the field was derived on every
+                    # appraisal, published on the directive, asserted by tests —
+                    # and the retry ran the identical plan regardless. So the one
+                    # disposition that means "the APPROACH is wrong, not the
+                    # situation" could not stop the substrate from proving it
+                    # again the same way.
+                    #
+                    # It is read here, where the alternative is concrete: replan
+                    # means do not repeat an attempt nothing has changed about.
+                    # `should_persist` is its counterweight — when the substrate
+                    # holds that the approach is right and unfinished, it spends
+                    # the remaining budget even with nothing new to vary. And a
+                    # method the substrate DID change is not a repeat, so it
+                    # proceeds on its own merit.
+                    _repeat_is_thrash = (_directive.should_replan
+                                         and not _changed_method
+                                         and not _directive.should_persist)
+                    if _repeat_is_thrash:
+                        logger.warning(
+                            "🧭 Task %s not retried: appraisal attributes the "
+                            "failure to the APPROACH (replan=%.2f, persist=%.2f) "
+                            "and nothing about the attempt changed — repeating it "
+                            "would re-prove the same thing. The typed deficit "
+                            "emitted above is the route to a capability that "
+                            "works (%s).",
+                            task.id, _directive.replan, _directive.persistence,
+                            ", ".join(_directive.reason_codes) or "replan")
+                        task.metadata['replan_required'] = {
+                            'replan': round(_directive.replan, 4),
+                            'persistence': round(_directive.persistence, 4),
+                            'reason_codes': list(_directive.reason_codes),
+                            'attempt': task.retry_count,
+                        }
+                        self.stats["replan_required"] = \
+                            self.stats.get("replan_required", 0) + 1
+                        requeue_success = False
+                    else:
+                        requeue_success = await self.task_queue.requeue_task(task.id)
 
                     # ROOT-CAUSE IS MODEL-FREE AND INLINE. The substrate's diagnosis is
                     # the failure_history recorded above (issues, failed tools, errors,
@@ -13297,17 +16510,32 @@ class AutonomousCoordinator:
                         }
                         self.stats["external_blocker_escalations"] += 1
                     else:
-                        logger.info(f"[DiagGuard] Skipping diagnostic spawn for already-diagnostic task {task.id} — breaking recursion")
+                        logger.info("task %s failure not attributed outside the self; "
+                                    "retried as directed, no diagnostic task spawned", task.id)
 
                     # CRITICAL: If requeue failed (max retries exceeded), mark as permanently failed
                     # This prevents tasks from getting stuck IN_PROGRESS and blocking idle state
                     if not requeue_success:
-                        logger.error(f"❌ Task {task.id} exceeded retry limit - marking as permanently failed")
                         issues_str = ', '.join(issues) if issues else 'Unknown'
-                        await self.task_queue.mark_failed(
-                            task.id,
-                            f"Validation failed after {task.max_retries} retries: {issues_str}"
-                        )
+                        # SAY WHICH ENDING THIS IS. Two different things end a
+                        # task here — the budget ran out, or the substrate judged
+                        # repeating it pointless — and reporting both as "exceeded
+                        # retry limit" would file a disposition it acted on as a
+                        # counter it never reached.
+                        if _repeat_is_thrash:
+                            logger.warning(
+                                "❌ Task %s stopped: the approach is what failed "
+                                "and nothing about it changed", task.id)
+                            _why = (f"Stopped after {task.retry_count} of "
+                                    f"{task.max_retries} attempts: the failure is "
+                                    f"attributed to the approach and the attempt "
+                                    f"could not be varied: {issues_str}")
+                        else:
+                            logger.error(f"❌ Task {task.id} exceeded retry limit - marking as permanently failed")
+                            _why = (f"Validation failed after {task.max_retries} "
+                                    f"retries: {issues_str}")
+                        await self.task_queue.mark_failed(task.id, _why)
+                        await self.conclude_pursuit(task, result, completed=False)
 
                         # DEDUP: Permanently block this fingerprint so it is never re-queued
                         try:
@@ -13318,17 +16546,20 @@ class AutonomousCoordinator:
                             if _pf not in _fp_list:
                                 _fp_list.append(_pf)
                                 self._recent_exploration_fp_list = _fp_list[-20:]
-                            self._save_permanently_failed_fps()
+                            await self._record_failed_fingerprint(_pf, task)
                             logger.info(f"🚫 Fingerprint {_pf} permanently blocked (task {task.id} exhausted retries)")
                         except Exception as _fp_err:
-                            logger.debug(f"Failed to record failed fingerprint: {_fp_err}")
+                            logger.error(f"the failed fingerprint was NOT recorded in the store: {_fp_err}")
 
                         # META MEMORY: Store task failure for learning
+                        # A failure is experience too: the errors it met are what
+                        # the substrate learns challenges from.
                         await self._store_task_outcome_meta_memory(
                             task=task,
                             outcome="failure",
                             confidence=confidence,
-                            failure_reason=f"Max retries exceeded: {issues_str}"
+                            failure_reason=f"Max retries exceeded: {issues_str}",
+                            result=result if isinstance(result, dict) else None
                         )
                 else:
                     issues_str = ', '.join(issues) if issues else 'Unknown'
@@ -13336,6 +16567,7 @@ class AutonomousCoordinator:
                         task.id,
                         f"Validation failed: {issues_str}"
                     )
+                    await self.conclude_pursuit(task, result, completed=False)
                     logger.error(f"❌ Task failed: {task.id} - Issues: {issues_str}")
 
                     # DEDUP: Permanently block this fingerprint so it is never re-queued
@@ -13347,17 +16579,20 @@ class AutonomousCoordinator:
                         if _pf not in _fp_list:
                             _fp_list.append(_pf)
                             self._recent_exploration_fp_list = _fp_list[-20:]
-                        self._save_permanently_failed_fps()
+                        await self._record_failed_fingerprint(_pf, task)
                         logger.info(f"🚫 Fingerprint {_pf} permanently blocked (task {task.id} failed)")
                     except Exception as _fp_err:
-                        logger.debug(f"Failed to record failed fingerprint: {_fp_err}")
+                        logger.error(f"the failed fingerprint was NOT recorded in the store: {_fp_err}")
 
                     # META MEMORY: Store task failure for learning
+                    # A failure is experience too: the errors it met are what
+                    # the substrate learns challenges from.
                     await self._store_task_outcome_meta_memory(
                         task=task,
                         outcome="failure",
                         confidence=confidence,
-                        failure_reason=issues_str
+                        failure_reason=issues_str,
+                        result=result if isinstance(result, dict) else None
                     )
 
                     # SLACK NOTIFICATION: Notify task failure with actionable details
@@ -13434,26 +16669,35 @@ class AutonomousCoordinator:
                             }
                         )
 
-                    # MEMORY CAPTURE: Store failed task for learning
+                    # WHAT IT TRIED AND WHY IT DID NOT WORK.
+                    #
+                    # This is the substrate's own record of an attempt it made,
+                    # so it is written the way it will be read back. It used to
+                    # hand an event dict to a formatter that rendered
+                    # "Task execution failed. task id: 41. retry count: 2." --
+                    # a log line, recallable by nothing, because what a search
+                    # for "why did moving that file not work" matches is the
+                    # REASON, and the reason was a dict key.
+                    #
+                    # The reason here is real: `issues_str` is what actually
+                    # went wrong. Nothing about this memory is synthesised from
+                    # an importance score.
                     try:
-                        await self.store_memory(
-                            MemoryType.EPISODIC,  # Failures are specific events
-                            {
-                                "event": "task_execution_failed",
+                        attempt = (f" This was attempt {task.retry_count + 1}."
+                                   if task.retry_count else "")
+                        # From the task, done for its actor, like its outcome.
+                        await self.memory.store_memory(
+                            content=(f"I tried to {task.description}, and it did not "
+                                     f"work because {issues_str}.{attempt}"),
+                            memory_type=MemoryType.EPISODIC,
+                            importance_score=0.7,
+                            origin=Origin.of(getattr(task, "actor", None), "task"),
+                            source_context={
+                                "source_system": "task_execution",
                                 "task_id": task.id,
                                 "task_type": task.type.value,
                                 "task_source": task.source.value,
-                                "description": task.description,
-                                "failure_reason": issues_str,
-                                "retry_count": task.retry_count,
-                                "result": result,
-                                "timestamp": datetime.now().isoformat(),
-                                # Fields required by intrinsic_motivation.py failure analysis
-                                "status": "failed",
-                                "confidence": 0.3,
-                                "component": getattr(task, 'component', task.type.value),
                             },
-                            importance=0.7,  # Failed tasks important for learning
                             tags=[
                                 "task_execution",
                                 task.type.value.lower(),
@@ -13512,12 +16756,9 @@ class AutonomousCoordinator:
             import traceback
             traceback.print_exc()
             await self.task_queue.mark_failed(task.id, f"Execution error: {str(e)}")
-
-        finally:
-            # Intrinsic exploration cap/dedup uses task queue state; no per-task lock cleanup needed.
-            if _contract_token is not None:
-                from core.safety.action_contract import reset_active_contract
-                reset_active_contract(_contract_token)
+            # The fourth ending, and its pursuit ends with it — saying what ended it.
+            await self.conclude_pursuit(
+                task, {"error": f"Execution error: {e}"}, completed=False)
 
     async def _execute_completion_callbacks(
         self,
@@ -13576,6 +16817,7 @@ class AutonomousCoordinator:
         source: str = "api",
         priority: str = "high",
         metadata: Optional[Dict[str, Any]] = None,
+        heard: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Accept work from the user and run it ON the substrate.
 
@@ -13655,12 +16897,6 @@ class AutonomousCoordinator:
 
         kind = await self._request_kind(message, session=session,
                                         actor_identity=actor_identity)
-        if kind in ("question", "telling"):
-            answered = await self._answer_from_what_is_held(
-                message, session=session, actor_identity=actor_identity)
-            if answered is not None:
-                return answered
-
         src = {
             "api": TaskSource.API,
             "manual": TaskSource.MANUAL,
@@ -13687,8 +16923,60 @@ class AutonomousCoordinator:
             metadata={"origin": "user_request", **(metadata or {})},
         )
 
+        # WHY THIS WORK EXISTS: the requester asked. Their words are the aim, in
+        # their scope; the session is where it was asked. Asked ALOUD (`heard`,
+        # what was heard of it), the hearing is what started the pursuit, and it
+        # becomes the pursuit's first part as a typed message is.
+        trigger = ({"what": "message", "source": "person",
+                    "content": {"message": message, "source": source, "session": session}}
+                   if heard is None else
+                   {"what": "heard", "source": "person",
+                    "content": {"message": message, "source": source, "session": session,
+                                **{k: heard.get(k) for k in ("heard_text", "said", "spoken_by",
+                                                             "caption") if heard.get(k)}}})
+        # ONE PURSUIT, ONE MEMORY, WHATEVER THE REQUEST TURNS OUT TO BE. A
+        # question answered from what is held and a sentence that does not read
+        # are pursuits too: formed here, the conversation's own writing about the
+        # exchange goes into them (it is done under their intent), and they end
+        # with the reply. Work to do goes on under the same pursuit.
+        await self.intend(task, pursuit="user_request", session=session, trigger=trigger)
+        provenance = getattr(task, "provenance", None) or {}
+        pursuit_memory = provenance.get("pursuit_memory_id")
+        from core.reasoning.intent_authority import reset_acting_intent, set_acting_intent
+
+        # WHAT DOES NOT READ IS NOT WORK. A sentence nothing taught reads has told
+        # the substrate nothing and asked it for nothing it can name: the
+        # conversation remembers it as said and says it could not be read, and no
+        # task is made of it.
+        if kind == "not_understood":
+            conv = self.conversation(session, actor_identity=actor_identity)
+            token = set_acting_intent(provenance.get("intent_id"))
+            try:
+                understanding = await conv.understand(message)
+            finally:
+                reset_acting_intent(token)
+            await self.conclude_pursuit(task, {"error": "it did not read"}, completed=False)
+            return {"success": True, "kind": "not_understood",
+                    "answer": (conv.say(understanding, support=True) if self.reply_debug
+                               else understanding.reply),
+                    "source": "substrate", "pursuit_memory_id": pursuit_memory}
+        if kind in ("question", "telling"):
+            token = set_acting_intent(provenance.get("intent_id"))
+            try:
+                answered = await self._answer_from_what_is_held(
+                    message, session=session, actor_identity=actor_identity)
+            finally:
+                reset_acting_intent(token)
+            if answered is not None:
+                await self.conclude_pursuit(
+                    task, answered, completed=bool(answered.get("success", True)))
+                return {**answered, "pursuit_memory_id": pursuit_memory}
+
         accepted = await self.task_queue.add_task(task, priority=pri)
         if not accepted:
+            # The work was never taken on, so its pursuit ends here, saying why.
+            await self.conclude_pursuit(
+                task, {"error": "task queue refused the request"}, completed=False)
             return {
                 "success": False,
                 "error": "task queue refused the request",
@@ -13699,7 +16987,9 @@ class AutonomousCoordinator:
         # The ack carries the handle to poll the result (`metadata={"task_result": id}`),
         # so the caller can complete the loop once the cognition cycle finishes the work.
         return {"success": True, "task_id": task.id, "source": src.value,
-                "priority": pri.name, "poll_with": {"task_result": task.id}}
+                "priority": pri.name, "poll_with": {"task_result": task.id},
+                "pursuit_memory_id": (getattr(task, "provenance", None) or {}).get(
+                    "pursuit_memory_id")}
 
     async def get_task_result(self, task_id: str, *,
                               actor: str = SUBSTRATE_ACTOR) -> Dict[str, Any]:
@@ -13778,15 +17068,24 @@ class AutonomousCoordinator:
             # than starting a second one beside it -- otherwise memory holds
             # "could not answer" and "answered" about the same thing forever,
             # and recall keeps returning whichever it reaches first.
+            # THE ASKER'S EXCHANGE IS THE ASKER'S MEMORY. This was stored with
+            # no owner, which makes it the substrate's own -- visible to every
+            # other speaker's recall and search -- while the reasoning record of
+            # the same question was already stamped with the asker. And only the
+            # asker's own open question is closed by their answer.
+            from .shared_types import is_substrate_actor as _is_substrate
+            _owner = None if _is_substrate(conv._actor) else conv._actor
             closed = None
             if understanding.answered:
                 closed = await agent.close_open(
-                    message, content, because="answered on a later turn")
+                    message, content, because="answered on a later turn",
+                    actor=_owner)
 
             if closed is None:
                 await agent.store_memory(
                     memory_type=MemoryType.EPISODIC,
                     content=content,
+                    origin=Origin.of(conv._actor, "conversation"),
                     importance_score=0.7, confidence_score=0.9,
                     tags=["user_exchange"] + (
                         ["answered"] if understanding.answered
@@ -13798,12 +17097,14 @@ class AutonomousCoordinator:
             # Never let a memory failure swallow an answer that was produced.
             logger.warning("exchange NOT remembered: %s", error)
 
-        # A USER gets a plain sentence, not the derivation chain say() shows for
-        # introspection — unless reply_debug is switched on, which surfaces the
-        # full chain for diagnosing. Falls back to the composed reply when there
-        # is no verdict to state (a taught-back note, an asked-back question).
-        answer_text = (understanding.reply if self.reply_debug
-                       else (conv.natural_reply(understanding) or understanding.reply))
+        # ONE REPLY. `understanding.reply` is what the substrate said, composed
+        # by the one speech path; `reply_debug` re-says the SAME answer with the
+        # derivation shown rather than reaching for a different renderer. There
+        # was an `or` here falling through from a natural renderer to that path's
+        # raw output, which is how a person came to be shown the concept store's
+        # own notes whenever the question was not a yes/no.
+        answer_text = (conv.say(understanding, support=True) if self.reply_debug
+                       else understanding.reply)
         return {"success": True, "kind": "question", "answer": answer_text,
                 "learned": [a.label for a in understanding.acquired if a.stored],
                 "closed_open_memory": closed, "source": "substrate"}
@@ -13874,7 +17175,7 @@ class AutonomousCoordinator:
 
             # Knowledge cutoff state — critical for research goal grounding
             try:
-                kc_state = getattr(self, "_knowledge_cutoff_state", {}) or {}
+                kc_state = getattr(self, "_knowledge_refresh", {}) or {}
                 context["knowledge_cutoff"] = {
                     "refreshed_through_date": kc_state.get("refreshed_through_date"),
                     "declared_cutoff": self._get_declared_model_cutoff_date(),
@@ -14058,20 +17359,24 @@ The substrate must realign with its constitutional responsibilities immediately.
                 # store_memory (this previously targeted a model handle that had
                 # no `.memory`, so the alert was never actually recorded).
                 from core.memory import MemoryType
-                await self.store_memory(
-                    MemoryType.META,
-                    {
-                        "type": "constitutional_drift_alert",
-                        "severity": assessment.drift_severity.value,
-                        "alignment_score": assessment.average_compliance,
-                        "violations": [{
-                            "law_number": v.law_number,
-                            "law_name": v.law_name,
-                            "description": v.description,
-                            "compliance_score": v.compliance_score
-                        } for v in assessment.violations],
-                        "alert": drift_alert
-                    },
+                # WHAT IT FOUND OUT ABOUT ITSELF. This had no "event" key at
+                # all, so the formatter fell through to its last branch and
+                # stored "Unknown. type: constitutional_drift_alert. severity:
+                # high. violations: [complex data]." -- the substrate's record
+                # of having drifted from its own law, filed under "Unknown".
+                broken = "; ".join(
+                    f"Law {v.law_number} ({v.law_name}), which I am holding to "
+                    f"{v.compliance_score:.0%}" for v in assessment.violations)
+                await self.memory.store_memory(
+                    origin=Origin.own("constitution"),
+                    content=(f"I checked myself against my own laws and found I have "
+                             f"drifted {assessment.drift_severity.value}ly. I am holding "
+                             f"to them {assessment.average_compliance:.0%} overall. "
+                             f"Where I am falling short: {broken}."),
+                    memory_type=MemoryType.META,
+                    importance_score=1.0,
+                    source_context={"source_system": "constitutional_alignment"},
+                    tags=["constitution", "drift", "self_assessment"],
                 )
             
             # Log law scores even if no critical drift
@@ -14099,51 +17404,35 @@ The substrate must realign with its constitutional responsibilities immediately.
     
     def _get_recent_task_outcomes(self, task_type: str, limit: int = 10) -> List[bool]:
         """
-        Get recent outcome sequence for task type (for variance/decay analysis).
+        Recent OUTCOMES for a task type, oldest first -- True for a completed
+        task, False for a failed one -- for StrategyAdaptationGate's
+        decay-weighted win rate and variance analysis.
 
-        Used by StrategyAdaptationGate to compute decay-weighted win rate and
-        detect oscillating vs. consistently poor performance.
-
-        Args:
-            task_type: TaskType.value string
-            limit: Maximum number of recent outcomes to return
-
-        Returns:
-            List of boolean outcomes [True=success, False=failure], most recent last
+        Read from the queue authority's record of tasks. This returned [] on
+        every call: the queue holds `QueuedTask` wrappers, which have no
+        `.type`, so nothing matched; and had anything matched, a status read as
+        `str(TaskStatus.COMPLETED).lower()` is "taskstatus.completed", so every
+        outcome would have been a failure -- pending and running tasks
+        included. Only finished tasks have an outcome.
         """
-        try:
-            if not self.task_queue or not hasattr(self.task_queue, 'tasks_by_id'):
-                return []
-
-            # Query task queue for recent tasks of this type
-            recent_tasks = []
-            for task in list(self.task_queue.tasks_by_id.values())[-30:]:
-                if hasattr(task, 'type') and task.type.value == task_type:
-                    recent_tasks.append(task)
-
-            if not recent_tasks:
-                return []
-
-            # Convert to outcome booleans (based on task status)
-            outcomes = []
-            for task in recent_tasks[-limit:]:
-                if hasattr(task, 'status'):
-                    status_str = str(task.status).lower()
-                    # Completed = success, anything else = failure
-                    outcomes.append(status_str == "completed")
-
-            return outcomes
-
-        except Exception as e:
-            logger.debug(f"Error fetching recent outcomes for {task_type}: {e}")
+        from .shared_types import TaskStatus
+        if not self.task_queue:
             return []
+        finished = [q for q in list(self.task_queue.tasks_by_id.values())
+                    if getattr(getattr(q.task, "type", None), "value", None) == task_type
+                    and q.status in (TaskStatus.COMPLETED, TaskStatus.FAILED)]
+        finished.sort(key=lambda q: q.completed_at or q.added_at)
+        return [q.status is TaskStatus.COMPLETED for q in finished[-limit:]]
 
     async def _learning_phase(self):
-        """Apply learning recommendations and score the cycle's intrinsic rewards.
+        """Score the cycle's intrinsic rewards and record what the cycle was.
 
-        Registered as the `idle_learning` tier. Written for the old phase loop
-        and left uncalled by the AI-driven rewrite, so nothing consumed the
-        experience learner's output.
+        Registered as the `idle_learning` tier. It once applied recommendations
+        from `LearningAdapter`; that adapter was retired in the
+        learning-authority collapse and the feed with it, leaving a loop over a
+        literal empty list and an applier nothing could reach. Both are gone —
+        what remains is what actually runs: curiosity, novelty and autonomy
+        rewards, exploration targets, and the cycle's procedural memory.
         """
         if getattr(self, "learning", None) is None:
             logger.debug("[IDLE:LEARNING] No learning adapter — skipping")
@@ -14154,17 +17443,20 @@ The substrate must realign with its constitutional responsibilities immediately.
         # priority and then dies on the reward calls did real work and lost the
         # rest of the cycle, which must not read as a successful learning cycle.
         self._learning_phase_status = "PARTIAL"
-        applied_recommendations = []  # referenced by the abort handler
 
         try:
-            # The learning authority does not emit "recommendations" — that was the
-            # retired LearningAdapter's paradigm, and the adapter is gone. The
-            # substrate learns continuously from action→outcome; there is no
-            # recommendation feed to apply, so this loop no-ops honestly.
-            recommendations = []
-
-            # Apply high-confidence recommendations and calculate intrinsic rewards
-            applied_recommendations = []
+            # THE RECOMMENDATION FEED IS GONE, AND SO IS THE LOOP OVER IT.
+            # `LearningAdapter` emitted recommendations and this phase applied
+            # them; the adapter was retired in the learning-authority collapse
+            # and the substrate now learns continuously from action→outcome.
+            # What was left behind was `recommendations = []` and a `for` over
+            # it — a loop that could not execute, feeding an applier
+            # (`_apply_learning_recommendation`) that nothing else called.
+            # Both are deleted rather than kept as a no-op: an idle tier that
+            # reads as "apply what was learned" and cannot is a capability the
+            # system appears to have.
+            # The rest of this phase is LIVE — curiosity, novelty and autonomy
+            # rewards, exploration targets, and the cycle memory.
             # SUM of per-event rewards fired this cycle. UNBOUNDED — four
             # dimensions each in [-1,1] means this ranges roughly [-4,4].
             # Deliberately NOT named total_intrinsic_reward: that name belongs
@@ -14172,26 +17464,6 @@ The substrate must realign with its constitutional responsibilities immediately.
             # collision produced 'Total reward: 1.70' in a field contracted to
             # [0,1]. Never feed this to AppraisalState.activation.
             cycle_reward_sum = 0.0
-            
-            for rec in recommendations:
-                if rec.get("confidence", 0) > 0.8:
-                    success = await self._apply_learning_recommendation(rec)
-                    if success:
-                        applied_recommendations.append(rec)
-                        
-                        # Calculate competence reward for successful learning application
-                        competence_reward = await self.intrinsic_motivation.calculate_competence_reward(
-                            # Competence accrues to the task type that earned
-                            # it, not to the applier verb -- keyed on "type"
-                            # every skill would be named prioritize_task_type.
-                            skill_name=(
-                                rec.get("action", {}).get("task_type")
-                                or rec.get("action", {}).get("type", "general_learning")
-                            ),
-                            performance=rec.get("confidence", 0.8),
-                            success=True
-                        )
-                        cycle_reward_sum += competence_reward.reward_value
             
             # Identify exploration targets from perception data
             perception_stats = await self.perception.get_statistics()
@@ -14208,7 +17480,7 @@ The substrate must realign with its constitutional responsibilities immediately.
             # Calculate novelty reward for current cycle
             cycle_experience = {
                 "active_goals": len(self.system_state.active_goals),
-                "active_tasks": len(self.system_state.active_tasks),
+                "active_tasks": len(self.task_queue.active_tasks()),
                 "cycle_count": self.stats["cycles_completed"],
                 "resource_usage": self.system_state.resource_usage
             }
@@ -14218,7 +17490,10 @@ The substrate must realign with its constitutional responsibilities immediately.
             # Calculate autonomy reward (coordination is self-directed)
             autonomy_reward = await self.intrinsic_motivation.calculate_autonomy_reward({
                 "self_initiated": True,
-                "choice_made": len(recommendations) > 0,
+                # No recommendation feed remains, so this phase makes no choice
+                # of its own. It was already False on every cycle (the list was
+                # a literal empty one); stating it is not a behaviour change.
+                "choice_made": False,
                 "exploration_ratio": 0.5  # Balanced exploration/exploitation
             })
             cycle_reward_sum += autonomy_reward.reward_value
@@ -14226,26 +17501,7 @@ The substrate must realign with its constitutional responsibilities immediately.
             # Get top exploration targets for next cycle
             exploration_targets = await self.intrinsic_motivation.get_top_exploration_targets(limit=5)
             
-            # Store learning insights in memory with intrinsic reward information
-            if applied_recommendations or cycle_reward_sum > 0.1:
-                await self.store_memory(
-                    MemoryType.PROCEDURAL,
-                    {
-                        "event": "learning_with_intrinsic_rewards",
-                        "recommendations": applied_recommendations,
-                        "cycle_reward_sum": cycle_reward_sum,
-                        "exploration_targets": [t.description for t in exploration_targets],
-                        "context": {**cycle_experience,
-                                    "system_mode": self.system_state.mode.value},
-                        "timestamp": datetime.now().isoformat()
-                    },
-                    # CLAMPED. cycle_reward_sum is unbounded, so this produced
-                    # importance=1.14 — and store_memory passes importance
-                    # straight through as confidence_score, yielding a
-                    # "confidence" above 1.0 in a field that is a probability.
-                    importance=max(0.0, min(1.0, 0.8 + (cycle_reward_sum * 0.2))),
-                    tags=["learning", "intrinsic_motivation", "autonomous_cycle"]
-                )
+
             
             # Log intrinsic motivation insights
             if cycle_reward_sum > 0.5:
@@ -14256,9 +17512,8 @@ The substrate must realign with its constitutional responsibilities immediately.
         except Exception as e:
             self._learning_phase_status = "ABORTED"
             logger.error(
-                f"Learning phase ABORTED after applying "
-                f"{len(applied_recommendations)} recommendation(s) — rewards and "
-                f"memory write for this cycle are lost: {e}"
+                f"Learning phase ABORTED — rewards and memory write for this "
+                f"cycle are lost: {e}"
             )
 
             import traceback
@@ -14397,21 +17652,6 @@ The substrate must realign with its constitutional responsibilities immediately.
                         }
                     )
 
-                    # Store execution in memory for learning
-                    await self.store_memory(
-                        MemoryType.PROCEDURAL,
-                        {
-                            'event': 'capability_execution',
-                            'capability': cap_name,
-                            'priority': cap_config['priority'],
-                            'result': str(result)[:500] if result else None,  # Truncate large results
-                            'execution_count': cap_config['execution_count'],
-                            'execution_time': execution_time,
-                            'timestamp': now.isoformat()
-                        },
-                        importance=0.7 if cap_config['priority'] in ['critical', 'high'] else 0.5,
-                        tags=['capability', 'autonomous', cap_name]
-                    )
 
                 except Exception as e:
                     logger.error(f"Error executing capability '{cap_name}': {e}")
@@ -14540,127 +17780,6 @@ The substrate must realign with its constitutional responsibilities immediately.
             logger.error(f"Error checking conditions for '{cap_name}': {e}")
             return False  # Fail safe - don't execute if condition check fails
     
-    async def _check_task_completions(self):
-        """Check for task completions and update system state"""
-        try:
-            execution_status = await self.get_status()
-
-            # Get completed tasks from execution controller
-            completed_count = execution_status.get("completed_tasks", 0)
-
-            # Check which of our active tasks have completed
-            completed_task_ids = []
-
-            # The execution controller maintains completed_tasks dict
-            # We need to check if our active tasks are in there
-            for task_id in list(self.system_state.active_tasks):
-                # Check with execution controller if task completed
-                # Completed tasks are moved from running_tasks to completed_tasks
-                if task_id in self.completed_tasks:
-                    completed_task = self.completed_tasks[task_id]
-
-                    # Verify it actually completed successfully
-                    if completed_task.status == TaskStatus.COMPLETED:
-                        completed_task_ids.append(task_id)
-
-                        # Log completion details
-                        execution_time = "N/A"
-                        execution_time_seconds = 0.0
-                        if completed_task.completed_at and completed_task.created_at:
-                            execution_time_seconds = (completed_task.completed_at - completed_task.created_at).total_seconds()
-                            execution_time = f"{execution_time_seconds:.2f}s"
-
-                        logger.info(
-                            f"✅ Task completed: {completed_task.description} "
-                            f"(execution time: {execution_time})"
-                        )
-
-                        # Record to constitutional framework if relevant
-                        if hasattr(completed_task, 'result') and completed_task.result:
-                            quality_score = completed_task.result.get('quality_score', 0.8)
-                        else:
-                            quality_score = 0.8  # Default for successful tasks
-
-                        # Log task completion coordination
-                        self.log_db.log_coordination(
-                            coordinator_type='autonomous',
-                            action='task_completion_verified',
-                            task_id=task_id,
-                            status='completed',
-                            result=f'Task verified as completed: {completed_task.description[:100]}',
-                            metadata={
-                                'execution_time': execution_time_seconds,
-                                'quality_score': quality_score,
-                                'task_type': completed_task.type.value if hasattr(completed_task, 'type') else 'unknown'
-                            }
-                        )
-
-                    elif completed_task.status == TaskStatus.FAILED:
-                        # Remove from active but don't count as completion
-                        completed_task_ids.append(task_id)
-                        logger.warning(f"❌ Task failed: {completed_task.description}")
-
-                        # Log task failure coordination
-                        self.log_db.log_coordination(
-                            coordinator_type='autonomous',
-                            action='task_completion_verified',
-                            task_id=task_id,
-                            status='failed',
-                            result=f'Task verified as failed: {completed_task.description[:100]}',
-                            metadata={
-                                'task_type': completed_task.type.value if hasattr(completed_task, 'type') else 'unknown',
-                                'failure_reason': completed_task.result.get('reason') if hasattr(completed_task, 'result') and completed_task.result else 'unknown'
-                            }
-                        )
-                        self.stats["tasks_failed"] += 1
-            
-            # Update statistics and remove completed tasks
-            for task_id in completed_task_ids:
-                if task_id in self.system_state.active_tasks:
-                    self.system_state.active_tasks.remove(task_id)
-                    
-                    # Only count successful completions
-                    task = self.completed_tasks[task_id]
-                    if task.status == TaskStatus.COMPLETED:
-                        self.stats["tasks_completed"] += 1
-
-                        # Update planning engine
-                        await self.planning.update_task_status(
-                            task_id,
-                            TaskStatus.COMPLETED,
-                            task.result
-                        )
-
-                    # NOTE: the adaptive task-type reward is NOT collected here.
-                    # This scanner only ever sees tasks from the legacy
-                    # _execution_phase path, and no task carrying an adaptive
-                    # decision reaches it -- exploration tasks are queued and run
-                    # through _execute_and_validate_task, which is where the
-                    # authoritative outcome is established and where the reward
-                    # is now recorded.
-            
-            # Log summary if any tasks completed
-            if completed_task_ids:
-                logger.info(
-                    f"Task completion cycle: {len(completed_task_ids)} tasks finished "
-                    f"(successful: {self.stats['tasks_completed']}, "
-                    f"failed: {self.stats['tasks_failed']})"
-                )
-            
-        except Exception as e:
-            logger.error(f"Error checking task completions: {e}")
-
-            import traceback
-            # Log error with full details
-            self.log_db.log_error(
-                error_type=type(e).__name__,
-                error_message=str(e),
-                module='autonomous_coordinator',
-                function='_check_task_completions',
-                stack_trace=traceback.format_exc(),
-                context={'active_tasks_count': len(self.system_state.active_tasks)}
-            )
-
     async def _analyze_for_goal_creation(self, perception_data: PerceptionData) -> Optional[str]:
         """Analyze perception data to determine if a new goal should be created"""
         try:
@@ -14681,125 +17800,6 @@ The substrate must realign with its constitutional responsibilities immediately.
             logger.error(f"Error analyzing for goal creation: {e}")
             return None
     
-    async def _apply_learning_recommendation(self, recommendation: Dict[str, Any]) -> bool:
-        """Apply a learning recommendation; report whether state actually changed.
-
-        This returned None on every path, so the caller's `if success:` was
-        never true: no recommendation was ever counted as applied and no
-        competence reward was ever awarded, however well it worked.
-        """
-        try:
-            action = recommendation.get("action", {})
-            action_type = action.get("type", "unknown")
-            
-            logger.info(f"Applying learning recommendation: {action_type}")
-            
-            # Apply different types of recommendations
-            if action_type == "adjust_cycle_interval":
-                new_interval = action.get("value", self.coordination_cycle_interval)
-                # Allow longer intervals (up to 1 hour) to support deep thinking cycles
-                self.coordination_cycle_interval = max(1.0, min(3600.0, new_interval))
-                return True
-            
-            elif action_type == "prioritize_task_type":
-                task_type = action.get("task_type")
-                priority_boost = action.get("priority_boost", 0.2)
-                boosted = 0
-                
-                # Adjust task prioritization in planning engine
-                # This increases priority for tasks of a specific type
-                logger.info(f"Boosting priority for task type: {task_type} by {priority_boost}")
-                
-                # Get all active plans from planning engine
-                for plan_id, plan in self.planning.active_plans.items():
-                    for task in plan.tasks:
-                        # Check if task matches the type to prioritize.
-                        #
-                        # task.type is a TaskType enum, so str() yields
-                        # "TaskType.RESEARCH" -- never equal to "research".
-                        # This condition could not match any task at all.
-                        task_type_value = getattr(task, 'type', None)
-                        task_type_value = getattr(task_type_value, 'value', task_type_value)
-                        if task_type_value is not None and str(task_type_value).lower() == str(task_type).lower():
-                            # Boost the task priority
-                            current_priority = task.priority
-                            
-                            # Map priority to numeric, boost, then map back
-                            priority_map = {
-                                Priority.LOW: 1,
-                                Priority.MEDIUM: 2,
-                                Priority.HIGH: 3,
-                                Priority.CRITICAL: 4
-                            }
-                            
-                            priority_value = priority_map.get(current_priority, 2)
-                            new_priority_value = min(4, priority_value + 1)  # Boost by one level
-                            
-                            # Reverse map back to Priority enum
-                            reverse_map = {1: Priority.LOW, 2: Priority.MEDIUM, 3: Priority.HIGH, 4: Priority.CRITICAL}
-                            task.priority = reverse_map.get(new_priority_value, Priority.HIGH)
-                            boosted += 1
-
-
-                            logger.info(
-                                f"   Boosted task '{task.description[:50]}...' "
-                                f"from {current_priority.name} to {task.priority.name}"
-                            )
-                    
-                    # Update plan in database
-                    await self.planning._store_plan(plan)
-                
-                # Also boost future goals related to this task type
-                for goal_id, goal in self.planning.current_goals.items():
-                    # Check if goal description relates to this task type
-                    if task_type.lower() in goal.description.lower():
-                        current_priority = goal.priority
-                        
-                        priority_map = {
-                            Priority.LOW: 1,
-                            Priority.MEDIUM: 2,
-                            Priority.HIGH: 3,
-                            Priority.CRITICAL: 4
-                        }
-                        
-                        priority_value = priority_map.get(current_priority, 2)
-                        new_priority_value = min(4, priority_value + 1)
-                        
-                        reverse_map = {1: Priority.LOW, 2: Priority.MEDIUM, 3: Priority.HIGH, 4: Priority.CRITICAL}
-                        goal.priority = reverse_map.get(new_priority_value, Priority.HIGH)
-                        boosted += 1
-                        
-                        logger.info(
-                            f"   Boosted goal '{goal.description[:50]}...' "
-                            f"from {current_priority.name} to {goal.priority.name}"
-                        )
-                        
-                        # Update goal in database
-                        await self.planning._store_goal(goal)
-                
-                logger.info(
-                    f"✅ Task type '{task_type}' prioritization adjustment complete "
-                    f"({boosted} item(s) boosted, requested boost {priority_boost})"
-                )
-                # "Applied" means state changed. Matching nothing is not a
-                # successful application, and must not earn a reward.
-                return boosted > 0
-            
-            elif action_type == "allocate_resources":
-                resource_type = action.get("resource_type")
-                allocation = action.get("allocation", 1.0)
-                self.system_state.resources[resource_type] = allocation
-                return True
-
-            logger.warning(
-                f"No applier for recommendation action '{action_type}' — ignored"
-            )
-            return False
-            
-        except Exception as e:
-            logger.error(f"Error applying learning recommendation: {e}")
-            return False
-
     async def _update_system_state(self):
         """Refresh the substrate's self-state from its real subsystems.
 
@@ -14863,9 +17863,10 @@ The substrate must realign with its constitutional responsibilities immediately.
     async def shutdown(self):
         """Shutdown the autonomous system gracefully"""
         logger.info("Shutting down autonomous system...")
-        
+
         self.active = False
-        
+        self._stopping = True
+
         # Cancel coordination cycle
         if self.coordination_task:
             self.coordination_task.cancel()
@@ -14882,16 +17883,7 @@ The substrate must realign with its constitutional responsibilities immediately.
             except asyncio.CancelledError:
                 pass
 
-        # Cancel the coalescing motivation-refresh task if one is in flight
-        if self._motivation_refresh_task and not self._motivation_refresh_task.done():
-            self._motivation_refresh_task.cancel()
-            try:
-                await self._motivation_refresh_task
-            except asyncio.CancelledError:
-                pass
-
-        # Cancel periodic performance assessment
-            logger.info("✅ Periodic performance assessment stopped")
+        await self._stop_reactions()
 
         # Shutdown modules
         modules = [
@@ -14907,7 +17899,9 @@ The substrate must realign with its constitutional responsibilities immediately.
                 logger.info(f"{name} shutdown completed")
             except Exception as e:
                 logger.error(f"Error shutting down {name}: {e}")
-        
+        # The senses' own processes stop with the substrate.
+        self.vision.close()
+
         logger.info("Autonomous system shutdown completed")
     
     # =========================================================================
@@ -14955,12 +17949,28 @@ The substrate must realign with its constitutional responsibilities immediately.
             self.tool_registry = get_tool_registry()
             tool_count = len(self.tool_registry.tool_factories) + len(self.tool_registry.tools)
             logger.info(f"Execution faculty: {tool_count} tools available")
+            # Acting is also how the substrate learns: a watched act files a
+            # demonstration, induction runs on it, and what is learned is recorded
+            # as competence in the domain faculty. The faculty that acts therefore
+            # brings up the one that competence is recorded in.
+            if self.universal_domain_master is None:
+                from core.integration.universal_domain_master import get_universal_domain_master
+                self.universal_domain_master = get_universal_domain_master()
             import os as _exec_os
             if not _exec_os.environ.get("TORIN_SHADOW_MODE"):
                 try:
                     await self.db.initialize()
                 except Exception as _dbe:
                     logger.warning(f"Execution DB init (non-critical): {_dbe}")
+            # What was learned before this process started can be done again:
+            # the tools behind operators learned in derived domains are bound.
+            try:
+                from core.execution.tool_domain import bind_learned
+                await bind_learned()
+            except Exception as _ble:
+                raise_if_structural(_ble, "initialize_execution_faculty.bind_learned")
+                logger.warning("learned operators could not be bound, so they "
+                               "cannot be performed until met again: %s", _ble)
             logger.info("✅ Execution faculty initialized")
             return True
         except Exception as _exe:
@@ -15071,26 +18081,29 @@ The substrate must realign with its constitutional responsibilities immediately.
         # search can reason over. A malformed condition declines the whole task
         # rather than silently dropping the part that failed.
         from core.learning.rule_induction import Fact
+        from core.reasoning.temporal_reasoning import TemporalReasoningSystem
 
+        # A condition may DENY a fact — "the file is no longer there" — and the
+        # fact under the denial must parse like any other.
         goal_conditions: List[str] = []
         for condition in raw_conditions:
+            denied = TemporalReasoningSystem.denied(str(condition))
             try:
-                goal_conditions.append(str(Fact.parse(str(condition))))
+                fact = Fact.parse(denied if denied is not None else str(condition))
+                goal_conditions.append(f"¬{fact}" if denied is not None else str(fact))
             except ValueError as exc:
                 logger.info("goal derivation declined task %s: condition %r does "
                             "not parse: %s", task.id, condition, exc)
                 return None
 
-        # ENCOUNTER-DRIVEN DOMAIN INSTALL. A task that declares a filesystem
-        # workspace is the substrate WORKING in that domain for the first time;
-        # install it now (idempotently, scoped to the declared directory) so the
-        # world below is observable and the domain becomes explorable from here
-        # on — the wire that was missing entirely in production. No workspace
-        # declared ⇒ nothing installed; a domain already installed ⇒ no-op.
+        # A TASK THAT NAMES A WORKSPACE HAS THE SUBSTRATE LOOK AT IT. What is in
+        # the directory enters the domain's world through the self's own
+        # perception, so the world read below is what is really there — and the
+        # workspace becomes somewhere the substrate may practise, bounded to it.
         workspace_root = provenance.get("workspace_root")
         if workspace_root:
-            from core.execution.filesystem_domain import ensure_filesystem_domain
-            ensure_filesystem_domain(domain_id, workspace_root)
+            from core.execution.tool_domain import take_up_workspace
+            take_up_workspace(domain_id, workspace_root)
 
         world_state = self._observe_world(domain_id)
         if world_state is None:
@@ -15145,7 +18158,8 @@ The substrate must realign with its constitutional responsibilities immediately.
     async def _reconcile_plan_intent(self, plan: Any, domain_id: str, *,
                                      goal_conditions: Any,
                                      detail: str = "",
-                                     alternative: Optional[Dict[str, Any]] = None
+                                     alternative: Optional[Dict[str, Any]] = None,
+                                     judgment: Optional[Dict[str, Any]] = None
                                      ) -> Optional[Dict[str, Any]]:
         """Attach what ACTUALLY happened to the intent this plan was the route of.
 
@@ -15172,12 +18186,41 @@ The substrate must realign with its constitutional responsibilities immediately.
             return None
         return await self._reconcile_intent(
             intent_id, domain_id, goal_conditions=goal_conditions,
-            detail=detail, alternative=alternative)
+            detail=detail, alternative=alternative, judgment=judgment)
+
+    #: WHAT A CONSTITUTIONAL VERDICT MEANS FOR THE PURSUIT IT STOPPED. Each of
+    #: these used to be reconciled as `abandoned` — the substrate recording that
+    #: it had QUIT a pursuit its own law had only sent back. A REPLAN is "not by
+    #: this route", a REDIRECT "not in this form", a BLOCK "this may not happen";
+    #: the pursuit's record says which, because later it is the only account of
+    #: why the work stopped.
+    _PURSUIT_AFTER_VERDICT = {
+        Verdict.REPLAN.value: "replanned",
+        Verdict.REDIRECT.value: "redirected",
+        Verdict.BLOCK.value: "refused",
+    }
+
+    def _pursuit_stopped_as(self, judgment: Optional[Dict[str, Any]]) -> Optional[str]:
+        """The status a pursuit takes when the constitution stopped its act, or
+        None when no constitutional verdict stopped it.
+
+        A HALT IS "NOT NOW", NOT "NEVER". It is reported as a BLOCK under Law 5,
+        and recording it as `refused` would conclude every pursuit that happened
+        to be mid-act when a human stopped the substrate — so lifting the halt
+        would resume nothing. The judgement SAYS it is the halt (`halt`); it is
+        read from there, never from whether a halt still stands when the pursuit
+        is closed, which may be long after the halt was lifted."""
+        verdict = str((judgment or {}).get("verdict") or "")
+        stopped = self._PURSUIT_AFTER_VERDICT.get(verdict)
+        if stopped == "refused" and (judgment or {}).get("halt") is True:
+            return "halted"
+        return stopped
 
     async def _reconcile_intent(self, intent_id: str, domain_id: str, *,
                                 goal_conditions: Any = None,
                                 detail: str = "",
-                                alternative: Optional[Dict[str, Any]] = None
+                                alternative: Optional[Dict[str, Any]] = None,
+                                judgment: Optional[Dict[str, Any]] = None
                                 ) -> Optional[Dict[str, Any]]:
         """Reconcile ONE intent with what the world actually did — the stage.
 
@@ -15213,24 +18256,41 @@ The substrate must realign with its constitutional responsibilities immediately.
                              intent_id, e)
                 return None
         conditions = [str(c) for c in (goal_conditions or [])]
-        if not conditions:
+        stopped_as = self._pursuit_stopped_as(judgment)
+        if not conditions and stopped_as is None:
             # NO CONDITIONS, NO VERDICT. `reached` below would be False for an
             # empty list, which would reconcile every condition-less intent as
             # "missed" — a fabricated failure. The honest answer is that this
             # intent named nothing the world could be checked against.
+            #
+            # A CONSTITUTIONAL VERDICT IS STILL RECORDED. What the law said about
+            # the act does not depend on the world, so an intent with no goal
+            # state still learns that it was replanned, redirected or refused.
             logger.debug("intent %s states no goal conditions; not reconciled",
                          intent_id)
             return None
-        observed = set(self._observe_world(domain_id) or [])
-        reached = bool(conditions) and all(c in observed for c in conditions)
+        from core.reasoning.temporal_reasoning import TemporalReasoningSystem
+        holds = TemporalReasoningSystem.condition_holds
+        observed = set(self._observe_world(domain_id) or []) if conditions else set()
+        reached = bool(conditions) and all(holds(c, observed) for c in conditions)
+        # THE WORLD DECIDES FIRST: a pursuit whose aim holds is fulfilled however
+        # its act ended. Only an aim NOT met is stopped by what stopped the act —
+        # the constitution's verdict when it spoke, a miss when nothing did.
+        status = "fulfilled" if reached else (stopped_as or "abandoned")
         reconciled = {
             "intent_id": intent_id,
-            "outcome_class": "success" if reached else "missed",
+            "outcome_class": "success" if reached else (stopped_as or "missed"),
             "matched_aim": bool(reached),
             "goal_conditions": conditions,
-            "goal_conditions_met": sorted(c for c in conditions if c in observed),
+            "goal_conditions_met": sorted(c for c in conditions if holds(c, observed)),
             "detail": detail,
         }
+        if judgment:
+            # WHICH LAW, AND WHY — the account a later reader needs, by reference
+            # to the judgement the constitution keeps.
+            reconciled["judgment"] = {
+                k: judgment.get(k) for k in ("verdict", "law_number", "law_name",
+                                             "reason", "judgment_id")}
         # What the laws offered instead, when they offered anything. A pursuit that
         # was redirected did not simply fail: there is a permitted form of it, and
         # recording that on the intent is what lets a later plan take it.
@@ -15238,16 +18298,215 @@ The substrate must realign with its constitutional responsibilities immediately.
             reconciled["alternative"] = alternative
         try:
             from core.reasoning.intent_authority import get_intent_authority
-            await get_intent_authority().reconcile(
-                intent_id, reconciled,
-                status="fulfilled" if reached else "abandoned")
+            authority = get_intent_authority()
+            await authority.reconcile(intent_id, reconciled, status=status)
+            reconciled_intent = await authority.get_by_id(str(intent_id))
         except Exception as e:
             # Never fails the act it is describing, but never silent either: an
             # unreconciled intent is a pursuit the substrate cannot learn from.
             logger.error("intent %s was not reconciled with what happened: %s",
                          intent_id, e)
             return None
+        if reconciled_intent is not None and not reconciled_intent.parent_intent_id:
+            await self._close_pursuit_memory(str(intent_id), status, reconciled)
         return reconciled
+
+    async def intend(self, task: Task, *, pursuit: str,
+                     goal_id: Optional[str] = None,
+                     parent_intent_id: Optional[str] = None,
+                     session: Optional[str] = None,
+                     trigger: Optional[Dict[str, Any]] = None) -> Optional[str]:
+        """Record WHY this work exists, at the moment the substrate takes it on.
+
+        QUEUED WORK ARRIVED WITH NO ACCOUNT OF ITSELF. Measured: 0 of 293 queued
+        tasks named an intent — user requests, intrinsic and drive goals,
+        research, repairs, knowledge refresh and agent work all entered as bare
+        descriptions. Nothing could say later why a piece of work existed,
+        whether the pursuit behind it was still live, or how it ended; that is
+        how work drifts — it keeps its slot after its reason is gone, and nobody
+        can tell.
+
+        This is where the substrate DECIDES to take the work on — a goal it
+        raised, a request it accepted — so this is where the pursuit is formed,
+        through the intent authority, keyed on the goal it serves (one goal is
+        one intent: a route later proved for that goal finds and firms up this
+        same one) or on the task itself. SHAPE is anonymous and substrate-wide:
+        what kind of pursuit, which task type, which faculty raised it. CONTENT
+        is the actor's: the words of the aim. It states WHY and grants nothing —
+        a pursuit kind is not one of the constitution's accounts, so an act under
+        it is judged exactly as an act with no intent was.
+
+        Returns the intent id, stamped into the task's provenance, or None: then
+        the task carries none, the gate counts it, and nothing stands in for it.
+        """
+        from core.reasoning.intent_authority import (
+            continuity_goal, get_intent_authority)
+        from .shared_types import SUBSTRATE_ACTOR, is_substrate_actor
+
+        actor = str(getattr(task, "actor", None) or SUBSTRATE_ACTOR)
+        shape = {"pursuit": pursuit,
+                 "task_type": getattr(getattr(task, "type", None), "value", None),
+                 "source": getattr(getattr(task, "source", None), "value", None),
+                 "raised_by": getattr(task, "created_by", None)}
+        if goal_id:
+            shape["goal_id"] = str(goal_id)
+        content = {"aim": str(getattr(task, "description", "") or "")[:500]}
+        if session:
+            content["session"] = str(session)
+        try:
+            held = await get_intent_authority().form(
+                "self_goal" if is_substrate_actor(actor) else "goal",
+                actor, continuity_goal(str(goal_id or task.id)),
+                shape=shape, content=content, parent_intent_id=parent_intent_id)
+        except Exception as e:
+            raise_if_structural(e, "autonomous_coordinator.intend")
+            logger.error("work %s is taken on with no account of why it exists "
+                         "(%s: %s)", getattr(task, "id", "?"), type(e).__name__, e)
+            return None
+        task.provenance = {**(getattr(task, "provenance", None) or {}),
+                           "intent_id": held.intent_id}
+        # A PURSUIT IS ONE MEMORY, formed as the work is taken on. A goal raised
+        # inside a pursuit is part of that pursuit and forms none of its own.
+        if parent_intent_id is None and self.memory is not None:
+            try:
+                # WHAT STARTED IT, kept whole: what the producer says started
+                # the work, or else the task as it was made.
+                memory_id = await self.memory.begin_pursuit(
+                    intent_id=held.intent_id, kind=pursuit,
+                    aim=str(getattr(task, "description", "") or ""),
+                    origin=Origin.of(actor, "task"),
+                    trigger=trigger if trigger is not None else self._task_trigger(task))
+                if memory_id:
+                    task.provenance["pursuit_memory_id"] = memory_id
+            except Exception as e:
+                raise_if_structural(e, "autonomous_coordinator.intend")
+                logger.error("pursuit %s was taken on and no memory of it was formed "
+                             "(%s: %s)", held.intent_id, type(e).__name__, e)
+        return held.intent_id
+
+    async def conclude_pursuit(self, task: Task, result: Any, *,
+                                completed: bool) -> Optional[str]:
+        """Close the pursuit a finished task was the work of, with what ended it.
+
+        Where a pursuit names a world state, the acting paths reconcile it
+        against the RE-OBSERVED WORLD, and that stays the authority: a pursuit
+        they already closed, or that the constitution sent back, is left exactly
+        as it is. What they cannot close is everything else — an answered
+        question, research, tool work with no goal state — and now that queued
+        work carries its intent, leaving those `forming` forever would be the
+        opposite confusion: a record of reasons for work that no longer exists.
+
+        So the task's own ending closes it, where the substrate decides it:
+          * completed — the completion authority's verdict → `fulfilled`;
+          * stopped by the constitution → what the law said: `replanned`,
+            `redirected`, `refused` — or `halted`, which a lifted halt resumes;
+          * otherwise ended → `abandoned`.
+        A step of a plan does not own the pursuit; the plan closes its route.
+        Isolated: recording why work ended never changes how it ended.
+        """
+        provenance = getattr(task, "provenance", None) or {}
+        intent_id = provenance.get("intent_id")
+        if not intent_id or provenance.get("plan_id"):
+            return None
+        try:
+            from core.reasoning.intent_authority import get_intent_authority
+            authority = get_intent_authority()
+            held = await authority.get_by_id(str(intent_id))
+            if held is None or held.status not in ("forming", "active"):
+                return getattr(held, "status", None)
+            judgment = (result.get("judgment")
+                        if isinstance(result, dict) else None)
+            stopped_as = None if completed else self._pursuit_stopped_as(judgment)
+            status = "fulfilled" if completed else (stopped_as or "abandoned")
+            outcome: Dict[str, Any] = {
+                "intent_id": str(intent_id),
+                "outcome_class": ("success" if completed
+                                  else (stopped_as or "not_completed")),
+                "matched_aim": bool(completed),
+                "decided_by": "completion",
+                "detail": ("completed" if completed else str(
+                    (result or {}).get("error") if isinstance(result, dict)
+                    else "ended without a result")[:300]),
+            }
+            if judgment:
+                outcome["judgment"] = {
+                    k: judgment.get(k) for k in ("verdict", "law_number",
+                                                 "law_name", "reason",
+                                                 "judgment_id")}
+            if isinstance(result, dict) and result.get("redirected"):
+                # The work proceeded in the form the constitution permitted.
+                outcome["redirected"] = result["redirected"]
+            await authority.reconcile(str(intent_id), outcome, status=status)
+            if not getattr(held, "parent_intent_id", None):
+                await self._close_pursuit_memory(str(intent_id), status, outcome)
+            return status
+        except Exception as e:
+            raise_if_structural(e, "autonomous_coordinator.conclude_pursuit")
+            logger.error("the pursuit of task %s was not closed with how it ended "
+                         "(%s: %s)", getattr(task, "id", "?"), type(e).__name__, e)
+            return None
+
+    @staticmethod
+    def _task_trigger(task: Task) -> Dict[str, Any]:
+        """What started a piece of work, when its producer did not say: the
+        task as it was made."""
+        return {"what": "task",
+                "source": Origin.of(getattr(task, "actor", None), "task").theirs,
+                "content": {"description": getattr(task, "description", None),
+                            "created_by": getattr(task, "created_by", None),
+                            "source": getattr(getattr(task, "source", None), "value", None),
+                            "metadata": getattr(task, "metadata", None)}}
+
+    async def _root_intent_id(self, intent_id: str) -> str:
+        """The pursuit an intent is part of (`IntentAuthority.root_of`)."""
+        from core.reasoning.intent_authority import get_intent_authority
+        return await get_intent_authority().root_of(intent_id)
+
+    async def _pursuit_memory_for(self, task: Task) -> Tuple[Optional[str], bool]:
+        """The memory of the pursuit a task is part of, and whether the task is
+        a whole pursuit of its own.
+
+        Found by the task's intent, walked up to the pursuit at its root. A
+        pursuit taken on before pursuits had memories is given one now. Work
+        with no intent was taken on with no account of why; it is a pursuit of
+        its own, which the task is the whole of."""
+        provenance = getattr(task, "provenance", None) or {}
+        intent_id = provenance.get("intent_id")
+        origin = Origin.of(getattr(task, "actor", None), "task")
+        if not intent_id:
+            memory_id = await self.memory.begin_pursuit(
+                intent_id=f"task:{task.id}", kind="work with no intent",
+                aim=str(getattr(task, "description", "") or ""), origin=origin,
+                trigger=self._task_trigger(task))
+            return memory_id, True
+        root = await self._root_intent_id(str(intent_id))
+        memory_id = (provenance.get("pursuit_memory_id") if root == str(intent_id) else None) \
+            or await self.memory.pursuit_memory_id(root)
+        if memory_id is None:
+            from core.reasoning.intent_authority import get_intent_authority
+            held = await get_intent_authority().get_by_id(root)
+            memory_id = await self.memory.begin_pursuit(
+                intent_id=root,
+                kind=str(((getattr(held, "shape", None) or {}).get("pursuit"))
+                         or getattr(held, "origin_kind", None) or "pursuit"),
+                aim=str(getattr(task, "description", "") or ""), origin=origin,
+                trigger=self._task_trigger(task))
+        return memory_id, False
+
+    async def _close_pursuit_memory(self, intent_id: str, status: str,
+                                    outcome: Dict[str, Any]) -> None:
+        """Close the memory of a pursuit that has ended, with how it ended.
+        Isolated: recording how a pursuit ended never changes how it ended."""
+        if self.memory is None:
+            return
+        try:
+            memory_id = await self.memory.pursuit_memory_id(intent_id)
+            if memory_id is not None:
+                await self.memory.close_pursuit(memory_id, status=status, outcome=outcome)
+        except Exception as e:
+            raise_if_structural(e, "autonomous_coordinator._close_pursuit_memory")
+            logger.error("the memory of pursuit %s was not closed with how it ended "
+                         "(%s: %s)", intent_id, type(e).__name__, e)
 
     async def _drive_substrate_goal(self, task: Task) -> Optional[Dict[str, Any]]:
         """Plan a state goal over learned operators and execute it, model-free.
@@ -15279,8 +18538,13 @@ The substrate must realign with its constitutional responsibilities immediately.
         if goal is None:
             return None
 
+        # The route this plans is a goal raised WHILE WORKING on this task, so its
+        # intent is its own — with the task's pursuit as its parent, which is the
+        # tree the intent authority keeps (a goal inside a pursuit, not merged).
         outcome = await engine.plan_for_goal(
-            goal.id, {"world_state": spec["world_state"], "domain_id": domain_id})
+            goal.id, {"world_state": spec["world_state"], "domain_id": domain_id,
+                      "parent_intent_id": (getattr(task, "provenance", None)
+                                           or {}).get("intent_id")})
 
         if outcome.status is not PlanningStatus.PLAN_FOUND:
             # Honest inability. UNREACHABLE is a proof about the world;
@@ -15323,11 +18587,194 @@ The substrate must realign with its constitutional responsibilities immediately.
                 'deficit': deficit.to_dict(),
             }
 
+        return await self._pursue_proved_route(
+            outcome.plan, domain_id=domain_id,
+            goal_conditions=spec["goal_conditions"], task_id=task.id,
+            self_initiated=(
+                getattr(getattr(task, 'source', None), 'value', None) == 'autonomous'))
+
+    async def _route_went_stale(self, plan, domain_id: str, *, why: str) -> bool:
+        """A pursuit stopped, and the route is what stopped it. Say so, so the
+        goal can be given another one.
+
+        A PROVED ROUTE GOES STALE TWO WAYS, and only one of them was wired. A
+        rule can stop being TRUE — that is refutation, and the rule store's
+        authority events already carry it. Or the WORLD can stop being where the
+        route assumed it was, which refutes nothing: the operator is still
+        correct, the plan is simply a route from a state that has moved on.
+        Something else wrote the file, a step half-succeeded, a law refused this
+        form of the act. Repair fired only on the first, so a pursuit knocked
+        off course by the second stopped at the diverged step and stayed there
+        forever, with the goal still reading `active`.
+
+        Both are the same condition from the goal's side: what was proved is no
+        longer a route to it.
+
+        THE GUARD IS THE WORLD, NOT A RETRY COUNT. Replanning is worth doing
+        when there is something NEW to plan over, so this announces only when
+        the world has actually changed since the plan was proved against it.
+        A route that fails in an unchanged world would be re-derived identically
+        by the same search — re-announcing there is a loop, and stopping after
+        an arbitrary N attempts would be a number nobody can defend. When
+        knowledge is what changed instead, the authority path announces, and it
+        is right to: the world may be untouched and the repertoire is not.
+        """
+        planned = (getattr(plan, "metadata", None) or {}).get("planned_world")
+        observed = self._observe_world(domain_id)
+        if observed is None:
+            logger.warning(
+                "plan %s stopped (%s) and the world of %s cannot be read, so "
+                "whether its route is still the route is unknown; not replanned",
+                plan.id, why, domain_id)
+            return False
+        if planned is not None and list(planned) == list(observed):
+            logger.info(
+                "plan %s stopped (%s) in a world unchanged since it was proved; "
+                "the same search would find the same route, so it is not "
+                "replanned", plan.id, why)
+            return False
+
+        plan.status = "invalidated"
+        plan.metadata = {
+            **(getattr(plan, "metadata", None) or {}),
+            "invalidated_by": "route_went_stale",
+            "invalidated_reason": why,
+            "invalidated_at": datetime.now().isoformat(),
+        }
+        engine = await self._get_planning_engine()
+        if engine is None:
+            logger.error("plan %s went stale and there is no planning faculty "
+                         "to repair it: %s", plan.id, why)
+            return False
+        try:
+            await engine._store_plan(plan)
+        except Exception as e:
+            logger.error("plan %s could not be recorded as withdrawn (%s: %s); "
+                         "repairing it anyway", plan.id, type(e).__name__, e)
+        await self.announce_route_withdrawal(
+            goal_ids=[plan.goal_id], plan_ids=[plan.id], rule_ids=[],
+            tasks_blocked=sum(1 for t in plan.tasks
+                              if t.status in (TaskStatus.PENDING,
+                                              TaskStatus.PLANNED,
+                                              TaskStatus.BLOCKED)))
+        return True
+
+    async def _withdraw_replanned_route(self, judgment: Optional[Dict[str, Any]],
+                                        provenance: Dict[str, Any]) -> bool:
+        """A REPLAN verdict means the goal goes back to planning. Make it so.
+
+        `Verdict.REPLAN` is the constitution saying "this is not the route" — not
+        "this may not happen" (that is BLOCK) and not "do it this other way"
+        (that is REDIRECT). Its whole content is an instruction to plan again.
+        **Nothing consumed it.** Measured: `Verdict.REPLAN` is produced in five
+        places and no code in the tree branched on it, so a route the
+        constitution had rejected stayed the active route. Every dispatch of it
+        was refused again at the tool gate, forever, and the goal it served was
+        never repaired — a livelock the laws themselves diagnosed on every pass.
+
+        The far half already exists and is proven: ROUTE_WITHDRAWN →
+        `replan_withdrawn_goals` → a new route (REPLAN-01). This is the near half
+        for a CONSTITUTIONAL withdrawal, beside the one for a refuted rule.
+
+        NO RULE IS NAMED, deliberately. `rule_ids=[]`, for exactly the reason the
+        refusal above records no runtime evidence: the constitution said "not
+        this act", never "this operator is wrong". Withdrawing the route while
+        blaming the rule would punish the substrate's knowledge for the
+        substrate's own law — the same false negative, one layer up.
+
+        Isolated and never fatal: the refusal is already the answer, and a
+        failure to repair the pursuit must not change what the caller is told.
+        """
+        if (judgment or {}).get("verdict") != Verdict.REPLAN.value:
+            return False
+        plan_id = provenance.get("plan_id")
+        goal_id = provenance.get("goal_id")
+        if not plan_id:
+            # A single-operator act IS the whole pursuit; there is no route
+            # around it to withdraw, and saying so is better than inventing one.
+            logger.info("the constitution replanned %s, which belongs to no plan "
+                        "— nothing to withdraw", provenance.get("intent_id") or "an act")
+            return False
+        try:
+            engine = await self._get_planning_engine()
+            if engine is None:
+                logger.error("the constitution replanned plan %s and there is no "
+                             "planning faculty to repair it", plan_id)
+                return False
+            plan = getattr(engine, "active_plans", {}).get(plan_id)
+            if plan is None:
+                logger.info("the constitution replanned plan %s, which is no "
+                            "longer active — nothing to withdraw", plan_id)
+                return False
+            if getattr(plan, "status", None) == "invalidated":
+                return False          # already withdrawn; one withdrawal, not many
+            blocked = 0
+            for step in getattr(plan, "tasks", ()) or ():
+                if step.status in (TaskStatus.PENDING, TaskStatus.PLANNED,
+                                   TaskStatus.BLOCKED):
+                    step.status = TaskStatus.BLOCKED
+                    step.result = {
+                        **(step.result or {}),
+                        "blocked_reason": "constitution_replanned_the_route",
+                        "law_number": (judgment or {}).get("law_number"),
+                        "judgment_id": (judgment or {}).get("judgment_id"),
+                    }
+                    blocked += 1
+            plan.status = "invalidated"
+            plan.metadata = {
+                **(getattr(plan, "metadata", None) or {}),
+                "invalidated_by": "constitutional_replan",
+                "invalidated_reason": (judgment or {}).get("reason"),
+                "law_number": (judgment or {}).get("law_number"),
+                "judgment_id": (judgment or {}).get("judgment_id"),
+                "invalidated_at": datetime.now().isoformat(),
+            }
+            await engine._store_plan(plan)
+            logger.warning("plan %s withdrawn: the constitution replanned it under "
+                           "Law %s (%d step(s) blocked)", plan_id,
+                           (judgment or {}).get("law_number", "?"), blocked)
+            await self.announce_route_withdrawal(
+                goal_ids=[goal_id] if goal_id else [], plan_ids=[plan_id],
+                rule_ids=[], tasks_blocked=blocked)
+            self.stats["routes_withdrawn_by_law"] = (
+                self.stats.get("routes_withdrawn_by_law", 0) + 1)
+            return True
+        except Exception as error:
+            logger.error("the constitution replanned plan %s and it could not be "
+                         "withdrawn (%s: %s); the refusal still stands",
+                         plan_id, type(error).__name__, error)
+            return False
+
+    async def _pursue_proved_route(
+            self, plan, *, domain_id: str, goal_conditions: List[str],
+            task_id: Optional[str] = None,
+            self_initiated: bool = True) -> Dict[str, Any]:
+        """Run a proved route and CLOSE IT OUT. The substrate's own work, from
+        the first step to the reconciled intent.
+
+        WHOEVER MAKES A PLAN OWNS IT. Running a route and reconciling it were
+        the back half of `_drive_substrate_goal`, reachable only by planning a
+        goal and executing it in the same call — so a plan that was STORED
+        rather than driven had no owner at all. `replan_withdrawn_goals` makes
+        exactly such a plan: the substrate repaired the pursuit and then left
+        the new route sitting in `active_plans` with nothing to run it, which is
+        the orphan RECONCILE-01 recorded as "not covered" and is no repair at
+        all from the goal's point of view.
+
+        So this is one method, and both callers are the substrate: the goal it
+        plans now, and the goal it replans after a refutation. Reconciliation is
+        not an extra a dispatcher might remember to do — it is part of what
+        running a route IS, which is why it lives in here and not beside a call
+        site.
+
+        Success is the RE-OBSERVED world holding the goal, never the fact that
+        the steps ran.
+        """
         # The proved chain, run in dependency order. Each step goes through the
         # same verified path a single operator takes; the plan's provenance
         # already carries what that path needs.
         step_results: List[Optional[Dict[str, Any]]] = []
-        for step in outcome.plan.tasks:
+        for step in plan.tasks:
             # A READING the law requires before the route may run. Not part of
             # the proved route — it has no rule behind it, so it must not go to
             # the operator path, which would rightly refuse it for that.
@@ -15337,14 +18784,14 @@ The substrate must realign with its constitutional responsibilities immediately.
                 step_results.append(reading)
                 if not reading.get("success"):
                     stopped = await self._reconcile_plan_intent(
-                        outcome.plan, domain_id,
-                        goal_conditions=spec["goal_conditions"],
+                        plan, domain_id,
+                        goal_conditions=goal_conditions,
                         detail=f"could not read {_read_path} first")
                     return {
-                        'success': False, 'task_id': task.id,
+                        'success': False, 'task_id': task_id,
                         'execution_path': 'substrate_plan', 'model_free': True,
                         'domain_id': domain_id,
-                        'goal_conditions': spec["goal_conditions"],
+                        'goal_conditions': goal_conditions,
                         'stopped_at': step.description,
                         'error': (f"the law requires reading {_read_path} before "
                                   f"this route, and it could not be read: "
@@ -15357,11 +18804,11 @@ The substrate must realign with its constitutional responsibilities immediately.
             step_results.append(result)
             if result is None:
                 stopped = await self._reconcile_plan_intent(
-                    outcome.plan, domain_id,
-                    goal_conditions=spec["goal_conditions"],
+                    plan, domain_id,
+                    goal_conditions=goal_conditions,
                     detail="a step did not present as a grounded operator")
                 return {
-                    'success': False, 'task_id': task.id,
+                    'success': False, 'task_id': task_id,
                     'execution_path': 'substrate_plan', 'model_free': True,
                     'domain_id': domain_id,
                     'error': "a plan step did not present as a grounded operator",
@@ -15375,15 +18822,20 @@ The substrate must realign with its constitutional responsibilities immediately.
                 # A pursuit that stopped is still something to learn from, so the
                 # intent is reconciled as MISSED rather than left open.
                 stopped = await self._reconcile_plan_intent(
-                    outcome.plan, domain_id,
-                    goal_conditions=spec["goal_conditions"],
+                    plan, domain_id,
+                    goal_conditions=goal_conditions,
                     detail=f"stopped at {step.description}",
-                    alternative=result.get("alternative"))
+                    alternative=result.get("alternative"),
+                    judgment=result.get("judgment"))
+                await self._route_went_stale(
+                    plan, domain_id,
+                    why=f"stopped at {step.description}: "
+                        f"{result.get('refused') or result.get('runtime_outcome')}")
                 return {
-                    'success': False, 'task_id': task.id,
+                    'success': False, 'task_id': task_id,
                     'execution_path': 'substrate_plan', 'model_free': True,
                     'domain_id': domain_id,
-                    'goal_conditions': spec["goal_conditions"],
+                    'goal_conditions': goal_conditions,
                     'stopped_at': step.description,
                     'intent_outcome': stopped,
                     'error': f"step {step.description} did not confirm: "
@@ -15395,12 +18847,14 @@ The substrate must realign with its constitutional responsibilities immediately.
         # goal, not the fact that the steps ran. Re-observing the goal-state IS
         # the verification — stronger and model-free — so the verdict is stated
         # here rather than left for a generator-policing protocol to guess.
+        from core.reasoning.temporal_reasoning import TemporalReasoningSystem
         final_world = set(self._observe_world(domain_id) or [])
-        reached = all(cond in final_world for cond in spec["goal_conditions"])
+        reached = all(TemporalReasoningSystem.condition_holds(cond, final_world)
+                      for cond in goal_conditions)
         # MEANT vs HAPPENED, recorded on the intent this plan was the route of.
         reconciled = await self._reconcile_plan_intent(
-            outcome.plan, domain_id,
-            goal_conditions=spec["goal_conditions"],
+            plan, domain_id,
+            goal_conditions=goal_conditions,
             detail=f"{len(step_results)} step(s) ran")
         # THE LOOP CLOSES HERE. Integrity's action↔outcome link is the substrate
         # asking "did acting realize what I meant" — now read from the reconciled
@@ -15410,8 +18864,7 @@ The substrate must realign with its constitutional responsibilities immediately.
             try:
                 self.appraisal.update(
                     outcome_quality=1.0 if reconciled["matched_aim"] else 0.0,
-                    self_initiated=(getattr(getattr(task, 'source', None),
-                                            'value', None) == 'autonomous'),
+                    self_initiated=self_initiated,
                     intent_outcome=reconciled)
             except Exception as e:
                 logger.debug("disposition not updated from the reconciled "
@@ -15420,11 +18873,11 @@ The substrate must realign with its constitutional responsibilities immediately.
             'success': reached,
             'verification_state': 'verified' if reached else 'failed',
             'completion_score': 1.0 if reached else 0.0,
-            'task_id': task.id,
+            'task_id': task_id,
             'execution_path': 'substrate_plan',
             'model_free': True,
             'domain_id': domain_id,
-            'goal_conditions': spec["goal_conditions"],
+            'goal_conditions': goal_conditions,
             'steps_executed': len(step_results),
             'goal_reached': reached,
             # MEANT vs HAPPENED travels with the result. Downstream credit reads
@@ -15503,7 +18956,8 @@ The substrate must realign with its constitutional responsibilities immediately.
             result["intent_outcome"] = await self._reconcile_intent(
                 str(intent_id), provenance.get("domain_id") or "",
                 detail=f"{result.get('operator')}: refused — {result['refused']}",
-                alternative=result.get("alternative"))
+                alternative=result.get("alternative"),
+                judgment=result.get("judgment"))
         return result
 
     async def _act_on_grounded_operator(self, task: Task) -> Optional[Dict[str, Any]]:
@@ -15590,6 +19044,11 @@ The substrate must realign with its constitutional responsibilities immediately.
         if binding is None:
             return refuse(f"no tool bound to {action.predicate} in domain {domain!r}")
 
+        # This step's own resources are looked at before the world is read: they
+        # belong to it even where the world has never met them, and where a move
+        # puts something is a place nothing is at yet.
+        get_binding_registry().look_at(domain, action.args)
+
         before = binding.observe()
         if before is None:
             return refuse("the world could not be read before acting")
@@ -15663,6 +19122,13 @@ The substrate must realign with its constitutional responsibilities immediately.
         # WHOSE WORK THIS IS, bound beside the intent. `actor_for` decided it when
         # the task was made; this reads that decision rather than making a second.
         _actor_token = set_acting_actor(getattr(task, "actor", None))
+        # AND WHAT IT RESTS ON. `stored` is the rule this act is a step of, with
+        # its own evidence; it was loaded above and read for `is_executable` — a
+        # boolean — and then went out of scope. Binding it here is what lets the
+        # judgement say that this act stands on a rule the world has confirmed
+        # 133 times, or on one it has confirmed twice.
+        from core.learning.rule_store import set_acting_rule, reset_acting_rule
+        _rule_token = set_acting_rule(stored)
         try:
             with concurrent_execution_guard(domain) as _overlapped:
                 result = await get_tool_registry().execute_tool(
@@ -15672,6 +19138,9 @@ The substrate must realign with its constitutional responsibilities immediately.
         finally:
             reset_acting_intent(_intent_token)
             reset_acting_actor(_actor_token)
+            # RELEASED WITH THE OTHERS. A binding left set would attribute this
+            # rule's attestation to whatever this context does next.
+            reset_acting_rule(_rule_token)
 
         # A CONSTITUTIONAL REFUSAL IS NOT EVIDENCE ABOUT THE RULE.
         #
@@ -15710,6 +19179,13 @@ The substrate must realign with its constitutional responsibilities immediately.
             # is a block wearing a kinder word.
             refusal["judgment"] = _judgment
             refusal["alternative"] = (_judgment or {}).get("alternative")
+            # AND A REPLAN ACTUALLY REPLANS. The comment above is right that a
+            # verdict reaching nobody is "a block wearing a kinder word" — and
+            # that was true of REPLAN itself, whose entire content is "plan
+            # again" and which nothing acted on. The route is withdrawn here,
+            # where the provenance naming the plan and the goal is in scope.
+            refusal["route_withdrawn"] = await self._withdraw_replanned_route(
+                _judgment, provenance)
             return refusal
 
         observation = ToolObservation(
@@ -15794,7 +19270,9 @@ The substrate must realign with its constitutional responsibilities immediately.
                 str(_intent_id), domain or "",
                 detail=f"{operator_name}: {evidence.detail}")
         await self._appraise_substrate_execution(task, evidence, attribution, observation,
-                                                 intent_outcome=reconciled)
+                                                 intent_outcome=reconciled,
+                                                 operator_name=operator_name,
+                                                 domain=domain)
         await self._record_execution_demonstration(
             domain=domain, action=action, before=before, after=after,
             observation_id=observation_id, evidence=evidence)
@@ -15838,6 +19316,100 @@ The substrate must realign with its constitutional responsibilities immediately.
             ],
             'detail': evidence.detail,
         }
+
+    async def _watch_act(self, tool_name: str, params: Dict[str, Any]):
+        """Open a reading of the world this act is about to touch, or None.
+
+        Isolated on purpose: watching is how the substrate LEARNS from an act,
+        never a condition of performing one. A fault in the observation must not
+        take down work that was authorised and is about to succeed, so it is
+        logged and the act proceeds unwatched -- which costs a demonstration and
+        nothing else.
+        """
+        try:
+            from core.execution.tool_domain import ActFrame, encounter
+            # MEETING A DOMAIN IS HOW IT BECOMES ONE. Without it the substrate
+            # could act only where a person had named a directory, and every
+            # act outside one was refused by Law 2 for want of a bound operator.
+            # This registers the binding and the world from the act's own
+            # arguments. It authorises nothing: the constitution judges the act
+            # exactly as before, and finds something true to check.
+            encounter(tool_name, params or {})
+            return await ActFrame.open(tool_name, params or {})
+        except Exception as e:
+            from core.capability import raise_if_structural
+            raise_if_structural(e, "autonomous_coordinator._watch_act")
+            logger.warning("could not watch %s: %s: %s",
+                           tool_name, type(e).__name__, e)
+            return None
+
+    async def _learn_what_the_act_did(self, frame, tool_name: str, task,
+                                      *, refused: bool, succeeded: bool,
+                                      detail: str) -> None:
+        """Close the frame and file what the act did as a demonstration.
+
+        THIS IS THE SEAM THAT WAS MISSING. `_record_execution_demonstration`
+        already owns the filing and every rule about when filing is wrong; all
+        that was absent was a caller for acts the substrate had not already
+        learned an operator for. The verdict is read from the world, not from
+        the tool's own report:
+
+          the act succeeded and the world MOVED      CONFIRMATION
+          the act succeeded and the world did not    INDETERMINATE -- the frame
+                                                     could not see what it did,
+                                                     which is not evidence that
+                                                     it did nothing
+          the act ran and reported failure           CONTRADICTION -- the
+                                                     contrastive negative that
+                                                     proves the preconditions
+                                                     are necessary
+          the act was refused                        nothing; it never ran
+
+        The three gates that follow (unreadable after-state, indeterminate
+        outcome, absent domain) are the recorder's own and are not repeated
+        here -- one authority decides what is admissible.
+        """
+        if frame is None or refused:
+            return
+        try:
+            from core.execution.effect_verification import (
+                RuntimeEvidence, RuntimeOutcome)
+            from core.execution.tool_domain import (
+                note_demonstration, refresh_earned)
+
+            closed = await frame.close()
+            if closed is None:
+                return
+            before, after = closed
+
+            if not succeeded:
+                outcome = RuntimeOutcome.CONTRADICTION
+            elif after != before:
+                outcome = RuntimeOutcome.CONFIRMATION
+            else:
+                outcome = RuntimeOutcome.INDETERMINATE
+
+            observation_id = (f"act:{getattr(task, 'id', 'none')}:"
+                              f"{tool_name}:{uuid.uuid4().hex[:12]}")
+            await self._record_execution_demonstration(
+                domain=frame.domain_id, action=frame.action,
+                before=before, after=after,
+                observation_id=observation_id,
+                evidence=RuntimeEvidence(
+                    outcome=outcome, rule_id=None, operator=str(frame.action),
+                    observation_id=observation_id, detail=detail))
+            # The frame this signature is watched through is derived from its
+            # own demonstrations, so a new one makes the memo stale.
+            note_demonstration(frame.domain_id, frame.action.predicate,
+                               frame.action.arity)
+            # New evidence can only narrow the domain's world from here, where
+            # the store is reachable; `observe()` itself must never touch it.
+            await refresh_earned(frame.domain_id)
+        except Exception as e:
+            from core.capability import raise_if_structural
+            raise_if_structural(e, "autonomous_coordinator._learn_what_the_act_did")
+            logger.warning("%s acted but what it did could not be kept: %s: %s",
+                           tool_name, type(e).__name__, e)
 
     async def _record_execution_demonstration(
         self, *, domain, action, before, after, observation_id, evidence,
@@ -15983,7 +19555,9 @@ The substrate must realign with its constitutional responsibilities immediately.
 
     async def _appraise_substrate_execution(
         self, task: "Task", evidence, attribution, observation,
-        intent_outcome: Optional[Dict[str, Any]] = None
+        intent_outcome: Optional[Dict[str, Any]] = None,
+        operator_name: Optional[str] = None,
+        domain: Optional[str] = None
     ) -> None:
         """Report a substrate execution to appraisal, in measured signals only.
 
@@ -16034,6 +19608,13 @@ The substrate must realign with its constitutional responsibilities immediately.
                 # which is the honest reading when no intent was named; a zero
                 # would dent integrity for an act that had no aim to miss.
                 intent_outcome=intent_outcome,
+                # WHAT the resulting feeling is about. A frustration whose
+                # object is `operator:<rule>` can be addressed — that operator
+                # replanned, refuted, relearned. One with no object can only be
+                # outlived. Omitted rather than defaulted when the caller did
+                # not name it, so nothing is invented.
+                concerns=(f"operator:{operator_name}" if operator_name else None),
+                concerns_domain=domain,
             )
         except Exception as e:
             # Disposition is not allowed to decide whether the execution result
@@ -16059,7 +19640,24 @@ The substrate must realign with its constitutional responsibilities immediately.
             logger.info("[substrate-tools] %s not granted to task %s (allowed=%s); refused",
                         tool_name, task.id, allowed)
             return None
-        import time
+        # WATCH WHAT THIS ACT DOES TO THE WORLD.
+        #
+        # THE ONLY OTHER PLACE THE SUBSTRATE OBSERVES ITS OWN STATE TRANSITIONS
+        # is `_execute_via_substrate`, and it can only reach that observation
+        # after finding a VALIDATED learned rule, in a declared domain, with a
+        # registered binding -- you need an operator to record the demonstration
+        # that would teach you an operator. Everything else the substrate does
+        # came through here and was watched not at all: the act was appraised,
+        # believed and metered, and what it DID to the world was never read.
+        # That is why the DID/SAW evidence this path already produces answers
+        # "did I reach the goal?" and never "what does this action do?".
+        #
+        # The frame is derived from the call's own arguments, so no domain,
+        # directory or tool list has to be declared first; it declines (None)
+        # for an investigation, for a call that names nothing observable, and
+        # for a world it could not read. Opened BEFORE the intent binding so
+        # the reading is not attributed to this act, and closed after it.
+        frame = await self._watch_act(tool_name, params)
         # NAME THE INTENT THIS WORK BELONGS TO. Every acting path binds it, so the
         # gate can read WHY an act is happening rather than only what it is. Only
         # the id travels; the constitution fetches the record, so a task cannot
@@ -16070,7 +19668,8 @@ The substrate must realign with its constitutional responsibilities immediately.
         # something with nothing to explain it goes back to planning.
         from core.reasoning.intent_authority import (
             set_acting_intent, reset_acting_intent,
-            set_acting_actor, reset_acting_actor)
+            set_acting_actor, reset_acting_actor,
+            set_acting_task, reset_acting_task)
         _provenance = getattr(task, "provenance", None) or {}
         _intent_token = set_acting_intent(
             _provenance.get("intent_id") or (task.metadata or {}).get("intent_id"))
@@ -16079,7 +19678,10 @@ The substrate must realign with its constitutional responsibilities immediately.
         # sources own their work, user sources carry the user's id — so this
         # reads that decision rather than making a second one.
         _actor_token = set_acting_actor(getattr(task, "actor", None))
-        _t0 = time.perf_counter()
+        # WHICH TASK the run serves: the registry records every run, and
+        # attributes it to this.
+        _task_token = set_acting_task(getattr(task, "id", None),
+                                      getattr(task, "description", "") or "")
         try:
             # Reset as soon as the call returns: the binding exists for the gate,
             # and a token left set would leak this task's intent onto whatever
@@ -16094,45 +19696,62 @@ The substrate must realign with its constitutional responsibilities immediately.
                 # judged as belonging to someone who had nothing to do with it.
                 reset_acting_intent(_intent_token)
                 reset_acting_actor(_actor_token)
+                reset_acting_task(_task_token)
         except Exception as e:
             logger.debug("[substrate-tools] %s raised: %s", tool_name, e)
             # The tool did not execute: no control established over the world.
-            _ms = int((time.perf_counter() - _t0) * 1000)
-            await self._appraise_tool_outcome(task, executed=False, succeeded=False)
+            await self._appraise_tool_outcome(task, executed=False, succeeded=False,
+                                              tool_name=tool_name)
             await self._observe_tool_belief(tool_name, params, None, success=False)
-            await self._record_tool_metrics(task, tool_name, executed=False,
-                                            success=False, latency_ms=_ms,
-                                            failure_reason=str(e))
+            # NOTHING IS LEARNED FROM AN ACT THAT DID NOT RUN. The tool raised
+            # before establishing any control over the world, so there is no
+            # transition here -- filing one would teach the operator from a
+            # world that never moved.
             # Carry the real failure reason back (not None): completion's DID
             # channel reads it to tell an intended effect that was already met
             # (e.g. a removal of an already-absent file) from a genuine failure.
             return {"success": False, "model_free": True, "tool": tool_name,
                     "output": None, "error": str(e),
                     "task_id": task.id, "method": "substrate_tool"}
-        _ms = int((time.perf_counter() - _t0) * 1000)
         if not getattr(result, "success", None):
             # The tool executed but reported failure — we can act, this route is
             # wrong. Felt as a poor outcome with control intact (replan, not
             # escalation), accumulating toward avoidance if it keeps happening.
-            await self._appraise_tool_outcome(task, executed=True, succeeded=False)
+            await self._appraise_tool_outcome(task, executed=True, succeeded=False,
+                                              tool_name=tool_name)
             await self._observe_tool_belief(tool_name, params,
                                             getattr(result, "output", None), success=False)
             _err = str(getattr(result, "error", "") or "tool reported failure")
-            await self._record_tool_metrics(task, tool_name, executed=True,
-                                            success=False, latency_ms=_ms,
-                                            failure_reason=_err)
+            # AN ATTEMPT THAT DID NOT WORK IS EVIDENCE, a refusal is not. The
+            # act was taken and the effects did not follow -- that is the
+            # contrastive negative induction needs to establish that the
+            # operator's preconditions are necessary rather than incidental.
+            # A constitutionally refused act never ran, so it teaches nothing.
+            _refused = (getattr(result, "metadata", None) or {}).get(
+                "error_type") == "CONSTITUTION_REFUSED"
+            await self._learn_what_the_act_did(
+                frame, tool_name, task, refused=_refused,
+                succeeded=False, detail=_err)
             # Return the tool's OWN error (not None): the DID channel reads it to
             # recognise an intended effect already satisfied — e.g. a removal that
             # "failed" only because the target was already gone.
+            #
+            # AND, WHEN THE LAW STOPPED IT, THE JUDGEMENT. This path returned only
+            # an error string, so whatever closed the pursuit could not tell a
+            # refusal from a failure and recorded both as `abandoned`.
             return {"success": False, "model_free": True, "tool": tool_name,
                     "output": getattr(result, "output", None), "error": _err,
-                    "task_id": task.id, "method": "substrate_tool"}
+                    "task_id": task.id, "method": "substrate_tool",
+                    "judgment": ((getattr(result, "metadata", None) or {})
+                                 .get("judgment") if _refused else None)}
         logger.info("[substrate-tools] task %s executed model-free via %s", task.id, tool_name)
-        await self._appraise_tool_outcome(task, executed=True, succeeded=True)
+        await self._appraise_tool_outcome(task, executed=True, succeeded=True,
+                                          tool_name=tool_name)
         await self._observe_tool_belief(tool_name, params,
                                         getattr(result, "output", None), success=True)
-        await self._record_tool_metrics(task, tool_name, executed=True,
-                                        success=True, latency_ms=_ms)
+        await self._learn_what_the_act_did(frame, tool_name, task,
+                                           refused=False, succeeded=True,
+                                           detail="tool reported success")
         return {
             "success": True,
             "model_free": True,
@@ -16140,6 +19759,10 @@ The substrate must realign with its constitutional responsibilities immediately.
             "output": getattr(result, "output", None),
             "task_id": task.id,
             "method": "substrate_tool",
+            # What ran may be the constitution's permitted form of what was asked
+            # (`_carry_out_redirect`); the pursuit's record needs to know which.
+            "redirected_from": (getattr(result, "metadata", None) or {}).get(
+                "redirected_from"),
         }
 
     async def _carry_out_redirect(self, tool_name: str, params: Dict[str, Any],
@@ -16187,7 +19810,8 @@ The substrate must realign with its constitutional responsibilities immediately.
         return performed
 
     async def _appraise_tool_outcome(self, task: "Task", *, executed: bool,
-                                     succeeded: bool) -> None:
+                                     succeeded: bool,
+                                     tool_name: Optional[str] = None) -> None:
         """Report a raw substrate tool outcome to the whole-self appraisal.
 
         The tool-path counterpart to `_appraise_substrate_execution` (which
@@ -16224,32 +19848,13 @@ The substrate must realign with its constitutional responsibilities immediately.
                 options_considered=1,
                 self_initiated=(
                     getattr(getattr(task, 'source', None), 'value', None) == 'autonomous'),
+                # WHAT the feeling is about — the tool that was run. Same reason
+                # as the learned-rule path: a frustration with an object can be
+                # addressed, one without can only be outlived.
+                concerns=(f"tool:{tool_name}" if tool_name else None),
             )
         except Exception as e:
             logger.warning("substrate tool-outcome appraisal update failed: %s", e)
-
-    async def _record_tool_metrics(self, task: "Task", tool_name: str, *,
-                                   executed: bool, success: bool,
-                                   latency_ms: int,
-                                   failure_reason: Optional[str] = None) -> None:
-        """The FOURTH consumer of the post-tool seam (beside appraisal, beliefs,
-        and learning-evidence): report the run's METRICS — success/failure and
-        latency, attributed to the task — to the tool-metrics owner
-        (AdaptiveToolLearning), the one collector `get_learning_metrics`
-        summarizes. The engine gives off metrics; the learning pipeline collects
-        them. Guarded: the owner is injected by main.py and absent standalone, and
-        a recording fault is never fatal to execution."""
-        owner = getattr(self, "adaptive_tool_learning", None)
-        if owner is None:
-            return
-        try:
-            await owner.record_tool_run(
-                task_id=getattr(task, "id", "") or "",
-                task_description=getattr(task, "description", "") or "",
-                tool_name=tool_name, success=success, executed=executed,
-                latency_ms=latency_ms, failure_reason=failure_reason)
-        except Exception as e:
-            logger.debug("tool-metrics recording skipped: %s", e)
 
     async def _observe_tool_belief(self, tool_name: str, params: Dict[str, Any],
                                    output: Any, *, success: bool) -> None:
@@ -16289,6 +19894,8 @@ The substrate must realign with its constitutional responsibilities immediately.
         """
         result = await self._execute_declared_tools(task)
         if result is None:
+            result = await self._produce_declared_artefact(task)
+        if result is None:
             result = await self._answer_via_knowledge_loop(task)
         if result is None:
             return None
@@ -16313,7 +19920,9 @@ The substrate must realign with its constitutional responsibilities immediately.
         if intent_id and not provenance.get("plan_id"):
             reconciled = await self._reconcile_intent(
                 str(intent_id), provenance.get("domain_id") or "",
-                detail=f"{getattr(task, 'type', '')}: operation completed")
+                detail=f"{getattr(task, 'type', '')}: operation completed",
+                judgment=(result or {}).get("judgment")
+                if isinstance(result, dict) else None)
             if reconciled is not None and isinstance(result, dict):
                 # MEANT vs HAPPENED travels with the result, as it does on the
                 # plan path, so downstream credit reads the world's verdict
@@ -16345,6 +19954,13 @@ The substrate must realign with its constitutional responsibilities immediately.
 
         results: List[Dict[str, Any]] = []
         all_ok = True
+        # WHAT THE CONSTITUTION SAID, if it spoke. A REFUSAL stopped the work, so
+        # the pursuit is closed with it (replanned / refused / redirected) rather
+        # than as a loss. A redirect it CARRIED OUT did not stop anything — the
+        # permitted form ran — so it is how the work proceeded, recorded as such,
+        # never as the reason it ended.
+        verdict: Optional[Dict[str, Any]] = None
+        redirected: List[Dict[str, Any]] = []
         for step in plan:
             tool = (step or {}).get("tool")
             args = (step or {}).get("args") or {}
@@ -16356,6 +19972,10 @@ The substrate must realign with its constitutional responsibilities immediately.
             outcome = await self._run_tool(tool, args, task)
             ok = outcome is not None and outcome.get("success") is True
             all_ok = all_ok and ok
+            if (outcome or {}).get("judgment") and verdict is None:
+                verdict = outcome["judgment"]
+            if (outcome or {}).get("redirected_from"):
+                redirected.append(outcome["redirected_from"])
             # Provenance for completion evidence: `resource` is the DID causal
             # lineage (tools on the SAME resource collapse to one event);
             # `intervention_target` is the world resource SAW re-observes fresh.
@@ -16383,6 +20003,99 @@ The substrate must realign with its constitutional responsibilities immediately.
             "method": "declared_tools",
             "tools_run": results,
             "output": {"tools_run": results},
+            "judgment": verdict,
+            "redirected": redirected,
+        }
+
+    async def _produce_declared_artefact(self, task: Task) -> Optional[Dict[str, Any]]:
+        """Make — or check — the thing this step was planned to produce.
+
+        THE PLAN NAMED A PRODUCT AND NOTHING MADE IT. A creation step's
+        description was the goal's own sentence and its `suggested_tools` were a
+        list nothing read, so the step reached the honest gap and the plan
+        finished with no file anywhere. The planner now records WHAT is to be
+        made (`provenance["artefact"]`), and this is the step that makes it and
+        the step that verifies it.
+
+        The content is not invented here and is not passed in: it is what the
+        substrate's own knowledge loop answers about the goal. If it knows
+        nothing, nothing is written and this says so — an empty file reported as
+        success is the failure this whole line of work exists to remove.
+
+        The write goes through `_run_tool`, so it is judged by the constitution,
+        felt by appraisal, metered, and watched by `_watch_act` like any other
+        act. VALIDATION re-reads the artefact rather than trusting the write.
+
+        Declines (None) when the step names no artefact, leaving the next path.
+        """
+        artefact = (getattr(task, "provenance", None) or {}).get("artefact")
+        if not artefact:
+            return None
+        kind = getattr(getattr(task, "type", None), "name", "")
+        if kind not in ("EXECUTION", "VALIDATION"):
+            return None
+
+        if kind == "VALIDATION":
+            # THE WORLD DECIDES WHETHER IT WAS MADE. Read it back; a step that
+            # asked the writer whether it wrote would be asking the wrong thing.
+            outcome = await self._run_tool("read_file", {"file_path": artefact}, task)
+            body = ((outcome or {}).get("output") or {})
+            text = body.get("content") if isinstance(body, dict) else body
+            present = bool(outcome and outcome.get("success") and str(text or "").strip())
+            return {
+                "success": present, "model_free": True, "method": "artefact_validation",
+                "task_id": task.id, "artefact": artefact,
+                "verification_state": "verified" if present else "failed",
+                "output": {"artefact": artefact, "bytes": len(str(text or "")),
+                           "verified_by": "read_file"},
+                "error": None if present else
+                         f"{artefact} is absent or empty after the creation step",
+            }
+
+        # EXECUTION — WRITE UP THE WORK THAT WAS ALREADY DONE.
+        #
+        # Asking the knowledge loop about this step's own description asks the
+        # wrong question: the description is the INSTRUCTION ("Create: Research
+        # photosynthesis and create a written summary at <path>"), so the loop
+        # took `summary` for the topic and the file came out saying "summary is
+        # a written or spoken work". A correct file, about nothing.
+        #
+        # The research step already ran and its answer is recorded on the plan.
+        # "Write a summary of what you learned" means write THAT, so this reads
+        # the findings of the steps that came before it rather than re-deriving
+        # a subject from a sentence.
+        findings: List[str] = []
+        plan_id = (getattr(task, "provenance", None) or {}).get("plan_id")
+        planning = getattr(self, "planning", None)
+        plan = getattr(planning, "active_plans", {}).get(plan_id) if planning else None
+        for earlier in (getattr(plan, "tasks", None) or []):
+            if earlier.id == task.id:
+                continue
+            result = getattr(earlier, "result", None) or {}
+            answer = str(result.get("answer") or "").strip()
+            if answer and answer not in findings:
+                findings.append(answer)
+        content = "\n\n".join(findings).strip()
+        if not content:
+            # NOTHING KNOWN IS NOT SOMETHING TO WRITE. An empty artefact that
+            # reports success is worse than an honest gap: the validation step
+            # would then be verifying a file whose only content is our silence.
+            # NOTHING WAS FOUND, SO THERE IS NOTHING TO WRITE UP. Declining is
+            # the honest answer; an artefact whose contents are this step's own
+            # silence would pass a "the file exists" check and mean nothing.
+            logger.info("%s: the steps before it recorded no findings, so "
+                        "nothing is written", task.id)
+            return None
+        outcome = await self._run_tool(
+            "write_file", {"file_path": artefact, "content": content}, task)
+        wrote = bool(outcome and outcome.get("success"))
+        return {
+            "success": wrote, "model_free": True, "method": "artefact_creation",
+            "task_id": task.id, "artefact": artefact,
+            "verification_state": "unverified",   # VALIDATION re-reads it
+            "output": {"artefact": artefact, "bytes": len(content)},
+            "error": None if wrote else str((outcome or {}).get("error")
+                                            or "the artefact could not be written"),
         }
 
     async def _answer_via_knowledge_loop(self, task: Task) -> Optional[Dict[str, Any]]:
@@ -16400,18 +20113,66 @@ The substrate must realign with its constitutional responsibilities immediately.
         as if it were a question.
         """
         desc = task.description.strip()
-        is_knowledge = Conversation.is_question(desc) or bool(re.match(
-            r"^(?:research|look\s+up|find\s+out|investigate|study|explain|define|"
-            r"describe|summarize|tell\s+me\s+about)\b", desc, flags=re.IGNORECASE))
+        # THE TASK'S DECLARED TYPE IS EVIDENCE, NOT A HANDLER TABLE.
+        #
+        # Routing by CONTENT is right and stays: a task that reads as a question
+        # is answered as one whatever its type says. But the anchored pattern
+        # below reads only the START of the description, and the planner's own
+        # template writes "Information gathering for: Research photosynthesis…".
+        # So a task the planner explicitly typed RESEARCH was not recognised as
+        # research, declined here, and fell through to the honest gap — and
+        # every step depending on it stayed blocked, because a dependency that
+        # never completes never unblocks. Measured in RESEARCH-WRITE-01.
+        #
+        # A planner that says "this is research" is not guessing, and discarding
+        # the one unambiguous signal in favour of parsing prose is what made two
+        # working components disagree about the same task.
+        # A STEP THAT MUST MAKE SOMETHING IS NOT A KNOWLEDGE REQUEST, however
+        # much its description reads like one. The creation step's description is
+        # the GOAL's own sentence — "Create: Research photosynthesis and create a
+        # written summary at <path>" — so answering it here reported the step a
+        # success while no file was written and nothing was made. The plan said
+        # what this step is for; that outranks how the sentence reads.
+        if (getattr(task, "provenance", None) or {}).get("artefact"):
+            return None
+        declared_research = getattr(getattr(task, "type", None), "name", "") == "RESEARCH"
+        is_knowledge = declared_research or Conversation.is_question(desc) or bool(
+            re.search(
+                r"\b(?:research|look\s+up|find\s+out|investigate|study|explain|"
+                r"define|describe|summarize|gather\s+information|information\s+"
+                r"gathering|tell\s+me\s+about)\b", desc, flags=re.IGNORECASE))
         if not is_knowledge:
             return None
 
-        topic = re.sub(r"^(?:research|look\s+up|find\s+out\s+about|investigate|study)\s+",
-                       "", desc, flags=re.IGNORECASE).strip() or desc
-        query = desc if Conversation.is_question(desc) else f"what is {topic}?"
+        # WHAT THE PLANNER SAID THIS IS ABOUT, when it said. A step's
+        # description is an instruction, and stripping a leading verb off it
+        # leaves the rest of the instruction as the "topic" — which is how
+        # "Research photosynthesis and create a written summary at <path>"
+        # became a question about `summary`.
+        declared_subject = str(
+            (getattr(task, "provenance", None) or {}).get("subject") or "").strip()
+        topic = declared_subject or (re.sub(
+            r"^(?:research|look\s+up|find\s+out\s+about|investigate|study)\s+",
+            "", desc, flags=re.IGNORECASE).strip() or desc)
+        query = (f"what is {topic}?" if declared_subject
+                 else (desc if Conversation.is_question(desc) else f"what is {topic}?"))
 
         try:
-            conversation = self.conversation(session=f"knowledge:{task.id}")
+            # WHOSE LEARNING THIS IS, said rather than defaulted. A knowledge
+            # task the substrate set itself (AUTONOMOUS/SYSTEM) is its own work,
+            # and what it researches enters the one shared mind through the one
+            # learning door. The SAME loop also runs knowledge tasks filed by a
+            # PERSON through the front door, and those are that person's work:
+            # the task already carries whose it is, so the thread is bound to it
+            # and the exchange is theirs. What the look-up READS from the world
+            # is not theirs -- its source is the page -- and is learned as world
+            # knowledge (`_research_phrase`); only what they TELL stays theirs.
+            from .shared_types import is_substrate_actor as _is_sub
+            _owner = getattr(task, "actor", None)
+            conversation = self.conversation(
+                session=f"knowledge:{task.id}",
+                actor_identity=None if _is_sub(_owner) else _owner,
+                source=getattr(task, "source", None) or TaskSource.AUTONOMOUS)
             understanding = await conversation.understand(query)
         except Exception as error:
             logger.warning(f"knowledge loop failed for {task.id}: {error}")
@@ -16465,6 +20226,211 @@ The substrate must realign with its constitutional responsibilities immediately.
         if self.tool_registry is None:
             await self.initialize_execution_faculty()
 
+        # THE TASK GATE. Everything the substrate runs comes through here, and
+        # until now nothing was asked at this boundary at all: the only gate was
+        # the tool gate, one layer in.
+        #
+        # A BACKSTOP, NOT A SECOND JUDGE. The constitution is upstream of this —
+        # it judges the act, and it decides the route — so re-judging the task
+        # would be a second answer to a question already settled, which is the
+        # duplicate-authority defect on the path where it matters most. What this
+        # catches is the case the upstream cannot: work that reaches execution
+        # AFTER its route was already refused or the pursuit it serves has
+        # concluded, or while the substrate is halted.
+        refused = await self._task_gate(task)
+        if refused is not None:
+            return refused
+
+        # A DRIVE GOAL IS WORK LIKE ANY OTHER. It used to be routed to its
+        # executor one level up, in `_execute_and_validate_task`, around this
+        # method and so around the gate above — while the gate's whole claim is
+        # that everything the substrate runs comes through it. A drive goal ACTS
+        # (exploration drives real tools), so it is routed HERE, after the gate:
+        # a halted substrate does not start it, and neither does a concluded
+        # pursuit. It returns directly, as it always did: it is not a step of a
+        # plan, so there is no plan to tell.
+        if (task.metadata or {}).get("drive") in ("competence", "confidence"):
+            return await self._execute_drive_goal(task)
+
+        outcome = await self._execute_task_paths(task)
+        # THE PLAN IS TOLD WHAT HAPPENED, HERE, BECAUSE THIS IS THE ONE DOOR.
+        #
+        # `update_task_status` had a single caller, inside a scanner that only
+        # ever saw the legacy `_execution_phase` path and only reported
+        # COMPLETED. Everything executed through this method — which is every
+        # task the planner dispatches — left its step PENDING forever, so the
+        # plan never finished, never abandoned, and held its dispatch slots for
+        # good. Measured: 156 active plans, 3 completed EVER, a freshly planned
+        # goal receiving zero slots.
+        #
+        # Isolated: recording what happened must never change whether it
+        # happened, so a bookkeeping failure is logged and the real result is
+        # returned unchanged.
+        try:
+            planning = getattr(self, "planning", None)
+            if planning is not None:
+                from .shared_types import TaskStatus as _TaskStatus
+                await planning.update_task_status(
+                    task.id,
+                    _TaskStatus.COMPLETED if (outcome or {}).get("success")
+                    else _TaskStatus.FAILED,
+                    outcome)
+        except Exception as e:
+            raise_if_structural(e, 'autonomous_coordinator.execute_task.status')
+            logger.error("could not record the outcome of %s with the planner: "
+                         "%s: %s", task.id, type(e).__name__, e)
+        return outcome
+
+    async def _task_gate(self, task: Task) -> Optional[Dict[str, Any]]:
+        """May this task begin? A refusal to return, or None to proceed.
+
+        THREE QUESTIONS, AND NONE IS A RE-JUDGEMENT.
+
+        1. IS THE SUBSTRATE HALTED. Asked of the constitution (`may_start`),
+           which runs only the halt law — the one law that is about the substrate
+           rather than about the act, and the only one whose answer cannot change
+           between here and the first tool call. A halted substrate would fail at
+           its first tool anyway; stopping at the task boundary means it does not
+           do half a task first.
+
+        2. IS THE PURSUIT THIS TASK SERVES STILL BEING PURSUED. Asked of INTENT,
+           the substrate's own account of what it is trying to do and why —
+           a faculty of its own, owned by reasoning, and read the way the
+           constitution reads it: the SHAPE view, by id, with no actor and no
+           actor content. The task only NAMES its pursuit (`intent_id` in its
+           provenance); whether that pursuit is still live comes from the record,
+           never from the task.
+             * CONCLUDED — fulfilled, abandoned or refused. The pursuit is over,
+               and a step of it is no longer anyone's work.
+             * SENT BACK — the constitution replanned or redirected it. Still
+               pursued, but not by repeating the act that was stopped; it
+               resumes when planning returns to it. (HALTED is live: question 1
+               already answers the halt, and lifting it resumes the work.)
+             * NOT HELD — the id names no recorded pursuit. That is no account of
+               why the work exists, which is also what the act would be judged
+               to have: an id naming nothing is judged as no intent at all.
+             * LIVE — proceed.
+             * NONE NAMED — proceed, and COUNTED. Absence is reported as absence,
+               not filled in: intent is reasoning's to form, and an account
+               manufactured at the door would be exactly the second, weaker
+               account of why the substrate acts that the intent authority
+               exists to prevent. The act still meets the constitution carrying
+               no intent, and Law 2 answers it there.
+           Unlike the plan, the record here is complete and durable, and an id is
+           only ever stamped onto a task after the pursuit it names was written —
+           so "not held" cannot be a pursuit that simply has not landed yet.
+
+        3. HAS THIS ROUTE ALREADY BEEN WITHDRAWN. A STATE READ, not a judgement:
+           a plan marked `invalidated` is one the substrate itself has decided is
+           no longer the route — because a rule lost authority, because the world
+           moved under it, or because the constitution replanned it. Its steps
+           are already counted as blocked. Running one anyway is the exact hole
+           this gate exists for: "anything that reaches the task gate after it
+           was blocked or replanned". This is not question 2 asked twice: the
+           pursuit stays live while its route is withdrawn — that is what being
+           replanned means.
+
+        WHY NOT THE FULL LAW CHAIN — see `Constitution.may_start`. A task has a
+        type and a description, not a measured consequence, so the laws would be
+        answering a question nobody asked; two of them would refuse nearly
+        everything. The act is judged where the act exists.
+        """
+        def refused(reason: str, **extra) -> Dict[str, Any]:
+            self.stats["tasks_refused_at_gate"] = (
+                self.stats.get("tasks_refused_at_gate", 0) + 1)
+            logger.warning("task %s not started: %s", task.id, reason)
+            # WHY, in the field every refusal uses: the operator path puts its
+            # reason in `refused` too, so a reader never finds `True` there.
+            return {"success": False, "task_id": task.id, "refused": reason,
+                    "error": reason, "method": "task_gate", **extra}
+
+        constitution = getattr(self, "constitution", None)
+        if constitution is not None:
+            try:
+                halted = constitution.may_start(
+                    getattr(getattr(task, "type", None), "value", "task"))
+            except Exception as error:
+                # FAIL-CLOSED, like the gate one layer in. A boundary that could
+                # not be asked whether work may begin has not established that it
+                # may.
+                return refused(f"whether work may begin could not be established "
+                               f"({type(error).__name__}: {error}); not starting")
+            if halted is not None:
+                return refused(halted.reason, judgment=halted.to_dict())
+
+        provenance = getattr(task, "provenance", None) or {}
+        intent_id = provenance.get("intent_id")
+        if not intent_id:
+            self.stats["tasks_without_intent"] = (
+                self.stats.get("tasks_without_intent", 0) + 1)
+        else:
+            held, readable = None, True
+            try:
+                from core.reasoning.intent_authority import get_intent_authority
+                held = await get_intent_authority().get_by_id(str(intent_id))
+            except Exception as error:
+                raise_if_structural(error, 'autonomous_coordinator._task_gate.intent')
+                # NOT fail-closed, for the plan read's reason below: being unable
+                # to read the record is not evidence the pursuit ended. The act
+                # still meets the tool gate, where the constitution reads this
+                # intent again — and judges an unreadable one as none stated.
+                readable = False
+                logger.error("task %s names intent %s, which could not be read "
+                             "(%s: %s); proceeding to the act's own gate",
+                             task.id, intent_id, type(error).__name__, error)
+            if readable and held is None:
+                return refused(
+                    f"it names intent {intent_id}, which the intent authority does "
+                    f"not hold — an id that names no recorded pursuit is no account "
+                    f"of why this work exists",
+                    intent_id=str(intent_id), intent_status=None)
+            if readable and held.concluded:
+                detail = (held.outcome or {}).get("detail")
+                return refused(
+                    f"the pursuit it is a step of has concluded ({held.status})"
+                    + (f": {detail}" if detail else ""),
+                    intent_id=str(intent_id), intent_status=held.status,
+                    intent_outcome=held.outcome)
+            if readable and held.sent_back:
+                # THE LAW SENT IT BACK, AND REPEATING THE ACT IS NOT GOING BACK.
+                # The pursuit is live — it resumes when planning returns to it
+                # with a new route or the permitted form, which reopens it — but
+                # this work is the act that was stopped, and would be stopped again.
+                said = (held.outcome or {}).get("judgment") or {}
+                return refused(
+                    f"the constitution {held.status} the pursuit it is a step of "
+                    f"(Law {said.get('law_number', '?')}: "
+                    f"{said.get('reason') or 'no reason recorded'}); it resumes "
+                    f"when it is planned again, not by repeating what was stopped",
+                    intent_id=str(intent_id), intent_status=held.status,
+                    intent_outcome=held.outcome)
+
+        plan_id = provenance.get("plan_id")
+        if plan_id:
+            try:
+                engine = await self._get_planning_engine()
+                plan = getattr(engine, "active_plans", {}).get(plan_id) if engine else None
+            except Exception as error:
+                # NOT fail-closed here, and the asymmetry is deliberate: being
+                # unable to read a plan's status is not evidence that the plan was
+                # withdrawn, and refusing every task because the planner hiccupped
+                # would stop the substrate working for a reason that is not about
+                # it. Reported, and the act still faces the tool gate.
+                logger.error("task %s belongs to plan %s whose status could not be "
+                             "read (%s); proceeding to the act's own gate",
+                             task.id, plan_id, error)
+                return None
+            if plan is not None and getattr(plan, "status", None) == "invalidated":
+                why = (getattr(plan, "metadata", None) or {})
+                return refused(
+                    f"plan {plan_id} was withdrawn "
+                    f"({why.get('invalidated_by') or 'unknown cause'}): "
+                    f"{why.get('invalidated_reason') or 'its route is no longer the route'}",
+                    plan_id=plan_id, withdrawn_by=why.get("invalidated_by"))
+        return None
+
+    async def _execute_task_paths(self, task: Task) -> Dict[str, Any]:
+        """The substrate's model-free paths, in order, or the honest gap."""
         substrate = await self._execute_grounded_operator(task)
         if substrate is not None:
             return substrate
@@ -16625,7 +20591,13 @@ QUESTION_OPENERS = frozenset({
 #: talking about" and the referent a feedback verdict judges both live in the
 #: last handful of turns -- so a generous cap preserves it while stopping the
 #: per-turn append from growing without bound for the life of the object.
-_CONVERSATION_TURN_MEMORY = 256
+_CONVERSATION_TURN_MEMORY = 560
+
+#: How far up the `isa` chain to look when deciding whether two kinds of a word
+#: are one sense seen at two heights. Four is enough to reach `clock` from
+#: `pendulum clock`; going further starts joining everything to everything,
+#: because far enough up every kind shares an ancestor.
+_SENSE_DEPTH = 4
 
 #: How far back a verdict may reach for the claim it is about. Feedback follows
 #: the thing it judges closely; a small window keeps "no, that's wrong" attached
@@ -16661,9 +20633,6 @@ def _as_pairs(relations) -> Tuple[Tuple[str, str], ...]:
             relation = "is not" if relation == "is" else f"not {relation}"
         out.append((relation, other))
     return tuple(out)
-
-
-_ENDINGS = ("ed", "es", "s", "ing")
 
 
 def stem(word: str) -> str:
@@ -16708,10 +20677,53 @@ class Resolved:
     relations: Tuple[Tuple[str, str], ...] = ()
     #: Other concepts of the same name, when the store holds more than one.
     alternatives: Tuple[Tuple[str, str], ...] = ()
+    #: THE KINDS THIS WORD IS HELD TO BE, grouped so that a kind and a more
+    #: specific kind of it count once. `("pendulum clock",)` for a grandfather
+    #: clock, which holds both `clock` and `pendulum clock`; `("rodent",
+    #: "person", "input device")` for a mouse.
+    #:
+    #: WHY IT IS GROUPED AND NOT JUST LISTED. Every `isa` parent was being
+    #: asserted of the thing at once — "A mouse is an animal. It is an input
+    #: device." — which is false of any mouse. Grouping by subsumption is what
+    #: separates one sense seen at two heights from two senses sharing a
+    #: spelling: `pendulum clock` reaches `clock` by isa and `rodent` reaches
+    #: nothing that `input device` reaches.
+    #:
+    #: THE DETERMINER THE PERSON USED, or "" where they used none.
+    #:
+    #: English needs to know whether a noun is countable before it can put an
+    #: article in front of it, and the store cannot say: ancestry does not
+    #: separate mass from count (at four levels up `clock` reaches `beverage` and
+    #: `dog` reaches `food`), and there are no plurals held to test against,
+    #: because the lexicon normalises to the singular. So the reply does not
+    #: guess — it refers to a thing the way the person just referred to it.
+    #: "where is alcohol?" gives "", and the answer is "Alcohol is found in …";
+    #: "is a kettle a container?" gives "a", and the record says "that was about
+    #: a kettle".
+    said_as: str = ""
+    #: It does NOT say they are separate senses, and the reply must not either.
+    #: Measured over the store: the grouping is right for 11 of 12 test words and
+    #: wrong for `beer`, which holds `alcohol`, `beverage` and `alcoholic
+    #: beverage` as unchained parents — genuinely all true of one beer at once.
+    #: Telling a co-parent from a sense needs disjointness knowledge the store
+    #: does not have, so the reply says "can mean" and lets the person settle it,
+    #: rather than guessing and asserting.
+    senses: Tuple[str, ...] = ()
+    #: WHICH OF `relations` THE SPEAKER TOLD -- held in their scoped context,
+    #: not the shared store, until corroborated. A name only the speaker has
+    #: told resolves `how="context"` with no concept id; nobody else's
+    #: conversation resolves it.
+    told: Tuple[Tuple[str, str], ...] = ()
+    #: THE UNHELD NAME THIS PHRASE IS THE HEAD OF, or "". "What is a peristaltic
+    #: pump?" holds `pump` and not `peristaltic pump`; the words before a noun
+    #: say WHICH one, so the thing asked about is `peristaltic pump` and `pump`
+    #: is its head. Held so the reply does not ask "which pump do you mean?"
+    #: of a speaker who just said which.
+    head_of: str = ""
 
     @property
     def known(self) -> bool:
-        return self.concept_id is not None
+        return self.concept_id is not None or self.how == "context"
 
     @property
     def informative(self) -> bool:
@@ -16768,6 +20780,9 @@ class Answer:
     #: causes pressure loss"). Empty for a direct store answer, which the reply
     #: composes from about/relation/others instead.
     conclusion: str = ""
+    #: An answer about one of an "or" question's alternatives: the reply says
+    #: the alternative that holds, rather than yes or no to each.
+    alternative: bool = False
 
 
 @dataclass
@@ -16789,6 +20804,17 @@ class Understanding:
     #: None standalone. Lets `say()` colour a turn-back qualitatively from
     #: self-state without recomputing it.
     disposition: Optional[Dict[str, Any]] = None
+    #: WHICH OF THE WORDS IN THIS REPLY ARE PLURAL, so the sentence can agree
+    #: with itself. Without it the substrate said "an andaman islands is found
+    #: in a bay of bengal" — a singular article on a plural noun, and a singular
+    #: verb after it. English needs number before it can choose either, and the
+    #: store holds no part of speech, no number and no countability, so it is
+    #: worked out from the store itself: a word ending in -s whose singular is
+    #: also held is plural. Measured 9/9 on plurals and 11/13 on singulars.
+    #:
+    #: Gathered here, in `understand()`, because it needs the database and `say()`
+    #: is a pure function over what was already found.
+    plurals: Dict[str, bool] = field(default_factory=dict)
 
     @property
     def answered(self) -> bool:
@@ -16796,9 +20822,17 @@ class Understanding:
 
         Recorded because the memory of the exchange says which, and a memory
         claiming an answer where a question was asked is a false record of the
-        conversation -- one that reads back later as knowledge it never had."""
-        return bool(self.known or self.answers
-                    or any(a.stored for a in self.acquired))
+        conversation -- one that reads back later as knowledge it never had.
+
+        HOLDING ONE WORD OF THE QUESTION IS NOT ANSWERING IT. "What is a
+        peristaltic pump?" holds `pump`; this counted that as answered, so the
+        exchange was remembered as "answered from held knowledge" while the reply
+        said it held nothing for the thing asked about -- and the next asking
+        recalled that record as if it were knowledge. Held phrases answer only
+        when nothing asked about is left unaccounted for."""
+        if self.answers or any(a.stored for a in self.acquired):
+            return True
+        return bool(self.known) and not self.unknown
 
     def spoken_for(self) -> set:
         """Words the answers account for, so they are not also called unknown."""
@@ -16821,7 +20855,7 @@ class Understanding:
 
 def _titles(phrase: str, title: str) -> bool:
     """Whether `title` names `phrase` -- every content word of it, by stem."""
-    wanted = [w for w in phrase.replace("_", " ").split() if w not in FUNCTION_WORDS]
+    wanted = [w for w in phrase.replace("_", " ").split() if not _structure_word(w)]
     if not wanted:
         return False
     have = [w.strip("()") for w in (title or "").split()]
@@ -16843,6 +20877,162 @@ class Turn:
     memories: Tuple[str, ...] = ()
 
 
+def _meaning_of(utterances):
+    """The meaning of a text's last utterance, when every utterance read and the
+    last read to one meaning: which of two meanings was meant is the listener's
+    to ask, never this function's to pick. None otherwise."""
+    if not utterances or not all(u.understood for u in utterances):
+        return None
+    readings = utterances[-1].readings
+    if len({r.meaning.canonical() for r in readings}) > 1:
+        return None
+    return readings[0].meaning
+
+
+def _names_in(meaning) -> List[str]:
+    """The concepts a meaning names, in the order its facts name them, subjects
+    first: what a turn is about, when it names anything."""
+    from core.semantics.derived_reader import is_variable
+    if meaning is None:
+        return []
+    subjects = [f.subject for f in meaning.facts if not is_variable(f.subject)]
+    objects = [f.obj for f in meaning.facts if not is_variable(f.obj)]
+    return list(dict.fromkeys(subjects + objects))
+
+
+def _structure_word(word: str) -> bool:
+    """Whether the substrate uses this word only to build its frames, never as
+    a filler of its own: the words English builds with, found from what it was
+    taught, not listed here."""
+    from core.semantics.derived_reader import live_view
+    return live_view().is_structure(word)
+
+
+#: The domain system's link kinds: the only relations anything is reasoned by.
+from core.semantics.relation_types import SemanticRelation as _SemanticRelation
+_LINK_KINDS = frozenset(r.value for r in _SemanticRelation)
+
+
+def _clause_atom(subject: str, relation: str, obj: Optional[str], positive: bool = True) -> Optional[str]:
+    """One fact as the atom the reasoner reasons over (`neural_bridge.clause_atom`)."""
+    from core.reasoning.neural_bridge import clause_atom
+    return clause_atom(subject, relation, obj, positive)
+
+
+def _atoms_of(facts) -> List[str]:
+    """The atoms a claim's facts are reasoned over as: a conditional is ONE
+    implication, its condition implying the rest; alternatives are ONE
+    disjunction; anything else is one atom per fact. A fact still naming an
+    unknown has no atom, and a conditional or a disjunction with such a part has
+    none either."""
+    from core.semantics.derived_reader import is_variable
+
+    def atom(fact) -> Optional[str]:
+        if is_variable(fact.subject) or is_variable(fact.obj):
+            return None
+        return _clause_atom(fact.subject, fact.relation, fact.obj, fact.positive)
+
+    def side(part) -> Optional[List[str]]:
+        plain = [atom(f) for f in part if not f.alternative]
+        either = [atom(f) for f in part if f.alternative]
+        if either:
+            if not all(either):
+                return None
+            plain.append(f"({' | '.join(either)})")
+        return plain
+
+    facts = tuple(facts)
+    condition = side([f for f in facts if f.condition])
+    stated = side([f for f in facts if not f.condition])
+    if condition is None or stated is None:
+        return []
+    if condition:
+        if stated and all(condition) and all(stated):
+            return [f"({' & '.join(condition)}) -> ({' & '.join(stated)})"]
+        return []
+    return [a for a in stated if a]
+
+
+def _claim_facts(text: str) -> Tuple[Any, ...]:
+    """What a remembered claim states, read by the one reader: the facts of a
+    text that reads, as one utterance, to one telling; nothing otherwise."""
+    from core.semantics.derived_reader import read_text
+    meaning = _meaning_of(read_text(str(text or "")))
+    return meaning.facts if meaning is not None and meaning.act == "tell" else ()
+
+
+def _said(subject: str, relation: str, obj: str, positive: bool = True) -> Optional[str]:
+    """One held fact, said with what the substrate was taught to say it with
+    (`derived_reader.say`): the constructions it reads with, the other way
+    round. A record holds a relation as said ("caused by", "not isa"), so it is
+    taken back to its link kind and polarity first. None when nothing taught
+    says it: then it is not said another way."""
+    from core.semantics.derived_reader import Meaning, MeaningFact, say
+    text = str(relation).strip()
+    if text.startswith("not "):
+        text, positive = text[4:].strip(), not positive
+    try:
+        meaning = Meaning("tell", (MeaningFact(text.replace(" ", "_"),
+                                               str(subject).replace("_", " ").strip(),
+                                               str(obj).replace("_", " ").strip(), positive),))
+    except ValueError:
+        return None
+    sentences = say(meaning)
+    return sentences[0] if sentences else None
+
+
+def _quoted(texts: Sequence[str]) -> str:
+    """'a', 'a' and 'b', or 'a', 'b' and 'c'."""
+    texts = [f"'{t}'" for t in texts]
+    return texts[0] if len(texts) == 1 else ", ".join(texts[:-1]) + " and " + texts[-1]
+
+
+def _read_in_part(utterances) -> str:
+    """What the reply says of a text that did not read whole: the parts of it
+    that were understood, and the words that were not, asked about.
+
+    Nothing that read is thrown away, and nothing is guessed: a part is named as
+    understood, never taken as told, because what did not read may deny it or
+    make it conditional. The words asked about are the ones the substrate holds
+    nowhere. When every word is held but not in this arrangement, the reply says
+    that instead."""
+    from core.semantics.sentence_machine import surface_of
+
+    def words(pieces) -> str:
+        """The pieces as said, without the marks at either end."""
+        pieces = list(pieces)
+        while pieces and not any(ch.isalnum() for ch in pieces[-1].text):
+            pieces.pop()
+        while pieces and not any(ch.isalnum() for ch in pieces[0].text):
+            pieces.pop(0)
+        return surface_of(tuple(pieces)) if pieces else ""
+
+    understood: List[str] = []
+    unknown: List[str] = []
+    unread: List[str] = []
+    for utterance in utterances:
+        if utterance.understood:
+            understood.append(words(utterance.pieces))
+            continue
+        understood.extend(words(part.pieces) for part in utterance.partial)
+        unknown.extend(utterance.unknown)
+        unread.extend(words(run) for run in utterance.unread)
+    understood = [text for text in dict.fromkeys(understood) if text]
+    unread = [text for text in unread if text]
+    unknown = list(dict.fromkeys(unknown))
+    ask = ("What does that word mean?" if len(unknown) == 1 else "What do those words mean?")
+    if understood and unknown:
+        return f"I understood {_quoted(understood)}, but I don't know {_quoted(unknown)} yet. {ask}"
+    if unknown:
+        return f"I don't know {_quoted(unknown)} yet. {ask}"
+    if understood and unread:
+        return (f"I understood {_quoted(understood)}, but not how {_quoted(unread)} "
+                f"{'fits' if len(unread) == 1 else 'fit'} with it.")
+    if len(understood) > 1:
+        return f"I understood {_quoted(understood)}, but not how they go together."
+    return "I know these words, but not this way of putting them together."
+
+
 def phrases(words: Sequence[str]) -> List[Tuple[int, int, str]]:
     """Every candidate phrase, longest first, as (start, end, text)."""
     out = []
@@ -16859,9 +21049,15 @@ class Conversation:
     """Reads a sentence and answers out of what the substrate holds."""
 
     def __init__(self, db=None, identity=None, emit=None, session="default",
-                 actor_identity=None):
+                 actor_identity=None, source: Optional[TaskSource] = None):
         self._db = db
         self._identity = identity
+        #: WHOSE WORK THIS THREAD IS — the same TaskSource the task queue uses,
+        #: so the internal/external line is drawn by the ONE rule (`actor_for`)
+        #: and not a second time here. MANUAL/API is a person talking and can
+        #: never resolve to the substrate; AUTONOMOUS/SYSTEM is the substrate's
+        #: own work (the knowledge-acquisition loop) and always does.
+        self._source = source or TaskSource.MANUAL
         #: WHO is being spoken with — a THREAD OF TALK handle, used for beliefs
         #: ABOUT the user (`_learn_about_user`) and as the LAST-RESORT scope when
         #: no verified identity is bound.
@@ -16918,6 +21114,36 @@ class Conversation:
         # keeps that intact while capping the growth. Iterated/reversed only,
         # never sliced, so a deque is a drop-in.
         self._turns: "deque[Turn]" = deque(maxlen=_CONVERSATION_TURN_MEMORY)
+        #: The last text read and its utterances, so one turn reads its words
+        #: once however many of its steps ask what they mean (`_read`).
+        self._last_read: Optional[Tuple[Tuple[str, int], Tuple[Any, ...]]] = None
+
+    def _read(self, text: str) -> Tuple[Any, ...]:
+        """What `text` says, utterance by utterance, read by the ONE reader
+        (`derived_reader`): through the constructions the substrate was taught,
+        and nothing else. Read once while what was taught is unchanged."""
+        from core.semantics.derived_reader import live_view, read_text
+        view = live_view()
+        key = (str(text), len(view))
+        if self._last_read is not None and self._last_read[0] == key:
+            return self._last_read[1]
+        utterances = read_text(str(text), view, parts=True)
+        self._last_read = (key, utterances)
+        return utterances
+
+    def _meaning(self, text: str):
+        """What `text` means: the meaning of its last utterance, when every
+        utterance read and the last one read to one meaning. None otherwise."""
+        return _meaning_of(self._read(text))
+
+    def _situation(self) -> Dict[str, str]:
+        """What the situation's variables stand for in this conversation: the
+        person speaking, the substrate spoken to, and the last thing talked
+        about. What is shown has nothing to name it in words alone."""
+        situation = {"?speaker": self._actor, "?listener": SUBSTRATE_ACTOR}
+        if self._last_subject:
+            situation["?previous"] = self._last_subject
+        return situation
 
     async def _services(self):
         if self._db is None:
@@ -16932,20 +21158,31 @@ class Conversation:
     @property
     def _actor(self) -> str:
         """WHO a told fact is scoped to, resolved through the one owner
-        (`actor_for`). A verified World Auth identity is that person's stable
-        actor across every session — their telling is THEIR context, scoped.
+        (`actor_for`), from the SOURCE of the thread and the identity behind it.
 
-        With NO bound identity this is the SUBSTRATE itself: a bare conversation
-        is the curriculum/dev channel (teaching the substrate foundational
-        knowledge), which belongs in the shared mind. Public users never reach
-        here unidentified — they enter through `handle_user_request`, which
-        always binds an actor (their identity, or the session as a fail-safe),
-        so an external telling is always scoped and only in-process curriculum
-        teaching is universal."""
-        if self._actor_identity:
-            from core.agents.autonomous.shared_types import actor_for
-            return actor_for(TaskSource.MANUAL, str(self._actor_identity))
-        return SUBSTRATE_ACTOR
+        THERE IS NO CONVERSATION THAT TEACHES THE SUBSTRATE FACTS. A person
+        talking is MANUAL-sourced, and `actor_for` requires a MANUAL thread to
+        name someone: a verified World Auth identity when the membrane supplied
+        one, else the session as an anonymous per-thread scope. Either way the
+        answer is a USER actor, so `learn_fact` diverts every telling to that
+        speaker's scoped context and the shared concept graph is untouchable
+        from here. `actor_for` also refuses a user who claims the substrate's
+        id, so the partition cannot be talked around either.
+
+        This used to fall back to SUBSTRATE_ACTOR when nothing was bound, on the
+        reasoning that a bare in-process conversation was the curriculum
+        channel. That made TALKING a second way into the one shared mind beside
+        teaching — `talk.py`, every bare `Conversation()` in a test, and the
+        substrate's own research loop all wrote world knowledge through the chat
+        path, under a `conversation` domain nothing else knew to read. Learning
+        has ONE door (`UnifiedLearningSystem.learn_*`, entered by the curriculum
+        pass, perception, environment observation and experiment findings) and
+        conversation is not it. A thread that genuinely IS the substrate's own
+        work says so with its SOURCE, which is a fact about the task, not a
+        default that applies when a caller forgot to say anything."""
+        from core.agents.autonomous.shared_types import actor_for
+        return actor_for(self._source,
+                         str(self._actor_identity or "") or self._session)
 
     # ---- beliefs ABOUT THE USER (the third channel, held here) --------------
     # When the speaker tells the substrate about THEMSELVES ("I am a plumber",
@@ -16993,21 +21230,11 @@ class Conversation:
         """Hold one belief about the speaker — NOT in the concept graph. Upserts
         on (speaker, subject, relation) so a restated preference updates rather
         than duplicates."""
-        db, _ = await self._services()
+        from core.agents.memory_agent import memory_agent
         await self._ensure_user_beliefs()
-        await db.execute_query(
-            """
-            INSERT INTO unified.user_beliefs
-                (speaker, subject, relation, object, polarity, surface, updated_at)
-            VALUES ($1, $2, $3, $4, $5, $6, now())
-            ON CONFLICT (speaker, subject, relation) DO UPDATE SET
-                object = EXCLUDED.object, polarity = EXCLUDED.polarity,
-                surface = EXCLUDED.surface, updated_at = now()
-            """,
-            (self._session, subject, relation, obj,
-             "positive" if positive else "negative", surface),
-            commit=True,
-        )
+        await memory_agent().hold_belief_about_speaker(
+            speaker=self._session, subject=subject, relation=relation, obj=obj,
+            polarity="positive" if positive else "negative", surface=surface)
         held = f"{subject} {relation} {obj}".strip()
         return Acquired(surface or held, description="about you", relations=(),
                         stored=True, detail="held as a belief about you, "
@@ -17077,9 +21304,9 @@ class Conversation:
             return None
 
         async def _emit_evidence(payload):
-            # The learning authority describes what it admitted; this states it
-            # in the shape the event declares, so the variant is named rather
-            # than inferred from which keys turned up.
+            # ONE event shape, owned by `announce_evidence`. This kept its own
+            # copy of the construction, which is how the conversational and bulk
+            # paths came to differ in whether the substrate was told at all.
             d = payload if isinstance(payload, dict) else {}
             await self._emit(SelfEvent(
                 SelfEventType.EVIDENCE_ADMITTED,
@@ -17099,8 +21326,42 @@ class Conversation:
             "FROM unified.concepts WHERE concept_id=$1", (concept_id,), fetch_all=True)
         return rows[0] if rows else {}
 
-    async def _incoming_relations(self, name: str) -> List[str]:
-        """Facts that point AT a concept, as premise sentences.
+    async def _context_relations(self, texts: Sequence[str]
+                                 ) -> Dict[str, Tuple[Tuple[Tuple[str, str], ...], str]]:
+        """What THIS speaker told the substrate about each phrase: the
+        (relation, object) pairs a `Resolved` carries, and -- for a thing they
+        only named as what something else is -- the `met in use` description the
+        shared door gives such a concept. Read from their scoped layer in one
+        query. Empty for the substrate's own conversation, whose knowledge is
+        the shared store `resolve` already reads.
+
+        `texts` are the names a meaning names (`_names_in`), so no article or
+        other structure word can be carried into one."""
+        from .shared_types import is_substrate_actor
+        actor = self._actor
+        if is_substrate_actor(actor) or not texts:
+            return {}
+        from core.learning.scoped_context_store import get_scoped_context_store
+        from core.semantics.cognitive_ingress import normalize_term
+        names = {text: normalize_term(text.replace("_", " ")) for text in texts}
+        rows = await get_scoped_context_store().edges_naming(
+            actor, sorted({n for n in names.values() if n}))
+        about: Dict[str, List[Tuple[str, str, str]]] = {}
+        named_in: Dict[str, str] = {}
+        for row in rows:
+            about.setdefault(row["subj"], []).append(
+                (row["rel"], row["obj"], row["pol"]))
+            named_in.setdefault(row["obj"], row["surface"] or "")
+        held = {}
+        for text, name in names.items():
+            if name in about:
+                held[text] = (_as_pairs(about[name]), "")
+            elif name in named_in:
+                held[text] = ((), f"met in use: {named_in[name]!r}")
+        return held
+
+    async def _incoming_relations(self, name: str) -> List[Tuple[str, str, str, bool]]:
+        """Facts that point AT a concept, as (subject, relation, object, positive).
 
         Relations are stored forward -- under the subject -- so "wibbling causes
         snargle" lives on `wibbling`, and a reverse question ("what causes
@@ -17122,7 +21383,7 @@ class Conversation:
             return []
 
         target = name.replace("_", " ").strip().lower()
-        premises: List[str] = []
+        facts: List[Tuple[str, str, str, bool]] = []
         for row in rows or ():
             subject = row.get("name")
             rels = row.get("relationships")
@@ -17136,154 +21397,245 @@ class Conversation:
                     continue
                 relation, obj = entry[0], entry[1]
                 if str(obj).replace("_", " ").strip().lower() == target:
-                    premises.append(f"{subject} {relation} {obj}")
-        return premises
+                    # A DENIAL STAYS A DENIAL: the third element says so, and a
+                    # premise read without it would assert what was denied.
+                    positive = not (len(entry) > 2
+                                    and str(entry[2]).lower() in NEGATIVE_POLARITIES)
+                    facts.append((str(subject), str(relation), str(obj), positive))
+        return facts
+
+    #: Words that end in -s and are not plural. English has a closed handful of
+    #: these and no rule generates them, so they are listed rather than guessed.
+    _SINGULAR_IN_S = frozenset({
+        "news", "mathematics", "physics", "economics", "politics", "ethics",
+        "series", "species", "means", "lens", "gas", "bus", "glass", "grass",
+        "bass", "class", "mass", "pass", "cross", "chess", "process"})
+
+    async def _plural_map(self, words) -> Dict[str, bool]:
+        """Which of these words are plural, decided against the store.
+
+        A word ending in -s whose SINGULAR the store also holds is a plural: the
+        store knows `island`, so `islands` is one. That is the only number
+        evidence available — there is no part of speech and no inflection table
+        in the store, and the lexicon normalises, so nothing else can answer it.
+
+        Two guards on a test that is otherwise a string trick: a singular of one
+        or two letters is junk (`gas` -> `ga`, which the store does hold), and
+        the -s words that are not plurals are listed above."""
+        heads = {str(w).strip().lower().split()[-1]
+                 for w in words if str(w).strip()}
+        candidates = {h for h in heads
+                      if h.endswith("s") and len(h) > 3
+                      and h not in self._SINGULAR_IN_S}
+        if not candidates:
+            return {}
+        singulars = {}
+        for head in candidates:
+            for stem in (head[:-1], head[:-2] if head.endswith("es") else None):
+                if stem and len(stem) >= 3:
+                    singulars.setdefault(stem, head)
+        if not singulars:
+            return {}
+        db, _identity = await self._services()
+        rows = await db.execute_query(
+            "SELECT name FROM unified.concepts WHERE name = ANY($1::text[])",
+            (list(singulars),), fetch_all=True) or []
+        return {singulars[str(r["name"])]: True for r in rows
+                if str(r["name"]) in singulars}
+
+    async def _sense_groups(self, name: str) -> Tuple[str, ...]:
+        """The `isa` kinds of one concept, with a kind and a narrower kind of it
+        counted once. One entry per group, the most specific first seen.
+
+        `pendulum clock` reaches `clock` by isa, so a grandfather clock has ONE
+        kind, not two. `rodent` reaches nothing that `input device` reaches, so a
+        mouse has three. That difference is the whole of it — without it the
+        reply asserted every parent at once and said a mouse was an animal and
+        an input device.
+
+        Bounded on purpose: `_SENSE_DEPTH` levels up and only for the parents of
+        one word, because this runs on every resolved phrase of every sentence.
+        """
+        # ASKED OF THE STORE, not read off the `relations` already in hand: that
+        # tuple is capped at the first four relations OF ANY KIND, and `bank`
+        # and `bass` spend all four on `at location` — so the kinds that make
+        # them ambiguous were never visible and neither word got asked about.
+        db, _identity = await self._services()
+        rows = await db.execute_query(
+            "SELECT DISTINCT COALESCE(c2.name, cr.target_surface) b "
+            "FROM unified.concept_relations cr "
+            "JOIN unified.concepts c1 ON cr.source_concept_id=c1.concept_id "
+            "LEFT JOIN unified.concepts c2 ON cr.target_concept_id=c2.concept_id "
+            "WHERE c1.name=$1 AND cr.relation IN ('isa','is a') LIMIT 24",
+            (str(name).replace(" ", "_"),), fetch_all=True) or []
+        kinds = [str(r["b"]).replace("_", " ") for r in rows if r["b"]]
+        if len(kinds) < 2:
+            return tuple(kinds)
+        above: Dict[str, set] = {}
+        for kind in kinds:
+            seen, frontier = set(), {kind.replace(" ", "_")}
+            for _ in range(_SENSE_DEPTH):
+                if not frontier:
+                    break
+                rows = await db.execute_query(
+                    "SELECT COALESCE(c2.name, cr.target_surface) b "
+                    "FROM unified.concept_relations cr "
+                    "JOIN unified.concepts c1 ON cr.source_concept_id=c1.concept_id "
+                    "LEFT JOIN unified.concepts c2 ON cr.target_concept_id=c2.concept_id "
+                    "WHERE c1.name = ANY($1::text[]) "
+                    "AND cr.relation IN ('isa','is a')",
+                    (list(frontier),), fetch_all=True) or []
+                nxt = {str(r["b"]) for r in rows if r["b"]}
+                seen |= frontier
+                frontier = nxt - seen
+            above[kind] = {s.replace("_", " ") for s in seen} | {kind}
+        groups: List[List[str]] = []
+        for kind in kinds:
+            for group in groups:
+                # One group when either IS A KIND OF the other. Sharing some
+                # distant ancestor is not enough -- far enough up everything
+                # does, which put `rodent` and `input device` together.
+                if any(other in above[kind] or kind in above[other]
+                       for other in group):
+                    group.append(kind)
+                    break
+            else:
+                groups.append([kind])
+        return tuple(group[0] for group in groups)
 
     async def resolve(self, sentence: str) -> List[Resolved]:
-        """Every phrase of the sentence that names something held, longest first."""
+        """Every concept the sentence names, and what is held for it.
+
+        THE NAMES ARE WHAT THE SENTENCE MEANS, not windows of its words: the one
+        reader has already said which words name which concept ("a glintrix
+        heron" names `glintrix heron`, the article names nothing), so nothing
+        here guesses where a name starts and ends. A name nothing is held for is
+        returned unplaced, which is what a look-up looks up. A sentence that did
+        not read names nothing, and resolves to nothing.
+        """
+        meaning = self._meaning(sentence)
+        if meaning is None:
+            return []
+        from core.semantics.derived_reader import is_variable
+        situation = self._situation()
+        bound = meaning.bound(situation)
+        # The person and the substrate are the situation's parties, not concepts
+        # to look up; what was said before is a concept, and is.
+        parties = {situation["?speaker"], situation["?listener"]}
+        names = [n for n in dict.fromkeys(
+                     [f.subject for f in bound if not is_variable(f.subject)]
+                     + [f.obj for f in bound if not is_variable(f.obj)])
+                 if n not in parties]
+        # THE SPEAKER'S OWN CONTEXT IS HELD TOO. What they told the substrate
+        # sits in their scoped layer, not the shared store, so a question about
+        # it reads that layer as well as the shared one: a told name wins over a
+        # shared one only where the shared store holds nothing for it.
+        told = await self._context_relations(names)
+        return [await self._resolved(name, told.get(name)) for name in names]
+
+    async def resolve_name(self, name: str) -> Resolved:
+        """One concept, by its name, and what is held for it -- in the shared
+        store and in this speaker's own context."""
+        told = await self._context_relations([name])
+        return await self._resolved(name, told.get(name))
+
+    async def _resolved(self, name: str, told) -> Resolved:
+        """What is held for one name. `told` is what this speaker told about it,
+        from their own context, or None."""
         import json
 
-        from core.semantics.sentence_machine import tokenize
-
-        db, identity = await self._services()
-        words = tokenize(sentence)
-        taken: set = set()
-        found: List[Resolved] = []
-
-        for start, end, text in phrases(words):
-            if any(index in taken for index in range(start, end)):
+        _db, identity = await self._services()
+        hits = await identity.resolve_query(name) or []
+        held, met_in = told or ((), "")
+        if not hits and told is not None:
+            return Resolved(phrase=name, how="context", description=met_in,
+                            relations=held, told=held)
+        if not hits:
+            return Resolved(phrase=name)
+        concept_id, how = hits[0]
+        record = await self._concept(concept_id)
+        others = []
+        # ANOTHER CONCEPT OF THE SAME NAME, not a narrower kind. The identity
+        # layer returns a SPECIALIZATION labelled as one and leaves the
+        # decision here; counting it as an alternative asked "which pump do
+        # you mean — the one in general, or in general?" because
+        # `centrifugal pump` is a specialization of `pump`, in the same domain.
+        for other_id, reached in hits[1:4]:
+            if reached not in ("exact", "alias", "same_as"):
                 continue
-            hits = await identity.resolve_query(text.replace("_", " ")) or []
-            hits = hits or (await identity.resolve_query(text) or [])
-            if not hits:
-                continue
-            concept_id, how = hits[0]
-            record = await self._concept(concept_id)
-            others = []
-            for other_id, _ in hits[1:4]:
-                other = await self._concept(other_id)
-                if other.get("description"):
-                    others.append((other_id, other.get("domain", "")))
-            relations = ()
-            if record.get("relationships"):
-                # AN ENTRY MAY CARRY POLARITY, AND THIS DROPPED EVERY ONE THAT
-                # DID. `for a, b in parsed` unpacks exactly two, so a
-                # three-element `["is", "bird", "positive"]` raised ValueError,
-                # the except swallowed it, and the concept resolved with ZERO
-                # relations -- indistinguishable from a concept nothing is
-                # known about. Measured: 21 of 464 concepts holding relations
-                # were silently emptied this way, including every concept
-                # taught through conversation, because `admit_relation` records
-                # polarity and this reader predates it.
-                #
-                # A negative is not an absence. `a kestrel is not a fish` is
-                # something the substrate KNOWS, and it must survive the read.
-                try:
-                    parsed = json.loads(record["relationships"])
-                except Exception as error:
-                    logger.warning("relationships for %s unreadable: %s",
-                                   concept_id, error)
-                    parsed = []
-
-                # Same normaliser as the teach path, so a relation reads the
-                # same however it reached the store.
-                relations = _as_pairs(parsed[:4])
-                if len(relations) != len(parsed[:4]):
-                    logger.warning("relationships for %s held %d entries that "
-                                   "are not relations", concept_id,
-                                   len(parsed[:4]) - len(relations))
-            candidate = Resolved(
-                phrase=text.replace("_", " "), concept_id=concept_id, how=how,
-                domain=record.get("domain", ""), description=record.get("description", ""),
-                relations=relations, alternatives=tuple(others))
-            if not candidate.informative:
-                # A name with nothing behind it does not get to consume the
-                # words. `load` and `balancer` are both in the store and both
-                # empty; letting them match stopped `load balancer` ever being
-                # looked up.
-                continue
-            found.append(candidate)
-            taken.update(range(start, end))
-
-        # WHAT IS LEFT OVER IS GROUPED, NOT SCATTERED. `load balancer` is one
-        # thing the substrate does not know; asking about `balancer` on its own
-        # returns a breed of cattle, which is what happened.
-        run: List[str] = []
-        for index, word in enumerate(words + [""]):
-            if index < len(words) and index not in taken and word not in FUNCTION_WORDS:
-                run.append(word)
-                continue
-            if run:
-                found.append(Resolved(phrase=" ".join(run)))
-                run = []
-
-        # A WORD NAMING A RELATION OF SOMETHING ELSE IN THE SENTENCE IS BEING
-        # USED AS THAT RELATION. `visualize` also matches a concept in another
-        # domain entirely, and reciting it would answer a question nobody
-        # asked.
-        relations = {stem(part) for item in found if item.known
-                     for relation, _ in item.relations
-                     for part in relation.replace("_", " ").split()}
-        return [item for item in found
-                if not (item.known and len(item.phrase.split()) == 1
-                        and any(same_stem(item.phrase, r) for r in relations))]
+            other = await self._concept(other_id)
+            if other.get("description"):
+                others.append((other_id, other.get("domain", "")))
+        relations = ()
+        if record.get("relationships"):
+            # AN ENTRY MAY CARRY POLARITY. A negative is not an absence: `a
+            # kestrel is not a fish` is something the substrate KNOWS, and it
+            # must survive the read.
+            try:
+                parsed = json.loads(record["relationships"])
+            except Exception as error:
+                logger.warning("relationships for %s unreadable: %s",
+                               concept_id, error)
+                parsed = []
+            relations = _as_pairs(parsed[:4])
+            if len(relations) != len(parsed[:4]):
+                logger.warning("relationships for %s held %d entries that "
+                               "are not relations", concept_id,
+                               len(parsed[:4]) - len(relations))
+        candidate = Resolved(
+            phrase=name, concept_id=concept_id, how=how,
+            domain=record.get("domain", ""), description=record.get("description", ""),
+            # What the shared store holds, then what THIS speaker told.
+            relations=relations + held, told=held, alternatives=tuple(others),
+            senses=await self._sense_groups(name))
+        # A name with nothing behind it is not placed: it is still a thing
+        # the substrate does not know, and a look-up should find out.
+        return candidate if candidate.informative else Resolved(phrase=name)
 
     def _leads_on(self, sentence: str) -> bool:
-        """Whether this turn follows from what the last answer said."""
-        from core.semantics.sentence_machine import tokenize
-
+        """Whether this turn follows from what the last answer said: every
+        concept it names already appeared in that answer, so it asks about
+        something the answer raised."""
         if not (self._last_reply and self._last_subject):
             return False
         said = self._last_reply.lower()
-        words = [w for w in tokenize(sentence) if w not in FUNCTION_WORDS]
-        # Every content word already appeared in the last answer: the turn is
-        # asking about something that answer raised.
-        return bool(words) and all(w in said for w in words)
+        names = _names_in(self._meaning(sentence))
+        return bool(names) and all(name.lower() in said for name in names)
 
-    @staticmethod
-    def subject_of(sentence: str) -> str:
-        """What this turn is about, before anything has been resolved.
-
-        The content words, in order. Crude, and refined the moment resolution
-        says what they actually were -- but a subject is needed BEFORE that, to
-        file the first wave under, and `what is a load balancer` and `what is
-        anomaly detection` must not be filed together merely because the turn
-        has not worked out which is which yet.
+    def subject_of(self, sentence: str) -> str:
+        """What this turn is about, before anything has been resolved: the
+        first concept its meaning names. Refined the moment resolution says what
+        it is -- but a subject is needed BEFORE that, to file the first wave
+        under. A turn that did not read names nothing, and is about nothing yet.
         """
-        from core.semantics.sentence_machine import tokenize
-
-        words = [w for w in tokenize(sentence) if w not in FUNCTION_WORDS]
-        return " ".join(words[:4]).lower()
+        names = _names_in(self._meaning(sentence))
+        return names[0].lower() if names else ""
 
     def about_this_conversation(self, sentence: str) -> Optional[Tuple[str, str]]:
         """`(who, act)` where the question is about this exchange, else None.
 
-        A question naming a PARTICIPANT and an act of SAYING is asking about
-        the conversation, not about the world: `what did I just ask you`,
-        `what were we talking about`, `what did you say`. There is exactly one
-        structural signal and it is in the sentence -- a speech verb with a
-        participant in front of it.
-
-        WHO IS SPEAKING IS WHO STANDS BEFORE THE VERB. `what did I ask you`
-        and `what did you tell me` name the same two people in the same words;
-        only the order says whose words are being asked for.
+        A question about an act of saying -- telling, asking, requesting, the
+        acts a meaning is made of -- done by the person or by the substrate is
+        asking about the conversation, not about the world: "what did I just
+        ask you", "what were we talking about", "what did you say". That is in
+        the question's MEANING: the act done, and who did it, the situation's
+        own `?speaker` and `?listener`. Done by both is what was discussed.
         """
-        from core.semantics.sentence_machine import tokenize
-
-        if not self.is_question(sentence):
+        from core.semantics.derived_reader import ACTS
+        meaning = self._meaning(sentence)
+        if meaning is None or meaning.act != "ask":
             return None
-        words = tokenize(sentence)
-        speaker = ""
-        for word in words:
-            if word in SPEAKER_THEM:
-                speaker = "them"
-            elif word in SPEAKER_ME:
-                speaker = "me"
-            elif word in SPEAKER_BOTH:
-                speaker = "both"
-            elif word in SPEECH_ACTS and speaker:
-                # The first speech verb that has a participant ahead of it.
-                return speaker, SPEECH_ACTS[word]
+        for fact in meaning.facts:
+            if fact.relation != "instance_of" or fact.obj not in ACTS:
+                continue
+            doers = {f.obj for f in meaning.facts
+                     if f.relation == "done_by" and f.subject == fact.subject}
+            if {"?speaker", "?listener"} <= doers:
+                return "both", "discussed"
+            if "?speaker" in doers:
+                return "them", "told" if fact.obj == "tell" else "asked"
+            if "?listener" in doers:
+                return "me", "said"
         return None
 
     def _from_the_record(self, who: str, act: str) -> str:
@@ -17293,6 +21645,23 @@ class Conversation:
         happened yet, that is the answer -- a turn this process never saw is
         one it cannot report, and saying so is the honest reply.
         """
+        def as_said(turn) -> str:
+            """The subject, with the determiner the person put in front of it.
+
+            The subject is stored bare, so the record read "that was about
+            kettle" for a turn whose words were "is A kettle a container?". The
+            article is not decoration — English needs one on a count noun and
+            refuses one on a mass noun, and the sentence is the only place the
+            substrate can learn which this was."""
+            subject = (turn.subject or "").strip()
+            if not subject:
+                return ""
+            said = f" {(turn.said or '').lower()} "
+            for determiner in ("a", "an", "the"):
+                if f" {determiner} {subject.lower()} " in said:
+                    return f"{determiner} {subject}"
+            return subject
+
         earlier = self._turns
         if not earlier:
             return "Nothing yet — this is the first thing you have said to me."
@@ -17303,7 +21672,7 @@ class Conversation:
                 subject = turn.subject.strip()
                 if subject and subject not in seen:
                     seen.add(subject)
-                    subjects.append(subject)
+                    subjects.append(as_said(turn))
             if not subjects:
                 return "Nothing I could name a subject for yet."
             if len(subjects) == 1:
@@ -17326,14 +21695,14 @@ class Conversation:
         verb = "asked" if act == "asked" else "told me"
         answer = f'You {verb}: "{last.said}"'
         if act == "asked" and last.subject:
-            answer += f" — that was about {last.subject}."
+            answer += f" — that was about {as_said(last)}."
         return answer
 
     def recalling(self):
         """The recall running alongside this conversation."""
         if self._recall is None:
             from core.memory.live_recall import LiveRecall
-            self._recall = LiveRecall()
+            self._recall = LiveRecall(actor=self._actor)
         return self._recall
 
     async def recall(self, sentence: str, limit: int = 3) -> List[str]:
@@ -17349,12 +21718,11 @@ class Conversation:
     async def read(self, sentence: str) -> Tuple[Optional[Tuple[str, ...]], str]:
         """A structured reading, where any formalizer can produce one."""
         from core.reasoning.neural_bridge import (DerivedReadingFormalizer,
-                                                  DeterministicExtractor,
                                                   FormalizerChain,
                                                   PassthroughFormalizer)
 
-        chain = FormalizerChain([PassthroughFormalizer(), DeterministicExtractor(),
-                                 DerivedReadingFormalizer()])
+        # Formal input as it is, else English through the one reader.
+        chain = FormalizerChain([PassthroughFormalizer(), DerivedReadingFormalizer()])
         result = await chain.formalize(sentence, [sentence])
         if not result.succeeded:
             return None, ""
@@ -17363,122 +21731,56 @@ class Conversation:
         # says less than the sentence did.
         return tuple(result.statements or [result.statement]), result.source
 
-    @staticmethod
-    def asked(sentence: str, resolved: Sequence["Resolved"]) -> List["Answer"]:
-        """Relations the sentence asks about, matched against what is held.
+    def asked(self, sentence: str, resolved: Sequence["Resolved"]) -> List["Answer"]:
+        """The held relations that answer what the question MEANS.
 
-        `what causes pressure loss` and a concept holding `caused by pipe
-        friction` are about the same relation, and answering the QUESTION
-        rather than reciting the concept is the difference between replying and
-        responding. Matched on stems, over relations already stored -- nothing
-        here decides that two relations are the same, only that a word in the
-        question and a label on a concept share a stem.
+        A yes/no question asks whether one fact holds, and is answered by that
+        fact held on the concept it names -- or by its denial, which answers no
+        from evidence rather than from silence. A question asking for something
+        asks for every held relation of that kind on the concept named beside
+        it: "where is the cup?" means `located_in(cup, ?x)`, answered by what
+        the cup is held to be in. NOTHING HERE MATCHES WORDS: the kind of
+        relation asked is part of the question's meaning, and a held relation is
+        a kind too, so "is a kestrel a bird" can never be answered by a relation
+        whose object merely looks like one of its words.
         """
-        from core.semantics.sentence_machine import tokenize
-        from core.semantics.sentence_reader import SentenceReader
+        from core.semantics.derived_reader import is_variable
+        meaning = self._meaning(sentence)
+        if meaning is None or meaning.act != "ask":
+            return []
 
-        asked_stems = {w for w in tokenize(sentence) if w not in FUNCTION_WORDS}
+        def kind_of(relation: str) -> Tuple[str, bool]:
+            """A held relation as the link kind it is, and whether it is denied:
+            a record holds it as said ("caused by", "not isa")."""
+            text = str(relation).strip()
+            denied = text.startswith("not ")
+            return (text[4:] if denied else text).strip().replace(" ", "_"), denied
+
+        by_name = {r.phrase.lower(): r for r in resolved if r.known}
         answers: List[Answer] = []
-
-        # WHERE / WHEN / HOW-MANY are answered off a RELATION FAMILY, not by
-        # object-word overlap. "where is the cup?" names no object to match --
-        # its answer is whatever place-relation the cup stands in ("in the box").
-        # The reader parses these to an `open` locative/temporal goal or a `count`
-        # goal; here the concrete relation is read off the resolved subject. An
-        # honest gap (no such relation held) returns [] and the turn says so --
-        # it does not fall through to the object-overlap loop, which would only
-        # mis-match. Statements never parse to these kinds, so this is inert
-        # unless a question was actually asked.
-        goal = SentenceReader()._parse_goal(sentence)
-        gkind = (goal or {}).get("kind")
-        if gkind == "open" and (goal or {}).get("relation") in ("location", "time"):
-            spatial = goal["relation"] == "location"
-            family = LOCATIVE_RELATIONS if spatial else TEMPORAL_RELATIONS
-            subj_stems = {w for w in tokenize(str(goal.get("subject") or ""))
-                          if w not in FUNCTION_WORDS}
-            for item in resolved:
-                if not item.known:
-                    continue
-                item_stems = {w for w in tokenize(item.phrase)
-                              if w not in FUNCTION_WORDS}
-                if subj_stems and not any(same_stem(a, b) for a in subj_stems
-                                          for b in item_stems):
-                    continue
-                for relation, other in item.relations:
-                    head = relation.replace("_", " ").split()
-                    if head and head[0].lower() in family:
-                        # A place takes an article ("in the box"); a time does
-                        # not ("at noon", not "at the noon").
-                        art = "the " if spatial else ""
-                        answers.append(Answer(
-                            item.phrase, relation, (str(other),), verdict=None,
-                            conclusion=f"the {item.phrase} is {relation} "
-                                       f"{art}{str(other).replace('_', ' ')}"))
-            return answers
-        if gkind == "count":
-            target_stems = {stem(w) for w in tokenize(str(goal.get("target") or ""))
-                            if w not in FUNCTION_WORDS}
-            for item in resolved:
-                if not item.known:
-                    continue
-                for relation, other in item.relations:
-                    # The store singularises and underscores an object
-                    # ("eight legs" -> `eight_leg`); split it so the numeral and
-                    # the counted kind read as their own tokens again.
-                    otoks = tokenize(str(other).replace("_", " "))
-                    counted = any(t.isdigit() or t in NUMBER_WORDS for t in otoks)
-                    on_target = (not target_stems
-                                 or any(same_stem(t, ts) for t in otoks
-                                        for ts in target_stems))
-                    if counted and on_target:
-                        answers.append(Answer(
-                            item.phrase, relation, (str(other),), verdict=None,
-                            conclusion=f"the {item.phrase} {relation} "
-                                       f"{str(other).replace('_', ' ')}"))
-            return answers
-
-        for item in resolved:
-            if not item.known:
+        for said, fact in zip(meaning.facts, meaning.bound(self._situation())):
+            if said.condition or is_variable(fact.subject):
                 continue
-
-            # A YES/NO QUESTION NAMES THE SUBJECT AND THE OBJECT, NEVER THE
-            # RELATION. "is a kestrel a bird" strips to {kestrel, bird}: the
-            # relation label is `is`, a function word, so label matching could
-            # never fire and the question went unanswered while the store held
-            # `kestrel --is--> bird`, admitted seconds earlier. Measured: the
-            # reply recited an unrelated memory about arctic terns.
-            #
-            # Matching the OBJECT answers what was actually asked, and polarity
-            # decides the verdict -- so "is a kestrel a fish" against a stored
-            # `is not fish` answers NO from evidence rather than from silence.
-            #
-            # Match against the asked OBJECT, never the SUBJECT. The subject is
-            # `item.phrase`; leaving its stem in the match set let a stored
-            # relation whose OBJECT resembles the subject answer the wrong
-            # question -- "is a salmon a bird?" matched salmon's `is salmonid`
-            # because `salmonid` stems to `salmon`, and said "Yes" about `bird`.
-            subject_stems = {w for w in tokenize(item.phrase)
-                             if w not in FUNCTION_WORDS}
-            object_stems = {w for w in asked_stems
-                            if not any(same_stem(w, sw) for sw in subject_stems)}
+            item = by_name.get(fact.subject.lower())
+            if item is None:
+                continue
+            if said.obj in meaning.asked:
+                others = tuple(dict.fromkeys(str(other) for relation, other in item.relations
+                                             if kind_of(relation) == (fact.relation, False)))
+                if others:
+                    answers.append(Answer(item.phrase, fact.relation, others, verdict=None))
+                continue
+            if is_variable(fact.obj):
+                continue
+            wanted = fact.obj.lower().replace("_", " ")
             for relation, other in item.relations:
-                if any(same_stem(str(other), word) for word in object_stems):
-                    denied = relation.startswith("not ") or relation == "is not"
-                    answers.append(Answer(item.phrase, relation, (str(other),),
-                                          verdict=not denied))
+                if str(other).lower().replace("_", " ") != wanted:
                     continue
-
-                labels = [part for part in relation.replace("_", " ").split()]
-                if any(same_stem(label, word) for label in labels
-                       for word in asked_stems):
-                    existing = next((a for a in answers
-                                     if a.about == item.phrase and a.relation == relation), None)
-                    if existing:
-                        answers.append(Answer(item.phrase, relation,
-                                              existing.others + (other,)))
-                        answers.remove(existing)
-                    else:
-                        answers.append(Answer(item.phrase, relation, (other,)))
+                kind, denied = kind_of(relation)
+                if kind == fact.relation:
+                    answers.append(Answer(item.phrase, relation, (str(other),),
+                                          verdict=fact.positive != denied,
+                                          alternative=said.alternative))
         return answers
 
     @staticmethod
@@ -17493,7 +21795,50 @@ class Conversation:
         return rendered.replace("->", "implies").replace("_", " ").strip()
 
     @staticmethod
-    def _support_used(premises, steps) -> Tuple[str, ...]:
+    def _support_origins(steps, metadata) -> List[Tuple[str, Optional[str]]]:
+        """What the proof rested on, EXACTLY: `(sentence, store identity)` for
+        every premise the derivation cited.
+
+        A `[Premise]` step is rendered `"{n}. {atom}  [Premise]"` from the proof
+        engine's own justification, and the bridge surfaces `premises` (the
+        atoms) with `premise_origins` parallel to them -- which sentence each
+        atom was read from, and that sentence's store id. So the cited atom is
+        read out of the step and looked up by EQUALITY, not by whether its words
+        happen to overlap a candidate sentence. Where one atom was read from two
+        sentences both are returned: both produced what the proof used.
+
+        Empty when the route that answered does not surface origins (the concept
+        graph walk, a belief), which is not the same as "cited nothing".
+        """
+        md = metadata or {}
+        atoms = list(md.get("premises") or ())
+        origins = list(md.get("premise_origins") or ())
+        if not atoms or len(atoms) != len(origins):
+            return []
+        cited = set()
+        for step in steps or ():
+            text = str(step)
+            if not text.rstrip().endswith("[Premise]"):
+                continue
+            body = text.rstrip()[:-len("[Premise]")].strip()
+            head, sep, rest = body.partition(". ")
+            if sep and head.strip().isdigit():
+                body = rest.strip()
+            cited.add(body)
+        out: List[Tuple[str, Optional[str]]] = []
+        seen: set = set()
+        for atom, origin in zip(atoms, origins):
+            if atom not in cited:
+                continue
+            surface, ref = (tuple(origin) + (None, None))[:2]
+            key = (surface, ref)
+            if key not in seen:
+                seen.add(key)
+                out.append((str(surface), ref))
+        return out
+
+    @classmethod
+    def _support_used(cls, premises, steps, metadata=None) -> Tuple[str, ...]:
         """The clean premise SENTENCES a derivation used, for the reply's `because`.
 
         The reasoner marks the premises it used `[Premise]`, but in the formula
@@ -17505,16 +21850,36 @@ class Conversation:
         both keeps the reason readable and keeps it honest -- only premises the
         proof actually used, not everything that happened to be recalled.
         """
+        # EXACT WHERE THE ROUTE SAYS WHERE ITS ATOMS CAME FROM. The solver
+        # route surfaces `premise_origins`, so the cited atoms map to the
+        # sentences they were read from by equality.
+        exact = cls._support_origins(steps, metadata)
+        if exact:
+            return tuple(dict.fromkeys(surface for surface, _ref in exact))
+
         marked = " ".join(str(s) for s in (steps or ()) if "[Premise]" in str(s))
-        marked = marked.lower().replace("_", " ")
+        marked_lower = marked.lower().replace("_", " ")
         seen: set = set()
         out: List[str] = []
+
+        # CONTENT WORDS, ONLY WHERE THERE IS NOTHING EXACT TO USE: a route that
+        # reports no origins for its atoms. It over-cites -- two premises that
+        # share their words both match when only one was used -- which is why
+        # it is the fallback for routes without origins and not the method.
         for premise in premises or ():
-            words = [w for w in str(premise).lower().split()
-                     if w not in FUNCTION_WORDS]
-            if words and all(w in marked for w in words) and premise not in seen:
-                seen.add(premise)
-                out.append(str(premise))
+            statement = str(premise)
+            said = getattr(premise, "said", None) or statement
+            if said in seen:
+                continue
+            # A premise handed over as its atom is cited when that atom is.
+            if statement in marked:
+                seen.add(said)
+                out.append(said)
+                continue
+            words = [w for w in statement.lower().split() if not _structure_word(w)]
+            if words and all(w in marked_lower for w in words):
+                seen.add(said)
+                out.append(said)
         return tuple(out)
 
     @staticmethod
@@ -17555,71 +21920,117 @@ class Conversation:
         # "Not entailed …", "Undecided …", anything else: no decision.
         return None
 
-    async def _held_premises(self, sentence, resolved, harvest) -> List[str]:
-        """Everything the substrate HOLDS about the topic, as premise sentences.
+    async def _held_premises(self, sentence, resolved, harvest) -> List[Any]:
+        """Everything the substrate HOLDS about the topic, as premises THAT KNOW
+        WHERE THEY CAME FROM, in the form the reasoner reasons over.
 
-        There is no separate 'look it up' step that reasoning falls back from:
-        what is held is simply what reasoning reasons over, and a stored fact is
-        a premise that proves its question in one step. Four sources, together:
+        A held fact is handed over as its ATOM (`clause_atom`), with the fact as
+        a person reads it kept beside it (`said`), so the reasoner never reads
+        English to learn what the store already holds structured, and the reply
+        can still say why in words. A remembered claim is handed over as the
+        facts it states: the ones recorded with it when it was stored, else what
+        the one reader reads it to. A memory that states nothing readable is not
+        a premise -- it is still recalled for the reply, but nothing is reasoned
+        from it.
 
-          * the resolved concepts' own relations ("flerm is blorp"),
+        Four sources, together:
+          * the resolved concepts' own relations ("flerm isa blorp"),
           * ONE HOP OUT -- the relations of the concepts those point to
-            ("blorp is snazzy"), because "is flerm snazzy" follows from a chain
-            the question never names the middle of,
-          * the subject-focused recalled memories (`harvest`),
-          * a BROAD recall on the whole question -- a syllogism's rule ("every
-            blorp is snazzy") shares a term with the question but not its
-            subject, so the subject-focused harvest misses it; this finds the
-            premises the chain needs.
-
-        One hop, not the whole graph: enough to chain a stated rule to a stated
-        fact without pulling the entire store in as premises.
+            ("blorp has_property snazzy"), because "is flerm snazzy" follows from
+            a chain the question never names the middle of,
+          * the relations that point AT a resolved concept, for reverse
+            questions ("what causes X"),
+          * the recalled memories: the subject-focused harvest, and a broad
+            recall on the whole question for the premises a chain needs that the
+            subject never names.
         """
-        premises: List[str] = []
+        from core.reasoning.abstract_reasoning_engine import ReasoningPremise
+        from core.semantics.derived_reader import MeaningFact
+
+        premises: List[ReasoningPremise] = []
+        seen: set = set()
+
+        def hold(atom: Optional[str], said: str, kind: Optional[str], ref: Optional[str]) -> None:
+            """Keep a premise ONCE, with where it came from and how it reads."""
+            if not atom or atom in seen:
+                return
+            seen.add(atom)
+            premises.append(ReasoningPremise(
+                premise_id=f"p{len(premises)}", statement=atom, confidence=1.0,
+                source=kind or "held", provenance=ref, provenance_kind=kind,
+                said=said))
+
+        def hold_relation(subject: str, relation: str, obj: str, kind, ref) -> None:
+            positive = not relation.startswith("not ")
+            kind_name = relation[len("not "):] if not positive else relation
+            if kind_name not in _LINK_KINDS:
+                return      # not a link kind the reasoner holds anything by
+            hold(_clause_atom(subject, kind_name, obj, positive),
+                 f"{subject} {relation} {obj}".replace("_", " "), kind, ref)
+
+        def hold_claim(facts, text: str, kind, ref) -> None:
+            for atom in _atoms_of(facts):
+                hold(atom, text, kind, ref)
+
         others: set = set()
         for item in resolved:
             if not getattr(item, "known", False):
                 continue
+            cid = getattr(item, "concept_id", None)
+            told = set(getattr(item, "told", ()) or ())
             for relation, other in item.relations:
-                premises.append(f"{item.phrase} {relation} {other}")
+                # A relation the speaker told is held in THEIR context, not the
+                # shared store, and says so; it has no concept id to point at.
+                if (relation, other) in told:
+                    hold_relation(item.phrase, relation, str(other), "context", None)
+                else:
+                    hold_relation(item.phrase, relation, str(other), "concept", cid)
                 others.add(str(other))
             # Incoming relations: facts that name THIS concept as their object,
-            # for reverse questions ("what causes X") the forward store misses.
-            premises.extend(await self._incoming_relations(item.phrase))
+            # for reverse questions the forward store misses. Their subject is
+            # another concept, which this call does not hand back, so they are
+            # held without a ref rather than tagged with the wrong one.
+            for subject, relation, obj, positive in await self._incoming_relations(item.phrase):
+                hold_relation(subject, relation if positive else f"not {relation}", obj,
+                              "concept_incoming", None)
 
         # One hop out, following each relation to the concept it names.
         for other in others:
             try:
-                hops = await self.resolve(other)
+                hops = await self.resolve_name(other)
             except Exception:
                 continue
-            for hop in hops:
-                if not getattr(hop, "known", False):
-                    continue
-                for relation, o2 in hop.relations:
-                    premises.append(f"{hop.phrase} {relation} {o2}")
+            if hops.known:
+                for relation, o2 in hops.relations:
+                    hold_relation(hops.phrase, relation, str(o2), "concept", hops.concept_id)
 
         if harvest is not None:
-            premises.extend(harvest.texts())
+            for recalled in (getattr(harvest, "memories", None) or [])[:3]:
+                text = str(getattr(recalled, "text", "") or "")
+                hold_claim(_claim_facts(text), text, "memory", getattr(recalled, "memory_id", None))
 
         # Broad recall on the whole question, for the premises a chain needs that
-        # the subject never names. Recall hands back each memory's clean claim.
+        # the subject never names. A memory's claim carries the facts recorded
+        # with it when it was stored.
         try:
             from core.memory import get_memory_agent
             agent = await get_memory_agent()
             _ok, hits = await agent.search_memories(
-                query=str(sentence), limit=8, include_events=False)
+                query=str(sentence), limit=8, include_events=False,
+                actor=self._actor)
             for hit in (hits or []):
                 meta = getattr(hit, "metadata", None) or {}
-                claim = (meta.get("conclusion") if isinstance(meta, dict) else None) \
-                    or getattr(hit, "content", "")
-                if claim:
-                    premises.append(str(claim))
+                claim = str((meta.get("conclusion") if isinstance(meta, dict) else None)
+                            or getattr(hit, "content", "") or "")
+                stored = meta.get("claim_facts") if isinstance(meta, dict) else None
+                facts = (tuple(MeaningFact.from_list(f) for f in stored) if stored
+                         else _claim_facts(claim))
+                hold_claim(facts, claim, "memory", getattr(hit, "memory_id", None))
         except Exception as error:
             from core.capability import raise_if_structural
             raise_if_structural(error, "autonomous_coordinator._held_premises.broad_recall")
 
-        return list(dict.fromkeys(p.strip() for p in premises if p and p.strip()))
+        return premises
 
     async def _reasoned_answers(self, sentence, resolved, harvest) -> List["Answer"]:
         """Answers the substrate DERIVES from what it holds.
@@ -17631,114 +22042,65 @@ class Conversation:
         is returned ONLY when the substrate PROVES one; the premises it used are
         carried so the reply can say why.
 
-        A copula yes/no question is decided on its AFFIRMATIVE proposition and
-        answered against the polarity it was asked in -- so "is X not Y" is
-        answered by whether X IS Y. Every other form (subject-verb-object,
-        causal, open "what/why") is handed to the reasoner as-is; it formalises
-        the query and derives the conclusion.
+        THE QUESTION IS READ ONCE, here, and handed to the reasoner as its
+        reading, so nothing downstream reads its words again. A yes/no question
+        about one fact is decided on its AFFIRMATIVE fact and answered against
+        the polarity it was asked in -- "is X not Y" is answered by whether X IS
+        Y -- and it is tried before the premises guard, because a taught rule
+        can decide it even when the subject holds no stand-alone fact. Any other
+        question goes to the reasoner as it was read.
         """
-        from core.reasoning.neural_bridge import (ReasoningRequest,
-                                                  get_neural_bridge)
-        from core.semantics.sentence_reader import SentenceReader
+        from core.reasoning.neural_bridge import (ReasoningRequest, get_neural_bridge,
+                                                  goal_fact)
+        from core.semantics.derived_reader import Meaning, MeaningFact
+        meaning = self._meaning(sentence)
+        if meaning is None or meaning.act != "ask":
+            return []
         bridge = get_neural_bridge()
-
+        reading = Meaning(meaning.act, tuple(meaning.bound(self._situation())), meaning.asked)
         premises = await self._held_premises(sentence, resolved, harvest)
 
-        # ACTION YES/NO — "does the tank overflow?". SentenceReader reads the
-        # auxiliary correctly,
-        # and the reasoner decides it over HELD RULES + HELD FACTS pulled from
-        # their own authorities — so a taught rule ("if the valve is closed then
-        # the tank overflows") firing on a taught fact ("the valve is closed")
-        # answers it. This runs BEFORE the premises guard because the answer can
-        # come from a rule even when the subject holds no stand-alone fact.
-        _sr = SentenceReader()
-        _goal = _sr._parse_goal(sentence)
-        if _goal and _goal.get("kind") in ("sv", "svo"):
+        fact = goal_fact(reading)
+        if fact is not None:
+            affirmative = Meaning("ask", (MeaningFact(fact.relation, fact.subject, fact.obj),))
             result = await bridge.reason(ReasoningRequest(
-                query=sentence, context=premises,
+                query=sentence, context=premises, reading=affirmative,
                 task_metadata={"actor": self._actor}))
             if not (result.metadata or {}).get("verified") or not result.answer:
                 return []
+            # Prefer the reasoning's OWN chain (robin → bird → … → animal) as the
+            # reason, so a derived yes/no says the hops it walked.
             chain = (result.metadata or {}).get("chain") or []
             support = ((" → ".join(chain),) if len(chain) >= 2
-                       else self._support_used(premises, result.reasoning_steps))
-            if not self._grounded(result, support):
-                return []
-            affirmed = self._affirmed(result.answer)
-            if affirmed is None:
-                return []  # reasoner did not decide it — assert nothing
-            parts = _sr.clause_parts(_goal) or {}
-            claim = (chain[-1] if chain else " ".join(
-                str(p) for p in (parts.get("subject"), parts.get("relation"),
-                                 parts.get("obj")) if p))
-            # An action question is affirmative, so its verdict IS whether the
-            # action holds; polarity flipping is only for copular "is X not Y".
-            verdict = affirmed if parts.get("positive", True) else (not affirmed)
-            return [Answer(about=str(parts.get("subject") or ""),
-                           relation=str(parts.get("relation") or ""),
-                           others=((str(parts["obj"]),) if parts.get("obj") else ()),
-                           verdict=verdict, support=support, conclusion=claim)]
-
-        if not premises:
-            return []
-
-        # Read the question with the ONE reader (sentence_reader, `_sr` above): a
-        # yes/no "is X (a) Y?" yields (subject, object, polarity); anything else
-        # yields nothing and drops to the open branch below.
-        _g = _sr._parse_goal(sentence)
-        _cp = _sr.clause_parts(_g) if _g else None
-        reading = ((_cp["subject"], _cp["obj"],
-                    "affirms" if _cp.get("positive", True) else "denies")
-                   if _cp and _cp.get("obj") else None)
-
-        # A WH-question ("what/why/how/who causes X") is OPEN, not a yes/no about
-        # a subject named "what" -- the reader can mis-parse it as a copula, so it
-        # is sent to the open branch where the reasoner derives the answer.
-        _WH = {"what", "why", "how", "who", "when", "where", "which"}
-        if reading and reading[0].lower() not in _WH:
-            subject, obj, polarity = reading
-            result = await bridge.reason(ReasoningRequest(
-                query=f"{subject} is {obj}", context=premises,
-                task_metadata={"actor": self._actor}))
-            if not (result.metadata or {}).get("verified"):
-                return []
-            # Prefer the reasoning's OWN chain (robin → bird → … → animal) as the
-            # reason, so a derived yes/no says the hops it walked. Falls back to
-            # the premise-citation matching for reasoners that mark premises.
-            chain = (result.metadata or {}).get("chain") or []
-            if len(chain) >= 2:
-                support = (" → ".join(chain),)
-            else:
-                support = self._support_used(premises, result.reasoning_steps)
+                       else self._support_used(premises, result.reasoning_steps,
+                                               result.metadata))
             # GROUNDING GUARD. A yes/no verdict must rest on the substrate's OWN
-            # knowledge of THIS proposition — a concept-graph chain or premises it
-            # actually used. The belief path reports `verified` when a stored
-            # belief merely SHARES A WORD with the query ("animal"), which is not
-            # grounds to assert X IS Y. Ungrounded ⇒ no verdict: the turn reports
-            # the gap honestly instead of a fabricated yes.
+            # knowledge of THIS proposition -- a graph chain or premises it
+            # actually used -- never a stored belief that merely shares a word.
             if not self._grounded(result, support):
                 return []
-            # FOLLOW THE REASONER'S VERDICT, not just the question's polarity. The
-            # affirmative "X is Y" may have been PROVED or DISPROVED (a stored
-            # denial disproves it); a yes/no must reflect which. Reading polarity
-            # alone would turn a disproof back into a "Yes".
+            # FOLLOW THE REASONER'S VERDICT, not just the question's polarity: the
+            # affirmative may have been PROVED or DISPROVED (a stored denial
+            # disproves it), and a yes/no must say which.
             affirmed = self._affirmed(result.answer)
             if affirmed is None:
                 return []  # the affirmative was neither proved nor disproved
-            claim = f"{subject} is {obj}".replace("_", " ")
-            # "Yes" iff (affirmative holds) matches how the question asked it:
-            # affirmed + affirming question, or disproved + denying question.
-            verdict = (affirmed == (polarity == "affirms"))
-            return [Answer(about=subject, relation="is", others=(obj,),
-                           verdict=verdict,
-                           support=support, conclusion=claim)]
+            claim = (chain[-1] if chain else
+                     _said(fact.subject, fact.relation, fact.obj, fact.positive)
+                     or f"{fact.subject} {fact.relation} {fact.obj}".replace("_", " "))
+            return [Answer(about=fact.subject, relation=fact.relation, others=(fact.obj,),
+                           verdict=(affirmed == fact.positive), support=support,
+                           conclusion=claim)]
 
+        if not premises:
+            return []
         result = await bridge.reason(ReasoningRequest(
-            query=sentence, context=premises,
+            query=sentence, context=premises, reading=reading,
             task_metadata={"actor": self._actor}))
         if not (result.metadata or {}).get("verified") or not result.answer:
             return []
-        support = self._support_used(premises, result.reasoning_steps)
+        support = self._support_used(premises, result.reasoning_steps,
+                                     result.metadata)
         # Same grounding guard for an open question: a word-overlap belief (its
         # answer is a bare "P(claim) = x") is not an answer to "what is X".
         if not self._grounded(result, support):
@@ -17749,8 +22111,13 @@ class Conversation:
     # ---- the two ways something new gets in ------------------------------
 
     async def _ingest(self, label, description, relations, source_type, source_id,
-                      content, domain) -> Acquired:
+                      content, domain, *, actor: str) -> Acquired:
         """Hand the interpreted statement to the ingress. It admits, not this.
+
+        `actor` is WHOSE ACCOUNT this is, and the caller says it: what the speaker
+        told is theirs (`self._actor`) until it is corroborated; what the
+        substrate read from the world itself is the substrate's (world
+        knowledge), whoever's question sent it looking.
 
         This used to build its own EvidenceEnvelope and call the ingestion
         service directly, under a docstring calling itself "the only write
@@ -17776,16 +22143,16 @@ class Conversation:
         # actor = THIS speaker. A told fact is the speaker's CONTEXT, not world
         # knowledge, until independently corroborated — so it moves a scoped
         # belief, never the one shared mind directly (the learning authority's
-        # intake router enforces this on the actor). The session is the speaker
-        # handle today; a first-class World Auth identity refines it without
-        # moving the store.
+        # intake router enforces this on the actor). A page the substrate found
+        # and read is not a telling: its source is the page, so it is learned
+        # as world knowledge under the substrate's own account.
         admission = await self._learning_authority().learn_fact(
             subject=label, relation=relation, obj=obj, positive=positive,
             surface=content,
             provenance=Provenance(producer="conversation", source_id=source_id,
                                   source_type=source_type.name),
             description=description, domain=domain, emit=self._evidence_emitter(),
-            actor=self._actor)
+            actor=actor)
 
         detail = "; ".join(admission.refusals)
         if admission.contradicts:
@@ -17827,16 +22194,13 @@ class Conversation:
         from core.domain.domain_registry import get_domain_registry
         from core.integration.universal_domain_master import \
             get_universal_domain_master
-        from core.semantics.sentence_reader import SentenceReader
-
-        # The RELATION comes from the ONE reader. A question it can read yields
-        # (subject, relation, object); one it cannot yields nothing, and with no
+        # The RELATION comes from the ONE reader: the link kind of the fact the
+        # question asks about. A question it cannot read names none, and with no
         # relation there is nothing to localize -- honest, no guess.
-        _sr = SentenceReader()
-        goal = _sr._parse_goal(sentence)
-        parts = _sr.clause_parts(goal) if goal else None
-        relation = (str(parts.get("relation")).strip().lower()
-                    if parts and parts.get("relation") else None)
+        meaning = self._meaning(sentence)
+        facts = [f for f in (meaning.asserted if meaning is not None and meaning.act == "ask"
+                             else ())]
+        relation = facts[0].relation if len(facts) == 1 else None
         if not relation:
             return None
 
@@ -17852,8 +22216,10 @@ class Conversation:
             domain_id = f"domain_{field}"
             if domain_id not in registry.domains:
                 continue
+            # THE ASKER'S QUESTION IS THEIR CONTEXT: kept with them, not among
+            # the substrate's own open questions, which its research works on.
             gap = await udm.detect_knowledge_gap(
-                domain_id, subject=item.phrase, relation=relation)
+                domain_id, subject=item.phrase, relation=relation, owner=self._actor)
             if gap is not None:
                 return domain_id
         return None
@@ -17873,95 +22239,174 @@ class Conversation:
     async def teach(self, sentence: str) -> List[Acquired]:
         """You told it something. Read it with the ONE reader, then admit.
 
-        The reader is `sentence_reader` -- the SAME reader the query path uses,
-        so a fact taught reads the same way it does when later asked about, and a
-        multi-word subject ("the Klein four-group is an abelian group") is read
-        identically on both sides. It never guesses at a sentence it cannot read:
-        a sentence that does not read has told you nothing, and admitting a guess
-        about it is worse than admitting nothing.
+        The reader is the one every path reads with (`derived_reader`): a told
+        sentence reads through the constructions the substrate was taught, the
+        same way it reads when it is later asked about. It never guesses at a
+        sentence it cannot read: a sentence that does not read has told you
+        nothing, and admitting a guess about it is worse than admitting nothing.
+
+        WHAT A TELLING STATES IS SORTED BY ITS MEANING, as the teaching path
+        sorts it. A fact naming the situation it was said in -- the person, what
+        was said before -- is about that situation and is held as a belief about
+        the person, never as world knowledge. A fact still naming an unknown has
+        nothing to name it and is not held. A conditional is held as a RULE, one
+        fact a side, and asserts neither side. Everything else is a fact about
+        the world, admitted in the speaker's scope through the one door.
         """
         from core.domain.concept_ingestion import EvidenceSourceType
-
-        # A CONDITIONAL is a held RULE, not a relation: it is read by the sentence
-        # reader and learned as a held RULE, and admit_relation would wrongly assert
-        # its antecedent true.
-        # It is read by the sentence reader and learned as a held RULE through the
-        # LEARNING AUTHORITY (`learn_rule`), the same one door a fact takes — so a
-        # rule fans out to the lexicon, beliefs, the domain, and metrics exactly
-        # as a fact does, instead of this reaching into the ingress directly.
-        from core.semantics.sentence_reader import SentenceReader as _SentenceReader
         from core.semantics.cognitive_ingress import Provenance as _Provenance
-        _sr = _SentenceReader()
-        _cond = _sr._parse_statement(sentence)
-        if _cond is not None and _cond.get("kind") == "conditional":
-            ant = _sr.clause_parts(_cond["antecedent"])
-            con = _sr.clause_parts(_cond["consequent"])
-            if not ant or not con:
-                return [Acquired(sentence, detail=(
-                    "I read that as a conditional, but a side of it is not a "
-                    "single proposition I can hold"))]
-            admission = await self._learning_authority().learn_rule(
-                ant, con, surface=sentence,
-                provenance=_Provenance(producer="conversation", source_id="you",
-                                       source_type=EvidenceSourceType.USER_SUPPLIED.name),
-                domain="conversation", emit=self._evidence_emitter(),
-                actor=self._actor)
-            if admission.admitted:
-                return [Acquired(sentence, description="a rule", relations=(),
-                                 stored=True, detail="held as a conditional rule",
-                                 memory_id=admission.evidence_id)]
-            return [Acquired(sentence, detail=("; ".join(admission.refusals)
-                             or "I could not hold that conditional"))]
+        from core.semantics.derived_reader import SITUATION_VARIABLES, is_variable
 
-        # A sentence may carry MORE THAN ONE proposition -- a relative clause
-        # ("the okapi, which is a mammal, is a herbivore") or a conjunction ("the
-        # vault is cold and heavy") states two -- so `read_all` returns every
-        # proposition it can read (already dropping any it cannot), and each is
-        # admitted, not just the first.
-        readings = _sr.read_all(sentence)
-        if not readings:
-            return [Acquired(sentence, detail=(
-                "I could not read that sentence with what I have been taught "
-                "about sentences"))]
+        utterances = self._read(sentence)
+        if not utterances or not all(u.understood for u in utterances):
+            # READ AS FAR AS IT READS, AND REMEMBERED. What read is said back as
+            # understood and what did not is asked about; nothing is guessed, and
+            # the sentence is kept verbatim and marked unread, so it is recallable
+            # by meaning now and re-readable once the English it needs is taught.
+            detail = _read_in_part(utterances)
+            try:
+                from core.semantics.cognitive_ingress import get_cognitive_ingress
+                await get_cognitive_ingress().remember_told(
+                    sentence, _Provenance(producer="conversation", source_id="you",
+                                          source_type="USER_SUPPLIED"),
+                    blamed=None, origin=Origin.of(self._actor, "conversation"))
+                detail += " I have remembered what you said."
+            except Exception as e:
+                raise_if_structural(e, "conversation.teach.remember_told")
+                logger.warning("could not remember an unread telling: %s", e)
+            return [Acquired(sentence, detail=detail)]
 
+        situation = dict(self._situation())
         acquired: List[Acquired] = []
-        for part in readings:
-            obj = part.get("obj")
-            if not obj:
-                continue  # an intransitive reading (subject + verb) forms no edge
-            rel = str(part.get("relation") or "").strip().lower()
-            # A copular predication is an ISA edge -- stored TYPED (`isa`) so the
-            # graph carries kind semantics (transitivity), not an undifferentiated
-            # "is" that poisons inference; any other relation keeps its own name.
-            relation = "isa" if rel in ("is", "are") else rel
-            positive = part.get("positive", True)
-            # THIRD CHANNEL: if the speaker is telling the substrate about
-            # THEMSELVES, this is a belief about the user, not a fact about the
-            # world. Route it to the user store and do NOT admit it to the concept
-            # graph — chat about oneself must never rewrite world knowledge.
-            if self._about_speaker(part["subject"]):
-                acquired.append(await self._learn_about_user(
-                    part["subject"], relation, obj, positive=positive,
-                    surface=sentence))
+        for utterance in utterances:
+            readings = utterance.readings
+            if len({r.meaning.canonical() for r in readings}) > 1:
+                acquired.append(Acquired(utterance.text, detail=(
+                    "I read that more than one way, and I will not guess which you meant")))
                 continue
-            # VERIFICATION GATE: a world fact asserted in chat is checked against
-            # what the substrate already knows before it is admitted. One it knows
-            # to be false is refused, so chat cannot overwrite world knowledge.
-            _ok, _why = await self._admissible_world_fact(
-                part["subject"], relation, obj, positive)
-            if not _ok:
-                acquired.append(Acquired(sentence, detail=(
-                    f"I did not take that as a fact — {_why}. If I am wrong, "
-                    "correct me and I will weigh it.")))
+            meaning = readings[0].meaning
+            if meaning.act != "tell":
                 continue
-            acquired.append(await self._ingest(
-                label=part["subject"], description="",
-                relations=((relation, obj,
-                            "positive" if positive else "negative"),),
-                source_type=EvidenceSourceType.USER_SUPPLIED, source_id="you",
-                content=sentence, domain="conversation"))
+            bound = dict(zip(meaning.facts, meaning.bound(situation)))
+            # WHAT A LATER "IT", "HE" OR "THEY" IN THIS TEXT POINTS BACK TO is this
+            # utterance's subject: "My dog is not a cat, he is a dog." When that
+            # subject has no name here ("my dog" is some dog of the speaker's), a
+            # later one points at nothing that can be named, and nothing is held
+            # of it -- never the thing the conversation mentioned before.
+            subject = next((f.subject for f in meaning.facts if not f.condition), None)
+            if subject is not None and subject not in SITUATION_VARIABLES:
+                if is_variable(subject):
+                    situation.pop("?previous", None)
+                else:
+                    situation["?previous"] = subject
+            situational = any(t in SITUATION_VARIABLES for f in meaning.facts for t in f.terms())
+
+            if meaning.condition:
+                # A CONDITIONAL is a held RULE, not a relation: learned through the
+                # LEARNING AUTHORITY (`learn_rule`), the same one door a fact takes,
+                # so it fans out to beliefs, the domain and metrics as a fact does.
+                # Admitting its sides as relations would assert the antecedent.
+                condition = [bound[f] for f in meaning.condition]
+                then = [bound[f] for f in meaning.asserted]
+                if (len(condition) != 1 or len(then) != 1
+                        or any(is_variable(t) for f in condition + then for t in f.terms())):
+                    acquired.append(Acquired(utterance.text, detail=(
+                        "I read that as a conditional, but a side of it is not a "
+                        "single proposition I can hold")))
+                    continue
+                (ant,), (con,) = condition, then
+                admission = await self._learning_authority().learn_rule(
+                    {"subject": ant.subject, "relation": ant.relation, "obj": ant.obj,
+                     "positive": ant.positive},
+                    {"subject": con.subject, "relation": con.relation, "obj": con.obj,
+                     "positive": con.positive},
+                    surface=utterance.text,
+                    provenance=_Provenance(producer="conversation", source_id="you",
+                                           source_type=EvidenceSourceType.USER_SUPPLIED.name),
+                    domain="conversation", emit=self._evidence_emitter(),
+                    actor=self._actor)
+                if admission.admitted:
+                    acquired.append(Acquired(utterance.text, description="a rule", relations=(),
+                                             stored=True, detail="held as a conditional rule",
+                                             memory_id=admission.evidence_id))
+                else:
+                    acquired.append(Acquired(utterance.text, detail=(
+                        "; ".join(admission.refusals) or "I could not hold that conditional")))
+                continue
+
+            if any(f.alternative for f in meaning.asserted):
+                # OF ALTERNATIVES, ONE HOLDS: none of them was said to, so none is held.
+                acquired.append(Acquired(utterance.text, detail=(
+                    "that says one of those holds but not which, so I held neither")))
+            for said in meaning.asserted:
+                if said.alternative:
+                    continue
+                fact = bound[said]
+                if is_variable(fact.subject) or is_variable(fact.obj):
+                    acquired.append(Acquired(utterance.text, detail=(
+                        "part of that is about something I have no name for yet, "
+                        "so I did not hold it")))
+                    continue
+                # ABOUT THE PERSON, not the world: a fact naming the situation it
+                # was said in is held as a belief about the speaker, and the
+                # concept graph the reasoner walks is never touched by it.
+                if situational:
+                    acquired.append(await self._learn_about_user(
+                        fact.subject, fact.relation, fact.obj, positive=fact.positive,
+                        surface=utterance.text))
+                    continue
+                # VERIFICATION GATE: a world fact asserted in chat is checked
+                # against what the substrate already knows before it is admitted.
+                # One it knows to be false is refused, so chat cannot overwrite
+                # world knowledge.
+                _ok, _why = await self._admissible_world_fact(
+                    fact.subject, fact.relation, fact.obj, fact.positive)
+                if not _ok:
+                    acquired.append(Acquired(utterance.text, detail=(
+                        f"I did not take that as a fact — {_why}. If I am wrong, "
+                        "correct me and I will weigh it.")))
+                    continue
+                acquired.append(await self._ingest(
+                    label=fact.subject, description="",
+                    relations=((fact.relation, fact.obj,
+                                "positive" if fact.positive else "negative"),),
+                    source_type=EvidenceSourceType.USER_SUPPLIED, source_id="you",
+                    content=utterance.text, domain="conversation", actor=self._actor))
         return acquired
 
+
+    @staticmethod
+    async def _typed_relation(relation: str, obj: str) -> str:
+        """The relation a predicate actually states, decided by the ONE relation
+        authority with the object's OBSERVED word class.
+
+        Only the bare copula is ambiguous; every other surface types itself, so
+        nothing else pays for the lookup. `complement_class` decides what the
+        complement is being used AS — a determiner makes it a kind, a bare
+        adjective-capable head makes it a property — and this only supplies the
+        observed evidence it reads.
+        """
+        rel = str(relation or "").strip().lower()
+        if rel not in ("is", "are"):
+            return rel
+        from core.semantics.relation_types import classify, complement_class
+        agent = None
+        try:
+            from core.memory import get_memory_agent
+            agent = await get_memory_agent()
+        except Exception as error:
+            logger.debug("word classes unreadable for relation typing: %s", error)
+
+        def evidence(word: str):
+            if agent is None:
+                return {}
+            try:
+                return agent.word_classes(word)
+            except Exception:
+                return {}
+
+        return classify(rel, object_word_class=complement_class(
+            obj, evidence)).relation.value
 
     async def look_up(self, phrase: str) -> Optional[Acquired]:
         """Research a genuine gap, at most ONCE across the whole substrate for a
@@ -17979,9 +22424,19 @@ class Conversation:
         The finding is written once, then shared; the next turn is answered from
         the store, not researched again. The key is the research key only -- it
         dedups WHILE a lookup is in flight, not a cache across time (a later ask
-        re-verifies, which is correct; the world changes)."""
+        re-verifies, which is correct; the world changes).
+
+        NOT WHERE THE MODEL IS FROZEN. What research finds is learned into the
+        model, and a frozen release (staging, production) learns nothing: the
+        finding could only be refused, after the person's words had been sent out
+        to find it. There the gap stays a gap, answered honestly."""
+        from core.database import get_database_manager
         from core.semantics.cognitive_ingress import normalize_term
 
+        if getattr(get_database_manager(), "frozen", False):
+            logger.info("look-up of %r not made: release %s is frozen and cannot learn "
+                        "what it would find", phrase, get_database_manager().release)
+            return None
         key = normalize_term(phrase) or phrase.strip().lower()
         existing = _LOOKUPS_INFLIGHT.get(key)
         if existing is not None:
@@ -18007,6 +22462,9 @@ class Conversation:
             if fut.done() and not fut.cancelled() and fut.exception() is not None:
                 pass
 
+    #: How many result pages one look-up may read beyond the top hit's.
+    _PAGES_READ = 2
+
     async def _research_phrase(self, phrase: str) -> Optional[Acquired]:
         """It did not know the word. Go and find out on the WEB, now, and READ
         what is found into a fact.
@@ -18030,25 +22488,47 @@ class Conversation:
 
         from core.domain.concept_ingestion import EvidenceSourceType
         from core.semantics.cognitive_ingress import admissible, normalize_term
-        from core.semantics.sentence_reader import SentenceReader
+        from core.semantics.derived_reader import is_variable, read_text
         from core.tools import get_tool_registry
 
         registry = get_tool_registry()
 
+        # THE LOOK-UP IS AN EXPERIENCE, handed to the memory agent whole at every
+        # exit. The word asked about is the asker's. The query it sent and the
+        # pages it chose to read are its own. Each page and what it said, what it
+        # found, and what went wrong are what the world answered.
+        origin = Origin.of(self._actor, "research")
+        query = f"what is {phrase}"
+        parts: List[Part] = [Part("asked", phrase, origin.theirs),
+                             Part("query", {"tool": "web_search", "query": query}, "substrate")]
+        hits: List[Dict[str, Any]] = []
+        pages_read = 0
+
+        async def researched(acquired: Acquired, outcome: str) -> Acquired:
+            await self._hand_over(origin, "research", parts, {
+                "outcome": outcome, "sources": len(hits), "pages_read": pages_read,
+                "admitted": bool(acquired.stored)})
+            return acquired
+
         try:
             result = await registry.execute_tool(
-                "web_search", {"query": f"what is {phrase}", "max_results": 5})
+                "web_search", {"query": query, "max_results": 5})
         except Exception as error:
-            return Acquired(phrase, origin="research", detail=f"research failed: {error}")
+            parts.append(Part("error", str(error), "world"))
+            return await researched(Acquired(phrase, origin="research",
+                                             detail=f"research failed: {error}"), "failed")
         if not getattr(result, "success", False):
-            return Acquired(phrase, origin="research",
-                            detail=f"research declined: {getattr(result, 'error', '')}")
+            parts.append(Part("error", str(getattr(result, "error", "") or ""), "world"))
+            return await researched(Acquired(
+                phrase, origin="research",
+                detail=f"research declined: {getattr(result, 'error', '')}"), "declined")
 
         output = getattr(result, "output", None) or {}
-        hits = output.get("results") if isinstance(output, dict) else None
+        hits = (output.get("results") if isinstance(output, dict) else None) or []
         if not hits:
-            return Acquired(phrase, origin="research",
-                            detail="research returned nothing that describes it")
+            return await researched(Acquired(
+                phrase, origin="research",
+                detail="research returned nothing that describes it"), "nothing found")
 
         # THE FIRST HIT IS NOT AN ANSWER, IT IS THE CLOSEST THING THE INDEX HAD.
         # A page is about the phrase when its TITLE names the phrase -- every
@@ -18059,29 +22539,66 @@ class Conversation:
         # from its clean lead the first classification whose subject IS the
         # phrase. Where nothing passes, it declines honestly and the reply asks.
         want = normalize_term(phrase)
-        reader = SentenceReader()
-        for hit in hits:
-            if not _titles(phrase, hit.get("title", "")):
-                continue
-            content = hit.get("content") or hit.get("snippet") or ""
-            if not content:
-                continue
+
+        def classification(content: str):
+            """The first kind the text says the phrase is -- `isa(phrase, class)`,
+            read by the one reader -- and the utterance it says it in (the lead,
+            when nothing reads)."""
             # A definitional lead wedges a parenthetical (an IPA gloss, a
             # portmanteau note) between the subject and its "is a ...":
             # "A memristor ( ... ) is a component". Strip parentheticals so the
-            # classification reads. Read the lead sentence first -- the defining
-            # one -- then the whole page if the lead did not parse.
+            # classification reads.
             clean = _re.sub(r"\([^()]*\)", " ", content)
-            lead = _re.split(r"(?<=[.!?])\s+", clean.strip(), maxsplit=1)[0]
-            fact = None
-            for span in (lead, clean):
-                fact = next(
-                    (f for f in reader.read_all(span)
-                     if f.get("obj")
-                     and str(f.get("relation", "")).lower() in ("is", "are", "isa")
-                     and normalize_term(f["subject"]) == want), None)
-                if fact is not None:
-                    break
+            # Fetched text puts a space before punctuation ("A peristaltic pump ,
+            # also known as ..."); the lead is kept as the concept's description
+            # and said back, so it is kept as written English.
+            clean = _re.sub(r"[ \t]+([,.;:!?])", r"\1", clean)
+            utterances = read_text(clean.strip())
+            for utterance in utterances:
+                for reading in utterance.readings:
+                    if reading.meaning.act != "tell":
+                        continue
+                    for fact in reading.meaning.asserted:
+                        if (fact.relation == "isa" and fact.positive
+                                and not is_variable(fact.subject) and not is_variable(fact.obj)
+                                and normalize_term(fact.subject) == want):
+                            return fact, utterance.text
+            return None, (utterances[0].text if utterances else clean.strip())
+
+        # A SNIPPET IS NOT THE PAGE. Only the top hit arrives with its page's
+        # text; every other hit is the search engine's snippet: an excerpt, cut
+        # off mid-sentence and led by a date. (Until ddgs 9.16 it also dropped the
+        # spaces around highlighted words, "tube pumps area type of", and titles
+        # the same way, so no title matched.) When the top hit was not the page that
+        # defines the phrase, every snippet failed to read and the look-up said
+        # it found nothing -- on the same question another run answered. So a
+        # page whose TITLE names the phrase is read from its own text when its
+        # snippet does not read, through the registry like any tool run, and at
+        # most `_PAGES_READ` of them.
+        for index, hit in enumerate(hits):
+            seen = {"url": hit.get("url"), "title": hit.get("title")}
+            if not _titles(phrase, hit.get("title", "")):
+                parts.append(Part("source", {**seen, "names_it": False}, "world"))
+                continue
+            content = hit.get("content") or hit.get("snippet") or ""
+            fact, lead = classification(content) if content else (None, "")
+            if (fact is None and index > 0 and hit.get("url")
+                    and pages_read < self._PAGES_READ):
+                pages_read += 1
+                parts.append(Part("read", {"tool": "web_fetch", "url": hit["url"]}, "substrate"))
+                try:
+                    page = await registry.execute_tool(
+                        "web_fetch", {"url": hit["url"], "extract": "text"})
+                except Exception as error:
+                    logger.info("look-up could not read %s: %s", hit["url"], error)
+                    page = None
+                text = ((getattr(page, "output", None) or {}).get("text", "")
+                        if getattr(page, "success", False) else "")
+                if text:
+                    content = text
+                    fact, lead = classification(text)
+            parts.append(Part("source", {**seen, "names_it": True, "said": lead.strip()[:400]},
+                              "world"))
             if fact is None:
                 continue
             # The store holds NAMES, not clauses: a definitional NP off the web
@@ -18091,36 +22608,43 @@ class Conversation:
             # guessing the cap -- so the genus is kept ("electrical component")
             # and only the differentia the store cannot hold is dropped. A short
             # class ("an abelian group") is already admissible and passes whole.
-            obj = re.sub(r"(?i)^(?:a|an|the)\s+", "", str(fact["obj"])).strip()
-            words = obj.split()
+            words = str(fact.obj).split()
             klass = next((" ".join(words[i:]) for i in range(len(words))
                           if admissible(normalize_term(" ".join(words[i:])))[0]), None)
             if not klass:
                 continue
             source = hit.get("url") or "research"
             description = lead.strip()[:400] or content[:400]
-            return await self._ingest(
+            # WORLD KNOWLEDGE, NOT THE ASKER'S CONTEXT. The asker chose what to
+            # look up; the page says what it is. The source of this fact is the
+            # page, found and read by the substrate itself, so it is learned
+            # under the substrate's account like any research of its own. Filed
+            # as the asker's, it was invisible to everyone else and only reached
+            # the shared mind when a second person asked the same question, which
+            # counted one page, read twice, as two witnesses.
+            acquired = await self._ingest(
                 label=phrase, description=description,
                 relations=[("isa", klass)],
                 source_type=EvidenceSourceType.RESEARCH_FINDING,
-                source_id=source, content=description, domain="researched")
+                source_id=source, content=description, domain="researched",
+                actor=SUBSTRATE_ACTOR)
+            parts.append(Part("finding", {"subject": phrase, "relation": "isa", "object": klass,
+                                          "source": source, "description": description},
+                              "world"))
+            return await researched(acquired, "found")
 
-        return Acquired(phrase, origin="research",
-                        detail="research returned nothing that describes it")
+        return await researched(Acquired(
+            phrase, origin="research",
+            detail="research returned nothing that describes it"), "nothing found")
 
     @staticmethod
     def is_question(sentence: str) -> bool:
-        """Whether this asks, by the shape of the sentence alone.
-
-        Cheap, model-free, and certain in both directions where a question mark
-        or an opening question word settles it.
-        """
-        from core.semantics.sentence_machine import tokenize
-
-        if sentence.strip().endswith("?"):
-            return True
-        words = tokenize(sentence)
-        return bool(words) and words[0] in QUESTION_OPENERS
+        """Whether this asks: its last utterance reads, through the constructions
+        the substrate was taught, to a question. What does not read is not known
+        to ask anything."""
+        from core.semantics.derived_reader import read_text
+        meaning = _meaning_of(read_text(sentence))
+        return meaning is not None and meaning.act == "ask"
 
     def _read_disposition(self) -> Optional[Dict[str, Any]]:
         """The self's current disposition, read from the coordinator that owns
@@ -18154,19 +22678,21 @@ class Conversation:
     def feedback_of(self, sentence: str) -> Optional[bool]:
         """Whether this utterance is FEEDBACK on what was just taught, and its
         verdict: True confirms, False corrects, None is not feedback. Feedback is
-        a verdict ON A PRIOR CLAIM, so both halves must hold -- the reader reads
-        the utterance as a bare evaluative verdict (structural, model-free), AND
-        there is a recent turn that left a memory to judge. Same certainty as
-        is_question, plus a referent to attach to; without the referent an
-        evaluative shape is just an ordinary short statement and is left alone."""
-        from core.semantics.sentence_machine import evaluative_verdict
-
-        verdict = evaluative_verdict(sentence)
-        if verdict is None:
+        a verdict ON A PRIOR CLAIM, so both halves must hold -- the utterance
+        MEANS a verdict on what was said before (`has_property(?previous, true)`
+        or `false`, whatever words said it), AND there is a recent turn that left
+        a memory to judge. Without the referent it judges nothing and is left
+        alone."""
+        from core.semantics.derived_reader import VERDICTS
+        meaning = self._meaning(sentence)
+        if meaning is None or meaning.act != "tell" or len(meaning.facts) != 1:
+            return None
+        (fact,) = meaning.facts
+        if (fact.relation, fact.subject) != ("has_property", "?previous") or fact.obj not in VERDICTS:
             return None
         if self._feedback_referent() is None:
             return None
-        return verdict
+        return VERDICTS[fact.obj] == fact.positive
 
     async def _take_feedback(self, sentence: str, verdict: bool) -> "Understanding":
         """A verdict on what was just taught. The claim already made a memory;
@@ -18208,34 +22734,72 @@ class Conversation:
         self._turns.append(Turn(said=sentence, asked=False,
                                 subject=self._last_subject,
                                 reply=understanding.reply, memories=()))
+        await self._hand_over_turn(
+            understanding, {"taken_as": "a verdict on what was said before",
+                            "flagged": flagged},
+            "confirmed" if verdict else "corrected")
         return understanding
 
     async def classify(self, sentence: str) -> str:
-        """`question`, `telling` or `job` — decided HERE by the substrate's own
-        reader, with no model.
+        """`question`, `telling`, `job` or `not_understood` — decided HERE by the
+        substrate's one reader, with no model.
 
         THIS WAS DECIDED TWICE. The coordinator asked a model, this asked a rule,
         and they disagreed: `a quorum sensor detects bacterial population density`
         is plainly a statement, the model called it a question, and it was filed
         in memory as `Asked: a quorum sensor detects...`. Two owners of one
-        question produce two answers. Now there is ONE owner and NO model:
+        question produce two answers. Now there is ONE owner and NO model: what
+        the speaker wants is part of what a sentence MEANS, learned with it --
+        a question asks, a telling tells, a job requests something done.
 
-          - a QUESTION is structural (`is_question`);
-          - a TELLING states a fact — a declarative the model-free `SentenceReader`
-            reads as a statement (copular / universal / conditional / SVO whose
-            verb the lexicon knows);
-          - a JOB asks for work — anything that is neither a question nor a
-            readable statement of fact. Where the reader cannot read a sentence
-            as a fact, that sentence has not TOLD the substrate anything, so it is
-            treated as work. This is the reader's honest structural verdict, never
-            a guess and never a model.
+        WHAT DOES NOT READ IS NOT UNDERSTOOD. It used to be called a job, so
+        anything the reader could not read became work: a misheard fragment, a
+        greeting, a sentence in a shape never taught. It has told the substrate
+        nothing and asked it for nothing it can name, and it is said so.
         """
-        if self.is_question(sentence):
-            return "question"
+        meaning = self._meaning(sentence)
+        if meaning is None:
+            return "not_understood"
+        return {"ask": "question", "tell": "telling", "request": "job"}[meaning.act]
 
-        from core.semantics.sentence_reader import SentenceReader
-        statement = SentenceReader()._parse_statement(sentence)
-        return "telling" if statement is not None else "job"
+    async def _hand_over(self, origin: Origin, kind: str, parts: Sequence[Part],
+                         evidence: Dict[str, Any]) -> Optional[str]:
+        """One experience of this conversation -- a turn, a look-up -- handed to
+        the memory agent whole. It waits in the pool as a candidate, in its
+        owner's store. A store that fails is reported and does not cost the
+        speaker their reply; a fault in the code is raised."""
+        from core.memory import get_memory_agent
+        try:
+            agent = await get_memory_agent()
+            return await agent.remember_experience(Experience(
+                kind=kind, origin=origin, parts=tuple(parts), evidence=evidence,
+                about=self._session))
+        except Exception as error:
+            raise_if_structural(error, f"conversation.{kind}")
+            logger.error("this %s was not handed to the memory agent: %s", kind, error)
+            return None
+
+    async def _hand_over_turn(self, understanding: "Understanding",
+                              route: Dict[str, Any], outcome: str) -> None:
+        """One turn, whole. What was said, what the speaker told, and the answers
+        and reply they were given are theirs. How the substrate took it -- what
+        it could place, what it looked up, how it answered -- is its own."""
+        origin = Origin.of(self._actor, "conversation")
+        parts = [Part("said", understanding.sentence, origin.theirs)]
+        if not understanding.asked:
+            parts += [Part("told", {"label": a.label,
+                                    "relations": [list(r) for r in a.relations],
+                                    "held": a.stored, "detail": a.detail}, origin.theirs)
+                      for a in understanding.acquired]
+        parts.append(Part("route", route, "substrate"))
+        parts += [Part("answer", {"about": a.about, "relation": a.relation,
+                                  "others": list(a.others), "verdict": a.verdict,
+                                  "support": list(a.support), "conclusion": a.conclusion},
+                       origin.theirs)
+                  for a in understanding.answers]
+        parts.append(Part("reply", understanding.reply, origin.theirs))
+        await self._hand_over(origin, "conversation", parts,
+                              {"outcome": outcome, "asked": understanding.asked})
 
     async def understand(self, sentence: str, look_up: bool = True) -> Understanding:
         # ASKED ABOUT THIS EXCHANGE, ANSWERED FROM THIS EXCHANGE. Checked first
@@ -18256,6 +22820,9 @@ class Conversation:
                                     subject=self._last_subject,
                                     reply=understanding.reply))
             self._last_reply = understanding.reply
+            await self._hand_over_turn(
+                understanding, {"answered_from": "the record of this conversation"},
+                "answered")
             return understanding
 
         # A VERDICT ON WHAT WAS JUST TAUGHT, ANSWERED AS ONE. Checked before the
@@ -18268,6 +22835,22 @@ class Conversation:
         verdict = self.feedback_of(sentence)
         if verdict is not None:
             return await self._take_feedback(sentence, verdict)
+
+        # NOT READ WHOLE: READ IN PART, AND ASKED ABOUT. A sentence that does not
+        # read whole is not acted on as told or asked; the reply says which parts
+        # were understood and asks about the words that were not, and the
+        # sentence is remembered as said.
+        meaning = self._meaning(sentence)
+        if meaning is None:
+            acquired = await self.teach(sentence)
+            understanding = Understanding(sentence=sentence, asked=False, acquired=acquired)
+            understanding.reply = (acquired[0].detail if acquired and acquired[0].detail else
+                                   _read_in_part(self._read(sentence)))
+            self._turns.append(Turn(said=sentence, asked=False, subject=self._last_subject,
+                                    reply=understanding.reply))
+            self._last_reply = understanding.reply
+            await self._hand_over_turn(understanding, {"understood": False}, "not understood")
+            return understanding
 
         # WAVE 1 GOES OUT BEFORE ANYTHING ELSE HAPPENS. Everything below --
         # storing what was said, resolving concepts, researching a word --
@@ -18285,14 +22868,17 @@ class Conversation:
         came_from = self._last_subject if self._leads_on(sentence) else ""
         recall.begin(sentence, about=subject, arose_from=came_from)
 
-        asked = self.is_question(sentence)
+        asked = meaning.act == "ask"
         acquired: List[Acquired] = []
 
-        if not asked:
-            # TOLD, not asked. Store it before answering, so the reply is made
-            # out of a store that already contains what was just said.
+        told = any(u.readings and u.readings[0].meaning.act == "tell" for u in self._read(sentence))
+        if told:
+            # TOLD, not only asked. Store it before answering, so the reply is made
+            # out of a store that already contains what was just said -- a
+            # question following a telling in one breath is answered from it.
             acquired = await self.teach(sentence)
 
+        if not asked:
             # A CONDITIONAL was held as a RULE, not a fact. Say so and stop:
             # resolving the rule sentence as if its words were concepts to look
             # up produces noise ("I hold nothing for: if, then, ...") and, worse,
@@ -18307,6 +22893,7 @@ class Conversation:
                                         subject=self._last_subject,
                                         reply=understanding.reply))
                 self._last_reply = understanding.reply
+                await self._hand_over_turn(understanding, {"held_as": "a rule"}, "held")
                 return understanding
 
         resolved = await self.resolve(sentence)
@@ -18324,6 +22911,7 @@ class Conversation:
             subject = informative[0].lower()
         recall.refine(*informative, about=subject)
 
+        target, learned = None, None
         if asked and look_up:
             # DID NOT KNOW IS NOT AN ANSWER. Find out, in this turn -- but for
             # ONE thing, the longest phrase it could not place. Researching
@@ -18373,7 +22961,9 @@ class Conversation:
             try:
                 await self._register_domain_gap(sentence, resolved)
             except Exception as error:
-                logger.debug("domain knowledge-gap registration skipped: %s", error)
+                # A fault in the code is raised, not logged where no one sees it.
+                raise_if_structural(error, "conversation._register_domain_gap")
+                logger.warning("domain knowledge-gap registration skipped: %s", error)
 
         understanding = Understanding(
             sentence=sentence, resolved=resolved, reading=reading,
@@ -18381,6 +22971,20 @@ class Conversation:
             acquired=acquired, asked=asked,
             remembered=harvest.texts(), recall=harvest,
             disposition=self._read_disposition())
+        # NUMBER FOR EVERY WORD THE REPLY MIGHT USE, in one pass, before the
+        # sentence is built. Gathered here because it needs the store and `say()`
+        # is a pure function over what was already found.
+        # EVERY WORD THAT COULD APPEAR, including the ones a RECALLED memory
+        # brings with it. Built from the question alone, the map covered
+        # "andaman islands" when it was asked about and not when a memory
+        # volunteered it — so the same fact read "andaman islands are found in"
+        # in one turn and "an andaman islands is found in" in the next.
+        understanding.plurals = await self._plural_map(
+            [r.phrase for r in resolved]
+            + [str(o) for r in resolved for _rel, o in r.relations]
+            + [str(a.about) for a in answers]
+            + [o for a in answers for o in a.others]
+            + [w for text in harvest.texts() for w in str(text).split()])
         understanding.reply = self.say(understanding)
         self._last_subject, self._last_reply = subject, understanding.reply
         # The memories this telling admitted, kept on the turn so the NEXT turn's
@@ -18390,6 +22994,17 @@ class Conversation:
         self._turns.append(Turn(said=sentence, asked=asked, subject=subject,
                                 reply=understanding.reply,
                                 memories=admitted_memories))
+        # The look-up is its own experience (`_research_phrase`); the turn says
+        # only that it was made, and whether it found something to learn.
+        await self._hand_over_turn(understanding, {
+            "placed": [[r.phrase, r.how] for r in understanding.known],
+            "unplaced": [r.phrase for r in understanding.unknown],
+            "looked_up": target.phrase if target is not None else None,
+            "answered_by": sorted(
+                {"reasoned" if a.conclusion else "held" for a in answers}
+                | ({"researched"} if learned is not None and learned.stored else set())),
+        }, (("answered" if understanding.answered else "not answered") if asked
+            else ("held" if any(a.stored for a in acquired) else "not held")))
         return understanding
 
     @staticmethod
@@ -18401,6 +23016,155 @@ class Conversation:
     #: yes/no, so a denial's CLAIM is still the affirmative it denies.
     _COPULA_RELATIONS = ("not isa", "is not", "isa", "is", "are", "was", "were",
                          "be", "has property", "instance of")
+
+    #: THE RELATIONS THAT DO NOT READ AS ENGLISH ON THEIR OWN, and only those.
+    #:
+    #: A stored relation label is a machine word, and splicing it into a frame is
+    #: how "the alcohol is at location the beer" happened: the locative branch
+    #: matched on the relation's HEAD ("at") and then rendered the whole label.
+    #: Most labels do read once the underscore is a space — `made_of` -> "made
+    #: of", `used_for` -> "used for", `part_of` -> "part of", `capable_of` ->
+    #: "capable of" — so those are deliberately absent and fall through. Listing
+    #: every relation would be a second vocabulary to keep in step with the
+    #: store's; listing the exceptions is the smaller promise.
+    #:
+    #: The value is the verb phrase INCLUDING its copula where one is needed, so
+    #: the renderer never has to guess whether to insert "is".
+    _RELATION_ENGLISH = {
+        "isa": "is", "is a": "is", "instance of": "is",
+        "at location": "is found in", "has property": "is",
+        "defined as": "is", "synonym": "means the same as",
+        "made of": "is made of", "used for": "is used for",
+        "capable of": "can", "part of": "is part of",
+        "has a": "has", "receives action": "can be",
+        "created by": "is created by", "motivated by": "is motivated by",
+        "requires": "requires", "causes": "causes",
+    }
+    #: Relations whose object is a PLACE or a KIND and so takes an article, as
+    #: against one whose object is an action or a property ("can fly", "is red").
+    _ARTICLED_OBJECTS = frozenset({
+        "is", "is found in", "is part of", "is made of", "has",
+        "is created by"})
+
+    @classmethod
+    def _relation_english(cls, relation: str) -> str:
+        """One stored relation, as the words a person would use for it."""
+        label = str(relation).replace("_", " ").strip().lower()
+        return cls._RELATION_ENGLISH.get(label, label)
+
+    #: The verb forms that have to agree with a plural subject. A relation phrase
+    #: is stored in the third person singular, because that is how a fact reads
+    #: on its own ("is found in"), and a plural subject needs the other one.
+    _PLURAL_VERB = {"is": "are", "is found in": "are found in",
+                    "is part of": "are part of", "is made of": "are made of",
+                    "is used for": "are used for", "has": "have",
+                    "is created by": "are created by", "causes": "cause",
+                    "requires": "require", "is motivated by": "are motivated by",
+                    "means the same as": "mean the same as", "can be": "can be",
+                    "can": "can"}
+
+    @classmethod
+    def _plural_of(cls, verb: str) -> str:
+        return cls._PLURAL_VERB.get(verb, verb)
+
+    @classmethod
+    def _triple_sentence(cls, subject: str, relation: str, obj: str,
+                         said_as: Optional[str] = None,
+                         plurals: Optional[Dict[str, bool]] = None,
+                         positive: bool = True) -> str:
+        """ONE (subject, relation, object) as an English clause.
+
+        THE ONE PLACE A HELD FACT BECOMES WORDS. There were three: a copular
+        rewriter that handled `isa` and nothing else, a locative branch that
+        spliced the raw relation label into a frame, and a description block that
+        printed `f"    {relation} {other}"` as an indented dump. A person asking
+        "what is a wheat beer?" got the third one. They all answer the same
+        question — how does this fact read — so there is one of them now."""
+        subj = str(subject).replace("_", " ").strip()
+        target = str(obj).replace("_", " ").strip()
+        if not subj or not target:
+            return ""
+        verb = cls._relation_english(relation)
+        number = plurals or {}
+        # A NEGATED CLAIM MUST SAY SO. There was no way to express polarity here
+        # at all, so the one place a held fact becomes words could only ever
+        # affirm: the substrate held `~robin_mammal` and said "a robin is a
+        # mammal" -- the OPPOSITE of what it knew, and it read back as the
+        # opposite too, so the corruption survived a round trip in silence.
+        # Measured by NLU-07.
+        # AGREEMENT. A plural subject takes no indefinite article and a plural
+        # verb: "andaman islands ARE found in", never "AN andaman islands IS".
+        #
+        # The SINGULAR form is kept for the article test below. Pluralising first
+        # and then asking whether the verb takes an articled object looked up
+        # "are found in", which is not in the set, so the object lost its article
+        # — "business cards are found in desk".
+        singular_verb = verb
+        subj_plural = bool(number.get(subj.split()[-1].lower()))
+        if subj_plural:
+            verb = cls._plural_of(verb)
+        # An object that already carries its article keeps it. The reasoner hands
+        # back `others=('a clock',)` with the article attached, so adding one here
+        # produced "a grandfather clock is a a clock".
+        head = target.split()[0].lower()
+        obj_plural = bool(number.get(target.split()[-1].lower()))
+        article = (f"{cls._article(head)} "
+                   if singular_verb in cls._ARTICLED_OBJECTS
+                   and head not in ("a", "an", "the")
+                   and not obj_plural
+                   and not head.endswith("s") else "")
+        # HOW THE PERSON REFERRED TO IT IS HOW IT IS REFERRED TO BACK. `said_as`
+        # is the determiner they used — "" where they used none, which is what a
+        # mass noun gets: "where is alcohol?" is answered "Alcohol is found in…",
+        # not "An alcohol is found in…". Only when nothing was said about it
+        # (a subject the reply raised itself) does an article get chosen here.
+        # A pronoun or an already-articled phrase takes none either way.
+        if subj_plural and (said_as in (None, "", "a", "an")):
+            subj_article = ""          # plurals take no indefinite article
+        elif said_as is not None:
+            subj_article = f"{said_as} " if said_as else ""
+        elif subj.split()[0].lower() in ("a", "an", "the", "it", "they",
+                                         "this", "that"):
+            subj_article = ""
+        else:
+            subj_article = f"{cls._article(subj.split()[0])} "
+        # THE ARTICLE BELONGS TO THE COMPLEMENT, NOT TO THE VERB. It used to be
+        # chosen from `_ARTICLED_OBJECTS`, which is keyed on the RELATION -- but
+        # a copula takes a noun ("is a bird") and an adjective ("is locked")
+        # alike, and it cannot tell them apart. So the substrate said "a vault
+        # is a locked". The complement's own word class decides it, taken from
+        # what the substrate has been shown, and only POSITIVE evidence that the
+        # head is not a noun removes the article: unknown stays as it was.
+        if article:
+            from core.semantics.genericity import _word_classes
+            seen = _word_classes(head)
+            if "NOUN" not in seen and ("ADJECTIVE" in seen or "VERB" in seen):
+                article = ""
+        # A KIND IS SAID IN ONE NUMBER. A plural subject took a plural verb and
+        # kept a singular classifying complement -- "Centrifugal pumps are a
+        # pump." There is no pluraliser to put the complement in agreement, and
+        # the kind reads just as truly in the singular, so the subject is said
+        # that way: "A centrifugal pump is a pump."
+        if subj_plural and article and singular_verb == "is":
+            from core.semantics.lexical_normalization import singularise
+            words = subj.split()
+            subj = " ".join(words[:-1] + [singularise(words[-1])])
+            subj_article = f"{cls._article(subj.split()[0])} "
+            verb = singular_verb
+
+        if not positive:
+            spoken_verb = (f"{verb} not" if verb in ("is", "are", "am", "was", "were")
+                           else f"does not {cls._singular_verb(verb)}")
+            return f"{subj_article}{subj} {spoken_verb} {article}{target}".strip()
+        return f"{subj_article}{subj} {verb} {article}{target}"
+
+    @staticmethod
+    def _singular_verb(verb: str) -> str:
+        """`shapes` -> `shape`, for the form that follows "does not"."""
+        from core.semantics.lexical_normalization import singularise
+        head, _, tail = str(verb).partition(" ")
+        base = singularise(head)
+        return f"{base} {tail}".strip() if tail else base
 
     @classmethod
     def _natural_claim(cls, text: str) -> str:
@@ -18419,40 +23183,66 @@ class Conversation:
                     f"{cls._article(obj.split()[0])} {obj}")
         return t
 
-    @classmethod
-    def natural_reply(cls, understanding: "Understanding") -> Optional[str]:
-        """A plain, user-facing reply: the verdict and the claim, NO derivation
-        chain. `say()` shows the reasoning (robin → bird → animal), which is
-        right for introspection but reads as debug output to a person — a user
-        request wants a sentence. Duplicate answers (a stored fact and the same
-        fact re-derived) collapse to one. Returns None when there is no
-        verdict/derived answer to state, so the caller keeps the composed reply
-        (a taught-back note, an asked-back question)."""
-        answers = getattr(understanding, "answers", None)
-        if not answers:
-            return None
-        seen: set = set()
-        out: List[str] = []
-        for a in answers:
-            claim = a.conclusion or (f"{a.about} {a.relation} "
-                                     + ", ".join(a.others))
-            claim = cls._natural_claim(claim)
-            if not claim.strip():
-                continue
-            if a.verdict is True:
-                sentence = f"Yes, {claim}."
-            elif a.verdict is False:
-                sentence = f"No, {claim}."
-            else:
-                sentence = f"{claim[:1].upper()}{claim[1:]}."
-            if sentence.lower() not in seen:
-                seen.add(sentence.lower())
-                out.append(sentence)
-        return " ".join(out) if out else None
+    #: `natural_reply` IS GONE, and its absence is the point.
+    #:
+    #: There were two renderers and one `or` between them:
+    #:
+    #:     answer_text = natural_reply(u) or u.reply        # u.reply from say()
+    #:
+    #: Two ways to say one thing, and a silent fall-through from the better to
+    #: the worse whenever the better had nothing to offer -- which was every
+    #: question that is not a yes/no, because `natural_reply` needed a verdict.
+    #: So "what is a wheat beer?" returned None there and the caller printed the
+    #: introspection dump, and no flag or setting could prevent it.
+    #:
+    #: `say()` is the one speech path now. The derivation chain that was the
+    #: stated reason for having two is a PARAMETER on it (`support=`), because
+    #: showing your work is a way of saying the same answer, not a different
+    #: answer. What `natural_reply` did well -- articles, chain-free prose,
+    #: collapsing a stored fact and its re-derivation -- moved into it.
 
     @staticmethod
-    def say(understanding: "Understanding") -> str:
-        """A reply assembled from what was found, and nothing else.
+    def _yes_no_property(sentence: str) -> Optional[str]:
+        """`Is a glarnick heavy?` -> `heavy`: the property a yes/no question asks
+        about, read with the ONE reader. None when it is not a yes/no question
+        about a property -- "is X a Y?" asks about a KIND, and the inventory
+        answers that."""
+        from core.semantics.derived_reader import is_variable, read_text
+        meaning = _meaning_of(read_text(str(sentence or "")))
+        if meaning is None or meaning.act != "ask" or meaning.asked or len(meaning.facts) != 1:
+            return None
+        (fact,) = meaning.facts
+        if fact.relation != "has_property" or is_variable(fact.obj):
+            return None
+        return fact.obj
+
+    @staticmethod
+    def _holds_property(known: Sequence[Any], prop: str) -> bool:
+        """Does anything held already say this about the subject?"""
+        needle = str(prop).strip().lower().replace(" ", "_")
+        for item in known or ():
+            for attr in ("relations", "edges", "facts"):
+                for edge in (getattr(item, attr, None) or ()):
+                    if needle in str(edge).lower():
+                        return True
+            if needle in str(getattr(item, "description", "") or "").lower():
+                return True
+        return False
+
+    @staticmethod
+    def say(understanding: "Understanding", *, support: bool = False) -> str:
+        """THE substrate's reply — the one path from what it holds to what it says.
+
+        `support=True` appends the derivation a claim was proved from ("because
+        robin → bird → animal"). That is the same answer with its working shown,
+        which is why it is a parameter here and not a second renderer: there used
+        to be `natural_reply()` beside this, and an `or` between them that fell
+        through to an introspection dump for every question that was not a yes/no.
+        See the note above `say`'s siblings for what that cost.
+
+        EVERY BRANCH RETURNS SENTENCES. A held fact becomes words in exactly one
+        place (`_triple_sentence`), so the reply cannot drift into printing the
+        store's own vocabulary at a person.
 
         A REPLY ALREADY ANSWERED IS NOT RE-DERIVED. `understand()` answers a
         question ABOUT THIS CONVERSATION from the record and sets `.reply`
@@ -18471,6 +23261,29 @@ class Conversation:
             return understanding.reply
 
         known, unknown = understanding.known, understanding.unknown
+
+        def _spoken(said: List[str]) -> str:
+            """The reply, with nothing said twice.
+
+            One claim can arrive through two branches -- recalled from memory AND
+            held in the store -- and both render to the same sentence now that
+            they go through the same renderer. "I remember: A housebreaking is a
+            burglary." followed by "A housebreaking is a burglary." is one fact
+            and should be said once.
+            """
+            seen_lines: set = set()
+            out: List[str] = []
+            for line in said:
+                if not line or not line.strip():
+                    continue
+                key = re.sub(r"^(i remember:|noted —)\s*", "",
+                             line.strip().lower()).rstrip(".")
+                if key in seen_lines:
+                    continue
+                seen_lines.add(key)
+                out.append(line)
+            return "\n".join(out)
+
         lines: List[str] = []
         asking: List[str] = []
 
@@ -18496,8 +23309,20 @@ class Conversation:
                 if item.origin:
                     lines.append(f"    (from {item.origin})")
             elif item.stored:
-                held = "; ".join(f"{r} {o}" for r, o in item.relations)
-                lines.append(f"Noted — {item.label}: {held}")
+                # WHAT WAS STORED, SAID AS IT WAS TAUGHT TO SAY IT: each fact
+                # through the constructions it is read with (`_said`), never a
+                # template over the relation's label -- which said "a door is an
+                # open".
+                said = [s for s in (_said(item.label, relation, other)
+                                    for relation, other in item.relations) if s]
+                if said:
+                    lines.append("Noted — " + " ".join(said))
+                else:
+                    lines.append(f"Noted — I'll hold that about {item.label}.")
+            elif item.detail and not understanding.asked:
+                # NOT HELD, AND WHY. A telling that was read but not held says
+                # its own reason; it is not a look-up that found nothing.
+                asking.append(item.detail[:1].upper() + item.detail[1:].rstrip(".") + ".")
             else:
                 # ASK. Failing to find something is a reason to turn back to
                 # the person, not a result to report at them. Held back to the
@@ -18517,6 +23342,13 @@ class Conversation:
                     asking.append(f"I don't hold {item.label} yet; looking it up "
                                   f"found nothing, so I'll run a more targeted search.")
 
+        # A TELLING IS ANSWERED WITH WHAT BECAME OF IT: what was noted, what was
+        # not and why, and the opposite on record if memory holds it. Reciting
+        # the words of the sentence back as things held, or the sentence itself
+        # as a memory, told the person nothing they had not just said.
+        if not understanding.asked:
+            return _spoken(lines + asking)
+
         # ANSWER THE QUESTION FIRST — before reciting a memory about the subject
         # or taking the not-known early exit below. A DERIVED answer (reasoned
         # over the concept graph) must not be dropped just because the subject
@@ -18524,36 +23356,59 @@ class Conversation:
         # that is what to say. Acquisition/contradiction lines gathered above are
         # kept, then the answer — with the chain it was proved from — is stated.
         if understanding.answers:
+            # ONE SHAPE FOR EVERY ANSWER, and duplicates collapsed: a fact that
+            # is both stored and re-derived is one thing to say, not two.
+            seen: set = set()
             for answer in understanding.answers:
-                derived = bool(answer.conclusion or answer.support)
-                because = ((" because " + " and ".join(answer.support))
-                           if answer.support else "")
-                if derived:
-                    claim = answer.conclusion or (
-                        f"{answer.about} {answer.relation} "
-                        + ", ".join(answer.others))
-                    if answer.verdict is True:
-                        lines.append(f"Yes — {claim}{because}.")
-                    elif answer.verdict is False:
-                        lines.append(f"No — {claim}{because}.")
-                    else:
-                        lines.append(f"{claim[:1].upper()}{claim[1:]}{because}.")
-                elif answer.verdict is True:
-                    lines.append(f"Yes — {answer.about} {answer.relation} "
-                                 + ", ".join(answer.others) + ".")
-                elif answer.verdict is False:
-                    lines.append(f"No — I was told {answer.about} "
-                                 f"{answer.relation} "
-                                 + ", ".join(answer.others) + ".")
+                # SAID AS IT WAS TAUGHT TO SAY IT. Each fact the answer holds goes
+                # through `_said`, the constructions the substrate reads with; a
+                # "yes" or "no" is its own taught sentence before it. A fact
+                # nothing taught says is answered by its name, never by a
+                # template over the relation's label.
+                because = ((" Because " + " and ".join(answer.support) + ".")
+                           if support and answer.support else "")
+                if answer.about and answer.others:
+                    facts = [_said(answer.about, answer.relation, other) for other in answer.others]
+                    said = " ".join(f for f in facts if f)
+                    named = ", ".join(str(o).replace("_", " ") for o in answer.others)
                 else:
-                    lines.append(f"{answer.about} — {answer.relation}: "
-                                 + ", ".join(answer.others))
+                    said, named = "", Conversation._render_atom(answer.conclusion or "")
+                if answer.alternative:
+                    # AN "OR" QUESTION IS ANSWERED WITH WHAT HOLDS of its
+                    # alternatives, not with yes or no to each of them.
+                    sentence = said or (named[:1].upper() + named[1:] + "." if answer.verdict else "")
+                elif answer.verdict is True:
+                    sentence = f"Yes. {said}" if said else "Yes."
+                elif answer.verdict is False:
+                    sentence = f"No. {said}" if said else "No."
+                else:
+                    sentence = said or (named[:1].upper() + named[1:] + "." if named else "")
+                sentence = (sentence + because).strip()
+                if not sentence or sentence.lower() in seen:
+                    continue
+                seen.add(sentence.lower())
+                lines.append(sentence)
             accounted = understanding.spoken_for()
             unanswered = [r.phrase for r in unknown
                           if not any(same_stem(r.phrase, w) for w in accounted)]
             if unanswered:
-                lines.append("I hold nothing for: " + ", ".join(unanswered))
-            return "\n".join(lines)
+                lines.append("I hold nothing for "
+                             + ", ".join(unanswered) + ".")
+            return _spoken(lines)
+
+        # A YES/NO ASKS ABOUT ONE THING, AND IS ANSWERED ABOUT THAT THING.
+        # Reaching here means nothing matched what was asked. What follows says
+        # everything the substrate holds about the SUBJECT, which answers "what
+        # is a glarnick?" and not "is a glarnick heavy?" -- measured, the reply
+        # to the second recited all three held facts and then admitted the gap,
+        # so the one honest sentence arrived after two that changed the subject.
+        #
+        # The inventory is still right for an identity question; it is the wrong
+        # answer to a question that named a property.
+        asked_about = Conversation._yes_no_property(understanding.sentence)
+        if asked_about and not Conversation._holds_property(known, asked_about):
+            return (f"I hold nothing for {asked_about}. "
+                    f"Tell me and I will keep it.")
 
         # Recite a memory only if it is a CLAIM worth saying back. Pre-readability
         # records are reader-oriented prose -- "Query: ... Answer: ...",
@@ -18562,20 +23417,45 @@ class Conversation:
         # if it were remembered knowledge.
         _junk = ("query:", "answer:", "reasoning steps", "learning:",
                  "conclusion(s)", "premise(s)", "[premise")
+        # WHAT THE QUESTION IS ABOUT: the things its meaning's facts are said
+        # of. What is recited and what is listed is about them, never about
+        # whatever else a word of the sentence happened to find.
+        from core.semantics.derived_reader import is_variable, read_text
+        asked_meaning = _meaning_of(read_text(str(understanding.sentence or "")))
+        about = ({str(f.subject).replace("_", " ").lower() for f in asked_meaning.facts
+                  if not is_variable(f.subject)} if asked_meaning is not None else set())
+        said_now = str(understanding.sentence or "").strip().rstrip(".?!").lower()
         recitable = next(
             (m for m in understanding.remembered
              if m and "\n" not in m and len(m) <= 220
-             and not any(j in m.lower() for j in _junk)),
+             and not any(j in m.lower() for j in _junk)
+             # Not the question itself, remembered a moment ago: that is not
+             # something known about what it asks.
+             and m.strip().rstrip(".?!").lower() != said_now
+             and not m.strip().endswith("?")
+             # And about what was asked: a memory that names none of it is
+             # not an answer, however recall came to hand it up.
+             and (not about or any(name in m.replace("_", " ").lower() for name in about))
+             # And a CLAIM: what it reads, through what it was taught, as a
+             # telling. A record of hearing a word said, or a file's size, is an
+             # episode, not knowledge about what was asked.
+             and bool(_claim_facts(m))),
             None)
         if recitable:
-            lines.append("I remember: " + recitable)
+            # A REMEMBERED CLAIM IS QUOTED AS IT WAS SAID: it is someone's
+            # sentence, and saying it over with a template over its relation's
+            # label is how "broken clock at_location repair shop" reached a
+            # person. Underscores are the store's spelling, never a person's.
+            plain = recitable.replace("_", " ").strip()
+            lines.append("I remember: "
+                         + (plain if plain.endswith((".", "?", "!")) else plain + "."))
         elif understanding.recall is not None and not understanding.recall.complete:
             # SAY SO. An answer that nearly had a memory is a different answer
             # from a complete one, and only one of them is worth trusting twice.
             lines.append("(still searching memory — ask again for more)")
 
         if not known and (lines or asking):
-            return "\n".join(lines + asking)
+            return _spoken(lines + asking)
 
         if not known:
             if not unknown:
@@ -18591,27 +23471,78 @@ class Conversation:
                        if tried else "; ")
                     + "so I'll run a more targeted search.")
 
+        # WHAT IT HOLDS, AS SENTENCES. This was the introspection dump — the
+        # concept id and domain in parentheses, the raw description string, then
+        # one indented `relation object` line per edge. Asked "what is a wheat
+        # beer?" the substrate answered
+        #
+        #     wheat beer (general): met in use: 'wheat beer isa wheat'
+        #         isa beer
+        #         isa high_fermentation_beer
+        #
+        # which is the store talking, not the substrate. There is no fallback to
+        # it any more because there is no second renderer to fall back FROM: the
+        # facts go through `_triple_sentence` like every other spoken fact, and
+        # the domain, the concept id and the `met in use:` provenance string stay
+        # where they belong, on the `Resolved` the caller already has.
         for item in known:
-            where = f" ({item.domain})" if item.domain else ""
-            lines.append(f"{item.phrase}{where}: {item.description}")
-            for relation, other in item.relations:
-                lines.append(f"    {relation} {other}")
+            # SEVERAL UNCHAINED KINDS ARE NOT ALL TRUE OF ONE THING. "A mouse is
+            # an animal. It is an input device." is false of every mouse there
+            # has ever been. The substrate cannot tell a second SENSE from a
+            # second PARENT without knowing which kinds exclude each other, and
+            # it does not — so it says what it actually has, which is several
+            # kinds recorded under one word, and asks rather than picking.
+            if len(item.senses) > 1:
+                # The words before it already said which one ("a peristaltic
+                # pump"): its several kinds are not a question to put to the
+                # speaker, and reciting them all would assert every one of them.
+                if item.head_of:
+                    continue
+                kinds = [f"{Conversation._article(s.split()[0])} {s}"
+                         for s in item.senses[:4]]
+                listed = (", ".join(kinds[:-1]) + " or " + kinds[-1]
+                          if len(kinds) > 1 else kinds[0])
+                lines.append(f"{item.phrase[:1].upper()}{item.phrase[1:]} "
+                             f"can mean {listed}.")
+                asking.append(f"Which {item.phrase} do you mean?")
+                continue
+            # WHAT IT HOLDS OF WHAT WAS ASKED ABOUT, each fact said as it was
+            # taught to say it; only for the things the question is about, not
+            # for every word in it that names something.
+            if about and item.phrase.lower() not in about:
+                continue
+            said = [s for s in (_said(item.phrase, relation, other)
+                                for relation, other in item.relations[:5]) if s]
+            if said:
+                lines.append(" ".join(said))
+            elif item.description and "met in use" not in item.description:
+                # A real definition is worth saying; the store's own note about
+                # how a word was first encountered is not an answer to anything.
+                lines.append(f"{item.phrase[:1].upper()}{item.phrase[1:]}: "
+                             f"{item.description}")
+            elif item.relations:
+                lines.append(f"I hold things about {item.phrase} that I have not "
+                             f"been taught to say yet.")
+            else:
+                lines.append(f"I hold {item.phrase} but nothing said about it yet.")
 
         # ASK, rather than answer around it. A phrase the store holds twice is
         # not one the substrate can answer about until it knows which was meant.
         for item in known:
-            if item.alternatives:
+            if item.alternatives and not item.head_of:
                 where = ", ".join(d or c for c, d in item.alternatives)
                 lines.append(f"Which {item.phrase} do you mean — the one in "
                              f"{item.domain}, or in {where}?")
 
         if unknown:
-            lines.append("I hold nothing for: " + ", ".join(r.phrase for r in unknown)
+            lines.append("I hold nothing for "
+                         + ", ".join(r.phrase for r in unknown)
                          + ". Tell me what it is and I will keep it.")
-        if understanding.reading:
-            lines.append(f"Read as {understanding.reading[0]} "
-                         f"(by {understanding.reading_source}).")
-        return "\n".join(lines + asking)
+        # HOW THE SENTENCE WAS PARSED IS NOT PART OF THE ANSWER. "Read as hello
+        # (by passthrough)." is the reader talking about its own work, and it
+        # reached people at the end of otherwise ordinary replies. The reading is
+        # still on the `Understanding` for anything that wants to inspect it.
+        return _spoken(lines + asking)
 
 
 #: Held conversations, keyed by session. Bounded, oldest evicted first.
@@ -18646,7 +23577,8 @@ MAX_HELD_CONVERSATIONS = 64
 
 
 def get_conversation(session: str, *, db=None, identity=None,
-                     actor_identity=None) -> "Conversation":
+                     actor_identity=None,
+                     source: Optional[TaskSource] = None) -> "Conversation":
     """The held conversation for `session`, created on first use.
 
     `session` identifies a THREAD OF TALK, not a person -- two windows belong
@@ -18658,12 +23590,18 @@ def get_conversation(session: str, *, db=None, identity=None,
     thread, when known; it becomes the actor a told fact is scoped to. A held
     conversation adopts a later-supplied identity, so authenticating mid-thread
     binds the rest of the talk to that person without losing the thread.
+
+    `source` is WHOSE WORK the thread is, in the task queue's own vocabulary.
+    It defaults to MANUAL — a person talking — which can never resolve to the
+    substrate, so a caller that says nothing gets the scoped, safe answer. Only
+    the substrate's own work (AUTONOMOUS/SYSTEM) resolves to the shared mind,
+    and only by stating it.
     """
     key = str(session)
     held = _conversations.get(key)
     if held is None:
         held = Conversation(db=db, identity=identity, session=key,
-                            actor_identity=actor_identity)
+                            actor_identity=actor_identity, source=source)
         _conversations[key] = held
     elif actor_identity is not None:
         held._actor_identity = actor_identity

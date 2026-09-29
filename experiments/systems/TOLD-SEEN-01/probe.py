@@ -32,6 +32,7 @@ SENTENCES = [
 
 
 async def main() -> int:
+    from core.memory import Origin
     out = []
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
@@ -62,7 +63,7 @@ async def main() -> int:
                 told = [("EXC", type(e).__name__, str(e)[:120])]
             question = f"is {subject} a {cat}?"
             try:
-                res = await coord.reason_about(question)
+                res = await coord.reason_about(question, origin=Origin.own("TOLD-SEEN-01"))
                 answer = (getattr(res, "answer", "") or "")[:80]
                 md = dict(getattr(res, "metadata", {}) or {})
                 route = md.get("route") or md.get("solver") or md.get("reason")

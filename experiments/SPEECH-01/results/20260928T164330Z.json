@@ -1,0 +1,255 @@
+{
+  "experiment": "SPEECH-01",
+  "claim": "Spoken words and voices are taught to the substrate by example and kept as memories; heard speech is then heard as the words said, in whose voice, admitted, believed, remembered in words, judged and handed over -- with no model anywhere, and nothing heard as a word that was not taught.",
+  "hypothesis": "H1 a taught word said in running speech is found and named by the same test a word said alone passes. H2 whether a sound is a voice is settled by how near the taught voices it lies, measured against how near they lie to one another. H3 whose voice is named only when one taught voice clearly wins, on enough speech to know a person by. H4 firm readings are right: a name given to an untaught word or to a stranger is never a firm one.",
+  "started_at": "2026-09-28T16:43:30.350567+00:00",
+  "duration_seconds": 36.528,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/TorinAI/venv_torin/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/TorinAI",
+    "shadow_mode": null,
+    "git_commit": "20deb447498593391eca0286916b8f986c560a26",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "torinai_dev",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "torinai_dev",
+        "model": "torinai_dev",
+        "user_context": "torinai_dev",
+        "learning": "torinai_dev"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "dotenv:.env.postgres",
+        "database": "environment",
+        "user": "dotenv:.env.postgres",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 1686,
+    "database_verified": "torinai_dev",
+    "database_verified_reason": "asked the server"
+  },
+  "summary": {
+    "checks": 29,
+    "passed": 17,
+    "failed": 12,
+    "outcome": "FAIL"
+  },
+  "metrics": [
+    {
+      "name": "taught_words_named_right",
+      "value": "17/24",
+      "unit": "words",
+      "note": "3-word phrases of taught words, taught speaker"
+    },
+    {
+      "name": "words_named_not_in_phrase",
+      "value": 0,
+      "unit": "words",
+      "note": ""
+    },
+    {
+      "name": "untaught_words_named",
+      "value": 1,
+      "unit": "words",
+      "note": "of 8 untaught words said"
+    },
+    {
+      "name": "strangers_named_as_taught",
+      "value": "0/4",
+      "unit": "stretches",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "every example taught became a memory of its own",
+      "passed": true,
+      "detail": "46 memories for 8 words x 5 and 3 voices x 2",
+      "at": "2026-09-28T16:43:58.747676+00:00"
+    },
+    {
+      "label": "a taught word is a semantic memory, tagged as one, the substrate's own lesson",
+      "passed": false,
+      "detail": "semantic, tags ['[', '\"', 'h', 'e', 'a', 'r', 'i', 'n', 'g', '\"', ',', ' ', '\"', 's', 'p', 'o', 'k', 'e', 'n', '_', 'w', 'o', 'r', 'd', '\"', ']'], through teaching",
+      "at": "2026-09-28T16:43:58.748989+00:00"
+    },
+    {
+      "label": "it holds what hearing measured of the example, not the recording",
+      "passed": true,
+      "detail": "application/x-npz, 4894 bytes, 48 frames",
+      "at": "2026-09-28T16:43:58.799454+00:00"
+    },
+    {
+      "label": "a taught voice is a memory the same way",
+      "passed": false,
+      "detail": "\"how lucas_550d53's voice sounds, taught by an example of them speaking\"",
+      "at": "2026-09-28T16:43:58.800926+00:00"
+    },
+    {
+      "label": "a recording with nothing said in it is refused, and nothing is kept",
+      "passed": false,
+      "detail": "None",
+      "at": "2026-09-28T16:43:58.927465+00:00"
+    },
+    {
+      "label": "every taught word, with every example",
+      "passed": false,
+      "detail": "{'five_550d53': 5, 'four_550d53': 5, 'one_550d53': 5, 'quiet_550d53': 1, 'seven_550d53': 5, 'six_550d53': 5, 'three_550d53': 5, 'two_550d53': 5, 'zero_550d53': ",
+      "at": "2026-09-28T16:43:59.009715+00:00"
+    },
+    {
+      "label": "every taught voice, with every example",
+      "passed": true,
+      "detail": "{'george_550d53': 2, 'jackson_550d53': 2, 'lucas_550d53': 2}",
+      "at": "2026-09-28T16:43:59.009730+00:00"
+    },
+    {
+      "label": "exactly as they were taught",
+      "passed": true,
+      "detail": "5 example(s) of three",
+      "at": "2026-09-28T16:43:59.009766+00:00"
+    },
+    {
+      "label": "what was said was heard as the words taught, in order, none wrongly",
+      "passed": false,
+      "detail": "said \"quiet_550d53 one_550d53 four_550d53\"",
+      "at": "2026-09-28T16:43:59.855398+00:00"
+    },
+    {
+      "label": "in the voice of the one who said it",
+      "passed": false,
+      "detail": "None",
+      "at": "2026-09-28T16:43:59.855414+00:00"
+    },
+    {
+      "label": "each voiced sound is heard as a voice, with the support it earned",
+      "passed": true,
+      "detail": "3 of 3 sound(s) isa voice",
+      "at": "2026-09-28T16:43:59.855421+00:00"
+    },
+    {
+      "label": "the recording SAID each word heard, in the concept graph",
+      "passed": true,
+      "detail": "said quiet_550d53, said one_550d53, said four_550d53",
+      "at": "2026-09-28T16:43:59.856359+00:00"
+    },
+    {
+      "label": "and was SPOKEN BY the one whose voice it was",
+      "passed": false,
+      "detail": "",
+      "at": "2026-09-28T16:43:59.856367+00:00"
+    },
+    {
+      "label": "a sound heard as a voice IS one",
+      "passed": true,
+      "detail": "s550d53heardx68fb5b7393_lowabrupt",
+      "at": "2026-09-28T16:43:59.857102+00:00"
+    },
+    {
+      "label": "what was said and by whom are held as beliefs",
+      "passed": false,
+      "detail": "s550d53heardx68fb5b7393 said one_550d53; s550d53heardx68fb5b7393 said quiet_550d53; s550d53heardx68fb5b7393 said four_550d53",
+      "at": "2026-09-28T16:43:59.857962+00:00"
+    },
+    {
+      "label": "the memory says what was said, in words",
+      "passed": false,
+      "detail": "\"1.925s wav recording, 3 sound(s): an abrupt low-pitched sound, a gradual low-pitched sound, a gradual low-pitched sound; said \\\"quiet_550d53 one_550d53 four_55",
+      "at": "2026-09-28T16:43:59.858612+00:00"
+    },
+    {
+      "label": "and keeps a trace of the sound, never the recording",
+      "passed": true,
+      "detail": "application/x-npz, 6100 bytes",
+      "at": "2026-09-28T16:43:59.859679+00:00"
+    },
+    {
+      "label": "each word said and whose voice is a claim with its own verdict",
+      "passed": false,
+      "detail": "said quiet_550d53: VERIFY; said one_550d53: VERIFY; said four_550d53: ACT",
+      "at": "2026-09-28T16:43:59.859696+00:00"
+    },
+    {
+      "label": "and each was believed, not merely stated",
+      "passed": true,
+      "detail": "0.88, 0.89, 0.99",
+      "at": "2026-09-28T16:43:59.859703+00:00"
+    },
+    {
+      "label": "an experience of the hearing, with what was said in it, waits in the pool",
+      "passed": true,
+      "detail": "perception through hear",
+      "at": "2026-09-28T16:43:59.860482+00:00"
+    },
+    {
+      "label": "a system sound is heard, and no sound in it is a voice",
+      "passed": true,
+      "detail": "1.492s aiff recording, 1 sound(s): a gradual mid-pitched sound; said \"quiet_550d53\"",
+      "at": "2026-09-28T16:44:00.276880+00:00"
+    },
+    {
+      "label": "nothing is said in it, and no one's voice is named",
+      "passed": false,
+      "detail": "",
+      "at": "2026-09-28T16:44:00.276894+00:00"
+    },
+    {
+      "label": "what was said in the sound track is on the clip's percept, none wrongly",
+      "passed": false,
+      "detail": "said \"quiet_550d53 one_550d53 four_550d53\"",
+      "at": "2026-09-28T16:44:02.413294+00:00"
+    },
+    {
+      "label": "the same speech, heard by a faculty taught nothing, has no words and no one's voice",
+      "passed": true,
+      "detail": "1.925s wav recording, 3 sound(s): an abrupt low-pitched sound, a gradual low-pitched sound, a gradual low-pitched sound",
+      "at": "2026-09-28T16:44:02.576503+00:00"
+    },
+    {
+      "label": "taught words in running speech are heard (measured offline: 64-75%)",
+      "passed": true,
+      "detail": "17 of 24 named right, 0 named not said",
+      "at": "2026-09-28T16:44:04.571728+00:00"
+    },
+    {
+      "label": "no word is FIRMLY named that was not said",
+      "passed": true,
+      "detail": "0 firm, 0 weak",
+      "at": "2026-09-28T16:44:04.571762+00:00"
+    },
+    {
+      "label": "no word never taught is FIRMLY heard as a taught one",
+      "passed": true,
+      "detail": "1 named, 0 firmly",
+      "at": "2026-09-28T16:44:05.418883+00:00"
+    },
+    {
+      "label": "a stranger speaking is heard as a voice",
+      "passed": true,
+      "detail": "4 of 4",
+      "at": "2026-09-28T16:44:06.803741+00:00"
+    },
+    {
+      "label": "and is never FIRMLY named as someone taught",
+      "passed": true,
+      "detail": "0 named, 0 firmly",
+      "at": "2026-09-28T16:44:06.803775+00:00"
+    }
+  ],
+  "notes": [
+    "Taught before this run: 0 word(s), 0 voice(s).",
+    "Cleanup by nonce 550d53 and exact memory id: 243 tagged row(s) written, 0 left."
+  ]
+}

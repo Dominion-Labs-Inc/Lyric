@@ -12,7 +12,7 @@ from contextvars import ContextVar
 import time
 import uuid
 from dataclasses import asdict, is_dataclass
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 from core.database.logging_database import LoggingDatabase
@@ -195,30 +195,67 @@ def _bounded_basis(
 
 
 def _relevant_frame(basis: List["TrainingExample"]) -> List["TrainingExample"]:
-    """Scope each demonstration to the object the action transforms.
+    """Scope each demonstration to what the action MENTIONS.
 
     A full-world observation makes Plotkin LGG explode (w facts of a predicate
-    over n positives -> w**n body literals). An operator is about the object it
-    changes -- the term shared by the action's ADD and DELETE effects -- so each
-    demonstration's LEARNING state is restricted to facts mentioning that object.
-    Held-out validation is left on the FULL world, so a scoped rule must still
-    fire in reality.
+    over n positives -> w**n body literals), so the learning state is cut down
+    to what could bear on this action. Held-out validation is left on the FULL
+    world, so a scoped rule must still fire in reality.
+
+    WHAT AN OPERATOR CHANGES IS NOT WHAT IT DEPENDS ON, and this scoped to the
+    first while the rule needs the second. The anchor was the object transformed
+    -- the term shared by the ADD and DELETE effects -- so for
+    MOVE_FILE(file, src, dst) it was `file`, and every literal that did not
+    mention the file was dropped before induction ever saw it. `DIR(dst)` is
+    exactly such a literal, and it is exactly the precondition that decides
+    whether the move works: moving into a directory that is not there fails.
+    So the destination's existence was structurally unlearnable -- not missing
+    from the vocabulary, but discarded by the frame -- and the learner was left
+    inducing a rule whose only body literal was the action itself.
+
+    An argument the action NAMES can bear on it; a literal sharing no argument
+    with the action cannot. That is the relevance restriction, and it is still
+    bounded: the arity is small and fixed, so the frame stays a handful of
+    literals rather than the world. Measured on the filesystem domain: the
+    unscoped LGG retained 4098 literals and reported `insufficient_evidence`;
+    anchored on every argument it retains 3.
     """
     tallies: Dict[int, int] = {}
     acted_positives = 0
+    #: The relations the act was seen to change, over every positive.
+    changed: set = set()
     for example in basis:
         if example.action is None or not example.positive:
             continue
         acted_positives += 1
         added = set(example.after) - set(example.before)
         deleted = set(example.before) - set(example.after)
+        changed |= {fact.predicate for fact in added | deleted}
         persistent = ({t for fact in added for t in fact.args}
                       & {t for fact in deleted for t in fact.args})
         for index, arg in enumerate(example.action.args):
             if arg in persistent:
                 tallies[index] = tallies.get(index, 0) + 1
     if not tallies:
-        return basis
+        # NOTHING THE ACT MOVES KEEPS ITS NAME. Where a thing's name is where it
+        # is -- a path -- moving it makes a different term, so no argument is
+        # shared by what was added and what was taken away, and there is no
+        # transformed object to anchor on. The frame is then what the action
+        # NAMES: every fact about one of its arguments. Leaving the
+        # demonstration unscoped instead hands the generalizer the whole observed
+        # world, which is what every plan step and every practised act records.
+        from dataclasses import replace
+
+        def about_what_it_names(example: "TrainingExample") -> "TrainingExample":
+            if example.action is None or not example.action.args:
+                return example          # it names nothing, so nothing to scope to
+            named = set(example.action.args)
+            return replace(
+                example,
+                before=tuple(f for f in example.before if set(f.args) & named),
+                after=tuple(f for f in example.after if set(f.args) & named))
+
+        return [about_what_it_names(example) for example in basis]
     object_positions = {i for i, count in tallies.items()
                         if count * 2 >= acted_positives}
     if not object_positions:
@@ -231,8 +268,37 @@ def _relevant_frame(basis: List["TrainingExample"]) -> List["TrainingExample"]:
                    if i < len(example.action.args)}
         if not anchors:
             return example
-        before = tuple(f for f in example.before if set(f.args) & anchors)
-        after = tuple(f for f in example.after if set(f.args) & anchors)
+        # THE OBJECT'S OWN FACTS, plus what is true of the action's OTHER
+        # arguments — bounded to UNARY facts, which is what keeps this from
+        # being the full-world frame that makes LGG explode.
+        #
+        # Anchoring on the transformed object alone discards every precondition
+        # about anything else the action names, and some of those decide whether
+        # it works at all: a move into a directory that is not there fails, and
+        # `DIR(dst)` mentions the destination, never the file. Widening the
+        # anchor to EVERY argument was measured and is not viable — it kept
+        # binary facts about the source and destination too, and
+        # `test_substrate_execution` went from 33s to not finishing.
+        #
+        # A unary fact says something about ONE named thing, so at most one
+        # survives per argument: the frame grows by the action's arity, which is
+        # small and fixed, rather than by the world.
+        #
+        # So does a fact ABOUT a named thing -- it is the fact's first argument --
+        # in a relation the act changes. A copy transforms only its destination,
+        # which is the one anchor, yet what the destination becomes is the
+        # source's KIND and SIZE; dropped, the effect has nothing to take its
+        # values from and no rule can be formed. A relation the act never
+        # changes stays out, and so does a fact that only mentions a named
+        # thing, which is what a room's many paths or a directory's many files
+        # are.
+        named = set(example.action.args)
+        def _keep(fact):
+            return bool(set(fact.args) & anchors) or (
+                bool(fact.args) and fact.args[0] in named
+                and (len(fact.args) == 1 or fact.predicate in changed))
+        before = tuple(f for f in example.before if _keep(f))
+        after = tuple(f for f in example.after if _keep(f))
         if not before and not after:
             return example
         from dataclasses import replace
@@ -546,11 +612,12 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
             # learner survives a restart (its recognitions already persist as
             # beliefs; this restores the MECHANISM that produces them).
             try:
-                restored = self.load_classifiers()
+                restored = await self.load_classifiers()
                 if restored:
                     logger.info("Restored %d persisted clause classifier(s)", restored)
             except Exception as error:
-                logger.warning("clause-classifier reload failed: %s", error)
+                logger.error("clause classifiers could not be read from the store: %s — "
+                             "recognition starts without what it was trained on", error)
 
             self.initialized = True
             logger.info("✅ Unified learning system started successfully")
@@ -792,8 +859,19 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
             if self.memory_system:
                 # Memory agent decides: memory_type, priority, worthiness, categorization
                 # We just provide content + source_context (raw metadata)
+                from core.memory import Origin
+                # WHOSE EXAMPLE THIS IS. A reasoning outcome learned from names
+                # the premises it ran over, and for a user those include their
+                # own context -- written unowned, the summary put one speaker's
+                # tellings in everyone's recall (measured 2026-09-26,
+                # SYSTEM-CONVERSATION-01). An example that does not say is
+                # refused, not filed as the substrate's own.
+                if 'actor' not in example:
+                    raise ValueError("a learning example must say whose experience it is "
+                                     "('actor'); the substrate's own is SUBSTRATE_ACTOR")
                 success, memory_id = await self.memory_system.store_memory(
                     content=f"Learning: {example.get('content', str(example)[:200])}",
+                    origin=Origin.of(example['actor'], "learning example"),
                     importance_score=example.get('accuracy', 0.5),  # Hint for importance weighting
                     # strategy.strategy_id, not the dataclass. Memory lowercases
                     # every tag, so passing the object raised
@@ -1293,11 +1371,15 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
             from core.database import get_database_manager
 
             db = get_database_manager()
+            # The model's: the substrate's own memories, never a person's
+            # (in development they share the table).
             rows = await db.execute_query(
                 """SELECT (SELECT count(*) FROM unified.concepts)            AS concepts,
                           (SELECT count(*) FROM unified.learned_rules)       AS rules,
-                          (SELECT count(*) FROM memory_hot.memory_hot)       AS memories""",
-                None, fetch_all=True)
+                          (SELECT count(*) FROM memory_hot.memory_hot
+                            WHERE user_id IS NULL OR user_id IN ('', '__substrate__'))
+                                                                             AS memories""",
+                None, fetch_all=True, store="model")
         except Exception as error:
             logger.error("Knowledge base size unavailable: %s", error)
             return None
@@ -1364,15 +1446,40 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
         }
     
     async def consolidate_learning(self) -> Dict[str, Any]:
-        """Consolidate recent learning. NOT IMPLEMENTED.
+        """Settle what learning has left open, on the learning authority's own
+        schedule (the `idle_learning_consolidation` tier). Induction is not
+        here -- it is event-driven and drains the moment there is work. What
+        accumulates without an event to close it is:
 
-        Returned {'consolidated': True} without consolidating anything.
-        Consolidation is owned by the memory agent's tiering.
-        """
-        raise NotImplementedError(
-            "consolidate_learning is not implemented. Memory consolidation is "
-            "owned by MemoryAgent (hot/cold tiering); call it there.")
-    
+          * KNOWN UNKNOWNS whose answer has since been learned -- every open one
+            goes through the resolution gate (knowledge, belief, domain), so a
+            competence belief that settled after the closure that earned it
+            still resolves what it answers;
+          * DECISIONS whose outcome will never arrive -- a process that exited
+            mid-task leaves the meta-learner's decision row open forever; they
+            are closed as INDETERMINATE, credit-ineligible, never as failures;
+          * TRAINED CLAUSE CLASSIFIERS -- persisted, so a recognizer trained
+            since the last pass survives a crash, not only a clean shutdown.
+
+        It begins by refreshing this instance's copies from the one store, so an
+        instance settles what the MODEL has learned, not only what it did.
+
+        Returns what each step did. (This raised NotImplementedError, after
+        returning {'consolidated': True} having consolidated nothing.)"""
+        from core.reasoning.bayesian_uncertainty import get_uncertainty_system
+        report: Dict[str, Any] = {}
+        # ONE STORE, MANY INSTANCES: first bring this instance's copies in line
+        # with it -- the open unknowns others registered or resolved, and the
+        # strategy arms others have recorded outcomes for.
+        report["refreshed"] = {
+            "known_unknowns": await get_uncertainty_system().refresh_known_unknowns(),
+            "strategy_arms": await self.meta_learning.load_strategies()}
+        report["known_unknowns"] = await self.resolve_open_unknowns()
+        report["abandoned_decisions_closed"] = await self.meta_learning.reap_abandoned_decisions()
+        report["classifiers_saved"] = await self.save_classifiers()
+        logger.info("learning consolidated: %s", report)
+        return report
+
     def learn_from_event(self, event: Dict[str, Any]) -> bool:
         """Learn from an autonomous system event. Returns whether learning began.
 
@@ -1419,46 +1526,144 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
         return True
 
     
-    async def predict_optimal_retry_delay(self, context: Dict[str, Any]) -> float:
-        """Predict optimal retry delay. NOT IMPLEMENTED.
+    #: The waits a retry can choose among, in seconds -- the ACTION SPACE of the
+    #: retry learner (roughly doubling, 15 s to an hour). Which of them is
+    #: best for a context is what is learned; nothing here says so.
+    RETRY_DELAYS_S: Tuple[float, ...] = (15.0, 30.0, 60.0, 120.0, 300.0, 600.0,
+                                         1800.0, 3600.0)
+    _RETRY_NS = "retry:"
 
-        Returned the constant 3.0 while its name promised a prediction from
-        context, so a caller could not tell a learned delay from a literal.
-        """
-        raise NotImplementedError(
-            "predict_optimal_retry_delay is not implemented; it returned a "
-            "hardcoded 3.0. Use an explicit backoff policy at the call site "
-            "until a real predictor exists.")
-    
+    @staticmethod
+    def _retry_context(context: Dict[str, Any]) -> str:
+        key = (context or {}).get("component")
+        if not (isinstance(key, str) and key.strip()):
+            raise ValueError("a retry is learned per component; context['component'] is required")
+        return key.strip()
+
+    def _retry_arm(self, key: str, delay_s: float) -> str:
+        return f"{self._RETRY_NS}{key}:{int(delay_s)}"
+
+    async def predict_optimal_retry_delay(self, context: Dict[str, Any]) -> float:
+        """How long to wait before the next retry for `context["component"]`,
+        LEARNED from how retries after each wait have turned out for it.
+
+        Each wait in `RETRY_DELAYS_S` is an arm of the meta-learner
+        (`retry:<component>:<seconds>`), its posterior Beta(successes+1,
+        failures+1) moved by `record_retry_outcome` and persisted like every
+        strategy's. The choice is Thompson sampling on the EXPECTED TIME TO
+        RECOVERY, delay / P(the retry after that delay succeeds): a component
+        with no history tries short waits first, and waits that keep failing
+        give way to longer ones -- a backoff the evidence builds, per component.
+
+        (This raised NotImplementedError, after returning a hardcoded 3.0; the
+        health tier's fixed backoff table stood in for it.)"""
+        import random
+        from core.learning.meta_learning import TaskFamily
+        key = self._retry_context(context)
+        arms = {str(a.strategy_type): a
+                for a in self._arms(TaskFamily.CONTROL, f"{self._RETRY_NS}{key}:")}
+        best, best_cost = None, None
+        for delay in self.RETRY_DELAYS_S:
+            arm = arms.get(self._retry_arm(key, delay))
+            p = random.betavariate((arm.successes if arm else 0) + 1,
+                                   (arm.failures if arm else 0) + 1)
+            cost = delay / max(p, 1e-9)
+            if best_cost is None or cost < best_cost:
+                best, best_cost = delay, cost
+        return best
+
+    async def record_retry_outcome(self, context: Dict[str, Any], delay_s: float, *,
+                                   recovered: bool) -> Any:
+        """Record whether the retry made after waiting `delay_s` recovered
+        `context["component"]` -- the evidence `predict_optimal_retry_delay`
+        learns from, recorded through `update_strategy_effectiveness`."""
+        from core.learning.meta_learning import OutcomeClass, TaskFamily
+        key = self._retry_context(context)
+        if float(delay_s) not in self.RETRY_DELAYS_S:
+            raise ValueError(f"{delay_s!r} is not one of the waits a retry chooses among")
+        return await self.update_strategy_effectiveness(
+            TaskFamily.CONTROL, self._retry_arm(key, delay_s),
+            success=bool(recovered), performance_score=1.0 if recovered else 0.0,
+            time_ms=float(delay_s) * 1000.0,
+            outcome_class=OutcomeClass.SUCCESS if recovered else OutcomeClass.STRATEGY_FAILURE,
+            context={"retry_context": key, "delay_s": float(delay_s), "source": "retry"})
+
     async def process_experience(self, experience: Dict[str, Any]) -> Dict[str, Any]:
         """Process experience data for learning"""
         result = await self.learn_from_example(experience)
         return {'processed': True, 'unified_result': result}
     
-    async def update_strategy_effectiveness(self, strategy: str, effectiveness: float) -> bool:
-        """Update effectiveness for a strategy. NOT IMPLEMENTED.
+    @staticmethod
+    def _task_family(value: Any):
+        """A TaskFamily from a TaskFamily or its value -- refused otherwise."""
+        from core.learning.meta_learning import TaskFamily
+        if isinstance(value, TaskFamily):
+            return value
+        try:
+            return TaskFamily(str(value))
+        except ValueError:
+            raise ValueError(f"{value!r} is not a task family; "
+                             f"one of {[f.value for f in TaskFamily]}") from None
 
-        Wrote `strategy_<name>` keys into system_metrics -- a counters dict
-        reported as system metrics -- creating a second, unpersisted copy of a
-        number MetaLearner already owns, derives from trials and stores in
-        meta_learning_strategies.effectiveness_score.
-        """
-        raise NotImplementedError(
-            "update_strategy_effectiveness is not implemented. Strategy "
-            "effectiveness is owned and persisted by MetaLearner; record the "
-            "outcome via track_learning_outcome and let it derive the score.")
-    
-    async def recommend_strategies(self, context: Dict[str, Any]) -> List[str]:
-        """Recommend strategies for a context. NOT IMPLEMENTED.
+    async def update_strategy_effectiveness(
+            self, task_family: Any, strategy_type: str, *, success: bool,
+            performance_score: float, time_ms: float, outcome_class: Any,
+            context: Optional[Dict[str, Any]] = None,
+            decision_id: Optional[str] = None,
+            predicted_success: Optional[float] = None) -> Any:
+        """Record how a strategy ACTUALLY performed, so its effectiveness moves
+        -- through the meta-learner, which persists the posterior and applies
+        the credit gate (an infrastructure failure never charges a strategy).
 
-        Returned a fixed list of four subsystem names -- not strategies, not
-        derived from the context, and not any arm the bandit can select.
-        """
-        raise NotImplementedError(
-            "recommend_strategies is not implemented; it returned a fixed list "
-            "of subsystem names. Use MetaLearner.select_strategy, which ranks "
-            "real registered arms by their measured posteriors.")
-    
+        When the decision carried a prediction (`predict_outcome` at decision
+        time), the prediction is checked against what happened: that is what
+        calibrates it. A prediction never checked could not be wrong.
+
+        (This raised NotImplementedError, after writing a second, unpersisted
+        copy of a number the meta-learner already owns.)"""
+        from core.learning.meta_learning import is_credit_eligible
+        family = self._task_family(task_family)
+        record = await self.meta_learning.track_learning_outcome(
+            task_type=family, strategy_type=strategy_type, success=success,
+            performance_score=performance_score, time_ms=time_ms,
+            context=context, decision_id=decision_id, outcome_class=outcome_class)
+        if predicted_success is not None and is_credit_eligible(outcome_class):
+            from core.reasoning.bayesian_uncertainty import get_uncertainty_system
+            get_uncertainty_system().record_prediction(
+                f"strategy:{family.value}", float(predicted_success), bool(success))
+        return record
+
+    def _arms(self, family, strategy_prefix: str = "") -> List[Any]:
+        return [self.meta_learning.strategies[sid]
+                for sid in self.meta_learning.task_strategy_map.get(family, [])
+                if str(self.meta_learning.strategies[sid].strategy_type).startswith(strategy_prefix)]
+
+    async def recommend_strategies(self, context: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """The strategies the EVIDENCE recommends for `context["task_family"]`
+        (optionally only those whose type starts with
+        `context["strategy_prefix"]`), best first: ranked by the lower bound of
+        each arm's measured success rate (Wilson, 95%), so an arm that has won
+        once is not ranked above one that has won ninety times in a hundred.
+        Arms with no recorded outcome come last, with no rate -- untried is not
+        a number. Empty when the family has no arms.
+
+        (This raised NotImplementedError, after returning a fixed list of four
+        subsystem names that were not strategies.)"""
+        family = self._task_family(context.get("task_family"))
+        ranked = []
+        for arm in self._arms(family, str(context.get("strategy_prefix") or "")):
+            tried = arm.trials > 0
+            low, high = (self.meta_learning._calculate_confidence_interval(arm.successes, arm.trials)
+                         if tried else (None, None))
+            ranked.append({"strategy_id": arm.strategy_id,
+                           "strategy_type": str(arm.strategy_type),
+                           "trials": arm.trials, "successes": arm.successes,
+                           "success_rate": arm.success_rate if tried else None,
+                           "lower": low, "upper": high})
+        ranked.sort(key=lambda r: (r["lower"] is not None, r["lower"] or 0.0, r["trials"]),
+                    reverse=True)
+        return ranked
+
     async def drain_events(self, timeout: float = 30.0) -> Dict[str, int]:
         """Wait for event-driven learning to finish. Call before shutting down.
 
@@ -1561,17 +1766,32 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
         return int(rows[0]["n"]) if rows else 0
     
     async def predict_outcome(self, context: Dict[str, Any]) -> Dict[str, Any]:
-        """Predict an outcome for a context. NOT IMPLEMENTED.
+        """What the evidence predicts for a decision: the probability that
+        `context["strategy_type"]` (or, without one, any arm of the family)
+        succeeds on a `context["task_family"]` task -- the mean of the same
+        Beta(successes+1, failures+1) posterior the bandit samples from, with
+        its Wilson interval and how many outcomes it rests on. With no outcome
+        recorded the prediction is None: there is nothing to predict from.
 
-        Returned predicted_success=0.85, confidence=0.8 and the reasoning
-        string 'unified_learning_analysis' for every input -- constants dressed
-        as an analysis, which is the one shape a consumer cannot detect as
-        fabricated.
-        """
-        raise NotImplementedError(
-            "predict_outcome is not implemented; it returned constant "
-            "0.85/0.8 for every context. PredictiveIntelligenceSystem is the "
-            "prediction owner.")
+        Checked afterwards: pass it as `predicted_success` to
+        `update_strategy_effectiveness` with the outcome.
+
+        (This raised NotImplementedError, after returning 0.85/0.8 for every
+        context.)"""
+        family = self._task_family(context.get("task_family"))
+        wanted = context.get("strategy_type")
+        arms = [a for a in self._arms(family)
+                if wanted is None or str(a.strategy_type) == str(wanted)]
+        trials = sum(a.trials for a in arms)
+        successes = sum(a.successes for a in arms)
+        subject = str(wanted) if wanted is not None else f"any {family.value} strategy"
+        if trials == 0:
+            return {"predicted_success": None, "interval": None, "evidence": 0,
+                    "basis": f"no outcome recorded for {subject}"}
+        low, high = self.meta_learning._calculate_confidence_interval(successes, trials)
+        return {"predicted_success": (successes + 1) / (trials + 2),
+                "interval": (low, high), "evidence": trials,
+                "basis": f"{successes}/{trials} outcomes for {subject}"}
 
     async def _transfer_from_known_domains(self, target_domain: str,
                                            max_sources: int = 3,
@@ -1754,6 +1974,21 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
             if not getattr(self.universal_ontology, "initialized", False):
                 await self.universal_ontology.initialize()
 
+            # A domain is named under either spelling of its field -- a learned
+            # one is registered bare, a caller may write `domain_<field>` -- and
+            # the Master reads the registry by the id it is held under. A name
+            # nothing holds stays as given, for the Master to report unknown.
+            registry = self.domain_registry
+            if registry is None:
+                from core.domain.domain_registry import get_domain_registry
+                registry = get_domain_registry()
+                self.domain_registry = registry
+            if not registry.initialized:
+                await registry.initialize()
+            source_domain = getattr(registry.domain_for_field(source_domain),
+                                    "domain_id", source_domain)
+            target_domain = getattr(registry.domain_for_field(target_domain),
+                                    "domain_id", target_domain)
             mappings = await udm.suggest_mappings(source_domain, target_domain)
 
             # VALIDATE, then PERSIST WITH THE VERDICT.
@@ -2527,7 +2762,10 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
         self._clause_classifiers[name] = {
             "model": model, "labels": list(labels), "encode": encode,
             "vocabulary": list(vocabulary) if vocabulary else None,
-            "reject_label": str(reject_label) if reject_label else None}
+            "reject_label": str(reject_label) if reject_label else None,
+            # Newly trained here: `save_classifiers` writes it, and the stamp is
+            # what lets the newest training win across instances.
+            "registered_at": datetime.now(timezone.utc), "saved": False}
         self.register_contributor(f"clause_classifier:{name}", "perception")
 
     def clause_classifier_vocabulary(self, name: str) -> Optional[List[str]]:
@@ -2544,84 +2782,119 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
         into the private registry)."""
         return name in self._clause_classifiers
 
-    def _classifier_dir(self) -> str:
-        """Durable home for persisted clause classifiers (the mechanism). Under the
-        repo's data/ so it survives a restart like every other durable store."""
-        import os
-        root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-        return os.path.join(root, "data", "classifiers")
+    #: A TRAINED CLASSIFIER IS LEARNED STATE, SO IT LIVES IN THE STORE. It was a
+    #: `.pt` file per classifier under the repo's data/: a wipe of the store left
+    #: it behind, an instance of the model run from another checkout never saw it,
+    #: and every instance re-saved its own copy at each consolidation. One row
+    #: per classifier; the mechanism as `torch.save` bytes, the labels and
+    #: vocabulary as columns anything can read.
+    _CLASSIFIERS_DDL = """
+    CREATE TABLE IF NOT EXISTS unified.clause_classifiers (
+        name           TEXT PRIMARY KEY,
+        mechanism      BYTEA NOT NULL,
+        labels         JSONB NOT NULL,
+        vocabulary     JSONB,
+        reject_label   TEXT,
+        registered_at  TIMESTAMPTZ NOT NULL,
+        saved_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )"""
 
-    def save_classifiers(self, directory: Optional[str] = None) -> int:
-        """Persist every registered clause classifier's MECHANISM to disk (TA state,
-        weights, polarity, shape — via torch.save of the model object) so a trained
-        recognizer survives process death. Returns the count saved.
+    async def _classifier_store(self):
+        from core.database import get_database_manager
+        db = get_database_manager()
+        if not getattr(db, "initialized", False):
+            await db.initialize()
+        if not getattr(self, "_classifier_schema_ready", False):
+            await db.execute_query(self._CLASSIFIERS_DDL, (), commit=True)
+            self._classifier_schema_ready = True
+        return db
+
+    async def save_classifiers(self) -> int:
+        """Persist every clause classifier registered in THIS process since it was
+        last saved -- its MECHANISM (TA state, weights, polarity, shape, via
+        `torch.save` of the model object) with its labels and vocabulary -- so a
+        trained recognizer survives process death. Returns the count written.
 
         The VOCABULARY is persisted with it, and that is what makes the restored
         classifier usable rather than merely present. The encoder itself is a live
         object; saving it would pickle a class reference and break on any rename.
         Saving the feature order instead lets `load_classifiers` rebuild an
-        equivalent encoder, which is the difference between a recognizer that
-        works after a restart and one that is handed a file path and asked to
-        read it as features."""
-        import os, torch
-        d = directory or self._classifier_dir()
-        os.makedirs(d, exist_ok=True)
+        equivalent encoder.
+
+        A classifier this process only LOADED is not written back, and a write
+        never replaces a classifier registered later elsewhere: with many
+        instances of the model, the newest training wins, not the last process
+        to consolidate."""
+        import io
+        import torch
+        from core.agents.memory_agent import memory_agent
+        await self._classifier_store()
         saved = 0
         for name, entry in self._clause_classifiers.items():
-            try:
-                torch.save({"model": entry["model"], "labels": entry["labels"],
-                            "vocabulary": entry.get("vocabulary"),
-                            "reject_label": entry.get("reject_label")},
-                           os.path.join(d, f"{name}.pt"))
-                saved += 1
-            except Exception as error:
-                logger.warning("could not persist clause classifier %r: %s", name, error)
+            if entry.get("saved"):
+                continue
+            buffer = io.BytesIO()
+            torch.save(entry["model"], buffer)
+            await memory_agent().hold_clause_classifier(
+                name=name, mechanism=buffer.getvalue(),
+                labels=json.dumps(list(entry["labels"])),
+                vocabulary=(json.dumps(entry.get("vocabulary"))
+                            if entry.get("vocabulary") else None),
+                reject_label=entry.get("reject_label"),
+                registered_at=entry["registered_at"])
+            entry["saved"] = True
+            saved += 1
         return saved
 
-    def load_classifiers(self, directory: Optional[str] = None) -> int:
-        """Restore persisted clause classifiers on startup (see save_classifiers).
-        Tensors are mapped back onto the working device, and the ENCODER is
-        rebuilt from the persisted vocabulary — so a symbolic-feature classifier
-        comes back able to read an instance, not just able to exist. One saved
-        before vocabularies were persisted has none, and comes back with
-        `encode=None` as before: it expects pre-encoded features, which is said
-        out loud here rather than discovered when it mis-reads its first input."""
-        import os, glob, torch
+    async def load_classifiers(self) -> int:
+        """Restore the stored clause classifiers (see save_classifiers). Tensors
+        are mapped back onto the working device, and the ENCODER is rebuilt from
+        the persisted vocabulary -- so a symbolic-feature classifier comes back
+        able to read an instance, not just able to exist. One stored without a
+        vocabulary comes back with `encode=None`: it expects pre-encoded
+        features, which is said out loud here rather than discovered when it
+        mis-reads its first input."""
+        import io
+        import torch
         from core.learning.tsetlin_gpu import pick_device
-        d = directory or self._classifier_dir()
-        if not os.path.isdir(d):
-            return 0
+        db = await self._classifier_store()
+        rows = await db.execute_query(
+            "SELECT name, mechanism, labels, vocabulary, reject_label, registered_at "
+            "FROM unified.clause_classifiers", (), fetch_all=True) or []
         dev = pick_device("mps")
         restored = 0
-        for path in glob.glob(os.path.join(d, "*.pt")):
-            name = os.path.splitext(os.path.basename(path))[0]
-            try:
-                ck = torch.load(path, map_location=str(dev), weights_only=False)
-                m = ck["model"]
-                # re-home the state tensors on the working device
-                for attr in ("ta", "w", "pol", "_pos"):
-                    if hasattr(m, attr):
-                        setattr(m, attr, getattr(m, attr).to(dev))
-                if hasattr(m, "dev"):
-                    m.dev = dev
-                vocab = ck.get("vocabulary")
-                self._clause_classifiers[name] = {
-                    "model": m, "labels": ck["labels"],
-                    "encode": FeatureEncoder(vocab) if vocab else None,
-                    "vocabulary": list(vocab) if vocab else None,
-                    "reject_label": ck.get("reject_label")}
-                if not vocab:
-                    logger.warning(
-                        "clause classifier %r restored WITHOUT a vocabulary — it "
-                        "can only be given pre-encoded features; a route that "
-                        "hands it raw input will mis-read it", name)
-                restored += 1
-            except Exception as error:
-                logger.warning("could not restore clause classifier %r: %s", name, error)
+        for row in rows:
+            name = str(row["name"])
+            m = torch.load(io.BytesIO(bytes(row["mechanism"])), map_location=str(dev),
+                           weights_only=False)
+            # re-home the state tensors on the working device
+            for attr in ("ta", "w", "pol", "_pos"):
+                if hasattr(m, attr):
+                    setattr(m, attr, getattr(m, attr).to(dev))
+            if hasattr(m, "dev"):
+                m.dev = dev
+            labels = row["labels"] if isinstance(row["labels"], list) else json.loads(row["labels"])
+            vocab = row["vocabulary"]
+            if isinstance(vocab, str):
+                vocab = json.loads(vocab)
+            self._clause_classifiers[name] = {
+                "model": m, "labels": list(labels),
+                "encode": FeatureEncoder(vocab) if vocab else None,
+                "vocabulary": list(vocab) if vocab else None,
+                "reject_label": row["reject_label"],
+                "registered_at": row["registered_at"], "saved": True}
+            if not vocab:
+                logger.warning(
+                    "clause classifier %r restored WITHOUT a vocabulary — it "
+                    "can only be given pre-encoded features; a route that "
+                    "hands it raw input will mis-read it", name)
+            restored += 1
         return restored
 
     async def recognize(self, name: str, instance: Any, instance_id: str, *,
-                        domain: str = "perception", threshold: float = 0.0) -> Any:
+                        domain: str = "perception", threshold: float = 0.0,
+                        actor: Optional[str] = None,
+                        lineage: Optional[Sequence[str]] = None) -> Any:
         """Recognize `instance` with the named clause classifier and TEACH the
         finding through the one gate. The model predicts a class and a margin-based
         confidence in (0,1); the recognition `instance_id isa <category>` is admitted
@@ -2629,7 +2902,12 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
         QUALITY — so the ingress decides admit/refuse/already-present, the belief
         layer moves the single posterior, and the domain crystallizes. The
         classifier never decides what sticks. Returns the `Admission`, or None when
-        no such classifier is registered or the confidence is below `threshold`."""
+        no such classifier is registered or the confidence is below `threshold`.
+
+        `actor` is whose the instance is: a recognition in a person's image is held
+        in their context, like everything else of theirs (`learn_fact`). `lineage`
+        is the observation the instance's features rest on, when the caller holds
+        it: a person's seeing is not in the shared graph to be read back."""
         entry = self._clause_classifiers.get(name)
         if entry is None:
             logger.warning("recognize: no clause classifier %r registered", name)
@@ -2673,13 +2951,16 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
         # present exactly when the classifier reads symbols.
         vocabulary = entry.get("vocabulary")
         if vocabulary:
-            from core.reasoning.concept_graph_reasoning import (
-                observed_instance_features)
-            from core.database import get_database_manager
-            db = get_database_manager()
-            if not getattr(db, "initialized", False):
-                await db.initialize()
-            feats, lineage = await observed_instance_features(db, str(instance_id))
+            if lineage is None:
+                from core.reasoning.concept_graph_reasoning import (
+                    observed_instance_features)
+                from core.database import get_database_manager
+                db = get_database_manager()
+                if not getattr(db, "initialized", False):
+                    await db.initialize()
+                feats, lineage = await observed_instance_features(db, str(instance_id))
+            else:
+                feats = list(instance) if isinstance(instance, (list, tuple)) else []
             if not lineage:
                 logger.warning(
                     "recognize: %r would name %s a %s, but %s carries no observed "
@@ -2701,7 +2982,7 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
                               source_id=str(instance_id), source_type="PERCEPTION")
         return await self.learn_fact(
             str(instance_id), "isa", str(labels[cls]), domain=domain,
-            provenance=prov, quality=confidence)
+            provenance=prov, quality=confidence, actor=actor)
 
     def induce(self, examples, target_predicate: Optional[str] = None):
         """Learn a rule from demonstrations. The world is the only teacher here."""
@@ -2837,9 +3118,26 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
     # claim, through the ingress), and METRICS. Callers stop reaching into the
     # ingress / belief system / lexicon directly and come here.
 
+    @staticmethod
+    def _refused_while_frozen(what: str) -> Optional[str]:
+        """Where the model is a frozen release (staging, production), the
+        substrate's own learning is refused HERE, at the door, before anything
+        in the process moves: production answers only from its release, and
+        what it would learn waits for development. Counted with the database
+        manager's other frozen refusals.
+        Returns the reason, or None where the model learns. A person's context
+        is not the model: it is never refused here."""
+        from core.database import get_database_manager
+        db = get_database_manager()
+        if not getattr(db, "frozen", False):
+            return None
+        reason = str(db.frozen_refusal(what))
+        logger.info("learning refused: %s", reason)
+        return reason
+
     async def learn_fact(self, subject: str, relation: str, obj: Optional[str],
                          *, positive: bool = True, surface: Optional[str] = None,
-                         provenance: Any = None, domain: str = "conversation",
+                         provenance: Any = None, domain: str,
                          description: str = "", word_class_of: Any = None,
                          emit: Any = None, quality: float = 0.9,
                          actor: Optional[str] = None) -> Any:
@@ -2860,10 +3158,15 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
                 actor, subject, relation, obj, positive=positive, surface=surface,
                 domain=domain, quality=quality, description=description,
                 word_class_of=word_class_of, emit=emit, provenance=provenance)
-        from core.semantics.cognitive_ingress import (get_cognitive_ingress,
+        from core.semantics.cognitive_ingress import (Admission, get_cognitive_ingress,
                                                       Provenance)
         surface = surface or " ".join(
             str(p) for p in (subject, relation, obj) if p)
+        frozen = self._refused_while_frozen(f"learn_fact {subject} {relation} {obj}")
+        if frozen:
+            refused = Admission(proposition=f"{subject}|{relation}|{obj}", surface=surface)
+            refused.refusals.append(frozen)
+            return refused
         prov = provenance or Provenance(producer="learning", source_id="you",
                                         source_type="USER_SUPPLIED")
         # REASONING (+ MEMORY): the concept graph is the knowledge store the
@@ -2876,17 +3179,389 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
             await self._fan_out_learning(
                 surface=surface, claim=" ".join(
                     str(p) for p in (subject, relation, obj) if p),
-                clauses=[(subject, relation, obj)], positive=positive,
-                domain=domain, quality=quality,
+                # The memory the ingress just wrote for this fact — the thing
+                # the belief will be ABOUT.
+                clauses=[(subject, relation, obj,
+                          getattr(admission, "memory_id", None))],
+                positive=positive, domain=domain, quality=quality,
+                # The same identity the ingress already dedups on
+                # (subject|relation|object|source_id) -- in memory, where it did
+                # not survive a restart. Carrying it here makes that rule durable.
+                observation=getattr(prov, "source_id", None),
                 emit=emit, emit_payload={"subject": subject, "relation": relation,
                                          "obj": obj, "domain": domain})
+        await self._record_knowledge_update(admission, domain=domain,
+                                            provenance=prov)
         return admission
 
+    @staticmethod
+    def _ledger_disposition(admission: Any) -> Tuple[Any, str]:
+        """What one admission did, for the knowledge ledger: ONE rule, used by the
+        single-fact and the bulk path alike (they had drifted -- the bulk path
+        recorded every admission as NEW, a reinforcement and a re-teach included).
+
+        ALREADY PRESENT IS CHECKED FIRST, and that ordering is the point. The
+        ingress returns a duplicate as `admitted=False` with NO refusal, because
+        a sentence read twice is one fact -- so testing `admitted` first recorded
+        every re-teach as "refused without a stated reason", which is a false
+        negative about the substrate's own dedup working correctly."""
+        from core.memory import knowledge_ledger as ledger
+        if getattr(admission, "already_present", False):
+            disposition = ledger.Disposition.UNCHANGED
+            detail = "seen before from this source; not counted twice"
+        elif not getattr(admission, "admitted", False):
+            disposition = ledger.Disposition.REJECTED
+            detail = "; ".join(getattr(admission, "refusals", None) or
+                               ["refused without a stated reason"])
+        elif getattr(admission, "concepts_created", None):
+            disposition = ledger.Disposition.NEW
+            detail = (f"+{len(admission.concepts_created)} concept(s), "
+                      f"~{len(admission.concepts_reinforced or [])} reinforced")
+        else:
+            disposition = ledger.Disposition.UPDATED
+            detail = (f"~{len(getattr(admission, 'concepts_reinforced', None) or [])}"
+                      f" reinforced")
+        if getattr(admission, "contradicts", None):
+            detail += " CONTRADICTS PRIOR CLAIM"
+        return disposition, detail
+
+    async def _record_knowledge_update(self, admission: Any, *, domain: str,
+                                       provenance: Any) -> None:
+        """Write down WHAT THIS ADMISSION DID, so the store can be asked later.
+
+        `Admission` already carries the disposition -- concepts_created (new),
+        concepts_reinforced (updated), refusals (rejected), contradicts -- and
+        every caller returned it to be read once and dropped. Nothing durable
+        recorded whether a taught claim had been accepted or refused, so a
+        refusal left no trace at all: the store could not distinguish "never
+        taught" from "taught and declined".
+
+        The provenance is NOT copied here. `evidence_id` points at the envelope
+        that already holds the producer, the surface observed and what was
+        inferred from it; two accounts of the same thing is the defect this
+        avoids, not the feature.
+        """
+        from core.database import get_database_manager
+        from core.memory import knowledge_ledger as ledger
+        try:
+            db = get_database_manager()
+            disposition, detail = self._ledger_disposition(admission)
+            await ledger.record(db, ledger.KnowledgeUpdate(
+                subject_kind="proposition",
+                subject_id=str(getattr(admission, "proposition", "") or "")[:500],
+                disposition=disposition, domain=domain,
+                evidence_id=getattr(admission, "evidence_id", None) or None,
+                detail=detail,
+                cause=f"learning.{getattr(provenance, 'producer', 'unknown')}",
+                actor=getattr(provenance, "source_id", None)))
+        except Exception as error:
+            from core.capability import raise_if_structural
+            raise_if_structural(
+                error, "unified_learning_system._record_knowledge_update")
+            logger.debug("knowledge update not recorded: %s", error)
+
+    #: The classes the substrate can hold. OPEN classes are learned from the
+    #: sentences it reads; CLOSED classes are finite and are told to it. Both
+    #: live in memory as taught knowledge -- there is no lexicon.
+    WORD_CLASSES = ("NOUN", "VERB", "ADJECTIVE", "ADVERB", "PRONOUN",
+                    "DETERMINER", "PREPOSITION", "CONJUNCTION", "SUBORDINATOR",
+                    "AUXILIARY", "MODAL", "NEGATOR", "COPULA", "RELATIVE",
+                    "QUANTIFIER", "NUMERAL", "INTERJECTION", "PARTICLE",
+                    # Punctuation is part of written language, not scenery: a
+                    # full stop is where one claim ends and the next begins, and
+                    # a comma is where a clause is set off. The reader acts on
+                    # these marks in a dozen places and the substrate could not
+                    # say what any of them are.
+                    "PUNCTUATION")
+
+    async def learn_word_classes(self, classes, *, provenance: Any = None,
+                                 quality: float = 0.9) -> Dict[str, int]:
+        """Teach what CLASS a word has, into memory, as knowledge.
+
+        `classes` is an iterable of `(word, CLASS)`.
+
+        THIS IS NOT A LEXICON. It writes the same kind of memory every other
+        taught thing writes -- semantic, provenanced, recallable, and taken by a
+        wipe like everything else -- and `warm_word_classes` derives the view
+        from it. What it replaces is a set of frozensets compiled into the
+        reader: a second authority beside memory that no teaching could change,
+        no wipe could clear, and no evidence could ever argue with.
+
+        A word class stated here is EVIDENCE, not a decree: it lands as one
+        observation, and a reading that fails because of it argues it back down
+        exactly as it does for a class derived from a sentence.
+
+        Returns {told, skipped, total}.
+        """
+        from core.memory import get_memory_agent
+        from core.memory.utils.interfaces import MemoryType, Origin
+
+        counts = {"told": 0, "skipped": 0, "total": 0, "already": 0}
+        classes = list(classes)
+        if self._refused_while_frozen(f"learn_word_classes ({len(classes)})"):
+            counts.update(total=len(classes), skipped=len(classes))
+            return counts
+        agent = await get_memory_agent()
+        allowed = set(self.WORD_CLASSES)
+
+        # WHAT IS ALREADY KNOWN, IN ONE QUESTION.
+        #
+        # Teaching is not an epoch: the same pair arriving twice is one thing
+        # the source says, not two witnesses to it, and counting it twice is
+        # the double-count defect that left beliefs 0.999999 certain of a
+        # single assertion. The identity of a stated class is the PAIR, so it
+        # is looked up exactly rather than by resemblance.
+        known = set()
+        try:
+            rows = await agent.stated_word_classes()
+            known = {(w, c) for w, c in rows}
+        except Exception as error:
+            logger.debug("could not read the stated word classes: %s", error)
+
+        for word, word_class in classes:
+            counts["total"] += 1
+            word = str(word or "").strip().lower()
+            word_class = str(word_class or "").strip().upper()
+            if not word or word_class not in allowed:
+                counts["skipped"] += 1
+                continue
+            if (word, word_class) in known:
+                counts["already"] += 1
+                continue
+            known.add((word, word_class))
+            stored, _memory_id = await agent.store_memory(
+                origin=Origin.own("teaching"),
+                content=f"{word!r} is used as a {word_class.lower()}.",
+                memory_type=MemoryType.SEMANTIC,
+                importance_score=0.75,
+                confidence_score=float(quality),
+                tags=["language", agent.WORD_CLASS_TAG],
+                source_context={
+                    "producer": getattr(provenance, "producer", "learning"),
+                    "source_id": getattr(provenance, "source_id", "you"),
+                    "word": word,
+                    "word_class": word_class,
+                },
+            )
+            if stored:
+                agent._word_class_index.setdefault(word, {})
+                agent._word_class_index[word][word_class] = (
+                    agent._word_class_index[word].get(word_class, 0) + 1)
+                counts["told"] += 1
+            else:
+                counts["skipped"] += 1
+        return counts
+
+    async def learn_patterns(self, pairs, *, provenance: Any = None,
+                             quality: float) -> Dict[str, int]:
+        """Learn how English says things, from sentences taught WITH their meaning: the constructions found between
+        taught pairs (`derived_reader`), one pair at a time, as the Leuven method learns them.
+
+        `pairs` is an iterable of `(sentence, Meaning)`, in the order they were said. Each pair is read first with
+        what is held. If a reading gives its meaning, the pair is understood and only the scores move. If not, the
+        repairs are tried in the paper's order (`derived_reader.REPAIRS`); the first that can handle the pair says
+        what to create, that is stored, and the pair is read again.
+
+        THE SCORES MOVE AFTER EVERY PAIR. The constructions of the best reading, and its links, are observed FOR;
+        every other construction that could also have read the pair to its meaning -- a competitor -- is observed
+        AGAINST. An observation is identified by the source and the pair, so the same lesson from the same source
+        again moves nothing, and each different pair is a use.
+
+        The owners: MEMORY holds each construction and link (one semantic memory each, tagged `PATTERN_TAG`,
+        identified by its key); BELIEFS hold their scores, grounded in that memory; THE DOMAIN SYSTEM holds meaning,
+        and English is a domain. The facts a meaning states are not admitted here: the teaching pass teaches them
+        through `learn_facts`.
+
+        Returns counts: `learned` (constructions created), `linked` (links created), `already` (pairs understood
+        as they came), `understood` (understood as they came or by adding links only: the paper's communicative
+        success), `refused`, `total`, and `repair_<name>` for each repair that ran.
+        """
+        import hashlib
+        from core.memory import knowledge_ledger as _ledger
+        from core.memory import get_memory_agent
+        from core.reasoning.bayesian_uncertainty import get_uncertainty_system
+        from core.semantics import derived_reader as dr
+        from core.semantics.cognitive_ingress import MIN_ADMIT_QUALITY
+        from core.semantics.sentence_machine import form_of
+
+        pairs = list(pairs)
+        counts = {"learned": 0, "linked": 0, "already": 0, "understood": 0, "refused": 0, "total": 0}
+        if self._refused_while_frozen(f"learn_patterns ({len(pairs)})"):
+            counts.update(refused=len(pairs), total=len(pairs))
+            return counts
+        if quality < MIN_ADMIT_QUALITY:
+            logger.info("patterns REFUSED for %d pair(s): evidence quality %.3f < floor %.2f",
+                        len(pairs), quality, MIN_ADMIT_QUALITY)
+            counts.update(refused=len(pairs), total=len(pairs))
+            return counts
+        agent = await get_memory_agent()
+        view = await agent.language_view()
+        held = await agent.stated_patterns()
+        producer = getattr(provenance, "producer", "learning")
+        source_id = getattr(provenance, "source_id", None) or "you"
+        cause = f"learning.patterns.{producer}"
+        us = get_uncertainty_system()
+        updates: List[Any] = []
+        created_any = False
+
+        def subject_kind(item) -> str:
+            return "language_link" if isinstance(item, dr.Link) else "language_pattern"
+
+        def observe(item, supports: bool, observation: str):
+            """One observation of a construction or link; whether it moved the belief is read from the belief."""
+            before = us.belief_for_claim(item.claim())
+            seen = (len(before.evidence_for) + len(before.evidence_against)) if before is not None else 0
+            after = us.observe_claim(item.claim(), dr.ENGLISH_DOMAIN, supports=supports, quality=quality,
+                                     source="taught", observation=observation, memory_id=held.get(item.key))
+            return after is not None and len(after.evidence_for) + len(after.evidence_against) > seen
+
+        batch = _ledger.begin_batch(cause)
+        try:
+            for sentence, meaning in pairs:
+                counts["total"] += 1
+                try:
+                    if not isinstance(meaning, dr.Meaning):
+                        raise TypeError("a taught meaning is a derived_reader.Meaning")
+                    form = form_of(sentence)
+                    if not form:
+                        raise ValueError("an empty sentence says nothing")
+                except (TypeError, ValueError) as refusal:
+                    counts["refused"] += 1
+                    updates.append(_ledger.KnowledgeUpdate(
+                        subject_kind="language_pattern", subject_id=str(sentence)[:500],
+                        disposition=_ledger.Disposition.REJECTED, domain=dr.ENGLISH_DOMAIN,
+                        detail=str(refusal), cause=cause))
+                    continue
+                words = tuple(p.text for p in form)
+                pair = hashlib.sha256(f"{sentence}\x1e{meaning.canonical()}".encode("utf-8")).hexdigest()[:16]
+                observation = f"{source_id}:{pair}"
+                readings = dr.readings_of(words, meaning, view)
+                repair = None
+                created = set()
+                if not readings:
+                    for step in dr.REPAIRS:
+                        repair = step(form, meaning, view)
+                        if repair is not None:
+                            break
+                    counts[f"repair_{repair.name}"] = counts.get(f"repair_{repair.name}", 0) + 1
+                    stored_all = True
+                    for item in repair.constructions + repair.links:
+                        memory_id = await self._store_language_item(agent, item, producer, source_id, quality)
+                        if not memory_id:
+                            stored_all = False
+                            updates.append(_ledger.KnowledgeUpdate(
+                                subject_kind=subject_kind(item), subject_id=item.key,
+                                disposition=_ledger.Disposition.REJECTED, domain=dr.ENGLISH_DOMAIN,
+                                detail="memory did not store it", cause=cause))
+                            continue
+                        held[item.key] = memory_id
+                        agent.note_pattern(item)
+                        created.add(item.key)
+                        created_any = True
+                        counts["linked" if isinstance(item, dr.Link) else "learned"] += 1
+                        # Its belief starts with the pair that made it.
+                        observe(item, True, observation)
+                        updates.append(_ledger.KnowledgeUpdate(
+                            subject_kind=subject_kind(item), subject_id=item.key,
+                            disposition=_ledger.Disposition.NEW, domain=dr.ENGLISH_DOMAIN,
+                            detail=f"{dr.REPAIR_NAMES[repair.name]}: "
+                                   f"{getattr(item, 'surface', None) or item.claim()}"[:500],
+                            cause=cause))
+                    for item in repair.revived:
+                        observe(item, True, observation)
+                        created.add(item.key)
+                        updates.append(_ledger.KnowledgeUpdate(
+                            subject_kind=subject_kind(item), subject_id=item.key,
+                            disposition=_ledger.Disposition.UPDATED, domain=dr.ENGLISH_DOMAIN,
+                            detail=f"revived: no longer believed, supported again by {sentence!r}",
+                            cause=cause))
+                    if not stored_all:
+                        counts["refused"] += 1
+                        continue
+                    readings = dr.readings_of(words, meaning, view)
+                if not readings:
+                    counts["refused"] += 1
+                    updates.append(_ledger.KnowledgeUpdate(
+                        subject_kind="language_pattern", subject_id=pair,
+                        disposition=_ledger.Disposition.REJECTED, domain=dr.ENGLISH_DOMAIN,
+                        detail=f"{sentence!r} does not read after {repair.name if repair else 'no repair'}",
+                        cause=cause))
+                    continue
+                if repair is None:
+                    counts["already"] += 1
+                if repair is None or repair.name == "add_links":
+                    counts["understood"] += 1
+                chosen = readings[0]
+                used = {item.key for item in chosen.constructions + chosen.links}
+                for item in chosen.constructions + chosen.links:
+                    if item.key in created:
+                        continue
+                    moved = observe(item, True, observation)
+                    updates.append(_ledger.KnowledgeUpdate(
+                        subject_kind=subject_kind(item), subject_id=item.key,
+                        disposition=(_ledger.Disposition.UPDATED if moved else _ledger.Disposition.UNCHANGED),
+                        domain=dr.ENGLISH_DOMAIN,
+                        detail=(f"read {sentence!r}; {source_id} observed it" if moved else
+                                "held already from this source; not counted twice"),
+                        cause=cause))
+                competitors = {c.key: c for r in readings[1:] for c in r.constructions if c.key not in used}
+                for item in competitors.values():
+                    if observe(item, False, observation):
+                        updates.append(_ledger.KnowledgeUpdate(
+                            subject_kind=subject_kind(item), subject_id=item.key,
+                            disposition=_ledger.Disposition.UPDATED, domain=dr.ENGLISH_DOMAIN,
+                            detail=f"a competitor: another reading of {sentence!r} was chosen", cause=cause))
+            if created_any:
+                # English is a domain: ensured, and the running substrate told what was learned.
+                await self._fan_out_learning(
+                    surface="taught constructions", claim="", clauses=[], positive=True,
+                    domain=dr.ENGLISH_DOMAIN, emit=None,
+                    emit_payload={"kind": "language_patterns", "domain": dr.ENGLISH_DOMAIN,
+                                  "count": counts["learned"] + counts["linked"]},
+                    quality=quality, observation=source_id)
+            if updates:
+                try:
+                    from core.database import get_database_manager
+                    await _ledger.record_many(get_database_manager(), updates)
+                except Exception as error:
+                    from core.capability import raise_if_structural
+                    raise_if_structural(error, "unified_learning_system.learn_patterns.ledger")
+                    logger.debug("knowledge updates for the taught patterns not recorded: %s", error)
+        finally:
+            _ledger.end_batch(batch)
+        return counts
+
+    async def _store_language_item(self, agent: Any, item: Any, producer: str, source_id: str,
+                                   quality: float) -> Optional[str]:
+        """One construction or link as the semantic memory that holds it; its memory id, or None."""
+        from core.memory.utils.interfaces import MemoryType, Origin
+        from core.semantics import derived_reader as dr
+        if isinstance(item, dr.Link):
+            content, kind, data = (f'"{item.pattern_surface}" {item.slot} takes "{item.lexical_surface}"',
+                                   "link", {"link": item.to_dict()})
+        elif isinstance(item, dr.Lexical):
+            content, kind, data = item.surface, "lexical", {"lexical": item.to_dict()}
+        elif isinstance(item, dr.Phrase):
+            content, kind, data = item.surface, "phrase", {"phrase": item.to_dict()}
+        else:
+            content, kind, data = item.surface, item.kind, {"pattern": item.to_dict()}
+        stored, memory_id = await agent.store_memory(
+            origin=Origin.own("teaching"),
+            content=content,
+            memory_type=MemoryType.SEMANTIC,
+            importance_score=0.75,
+            confidence_score=float(quality),
+            tags=["language", dr.PATTERN_TAG],
+            source_context={"producer": producer, "source_id": source_id, "pattern_key": item.key,
+                            "construction": kind, **data})
+        return memory_id if stored and memory_id else None
+
     async def learn_facts(self, facts, *, provenance: Any = None,
-                          domain: str = "conversation", fan_out: bool = True,
-                          remember: bool = True, progress: Any = None,
+                          domain: str, fan_out: bool = True,
+                          progress: Any = None,
                           actor: Optional[str] = None,
-                          quality: float = 0.9) -> Dict[str, int]:
+                          quality: float = 0.9,
+                          positive: bool = True) -> Dict[str, int]:
         """Teach MANY declarative facts through the ONE path, at lexicon scale.
 
         Same authority as `learn_fact` — every relation is admitted through the
@@ -2897,51 +3572,129 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
         owner and its admission checks while making a reference-sized teach
         practical. Returns {admitted, already, refused, total}.
 
+        THE EPISODE IS NOT OPTIONAL. There was a `remember` parameter here, and
+        four of the five corpus passes set it False -- so most of what the
+        substrate knows, it could state while having no recollection of learning
+        it, and could not reach by meaning at all. A fact taught in conversation
+        came back "I remember: ..." and the same fact taught from a corpus did
+        not. That is two grades of knowledge out of one act, which is the solo
+        teaching this pipeline exists to prevent. The memory is now made at the
+        door, for every admitted fact, like every other system the fan-out
+        touches.
+
         `actor` routes exactly as in `learn_fact`: a real user's id diverts every
         fact to that user's scoped context (never the shared graph/beliefs), with
         the same per-fact promotion gate; None / substrate takes the shared path.
+
+        `positive` IS THE BATCH'S POLARITY. Every fact in one call is asserted, or
+        every one is denied: a denial ("a robin is not a mammal") is admitted as a
+        negative edge and moves its belief down, exactly as `learn_fact` does it.
+        This path could only assert, so the teaching pass dropped every denial it
+        read -- a taught "is not" taught nothing at all.
         """
+        from core.agents.autonomous.shared_types import is_substrate_actor
+        from core.memory import knowledge_ledger as _ledger
+        # ONE BATCH FOR ONE TEACH. A bulk teach is a single originating event,
+        # and without this every fact minted its own batch id -- measured, 177
+        # facts became 177 "batches", which makes the batch count a synonym for
+        # the update count and answers nothing. The per-fact records below join
+        # this batch through the ContextVar, so no signature changes.
+        _batch = _ledger.begin_batch(
+            f"learning.bulk_teach.{getattr(provenance, 'producer', 'unknown')}",
+            actor=actor)
+        try:
+            return await self._learn_facts(
+                facts, provenance=provenance, domain=domain, fan_out=fan_out,
+                progress=progress, actor=actor, quality=quality,
+                positive=positive)
+        finally:
+            _ledger.end_batch(_batch)
+
+    async def _learn_facts(self, facts, *, provenance: Any = None,
+                           domain: str, fan_out: bool = True,
+                           progress: Any = None,
+                           actor: Optional[str] = None,
+                           quality: float = 0.9,
+                           positive: bool = True) -> Dict[str, int]:
         from core.agents.autonomous.shared_types import is_substrate_actor
         if not is_substrate_actor(actor):
             counts = {"admitted": 0, "already": 0, "refused": 0, "total": 0}
-            for subject, relation, obj in facts:
+            for fact in facts:
+                subject, relation, obj = fact[0], fact[1], fact[2]
+                said = fact[3] if len(fact) > 3 else None
                 counts["total"] += 1
                 try:
-                    await self._learn_scoped_fact(
-                        actor, subject, relation, obj, positive=True,
-                        surface=None, domain=domain, quality=quality, description="",
+                    admission = await self._learn_scoped_fact(
+                        actor, subject, relation, obj, positive=positive,
+                        surface=said, domain=domain, quality=quality, description="",
                         word_class_of=None, emit=None, provenance=provenance)
-                    counts["admitted"] += 1
                 except Exception:
                     counts["refused"] += 1
+                    continue
+                # What the door said, not "it did not raise": a refused fact
+                # comes back as a refused Admission, and counted as admitted.
+                counts["admitted" if getattr(admission, "admitted", False)
+                       else "refused"] += 1
                 if progress and counts["total"] % 1000 == 0:
                     progress(counts)
             return counts
         from core.semantics.cognitive_ingress import (get_cognitive_ingress,
                                                       Provenance)
+        facts = list(facts)
+        if self._refused_while_frozen(f"learn_facts ({len(facts)})"):
+            return {"admitted": 0, "already": 0, "refused": len(facts), "total": len(facts)}
         prov = provenance or Provenance(producer="learning", source_id="you",
                                         source_type="USER_SUPPLIED")
+        from core.memory import knowledge_ledger as _ledger
         ingress = get_cognitive_ingress()
         counts = {"admitted": 0, "already": 0, "refused": 0, "total": 0}
         admitted_clauses = []
-        for subject, relation, obj in facts:
+        # WHAT EACH FACT DID, collected and written once at the end. The bulk
+        # path has its OWN admission loop and never calls `learn_fact`, so
+        # recording only there left the route that taught 82,676 concepts
+        # invisible: a probe of five facts produced zero updates. Accumulated
+        # rather than written per fact because at corpus scale one INSERT per
+        # fact is the cost that made the original writer a bare bulk statement
+        # with no record at all.
+        _updates: List[Any] = []
+        for fact in facts:
+            # A fact may carry THE SENTENCE IT WAS SAID IN. Where it does not,
+            # the surface is synthesised from the triple -- and a synthesised
+            # surface is why the store could only ever learn nouns: `isa` is a
+            # relation nobody says, so it is never recorded as a verb.
+            subject, relation, obj = fact[0], fact[1], fact[2]
+            said = fact[3] if len(fact) > 3 else None
             counts["total"] += 1
-            surface = " ".join(str(p) for p in (subject, relation, obj) if p)
+            surface = said or " ".join(
+                str(p) for p in (subject, relation, obj) if p)
             try:
                 admission = await ingress.admit_relation(
                     subject=subject, relation=relation, obj=obj, surface=surface,
-                    provenance=prov, positive=True, domain=domain,
-                    remember=remember)
+                    provenance=prov, positive=positive, domain=domain)
             except Exception:
                 counts["refused"] += 1
                 continue
-            if getattr(admission, "admitted", False):
-                counts["admitted"] += 1
-                admitted_clauses.append((subject, relation, obj))
-            elif getattr(admission, "already_present", False):
+            # Already held from this source is checked FIRST, as the single-fact
+            # path does: a re-teach is not a second witness, and fanning it out
+            # again would move its belief a second time.
+            if getattr(admission, "already_present", False):
                 counts["already"] += 1
+            elif getattr(admission, "admitted", False):
+                counts["admitted"] += 1
+                admitted_clauses.append((subject, relation, obj,
+                                         getattr(admission, "memory_id", None)))
             else:
                 counts["refused"] += 1
+            _disposition, _detail = self._ledger_disposition(admission)
+            _updates.append(_ledger.KnowledgeUpdate(
+                subject_kind="proposition",
+                subject_id=str(getattr(admission, "proposition", "") or
+                               f"{subject}|{relation}|{obj}")[:500],
+                disposition=_disposition, domain=domain,
+                evidence_id=getattr(admission, "evidence_id", None) or None,
+                detail=_detail,
+                cause=f"learning.bulk_teach.{getattr(prov, 'producer', 'unknown')}",
+                actor=actor))
             if progress and counts["total"] % 1000 == 0:
                 progress(counts)
         # Fan out ONCE over everything that was newly admitted.
@@ -2949,17 +3702,30 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
             await self._fan_out_learning(
                 surface=f"{len(admitted_clauses)} taught facts",
                 claim=f"{len(admitted_clauses)} taught facts",
-                clauses=admitted_clauses, positive=True, domain=domain,
+                clauses=admitted_clauses, positive=positive, domain=domain,
                 emit=None, emit_payload={"kind": "bulk_facts", "domain": domain,
                                          "count": len(admitted_clauses)},
                 # THE SAME ACT AS `learn_fact`, so the same declared quality —
                 # teaching in bulk is teaching. This was the default, unstated,
                 # which is how a corpus taught at scale came to set the prior of
                 # most of what the substrate believes without anyone choosing it.
-                quality=quality)
+                quality=quality,
+                # Re-running a corpus pass must not make its facts truer. The
+                # belief is per claim, so the source identity is enough: the
+                # same source saying the same thing again is one witness.
+                observation=getattr(prov, "source_id", None))
+        if _updates:
+            try:
+                from core.database import get_database_manager
+                await _ledger.record_many(get_database_manager(), _updates)
+            except Exception as error:
+                from core.capability import raise_if_structural
+                raise_if_structural(error, "unified_learning_system.learn_facts.ledger")
+                logger.debug("knowledge updates for the bulk teach not recorded: %s",
+                             error)
         return counts
 
-    async def learn_concept(self, name: str, *, domain: str = "conversation",
+    async def learn_concept(self, name: str, *, domain: str,
                             description: str = "", relationships: Any = None,
                             provenance: Any = None, emit: Any = None,
                             actor: Optional[str] = None) -> list:
@@ -2994,7 +3760,7 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
 
     async def learn_rule(self, antecedent: Dict[str, Any],
                          consequent: Dict[str, Any], *, surface: str,
-                         provenance: Any = None, domain: str = "conversation",
+                         provenance: Any = None, domain: str,
                          emit: Any = None, actor: Optional[str] = None,
                          quality: float = 0.9) -> Any:
         """Learn a TOLD conditional ("if the valve is closed then the tank
@@ -3006,16 +3772,15 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
         `actor` routes as in `learn_fact`. A real user's taught RULE must NOT
         enter the shared held-conditional store (the Z3 rules the reasoner chains
         for everyone) — that would leak one user's rule into the shared mind. So a
-        user rule is held in the scoped context layer (its implication as a scoped
-        belief, its antecedent/consequent as scoped edges). Reasoning over a
-        user's scoped RULES (the Z3 overlay) is the next increment after the
-        concept-graph overlay; until it lands, a user rule is captured and
-        isolated but not yet chained on that user's behalf."""
+        user rule is held in the scoped context layer, as a scoped belief in the
+        implication. Reasoning over a user's scoped RULES (the Z3 overlay) is the
+        next increment after the concept-graph overlay; until it lands, a user
+        rule is captured and isolated but not yet chained on that user's behalf."""
         from core.agents.autonomous.shared_types import is_substrate_actor
         if not is_substrate_actor(actor):
             return await self._learn_scoped_rule(
                 actor, antecedent, consequent, surface=surface, domain=domain,
-                provenance=provenance)
+                quality=quality)
         from core.semantics.cognitive_ingress import (get_cognitive_ingress,
                                                       Provenance)
         prov = provenance or Provenance(producer="learning", source_id="you",
@@ -3036,6 +3801,7 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
                 positive=True, domain=domain, emit=emit,
                 emit_payload={"kind": "conditional", "surface": surface,
                               "domain": domain},
+                observation=getattr(prov, "source_id", None),
                 # A TOLD conditional is told, like a told fact: same act, same
                 # declared quality. An INDUCED rule is a different act with its
                 # own support and does not come through here.
@@ -3044,27 +3810,38 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
 
     async def _learn_scoped_rule(self, actor: str, antecedent: Dict[str, Any],
                                  consequent: Dict[str, Any], *, surface: str,
-                                 domain: str, provenance: Any) -> Any:
+                                 domain: str, quality: float) -> Any:
         """A USER's told conditional -> that user's scoped context, never the
-        shared Z3 rule store. The antecedent and consequent are held as scoped
-        edges (so each side's facts are captured in the user's context) and the
-        implication as a scoped belief. Returns an `Admission`."""
-        from core.semantics.cognitive_ingress import Admission
+        shared Z3 rule store. The implication is held as a scoped belief.
+        Returns an `Admission`.
+
+        NEITHER SIDE IS ASSERTED, as at the shared door (`admit_conditional`).
+        Each clause used to be written as a scoped edge and a ~0.99 belief, so
+        "if the valve is closed then the tank overflows" put `valve isa closed`
+        and `tank overflows` in the speaker's context as held facts, and the
+        graph overlay walked them as true. Both clauses pass the door's tests,
+        so a rule over something the door refuses is refused here too."""
+        from core.semantics.cognitive_ingress import (Admission, MIN_ADMIT_QUALITY,
+                                                      shape_proposition)
         from core.learning.scoped_context_store import get_scoped_context_store
-        store = get_scoped_context_store()
-        for part in (antecedent, consequent):
-            await store.observe(
-                actor, part.get("subject"), part.get("relation"),
-                part.get("obj"), positive=True, quality=0.9, domain=domain,
-                surface=surface, source="taught_rule")
         claim = " ".join((
             f"if {antecedent.get('subject')} {antecedent.get('relation')} "
             f"{antecedent.get('obj') or ''} then "
             f"{consequent.get('subject')} {consequent.get('relation')} "
             f"{consequent.get('obj') or ''}").split())
-        await store._observe_belief(actor, claim, domain, supports=True,
-                                    quality=0.9, source="taught_rule",
-                                    surface=surface)
+        if quality < MIN_ADMIT_QUALITY:
+            return Admission(proposition=claim, surface=surface, refusals=[
+                f"insufficient support: quality {quality:.3f} < floor "
+                f"{MIN_ADMIT_QUALITY}"])
+        for tag, part in (("antecedent", antecedent), ("consequent", consequent)):
+            *_, refusal = shape_proposition(
+                part.get("subject"), part.get("relation"), part.get("obj"))
+            if refusal:
+                return Admission(proposition=claim, surface=surface,
+                                 refusals=[f"{tag} {refusal}"])
+        await get_scoped_context_store().observe_claim(
+            actor, claim, domain=domain, supports=True, quality=quality,
+            source="taught_rule", surface=surface)
         return Admission(proposition=claim, surface=surface, admitted=True,
                          refusals=[])
 
@@ -3111,49 +3888,6 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
         except Exception as error:
             logger.debug("declarative-takeaway routing skipped: %s", error)
             return None
-
-    def learn_word(self, word: str, word_class: str, *,
-                   source: str = "taught") -> Any:
-        """Learn a WORD's part of speech — the one door for lexical acquisition."""
-        from core.semantics.lexicon import get_lexicon
-        lex = get_lexicon()
-        entry = lex.propose(word, word_class, source)
-        lex.save()
-        self.system_metrics["total_learning_sessions"] = \
-            self.system_metrics.get("total_learning_sessions", 0) + 1
-        return entry
-
-    def learn_words(self, words, *, source: str = "taught",
-                    authoritative: bool = False) -> Dict[str, int]:
-        """Teach MANY words' parts of speech through the one door, saving ONCE.
-
-        `learn_word` writes the whole lexicon to disk on every call; teaching a
-        reference vocabulary that way rewrites the file tens of thousands of
-        times. This proposes every (word, class) and persists once at the end,
-        the lexical-scale counterpart of `learn_facts`. A class outside
-        NOUN/ADJECTIVE/VERB is counted as refused rather than raising, so one bad
-        row never aborts a batch. `authoritative` lets a trusted lexical source's
-        POS tag correct an earlier unconfirmed guess (never a read-confirmed
-        one). Returns {proposed, already, refused, total}."""
-        from core.semantics.lexicon import get_lexicon, CLASSES
-        lex = get_lexicon()
-        counts = {"proposed": 0, "already": 0, "refused": 0, "total": 0}
-        for word, word_class in words:
-            counts["total"] += 1
-            head = str(word or "").strip().lower()
-            if not head or word_class not in CLASSES:
-                counts["refused"] += 1
-                continue
-            existing = lex.entry(head)
-            lex.propose(head, word_class, source, authoritative=authoritative)
-            if existing is not None and existing.word_class == word_class:
-                counts["already"] += 1
-            else:
-                counts["proposed"] += 1
-        lex.save()
-        self.system_metrics["total_learning_sessions"] = \
-            self.system_metrics.get("total_learning_sessions", 0) + 1
-        return counts
 
     def create_belief(self, claim: str, domain: str, prior: float = 0.5,
                       evidence: Any = None, *, source: str = "derived") -> Any:
@@ -3218,7 +3952,8 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
 
     def observe_claim(self, claim: str, domain: str = "language", *,
                       supports: bool = True, quality: float = 0.9,
-                      source: str = "observed") -> Any:
+                      source: str = "observed",
+                      observation: Optional[str] = None) -> Any:
         """Record ONE observation of a claim THROUGH the one authority, idempotently.
 
         The find-or-create-by-claim door (see create_belief): the first
@@ -3231,10 +3966,254 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
         revisable."""
         from core.reasoning.bayesian_uncertainty import get_uncertainty_system
         return get_uncertainty_system().observe_claim(
-            claim, domain, supports=supports, quality=quality, source=source)
+            claim, domain, supports=supports, quality=quality, source=source,
+            observation=observation)
+
+    # ── Resolving what the substrate knew it did not know ───────────────────
+    #
+    # A known unknown is RESOLVED BY LEARNING, never because a caller decided
+    # it was done. Three things must all be learned enough: the KNOWLEDGE the
+    # unknown asks for is held (a producing rule, a graph edge, a remembered
+    # grounding), the BELIEF in it is settled -- below the belief store's
+    # UNSTABLE_ENTROPY -- and grounded in something met, and the DOMAIN holds
+    # it. Until then it stays open and the attempt is counted. The belief
+    # store records a resolution only from these grounds.
+
+    _NO_TARGET = "the unknown states nothing that would satisfy it"
+
+    async def resolve_known_unknown(self, unknown_id: str, *, attempt: bool = True):
+        """Put one open known unknown through the gate; resolve it if and only
+        if everything it asks for is learned enough. Returns the grounds
+        (`.satisfied` says whether it was resolved). Raises LookupError when
+        `unknown_id` is not open.
+
+        `attempt` says whether this is an ATTEMPT to resolve it -- learning was
+        just done toward it (a deficit closure) -- which is counted when it
+        falls short. A periodic sweep only checks, and counts nothing: counting
+        every check would grow every open unknown's attempts on a timer."""
+        from core.reasoning.bayesian_uncertainty import get_uncertainty_system
+        unc = get_uncertainty_system()
+        unknown = unc.known_unknowns.get(unknown_id)
+        if unknown is None:
+            raise LookupError(f"{unknown_id} is not an open known unknown")
+        grounds = await self.resolution_grounds(unknown)
+        if grounds.satisfied:
+            unc.resolve_known_unknown(unknown_id, grounds)
+        elif attempt:
+            unc.note_resolution_attempt(unknown_id)
+        return grounds
+
+    async def resolve_open_unknowns(self) -> Dict[str, int]:
+        """Every open known unknown through the gate. Returns how many were
+        open, resolved, not yet learned enough, and stated no target."""
+        from core.reasoning.bayesian_uncertainty import get_uncertainty_system
+        unc = get_uncertainty_system()
+        counts = {"open": 0, "resolved": 0, "not_yet": 0, "no_target": 0}
+        for unknown_id in list(unc.known_unknowns):
+            if unknown_id not in unc.known_unknowns:
+                continue
+            counts["open"] += 1
+            grounds = await self.resolve_known_unknown(unknown_id, attempt=False)
+            if grounds.satisfied:
+                counts["resolved"] += 1
+            elif grounds.knowledge[1] == self._NO_TARGET:
+                counts["no_target"] += 1
+            else:
+                counts["not_yet"] += 1
+        return counts
+
+    async def resolution_grounds(self, unknown):
+        """The gate's verdict on one unknown, without acting on it."""
+        from core.reasoning.bayesian_uncertainty import ResolutionGrounds
+        target = await self._unknown_target(unknown)
+        kind = target.get("kind")
+        if kind == "operator":
+            return await self._operator_grounds(unknown, target)
+        if kind == "relation":
+            return await self._relation_grounds(unknown, target)
+        if kind == "settled":
+            return await self._settled_grounds(unknown, target)
+        missing = (False, self._NO_TARGET)
+        return ResolutionGrounds(unknown.unknown_id, missing, missing, missing)
+
+    async def _unknown_target(self, unknown) -> Dict[str, Any]:
+        """What would satisfy `unknown`. Unknowns registered before targets
+        existed carry none; for those it is read ONCE from the question each
+        registrant wrote (the only three shapes in core/) and recorded, marked
+        as derived. A question in no known shape has no target and cannot be
+        resolved by the gate."""
+        if unknown.target:
+            return dict(unknown.target)
+        import re
+        from core.reasoning.bayesian_uncertainty import get_uncertainty_system
+        question = (unknown.question or "").strip()
+        target: Optional[Dict[str, Any]] = None
+        produce = re.fullmatch(r"how to produce (\S+) in (\S+)", question)
+        resolve = re.fullmatch(r"how to resolve an? (\S+) in (\S+)", question)
+        relation = re.fullmatch(r"what does (.+)\?", question)
+        about = re.fullmatch(r"what is unresolved about (.+)\?", question)
+        if produce and produce.group(2) == unknown.domain:
+            target = {"kind": "operator", "predicate": produce.group(1)}
+        elif resolve and resolve.group(2) == unknown.domain:
+            target = {"kind": "operator", "predicate": None}
+        elif about:
+            target = {"kind": "settled", "about": about.group(1)}
+        elif relation:
+            # "what does <subject> <relation>?" -- the subject is one of the
+            # domain's concept names, which is how the domain master wrote it.
+            from core.integration.universal_domain_master import get_universal_domain_master
+            rest = relation.group(1)
+            names = sorted(await get_universal_domain_master().concept_names(unknown.domain),
+                           key=len, reverse=True)
+            subject = next((n for n in names if rest.startswith(n + " ")), None)
+            if subject:
+                target = {"kind": "relation", "subject": subject,
+                          "relation": rest[len(subject) + 1:].strip()}
+        if target is None:
+            return {}
+        target["derived_from"] = "question"
+        get_uncertainty_system().set_target(unknown.unknown_id, target)
+        return target
+
+    @staticmethod
+    def _settled(belief, *, supporting: bool, what: str) -> Tuple[bool, str]:
+        """Whether `belief` is learned enough: grounded in something met, and
+        settled (entropy at or below the belief store's UNSTABLE_ENTROPY) --
+        on the supporting side when `supporting`, either way otherwise."""
+        from core.reasoning.bayesian_uncertainty import get_uncertainty_system
+        unc = get_uncertainty_system()
+        if belief is None:
+            return False, f"no belief about {what}"
+        p, h = float(belief.posterior_probability), float(belief.entropy)
+        if not unc.is_grounded(belief):
+            return False, f"belief {belief.belief_id} about {what} rests on nothing met"
+        if h > unc.UNSTABLE_ENTROPY:
+            return False, (f"belief {belief.belief_id} about {what} is unsettled "
+                           f"(posterior {p:.2f}, entropy {h:.2f})")
+        if supporting and p <= 0.5:
+            return False, f"belief {belief.belief_id} about {what} is settled AGAINST ({p:.2f})"
+        return True, f"belief {belief.belief_id} about {what} settled at {p:.2f}"
+
+    async def executable_producers(self, domain_id: str,
+                                   predicate: Optional[str]) -> List[Any]:
+        """The executable rules in `domain_id` whose effects PRODUCE `predicate`
+        (any executable rule when `predicate` is None) -- the world's answer to
+        whether an operator gap is closed, read from the rule store."""
+        executable = await self.store.executable_rules(domain_id=domain_id)
+        return [stored for stored in executable
+                if predicate is None or any(getattr(f, "predicate", None) == predicate
+                                            for f in stored.rule.effects.add)]
+
+    async def _operator_grounds(self, unknown, target):
+        from core.reasoning.bayesian_uncertainty import ResolutionGrounds
+        from core.execution.operator_binding import get_binding_registry
+        from core.integration.universal_domain_master import get_universal_domain_master
+        domain, predicate = unknown.domain, target.get("predicate")
+        producers = await self.executable_producers(domain, predicate)
+        knowledge = (bool(producers),
+                     f"{len(producers)} executable rule(s) in {domain} produce "
+                     f"{predicate or 'an effect'}"
+                     + (f": {', '.join(p.rule_id for p in producers[:3])}" if producers else ""))
+        competence = get_universal_domain_master().competence_belief(domain)
+        belief = self._settled(competence, supporting=True, what=f"competence in {domain}")
+        actions = sorted({p.rule.action.predicate for p in producers
+                          if p.rule.action is not None})
+        bound = [a for a in actions if get_binding_registry().get(domain, a) is not None]
+        domain_ok = (bool(bound),
+                     f"{domain} can act on it through {bound}" if bound else
+                     f"no producing operator is bound to act in {domain} ({actions or 'none'})")
+        answer = (f"{predicate or 'an effect'} is produced in {domain} by "
+                  f"{producers[0].rule_id}" if producers else None)
+        return ResolutionGrounds(unknown.unknown_id, knowledge, belief, domain_ok,
+                                 answer=answer,
+                                 belief_id=getattr(competence, "belief_id", None))
+
+    def _belief_in_relation(self, subject: str, relation: str):
+        """The best-held belief whose claim says `<subject> <relation> ...`
+        (a leading article tolerated), preferring grounded and settled ones."""
+        from core.reasoning.bayesian_uncertainty import get_uncertainty_system
+        unc = get_uncertainty_system()
+        head = subject.replace("_", " ").lower().split() + relation.lower().split()
+        found = []
+        for belief in list(unc.beliefs.values()):
+            words = str(belief.claim).lower().split()
+            if words and words[0] in ("a", "an", "the"):
+                words = words[1:]
+            if len(words) > len(head) and words[:len(head)] == head:
+                found.append(belief)
+        found.sort(key=lambda b: (unc.is_grounded(b),
+                                  b.entropy <= unc.UNSTABLE_ENTROPY,
+                                  b.posterior_probability), reverse=True)
+        return found[0] if found else None
+
+    async def _relation_grounds(self, unknown, target):
+        from core.reasoning.bayesian_uncertainty import ResolutionGrounds
+        from core.database import get_database_manager
+        from core.integration.universal_domain_master import get_universal_domain_master
+        from core.semantics.cognitive_ingress import normalize_term
+        domain, subject, relation = unknown.domain, target["subject"], target["relation"]
+        rel = " ".join(str(relation).replace("_", " ").split())
+        rows = await get_database_manager().execute_query(
+            "SELECT DISTINCT c2.name AS obj FROM unified.concept_relations cr "
+            "JOIN unified.concepts c1 ON cr.source_concept_id = c1.concept_id "
+            "JOIN unified.concepts c2 ON cr.target_concept_id = c2.concept_id "
+            "WHERE c1.name = $1 AND cr.relation = $2 "
+            "AND COALESCE(cr.polarity, 'positive') = 'positive'",
+            (normalize_term(subject), rel), fetch_all=True) or []
+        objects = [r["obj"] for r in rows]
+        knowledge = (bool(objects),
+                     f"the concept graph holds {subject} {rel} {objects[:3]}" if objects else
+                     f"the concept graph holds nothing for {subject} {rel}")
+        held = self._belief_in_relation(subject, rel)
+        belief = self._settled(held, supporting=True, what=f"{subject} {rel} ...")
+        carries = await get_universal_domain_master().holds_relation(domain, subject, relation)
+        domain_ok = (carries is True,
+                     f"{domain}'s concept {subject} carries {relation}" if carries else
+                     (f"{domain}'s concept {subject} does not carry {relation}"
+                      if carries is False else f"{subject} is not a concept of {domain}"))
+        answer = held.claim if held is not None else (
+            f"{subject} {rel} {objects[0]}" if objects else None)
+        return ResolutionGrounds(unknown.unknown_id, knowledge, belief, domain_ok,
+                                 answer=answer, belief_id=getattr(held, "belief_id", None))
+
+    async def _settled_grounds(self, unknown, target):
+        import re
+        from core.reasoning.bayesian_uncertainty import (ResolutionGrounds,
+                                                         get_uncertainty_system)
+        from core.integration.universal_domain_master import get_universal_domain_master
+        unc = get_uncertainty_system()
+        domain, about = unknown.domain, str(target["about"])
+        names = re.compile(r"(?<![a-z0-9_])" + re.escape(about.lower()) + r"(?![a-z0-9_])")
+        candidates = [b for b in list(unc.beliefs.values())
+                      if b.domain == domain and names.search(str(b.claim).lower())]
+        candidates.sort(key=lambda b: (unc.is_grounded(b),
+                                       b.entropy <= unc.UNSTABLE_ENTROPY, -b.entropy),
+                        reverse=True)
+        held = candidates[0] if candidates else None
+        belief = self._settled(held, supporting=False, what=about)
+        memory_id = None
+        if held is not None:
+            memory_id = getattr(held, "memory_id", None) or next(
+                (e.get("memory_id") for e in (*held.evidence_for, *held.evidence_against)
+                 if isinstance(e, dict) and e.get("memory_id")), None)
+        remembered = None
+        if memory_id:
+            from core.memory import get_memory_agent
+            remembered = await (await get_memory_agent()).retrieve_memory(memory_id)
+        knowledge = (remembered is not None,
+                     f"what settles it is remembered ({memory_id})" if remembered is not None
+                     else f"nothing remembered settles {about}")
+        has = await get_universal_domain_master().has_domain(domain)
+        domain_ok = (has, f"{domain} is a domain the substrate holds" if has
+                     else f"{domain} is not a domain the substrate holds")
+        answer = (f"{held.claim} ({'held' if held.posterior_probability > 0.5 else 'not held'}, "
+                  f"posterior {held.posterior_probability:.2f})" if held is not None else None)
+        return ResolutionGrounds(unknown.unknown_id, knowledge, belief, domain_ok,
+                                 answer=answer, belief_id=getattr(held, "belief_id", None))
 
     async def fan_out_ingested(self, result: Any, *, domain: str = "researched",
-                               surface: str = "", quality: float) -> int:
+                               surface: str = "", quality: float,
+                               memory_id: Optional[str] = None) -> int:
         """Run the learning fan-out over what an ingestion ALREADY admitted.
 
         A producer that writes through `concept_ingestion.ingest` directly
@@ -3272,24 +4251,51 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
             try:
                 await self._fan_out_learning(
                     surface=surface or claim, claim=claim,
-                    clauses=[(subj, rel, obj)], positive=bool(positive),
+                    # THE MEMORY THE PRODUCER MET THIS IN, when it has one.
+                    # This path ingests EDGES from an evidence envelope, and a
+                    # producer that never met anything (a tool signature read
+                    # off a registry) still passes None -- `_persist` then
+                    # refuses the belief rather than store one with no subject,
+                    # which is the correct outcome and visible in the log.
+                    #
+                    # A PERCEPTION IS NOT THAT CASE, and it was being treated as
+                    # if it were. The substrate does meet an image: it looks at
+                    # a real file and measures real structure. Measured on the
+                    # live store, one `see()` of a photograph admitted 146
+                    # concept-graph edges, formed 0 memories and wrote 0
+                    # beliefs, every one refused here for naming no memory --
+                    # SEE-LOOP-01 fell 23/23 to 20/23 and FRAME-01 14/14 to
+                    # 13/14 on exactly that. The perception pipeline now forms
+                    # the memory of having perceived and names it here.
+                    clauses=[(subj, rel, obj, memory_id)],
+                    positive=bool(positive),
                     domain=domain, emit=None,
                     emit_payload={"kind": "ingested", "domain": domain,
                                   "subject": subj, "relation": rel, "obj": obj},
                     quality=(edge_quality if edge_quality is not None else quality),
-                    save_lexicon=False)  # bulk stream: accumulate, flush later
+                    # THE ENVELOPE ID, WHICH WAS ALREADY STABLE AND ALREADY
+                    # DROPPED HERE. `submit_tool_capability` stamps
+                    # `evidence_id=_stable_id("toolcap", name)` -- identical on
+                    # every boot -- and the comment beside it says "the envelope
+                    # id already collapses them in the store". It collapsed them
+                    # in the CONCEPT store; this fan-out never passed it on, so
+                    # every boot re-registering 371 tools appended another
+                    # evidence entry to each capability belief. That is the 674.
+                    observation=getattr(result, "evidence_id", None),
+                    )
                 n += 1
             except Exception as error:
                 logger.debug("fan_out_ingested arm failed for %r: %s",
                              claim, error)
         return n
 
-    async def _fan_out_learning(self, *, surface: str, claim: str,
+    async def _fan_out_learning(self, *, memory_id: Optional[str] = None,
+                                surface: str, claim: str,
                                 clauses: List[tuple], positive: bool,
                                 domain: str, emit: Any,
                                 emit_payload: Dict[str, Any],
                                 quality: float,
-                                save_lexicon: bool = True) -> None:
+                                observation: Optional[str] = None) -> None:
         """The shared fan-out every learn_* method runs after admission, so a
         fact and a rule touch the SAME systems: LEXICON, BELIEFS, METRICS, and
         the DOMAIN (via the emitted event). Each arm is isolated — one failing
@@ -3314,30 +4320,18 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
         believes today it can revise tomorrow. So there is no "this kind does not
         touch beliefs": everything does.
 
-        `save_lexicon=False` updates the lexicon in memory but does NOT flush it
-        to disk -- the shared 14MB file must not be rewritten once per item in a
-        bulk stream (e.g. registering hundreds of tool capabilities at startup).
-        The in-memory entries accumulate on the singleton and persist on the next
-        flush (a conversational `learn_fact` saves the whole file)."""
-        from core.semantics.lexicon import observe_proposition, get_lexicon
+"""
         from core.reasoning.bayesian_uncertainty import get_uncertainty_system
-        # LEXICON: teaching teaches parts of speech. Persist ONCE over the whole
-        # batch -- observe_proposition writes the lexicon to disk per call, and a
-        # reference-sized teach would rewrite that file once per clause.
-        lexicon_touched = 0
-        for (subj, rel, obj) in clauses:
-            if not subj or not rel:
-                continue
-            try:
-                lexicon_touched += observe_proposition(
-                    surface, subj, rel, obj, source="taught", save=False)
-            except Exception as error:
-                logger.debug("learning fan-out (lexicon) failed: %s", error)
-        if lexicon_touched and save_lexicon:
-            try:
-                get_lexicon().save()
-            except Exception as error:
-                logger.debug("learning fan-out (lexicon save) failed: %s", error)
+        # NO WORD-CLASS WRITE HERE. Teaching a fact taught parts of speech by
+        # writing them to a second store, which then had to be kept in step
+        # with the first and was not: it ended up holding 199 words, every one
+        # a NOUN, because this arm recorded the subject and the object and
+        # discarded the relation -- the verb.
+        #
+        # The memory of the sentence already says everything its words' classes
+        # follow from, and `MemoryAgent.warm_word_classes` works them out from
+        # exactly that. So there is nothing to write, nothing to flush, and
+        # nothing that can survive a wipe to contradict what is remembered.
         # BELIEFS: every taught clause moves a UNIVERSAL posterior. This fan-out
         # runs only on the substrate/shared path -- the general-vs-context
         # partition is decided UPSTREAM, in the public learn_* methods: a user's
@@ -3364,20 +4358,48 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
         # one door out of two.
         from core.semantics.cognitive_ingress import MIN_ADMIT_QUALITY
         us = get_uncertainty_system()
-        propositions = [" ".join(str(p) for p in c if p)
-                        for c in clauses if c and c[0] and c[1]]
+        # A CLAUSE MAY CARRY THE MEMORY IT WAS ADMITTED AS. Three elements is
+        # the long-standing shape (subject, relation, object); a fourth, when
+        # present, is the id of the memory `_remember` wrote for it. The belief
+        # is ABOUT that memory — without it `_persist` refuses, because a belief
+        # with no subject is just another copy of the claim.
+        subjected = [(" ".join(str(p) for p in c[:3] if p),
+                      c[3] if len(c) > 3 else None)
+                     for c in clauses if c and c[0] and c[1]]
         if quality < MIN_ADMIT_QUALITY:
             logger.info(
                 "belief fan-out REFUSED for %d proposition(s) in %s: evidence "
                 "quality %.3f < floor %.2f — held as absence, not as a weak "
-                "belief", len(propositions or ([claim] if claim else [])),
+                "belief", len(subjected or ([claim] if claim else [])),
                 domain, quality, MIN_ADMIT_QUALITY)
-            propositions = []
+            # THE FLOOR CLEARS WHAT THE LOOP BELOW ACTUALLY READS.
+            #
+            # It used to empty a separate `propositions` list, built from
+            # `subjected` and read by nothing else — so the floor logged a
+            # refusal and then the loop wrote every belief anyway. The floor had
+            # no effect on this path at all. Invisible until now because
+            # `_persist` was refusing these beliefs for a different reason
+            # (they named no memory); with perception's memory supplied, a
+            # detection reported at confidence 0.02 was held as a belief
+            # against a stated floor of 0.50. SEE-LOOP-01 case C is the check
+            # that could not fail, and now can.
+            subjected = []
             claim = ""
-        for proposition in (propositions or ([claim] if claim else [])):
+        # `observation` IDENTIFIES THE WITNESS, and it was dropped right here.
+        # The producer knows which observation this is -- a taught corpus knows
+        # its source, an ingested envelope has a stable `evidence_id` -- and
+        # none of it reached the belief store, which saw only
+        # `{quality, source: "taught"}`. So a standing fact re-read at every
+        # boot appended evidence and moved the posterior every time: 2,588
+        # beliefs observed more than a hundred times, one of them 674 times.
+        # Same shape as the quality default this fan-out already documents --
+        # something the producer knew, computed upstream and discarded at the
+        # seam.
+        for proposition, mid in (subjected or ([(claim, memory_id)] if claim else [])):
             try:
                 us.observe_claim(proposition, domain=domain, supports=positive,
-                                 quality=quality, source="taught")
+                                 quality=quality, source="taught",
+                                 observation=observation, memory_id=mid)
             except Exception as error:
                 logger.debug("learning fan-out (beliefs) failed: %s", error)
         # METRICS: the learning is counted.
@@ -3390,12 +4412,13 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
         # immediately through the SINGLE domain authority, so bulk teaching affects
         # the domain on the spot. Either way it is the one owner (`ensure_domain`),
         # never a second registrar; `ensure_domain` is idempotent.
-        if emit is not None:
-            try:
-                await emit(emit_payload)
-            except Exception as error:
-                logger.debug("learning fan-out (domain emit) failed: %s", error)
-        elif domain:
+        # A DOMAIN MUST EXIST TO BE REASONED ABOUT. This is registration, and
+        # it is idempotent -- `ensure_domain` returns an already-registered
+        # domain UNCHANGED. It is NOT the reaction, which is the mistake the
+        # comment above recorded for months: "crystallize it immediately through
+        # the SINGLE domain authority" was believed of a call that, for every
+        # domain a corpus teaches into, does nothing at all.
+        if domain:
             try:
                 from core.integration.universal_domain_master import (
                     get_universal_domain_master)
@@ -3403,6 +4426,69 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
                 await dm.ensure_domain(domain)
             except Exception as error:
                 logger.debug("learning fan-out (domain ensure) failed: %s", error)
+        # THEN TELL THE SUBSTRATE. Unconditionally.
+        await self._announce(emit, emit_payload, domain)
+
+    async def _announce(self, emit: Any, payload: Dict[str, Any],
+                        domain: str) -> None:
+        """Knowledge was admitted: say so, on every path.
+
+        THIS WAS A CALLER'S OPTION AND IT SHOULD NEVER HAVE BEEN ONE. The fan-out
+        branched on whether the caller passed an emitter, and only the
+        conversational path ever did. So a fact told in conversation woke the
+        domain authority -- crystallization, expansion, discovery -- and the SAME
+        fact taught from a corpus woke nothing. Measured before this: `lexical`
+        holds over 300,000 taught facts and the substrate's belief that it has
+        learned that domain sits at its 0.5000 prior, never once updated.
+
+        Knowledge entering the substrate is a fact ABOUT the substrate, so the
+        authority states it rather than hoping its caller will. A caller that
+        holds its own transport (the conversation) still supplies it; everything
+        else reaches the live coordinator through the runtime registry, which
+        exists precisely so a component can find it without a circular import.
+
+        NO SILENT NO-OP. If there is no live substrate to hear this, knowledge is
+        being admitted into something that is not running -- the exact condition
+        this fixes -- so it is counted and said out loud rather than swallowed.
+        """
+        def unheard(reason: str) -> None:
+            """The substrate was not told. Count it where a run can see it.
+
+            This swallowed its exception into a warning, and the first thing it
+            swallowed was my own bug -- `announce_evidence` added to the wrong
+            class -- which then read as a clean run with the reactions silently
+            absent. An announcement that fails is not a degraded success, it is
+            knowledge admitted into a substrate that does not know about it, so
+            it lands on the SAME counter as having no substrate at all and a
+            teaching pass reports it.
+            """
+            self.system_metrics["admissions_unannounced"] = (
+                self.system_metrics.get("admissions_unannounced", 0) + 1)
+            logger.error(
+                "learning: %s admitted into domain %r was NOT announced (%s). "
+                "The domain authority will not crystallize, expand or discover "
+                "from it. %d unannounced so far.",
+                payload.get("kind", "knowledge"), domain, reason,
+                self.system_metrics["admissions_unannounced"])
+
+        if emit is not None:
+            try:
+                await emit(payload)
+            except Exception as error:
+                unheard(f"caller's emitter raised {type(error).__name__}: {error}")
+            return
+
+        from core.agents.autonomous.runtime_registry import (
+            get_autonomous_coordinator)
+        coordinator = get_autonomous_coordinator()
+        if coordinator is None:
+            unheard("no live substrate is registered — a teaching process must "
+                    "START the substrate, not only construct it")
+            return
+        try:
+            await coordinator.announce_evidence(payload)
+        except Exception as error:
+            unheard(f"{type(error).__name__}: {error}")
 
     async def _learn_scoped_fact(self, actor: str, subject: str, relation: str,
                                  obj: Optional[str], *, positive: bool,
@@ -3422,19 +4508,43 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
         the anti-poisoning floor and the tenant-isolation guarantee in one rule:
         a user can never write the shared mind directly. Returns an `Admission`
         so the caller keeps the same contract `learn_fact` always returned."""
-        from core.semantics.cognitive_ingress import Admission
+        from core.semantics.cognitive_ingress import (Admission, MIN_ADMIT_QUALITY,
+                                                      shape_proposition)
         from core.learning.scoped_context_store import get_scoped_context_store
         from core.reasoning.bayesian_uncertainty import get_uncertainty_system
+        # The belief's claim is spelled as the shared side spells it (the parts
+        # as told), so the corroboration check below matches across the layers.
         claim = " ".join(str(p) for p in (subject, relation, obj) if p)
         surface = surface or claim
-        store = get_scoped_context_store()
-        await store.observe(actor, subject, relation, obj, positive=positive,
-                            quality=quality, domain=domain, surface=surface,
-                            source="taught")
+        polarity = "positive" if positive else "negative"
 
-        # PROMOTION GATE — the one bridge from context to the shared mind.
+        # THE DOOR'S TESTS, before anything is written. A user's context is not a
+        # side entrance: what the door refuses is refused here, and the EDGE is
+        # stored in the door's canonical terms, which are the concept names the
+        # graph overlay walks.
+        if quality < MIN_ADMIT_QUALITY:
+            refusal = (f"insufficient support: quality {quality:.3f} < floor "
+                       f"{MIN_ADMIT_QUALITY}")
+        else:
+            subject_term, relation_term, obj_term, refusal = shape_proposition(
+                subject, relation, obj)
+        if refusal:
+            return Admission(proposition=claim, surface=surface, admitted=False,
+                             polarity=polarity, refusals=[refusal])
+
+        store = get_scoped_context_store()
+        await store.observe(actor, subject_term, relation_term, obj_term,
+                            claim=claim, positive=positive, quality=quality,
+                            domain=domain, surface=surface, source="taught")
+
+        # PROMOTION GATE — the one bridge from context to the shared mind, for
+        # what was said. What a person's work produced -- what was seen in their
+        # image, a recognition drawn from it -- is not a telling anyone can
+        # corroborate: it stays in their context, and reaches the substrate's own
+        # knowledge only as an experience, through the lift and the gate.
         promoted = False
-        if positive and not await store.is_promoted(claim):
+        produced = getattr(provenance, "source_type", None) in ("PERCEPTION", "INDUCED_RULE")
+        if positive and not produced and not await store.is_promoted(claim):
             holders = await store.independent_holders(
                 claim, exclude_actor=actor, min_posterior=0.5)
             existing = get_uncertainty_system().belief_for_claim(claim)
@@ -3443,23 +4553,32 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
             if holders or substrate_holds:
                 # Corroborated -> admit to the shared graph + universal belief via
                 # the normal shared path, then flag so it lifts exactly once.
-                await self.learn_fact(
+                shared = await self.learn_fact(
                     subject, relation, obj, positive=positive, surface=surface,
                     provenance=provenance, domain=domain, description=description,
                     word_class_of=word_class_of, emit=emit, quality=quality,
                     actor=None)  # actor=None -> the shared mind
-                await store.mark_promoted(claim)
-                promoted = True
-                logger.info(
-                    "scoped fact promoted to the shared mind on independent "
-                    "corroboration: '%s' (holders=%d, substrate_held=%s)",
-                    claim[:60], len(holders), substrate_holds)
+                # FLAGGED ONLY IF THE SHARED MIND TOOK IT. The flag used to be set
+                # whatever the door said, so a claim the shared door refused (a
+                # kind cycle, a failed ingestion) read "promoted" with nothing in
+                # the shared mind, and `is_promoted` then stopped it ever lifting.
+                if shared.admitted or shared.already_present:
+                    await store.mark_promoted(claim)
+                    promoted = True
+                    logger.info(
+                        "scoped fact promoted to the shared mind on independent "
+                        "corroboration: '%s' (holders=%d, substrate_held=%s)",
+                        claim[:60], len(holders), substrate_holds)
+                else:
+                    logger.warning(
+                        "scoped fact corroborated but the shared door refused it, "
+                        "so it stays context: '%s' (%s)", claim[:60],
+                        "; ".join(shared.refusals) or "no reason given")
 
         return Admission(
             proposition=claim, surface=surface, admitted=True,
-            concepts_created=([] if promoted else [str(subject)]),
-            polarity=("positive" if positive else "negative"),
-            refusals=[])
+            concepts_created=([] if promoted else [subject_term]),
+            polarity=polarity, refusals=[])
 
     async def record_demonstration(self, example, *, domain_id: str) -> bool:
         """Keep one executed demonstration; do NOT induce here.
@@ -3554,6 +4673,17 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
         result = self.induce(basis)
         summary["status"] = result.status.value
         if result.status is not InductionStatus.RULE_LEARNED:
+            return summary
+        acted = getattr(result.rule, "action", None)
+        if acted is None or acted.predicate != predicate:
+            # NOT THIS ACT'S OPERATOR. The demonstrations were explained without
+            # the act: the hypothesis that the effect happens whether or not the
+            # substrate acts, which only a still world showing otherwise can
+            # refute. A rule that does not name the act cannot be performed, so
+            # it is neither recorded as this signature's operator nor reported
+            # as one.
+            summary["status"] = "effect_without_act"
+            summary["detail"] = str(result.rule)
             return summary
 
         stored = await self.record(
@@ -3835,11 +4965,21 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
                 1 for a in accepted if a.is_knowledge),
         }
 
-    async def shutdown(self) -> None:
-        """Lifecycle teardown. The authority owns no long-lived async resources
-        of its own -- persistence is delegated to the demonstration/rule stores,
-        torn down with the database pool. Honest no-op."""
-        return None
+    async def shutdown(self) -> Dict[str, Any]:
+        """Lifecycle teardown: finish what this authority has in flight and
+        persist what only it holds, before the database pool closes.
+
+          * event-driven learning (`learn_from_event` hands work to tasks) is
+            drained, so an in-flight outcome is not abandoned mid-write;
+          * trained clause classifiers are persisted (main.py used to do this
+            itself, reaching past the authority that owns them).
+
+        Beliefs, rules and demonstrations are persisted by their own stores as
+        they are written. Returns what was done."""
+        report = {"event_learning": await self.drain_events(),
+                  "classifiers_saved": await self.save_classifiers()}
+        logger.info("learning authority shut down: %s", report)
+        return report
 
 
 # Singleton instance

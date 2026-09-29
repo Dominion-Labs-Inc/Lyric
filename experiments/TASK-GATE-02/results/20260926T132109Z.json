@@ -1,0 +1,185 @@
+{
+  "experiment": "TASK-GATE-02",
+  "claim": "The task gate asks the intent authority whether the pursuit a task serves is still live, refuses the steps of concluded or unrecorded pursuits, and refuses nothing whose pursuit is live.",
+  "hypothesis": "If the gate reads the task's intent by id from the authority that owns it, and a return to a concluded pursuit reopens it, then work on an ended pursuit stops at the door while a replanned pursuit's work and intent-less work both pass.",
+  "started_at": "2026-09-26T13:21:09.349806+00:00",
+  "duration_seconds": 87.832,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/TorinAI/venv_torin/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/TorinAI",
+    "shadow_mode": null,
+    "git_commit": "20deb447498593391eca0286916b8f986c560a26",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "torinai_db",
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "dotenv:.env.postgres",
+        "database": "dotenv:.env.postgres",
+        "user": "dotenv:.env.postgres",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres"
+      }
+    },
+    "git_uncommitted_changes": 975,
+    "database_verified": null,
+    "database_verified_reason": "not verified"
+  },
+  "summary": {
+    "checks": 21,
+    "passed": 21,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [
+    {
+      "name": "tasks_refused_at_gate",
+      "value": 7,
+      "unit": "tasks",
+      "note": ""
+    },
+    {
+      "name": "tasks_without_intent",
+      "value": 2,
+      "unit": "tasks",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "a step of a FORMING pursuit proceeds",
+      "passed": true,
+      "detail": "None",
+      "at": "2026-09-26T13:22:37.121362+00:00"
+    },
+    {
+      "label": "a step of an ACTIVE pursuit proceeds",
+      "passed": true,
+      "detail": "None",
+      "at": "2026-09-26T13:22:37.122108+00:00"
+    },
+    {
+      "label": "a step of a FULFILLED pursuit is refused \u2014 the pursuit is over",
+      "passed": true,
+      "detail": "the pursuit it is a step of has concluded (fulfilled): the file is in the archive",
+      "at": "2026-09-26T13:22:37.122726+00:00"
+    },
+    {
+      "label": "a step of an ABANDONED pursuit is refused, and says what ended it",
+      "passed": true,
+      "detail": "the pursuit it is a step of has concluded (abandoned): stopped at MOVE(z, HALL, LAB)",
+      "at": "2026-09-26T13:22:37.123941+00:00"
+    },
+    {
+      "label": "a step of a REFUSED pursuit is refused",
+      "passed": true,
+      "detail": "the pursuit it is a step of has concluded (refused): the constitution refused the act",
+      "at": "2026-09-26T13:22:37.124636+00:00"
+    },
+    {
+      "label": "a task naming a pursuit the authority does NOT hold is refused",
+      "passed": true,
+      "detail": "it names intent 387403b98f6f408fb22fb4dd34a1cdab, which the intent authority does not hold \u2014 an id that names ",
+      "at": "2026-09-26T13:22:37.125459+00:00"
+    },
+    {
+      "label": "a task CLAIMING its ended pursuit is live is still refused \u2014 the status comes from the record",
+      "passed": true,
+      "detail": "the pursuit it is a step of has concluded (abandoned): stopped at MOVE(z, HALL, LAB)",
+      "at": "2026-09-26T13:22:37.126548+00:00"
+    },
+    {
+      "label": "a task naming no pursuit proceeds \u2014 its acts meet Law 2 at the tool gate",
+      "passed": true,
+      "detail": "None",
+      "at": "2026-09-26T13:22:37.126601+00:00"
+    },
+    {
+      "label": "and the absence is COUNTED",
+      "passed": true,
+      "detail": "+1",
+      "at": "2026-09-26T13:22:37.126612+00:00"
+    },
+    {
+      "label": "and no intent was formed for it at the door",
+      "passed": true,
+      "detail": "formed=[] provenance=None",
+      "at": "2026-09-26T13:22:37.126621+00:00"
+    },
+    {
+      "label": "reasoning SETTLING a pass over an ended pursuit does not reopen it",
+      "passed": true,
+      "detail": "abandoned -> abandoned",
+      "at": "2026-09-26T13:22:37.135813+00:00"
+    },
+    {
+      "label": "the planner's RETURN reopens it \u2014 the pursuit is live again",
+      "passed": true,
+      "detail": "status=active",
+      "at": "2026-09-26T13:22:37.139995+00:00"
+    },
+    {
+      "label": "the same pursuit, not a second account of it",
+      "passed": true,
+      "detail": "v1 -> v3",
+      "at": "2026-09-26T13:22:37.140021+00:00"
+    },
+    {
+      "label": "the ended attempt's lesson survives on the actor-free SHAPE",
+      "passed": true,
+      "detail": "[{'status': 'abandoned', 'outcome': {'detail': 'stopped at MOVE(z, HALL, LAB)', 'matched_aim': False, 'outcome_class': 'missed'}, 'version': 2}]",
+      "at": "2026-09-26T13:22:37.173361+00:00"
+    },
+    {
+      "label": "the current outcome is the new attempt's \u2014 none yet",
+      "passed": true,
+      "detail": "None",
+      "at": "2026-09-26T13:22:37.173405+00:00"
+    },
+    {
+      "label": "the history records the full previous state, status and outcome",
+      "passed": true,
+      "detail": "[(1, 'abandoned'), (2, 'abandoned')]",
+      "at": "2026-09-26T13:22:37.174205+00:00"
+    },
+    {
+      "label": "a step of the REOPENED pursuit passes the gate \u2014 not refused for the first route's end",
+      "passed": true,
+      "detail": "None",
+      "at": "2026-09-26T13:22:37.174922+00:00"
+    },
+    {
+      "label": "and it concludes again on its own outcome, the earlier attempt kept",
+      "passed": true,
+      "detail": "fulfilled / 1",
+      "at": "2026-09-26T13:22:37.177064+00:00"
+    },
+    {
+      "label": "while HALTED a drive goal is refused at the gate \u2014 its executor never ran",
+      "passed": true,
+      "detail": "self_improvement is refused because this substrate is HALTED: TASK-GATE-02 probe. A halt s",
+      "at": "2026-09-26T13:22:37.180883+00:00"
+    },
+    {
+      "label": "once the halt is lifted it reaches its executor \u2014 the gate let it through",
+      "passed": true,
+      "detail": "drive goal missing drive/domain (drive='competence' domain=None)",
+      "at": "2026-09-26T13:22:37.180907+00:00"
+    },
+    {
+      "label": "a drive goal on an ENDED pursuit is refused like any other work",
+      "passed": true,
+      "detail": "the pursuit it is a step of has concluded (abandoned): stopped at MOVE(z, HALL, LAB)",
+      "at": "2026-09-26T13:22:37.180916+00:00"
+    }
+  ],
+  "notes": [
+    "A-live, B and C's gate check are the negative controls: live and intent-less work passes, and the gate forms no intent.",
+    "Nothing in the live path writes status 'refused' yet; A reaches it by reconciling the probe pursuit through the authority directly."
+  ]
+}

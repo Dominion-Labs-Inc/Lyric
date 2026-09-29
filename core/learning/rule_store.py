@@ -47,6 +47,8 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 
+import contextvars
+
 from core.learning.learning_policy import guard_learning
 from core.learning.rule_identity import semantic_fingerprint
 from core.learning.rule_induction import (
@@ -186,8 +188,25 @@ class StoredRule:
     status: EpistemicStatus
     domain_id: Optional[str] = None
     rule_kind: str = "state_transition"
+    #: Roots that SUPPORT the rule: induction positives, validation positives,
+    #: runtime confirmations.
     positive_root_count: int = 0
+    #: Roots that CONTRADICT it: a validation negative or a runtime
+    #: contradiction. Evidence the rule is WRONG.
+    #:
+    #: THIS USED TO ALSO COUNT INDUCTION COUNTEREXAMPLES, and they are the
+    #: opposite kind of thing. A counterexample is part of the BASIS: the rule
+    #: was induced to EXCLUDE it, and excluding four of them is what makes a
+    #: rule discriminative rather than vacuous. Collapsed into one number, a
+    #: well-induced rule was indistinguishable from a refuted one — and
+    #: `IntrinsicMotivationSystem._operator_confidence` reads exactly this as
+    #: `p / (p + n)`, so a rule induced from 2 positives and 4 counterexamples
+    #: reported 0.33 confidence when nothing had ever contradicted it.
     negative_root_count: int = 0
+    #: Roots the rule was induced to EXCLUDE. Support for its discriminativeness,
+    #: never evidence against it. Its own column because squeezing it into
+    #: either of the two above is what made both unreadable.
+    counterexample_root_count: int = 0
     supersedes_rule_id: Optional[str] = None
     validated_at: Optional[datetime] = None
     detail: str = ""
@@ -197,6 +216,89 @@ class StoredRule:
     def is_executable(self) -> bool:
         """Only VALIDATED rules may be consumed by execution."""
         return confers_execution_authority(self.status)
+
+
+#: WHAT THE CURRENT ACT RESTS ON, bound to the async context by the path that
+#: authorised it, in the same way and for the same reason as the acting intent
+#: and the acting actor (`core.reasoning.intent_authority`): one asyncio task
+#: must never read another task's.
+#:
+#: THE GAP THIS CLOSES. A rule carries its own evidence, and the acting path
+#: loads it — `stored` is right there, and `stored.is_executable` is read one
+#: line before the act runs. But `is_executable` is a BOOLEAN, and everything
+#: else went out of scope with it: a rule confirmed 133 times by the world and a
+#: rule confirmed twice reached the constitution as the same act, carrying no
+#: indication that one was better attested than the other. The substrate could
+#: say WHY it was acting (`Account`) and WHOSE things it was touching (`actor`),
+#: and not HOW SURE it was of the thing it was acting on.
+#:
+#: VALUES, NOT AN ID — and the difference from the intent is deliberate. An
+#: intent travels as an id the constitution FETCHES, so a fabricated one names
+#: nothing. That cannot work here: the constitution holds no database handle,
+#: because `judge_act` is on the acting path and is measured in tens of
+#: microseconds. So the counts travel, and `set_acting_rule` takes a StoredRule
+#: rather than loose numbers — what is bound is the store's own record of a rule,
+#: read off the object the acting path just loaded, never a claim assembled by
+#: the act about itself.
+_acting_rule: "contextvars.ContextVar[Optional['ActingRule']]" = contextvars.ContextVar(
+    "torin_acting_rule", default=None)
+
+
+@dataclass(frozen=True)
+class ActingRule:
+    """How well attested the rule under the current act is."""
+
+    rule_id: str
+    status: str
+    confirmed: int
+    contradicted: int
+    counterexamples: int
+
+    @property
+    def support(self) -> Optional[float]:
+        """Confirmations as a share of the observations that TESTED the rule, or
+        None when nothing has tested it.
+
+        None is not zero, and the distinction is the whole point: a rule nothing
+        has exercised is UNTESTED, not unreliable, and reporting 0.0 would hand
+        the constitution a measured doubt nobody measured. Counterexamples are
+        excluded — they are the basis the rule EXCLUDES, not evidence against it
+        (see `StoredRule`).
+        """
+        tested = self.confirmed + self.contradicted
+        return (self.confirmed / tested) if tested else None
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {"rule_id": self.rule_id, "status": self.status,
+                "confirmed": self.confirmed, "contradicted": self.contradicted,
+                "counterexamples": self.counterexamples,
+                "support": self.support}
+
+
+def set_acting_rule(record: Optional["StoredRule"]):
+    """Bind the rule the current act rests on. Returns the reset token."""
+    if record is None:
+        return _acting_rule.set(None)
+    return _acting_rule.set(ActingRule(
+        rule_id=record.rule_id,
+        status=record.status.value,
+        confirmed=int(record.positive_root_count or 0),
+        contradicted=int(record.negative_root_count or 0),
+        counterexamples=int(record.counterexample_root_count or 0)))
+
+
+def get_acting_rule() -> Optional["ActingRule"]:
+    """What the current act rests on, or None when it rests on no learned rule.
+
+    None is the honest answer for a raw tool call: nothing was proved, so there
+    is no attestation to report, and inventing one would be worse than silence.
+    """
+    return _acting_rule.get()
+
+
+def reset_acting_rule(token) -> None:
+    """Release the binding set by `set_acting_rule`."""
+    _acting_rule.reset(token)
 
 
 @dataclass
@@ -236,6 +338,11 @@ CREATE TABLE IF NOT EXISTS unified.learned_rules (
 
 ALTER TABLE unified.learned_rules
     ADD COLUMN IF NOT EXISTS semantic_fingerprint VARCHAR(64);
+
+-- The induction counterexamples, split out of `negative_root_count` so that
+-- column means CONTRADICTED and nothing else. See `StoredRule`.
+ALTER TABLE unified.learned_rules
+    ADD COLUMN IF NOT EXISTS counterexample_root_count INTEGER NOT NULL DEFAULT 0;
 
 -- UNIQUE, partial. One meaning, one authoritative rule. Partial because rules
 -- written before this column existed may carry NULL until backfilled, and a
@@ -328,6 +435,32 @@ class RuleStore:
             # "new" rules and every support count computed over them would be
             # counting copies.
             existing = await self._by_fingerprint(fingerprint)
+            record = None
+            if existing is None:
+                record = StoredRule(
+                    # The id stays opaque and historical. Meaning lives in the
+                    # fingerprint, so old ids never have to be rewritten.
+                    rule_id=f"rule_{uuid.uuid4().hex[:12]}",
+                    rule=candidate,
+                    status=EpistemicStatus.CANDIDATE,
+                    domain_id=domain_id,
+                    rule_kind=rule_kind,
+                    positive_root_count=len(positives),
+                    # NOT `negative_root_count`. These are the cases the rule was
+                    # induced to EXCLUDE — its discriminativeness, not evidence
+                    # against it. Nothing has contradicted a rule at induction.
+                    negative_root_count=0,
+                    counterexample_root_count=len(negatives),
+                    detail=result.detail,
+                    semantic_fingerprint=fingerprint,
+                )
+                # ANOTHER INDUCTION OF THE SAME HYPOTHESIS may have recorded it
+                # between the look above and this write -- the drain and an
+                # explorer re-inducing one signature at once. Then it is held,
+                # and this is reinforcement, not a second rule.
+                if not await self._insert(record):
+                    existing = await self._by_fingerprint(fingerprint)
+                    record = None
             if existing is not None:
                 await self._attach(existing.rule_id, positives,
                                    EvidenceRole.INDUCTION_POSITIVE, True)
@@ -338,23 +471,13 @@ class RuleStore:
                 reused += 1
                 continue
 
-            record = StoredRule(
-                # The id stays opaque and historical. Meaning lives in the
-                # fingerprint, so old ids never have to be rewritten.
-                rule_id=f"rule_{uuid.uuid4().hex[:12]}",
-                rule=candidate,
-                status=EpistemicStatus.CANDIDATE,
-                domain_id=domain_id,
-                rule_kind=rule_kind,
-                positive_root_count=len(positives),
-                negative_root_count=len(negatives),
-                detail=result.detail,
-                semantic_fingerprint=fingerprint,
-            )
-            await self._insert(record)
             await self._attach(record.rule_id, positives, EvidenceRole.INDUCTION_POSITIVE, True)
             await self._attach(record.rule_id, negatives, EvidenceRole.INDUCTION_NEGATIVE, False)
-            stored.append(record)
+            # The STORED record, not the in-memory one built before the evidence
+            # was attached — same reason the reuse branch above returns the
+            # refreshed one. Handing back counts the store does not hold is how
+            # a caller comes to believe something the row never said.
+            stored.append(await self.get(record.rule_id) or record)
 
         logger.info(
             "recorded %d rule(s) from %d positive / %d negative root observation(s) "
@@ -385,7 +508,8 @@ class RuleStore:
 
         rows = await self.db().execute_query(
             "SELECT rule_id, domain_id, rule_kind, canonical_rule_json, epistemic_status,"
-            " positive_root_count, negative_root_count, supersedes_rule_id, validated_at,"
+            " positive_root_count, negative_root_count, counterexample_root_count,"
+            " supersedes_rule_id, validated_at,"
             " detail, semantic_fingerprint FROM unified.learned_rules WHERE rule_id = $1",
             (rule_id,), fetch_all=True)
         if not rows:
@@ -400,26 +524,37 @@ class RuleStore:
             domain_id=row["domain_id"], rule_kind=row["rule_kind"],
             positive_root_count=row["positive_root_count"],
             negative_root_count=row["negative_root_count"],
+            counterexample_root_count=row["counterexample_root_count"],
             supersedes_rule_id=row["supersedes_rule_id"],
             validated_at=row["validated_at"], detail=row["detail"] or "",
             semantic_fingerprint=row["semantic_fingerprint"],
         )
 
-    async def _refresh_root_counts(self, rule_id: str) -> StoredRule:
-        """Recount support from the evidence table.
+    async def _refresh_root_counts(self, rule_id: str) -> Optional[StoredRule]:
+        """Recount the rule's evidence from the evidence table, BY ROLE.
 
         RECOUNTED, never incremented. Re-attaching roots the rule already had
         would otherwise inflate its support on every repeat of the same lesson,
         which is the duplicate-counting defect one level down from duplicate
         rules.
+
+        BY ROLE, not by `supports`. An induction counterexample is stored with
+        `supports = False` exactly like a runtime contradiction, and the two
+        mean opposite things: one is the rule correctly excluding a case it was
+        built to exclude, the other is the world disagreeing with it. Counting
+        them together made the number unreadable — see `StoredRule`.
+
+        CALLED FROM `_attach`, so it cannot be forgotten. It used to have ONE
+        caller (the fingerprint-reuse branch of `record`), and every other path
+        that attached evidence left the counts as they were. Measured on the
+        live store: the `warehouse` transfer rule carried FIVE
+        `validation_positive` roots, its own `detail` column read "confirmed by
+        5 independent observation(s)", and `positive_root_count` was 0. Two
+        fields of one row disagreeing, with nothing to say which was true.
         """
-        await self.db().execute_query(
-            "UPDATE unified.learned_rules SET"
-            " positive_root_count = (SELECT count(DISTINCT root_evidence_id)"
-            "   FROM unified.learned_rule_evidence WHERE rule_id = $1 AND supports),"
-            " negative_root_count = (SELECT count(DISTINCT root_evidence_id)"
-            "   FROM unified.learned_rule_evidence WHERE rule_id = $1 AND NOT supports),"
-            " updated_at = NOW() WHERE rule_id = $1", (rule_id,), commit=True)
+        from core.agents.memory_agent import memory_agent
+        await memory_agent().recount_rule_evidence(
+            rule_id=rule_id, induction_negative_role=EvidenceRole.INDUCTION_NEGATIVE.value)
         return await self.get(rule_id)
 
     async def record_projection(self, projection, *, rule_kind: str = "projected") -> StoredRule:
@@ -465,7 +600,12 @@ class RuleStore:
                     f"({projection.source_domain}) via {projection.mapping_id}"),
             semantic_fingerprint=fingerprint,
         )
-        await self._insert(record)
+        if not await self._insert(record):
+            # Held by the time this wrote: the same projection, made at once.
+            held = await self._by_fingerprint(fingerprint)
+            logger.info("projection matches rule %s recorded meanwhile; not duplicating",
+                        getattr(held, "rule_id", None))
+            return held
 
         # Element-level provenance, so a later contradiction can be attributed
         # to the specific correspondence that was wrong rather than discarding
@@ -482,47 +622,52 @@ class RuleStore:
                    projected_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                    PRIMARY KEY (rule_id, role, target_element, source_element)
                )""")
+        from core.agents.memory_agent import memory_agent
         for element in projection.provenance:
-            await self.db().execute_query(
-                "INSERT INTO unified.rule_projections (rule_id, source_rule_id,"
-                " mapping_id, role, target_element, source_element, mapping_edge)"
-                " VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT DO NOTHING",
-                (record.rule_id, projection.source_rule_id, projection.mapping_id,
-                 element.role, element.target, element.source, element.mapping_edge),
-                commit=True)
+            await memory_agent().hold_rule_projection(
+                rule_id=record.rule_id, source_rule_id=projection.source_rule_id,
+                mapping_id=projection.mapping_id, role=element.role,
+                target_element=element.target, source_element=element.source,
+                mapping_edge=element.mapping_edge)
 
         logger.info("recorded projected CANDIDATE %s in %s (0 evidence roots)",
                     record.rule_id, projection.target_domain)
         return record
 
-    async def _insert(self, record: StoredRule):
-        await self.db().execute_query(
-            "INSERT INTO unified.learned_rules ("
-            " rule_id, domain_id, rule_kind, canonical_rule_json, rendered_formula,"
-            " epistemic_status, induction_method, induction_version,"
-            " positive_root_count, negative_root_count, detail, supersedes_rule_id,"
-            " semantic_fingerprint)"
-            " VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)",
-            (
-                record.rule_id, record.domain_id, record.rule_kind,
-                json.dumps(to_json(record.rule)), record.rule.to_formula(),
-                record.status.value, INDUCTION_METHOD, INDUCTION_VERSION,
-                record.positive_root_count, record.negative_root_count,
-                record.detail, record.supersedes_rule_id,
-                record.semantic_fingerprint,
-            ),
-        )
+    async def _insert(self, record: StoredRule) -> bool:
+        """Write a new rule; False when its meaning was already held."""
+        from core.agents.memory_agent import memory_agent
+        return await memory_agent().hold_rule(
+            rule_id=record.rule_id, domain_id=record.domain_id,
+            rule_kind=record.rule_kind,
+            canonical_rule_json=json.dumps(to_json(record.rule)),
+            rendered_formula=record.rule.to_formula(),
+            epistemic_status=record.status.value,
+            induction_method=INDUCTION_METHOD, induction_version=INDUCTION_VERSION,
+            positive_root_count=record.positive_root_count,
+            negative_root_count=record.negative_root_count,
+            counterexample_root_count=record.counterexample_root_count,
+            detail=record.detail, supersedes_rule_id=record.supersedes_rule_id,
+            semantic_fingerprint=record.semantic_fingerprint)
 
     async def _attach(
         self, rule_id: str, roots: Sequence[str], role: EvidenceRole, supports: bool
     ):
+        """Attach root observations to a rule AND bring its counts up to date.
+
+        The recount lives here rather than at each call site because there are
+        five call sites and four of them forgot it. A rule whose stored counts
+        do not match its own evidence cannot answer "how sure am I", which is
+        the one question the counts exist to answer.
+        """
+        if not roots:
+            return
+        from core.agents.memory_agent import memory_agent
         for root in roots:
-            await self.db().execute_query(
-                "INSERT INTO unified.learned_rule_evidence"
-                " (rule_id, root_evidence_id, evidence_role, supports)"
-                " VALUES ($1,$2,$3,$4) ON CONFLICT DO NOTHING",
-                (rule_id, root, role.value, supports),
-            )
+            await memory_agent().hold_rule_evidence(
+                rule_id=rule_id, root_evidence_id=root, evidence_role=role.value,
+                supports=supports)
+        await self._refresh_root_counts(rule_id)
 
     # ---- forgetting -----------------------------------------------------
     #
@@ -558,18 +703,8 @@ class RuleStore:
         if not ids:
             return 0
         await self._ready()
-        # A rule may supersede another in this same set, so clear the self
-        # reference before deleting any of them.
-        await self.db().execute_query(
-            "UPDATE unified.learned_rules SET supersedes_rule_id = NULL "
-            "WHERE supersedes_rule_id = ANY($1::text[])", (ids,), fetch_all=False)
-        for table, column in self._REFERENCING:
-            await self.db().execute_query(
-                f"DELETE FROM {table} WHERE {column} = ANY($1::text[])",
-                (ids,), fetch_all=False)
-        await self.db().execute_query(
-            "DELETE FROM unified.learned_rules WHERE rule_id = ANY($1::text[])",
-            (ids,), fetch_all=False)
+        from core.agents.memory_agent import memory_agent
+        await memory_agent().forget_rules(ids, self._REFERENCING)
         left = await self.db().execute_query(
             "SELECT count(*) AS n FROM unified.learned_rules "
             "WHERE rule_id = ANY($1::text[])", (ids,), fetch_all=True) or []
@@ -680,13 +815,11 @@ class RuleStore:
             datetime.now(timezone.utc)
             if outcome.status is EpistemicStatus.VALIDATED else None
         )
-        await self.db().execute_query(
-            "UPDATE unified.learned_rules SET epistemic_status = $1, detail = $2,"
-            " validation_policy = $3, validation_version = $4,"
-            " validated_at = $5, updated_at = NOW() WHERE rule_id = $6",
-            (outcome.status.value, outcome.detail, VALIDATION_POLICY,
-             VALIDATION_VERSION, validated_at, record.rule_id),
-        )
+        from core.agents.memory_agent import memory_agent
+        await memory_agent().set_rule_status(
+            rule_id=record.rule_id, status=outcome.status.value, detail=outcome.detail,
+            validation_policy=VALIDATION_POLICY, validation_version=VALIDATION_VERSION,
+            validated_at=validated_at)
         record.status = outcome.status
         record.detail = outcome.detail
         record.validated_at = validated_at
@@ -743,21 +876,9 @@ class RuleStore:
         is ordinary (each new negative example can refute a further
         generalization), and the second correction must not undo the first.
         """
-        await self.db().execute_query(
-            "INSERT INTO unified.rule_supersessions"
-            " (replacement_rule_id, superseded_rule_id) VALUES ($1, $2)"
-            " ON CONFLICT DO NOTHING",
-            (replacement.rule_id, refuted.rule_id),
-            commit=True,
-        )
-        # Kept in step for readers of the row itself; the join table is the
-        # authority, and is what executable_rules consults.
-        await self.db().execute_query(
-            "UPDATE unified.learned_rules SET supersedes_rule_id = $1, updated_at = NOW()"
-            " WHERE rule_id = $2",
-            (refuted.rule_id, replacement.rule_id),
-            commit=True,
-        )
+        from core.agents.memory_agent import memory_agent
+        await memory_agent().hold_supersession(
+            replacement_rule_id=replacement.rule_id, superseded_rule_id=refuted.rule_id)
         replacement.supersedes_rule_id = refuted.rule_id
 
     async def superseded_rule_ids(self) -> set:
@@ -807,7 +928,8 @@ class RuleStore:
 
         rows = await self.db().execute_query(
             "SELECT rule_id, domain_id, rule_kind, canonical_rule_json, epistemic_status,"
-            " positive_root_count, negative_root_count, supersedes_rule_id, validated_at,"
+            " positive_root_count, negative_root_count, counterexample_root_count,"
+            " supersedes_rule_id, validated_at,"
             " detail, semantic_fingerprint FROM unified.learned_rules" + where
             + " ORDER BY created_at",
             tuple(params) if params else None, fetch_all=True,
@@ -826,6 +948,7 @@ class RuleStore:
                 rule_kind=row["rule_kind"],
                 positive_root_count=row["positive_root_count"],
                 negative_root_count=row["negative_root_count"],
+                counterexample_root_count=row["counterexample_root_count"],
                 supersedes_rule_id=row["supersedes_rule_id"],
                 validated_at=row["validated_at"],
                 detail=row["detail"] or "",
@@ -928,11 +1051,10 @@ async def record_runtime_evidence(
     revised_detail = (
         f"refuted by runtime observation {evidence.observation_id}: {evidence.detail}")
 
-    await store.db().execute_query(
-        "UPDATE unified.learned_rules SET epistemic_status = $1, validated_at = NULL,"
-        " detail = $2, updated_at = NOW() WHERE rule_id = $3",
-        (EpistemicStatus.REFUTED.value, revised_detail, evidence.rule_id),
-    )
+    from core.agents.memory_agent import memory_agent
+    await memory_agent().refute_rule(
+        rule_id=evidence.rule_id, status=EpistemicStatus.REFUTED.value,
+        detail=revised_detail)
     logger.warning(
         "rule %s lost VALIDATED authority: %s", evidence.rule_id, evidence.detail)
 

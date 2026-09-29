@@ -70,30 +70,6 @@ class ABTestStatus(Enum):
 
 
 # ==========================
-# GOVERNANCE LAW
-# ==========================
-
-@dataclass
-class GovernanceLaw:
-    """
-    Immutable law for human protection and AI alignment.
-    These laws NEVER change and guide all directive evaluations.
-    """
-    law_id: str
-    law_number: int
-    law_name: str
-    law_description: str
-    requirements: List[str]  # List of specific requirements/constraints
-    created_at: datetime
-    immutable: bool = True  # Always True
-
-    @staticmethod
-    def generate_id() -> str:
-        """Generate a unique law ID"""
-        return f"gov_law_{uuid.uuid4().hex[:8]}"
-
-
-# ==========================
 # DIRECTIVE
 # ==========================
 

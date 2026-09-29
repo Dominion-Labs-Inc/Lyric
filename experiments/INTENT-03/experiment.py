@@ -62,13 +62,23 @@ async def main():
     from core.agents.autonomous.autonomous_coordinator import (
         AutonomousCoordinator, Verdict)
     from core.agents.autonomous.shared_types import Priority
-    from core.execution.filesystem_domain import ensure_filesystem_domain, _encode
     from core.execution.operator_binding import get_binding_registry
+    from core.execution.tool_domain import sensed_fact, take_up_workspace
     from core.learning.rule_induction import Fact
     from core.reasoning.intent_authority import get_intent_authority
-    from core.reasoning.temporal_reasoning import PlanningStatus
+    from core.reasoning.temporal_reasoning import PlanningStatus, TemporalReasoningSystem
 
-    DOMAIN = "fs_g2_real1"
+    holds = TemporalReasoningSystem.condition_holds
+    # THE PRECONDITION IS DECLARED, NOT ASSUMED. This plans over a MOVE_FILE
+    # operator the substrate LEARNED from its own acts. That was ambient state:
+    # when the store was wiped, this failed with a signature that reads like
+    # broken code rather than a missing prerequisite. `ensure_taught` teaches it
+    # from real executions if it is not there, and costs a store read if it is.
+    from experiments.fs_move_teach import DOMAIN, ensure_taught
+    if not await ensure_taught():
+        print("  [precondition] FAILED: no executable MOVE_FILE operator in "
+              f"{DOMAIN}; nothing below can plan", flush=True)
+        return 1
     root = Path(tempfile.mkdtemp(prefix="intent-03-"))
     (root / "inbox").mkdir()
     (root / "archive").mkdir()
@@ -84,13 +94,18 @@ async def main():
     coord = AutonomousCoordinator()
     check("execution faculty up", await coord.initialize_execution_faculty())
     await coord.planning.initialize()
-    ensure_filesystem_domain(DOMAIN, str(root))
+    # The workspace is handed over: the substrate looks at it with its own
+    # perception, and what is there becomes the world it plans in.
+    take_up_workspace(DOMAIN, str(root))
     binding = get_binding_registry().get(DOMAIN, "MOVE_FILE")
-    world = binding.observe()
-    goal_fact = Fact("FILE_IN", (_encode("report.txt"), _encode("archive")))
+    world = get_binding_registry().observe_world(DOMAIN) or frozenset()
+    # "Archive the report": the report is a file in archive, and is no longer
+    # one in the inbox — which is what moving it means, in perception's words.
+    goal_conditions = [
+        sensed_fact("kind", "path", str(root / "archive" / "report.txt"), "file").to_formula(),
+        "¬" + sensed_fact("kind", "path", str(report), "file").to_formula()]
     goal = await coord.planning.create_goal(
-        "archive the report", Priority.MEDIUM,
-        state_conditions=[goal_fact.to_formula()])
+        "archive the report", Priority.MEDIUM, state_conditions=goal_conditions)
     outcome = await coord.planning.plan_for_goal(
         goal.id, {"world_state": [f.to_formula() for f in world],
                   "domain_id": DOMAIN})
@@ -120,7 +135,7 @@ async def main():
           str((ran or {}).get("error"))[:90])
     # THE WORLD DECIDES. Re-observe and ask whether what the intent was FOR now holds.
     after = {str(f) for f in (get_binding_registry().observe_world(DOMAIN) or set())}
-    reached = all(c in after for c in intent.goal_conditions)
+    reached = all(holds(c, after) for c in intent.goal_conditions)
     check("the re-observed world satisfies what the intent was FOR",
           reached, f"goal={intent.goal_conditions} present={reached}")
     check("the file really moved on disk",
@@ -156,7 +171,7 @@ async def main():
                        {"outcome_class": "success" if reached else "missed",
                         "matched_aim": bool(reached),
                         "goal_conditions_met": sorted(
-                            c for c in intent.goal_conditions if c in after)},
+                            c for c in intent.goal_conditions if holds(c, after))},
                        status="fulfilled" if reached else "abandoned")
     settled = await IA.get_by_id(intent_id)
     check("the outcome is readable on the intent afterwards",

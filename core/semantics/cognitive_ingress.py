@@ -138,10 +138,13 @@ def admissible(term: str) -> Tuple[bool, str]:
         return False, "empty"
     if len(words) > MAX_TERM_WORDS:
         return False, f"{len(words)} words is a clause, not a name"
-    if all(w in NEVER_A_TERM for w in words):
-        return False, f"{cleaned!r} is made only of words that never name a thing"
-    if words[0] in NEVER_A_TERM and len(words) == 1:
-        return False, f"{cleaned!r} never names a thing"
+    # WHAT NAMES NOTHING IS WHAT ENGLISH TAUGHT BUILDS SENTENCES WITH: a word the
+    # substrate holds only as part of its sentence forms, and that no taught
+    # meaning uses as a concept's name ("the", "is", "my"). Nothing is listed here.
+    from core.semantics.derived_reader import live_view
+    view = live_view()
+    if all(view.names_nothing(w) for w in words):
+        return False, f"{cleaned!r} is made only of words that name nothing"
     if any(character.isdigit() for character in cleaned) and len(words) == 1 \
             and cleaned.isdigit():
         return False, "a bare number names no thing"
@@ -196,6 +199,40 @@ def normalize_term(term: str) -> str:
     from core.semantics.lexical_normalization import canonical_term
 
     return canonical_term(term)
+
+
+def shape_proposition(subject: Any, relation: Any, obj: Any
+                      ) -> Tuple[str, str, Optional[str], Optional[str]]:
+    """The door's SHAPE test for one proposition: its canonical parts, and why
+    it is refused (None when it is not).
+
+    ONE TEST, EVERY WAY IN. A fact, each clause of a conditional, and a user's
+    scoped telling all pass through it. The scoped path used to skip it, so a
+    user's context held what this door refuses (a subject that names nothing,
+    a clause for a relation) with `admitted=True`, and stored raw terms --
+    `isoprobe wren isa an isoprobe bird` -- that the graph overlay, which walks
+    canonical concept names, could never reach (measured 2026-09-26,
+    SYSTEM-CONVERSATION-01)."""
+    subject = normalize_term(str(subject or ""))
+    obj = normalize_term(str(obj)) if obj else None
+    relation = " ".join(str(relation or "").replace("_", " ").split())
+    # A PROPOSITION HAS A SUBJECT. An empty subject once slipped through the
+    # loop's skip for a unary proposition (no object) and was admitted -- a
+    # relation about nothing, with only its object entering the graph
+    # (measured 2026-09-26, SYSTEM-LEARNING-01).
+    if not subject:
+        return subject, relation, obj, \
+            "subject is empty: a proposition about nothing is not admitted"
+    for name, term in (("subject", subject), ("object", obj)):
+        if not term:
+            continue
+        allowed, why = admissible(term)
+        if not allowed:
+            return subject, relation, obj, f"{name} {term!r} not admitted: {why}"
+    allowed, why = admissible_relation(relation)
+    if not allowed:
+        return subject, relation, obj, f"relation {relation!r} not admitted: {why}"
+    return subject, relation, obj, None
 
 
 def _parse(proposition: str) -> Optional[Tuple[str, str, Optional[str], bool]]:
@@ -260,9 +297,15 @@ class CognitiveIngress:
             return result
         subject, relation, obj, positive = parsed
         self._seen.add(key)
-        return await self._admit_parts(
+        result = await self._admit_parts(
             subject, relation, obj, positive, surface, provenance,
             source_type, key, result, word_class_of)
+        # A REFUSAL IS NOT A PRESENCE. The key was marked seen before the gates
+        # ran, so a refused proposition told again read `already_present` --
+        # reported as held when it was never admitted.
+        if not result.admitted and not result.already_present:
+            self._seen.discard(key)
+        return result
 
     async def admit_relation(self, subject: str, relation: str, obj: str,
                              surface: str, provenance: Provenance,
@@ -270,7 +313,6 @@ class CognitiveIngress:
                              description: str = "",
                              domain: str = "language",
                              word_class_of=None,
-                             remember: bool = True,
                              quality: float = 1.0) -> Admission:
         """Admit a proposition already split into its parts.
 
@@ -279,12 +321,28 @@ class CognitiveIngress:
         already knows the seams passes them straight through rather than
         encoding them into a string for this to decode again.
 
-        `remember=False` admits the fact into the concept graph WITHOUT storing a
-        recallable episode. A reference taxonomy is knowledge, not something the
-        substrate was told in a conversation, and embedding tens of thousands of
-        `X isa Y` episodes is both slow and beside the point -- the graph is
-        where that knowledge is reasoned over. Ordinary teaching keeps the
-        episode (the default), so "what did you tell me" still has an answer.
+        ADMISSION ALWAYS REMEMBERS. There was a `remember=False` that admitted a
+        fact into the concept graph WITHOUT a recallable episode, on two stated
+        grounds: that a reference taxonomy is knowledge rather than something the
+        substrate was told, and that embedding tens of thousands of episodes is
+        slow.
+
+        The first is answered by `_remember` itself, which does not store an
+        event -- it stores a SEMANTIC memory, for the express reason that what
+        was learned "has to be findable later by MEANING ... that is the whole
+        point of storing it, and the substrate's alternative to baking knowledge
+        into weights". Turning it off for a whole corpus leaves that corpus
+        reachable only by naming a concept exactly, never by meaning.
+
+        The second was measured rather than argued: 12.5 facts/s with the
+        episode against 18.4 without, so the full 314,856-edge taxonomy costs
+        about 7.0h instead of 4.7h. Real, and not a reason to hold two grades of
+        knowledge -- four of five corpus passes set it False, so most of what the
+        substrate knows it could state and had no recollection of learning.
+
+        A fact is a fact however it arrived. There is no solo teaching: admission
+        touches every system, or it is a database write wearing the word
+        "teaching".
         """
         from core.domain.concept_ingestion import EvidenceSourceType
 
@@ -314,16 +372,87 @@ class CognitiveIngress:
             result.already_present = True
             return result
         self._seen.add(key)
-        return await self._admit_parts(
+        result = await self._admit_parts(
             subject, relation, obj, positive, surface, provenance,
-            source_type, key, result, word_class_of, description, domain,
-            remember)
+            source_type, key, result, word_class_of, description, domain)
+        # A REFUSAL IS NOT A PRESENCE. The key was marked seen before the gates
+        # ran, so a refused proposition told again read `already_present` --
+        # reported as held when it was never admitted.
+        if not result.admitted and not result.already_present:
+            self._seen.discard(key)
+        return result
+
+    #: How far up a kind chain the cycle check walks. MEASURED, not chosen: the
+    #: cost knees hard once the frontier reaches the dense upper taxonomy, where
+    #: everything converges on `entity`/`abstraction`.
+    #:
+    #:     depth  4   0.5 ms/check    9/11 known cycle-closing edges caught
+    #:     depth  6   1.0 ms/check   11/11
+    #:     depth 10  12.0 ms/check   11/11      (~21 min per 105k admissions)
+    #:     depth 16  78.0 ms/check   11/11      (~136 min — doubles a teach run)
+    #:
+    #: Six catches every cycle the live store actually contains for ~2 minutes
+    #: across a full curriculum pass. It is a BOUND, so a loop longer than six
+    #: hops still gets through; that is stated rather than implied, and the
+    #: honest reason is that a deeper walk costs more than the loops it finds.
+    MAX_KIND_DEPTH = 6
+
+    async def _would_close_a_cycle(self, relation: str, subject: str,
+                                   obj: str) -> Optional[str]:
+        """Does `obj` already reach `subject` by the same ALWAYS-transitive
+        relation? Returns the path as text when it does, else None.
+
+        Only ALWAYS-transitive relations are checked, and `relation_types` says
+        which those are -- today that is `isa` alone, so nothing else pays for
+        this. `UNION` (not `UNION ALL`) dedups the frontier, which matters: 24%
+        of concepts have more than one parent, and the path count is exponential
+        where the node count is not.
+        """
+        from core.semantics.relation_types import SPEC, classify, Transitivity
+        spec = SPEC[classify(relation).relation]
+        if spec.transitivity is not Transitivity.ALWAYS:
+            return None
+        db = self._db
+        if db is None:
+            from core.database import get_database_manager
+            db = get_database_manager()
+        if not getattr(db, "initialized", False):
+            return None
+        try:
+            rows = await db.execute_query(
+                """
+                WITH RECURSIVE up(name, depth) AS (
+                    SELECT $1::text, 0
+                  UNION
+                    SELECT r.target_surface, up.depth + 1
+                    FROM up
+                    JOIN unified.concepts c ON c.name = up.name
+                    JOIN unified.concept_relations r
+                      ON r.source_concept_id = c.concept_id
+                    WHERE r.relation = $3 AND r.polarity IS DISTINCT FROM 'negative'
+                      AND up.depth < $4 AND r.target_surface IS NOT NULL
+                )
+                SELECT depth FROM up WHERE name = $2 LIMIT 1
+                """,
+                (obj, subject, str(relation).strip().lower(), self.MAX_KIND_DEPTH))
+        except Exception as error:
+            # THE GUARD COULD NOT RUN, AND THAT IS SAID OUT LOUD. Admitting
+            # anyway is the lesser harm -- refusing every edge because the store
+            # hiccuped would stop teaching outright -- but an invariant nobody
+            # can confirm is not an invariant, so it is never silent.
+            logger.warning(
+                "kind-cycle guard could not run for %r isa %r (%s); the edge is "
+                "admitted UNCHECKED and the hierarchy may not be acyclic",
+                subject, obj, error)
+            return None
+        if not rows:
+            return None
+        return f"{obj} -> ... -> {subject} in {rows[0]['depth']} step(s)"
 
     async def _admit_parts(self, subject, relation, obj, positive, surface,
                            provenance, source_type, key, result,
                            word_class_of=None, description: str = "",
-                           domain: str = "language",
-                           remember: bool = True) -> Admission:
+                           domain: str = "language") -> Admission:
         """The one admission. Every caller funnels here."""
         from core.domain.concept_ingestion import EvidenceEnvelope
 
@@ -333,20 +462,39 @@ class CognitiveIngress:
         # only represent things that hold, which meant "the mug is not in the
         # cupboard" taught the substrate nothing it could later be asked.
 
-        subject, obj = normalize_term(subject), normalize_term(obj) if obj else obj
-        relation = " ".join(str(relation).replace("_", " ").split())
-
-        for name, term in (("subject", subject), ("object", obj)):
-            if not term:
-                continue
-            allowed, why = admissible(term)
-            if not allowed:
-                result.refusals.append(f"{name} {term!r} not admitted: {why}")
-                return result
-        allowed, why = admissible_relation(relation)
-        if not allowed:
-            result.refusals.append(f"relation {relation!r} not admitted: {why}")
+        subject, relation, obj, refusal = shape_proposition(subject, relation, obj)
+        if refusal:
+            result.refusals.append(refusal)
             return result
+
+        # A KIND HIERARCHY MUST NOT HAVE CYCLES.
+        #
+        # `isa` is the one ALWAYS-transitive relation (`relation_types.SPEC`),
+        # and the reasoner walks it. "X is a kind of Y" together with "Y is a
+        # kind of X" says the two are the same kind, and a walker that believes
+        # both makes every member of the loop an ancestor of every other.
+        #
+        # Measured on the live store before this: 17 cycles over 2,073 concepts
+        # in `general`, the largest a single 2,039-node component. Nothing was
+        # wrong with the SOURCE — WordNet is consistent at the SYNSET level
+        # (`testimony.n.02 -> assertion.n.01 -> declaration.n.01`, and separately
+        # `declaration.n.02 -> testimony.n.01`). The store keys concepts on the
+        # WORD, so distinct senses fuse and the chain closes on itself. The
+        # existing hygiene guard cannot see this: it gates on whether a SOURCE is
+        # curated, and a curated source is exactly what produced these.
+        #
+        # So the invariant belongs here, at the one admission, on the STRUCTURE
+        # rather than the provenance: the edge that would close a loop is the one
+        # refused, with its reason recorded. First path wins, which is arbitrary
+        # between two senses but sound, and leaves the graph walkable.
+        if positive and obj:
+            closes = await self._would_close_a_cycle(relation, subject, obj)
+            if closes:
+                result.refusals.append(
+                    f"{subject!r} isa {obj!r} would close a kind cycle "
+                    f"({closes}); a thing cannot be a kind of something that is "
+                    f"already a kind of it")
+                return result
 
         from core.semantics.literals import classify_literal
 
@@ -379,6 +527,20 @@ class CognitiveIngress:
             concepts[0]["relationships"] = [
                 [relation, obj, "positive" if positive else "negative"]]
 
+        # IDEMPOTENT ACROSS PROCESSES AND INSTANCES, not only within one. `_seen`
+        # is what THIS process admitted; the graph is what every process did. An
+        # edge that this very evidence (this proposition, from this source) put
+        # in the graph means it is held from this source already -- a second
+        # telling is one fact, not a second witness. Without this, re-teaching a
+        # held fact after a restart (or on another instance) reinforced its
+        # concepts, came back `admitted`, moved its belief again and went into
+        # the ledger as NEW. Checked against the EDGE, not the evidence record,
+        # so a proposition whose edge has since been removed is taught again.
+        if obj and await self._edge_from(f"read_{key}"):
+            result.already_present = True
+            result.evidence_id = f"read_{key}"
+            return result
+
         envelope = EvidenceEnvelope(
             evidence_id=f"read_{key}",
             source_type=source_type,
@@ -404,8 +566,10 @@ class CognitiveIngress:
             logger.warning("ingress: concept ingestion failed for %r: %s",
                            result.proposition, error)
 
+        from core.memory import Origin
         result.memories = await self._remember(
-            result.proposition, surface, provenance, result) if remember else 0
+            result.proposition, surface, provenance, result,
+            origin=Origin.own("learning"))
         result.aliases_bound = await self._bind_aliases(terms, provenance)
         result.polarity = "positive" if positive else "negative"
         result.contradicts = await self._contradiction_check(
@@ -428,9 +592,80 @@ class CognitiveIngress:
         result.admitted = bool(result.concepts_created or result.concepts_reinforced)
         return result
 
+    async def remember_told(self, sentence: str,
+                            provenance: "Provenance",
+                            blamed: Optional[List[tuple]] = None, *,
+                            origin: "Origin") -> "Admission":
+        """Remember being told something, WITHOUT having understood it.
+
+        TWO DIFFERENT THINGS WERE BOTH CALLED ADMITTING, and one of them was
+        silently enforcing the other. Refusing to invent structure for a
+        sentence the reader could not parse is right — `teach` says so: "a
+        sentence that does not read has told you nothing, and admitting a guess
+        about it is worse than admitting nothing." But admission was the only
+        route to memory, so refusing to GUESS also refused to REMEMBER, and a
+        lesson the substrate could not parse vanished entirely.
+
+        Measured in TAUGHT-IN-ENGLISH-01: told "A marnic filters brine", the
+        substrate stored nothing and replied about a marmot. The reader had
+        declined because `filter` is catalogued as a NOUN — so a part-of-speech
+        table decided what could enter the store that is meant to be the record
+        of everything it has been told.
+
+        A person hearing a sentence with an unfamiliar word still remembers the
+        sentence. This keeps it, verbatim, findable by meaning — recall needs no
+        part of speech — and marked as unread so nothing downstream mistakes it
+        for something that was understood.
+
+        `origin` says where the telling came from. A person's telling makes the
+        record theirs, recallable by them and not by anyone else; the
+        substrate's own reading (the curriculum) is its own.
+        """
+        # WHAT THE CLASS COST, RECORDED WITH THE SENTENCE IT COST IT.
+        #
+        # This is the evidence AGAINST a word class, and the memory of being
+        # told is where it belongs: the refusal and the sentence that provoked
+        # it are one event, so there is no separate per-word record to keep in
+        # step, and a wipe takes both together.
+        #
+        # Only BLAMED classes travel. A sentence fails to read for many reasons
+        # that say nothing about any word -- counting those would refute a
+        # class for being present at an unrelated failure -- so the reader
+        # names the class only in the branches that refuse BECAUSE of it.
+        result = Admission(proposition=sentence, surface=sentence)
+        # TOLD WITHIN A PURSUIT, the telling is a part of that pursuit's memory:
+        # a spoken sentence not understood was one event, and is one memory. It
+        # keeps whose it was and the classes it cost; the pursuit carries the
+        # tags a telling is found by. Only a telling in a CONVERSATION: the
+        # substrate reading its own corpus is not being told something in an
+        # exchange, and every unread line of it is its own record.
+        from core.memory import get_memory_agent
+        agent = await get_memory_agent()
+        within = (await agent.acting_pursuit_memory()
+                  if getattr(origin, "through", None) == "conversation" else None)
+        if within:
+            await agent.add_parts_to_pursuit(
+                within, [{"role": "told", "source": origin.theirs,
+                          "content": {"sentence": sentence, "unread": True,
+                                      "blamed": [list(b) for b in (blamed or [])]}}],
+                tags=["language", agent.UNREAD_TELLING_TAG])
+            result.memory_id = within
+            result.memories = 1
+            return result
+        await self._remember(sentence, sentence, provenance, result,
+                             tags=["language", "told_but_unread"],
+                             blamed=[list(b) for b in (blamed or [])],
+                             origin=origin)
+        return result
+
     async def _remember(self, proposition: str, surface: str,
-                        provenance: Provenance, result: Admission) -> int:
-        """Remember the claim as recallable knowledge -- what was said, findable later by meaning."""
+                        provenance: Provenance, result: Admission,
+                        tags: Optional[List[str]] = None,
+                        blamed: Optional[List[list]] = None, *,
+                        origin: "Origin") -> int:
+        """Remember the claim as recallable knowledge -- what was said, findable
+        later by meaning. `origin` is where it came from; the memory agent
+        decides from it whose memory it is."""
         try:
             from core.memory import get_memory_agent
             from core.memory.utils.interfaces import MemoryType
@@ -456,15 +691,38 @@ class CognitiveIngress:
                 memory_type=MemoryType.SEMANTIC,
                 importance_score=0.75,
                 confidence_score=0.9,
-                tags=["language", "admitted_proposition"],
+                tags=list(tags or ["language", "admitted_proposition"]),
                 source_context={
                     "producer": provenance.producer,
                     "source_id": provenance.source_id,
+                    # WHETHER THIS WAS TOLD OR DERIVED, recorded so the word-class
+                    # view can tell the difference. A class is evidence about how
+                    # a word is USED IN A SENTENCE SOMEBODY SAID; the substrate's
+                    # own conclusions are not testimony about English. Measured:
+                    # sight describing a kind it had seen wrote
+                    # `<cat> has_property circle`, and `classes_implied_by` files
+                    # a property's object as ADJECTIVE -- so seeing shapes taught
+                    # the substrate that `circle` is an adjective. It is a noun.
+                    "source_type": getattr(provenance, "source_type", None),
                     # surface IS the claim, so recall hands it back directly.
                     "conclusion": surface,
                     "reading": proposition,
+                    # (word, class, why) for each class this sentence's refusal
+                    # was attributed to. Read by `warm_word_classes`.
+                    **({"blamed": blamed} if blamed else {}),
                 },
+                origin=origin,
             )
+            if stored:
+                # KEEP THE VIEW IN STEP WITH THE STORE IT IS A VIEW OF.
+                # A lesson's second sentence leans on what its first one
+                # taught, so the word classes this proposition implies have to
+                # be readable NOW, not after the next full warm.
+                if blamed:
+                    agent.note_refusal(blamed)
+                else:
+                    agent.note_taught_proposition(surface, proposition)
+
             if not stored:
                 # The memory filter can decline. That is a real answer, not a
                 # failure, but it must be visible rather than counted as a write.
@@ -503,17 +761,28 @@ class CognitiveIngress:
                 # RETURNING, not a blind count: ON CONFLICT DO NOTHING makes a
                 # skip indistinguishable from a write, and the ingestion service
                 # already binds the canonical alias for a concept it creates.
-                written = await db.execute_query(
-                    "INSERT INTO unified.concept_aliases "
-                    "(alias, concept_id, alias_kind, first_seen) "
-                    "VALUES ($1, $2, 'surface_form', NOW()) "
-                    "ON CONFLICT DO NOTHING RETURNING alias",
-                    (term, rows[0]["concept_id"]), fetch_all=True)
+                from core.agents.memory_agent import memory_agent
+                written = await memory_agent().hold_surface_form(
+                    alias=term, concept_id=rows[0]["concept_id"])
                 bound += len(written or ())
             except Exception as error:
                 logger.debug("ingress: alias %r not bound: %s", term, error)
         return bound
 
+
+    async def _edge_from(self, evidence_id: str) -> bool:
+        """Whether the graph HOLDS an edge this evidence put there: the edge, and
+        the concept it is said of. An edge left behind when its concept was
+        deleted is not knowledge the graph holds -- nothing can walk from a
+        concept that is not there -- so it does not make the fact "already held"
+        (371 such edges were in the store, mostly experiment residue)."""
+        from core.database import get_database_manager
+        db = self._db or get_database_manager()
+        row = await db.execute_query(
+            "SELECT 1 FROM unified.concept_relations cr JOIN unified.concepts c "
+            "ON c.concept_id = cr.source_concept_id WHERE cr.evidence_id = $1 LIMIT 1",
+            (evidence_id,), fetch_one=True)
+        return row is not None
 
     async def _contradiction_check(self, subject: str, relation: str,
                                    obj: str) -> Optional[Dict[str, Any]]:
@@ -592,8 +861,6 @@ class CognitiveIngress:
         rule over an unrepresentable term refuses exactly as a fact would. The
         implication is stored; neither side is asserted as true.
         """
-        from core.database import get_database_manager
-
         result = Admission(
             proposition=f"if {self._clause_key(antecedent)} then "
                         f"{self._clause_key(consequent)}",
@@ -601,25 +868,10 @@ class CognitiveIngress:
 
         prepared = {}
         for tag, prop in (("antecedent", antecedent), ("consequent", consequent)):
-            subj = normalize_term(prop.get("subject") or "")
-            obj = normalize_term(prop.get("obj")) if prop.get("obj") else None
-            rel = " ".join(str(prop.get("relation") or "").replace("_", " ").split())
-            if not subj:
-                result.refusals.append(f"{tag} has no subject")
-                return result
-            if not rel:
-                result.refusals.append(f"{tag} has no relation")
-                return result
-            for name, term in (("subject", subj), ("object", obj)):
-                if not term:
-                    continue
-                ok, why = admissible(term)
-                if not ok:
-                    result.refusals.append(f"{tag} {name} {term!r} not admitted: {why}")
-                    return result
-            ok, why = admissible_relation(rel)
-            if not ok:
-                result.refusals.append(f"{tag} relation {rel!r} not admitted: {why}")
+            subj, rel, obj, refusal = shape_proposition(
+                prop.get("subject"), prop.get("relation"), prop.get("obj"))
+            if refusal:
+                result.refusals.append(f"{tag} {refusal}")
                 return result
             prepared[tag] = (subj, rel, obj, bool(prop.get("positive", True)))
 
@@ -634,16 +886,12 @@ class CognitiveIngress:
             return result
         try:
             await self._ensure_conditionals_schema()
-            db = self._db or get_database_manager()
-            status = await db.execute_query(
-                """INSERT INTO unified.held_conditionals
-                   (conditional_id, ant_subject, ant_relation, ant_object,
-                    ant_positive, cons_subject, cons_relation, cons_object,
-                    cons_positive, surface, domain, source_id, source_type)
-                   VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
-                   ON CONFLICT (conditional_id) DO NOTHING""",
-                (cid, a_s, a_r, a_o, a_p, c_s, c_r, c_o, c_p, surface, domain,
-                 provenance.source_id, provenance.source_type), commit=True)
+            from core.agents.memory_agent import memory_agent
+            status = await memory_agent().hold_conditional(
+                conditional_id=cid, ant_subject=a_s, ant_relation=a_r, ant_object=a_o,
+                ant_positive=a_p, cons_subject=c_s, cons_relation=c_r, cons_object=c_o,
+                cons_positive=c_p, surface=surface, domain=domain,
+                source_id=provenance.source_id, source_type=provenance.source_type)
             self._seen.add(cid)
             result.evidence_id = f"cond_{cid}"
             result.admitted = True

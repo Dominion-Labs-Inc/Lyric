@@ -542,23 +542,13 @@ class SecurityTrainingPipeline:
 
         # Store training examples in unified PostgreSQL database
         try:
-            from core.database import get_database_manager
-            db = get_database_manager()
+            from core.agents.memory_agent import memory_agent
 
             for example in training_examples:
-                await db.execute_query(
-                    """
-                    INSERT INTO security_training_examples
-                    (input_text, attack_type, expected_behavior, is_malicious, created_at)
-                    VALUES ($1, $2, $3, $4, NOW())
-                    """,
-                    params=(
-                        example.input_text,
-                        example.attack_type,
-                        example.expected_behavior,
-                        example.is_malicious,
-                    ),
-                )
+                await memory_agent().hold_security_training_example(
+                    input_text=example.input_text, attack_type=example.attack_type,
+                    expected_behavior=example.expected_behavior,
+                    is_malicious=example.is_malicious)
 
             logger.info(f"Stored {len(training_examples)} training examples in database")
 
@@ -779,7 +769,9 @@ class SecurityTrainingPipeline:
             importance = min(0.95, 0.5 + (session.accuracy / 200) + (min(session.examples_processed, 100) / 200))
 
             # Store with full rich metadata
+            from core.memory import Origin
             await memory_agent.store_memory(
+                origin=Origin.own("security training"),
                 memory_type=MemoryType.PROCEDURAL,
                 content=f"Security training session ({session.phase.value}): {session.examples_processed} examples, {session.accuracy:.1f}% accuracy, {session.false_positives} FP, {session.false_negatives} FN",
                 importance_score=importance,
@@ -878,7 +870,9 @@ class SecurityTrainingPipeline:
             importance = min(0.95, 0.6 + (model.f1_score / 100.0 * 0.3))
 
             # Store with full rich metadata
+            from core.memory import Origin
             await memory_agent.store_memory(
+                origin=Origin.own("security training"),
                 memory_type=MemoryType.PROCEDURAL,
                 content=f"Security model trained: {model.model_type} v{model.version} for {len(model.attack_types)} attack types ({model.accuracy:.1f}% accuracy, F1: {model.f1_score:.2f})",
                 importance_score=importance,

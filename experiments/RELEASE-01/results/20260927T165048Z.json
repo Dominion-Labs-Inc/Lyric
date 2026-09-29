@@ -1,0 +1,227 @@
+{
+  "experiment": "RELEASE-01",
+  "claim": "A release of the model is cut from development, checked before it is served, served by production without ever changing, and replaced only by a newer release or by rolling back; what production keeps while serving reaches development, and through it the next release.",
+  "hypothesis": "A release served unstaged, tampered or cut with other code; any refusal while production serves; a person's context outside user context; the substrate's own memory in the release; a recall written on the release; own learning or a belief change let through; a release changed by serving; a take that loses or duplicates what production kept; a next release without it; a rollback that does not serve; or any write to the main line would each show here.",
+  "started_at": "2026-09-27T16:50:48.843692+00:00",
+  "duration_seconds": 221.041,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/TorinAI/venv_torin/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/TorinAI",
+    "shadow_mode": null,
+    "git_commit": "20deb447498593391eca0286916b8f986c560a26",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "torinai_dev",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "torinai_dev",
+        "model": "torinai_dev",
+        "user_context": "torinai_dev",
+        "learning": "torinai_dev"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "environment",
+        "database": "environment",
+        "user": "environment",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "environment": "environment",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 1177,
+    "database_verified": null,
+    "database_verified_reason": "not verified"
+  },
+  "summary": {
+    "checks": 29,
+    "passed": 23,
+    "failed": 6,
+    "outcome": "FAIL"
+  },
+  "metrics": [],
+  "checks": [
+    {
+      "label": "release 1 is registered as a candidate",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-27T16:51:43.952165+00:00"
+    },
+    {
+      "label": "it is read-only in the database itself",
+      "passed": true,
+      "detail": "default_transaction_read_only=on; a direct write: ReadOnlySQLTransactionError",
+      "at": "2026-09-27T16:51:43.971244+00:00"
+    },
+    {
+      "label": "its content, schema and code are recorded",
+      "passed": true,
+      "detail": "263 files",
+      "at": "2026-09-27T16:51:43.971263+00:00"
+    },
+    {
+      "label": "it holds no person's memory",
+      "passed": true,
+      "detail": "0",
+      "at": "2026-09-27T16:51:43.971267+00:00"
+    },
+    {
+      "label": "a candidate cannot be promoted",
+      "passed": true,
+      "detail": "release 1 is candidate; a release is promoted from staging",
+      "at": "2026-09-27T16:51:44.253295+00:00"
+    },
+    {
+      "label": "staging will not serve a candidate",
+      "passed": true,
+      "detail": "staging will not serve release 1: release 1 is candidate, not the release staging serves (it must be registered as staging)",
+      "at": "2026-09-27T16:51:50.867503+00:00"
+    },
+    {
+      "label": "staging serves the staged release",
+      "passed": true,
+      "detail": "{'started': True, 'environment': 'staging', 'release': 1, 'databases': {'runtime': 'torinai_dev_staging_runtime', 'model': 'torinai_dev_model_v1', 'user_context': 'torinai_dev_staging_user_context', 'learning': 'torinai_dev_staging_learning'}}",
+      "at": "2026-09-27T16:51:58.195432+00:00"
+    },
+    {
+      "label": "a changed release is found out",
+      "passed": true,
+      "detail": "['its content no longer matches the checksum it was cut with']",
+      "at": "2026-09-27T16:51:58.543950+00:00"
+    },
+    {
+      "label": "staging will not serve it",
+      "passed": true,
+      "detail": "staging will not serve release 1: its content no longer matches the checksum it was cut with",
+      "at": "2026-09-27T16:52:05.190900+00:00"
+    },
+    {
+      "label": "put back, it is intact and served again",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-09-27T16:52:12.403891+00:00"
+    },
+    {
+      "label": "a release cut with other code is not served",
+      "passed": true,
+      "detail": "staging will not serve release 1: release 1 was cut with other code (commit 20deb447498593391eca0286916b8f986c560a26); the release and the code must match",
+      "at": "2026-09-27T16:52:19.011607+00:00"
+    },
+    {
+      "label": "production served, with nothing refused: no statement, and no change to the release",
+      "passed": true,
+      "detail": "routing []; frozen []",
+      "at": "2026-09-27T16:53:51.870068+00:00"
+    },
+    {
+      "label": "creation statements were checked against the release, not run",
+      "passed": true,
+      "detail": "56 checked",
+      "at": "2026-09-27T16:53:51.870111+00:00"
+    },
+    {
+      "label": "the person's fact and memory are in user context",
+      "passed": false,
+      "detail": "1 fact, 1 memory, answer true",
+      "at": "2026-09-27T16:53:51.918785+00:00"
+    },
+    {
+      "label": "its own memory is in the learning store, not the release",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-27T16:53:51.976910+00:00"
+    },
+    {
+      "label": "recalling the release's memory is counted in runtime",
+      "passed": true,
+      "detail": "{'mem_abf4aae4122643b39d7aa3995ac3a6f2': 1}",
+      "at": "2026-09-27T16:53:51.998188+00:00"
+    },
+    {
+      "label": "its own learning is refused, with the reason",
+      "passed": true,
+      "detail": "the model is release 1, frozen: production never changes it (development teaches the model and cuts the next release). R",
+      "at": "2026-09-27T16:53:51.998202+00:00"
+    },
+    {
+      "label": "a belief it would form or move is refused, and no belief moved",
+      "passed": true,
+      "detail": "268 beliefs held; refusals counted 3",
+      "at": "2026-09-27T16:53:51.998212+00:00"
+    },
+    {
+      "label": "maintenance ran on people's memory only",
+      "passed": true,
+      "detail": "cleaned 0",
+      "at": "2026-09-27T16:53:51.998215+00:00"
+    },
+    {
+      "label": "after serving, release 1 is exactly what was cut",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-09-27T16:53:52.292848+00:00"
+    },
+    {
+      "label": "development takes production's own memory, through the memory agent",
+      "passed": false,
+      "detail": "{'failed': 0, 'stderr': \"coder.layer.5.output.LayerNorm.bias]    \\nLoading weights:  95%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u258c| 98/103 [00:00<00:00, 9453.80it/s, Materializing param=encoder.layer.5.output.LayerNorm.bias]\\nLoading weights:  96%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u258c| 99/103 [00:00<00:00, 9510.02it/s, Materializing param=encoder.layer.5.output.LayerNorm.weight]\\nLoading weights:  96%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u258c| 99/103 [00:00<00:00, 9489.16it/s, Materializing param=encoder.layer.5.output.LayerNorm.weight]\\nLoading weights:  97%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u258b| 100/103 [00:00<00:00, 9544.66it/s, Materializing param=encoder.layer.5.output.dense.bias]     \\nLoading weights:  97%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u258b| 100/103 [00:00<00:00, 9524.72it/s, Materializing param=encoder.layer.5.output.dense.bias]\\nLoading weights:  98%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u258a| 101/103 [00:00<00:00, 9578.85it/s, Materializing param=encoder.layer.5.output.dense.weight]\\nLoading weights:  98%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u258a| 101/103 [00:00<00:00, 9558.10it/s, Materializing param=encoder.layer.5.output.dense.weight]\\nLoading weights:  99%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2589| 102/103 [00:00<00:00, 9612.61it/s, Materializing param=pooler.dense.bias]                  \\nLoading weights:  99%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2589| 102/103 [00:00<00:00, 9591.06it/s, Materializing param=pooler.dense.bias]\\nLoading weights: 100%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588| 103/103 [00:00<00:00, 9647.68it/s, Materializing param=pooler.dense.weight]\\nLoading weights: 100%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588| 103/103 [00:00<00:00, 9627.90it/s, Materializing param=pooler.dense.weight]\\nLoading weights: 100%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588| 103/103 [00:00<00:00, 9574.34it/s, Materializing param=pooler.dense.weight]\\n\\x1b[1mBertModel LOAD REPORT\\x1b[0m from: sentence-transformers/all-MiniLM-L6-v2\\nKey                     | Status     |  | \\n------------------------+------------+--+-\\nembeddings.position_ids | UNEXPECTED |  | \\n\\n\\x1b[3mNotes:\\n- UNEXPECTED\\x1b[3m\\t:can be ignored when loading from different task/architecture; not ok if you expect identical arch.\\x1b[0m\\nrelation surface 'consists of' maps to both has_part and made_of; keeping has_part\\nrelation surface 'belongs to' maps to both member_of and owned_by; keeping member_of\\n\", 'stdout': '{\\n  \"memories\": 1,\\n  \"already\": 0,\\n  \"images\": 0,\\n  \"usage\": 1,\\n  \"usage_unmatched\": 0,\\n  \"questions\": 0\\n}\\n'}",
+      "at": "2026-09-27T16:53:58.896698+00:00"
+    },
+    {
+      "label": "and its recalls, as access counts",
+      "passed": false,
+      "detail": "[{'memory_id': 'mem_abf4aae4122643b39d7aa3995ac3a6f2', 'access_count': 2}]",
+      "at": "2026-09-27T16:53:58.896830+00:00"
+    },
+    {
+      "label": "taking again takes nothing",
+      "passed": false,
+      "detail": "{'failed': 0, 'stderr': \"coder.layer.5.output.LayerNorm.bias]    \\nLoading weights:  95%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u258c| 98/103 [00:00<00:00, 8085.17it/s, Materializing param=encoder.layer.5.output.LayerNorm.bias]\\nLoading weights:  96%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u258c| 99/103 [00:00<00:00, 8137.58it/s, Materializing param=encoder.layer.5.output.LayerNorm.weight]\\nLoading weights:  96%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u258c| 99/103 [00:00<00:00, 8122.14it/s, Materializing param=encoder.layer.5.output.LayerNorm.weight]\\nLoading weights:  97%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u258b| 100/103 [00:00<00:00, 8175.39it/s, Materializing param=encoder.layer.5.output.dense.bias]     \\nLoading weights:  97%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u258b| 100/103 [00:00<00:00, 8159.97it/s, Materializing param=encoder.layer.5.output.dense.bias]\\nLoading weights:  98%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u258a| 101/103 [00:00<00:00, 8212.81it/s, Materializing param=encoder.layer.5.output.dense.weight]\\nLoading weights:  98%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u258a| 101/103 [00:00<00:00, 8198.02it/s, Materializing param=encoder.layer.5.output.dense.weight]\\nLoading weights:  99%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2589| 102/103 [00:00<00:00, 8248.39it/s, Materializing param=pooler.dense.bias]                  \\nLoading weights:  99%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2589| 102/103 [00:00<00:00, 8231.88it/s, Materializing param=pooler.dense.bias]\\nLoading weights: 100%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588| 103/103 [00:00<00:00, 8286.44it/s, Materializing param=pooler.dense.weight]\\nLoading weights: 100%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588| 103/103 [00:00<00:00, 8272.47it/s, Materializing param=pooler.dense.weight]\\nLoading weights: 100%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588| 103/103 [00:00<00:00, 8234.79it/s, Materializing param=pooler.dense.weight]\\n\\x1b[1mBertModel LOAD REPORT\\x1b[0m from: sentence-transformers/all-MiniLM-L6-v2\\nKey                     | Status     |  | \\n------------------------+------------+--+-\\nembeddings.position_ids | UNEXPECTED |  | \\n\\n\\x1b[3mNotes:\\n- UNEXPECTED\\x1b[3m\\t:can be ignored when loading from different task/architecture; not ok if you expect identical arch.\\x1b[0m\\nrelation surface 'consists of' maps to both has_part and made_of; keeping has_part\\nrelation surface 'belongs to' maps to both member_of and owned_by; keeping member_of\\n\", 'stdout': '{\\n  \"memories\": 0,\\n  \"already\": 1,\\n  \"images\": 0,\\n  \"usage\": 0,\\n  \"usage_unmatched\": 0,\\n  \"questions\": 0\\n}\\n'}",
+      "at": "2026-09-27T16:54:05.417931+00:00"
+    },
+    {
+      "label": "release 2 carries what production kept",
+      "passed": false,
+      "detail": "0",
+      "at": "2026-09-27T16:54:07.924670+00:00"
+    },
+    {
+      "label": "promoted, release 2 retires release 1",
+      "passed": true,
+      "detail": "{1: 'retired', 2: 'production'}",
+      "at": "2026-09-27T16:54:08.607077+00:00"
+    },
+    {
+      "label": "production serves release 2, and no longer release 1",
+      "passed": true,
+      "detail": "production will not serve release 1: release 1 is retired, not the release production serves (it must be registered as p",
+      "at": "2026-09-27T16:54:22.143229+00:00"
+    },
+    {
+      "label": "production goes back to release 1 and serves it",
+      "passed": false,
+      "detail": "{1: 'production', 2: 'retired'}",
+      "at": "2026-09-27T16:54:29.094116+00:00"
+    },
+    {
+      "label": "both releases are intact",
+      "passed": true,
+      "detail": "[] []",
+      "at": "2026-09-27T16:54:29.661118+00:00"
+    },
+    {
+      "label": "the main line is untouched",
+      "passed": true,
+      "detail": "(207, []) before, (207, []) after (rows, releases)",
+      "at": "2026-09-27T16:54:29.882649+00:00"
+    }
+  ],
+  "notes": []
+}

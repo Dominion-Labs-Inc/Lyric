@@ -1,0 +1,20 @@
+{
+  "experiment": "SELFSTATE-01",
+  "run_at": "2026-09-28T14:40:59.713614+00:00",
+  "passed": 9,
+  "total": 9,
+  "beliefs_at_prime": 20616,
+  "fed_by_knowing": {
+    "confidence": 0.9998008034037187,
+    "epistemic_opportunity": 0.4999999331769863,
+    "stakes": 0.0
+  },
+  "unmeasured_without_a_task": {
+    "progress": null,
+    "competence": null,
+    "goal_congruence": null,
+    "agency": null,
+    "integrity": null,
+    "controllability": null
+  }
+}

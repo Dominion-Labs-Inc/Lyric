@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """One device. No second door.
 
-The companion channel is Stefan's personal connection to the substrate, and the
+The companion channel is the owner's personal connection to the substrate, and the
 requirement is exact: only the R1 device may use it, nothing may override it,
 and no other device may connect through that point.
 

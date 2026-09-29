@@ -91,8 +91,9 @@ def _premises_of(item: Dict[str, Any]) -> List[str]:
 # ---- reasoning kinds, through the coordinator ---------------------------
 
 async def _ask(coordinator, question: str, item: Dict[str, Any]) -> Dict[str, Any]:
+    from core.memory import Origin
     result = await coordinator.reason_about(
-        question, context={"premises": _premises_of(item)})
+        question, context={"premises": _premises_of(item)}, origin=Origin.own("EDU-12"))
     return _from_result(result)
 
 

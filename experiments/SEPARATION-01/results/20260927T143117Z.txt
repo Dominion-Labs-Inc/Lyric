@@ -1,0 +1,68 @@
+torinai_dev: 336 tables, 504 rows before, 0 after
+torinai_dev_world_knowledge: 45 tables, 0 rows before, 0 after
+torinai_dev_world_model: 60 tables, 0 rows before, 0 after
+torinai_dev_user_context: 9 tables, 0 rows before, 0 after
+== A. The copy ==
+  [PASS] this process is the world copy — copy=world (environment)
+  [PASS] it holds one pool per store, each for its own database — ['torinai_dev_user_context', 'torinai_dev_world_knowledge', 'torinai_dev_world_model']
+  [PASS] each pool reaches the database it is for
+  [PASS] the tools that reach its own databases are not carried — 344 tools; reaching its databases: []
+  [PASS] the storage and host tools are carried
+
+== B. Boot, as the world copy ==
+  [PASS] the substrate is running
+  [PASS] no statement was refused or reached a database without its table during boot — 0: []
+
+== C. A lesson, through the one teaching path ==
+    source            : SEPARATION-01 lesson
+    domain            : separation_01
+    coverage          : the whole source
+    records read      : 9
+    below quality floor: 0
+    facts             : {'admitted': 5, 'already': 1, 'refused': 0, 'total': 6}
+    word classes      : none stated
+    patterns          : {'learned': 9, 'already': 0, 'refused': 0, 'total': 9}
+    meaning facts     : {'bound': 6, 'open': 0, 'not_told': 7}
+    seconds           : 1.6
+  [PASS] the lesson's patterns are memories in world knowledge — 9 pattern memories; report {'learned': 9, 'already': 0, 'refused': 0, 'total': 9}
+  [PASS] its facts are concepts in world knowledge — 7 concepts in separation_01
+  [PASS] its beliefs are in world knowledge — 215 beliefs
+  [PASS] nothing of the lesson is in user context — user context rows: {}
+
+== D. Two people tell it something ==
+    user:alice:separation01 told it: a quibnar is a gadget -> admitted=True
+    user:bob:separation01 told it: a vorplex is a gadget -> admitted=True
+    stored for user:alice:separation01: True mem_771390a6451e43e5a2b3c96a17f3d6c6
+    stored for user:bob:separation01: True mem_0b4d7fa12f3a40acb96ba234fd871e10
+    stored for the substrate: True mem_384010d9256e4267acebb7a4936427f0
+  [PASS] each person's fact is in user context — {'user:alice:separation01': 1, 'user:bob:separation01': 1}
+  [PASS] neither person's fact is in world knowledge — []
+  [PASS] each person's memory is in user context — {'mem_384010d9256e4267acebb7a4936427f0': ('world_knowledge', ''), 'mem_771390a6451e43e5a2b3c96a17f3d6c6': ('user_context', 'user:alice:separation01'), 'mem_0b4d7fa12f3a40acb96ba234fd871e10': ('user_context', 'user:bob:separation01')}
+  [PASS] the substrate's own memory is in world knowledge — ('world_knowledge', '')
+
+== E. Recall, for each owner ==
+    Alice: 2 memories
+    Bob: 2 memories
+    the substrate: 1 memories
+  [PASS] Alice finds her memory and the substrate's, not Bob's
+  [PASS] Bob finds his memory and the substrate's, not Alice's
+  [PASS] the substrate's own search finds neither person's — {'mem_384010d9256e4267acebb7a4936427f0'}
+
+== F. An answer, for each owner ==
+    is a quibnar a gadget? {'Alice': 'true', 'Bob': 'unknown', 'the substrate': 'unknown'}
+  [PASS] for Alice, her context answers it
+  [PASS] for Bob and for the substrate, it does not
+
+== G. Research ==
+    topics: ['112963 (environment_ed9c1a7ba71c7df3)', '11763 (environment_ed9c1a7ba71c7df3)', '119025 (environment_ed9c1a7ba71c7df3)', '13153 (environment_ed9c1a7ba71c7df3)', '14036 (environment_ed9c1a7ba71c7df3)', 'bird (separation_01)', 'black (separation_01)', 'mammal (separation_01)']
+  [PASS] no research topic carries a person's context — 8 topics
+
+== H. The running store ==
+    rows: {'unified.long_term_baselines': 16, 'unified.components': 302, 'unified.component_health': 47, 'unified.failure_events': 1, 'unified.meta_learning_strategies': 18, 'unified.queue_instances': 1}
+  [PASS] the running store holds the substrate's running records — 6 tables
+  [PASS] and no memory at all
+
+== I. Untouched ==
+  [PASS] no statement was refused or reached a database without its table during the whole run — 0: []
+  [PASS] the development sandbox received nothing — {}
+  [PASS] the main store is untouched — 207 rows before, 207 after

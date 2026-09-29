@@ -69,13 +69,22 @@ def check(label, ok, detail=""):
 async def main():
     from core.agents.autonomous.autonomous_coordinator import AutonomousCoordinator
     from core.agents.autonomous.shared_types import Priority, GoalType
-    from core.execution.filesystem_domain import ensure_filesystem_domain, _encode
     from core.execution.operator_binding import get_binding_registry
+    from core.execution.tool_domain import sensed_fact, take_up_workspace, term
     from core.learning.rule_induction import Fact
     from core.learning.rule_store import get_rule_store
     from core.reasoning.temporal_reasoning import PlanningStatus
 
-    DOMAIN = "fs_g2_real1"          # holds the validated MOVE_FILE operator
+    # THE PRECONDITION IS DECLARED, NOT ASSUMED. This plans over a MOVE_FILE
+    # operator the substrate LEARNED from its own acts. That was ambient state:
+    # when the store was wiped, this failed with a signature that reads like
+    # broken code rather than a missing prerequisite. `ensure_taught` teaches it
+    # from real executions if it is not there, and costs a store read if it is.
+    from experiments.fs_move_teach import DOMAIN, ensure_taught
+    if not await ensure_taught():
+        print("  [precondition] FAILED: no executable MOVE_FILE operator in "
+              f"{DOMAIN}; nothing below can plan", flush=True)
+        return 1
     root = Path(tempfile.mkdtemp(prefix="planning-01-"))
     (root / "inbox").mkdir()
     (root / "archive").mkdir()
@@ -99,16 +108,22 @@ async def main():
           bool(probe) and probe.id in engine.current_goals, probe.id[:8] if probe else None)
 
     print("\n== B. True positive: a state goal with a real operator route ==")
-    ensure_filesystem_domain(DOMAIN, str(root))
-    binding = get_binding_registry().get(DOMAIN, "MOVE_FILE")
+    # The workspace is handed over; the substrate looks at it with its own
+    # perception, and what is there becomes the world it plans in.
+    take_up_workspace(DOMAIN, str(root))
     rules = await get_rule_store().executable_rules(domain_id=DOMAIN)
     check("the domain offers a learned, executable operator", bool(rules),
           f"{len(rules)} executable rule(s) in {DOMAIN}")
-    world = binding.observe()
-    goal_fact = Fact("FILE_IN", (_encode("report.txt"), _encode("archive")))
+    world = get_binding_registry().observe_world(DOMAIN) or frozenset()
+    report = root / "inbox" / "report.txt"
+    # "Archive the report", in perception's words: the report is a file in
+    # archive, and is no longer one in the inbox.
     reachable = await engine.create_goal(
         "archive the report", Priority.MEDIUM,
-        state_conditions=[goal_fact.to_formula()])
+        state_conditions=[
+            sensed_fact("kind", "path", str(root / "archive" / "report.txt"),
+                        "file").to_formula(),
+            "¬" + sensed_fact("kind", "path", str(report), "file").to_formula()])
     check("a goal with state conditions is a STATE goal",
           reachable.goal_type is GoalType.STATE, str(reachable.goal_type))
     out = await engine.plan_for_goal(
@@ -145,7 +160,7 @@ async def main():
     # ENCRYPTED is in no learned operator's effects — nothing can reach it.
     unreachable = await engine.create_goal(
         "encrypt the report", Priority.MEDIUM,
-        state_conditions=[Fact("ENCRYPTED", (_encode("report.txt"),)).to_formula()])
+        state_conditions=[Fact("ENCRYPTED", (term("path", str(report)),)).to_formula()])
     out_u = await engine.plan_for_goal(
         unreachable.id, {"world_state": [f.to_formula() for f in world],
                          "domain_id": DOMAIN})

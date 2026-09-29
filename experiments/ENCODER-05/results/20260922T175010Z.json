@@ -1,0 +1,82 @@
+{
+  "experiment": "ENCODER-05 \u2014 argument role: who did what to whom",
+  "seed": 20260922,
+  "hypotheses": [
+    "H1 role-swapped pairs fall below the merge threshold",
+    "H2 a role swap reads as MORE different than a subject swap",
+    "H3 a word-scramble does not score as the original"
+  ],
+  "data": {
+    "MiniLM": {
+      "role_swap_mean": 0.9803083909485167,
+      "scramble_mean": 0.9141698320777305,
+      "subject_swap_mean": 0.5588142106140286,
+      "role_swaps_merge_eligible": 40,
+      "n": 40
+    },
+    "native": {
+      "role_swap_mean": 1.0000000000000002,
+      "scramble_mean": 0.9822762589996812,
+      "subject_swap_mean": 0.8665208181659446,
+      "role_swaps_merge_eligible": 40,
+      "n": 40
+    },
+    "structural": {
+      "role_swap_mean": 0.7982341490977418,
+      "scramble_mean": 0.30377011836994117,
+      "subject_swap_mean": 0.16437328476057367,
+      "role_swaps_merge_eligible": 40,
+      "n": 40
+    }
+  },
+  "checks": [
+    {
+      "name": "H1 MiniLM: inversions fall below the merge threshold",
+      "passed": false,
+      "detail": "40/40 inversions score >= 0.75"
+    },
+    {
+      "name": "H2 MiniLM: a role swap reads as more different than a subject swap",
+      "passed": false,
+      "detail": "role 0.980 vs subject 0.559"
+    },
+    {
+      "name": "H3 MiniLM: a scramble does not read as the original",
+      "passed": false,
+      "detail": "scramble 0.914"
+    },
+    {
+      "name": "H1 native: inversions fall below the merge threshold",
+      "passed": false,
+      "detail": "40/40 inversions score >= 0.75"
+    },
+    {
+      "name": "H2 native: a role swap reads as more different than a subject swap",
+      "passed": false,
+      "detail": "role 1.000 vs subject 0.867"
+    },
+    {
+      "name": "H3 native: a scramble does not read as the original",
+      "passed": false,
+      "detail": "scramble 0.982"
+    },
+    {
+      "name": "H1 structural: inversions fall below the merge threshold",
+      "passed": false,
+      "detail": "40/40 inversions score >= 0.75"
+    },
+    {
+      "name": "H2 structural: a role swap reads as more different than a subject swap",
+      "passed": false,
+      "detail": "role 0.798 vs subject 0.164"
+    },
+    {
+      "name": "H3 structural: a scramble does not read as the original",
+      "passed": true,
+      "detail": "scramble 0.304"
+    }
+  ],
+  "passed": 1,
+  "total": 9,
+  "verdict": "BOTH encoders are bags of words at the argument level \u2014 structure must come from the reader, not the vector"
+}

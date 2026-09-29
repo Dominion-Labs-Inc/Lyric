@@ -671,6 +671,17 @@ class GenerateHypothesisTool(Tool):
             # can include "Hypothesis:" in the text if they want.
             claim = observation.strip()
 
+            # WHOSE HYPOTHESIS: whose run this is, as the tool registry holds it
+            # for a run inside a task. A person's is kept in their context.
+            from core.memory import Origin
+            from core.reasoning.intent_authority import get_acting_actor
+            actor = get_acting_actor()
+            if not actor:
+                return ToolResult(
+                    success=False, output=None,
+                    error=("generate_hypothesis was run outside anyone's work, so whose "
+                           "hypothesis this is cannot be said; it is run inside a task"))
+
             hypothesis_system = get_hypothesis_system()
 
             # Ensure the underlying system is initialized with DB/memory.
@@ -682,6 +693,7 @@ class GenerateHypothesisTool(Tool):
                 domain=domain,
                 predictions=predictions,
                 alternatives=alternatives,
+                owner=Origin.of(actor, "generate_hypothesis tool").person,
             )
 
             # Convert dataclass to a JSON-serializable payload.

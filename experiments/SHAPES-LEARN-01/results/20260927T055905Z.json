@@ -1,0 +1,241 @@
+{
+  "experiment": "SHAPES-LEARN-01",
+  "claim": "Sentences taught with their meaning through the one teaching path become patterns: held in memory, scored by beliefs, in the English domain, their facts held in the graph; a taught sentence then reads to its meaning and its meaning is said back as the sentence.",
+  "hypothesis": "A pattern not stored, merged, or read as a claim; a belief missing or not grounded in its pattern's memory; no English domain; a fact missing, or held from a question or a request; a denial held as an assertion; a sentence that does not read back, or an untaught one that does; a re-teach that counts twice; or any write to the main store would each show here.",
+  "started_at": "2026-09-27T05:59:05.777050+00:00",
+  "duration_seconds": 96.04,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/TorinAI/venv_torin/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/TorinAI",
+    "shadow_mode": null,
+    "git_commit": "20deb447498593391eca0286916b8f986c560a26",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "torinai_dev",
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "environment",
+        "database": "environment",
+        "user": "environment",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres"
+      }
+    },
+    "git_uncommitted_changes": 1163,
+    "database_verified": "torinai_dev",
+    "database_verified_reason": "asked the server"
+  },
+  "summary": {
+    "checks": 33,
+    "passed": 32,
+    "failed": 1,
+    "outcome": "FAIL"
+  },
+  "metrics": [],
+  "checks": [
+    {
+      "label": "the run is in the sandbox",
+      "passed": true,
+      "detail": "connected to torinai_dev",
+      "at": "2026-09-27T05:59:06.552701+00:00"
+    },
+    {
+      "label": "the substrate is running",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-27T05:59:19.712039+00:00"
+    },
+    {
+      "label": "every sentence became a pattern",
+      "passed": true,
+      "detail": "{'learned': 9, 'already': 0, 'refused': 0, 'total': 9}",
+      "at": "2026-09-27T05:59:20.549961+00:00"
+    },
+    {
+      "label": "meaning facts: bound where the situation names them; questions and requests hold nothing",
+      "passed": true,
+      "detail": "{'bound': 6, 'open': 0, 'not_told': 7}",
+      "at": "2026-09-27T05:59:20.549968+00:00"
+    },
+    {
+      "label": "a fact said twice in the lesson is held once",
+      "passed": true,
+      "detail": "{'admitted': 5, 'already': 1, 'refused': 0, 'total': 6}",
+      "at": "2026-09-27T05:59:20.549971+00:00"
+    },
+    {
+      "label": "one pattern memory per sentence, none merged",
+      "passed": true,
+      "detail": "9 memories, 9 keys",
+      "at": "2026-09-27T05:59:20.550725+00:00"
+    },
+    {
+      "label": "no pattern memory was read as a claim about the world",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-27T05:59:20.550730+00:00"
+    },
+    {
+      "label": "one belief per pattern",
+      "passed": true,
+      "detail": "9/9",
+      "at": "2026-09-27T05:59:20.550780+00:00"
+    },
+    {
+      "label": "each belief is grounded in its pattern's memory",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-27T05:59:20.550815+00:00"
+    },
+    {
+      "label": "each belief is in the English domain",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-27T05:59:20.550818+00:00"
+    },
+    {
+      "label": "the pattern beliefs are persisted",
+      "passed": true,
+      "detail": "10 belief row(s) in the English domain",
+      "at": "2026-09-27T05:59:20.551393+00:00"
+    },
+    {
+      "label": "every admission reached the running substrate",
+      "passed": true,
+      "detail": "0 unannounced",
+      "at": "2026-09-27T05:59:20.551398+00:00"
+    },
+    {
+      "label": "English is a domain",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-27T05:59:20.551402+00:00"
+    },
+    {
+      "label": "English is judged by its patterns",
+      "passed": true,
+      "detail": "maturity 0.4383 (expected 0.4383, after 74s)",
+      "at": "2026-09-27T06:00:40.690574+00:00"
+    },
+    {
+      "label": "the lesson's domain is judged by what it now holds",
+      "passed": true,
+      "detail": "maturity 0.2936 (registered at 0.1)",
+      "at": "2026-09-27T06:00:40.690585+00:00"
+    },
+    {
+      "label": "no domain record stores a copy of what it holds",
+      "passed": true,
+      "detail": "{'shapes_learn_01': [], 'english': []}",
+      "at": "2026-09-27T06:00:40.691015+00:00"
+    },
+    {
+      "label": "the thinnest knowledge is what proactive research would go after",
+      "passed": false,
+      "detail": "0 topic(s)",
+      "at": "2026-09-27T06:00:40.691054+00:00"
+    },
+    {
+      "label": "the told facts are held, bound to the situation",
+      "passed": true,
+      "detail": "3070 edge(s)",
+      "at": "2026-09-27T06:00:40.695453+00:00"
+    },
+    {
+      "label": "a denial is held as a denial",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-27T06:00:40.695458+00:00"
+    },
+    {
+      "label": "nothing is held from a question or a request",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-27T06:00:40.695578+00:00"
+    },
+    {
+      "label": "every pattern is recorded as new",
+      "passed": true,
+      "detail": "{'new': 9}",
+      "at": "2026-09-27T06:00:40.696042+00:00"
+    },
+    {
+      "label": "every taught sentence reads to its meaning",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-27T06:00:40.696229+00:00"
+    },
+    {
+      "label": "every taught meaning is said back as its sentence",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-27T06:00:40.696270+00:00"
+    },
+    {
+      "label": "an untaught sentence reads to nothing",
+      "passed": true,
+      "detail": "[('This is my hat.', 0), ('this is my shoe.', 0), ('A robin is a fish.', 0), ('My shoe is red.', 0)]",
+      "at": "2026-09-27T06:00:40.696292+00:00"
+    },
+    {
+      "label": "the view rebuilt from memory reads every taught sentence",
+      "passed": true,
+      "detail": "9 pattern(s) after the warm",
+      "at": "2026-09-27T06:00:40.872909+00:00"
+    },
+    {
+      "label": "nothing is learned twice",
+      "passed": true,
+      "detail": "{'learned': 0, 'already': 9, 'refused': 0, 'total': 9}",
+      "at": "2026-09-27T06:00:41.153696+00:00"
+    },
+    {
+      "label": "no belief moved",
+      "passed": true,
+      "detail": "[1, 1, 1, 1, 1, 1, 1, 1, 1] -> [1, 1, 1, 1, 1, 1, 1, 1, 1]",
+      "at": "2026-09-27T06:00:41.153705+00:00"
+    },
+    {
+      "label": "still one memory per pattern",
+      "passed": true,
+      "detail": "9",
+      "at": "2026-09-27T06:00:41.154821+00:00"
+    },
+    {
+      "label": "a second source is a second observation of each pattern",
+      "passed": true,
+      "detail": "[1, 1, 1, 1, 1, 1, 1, 1, 1] -> [2, 2, 2, 2, 2, 2, 2, 2, 2]",
+      "at": "2026-09-27T06:00:41.692607+00:00"
+    },
+    {
+      "label": "the ledger records the second source as an update",
+      "passed": true,
+      "detail": "9; report {'learned': 0, 'already': 9, 'refused': 0, 'total': 9}",
+      "at": "2026-09-27T06:00:41.693354+00:00"
+    },
+    {
+      "label": "a taught question and a taught premise formalize without a model",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-27T06:00:41.693431+00:00"
+    },
+    {
+      "label": "an untaught question is declined",
+      "passed": true,
+      "detail": "this input was not taught with its meaning",
+      "at": "2026-09-27T06:00:41.693440+00:00"
+    },
+    {
+      "label": "the main model's store is untouched",
+      "passed": true,
+      "detail": "207 rows before, 207 after",
+      "at": "2026-09-27T06:00:41.818936+00:00"
+    }
+  ],
+  "notes": []
+}

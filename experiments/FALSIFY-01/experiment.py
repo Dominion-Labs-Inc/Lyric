@@ -348,24 +348,54 @@ async def main() -> int:
     coord.on(SelfEventType.PERCEPT_RECOGNIZED,
              lambda ev: judgements.append(ev.payload), name=f"falsify_probe_{tag}")
 
-    async def observe(path: Path) -> Optional[Dict[str, Any]]:
+    async def observe(path: Path,
+                      against: Optional[Dict[str, Any]] = None
+                      ) -> Optional[Dict[str, Any]]:
         """Show one image to the LIVE substrate and report what it ends up
         holding about the thing in it. None when nothing was admitted at all —
-        which is itself a result, not an error."""
+        which is itself a result, not an error.
+
+        `against` is the CLEAN sighting of the same object, and giving it is what
+        makes a transformed row mean anything. This used to read whichever blob
+        the `contains` query returned first, which is an area ordering — so the
+        moment a transform ADDED something to the frame (an occluder, a
+        distractor) the row compared the original object against whatever had
+        become biggest, and reported the object's every feature as lost. That is
+        what made the occlusion and clutter rows harness artifacts rather than
+        measurements. The substrate can now say which blob is which across two
+        sightings, and this asks it."""
         counter[0] += 1
         source = f"fls_{tag}_{counter[0]}"
         judgements.clear()
         with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
-            await coord.see(str(path), source=source, domain=DOMAIN)
+            percept = await coord.see(str(path), source=source, domain=DOMAIN, actor_identity=None)
         verdict = judgements[-1] if judgements else None
-        rows = await db.execute_query(
-            "SELECT cr.target_surface FROM unified.concept_relations cr "
-            "JOIN unified.concepts c ON cr.source_concept_id = c.concept_id "
-            "WHERE c.name = $1 AND cr.relation = 'contains'",
-            (source,), fetch_all=True) or []
-        if not rows:
+        # ASK WHAT THE PERCEPT WAS CALLED. The substrate names a percept from the
+        # image's own content digest, so the label handed in is no longer the
+        # concept's name -- rebuilding it here found nothing and the run read as
+        # "no examples admitted" rather than "the name moved".
+        if percept is None:
             return None
-        blob = str(rows[0]["target_surface"])
+        content = getattr(percept, "content", None) or {}
+        blobs = content.get("blobs") or []
+        if not blobs:
+            return None
+        blob = ""
+        matched_on = None
+        if against and against.get("content"):
+            from core.perception.perception_faculty import PerceptionFaculty
+            for pair in PerceptionFaculty.correspond(against["content"], content):
+                if pair["before"] == against["blob"]:
+                    blob, matched_on = pair["after"], pair["on"]
+                    break
+            if not blob:
+                # The substrate cannot say this is the same thing. That is an
+                # honest absence and is reported as one, never resolved by
+                # falling back to "whatever is biggest".
+                return None
+        else:
+            blob = max(blobs, key=lambda b: float(
+                b.get("properties", {}).get("occupies") or 0.0))["name"]
         feats, _ev = await observed_instance_features(db, blob)
         # Everything the substrate HOLDS of it, including anything it named it.
         from core.reasoning.concept_graph_reasoning import instance_predicates
@@ -382,7 +412,8 @@ async def main() -> int:
             occupies = float(props.get("occupies"))
         except (TypeError, ValueError):
             occupies = None
-        return {"blob": blob, "source": source, "features": split,
+        return {"blob": blob, "source": percept.source, "features": split,
+                "content": content, "matched_on": matched_on,
                 "raw": sorted(feats), "held": sorted(held),
                 # HOW MUCH OF THE FRAME the thing found takes up. This is the
                 # only positional/extent number the substrate actually stores,
@@ -471,7 +502,7 @@ async def main() -> int:
                 continue
             p = work / f"{bi}_{family}_{mag.replace('/', '_')}.png"
             cv2.imwrite(str(p), out)
-            got = await observe(p)
+            got = await observe(p, against=clean)
             syn.record(family, mag, clean, got)
             if is_member:
                 # What the substrate NAMED it: everything it holds that it did
@@ -519,7 +550,7 @@ async def main() -> int:
                     continue
                 p = nwork / f"{pi}_{family}_{mag.replace('/', '_')}.png"
                 cv2.imwrite(str(p), out)
-                nat.record(family, mag, clean, await observe(p))
+                nat.record(family, mag, clean, await observe(p, against=clean))
                 ndone += 1
                 if ndone % 25 == 0:
                     rate = ndone / max(1e-6, time.perf_counter() - nt0)
@@ -604,9 +635,19 @@ async def main() -> int:
 
     # P8 — the calibration question, and the reason this study exists.
     broken: List[Tuple[str, str, float, float]] = []
+    # WHICH FEATURES CHANGING MEANS PERCEPTION BROKE. Not all of them: `position`
+    # is a fact about the VIEW, exactly like `occupies`, and `occupies` was never
+    # counted here. Under a 28% translation the object is perceived perfectly —
+    # colour 100%, shape 100% — and it has simply moved, so `sits middle_right`
+    # is as true of the new view as `sits center` was of the old one. Counting
+    # that as broken perception measures frame-relativity, which is P3's job and
+    # is confirmed, and then holds the acceptance band responsible for not
+    # doubting a claim that is true. The same category error as reading whichever
+    # blob came back first, one level up.
+    OBJECT_FEATURES = tuple(f for f in FEATURES if f != "position")
     for fam in syn.families():
         for mag in syn.magnitudes(fam):
-            rates = [syn.rate(fam, mag, f) for f in FEATURES]
+            rates = [syn.rate(fam, mag, f) for f in OBJECT_FEATURES]
             rates = [x for x in rates if x is not None]
             if not rates:
                 continue

@@ -1,0 +1,176 @@
+{
+  "experiment": "LIVE-01",
+  "claim": "The running substrate listens and looks all the time and keeps only what is said to it: an utterance with its taught name in it, and what follows within attention, is heard, remembered in words, looked at and answered through the front door; everything else is dropped inside the ear and never reaches it.",
+  "hypothesis": "An utterance is kept exactly when the taught name is found in it or it follows a kept one within ATTENTION_SECONDS; a name taught while listening is listened for within the ear's re-teach interval; nothing dropped leaves a percept or a memory; the recording is never kept.",
+  "started_at": "2026-09-29T01:47:14.317398+00:00",
+  "duration_seconds": 114.016,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/TorinAI/venv_torin/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/TorinAI",
+    "shadow_mode": null,
+    "git_commit": "20deb447498593391eca0286916b8f986c560a26",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "torinai_dev",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "torinai_dev",
+        "model": "torinai_dev",
+        "user_context": "torinai_dev",
+        "learning": "torinai_dev"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "dotenv:.env.postgres",
+        "database": "environment",
+        "user": "dotenv:.env.postgres",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 1777,
+    "database_verified": "torinai_dev",
+    "database_verified_reason": "asked the server"
+  },
+  "summary": {
+    "checks": 17,
+    "passed": 17,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [
+    {
+      "name": "let_pass",
+      "value": 22,
+      "unit": "utterances",
+      "note": ""
+    },
+    {
+      "name": "let_pass_seconds",
+      "value": 19.89,
+      "unit": "s",
+      "note": ""
+    },
+    {
+      "name": "heard_complete",
+      "value": "2/4",
+      "unit": "utterances",
+      "note": "'torin are mammals animals'; '... birds fly ... are'; 'torin ... fly'; 'torin are cats animals'"
+    }
+  ],
+  "checks": [
+    {
+      "label": "what is said before its name is taught is let pass, even its name",
+      "passed": true,
+      "detail": "1 let pass, 0 kept",
+      "at": "2026-09-29T01:47:47.809549+00:00"
+    },
+    {
+      "label": "and it says why",
+      "passed": true,
+      "detail": "its name 'torin' was never taught as a spoken word, so nothing heard is taken as said to it",
+      "at": "2026-09-29T01:47:47.809587+00:00"
+    },
+    {
+      "label": "a name taught while it listens is listened for from then on",
+      "passed": true,
+      "detail": "the ear re-taught 8.0s into a stream that speaks again at 34s",
+      "at": "2026-09-29T01:47:50.422943+00:00"
+    },
+    {
+      "label": "what was said to it by name is kept",
+      "passed": true,
+      "detail": "heard \"torin are mammals animals\"",
+      "at": "2026-09-29T01:49:08.128547+00:00"
+    },
+    {
+      "label": "what followed within 8s is kept without the name",
+      "passed": true,
+      "detail": "heard \"... birds fly ... are\"",
+      "at": "2026-09-29T01:49:08.128620+00:00"
+    },
+    {
+      "label": "and nothing else: only the three questions said to it and the talk that followed",
+      "passed": true,
+      "detail": "4 kept; 22 let pass (19.89s), questions and the room's own sounds",
+      "at": "2026-09-29T01:49:08.128675+00:00"
+    },
+    {
+      "label": "the only percepts are of what was kept: one hearing and one seeing each",
+      "passed": true,
+      "detail": "{'audio': 4, 'image': 4}",
+      "at": "2026-09-29T01:49:08.133380+00:00"
+    },
+    {
+      "label": "each kept utterance is a hearing memory that says what was heard",
+      "passed": true,
+      "detail": "ound, an abrupt low-pitched sound; said \\\"torin are mammals animals\\\"\"; ed sound, a gradual low-pitched sound; said \\\"... birds fly ... are\\\"\"; av recording, 1 sound(s): a low-pitched sound; said \\\"torin ... fly\\\"\"; d sound, an abrupt low-pitched sound; said \\\"torin are cats animals\\\"\"",
+      "at": "2026-09-29T01:49:08.137953+00:00"
+    },
+    {
+      "label": "remembered as a trace, never the recording",
+      "passed": true,
+      "detail": "application/x-npz 8728B, application/x-npz 9236B, application/x-npz 4622B, application/x-npz 6843B",
+      "at": "2026-09-29T01:49:08.142369+00:00"
+    },
+    {
+      "label": "and no recording is left on disk",
+      "passed": true,
+      "detail": "0 file(s) in /var/folders/0y/66ltqc9s0xs5h7yhj_vv5ct80000gn/T/torin_live___8wn8va",
+      "at": "2026-09-29T01:49:08.142890+00:00"
+    },
+    {
+      "label": "each time it was spoken to, what it saw is remembered with its gist",
+      "passed": true,
+      "detail": "4 of 4",
+      "at": "2026-09-29T01:49:08.147592+00:00"
+    },
+    {
+      "label": "at least one hearing came through complete, so the front door is reached",
+      "passed": true,
+      "detail": "'torin are mammals animals'; '... birds fly ... are'; 'torin ... fly'; 'torin are cats animals'",
+      "at": "2026-09-29T01:49:08.147626+00:00"
+    },
+    {
+      "label": "every complete hearing went to the front door, without the name it was called by",
+      "passed": true,
+      "detail": "'are mammals animals'; 'are cats animals'",
+      "at": "2026-09-29T01:49:08.147646+00:00"
+    },
+    {
+      "label": "and the front door took each one in",
+      "passed": true,
+      "detail": "'Yes, a mammal is an animal.'; \"I remember: a mammal is an animal.\\nI hold animals but nothing said about it yet.\\nI hold nothing for cats animals. Tell me what it is and I will keep it.\\nI don't hold cats animals yet; looking it up found nothing, so I'll run a more targeted search.\"",
+      "at": "2026-09-29T01:49:08.147676+00:00"
+    },
+    {
+      "label": "what it answered is in the same conversation memory typed words go to",
+      "passed": true,
+      "detail": "2 answered; \"Asked: are mammals animals \\u2014 answered from held knowledge\"; \"Asked: are cats animals \\u2014 could not answer; asked what it is\"",
+      "at": "2026-09-29T01:49:08.149615+00:00"
+    },
+    {
+      "label": "an incomplete hearing is remembered and not acted on",
+      "passed": true,
+      "detail": "'... birds fly ... are'; 'torin ... fly'",
+      "at": "2026-09-29T01:49:08.149634+00:00"
+    },
+    {
+      "label": "the ear and the eye stop with the live senses",
+      "passed": true,
+      "detail": "2 program(s) stopped",
+      "at": "2026-09-29T01:49:08.172353+00:00"
+    }
+  ],
+  "notes": [
+    "Cleanup by nonce tpsobn, exact ids and the run's speaker LIVE-01-tpsobn: 131 concepts, 54 memories, 0 task(s); 0 left."
+  ]
+}

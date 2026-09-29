@@ -230,10 +230,16 @@ class ProveTheoremTool(Tool):
             if hasattr(bridge, "initialize"):
                 await bridge.initialize()
 
+            # WHOSE RUN THIS IS, as the tool registry holds it for a run inside a
+            # task. A run no task is behind names no one, and its reasoning is
+            # then not remembered as anyone's.
+            from core.reasoning.intent_authority import get_acting_actor
+            _actor = get_acting_actor()
             result = await bridge.reason(ReasoningRequest(
                 query=statement,
                 context=list(premises),
                 kinds=[ReasoningType.LOGICAL],
+                task_metadata={"actor": _actor} if _actor else {},
             ))
             md = getattr(result, "metadata", {}) or {}
             answer = str(getattr(result, "answer", "") or "")

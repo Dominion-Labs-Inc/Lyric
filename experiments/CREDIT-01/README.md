@@ -40,6 +40,8 @@ the substrate less free to act there. The remedy for a knowledge deficit was clo
 **Results.** Every run is saved in `results/` (JSON + `.md`). Latest: 2026-09-17, **25/25**
 (`results/20260917T033841Z.md`).
 
+**2026-09-28: 26/26.** The hand-written filesystem domain was deleted. This now plans over an operator the substrate learned from its own acts in `tools:path` (taught by `experiments/fs_move_teach.py` if the store has none), and states its goal in perception's words: `KIND(<path>, Ffile)`, and `¬KIND(...)` for "no longer there". It now declares the operator, and its cleanup removes the failed-work rows it added by fingerprint (the store has been insert-only since 2026-09-26).
+
 ## Why B3 is built the way it is
 
 The miss is produced **without making any operator fail**. An external actor (the experiment) moves the

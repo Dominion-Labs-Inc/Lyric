@@ -20,9 +20,13 @@ from core.agents.autonomous.shared_types import (
 )
 from core.learning.rule_induction import Fact, TrainingExample, get_rule_inducer
 from core.learning.rule_store import EpistemicStatus, RuleStore
-from core.model_policy import (
-    ModelPolicy, assert_model_free, reset_model_telemetry, set_model_policy,
-)
+# THE MODEL-FREE GUARD IS GONE, AND SO IS WHAT IT GUARDED AGAINST.
+# These tests wrapped themselves in an autouse fixture that set
+# `ModelPolicy.STRICT_MODEL_FREE` and asserted afterwards that no model had been
+# called. `core.model_policy` was REMOVED when the substrate became model-free by
+# CONSTRUCTION -- there is no longer a policy to set, because there is nothing to
+# set it against. The guard's subject is gone; the subject of these tests is not,
+# and they had been uncollectable ever since.
 from core.reasoning.temporal_reasoning import PlanningStatus
 
 F = Fact.parse
@@ -34,14 +38,6 @@ WORLD = ["AT(z, HALL)", "PATH(HALL, LAB)", "OPEN(LAB)",
 GOAL_CONDITIONS = ["AT(z, VAULT)"]
 
 
-@pytest.fixture(autouse=True)
-def strict():
-    previous = set_model_policy(ModelPolicy.STRICT_MODEL_FREE)
-    reset_model_telemetry()
-    yield
-    assert_model_free("learn-plan-act loop")
-    set_model_policy(previous)
-    reset_model_telemetry()
 
 
 def move(who, a, b, evidence_id, opened=True, path=True, acted=True, at=True):
@@ -265,10 +261,12 @@ async def test_truncated_grounding_reports_indeterminate_never_unreachable(subst
 @pytest.mark.asyncio
 async def test_a_state_goal_is_refused_by_the_template_planner(substrate):
     """Mode is chosen by goal type. The template path must be unreachable for a
-    state goal even when called directly."""
+    state goal even when called directly, and it refuses by saying so rather
+    than returning what a broken planner would."""
     engine, _, _ = substrate
     goal = await _state_goal(engine)
-    assert await engine.generate_plan(goal.id, _context()) is None
+    with pytest.raises(ValueError, match="must be planned by search"):
+        await engine.generate_plan(goal.id, _context())
 
 
 @pytest.mark.asyncio

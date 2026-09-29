@@ -1,0 +1,180 @@
+{
+  "experiment": "CANARY-01",
+  "claim": "What a person gives the substrate through its doors -- a question, a job, an image -- is held in that person's context and in no memory of anyone else's, while what the substrate does on its own is its own.",
+  "hypothesis": "A marker from the person found in a memory row of the substrate's, or under another owner in a table that records owners, would show a leak here.",
+  "started_at": "2026-09-28T00:10:00.575190+00:00",
+  "duration_seconds": 43.957,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/TorinAI/venv_torin/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/TorinAI",
+    "shadow_mode": null,
+    "git_commit": "20deb447498593391eca0286916b8f986c560a26",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "torinai_dev",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "torinai_dev",
+        "model": "torinai_dev",
+        "user_context": "torinai_dev",
+        "learning": "torinai_dev"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "environment",
+        "database": "environment",
+        "user": "environment",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 1222,
+    "database_verified": null,
+    "database_verified_reason": "not verified"
+  },
+  "summary": {
+    "checks": 18,
+    "passed": 18,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [
+    {
+      "name": "reasoning memories of the person's question",
+      "value": 1,
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "task-end records of the person's job",
+      "value": 0,
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "owner-less tables holding a person's marker",
+      "value": 2,
+      "unit": "",
+      "note": "unified.reasoning_arg_claims: fact and question; unified.reasoning_arguments: fact and question"
+    }
+  ],
+  "checks": [
+    {
+      "label": "the run is in the sandbox",
+      "passed": true,
+      "detail": "connected to torinai_dev",
+      "at": "2026-09-28T00:10:08.428054+00:00"
+    },
+    {
+      "label": "the substrate is running",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-28T00:10:25.715109+00:00"
+    },
+    {
+      "label": "the question was answered by reasoning over their fact and the lesson",
+      "passed": true,
+      "detail": "Yes, a zqdsjpttwor is an animal.",
+      "at": "2026-09-28T00:10:26.774212+00:00"
+    },
+    {
+      "label": "the job ran to its end and succeeded",
+      "passed": true,
+      "detail": "completed",
+      "at": "2026-09-28T00:10:30.780978+00:00"
+    },
+    {
+      "label": "`see` takes whose image it is, as the front door takes whose message it is",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-28T00:10:30.786215+00:00"
+    },
+    {
+      "label": "the person's fact and question reached memory, and every memory row holding it is theirs",
+      "passed": true,
+      "detail": "owners ['canary-person-otuvijmod']",
+      "at": "2026-09-28T00:10:40.334139+00:00"
+    },
+    {
+      "label": "the person's job reached memory, and every memory row holding it is theirs",
+      "passed": true,
+      "detail": "owners ['canary-person-otuvijmod']",
+      "at": "2026-09-28T00:10:40.334201+00:00"
+    },
+    {
+      "label": "the memory `see` made of the person's image is theirs",
+      "passed": true,
+      "detail": "1 memory(ies), owners ['canary-person-otuvijmod']",
+      "at": "2026-09-28T00:10:40.335546+00:00"
+    },
+    {
+      "label": "the substrate's own note is its own",
+      "passed": true,
+      "detail": "owners ['']",
+      "at": "2026-09-28T00:10:40.335558+00:00"
+    },
+    {
+      "label": "unified.scoped_beliefs holds the person's fact and question only under them",
+      "passed": true,
+      "detail": "owners ['canary-person-otuvijmod']",
+      "at": "2026-09-28T00:10:40.336998+00:00"
+    },
+    {
+      "label": "unified.scoped_concept_relations holds the person's fact and question only under them",
+      "passed": true,
+      "detail": "owners ['canary-person-otuvijmod']",
+      "at": "2026-09-28T00:10:40.337005+00:00"
+    },
+    {
+      "label": "unified.experience_pool holds the person's job only under them",
+      "passed": true,
+      "detail": "owners ['canary-person-otuvijmod']",
+      "at": "2026-09-28T00:10:40.337010+00:00"
+    },
+    {
+      "label": "the person's job is an experience in the pool, theirs, holding their marker",
+      "passed": true,
+      "detail": "owner canary-person-otuvijmod",
+      "at": "2026-09-28T00:10:40.337789+00:00"
+    },
+    {
+      "label": "the memory agent decided it: a candidate, waiting for the lift and the gate",
+      "passed": true,
+      "detail": "{'parts': {'world': 2, 'person': 3, 'substrate': 2}, 'standing': 'candidate', 'waits_for': 'the lift, the residue test and the gate'}",
+      "at": "2026-09-28T00:10:40.337797+00:00"
+    },
+    {
+      "label": "it holds what the substrate did, apart from what was theirs",
+      "passed": true,
+      "detail": "[('step', 'substrate'), ('tool_run', 'substrate'), ('check', 'world'), ('check', 'world')]",
+      "at": "2026-09-28T00:10:40.337821+00:00"
+    },
+    {
+      "label": "a job of the substrate's own is its own experience in the pool",
+      "passed": true,
+      "detail": "{'item_id': 'exp_85a774507b3847fa', 'owner': None, 'status': 'decided', 'decision': '{\"parts\": {\"world\": 3, \"person\": 0, \"substrate\": 4}, \"standing\": \"candidate\", \"waits_for\": \"the lift, the residue t",
+      "at": "2026-09-28T00:10:44.347153+00:00"
+    },
+    {
+      "label": "the substrate's own recall finds nothing of the person's job",
+      "passed": true,
+      "detail": "0 found",
+      "at": "2026-09-28T00:10:44.348025+00:00"
+    },
+    {
+      "label": "the main model's store is untouched",
+      "passed": true,
+      "detail": "207 rows before, 207 after",
+      "at": "2026-09-28T00:10:44.533361+00:00"
+    }
+  ],
+  "notes": []
+}

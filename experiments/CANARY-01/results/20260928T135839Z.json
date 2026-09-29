@@ -1,0 +1,438 @@
+{
+  "experiment": "CANARY-01",
+  "claim": "What a person gives the substrate through its doors -- a question, a job, an image -- is held in that person's context and in no memory of anyone else's, while what the substrate does on its own is its own.",
+  "hypothesis": "A marker from the person found in a memory row of the substrate's, or under another owner in a table that records owners, would show a leak here.",
+  "started_at": "2026-09-28T13:58:39.742488+00:00",
+  "duration_seconds": 57.064,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/TorinAI/venv_torin/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/TorinAI",
+    "shadow_mode": null,
+    "git_commit": "20deb447498593391eca0286916b8f986c560a26",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "torinai_dev",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "torinai_dev",
+        "model": "torinai_dev",
+        "user_context": "torinai_dev",
+        "learning": "torinai_dev"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "environment",
+        "database": "environment",
+        "user": "environment",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 1437,
+    "database_verified": null,
+    "database_verified_reason": "not verified"
+  },
+  "summary": {
+    "checks": 57,
+    "passed": 57,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [
+    {
+      "name": "reasoning memories of the person's question",
+      "value": 1,
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "task-end records of the person's job",
+      "value": 0,
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "owner-less tables holding a person's marker",
+      "value": 0,
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "the person's conversation experiences in the pool",
+      "value": 2,
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "the person's reasoning experiences in the pool",
+      "value": 1,
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "the person's research experiences in the pool",
+      "value": 1,
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "the person's perception experiences in the pool",
+      "value": 1,
+      "unit": "",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "the run is in the sandbox",
+      "passed": true,
+      "detail": "connected to torinai_dev",
+      "at": "2026-09-28T13:58:48.569234+00:00"
+    },
+    {
+      "label": "the substrate is running",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-28T13:59:11.692344+00:00"
+    },
+    {
+      "label": "the question was answered by reasoning over their fact and the lesson",
+      "passed": true,
+      "detail": "Yes, a zqonoiegycu is an animal.",
+      "at": "2026-09-28T13:59:12.504662+00:00"
+    },
+    {
+      "label": "the job ran to its end and succeeded",
+      "passed": true,
+      "detail": "completed",
+      "at": "2026-09-28T13:59:17.248384+00:00"
+    },
+    {
+      "label": "`see` takes whose image it is, as the front door takes whose message it is",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-28T13:59:17.251623+00:00"
+    },
+    {
+      "label": "the person's fact and question reached memory, and every memory row holding it is theirs",
+      "passed": true,
+      "detail": "owners ['canary-person-apellllnr']",
+      "at": "2026-09-28T13:59:28.610891+00:00"
+    },
+    {
+      "label": "the person's look-up reached memory, and every memory row holding it is theirs",
+      "passed": true,
+      "detail": "owners ['canary-person-apellllnr']",
+      "at": "2026-09-28T13:59:28.610907+00:00"
+    },
+    {
+      "label": "the person's job reached memory, and every memory row holding it is theirs",
+      "passed": true,
+      "detail": "owners ['canary-person-apellllnr']",
+      "at": "2026-09-28T13:59:28.610916+00:00"
+    },
+    {
+      "label": "the person's image reached memory, and every memory row holding it is theirs",
+      "passed": true,
+      "detail": "owners ['canary-person-apellllnr']",
+      "at": "2026-09-28T13:59:28.610922+00:00"
+    },
+    {
+      "label": "the memory `see` made of the person's image is theirs",
+      "passed": true,
+      "detail": "1 memory(ies), owners ['canary-person-apellllnr']",
+      "at": "2026-09-28T13:59:28.611481+00:00"
+    },
+    {
+      "label": "every memory is stamped only with what its own owner was perceiving",
+      "passed": true,
+      "detail": "112 stamped memories; crossed []",
+      "at": "2026-09-28T13:59:28.624850+00:00"
+    },
+    {
+      "label": "a memory of the person's formed while their image was in view carries it",
+      "passed": true,
+      "detail": "1 of theirs stamped",
+      "at": "2026-09-28T13:59:28.624863+00:00"
+    },
+    {
+      "label": "the substrate's own note is its own",
+      "passed": true,
+      "detail": "owners ['']",
+      "at": "2026-09-28T13:59:28.624871+00:00"
+    },
+    {
+      "label": "unified.experience_pool holds the person's fact and question only under them",
+      "passed": true,
+      "detail": "owners ['canary-person-apellllnr']",
+      "at": "2026-09-28T13:59:28.626312+00:00"
+    },
+    {
+      "label": "unified.reasoning_arg_claims holds the person's fact and question only under them",
+      "passed": true,
+      "detail": "owners ['canary-person-apellllnr']",
+      "at": "2026-09-28T13:59:28.626322+00:00"
+    },
+    {
+      "label": "unified.reasoning_arguments holds the person's fact and question only under them",
+      "passed": true,
+      "detail": "owners ['canary-person-apellllnr']",
+      "at": "2026-09-28T13:59:28.626326+00:00"
+    },
+    {
+      "label": "unified.scoped_beliefs holds the person's fact and question only under them",
+      "passed": true,
+      "detail": "owners ['canary-person-apellllnr']",
+      "at": "2026-09-28T13:59:28.626329+00:00"
+    },
+    {
+      "label": "unified.scoped_concept_relations holds the person's fact and question only under them",
+      "passed": true,
+      "detail": "owners ['canary-person-apellllnr']",
+      "at": "2026-09-28T13:59:28.626332+00:00"
+    },
+    {
+      "label": "unified.experience_pool holds the person's look-up only under them",
+      "passed": true,
+      "detail": "owners ['canary-person-apellllnr']",
+      "at": "2026-09-28T13:59:28.626336+00:00"
+    },
+    {
+      "label": "unified.experience_pool holds the person's job only under them",
+      "passed": true,
+      "detail": "owners ['canary-person-apellllnr']",
+      "at": "2026-09-28T13:59:28.626339+00:00"
+    },
+    {
+      "label": "unified.experience_pool holds the person's image only under them",
+      "passed": true,
+      "detail": "owners ['canary-person-apellllnr']",
+      "at": "2026-09-28T13:59:28.626343+00:00"
+    },
+    {
+      "label": "unified.perceptions holds the person's image only under them",
+      "passed": true,
+      "detail": "owners ['canary-person-apellllnr']",
+      "at": "2026-09-28T13:59:28.626346+00:00"
+    },
+    {
+      "label": "unified.scoped_beliefs holds the person's image only under them",
+      "passed": true,
+      "detail": "owners ['canary-person-apellllnr']",
+      "at": "2026-09-28T13:59:28.626349+00:00"
+    },
+    {
+      "label": "unified.scoped_concept_relations holds the person's image only under them",
+      "passed": true,
+      "detail": "owners ['canary-person-apellllnr']",
+      "at": "2026-09-28T13:59:28.626352+00:00"
+    },
+    {
+      "label": "unified.experience_pool holds the person's cause only under them",
+      "passed": true,
+      "detail": "owners ['canary-person-apellllnr']",
+      "at": "2026-09-28T13:59:28.626355+00:00"
+    },
+    {
+      "label": "unified.hypotheses holds the person's cause only under them",
+      "passed": true,
+      "detail": "owners ['canary-person-apellllnr']",
+      "at": "2026-09-28T13:59:28.626357+00:00"
+    },
+    {
+      "label": "unified.reasoning_arg_claims holds the person's cause only under them",
+      "passed": true,
+      "detail": "owners ['canary-person-apellllnr']",
+      "at": "2026-09-28T13:59:28.626360+00:00"
+    },
+    {
+      "label": "unified.reasoning_arguments holds the person's cause only under them",
+      "passed": true,
+      "detail": "owners ['canary-person-apellllnr']",
+      "at": "2026-09-28T13:59:28.626362+00:00"
+    },
+    {
+      "label": "unified.reasoning_temporal_propositions holds the person's cause only under them",
+      "passed": true,
+      "detail": "owners ['canary-person-apellllnr']",
+      "at": "2026-09-28T13:59:28.626364+00:00"
+    },
+    {
+      "label": "unified.experience_pool holds the person's hypothesis only under them",
+      "passed": true,
+      "detail": "owners ['canary-person-apellllnr']",
+      "at": "2026-09-28T13:59:28.626367+00:00"
+    },
+    {
+      "label": "unified.hypotheses holds the person's hypothesis only under them",
+      "passed": true,
+      "detail": "owners ['canary-person-apellllnr']",
+      "at": "2026-09-28T13:59:28.626370+00:00"
+    },
+    {
+      "label": "unified.scoped_beliefs holds the person's hypothesis only under them",
+      "passed": true,
+      "detail": "owners ['canary-person-apellllnr']",
+      "at": "2026-09-28T13:59:28.626372+00:00"
+    },
+    {
+      "label": "nothing of the person's fact and question is in a table of the substrate's own",
+      "passed": true,
+      "detail": "none",
+      "at": "2026-09-28T13:59:28.626380+00:00"
+    },
+    {
+      "label": "nothing of the person's look-up is in a table of the substrate's own",
+      "passed": true,
+      "detail": "none",
+      "at": "2026-09-28T13:59:28.626383+00:00"
+    },
+    {
+      "label": "nothing of the person's job is in a table of the substrate's own",
+      "passed": true,
+      "detail": "none",
+      "at": "2026-09-28T13:59:28.626385+00:00"
+    },
+    {
+      "label": "nothing of the person's image is in a table of the substrate's own",
+      "passed": true,
+      "detail": "none",
+      "at": "2026-09-28T13:59:28.626388+00:00"
+    },
+    {
+      "label": "nothing of the person's cause is in a table of the substrate's own",
+      "passed": true,
+      "detail": "none",
+      "at": "2026-09-28T13:59:28.626391+00:00"
+    },
+    {
+      "label": "nothing of the person's hypothesis is in a table of the substrate's own",
+      "passed": true,
+      "detail": "none",
+      "at": "2026-09-28T13:59:28.626394+00:00"
+    },
+    {
+      "label": "the argument over their answer is kept as theirs",
+      "passed": true,
+      "detail": "{'owner_column': 'owner', 'owners': ['canary-person-apellllnr'], 'rows': 1}",
+      "at": "2026-09-28T13:59:28.626400+00:00"
+    },
+    {
+      "label": "the cause in their premises, as reasoned is kept as theirs",
+      "passed": true,
+      "detail": "{'owner_column': 'owner', 'owners': ['canary-person-apellllnr'], 'rows': 2}",
+      "at": "2026-09-28T13:59:28.626404+00:00"
+    },
+    {
+      "label": "the explanation proposed for their observation is kept as theirs",
+      "passed": true,
+      "detail": "{'owner_column': 'owner', 'owners': ['canary-person-apellllnr'], 'rows': 1}",
+      "at": "2026-09-28T13:59:28.626408+00:00"
+    },
+    {
+      "label": "what their image showed is held in their context",
+      "passed": true,
+      "detail": "{'owner_column': 'scope_actor', 'owners': ['canary-person-apellllnr'], 'rows': 60}",
+      "at": "2026-09-28T13:59:28.626411+00:00"
+    },
+    {
+      "label": "the person's job is an experience in the pool, theirs, holding their marker",
+      "passed": true,
+      "detail": "owner canary-person-apellllnr",
+      "at": "2026-09-28T13:59:28.627100+00:00"
+    },
+    {
+      "label": "the memory agent decided it: a candidate, waiting for the lift and the gate",
+      "passed": true,
+      "detail": "{'parts': {'world': 2, 'person': 3, 'substrate': 2}, 'standing': 'candidate', 'waits_for': 'the lift, the residue test and the gate'}",
+      "at": "2026-09-28T13:59:28.627111+00:00"
+    },
+    {
+      "label": "it holds what the substrate did, apart from what was theirs",
+      "passed": true,
+      "detail": "[('step', 'substrate'), ('tool_run', 'substrate'), ('check', 'world'), ('check', 'world')]",
+      "at": "2026-09-28T13:59:28.627134+00:00"
+    },
+    {
+      "label": "a job of the substrate's own is its own experience in the pool",
+      "passed": true,
+      "detail": "{'item_id': 'exp_93223f824e724eac', 'owner': None, 'status': 'decided', 'decision': '{\"parts\": {\"world\": 3, \"person\": 0, \"substrate\": 4}, \"standing\": \"candidate\", \"waits_for\": \"the lift, the residue t",
+      "at": "2026-09-28T13:59:30.630473+00:00"
+    },
+    {
+      "label": "the person's telling and question are experiences in the pool, theirs, holding their words",
+      "passed": true,
+      "detail": "2 item(s), owners ['canary-person-apellllnr']",
+      "at": "2026-09-28T13:59:30.631037+00:00"
+    },
+    {
+      "label": "how the substrate took each of them is its own part",
+      "passed": true,
+      "detail": "[[('said', 'person'), ('told', 'person'), ('route', 'substrate'), ('answer', 'person'), ('reply', 'person')], [('said', 'person'), ('route', 'substrate'), ('answer', 'person'), ('reply', 'person')]]",
+      "at": "2026-09-28T13:59:30.631080+00:00"
+    },
+    {
+      "label": "the reasoning over their fact is an experience in the pool, theirs",
+      "passed": true,
+      "detail": "1 item(s), owners ['canary-person-apellllnr']",
+      "at": "2026-09-28T13:59:30.631474+00:00"
+    },
+    {
+      "label": "their fact is their premise; the lesson it reasoned from is the substrate's, holding nothing of theirs",
+      "passed": true,
+      "detail": "[('person', 'context', 'zqonoiegycu isa robin'), ('substrate', 'concept', 'robin isa bird'), ('person', 'memory', 'bird isa animal')]",
+      "at": "2026-09-28T13:59:30.631501+00:00"
+    },
+    {
+      "label": "the look-up of their word is an experience in the pool, theirs",
+      "passed": true,
+      "detail": "1 item(s), owners ['canary-person-apellllnr']",
+      "at": "2026-09-28T13:59:30.632108+00:00"
+    },
+    {
+      "label": "the word is their part, the query it sent out is its own, and what came back is the world's",
+      "passed": true,
+      "detail": "[[('asked', 'person'), ('query', 'substrate'), ('source', 'world'), ('source', 'world'), ('source', 'world'), ('source', 'world'), ('source', 'world')]]",
+      "at": "2026-09-28T13:59:30.632131+00:00"
+    },
+    {
+      "label": "the seeing of their image is an experience in the pool, theirs, holding what was seen in it",
+      "passed": true,
+      "detail": "1 item(s), owners ['canary-person-apellllnr']; [[('image', 'person'), ('perceived', 'person'), ('step', 'substrate')]]",
+      "at": "2026-09-28T13:59:30.633587+00:00"
+    },
+    {
+      "label": "the memory agent decided each of them, and said why",
+      "passed": true,
+      "detail": "['candidate']",
+      "at": "2026-09-28T13:59:30.633606+00:00"
+    },
+    {
+      "label": "a question of the substrate's own, looked up on its own, is its own experience in the pool",
+      "passed": true,
+      "detail": "research ['None'], conversation ['None']",
+      "at": "2026-09-28T13:59:36.640737+00:00"
+    },
+    {
+      "label": "the substrate's own recall finds nothing of the person's work",
+      "passed": true,
+      "detail": "{'job': 0, 'fact and question': 0, 'look-up': 0, 'image': 0}",
+      "at": "2026-09-28T13:59:36.643782+00:00"
+    },
+    {
+      "label": "the main model's store is untouched",
+      "passed": true,
+      "detail": "9372 rows before, 9372 after",
+      "at": "2026-09-28T13:59:36.807015+00:00"
+    }
+  ],
+  "notes": []
+}

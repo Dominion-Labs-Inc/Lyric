@@ -1,0 +1,193 @@
+{
+  "experiment": "MEMORY-SOUND-01",
+  "claim": "The memory agent recalls a sound by the sound itself: a recording heard again, through a room and a codec, is known as heard before -- in words, in the graph and as a belief -- each memory keeping its own sound; a song taught later names the hearings that came before; recall by sound is injected into what is thought; and a person's hearing is recalled only for that person.",
+  "hypothesis": "H1 the second hearing of a recording recalls the first by landmark agreement. H2 six seconds of it, in a real room through a 64 kbit/s codec, recall it. H3 a different recording recalls nothing. H4 a song taught names its earlier hearing. H5 recall by sound respects whose memories may be seen.",
+  "started_at": "2026-09-29T14:00:51.925160+00:00",
+  "duration_seconds": 31.896,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/TorinAI/venv_torin/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/TorinAI",
+    "shadow_mode": null,
+    "git_commit": "20deb447498593391eca0286916b8f986c560a26",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "torinai_dev",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "torinai_dev",
+        "model": "torinai_dev",
+        "user_context": "torinai_dev",
+        "learning": "torinai_dev"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "dotenv:.env.postgres",
+        "database": "environment",
+        "user": "dotenv:.env.postgres",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 1791,
+    "database_verified": "torinai_dev",
+    "database_verified_reason": "asked the server"
+  },
+  "summary": {
+    "checks": 23,
+    "passed": 23,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [],
+  "checks": [
+    {
+      "label": "two memories, each keeping its own trace",
+      "passed": true,
+      "detail": "mem_3fd243e0bfdd47e6aeb8da1679edfcbe, mem_6ab7569559c84ef8990e5ca916e8d9db",
+      "at": "2026-09-29T14:01:12.462326+00:00"
+    },
+    {
+      "label": "and each trace keeps the sound's landmarks",
+      "passed": true,
+      "detail": "[9352, 9352]",
+      "at": "2026-09-29T14:01:12.463034+00:00"
+    },
+    {
+      "label": "the first hearing is recalled, fully resolved",
+      "passed": true,
+      "detail": "[('mem_3fd243e0bfdd47e6aeb8da1679edfcbe', 1.0, 1.0)]",
+      "at": "2026-09-29T14:01:12.463045+00:00"
+    },
+    {
+      "label": "and first had nothing to recall",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-09-29T14:01:12.463049+00:00"
+    },
+    {
+      "label": "the hearing says so in words, and when",
+      "passed": true,
+      "detail": "pitched sound; about 160 beats a minute; heard before, 1 time(s), last on 2026-09-29 10:01",
+      "at": "2026-09-29T14:01:12.463151+00:00"
+    },
+    {
+      "label": "and its memory says so",
+      "passed": true,
+      "detail": "itched sound; about 160 beats a minute; heard before, 1 time(s), last on 2026-09-29 10:01\"",
+      "at": "2026-09-29T14:01:12.464893+00:00"
+    },
+    {
+      "label": "the graph holds it: the second recording is the same sound as the first",
+      "passed": true,
+      "detail": "m01e479x2xc8c288f975 ('same_sound_as', 'm01e479x1xc8c288f975')",
+      "at": "2026-09-29T14:01:12.465697+00:00"
+    },
+    {
+      "label": "and believes it",
+      "passed": true,
+      "detail": "m01e479x2xc8c288f975 same_sound_as m01e479x1xc8c288f975",
+      "at": "2026-09-29T14:01:12.466198+00:00"
+    },
+    {
+      "label": "both hearings are recalled",
+      "passed": true,
+      "detail": "[('mem_3fd243e0bfdd47e6aeb8da1679edfcbe', 0.7377), ('mem_6ab7569559c84ef8990e5ca916e8d9db', 0.7377)]",
+      "at": "2026-09-29T14:01:13.016257+00:00"
+    },
+    {
+      "label": "nothing is recalled",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-09-29T14:01:14.232726+00:00"
+    },
+    {
+      "label": "by the sound, with how much agreed",
+      "passed": true,
+      "detail": "{'mem_c2d12544f6b149dfad9e6bed3404131d': 1.0, 'mem_3fd243e0bfdd47e6aeb8da1679edfcbe': 0.7377, 'mem_6ab7569559c84ef8990e5ca916e8d9db': 0.7377}",
+      "at": "2026-09-29T14:01:14.509096+00:00"
+    },
+    {
+      "label": "and recall by words is as it was",
+      "passed": true,
+      "detail": "2 found by words",
+      "at": "2026-09-29T14:01:14.517546+00:00"
+    },
+    {
+      "label": "the lesson recalled the earlier hearing",
+      "passed": true,
+      "detail": "['mem_8298813cf9df4df9a784503f8ed0e2b7']",
+      "at": "2026-09-29T14:01:16.470779+00:00"
+    },
+    {
+      "label": "and the earlier recording is now said to play the song",
+      "passed": true,
+      "detail": "m01e479songx080134338b plays rock_twenty_01e479",
+      "at": "2026-09-29T14:01:16.471412+00:00"
+    },
+    {
+      "label": "they are injected, saying they are this sound heard before",
+      "passed": true,
+      "detail": "\u2022 6.0s mp3 recording, 3 sound(s): an unpitched sound, an abrupt low-pitched sound, an abrupt mid-pitched sound; in D-sharp major, about 118 beats a minute; heard before, 2 time(s), last on 2026-09-29 ",
+      "at": "2026-09-29T14:01:16.549635+00:00"
+    },
+    {
+      "label": "not for another person",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-09-29T14:01:19.077167+00:00"
+    },
+    {
+      "label": "nor for the substrate's own",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-09-29T14:01:19.077180+00:00"
+    },
+    {
+      "label": "but for them",
+      "passed": true,
+      "detail": "['mem_919c82336eaa48469d05cefa70714272', 'mem_d1a335a895544096ad36f3e3934c4d9e']",
+      "at": "2026-09-29T14:01:19.077185+00:00"
+    },
+    {
+      "label": "the hearing and the seeing are the pursuit's memory, not memories of their own",
+      "passed": true,
+      "detail": "pursuit mem_b480c859d45d4db29f0d8a28323ab97e, heard mem_b480c859d45d4db29f0d8a28323ab97e, seen mem_b480c859d45d4db29f0d8a28323ab97e",
+      "at": "2026-09-29T14:01:22.212995+00:00"
+    },
+    {
+      "label": "its memory keeps the sound's trace and the picture",
+      "passed": true,
+      "detail": "['image/png', 'application/x-npz']",
+      "at": "2026-09-29T14:01:22.214113+00:00"
+    },
+    {
+      "label": "and says what was heard and seen in it",
+      "passed": true,
+      "detail": "\"I was asked to listen and look for memsound 01e479. I heard 30.013s wav recording, 18 sound(s): an abrupt unpitched sound, an abrupt unpitched sound, an abrupt unpitched sound, an abrupt unpitched so",
+      "at": "2026-09-29T14:01:22.215084+00:00"
+    },
+    {
+      "label": "what was heard is believed, of the pursuit's memory",
+      "passed": true,
+      "detail": "20 of 20 beliefs",
+      "at": "2026-09-29T14:01:22.216063+00:00"
+    },
+    {
+      "label": "heard again later, it is recalled as that pursuit",
+      "passed": true,
+      "detail": "['mem_b480c859d45d4db29f0d8a28323ab97e']",
+      "at": "2026-09-29T14:01:23.796397+00:00"
+    }
+  ],
+  "notes": [
+    "Cleanup by nonce 01e479 and exact memory id: 574 tagged row(s) written, 0 left."
+  ]
+}

@@ -76,6 +76,7 @@ def classify(result) -> str:
 
 
 async def main() -> int:
+    from core.memory import Origin
     from core.main import get_system
 
     t0 = time.time()
@@ -93,7 +94,7 @@ async def main() -> int:
     for name, question, context, accepted in CASES:
         s = time.time()
         try:
-            result = await coord.reason_about(question, context)
+            result = await coord.reason_about(question, context, origin=Origin.own("bench_reasoning_systems_v2"))
             got = classify(result)
             answer = (result.answer or "").strip() or "—"
             reason = (result.metadata or {}).get("reason", "")

@@ -1046,23 +1046,6 @@ class ToolIntegrationTests(TestBase):
         result = await self.registry.execute_tool("stop_service", {"service_name": "test_name"})
         assert result.success
 
-
-# Standalone test for pytest collection
-import pytest
-from core.tools.tool_registry import get_tool_registry
-
-@pytest.mark.asyncio
-async def test_store_memory():
-    registry = get_tool_registry()
-    # Use more complex, non-trivial content to pass the memory filter
-    complex_content = (
-        "In March 2026, the Torin AI system successfully coordinated a multi-agent workflow "
-        "to autonomously analyze, summarize, and store critical system events, demonstrating "
-        "advanced reasoning and memory capabilities beyond simple factual lookups."
-    )
-    result = await registry.execute_tool("store_memory", {"content": complex_content})
-    assert result.success
-
     async def test_sync_directory(self):
         result = await self.registry.execute_tool("sync_directory", {"source_path": self.test_output_dir, "destination_path": self.test_output_dir})
         assert result.success

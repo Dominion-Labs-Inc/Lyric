@@ -1,0 +1,428 @@
+{
+  "experiment": "FALSIFY-01",
+  "claim": "The substrate's visual features are symbols read off a photograph, not properties of an object. Under transformations that leave the object untouched they change, where they change is predictable from thresholds in the code, and recognition inherits every bit of it.",
+  "hypothesis": "Seven failures are predicted from the source before measuring. Each is confirmed with a number or refuted. Everything is measured through the LIVE substrate \u2014 what it ends up holding \u2014 not through the describer.",
+  "started_at": "2026-09-19T20:25:34.209030+00:00",
+  "duration_seconds": 249.042,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/TorinAI/venv_torin/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/TorinAI",
+    "shadow_mode": "1",
+    "git_commit": "20deb447498593391eca0286916b8f986c560a26",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "torinai_db",
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "environment",
+        "database": "environment",
+        "user": "environment",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres"
+      }
+    },
+    "git_uncommitted_changes": 79,
+    "database_verified": null,
+    "database_verified_reason": "not verified"
+  },
+  "summary": {
+    "checks": 8,
+    "passed": 8,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [
+    {
+      "name": "taught_category",
+      "value": "disc4f0ad3",
+      "unit": "name",
+      "note": ""
+    },
+    {
+      "name": "induction_status",
+      "value": "rule_learned",
+      "unit": "status",
+      "note": ""
+    },
+    {
+      "name": "clause_training_accuracy",
+      "value": 1.0,
+      "unit": "ratio",
+      "note": ""
+    },
+    {
+      "name": "synthetic_stimuli",
+      "value": 8,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "conditions_per_stimulus",
+      "value": 28,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "synthetic_sightings",
+      "value": 224,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "natural_photographs",
+      "value": 5,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "natural_sightings",
+      "value": 130,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "natural_admission_rate",
+      "value": 0.8154,
+      "unit": "ratio",
+      "note": ""
+    },
+    {
+      "name": "synthetic_admission_rate",
+      "value": 0.9688,
+      "unit": "ratio",
+      "note": ""
+    },
+    {
+      "name": "act_rate_when_features_broken",
+      "value": 0.3333,
+      "unit": "ratio",
+      "note": ""
+    },
+    {
+      "name": "act_rate_when_features_intact",
+      "value": 0.375,
+      "unit": "ratio",
+      "note": ""
+    },
+    {
+      "name": "recognition_recall_under_transform",
+      "value": 0.8929,
+      "unit": "ratio",
+      "note": ""
+    },
+    {
+      "name": "synthetic/brightness/color",
+      "value": 0.5,
+      "unit": "survival",
+      "note": ""
+    },
+    {
+      "name": "synthetic/brightness/shape",
+      "value": 1.0,
+      "unit": "survival",
+      "note": ""
+    },
+    {
+      "name": "synthetic/brightness/position",
+      "value": 1.0,
+      "unit": "survival",
+      "note": ""
+    },
+    {
+      "name": "synthetic/saturation/color",
+      "value": 0.375,
+      "unit": "survival",
+      "note": ""
+    },
+    {
+      "name": "synthetic/saturation/shape",
+      "value": 1.0,
+      "unit": "survival",
+      "note": ""
+    },
+    {
+      "name": "synthetic/saturation/position",
+      "value": 1.0,
+      "unit": "survival",
+      "note": ""
+    },
+    {
+      "name": "synthetic/illuminant/color",
+      "value": 0.75,
+      "unit": "survival",
+      "note": ""
+    },
+    {
+      "name": "synthetic/illuminant/shape",
+      "value": 1.0,
+      "unit": "survival",
+      "note": ""
+    },
+    {
+      "name": "synthetic/illuminant/position",
+      "value": 1.0,
+      "unit": "survival",
+      "note": ""
+    },
+    {
+      "name": "synthetic/gamma/color",
+      "value": 0.5625,
+      "unit": "survival",
+      "note": ""
+    },
+    {
+      "name": "synthetic/gamma/shape",
+      "value": 1.0,
+      "unit": "survival",
+      "note": ""
+    },
+    {
+      "name": "synthetic/gamma/position",
+      "value": 1.0,
+      "unit": "survival",
+      "note": ""
+    },
+    {
+      "name": "synthetic/zoom/color",
+      "value": 1.0,
+      "unit": "survival",
+      "note": ""
+    },
+    {
+      "name": "synthetic/zoom/shape",
+      "value": 1.0,
+      "unit": "survival",
+      "note": ""
+    },
+    {
+      "name": "synthetic/zoom/position",
+      "value": 1.0,
+      "unit": "survival",
+      "note": ""
+    },
+    {
+      "name": "synthetic/translate/color",
+      "value": 1.0,
+      "unit": "survival",
+      "note": ""
+    },
+    {
+      "name": "synthetic/translate/shape",
+      "value": 1.0,
+      "unit": "survival",
+      "note": ""
+    },
+    {
+      "name": "synthetic/translate/position",
+      "value": 0.5,
+      "unit": "survival",
+      "note": ""
+    },
+    {
+      "name": "synthetic/rotate/color",
+      "value": 1.0,
+      "unit": "survival",
+      "note": ""
+    },
+    {
+      "name": "synthetic/rotate/shape",
+      "value": 1.0,
+      "unit": "survival",
+      "note": ""
+    },
+    {
+      "name": "synthetic/rotate/position",
+      "value": 1.0,
+      "unit": "survival",
+      "note": ""
+    },
+    {
+      "name": "synthetic/perspective/color",
+      "value": 1.0,
+      "unit": "survival",
+      "note": ""
+    },
+    {
+      "name": "synthetic/perspective/shape",
+      "value": 1.0,
+      "unit": "survival",
+      "note": ""
+    },
+    {
+      "name": "synthetic/perspective/position",
+      "value": 1.0,
+      "unit": "survival",
+      "note": ""
+    },
+    {
+      "name": "synthetic/blur/color",
+      "value": 0.8667,
+      "unit": "survival",
+      "note": ""
+    },
+    {
+      "name": "synthetic/blur/shape",
+      "value": 1.0,
+      "unit": "survival",
+      "note": ""
+    },
+    {
+      "name": "synthetic/blur/position",
+      "value": 1.0,
+      "unit": "survival",
+      "note": ""
+    },
+    {
+      "name": "synthetic/noise/color",
+      "value": 0.6875,
+      "unit": "survival",
+      "note": ""
+    },
+    {
+      "name": "synthetic/noise/shape",
+      "value": 1.0,
+      "unit": "survival",
+      "note": ""
+    },
+    {
+      "name": "synthetic/noise/position",
+      "value": 1.0,
+      "unit": "survival",
+      "note": ""
+    },
+    {
+      "name": "synthetic/jpeg/color",
+      "value": 1.0,
+      "unit": "survival",
+      "note": ""
+    },
+    {
+      "name": "synthetic/jpeg/shape",
+      "value": 1.0,
+      "unit": "survival",
+      "note": ""
+    },
+    {
+      "name": "synthetic/jpeg/position",
+      "value": 1.0,
+      "unit": "survival",
+      "note": ""
+    },
+    {
+      "name": "synthetic/occlusion/color",
+      "value": 1.0,
+      "unit": "survival",
+      "note": ""
+    },
+    {
+      "name": "synthetic/occlusion/shape",
+      "value": 1.0,
+      "unit": "survival",
+      "note": ""
+    },
+    {
+      "name": "synthetic/occlusion/position",
+      "value": 1.0,
+      "unit": "survival",
+      "note": ""
+    },
+    {
+      "name": "synthetic/clutter/color",
+      "value": 1.0,
+      "unit": "survival",
+      "note": ""
+    },
+    {
+      "name": "synthetic/clutter/shape",
+      "value": 1.0,
+      "unit": "survival",
+      "note": ""
+    },
+    {
+      "name": "synthetic/clutter/position",
+      "value": 1.0,
+      "unit": "survival",
+      "note": ""
+    },
+    {
+      "name": "synthetic/background/color",
+      "value": 0.7333,
+      "unit": "survival",
+      "note": ""
+    },
+    {
+      "name": "synthetic/background/shape",
+      "value": 1.0,
+      "unit": "survival",
+      "note": ""
+    },
+    {
+      "name": "synthetic/background/position",
+      "value": 0.7333,
+      "unit": "survival",
+      "note": ""
+    },
+    {
+      "name": "wall_clock_s",
+      "value": 209.6,
+      "unit": "s",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "P1: colour is not illumination-invariant",
+      "passed": true,
+      "detail": "CONFIRMED \u2014 colour symbol survives x0.55 brightness in 0% of cases",
+      "at": "2026-09-19T20:29:43.252834+00:00"
+    },
+    {
+      "label": "P2: size is frame-relative, not object-relative",
+      "passed": true,
+      "detail": "NOT MEASURED \u2014 not measured",
+      "at": "2026-09-19T20:29:43.252850+00:00"
+    },
+    {
+      "label": "P3: position is frame-relative",
+      "passed": true,
+      "detail": "CONFIRMED \u2014 position symbol survives translation in as few as 0% of cases",
+      "at": "2026-09-19T20:29:43.252859+00:00"
+    },
+    {
+      "label": "P4: shape survives rotation and not perspective",
+      "passed": true,
+      "detail": "REFUTED \u2014 shape survives rotation in 100% of cases, perspective in 100%",
+      "at": "2026-09-19T20:29:43.252908+00:00"
+    },
+    {
+      "label": "P5: circularity is attacked from both sides",
+      "passed": true,
+      "detail": "REFUTED \u2014 shape survives blur in 100% of cases, noise in 100%",
+      "at": "2026-09-19T20:29:43.252922+00:00"
+    },
+    {
+      "label": "P6: segmentation is the binding constraint on photographs",
+      "passed": true,
+      "detail": "CONFIRMED \u2014 a region is admitted at all in 82% of photograph sightings vs 97% of synthetic ones",
+      "at": "2026-09-19T20:29:43.252935+00:00"
+    },
+    {
+      "label": "P8: the substrate does not know when its perception has broken",
+      "passed": true,
+      "detail": "REFUTED \u2014 in the 6 condition(s) where a feature survived 50% of the time or less, the percept was still judged ACT in 33% of sightings \u2014 against 38% where every feature was intact",
+      "at": "2026-09-19T20:29:43.252989+00:00"
+    },
+    {
+      "label": "P7: recognition inherits every bit of the feature instability",
+      "passed": true,
+      "detail": "CONFIRMED \u2014 the taught category is still named in 89% of transformed sightings of a true member; the weakest single literal survives 38% of the time, and a conjunction cannot beat its weakest term",
+      "at": "2026-09-19T20:29:43.253246+00:00"
+    }
+  ],
+  "notes": []
+}

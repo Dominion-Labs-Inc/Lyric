@@ -89,7 +89,9 @@ async def main() -> int:
           flush=True)
     feed = []
     for source, data_type, content in INPUTS:
-        processed = await pm.process_input(source, data_type, content)
+        from core.memory import Origin
+        processed = await pm.process_input(source, data_type, content,
+                                           origin=Origin.own("PERCEIVE-01"))
         retained = bool(processed and processed.metadata.get("retained"))
         feed.append({"source": source, "data_type": data_type,
                      "processed": processed is not None, "retained": retained})

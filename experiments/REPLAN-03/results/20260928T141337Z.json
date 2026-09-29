@@ -1,0 +1,68 @@
+{
+  "experiment": "REPLAN-03",
+  "at": "20260928T141337Z",
+  "passed": 12,
+  "total": 12,
+  "checks": [
+    {
+      "name": "the registry names the LIVE substrate",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "the domain is bound \u2014 observable and actable",
+      "passed": true,
+      "detail": "operators: ['MOVE_FILE']"
+    },
+    {
+      "name": "it reads the real directory as its world",
+      "passed": true,
+      "detail": "6 fact(s)"
+    },
+    {
+      "name": "it tried real actions in the real world to find out what they do",
+      "passed": true,
+      "detail": "3 action(s) over 1 cycle(s)"
+    },
+    {
+      "name": "it INDUCED an executable MOVE_FILE operator from what happened",
+      "passed": true,
+      "detail": "[('rule_7f85996da', 'validated')]"
+    },
+    {
+      "name": "the first attempt did NOT reach the goal straight away",
+      "passed": true,
+      "detail": "success=False stopped_at=MOVE_FILE(F_2fprivate_2fvar_2ffolders_2f0y_2f66ltqc9s0xs5h7yhj_5fvv5ct80000gn_2fT_2freplan03_5f2zs_5f3n_5f7_2finbox_2freport_2etxt, F_2fprivate_2fvar_2ffolders_2f0y_2f66ltqc9s0xs5h7yhj_5fvv5ct80000gn_2fT_2freplan03_5f2zs_5f3n_5f7_2farchive_2freport_2etxt)"
+    },
+    {
+      "name": "nothing was refuted \u2014 MOVE_FILE is still true of this world",
+      "passed": true,
+      "detail": "{'rule_7f85996da': 'validated'}"
+    },
+    {
+      "name": "IT REPLANNED FROM WHERE THE FILE ACTUALLY WENT AND FINISHED THE JOB",
+      "passed": true,
+      "detail": "report.txt is in archive (expected archive)"
+    },
+    {
+      "name": "it did not claim to have filed a report into a place that is gone",
+      "passed": true,
+      "detail": "success=False status=None"
+    },
+    {
+      "name": "the file is still somewhere real \u2014 nothing was destroyed chasing it",
+      "passed": true,
+      "detail": "report.txt is in inbox"
+    },
+    {
+      "name": "a route that stopped was recorded as WITHDRAWN, not left standing",
+      "passed": true,
+      "detail": "1 withdrawn for staleness; planning_status=None"
+    },
+    {
+      "name": "an unchanged world does not spawn endless replans",
+      "passed": true,
+      "detail": "5 -> 5 plans"
+    }
+  ]
+}

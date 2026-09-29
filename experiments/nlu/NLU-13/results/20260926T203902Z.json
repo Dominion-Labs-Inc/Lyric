@@ -1,0 +1,257 @@
+{
+  "experiment": "NLU-13 \u2014 Can the substrate's OWN knowledge replace the model?",
+  "writes_to_store": false,
+  "notes": [
+    "all-MiniLM-L6-v2 is the last model in the system. It does memory retrieval, dedup/merge, concept vectors and analogy. This asks whether what the substrate was TAUGHT can do those jobs instead.",
+    "learned from 39,991 taught proposition(s); 23,248 term(s) of vocabulary",
+    "MiniLM 8/14 \u00b7 SUBSTRATE 9/14 (bar: the substrate's own MERGE_SIMILARITY_THRESHOLD 0.75)"
+  ],
+  "data": {
+    "corpus": {
+      "propositions": 39991,
+      "vocabulary": 23248
+    },
+    "cases": [
+      {
+        "family": "merge safety",
+        "want": "LOW",
+        "left": "A kidney is an organ.",
+        "right": "A liver is an organ.",
+        "minilm": 0.682,
+        "native": 0.445,
+        "minilm_ok": true,
+        "native_ok": true
+      },
+      {
+        "family": "polarity",
+        "want": "LOW",
+        "left": "The vault is locked.",
+        "right": "The vault is not locked.",
+        "minilm": 0.927,
+        "native": 0.0,
+        "minilm_ok": false,
+        "native_ok": true
+      },
+      {
+        "family": "polarity",
+        "want": "LOW",
+        "left": "A robin is a bird.",
+        "right": "A robin is not a bird.",
+        "minilm": 0.908,
+        "native": 0.0,
+        "minilm_ok": false,
+        "native_ok": true
+      },
+      {
+        "family": "merge safety",
+        "want": "LOW",
+        "left": "Iron is a metal.",
+        "right": "Copper is a metal.",
+        "minilm": 0.641,
+        "native": 0.474,
+        "minilm_ok": true,
+        "native_ok": true
+      },
+      {
+        "family": "recall",
+        "want": "HIGH",
+        "left": "what is a kidney",
+        "right": "A kidney is an organ.",
+        "minilm": 0.875,
+        "native": 0.848,
+        "minilm_ok": true,
+        "native_ok": true
+      },
+      {
+        "family": "recall",
+        "want": "HIGH",
+        "left": "what does a pump do",
+        "right": "A pump is a device that moves fluid.",
+        "minilm": 0.851,
+        "native": 0.507,
+        "minilm_ok": true,
+        "native_ok": false
+      },
+      {
+        "family": "recall",
+        "want": "HIGH",
+        "left": "tell me about metals",
+        "right": "Iron is a metal.",
+        "minilm": 0.649,
+        "native": 0.003,
+        "minilm_ok": false,
+        "native_ok": false
+      },
+      {
+        "family": "paraphrase",
+        "want": "HIGH",
+        "left": "A dog is an animal.",
+        "right": "A dog is a kind of animal.",
+        "minilm": 0.934,
+        "native": 0.815,
+        "minilm_ok": true,
+        "native_ok": true
+      },
+      {
+        "family": "paraphrase",
+        "want": "HIGH",
+        "left": "The engine is hot.",
+        "right": "The engine is not cold.",
+        "minilm": 0.772,
+        "native": 0.0,
+        "minilm_ok": true,
+        "native_ok": false
+      },
+      {
+        "family": "separation",
+        "want": "LOW",
+        "left": "A kidney is an organ.",
+        "right": "A hammer is a tool.",
+        "minilm": 0.17,
+        "native": 0.0,
+        "minilm_ok": true,
+        "native_ok": true
+      },
+      {
+        "family": "separation",
+        "want": "LOW",
+        "left": "The vault is locked.",
+        "right": "A robin is a bird.",
+        "minilm": 0.025,
+        "native": 0.0,
+        "minilm_ok": true,
+        "native_ok": true
+      },
+      {
+        "family": "abstention",
+        "want": "ABSTAIN",
+        "left": "A marnic filters brine.",
+        "right": "A zorbic filters brine.",
+        "minilm": 0.787,
+        "native": 1.0,
+        "minilm_ok": false,
+        "native_ok": false
+      },
+      {
+        "family": "abstention",
+        "want": "ABSTAIN",
+        "left": "A threlp is a dovick.",
+        "right": "A marnic is a zorbic.",
+        "minilm": 0.141,
+        "native": null,
+        "minilm_ok": false,
+        "native_ok": true
+      },
+      {
+        "family": "abstention",
+        "want": "ABSTAIN",
+        "left": "A glarnick shapes metal.",
+        "right": "A glarnick bends metal.",
+        "minilm": 0.904,
+        "native": 1.0,
+        "minilm_ok": false,
+        "native_ok": false
+      }
+    ],
+    "score": {
+      "minilm": 8,
+      "native": 9,
+      "of": 14
+    },
+    "polarity": {
+      "minilm": [
+        0.927,
+        0.908
+      ],
+      "native": [
+        0.0,
+        0.0
+      ]
+    }
+  },
+  "checks": [
+    {
+      "name": "merge safety: LOW \u2014 'A kidney is an organ.' vs 'A liver is an organ.'",
+      "passed": true,
+      "detail": "native=0.445 (minilm=0.682, ok)"
+    },
+    {
+      "name": "polarity: LOW \u2014 'The vault is locked.' vs 'The vault is not locked.'",
+      "passed": true,
+      "detail": "native=0.0 (minilm=0.927, wrong)"
+    },
+    {
+      "name": "polarity: LOW \u2014 'A robin is a bird.' vs 'A robin is not a bird.'",
+      "passed": true,
+      "detail": "native=0.0 (minilm=0.908, wrong)"
+    },
+    {
+      "name": "merge safety: LOW \u2014 'Iron is a metal.' vs 'Copper is a metal.'",
+      "passed": true,
+      "detail": "native=0.474 (minilm=0.641, ok)"
+    },
+    {
+      "name": "recall: HIGH \u2014 'what is a kidney' vs 'A kidney is an organ.'",
+      "passed": true,
+      "detail": "native=0.848 (minilm=0.875, ok)"
+    },
+    {
+      "name": "recall: HIGH \u2014 'what does a pump do' vs 'A pump is a device that moves flui'",
+      "passed": false,
+      "detail": "native=0.507 (minilm=0.851, ok)"
+    },
+    {
+      "name": "recall: HIGH \u2014 'tell me about metals' vs 'Iron is a metal.'",
+      "passed": false,
+      "detail": "native=0.003 (minilm=0.649, wrong)"
+    },
+    {
+      "name": "paraphrase: HIGH \u2014 'A dog is an animal.' vs 'A dog is a kind of animal.'",
+      "passed": true,
+      "detail": "native=0.815 (minilm=0.934, ok)"
+    },
+    {
+      "name": "paraphrase: HIGH \u2014 'The engine is hot.' vs 'The engine is not cold.'",
+      "passed": false,
+      "detail": "native=0.0 (minilm=0.772, ok)"
+    },
+    {
+      "name": "separation: LOW \u2014 'A kidney is an organ.' vs 'A hammer is a tool.'",
+      "passed": true,
+      "detail": "native=0.0 (minilm=0.17, ok)"
+    },
+    {
+      "name": "separation: LOW \u2014 'The vault is locked.' vs 'A robin is a bird.'",
+      "passed": true,
+      "detail": "native=0.0 (minilm=0.025, ok)"
+    },
+    {
+      "name": "abstention: ABSTAIN \u2014 'A marnic filters brine.' vs 'A zorbic filters brine.'",
+      "passed": false,
+      "detail": "native=1.0 (minilm=0.787, wrong)"
+    },
+    {
+      "name": "abstention: ABSTAIN \u2014 'A threlp is a dovick.' vs 'A marnic is a zorbic.'",
+      "passed": true,
+      "detail": "native=abstained (minilm=0.141, wrong)"
+    },
+    {
+      "name": "abstention: ABSTAIN \u2014 'A glarnick shapes metal.' vs 'A glarnick bends metal.'",
+      "passed": false,
+      "detail": "native=1.0 (minilm=0.904, wrong)"
+    },
+    {
+      "name": "never claims to judge what it was never taught",
+      "passed": false,
+      "detail": "2 case(s) scored instead of abstaining"
+    },
+    {
+      "name": "a claim and its denial never reach the merge bar",
+      "passed": true,
+      "detail": "'The vault is locked.' 0.0; 'A robin is a bird.' 0.0"
+    }
+  ],
+  "passed": 10,
+  "total": 16,
+  "seconds": 0.59
+}

@@ -1,0 +1,193 @@
+{
+  "experiment": "TEACH-AND-DO-01",
+  "claim": "A small lesson taught through the one teaching path is held in the substrate's memory and used: asked back, extended from the web, applied to a document, and written down \u2014 and every learning path the work should touch moves.",
+  "hypothesis": "A taught fact that cannot be asked back, a gap never looked up, a declared tool that does not run, a planned artefact never written, or a learning store that never moves would each show here.",
+  "started_at": "2026-09-28T16:39:09.286059+00:00",
+  "duration_seconds": 35.633,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/TorinAI/venv_torin/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/TorinAI",
+    "shadow_mode": null,
+    "git_commit": "20deb447498593391eca0286916b8f986c560a26",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "torinai_dev",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "torinai_dev",
+        "model": "torinai_dev",
+        "user_context": "torinai_dev",
+        "learning": "torinai_dev"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "dotenv:.env.postgres",
+        "database": "environment",
+        "user": "dotenv:.env.postgres",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 1682,
+    "database_verified": null,
+    "database_verified_reason": "no initialized connection in this process"
+  },
+  "summary": {
+    "checks": 18,
+    "passed": 17,
+    "failed": 1,
+    "outcome": "FAIL"
+  },
+  "metrics": [
+    {
+      "name": "user",
+      "value": "teach-and-do-urzkn",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "store_deltas",
+      "value": {
+        "memories": 16,
+        "concepts": 2,
+        "graph_edges": 4,
+        "beliefs": 1,
+        "knowledge_updates": 7,
+        "held_rules": 0,
+        "tool_runs": 4,
+        "demonstrations": 1
+      },
+      "unit": "",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "the lesson is read and taught",
+      "passed": true,
+      "detail": "read=6 taught={'admitted': 0, 'already': 6, 'refused': 0, 'total': 6}",
+      "at": "2026-09-28T16:39:27.263503+00:00"
+    },
+    {
+      "label": "the conditional is held",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-09-28T16:39:27.268617+00:00"
+    },
+    {
+      "label": "re-teaching the held lesson moved nothing: graph_edges",
+      "passed": true,
+      "detail": "3252 -> 3252",
+      "at": "2026-09-28T16:39:27.285528+00:00"
+    },
+    {
+      "label": "re-teaching the held lesson moved nothing: beliefs",
+      "passed": true,
+      "detail": "320 -> 320",
+      "at": "2026-09-28T16:39:27.285534+00:00"
+    },
+    {
+      "label": "and the ledger records it as unchanged, not new",
+      "passed": true,
+      "detail": "6 unchanged",
+      "at": "2026-09-28T16:39:27.287065+00:00"
+    },
+    {
+      "label": "the conditional was already held, and is not held twice",
+      "passed": true,
+      "detail": "1 -> 1",
+      "at": "2026-09-28T16:39:27.287071+00:00"
+    },
+    {
+      "label": "every admission was announced to the substrate",
+      "passed": true,
+      "detail": "unannounced 0 -> 0",
+      "at": "2026-09-28T16:39:27.287074+00:00"
+    },
+    {
+      "label": "a chain through taught facts is affirmed (centrifugal pump -> pump -> machine)",
+      "passed": true,
+      "detail": "Yes, a centrifugal pump is a machine.",
+      "at": "2026-09-28T16:39:27.705365+00:00"
+    },
+    {
+      "label": "the gap was looked up on the web",
+      "passed": true,
+      "detail": "tool runs since start: [('[\"web_search\"]', True)]",
+      "at": "2026-09-28T16:39:29.972602+00:00"
+    },
+    {
+      "label": "and answered",
+      "passed": true,
+      "detail": "I did not have peristaltic pump. I looked it up: What is a Peristaltic Pump?\n    (from https://pipingandinterface.com/peristaltic-pump/)\nI remember: A pump is a",
+      "at": "2026-09-28T16:39:29.972613+00:00"
+    },
+    {
+      "label": "what was read is world knowledge, sourced to the page it came from",
+      "passed": true,
+      "detail": "[('peristaltic_pump', 'isa', 'positive_displacement_pump', 'https://pipingandinterface.com/peristaltic-pump/')]",
+      "at": "2026-09-28T16:39:29.977615+00:00"
+    },
+    {
+      "label": "and none of it is filed as the asker's own context",
+      "passed": true,
+      "detail": "[] (tool runs 845 -> 846)",
+      "at": "2026-09-28T16:39:29.978375+00:00"
+    },
+    {
+      "label": "with read_file declared, the note is read",
+      "passed": true,
+      "detail": "{'success': True, 'model_free': True, 'verification_state': 'verified', 'task_id': 'user_525e210af602', 'task_type': 'ANALYSIS', 'method': 'declared_tools', 'to",
+      "at": "2026-09-28T16:39:35.995435+00:00"
+    },
+    {
+      "label": "the planned goal wrote a summary at the path it named",
+      "passed": true,
+      "detail": "41 bytes",
+      "at": "2026-09-28T16:39:36.662129+00:00"
+    },
+    {
+      "label": "and the summary is what it was taught",
+      "passed": true,
+      "detail": "I remember: A centrifugal pump is a pump.",
+      "at": "2026-09-28T16:39:36.662136+00:00"
+    },
+    {
+      "label": "with run_python declared, the code runs and returns 6.0",
+      "passed": false,
+      "detail": "Validation failed: the constitution replanned the pursuit it is a step of (Law 2: run_python would execute with no account of why: no proved route to a goal sta",
+      "at": "2026-09-28T16:39:44.686457+00:00"
+    },
+    {
+      "label": "tool runs were metered to learning",
+      "passed": true,
+      "detail": "+4",
+      "at": "2026-09-28T16:39:44.719934+00:00"
+    },
+    {
+      "label": "the taught domain is a domain the substrate holds",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-28T16:39:44.721916+00:00"
+    }
+  ],
+  "notes": [
+    "OBSERVED \u2014 plain words: read a note and say what is wrong: Validation failed: no substrate handler for a ANALYSIS task yet; the substrate declined all model-free paths and the model is not a fallback, completion belief 0.01 < acceptance 0.95 \u2014 goal not yet grounded-confident (needs corroboration)",
+    "OBSERVED \u2014 the planned goal's steps: [('RESEARCH', 'Information gathering for: Create a writ'), ('ANALYSIS', 'Analyze research findings for: Create a '), ('EXECUTION', 'Create: Create a written summary of what'), ('VALIDATION', 'Validate creation: Create a written summ')]",
+    "OBSERVED \u2014 the plan's steps as run: [('RESEARCH', True, 'conversation.understand'), ('ANALYSIS', True, 'conversation.understand'), ('EXECUTION', True, 'artefact_creation'), ('VALIDATION', True, 'artefact_validation')]",
+    "OBSERVED \u2014 plain words: compute with Python: Validation failed: no substrate handler for a ANALYSIS task yet; the substrate declined all model-free paths and the model is not a fallback, completion belief 0.01 < acceptance 0.95 \u2014 goal not yet grounded-confident (needs corroboration)",
+    "OBSERVED \u2014 knowledge ledger since start, by cause: [('learning.bulk_teach.teaching', 'unchanged', 6), ('learning.conversation', 'new', 1)]",
+    "OBSERVED \u2014 tool runs since start: [('[\"read_file\"]', 2, 2), ('[\"web_search\"]', 1, 1), ('[\"write_file\"]', 1, 1)]",
+    "OBSERVED \u2014 this user's scoped context (beliefs): 0",
+    "OBSERVED \u2014 competence in the taught domain: 0.5",
+    "OBSERVED \u2014 consolidation: {'refreshed': {'known_unknowns': {'open': 0, 'added': 0, 'dropped': 0}, 'strategy_arms': 20}, 'known_unknowns': {'open': 0, 'resolved': 0, 'not_yet': 0, 'no_target': 0}, 'abandoned_decisions_closed': 0, 'classifiers_saved': 0}"
+  ]
+}

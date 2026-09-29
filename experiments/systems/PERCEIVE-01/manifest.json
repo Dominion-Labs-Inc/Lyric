@@ -1,7 +1,7 @@
 {
   "experiment": "PERCEIVE-01",
   "purpose": "feed sensor/image/video through the real perception path and verify each becomes provenance-carried, typed, believed knowledge",
-  "run_at": "2026-09-17T17:09:52.872678+00:00",
+  "run_at": "2026-09-28T12:15:36.470791+00:00",
   "inputs": [
     {
       "source": "boiler_room",
@@ -92,7 +92,7 @@
         {
           "relation": "reads in",
           "target": "celsius",
-          "resolved": true
+          "resolved": false
         }
       ],
       "expected_edges": [
@@ -104,23 +104,23 @@
       "missing_edges": [],
       "beliefs": [
         {
+          "claim": "boiler_temp_sensor observed_at 2026-09-08",
+          "posterior": 0.9926,
+          "domain": "sensor"
+        },
+        {
           "claim": "boiler_temp_sensor reads 94.5",
-          "posterior": 1.0,
+          "posterior": 0.9926,
           "domain": "sensor"
         },
         {
           "claim": "boiler_temp_sensor reads_in celsius",
-          "posterior": 1.0,
+          "posterior": 0.9926,
           "domain": "sensor"
         },
         {
           "claim": "boiler_temp_sensor measures temperature",
-          "posterior": 1.0,
-          "domain": "sensor"
-        },
-        {
-          "claim": "boiler_temp_sensor observed_at 2026-09-08",
-          "posterior": 1.0,
+          "posterior": 0.9926,
           "domain": "sensor"
         }
       ]
@@ -152,17 +152,17 @@
       "beliefs": [
         {
           "claim": "front_door_camera observed person",
-          "posterior": 1.0,
-          "domain": "vision"
-        },
-        {
-          "claim": "front_door_camera observed package",
-          "posterior": 1.0,
+          "posterior": 0.9962,
           "domain": "vision"
         },
         {
           "claim": "front_door_camera observed_at 2026-09-08",
-          "posterior": 1.0,
+          "posterior": 0.9926,
+          "domain": "vision"
+        },
+        {
+          "claim": "front_door_camera observed package",
+          "posterior": 0.9926,
           "domain": "vision"
         }
       ]
@@ -199,23 +199,23 @@
       "missing_edges": [],
       "beliefs": [
         {
-          "claim": "lobby_camera observed_at 2026-09-08",
-          "posterior": 1.0,
+          "claim": "lobby_camera observed door_opening",
+          "posterior": 0.9926,
           "domain": "vision"
         },
         {
           "claim": "lobby_camera lasts 12",
-          "posterior": 1.0,
+          "posterior": 0.9926,
+          "domain": "vision"
+        },
+        {
+          "claim": "lobby_camera observed_at 2026-09-08",
+          "posterior": 0.9926,
           "domain": "vision"
         },
         {
           "claim": "lobby_camera observed person",
-          "posterior": 1.0,
-          "domain": "vision"
-        },
-        {
-          "claim": "lobby_camera observed door_opening",
-          "posterior": 1.0,
+          "posterior": 0.9926,
           "domain": "vision"
         }
       ]

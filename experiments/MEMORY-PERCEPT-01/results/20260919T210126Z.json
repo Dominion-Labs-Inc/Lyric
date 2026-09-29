@@ -1,0 +1,150 @@
+{
+  "experiment": "MEMORY-PERCEPT-01",
+  "claim": "A memory of something perceived carries a reference to the percept that recorded the perceiving, so recall of what was seen resolves to a record with the digest of the exact bytes rather than resting on the substrate's word.",
+  "hypothesis": "If the link were by recency, a memory would claim to be of whatever happened to be in view nearby \u2014 weakest precisely when several things were seen close together. If it were written but not read back, it would render to no reader. Both are checked.",
+  "started_at": "2026-09-19T21:01:26.687870+00:00",
+  "duration_seconds": 20.006,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/TorinAI/venv_torin/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/TorinAI",
+    "shadow_mode": "1",
+    "git_commit": "20deb447498593391eca0286916b8f986c560a26",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "torinai_db",
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "dotenv:.env.postgres",
+        "database": "dotenv:.env.postgres",
+        "user": "dotenv:.env.postgres",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres"
+      }
+    },
+    "git_uncommitted_changes": 167,
+    "database_verified": "torinai_db",
+    "database_verified_reason": "asked the server"
+  },
+  "summary": {
+    "checks": 15,
+    "passed": 15,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [
+    {
+      "name": "percept_id_available",
+      "value": true,
+      "unit": "bool",
+      "note": ""
+    },
+    {
+      "name": "percept_blobs",
+      "value": 2,
+      "unit": "count",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "the image was really perceived",
+      "passed": true,
+      "detail": "image",
+      "at": "2026-09-19T21:01:45.901540+00:00"
+    },
+    {
+      "label": "perceiving leaves NOTHING bound \u2014 the hub does not own the scope",
+      "passed": true,
+      "detail": "binding without owning the reset would leave a percept standing over unrelated later work \u2014 the recency defect by another route",
+      "at": "2026-09-19T21:01:45.901559+00:00"
+    },
+    {
+      "label": "but the percept's identity travels ON the percept, for a caller to bind",
+      "passed": true,
+      "detail": "perc_1789851693.952023_mp01_photo",
+      "at": "2026-09-19T21:01:45.901565+00:00"
+    },
+    {
+      "label": "the memory records the percept it is of",
+      "passed": true,
+      "detail": "perc_1789851693.952023_mp01_photo",
+      "at": "2026-09-19T21:01:46.481152+00:00"
+    },
+    {
+      "label": "and the digest of what was seen",
+      "passed": true,
+      "detail": "34d363dde4cf9345",
+      "at": "2026-09-19T21:01:46.481164+00:00"
+    },
+    {
+      "label": "it carries no percept rather than the most recent one",
+      "passed": true,
+      "detail": "None \u2014 a memory that is not OF a seeing does not borrow one",
+      "at": "2026-09-19T21:01:46.527612+00:00"
+    },
+    {
+      "label": "the percept id resolves to a stored percept",
+      "passed": true,
+      "detail": "perc_1789851693.952023_mp01_photo (image)",
+      "at": "2026-09-19T21:01:46.529422+00:00"
+    },
+    {
+      "label": "the digest on the memory IS the digest of what was sensed",
+      "passed": true,
+      "detail": "34d363dde4cf9345 == 34d363dde4cf9345",
+      "at": "2026-09-19T21:01:46.529451+00:00"
+    },
+    {
+      "label": "and the percept holds the STRUCTURE that was perceived, not a label",
+      "passed": true,
+      "detail": "mp01_photox34d363dde4_redcircle isa red/circle; mp01_photox34d363dde4_greenrectangle isa green/rectangle",
+      "at": "2026-09-19T21:01:46.529459+00:00"
+    },
+    {
+      "label": "the memory comes back from the store",
+      "passed": true,
+      "detail": "MemoryItem",
+      "at": "2026-09-19T21:01:46.535696+00:00"
+    },
+    {
+      "label": "carrying the percept through RETRIEVAL, not only through the write",
+      "passed": true,
+      "detail": "percept_id=perc_1789851693.952023_mp01_photo",
+      "at": "2026-09-19T21:01:46.535711+00:00"
+    },
+    {
+      "label": "the recall names the seeing and the bytes",
+      "passed": true,
+      "detail": "(seen: perc_1789851693.952023_mp01_photo #34d363dde4cf)",
+      "at": "2026-09-19T21:01:46.535731+00:00"
+    },
+    {
+      "label": "a memory that is of no percept renders nothing extra",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-19T21:01:46.535735+00:00"
+    },
+    {
+      "label": "the field is named for PERCEPTION, not for one sense",
+      "passed": true,
+      "detail": "percept_id / percept_digest \u2014 audio binds through the same door",
+      "at": "2026-09-19T21:01:46.535751+00:00"
+    },
+    {
+      "label": "a non-visual percept links through the same field, no new column",
+      "passed": true,
+      "detail": "perc_mp01_audio",
+      "at": "2026-09-19T21:01:46.592827+00:00"
+    }
+  ],
+  "notes": [
+    "This is the check the old design could not pass. Attaching by a 120-second recency window, a thought that merely FOLLOWED a perception was stamped with it, and nothing downstream could tell that apart from a memory genuinely of what was seen.",
+    "What makes this defensible rather than a recollection: the claim can be taken back to the object. The digest identifies the exact bytes, and the percept records what was actually sensed off them.",
+    "`_row_to_memory_item` mapped neither this link nor the intent one when they were added, so both were written faithfully and returned as None on every read \u2014 and hot->cold migration reads through the same mapping, so the archive lost them too. Checked here through the path a reader actually uses, because a test that builds its own input cannot see that failure."
+  ]
+}

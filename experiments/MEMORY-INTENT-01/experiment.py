@@ -59,6 +59,7 @@ def check(name, ok, detail=""):
 
 
 async def main() -> int:
+    from core.memory import Origin
     from core.database import get_unified_db
     from core.memory import get_memory_agent
     from core.memory.utils.interfaces import MemoryType
@@ -112,7 +113,7 @@ async def main() -> int:
         mem_id = await agent.store_memory(
             content=f"archived the quarterly report [{key}]",
             memory_type=MemoryType.EPISODIC,
-            importance_score=0.9)
+            importance_score=0.9, origin=Origin.own("MEMORY-INTENT-01"))
     finally:
         reset_acting_intent(token)
     # store_memory returns (ok, memory_id).

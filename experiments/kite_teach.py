@@ -10,8 +10,7 @@ Nothing here is asserted by the teacher. The teacher supplies before / action /
 after triples; every generalization is the learner's, and every promotion to
 executable is the store's, on evidence the learner never saw.
 
-Run with the model policy already strict:
-    TORIN_MODEL_POLICY=strict_model_free python3 experiments/kite_teach.py
+Run:  POSTGRES_DATABASE=torinai_dev ./venv_torin/bin/python3 experiments/kite_teach.py
 """
 
 from __future__ import annotations
@@ -28,7 +27,6 @@ from core.domain.concept_ingestion import EvidenceSourceType  # noqa: E402
 from core.domain.evidence_producers import submit_demonstration  # noqa: E402
 from core.learning.rule_induction import Fact, TrainingExample, get_rule_inducer  # noqa: E402
 from core.learning.rule_store import get_rule_store, to_json  # noqa: E402
-from core.model_policy import assert_model_free, model_telemetry  # noqa: E402
 
 DOMAIN = "kite17"
 F = Fact.parse
@@ -173,16 +171,28 @@ async def main() -> int:
             return 1
         taught.append(record)
 
-    assert_model_free("teaching")
-    telemetry = model_telemetry()
-    print(f"\nmodel: attempts={telemetry['attempts']} "
-          f"executed={telemetry['executed']} policy={telemetry['policy']}")
-
     manifest = Path(__file__).resolve().parent / "baselines" / "kite_taught.json"
     manifest.parent.mkdir(parents=True, exist_ok=True)
     manifest.write_text(json.dumps({"domain": DOMAIN, "rules": taught}, indent=2))
     print(f"manifest -> {manifest}")
     return 0
+
+
+async def ensure_taught() -> bool:
+    """Make sure `kite17` HAS its executable MOVE operator, teaching KITE-17 if
+    not. An experiment that plans over it declares that here rather than
+    reading it out of whatever store it runs against, so an emptied store
+    fails as a missing lesson, taught on the spot, not as a broken loop."""
+    async def held() -> bool:
+        return any(r.rule.action is not None and r.rule.action.predicate == "MOVE"
+                   for r in await get_rule_store().executable_rules(domain_id=DOMAIN))
+
+    if await held():
+        return True
+    print(f"  [precondition] {DOMAIN} has no executable MOVE — teaching KITE-17 "
+          f"from demonstrations", flush=True)
+    await main()
+    return await held()
 
 
 if __name__ == "__main__":

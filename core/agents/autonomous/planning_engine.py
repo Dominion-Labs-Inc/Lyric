@@ -7,6 +7,7 @@ Consolidates all planning functionality from the monolithic controller
 from core.capability import raise_if_structural
 import asyncio
 import json
+import re
 import logging
 from enum import Enum
 from dataclasses import dataclass, field
@@ -281,6 +282,21 @@ class PlanningEngine:
             goal_formulas.append(f"¬{fact.to_formula()}" if negated
                                  else fact.to_formula())
 
+        # A GOAL NAMES PLACES, AND THE SELF LOOKS AT THEM. The world the caller
+        # read is what the self had met; where a move is to put something is a
+        # place nothing is at yet, and no look at a workspace finds it. What the
+        # domain's world sees of the things the goal names is added wherever the
+        # caller's reading says nothing about them.
+        from core.execution.operator_binding import get_binding_registry
+        seen = get_binding_registry().look_at(
+            context.get("domain_id"),
+            [fact.args[0] for fact in goal_facts
+             if fact.args and not fact.args[0].startswith("?")])
+        if seen:
+            mentioned = {term for fact in state_facts for term in fact.args}
+            state_facts += [fact for fact in sorted(seen, key=str)
+                            if fact.args and fact.args[0] not in mentioned]
+
         rules = await get_rule_store().executable_rules(
             domain_id=context.get("domain_id"))
         grounding = ground_for_problem(rules, state_facts, goal_facts)
@@ -332,6 +348,15 @@ class PlanningEngine:
             # what it was formed on.
             metadata={"planning_mode": "state",
                       "confidence_source": "proved_by_search",
+                      # THE WORLD THIS ROUTE WAS PROVED AGAINST. A plan is a
+                      # route from a state, so when a pursuit stops the first
+                      # question is whether the state it started from still
+                      # holds — and that cannot be asked unless the plan says
+                      # what it was. Recorded as the observed facts, which is
+                      # what `_observe_world` returns, so the comparison is
+                      # against the same reading and not a re-derivation of it
+                      # -- including what was looked at for the goal itself.
+                      "planned_world": sorted(str(f) for f in state_facts),
                       "inputs": await self.assemble_inputs("state", goal, context),
                       # Which intent this plan is the proved route of, or why it
                       # has none. The account lives in the authority; this is the
@@ -400,8 +425,12 @@ class PlanningEngine:
                 metadata=provenance,
             )
             
-            await self._store_plan(plan)
             self.active_plans[plan.id] = plan
+            # THE ACCOUNT FOR MAKING THE THING. Recorded before the plan is
+            # stored, and registered in `active_plans` first so the constitution
+            # can find the plan when it checks the claim.
+            await self._account_for_creation_steps(plan, goal)
+            await self._store_plan(plan)
 
             self.stats["plans_generated"] += 1
             logger.info(f"Generated plan for goal: {goal.description}")
@@ -411,6 +440,73 @@ class PlanningEngine:
             logger.error(f"Error generating plan: {e}")
             return None
     
+    #: A plan is not dispatched forever. Below this, an unfinished plan is
+    #: simply slow; past it, nothing is working on it.
+    #:
+    #: The horizon is DERIVED FROM THE PLAN, not picked: a plan records how long
+    #: it estimated it would take, so being an order of magnitude past its own
+    #: estimate is the plan's own measure of abandoned. The floor keeps a plan
+    #: that estimated thirty seconds from being retired during one slow cycle.
+    PLAN_STALE_FLOOR_SECONDS: float = 3600.0
+    PLAN_STALE_ESTIMATE_MULTIPLE: float = 10.0
+
+    def _plan_is_stale(self, plan: "Plan", now: datetime) -> bool:
+        """Has this plan been active so long that nothing can be working on it?"""
+        created = getattr(plan, "created_at", None)
+        if created is None:
+            return False
+        tasks = plan.tasks or []
+        if tasks and not any(t.status == TaskStatus.PENDING for t in tasks):
+            # NOTHING LEFT TO DISPATCH. Every step has finished or failed, so
+            # this plan is over whatever its status field still says, and
+            # holding slots for steps that can never run again is the jam
+            # itself. This catches a plan that failed outright, which age alone
+            # would leave sitting for an hour first.
+            return True
+        if any(t.status == TaskStatus.COMPLETED for t in tasks):
+            # It is making progress. Slow is not abandoned.
+            return False
+        horizon = max(self.PLAN_STALE_FLOOR_SECONDS,
+                      self.PLAN_STALE_ESTIMATE_MULTIPLE *
+                      float(getattr(plan, "estimated_duration", 0.0) or 0.0))
+        return (now - created).total_seconds() > horizon
+
+    async def retire_stale_plans(self) -> List[str]:
+        """Stop dispatching plans nothing is working on, and say which.
+
+        WHY THIS EXISTS. `get_next_tasks` sorts by priority then OLDEST FIRST and
+        returns `available_tasks[:max_concurrent_tasks]`. A plan whose tasks
+        never complete is never removed, so it holds its dispatch slots forever
+        — and `_load_state` restores every plan with `status='active'` on every
+        boot, with no age bound, so a restart brings them all back.
+
+        Measured before this existed: 156 active plans, 148 of them over a day
+        old and the oldest from a month earlier, EVERY ONE with zero completed
+        tasks. Three plans had ever completed. A freshly planned five-step goal
+        received zero dispatch slots; all five went to test residue. The queue
+        reported healthy and the substrate did nothing.
+
+        Retired, not deleted: the plan becomes 'abandoned' and its row stays, so
+        what was attempted is still on record.
+        """
+        now = datetime.now()
+        retired: List[str] = []
+        for plan in list(self.active_plans.values()):
+            if plan.status == "active" and self._plan_is_stale(plan, now):
+                plan.status = "abandoned"
+                self.active_plans.pop(plan.id, None)
+                retired.append(plan.id)
+                try:
+                    await self._store_plan(plan)
+                except Exception as e:
+                    raise_if_structural(e, 'planning_engine.retire_stale_plans')
+                    logger.error("could not record plan %s as abandoned: %s",
+                                 plan.id, e)
+        if retired:
+            logger.info("retired %d stale plan(s); they were holding dispatch "
+                        "slots nothing was working on", len(retired))
+        return retired
+
     async def get_next_tasks(self, system_state: SystemState) -> List[Task]:
         """Get next tasks to execute based on current system state.
 
@@ -424,6 +520,16 @@ class PlanningEngine:
         cycle is recoverable where an unauthorised action is not.
         """
         available_tasks = []
+
+        # BEFORE ANYTHING IS HANDED OUT. A stale plan holds slots by being old —
+        # the sort is oldest-first within a priority — so retiring has to happen
+        # on the dispatch path, not only at boot, or a long-running process
+        # never recovers the slots.
+        try:
+            await self.retire_stale_plans()
+        except Exception as e:
+            raise_if_structural(e, 'planning_engine.get_next_tasks')
+            logger.error("could not retire stale plans: %s", e)
 
         try:
             await self.consume_rule_authority_changes()
@@ -574,17 +680,76 @@ class PlanningEngine:
             "statistics": self.stats.copy()
         }
     
+    #: The kinds of work a descriptive goal can name, in the order the work
+    #: depends on: what is found gets analysed, what is analysed gets written.
+    #: Several may be named at once, and then all of them are planned.
+    _WORK_PHASES = (
+        ("research", ("research", "investigate", "find out", "look up", "study",
+                      "learn about", "gather")),
+        ("analysis", ("analyz", "analys", "examine", "assess", "evaluate",
+                      "compare")),
+        ("creation", ("create", "write", "produce", "generate", "draft",
+                      "build", "compose", "summar", "report")),
+    )
+
     async def _generate_tasks_for_goal(self, goal: Goal, context: Dict[str, Any]) -> List[Task]:
-        """Generate tasks to achieve a goal - with tool integration"""
+        """Decompose a descriptive goal into the work it NAMES — ALL of it.
+
+        FIRST MATCH WINS WAS DROPPING HALF THE GOAL. This was
+        `if "research" … elif "analyze" … elif "create" …`, so
+        "Research photosynthesis and create a written summary at <path>" planned
+        RESEARCH and ANALYSIS and never planned the write at all. Measured in
+        RESEARCH-WRITE-01: no file, no act, no demonstration, nothing to verify
+        — and because a template plan carries no goal state, the plan reported
+        done anyway. The failure read as "the substrate could not do it" when it
+        had never been asked to.
+
+        A goal may name several kinds of work. Each named phase is planned, and
+        each is CHAINED to the one before it, so the step that writes the
+        summary runs after the research it is supposed to be writing up rather
+        than beside it.
+        """
         tasks = []
 
-        # Simple task generation based on goal type
-        if "research" in goal.description.lower():
-            tasks.extend(self._generate_research_tasks(goal))
-        elif "analyze" in goal.description.lower():
-            tasks.extend(self._generate_analysis_tasks(goal))
-        elif "create" in goal.description.lower():
-            tasks.extend(self._generate_creation_tasks(goal))
+        described = goal.description.lower()
+        makers = {"research": self._generate_research_tasks,
+                  "analysis": self._generate_analysis_tasks,
+                  "creation": self._generate_creation_tasks}
+        named = [phase for phase, words in self._WORK_PHASES
+                 if any(word in described for word in words)]
+
+        subject = self.subject_named_by(goal.description)
+        # WRITING UP WHAT IS KNOWN ABOUT SOMETHING NEEDS THAT KNOWLEDGE GATHERED
+        # FIRST. The creation step writes up the findings of the steps before it
+        # and invents nothing, so "Create a written summary of what you know
+        # about centrifugal pumps at <path>" -- a creation with a subject and no
+        # step that says anything about it -- wrote nothing and could not.
+        # Gathering answers from what is held first and looks further only on a
+        # gap, so it is the step that produces the content.
+        if subject and "creation" in named and "research" not in named:
+            named.insert(0, "research")
+        if named:
+            previous: List[Task] = []
+            for phase in named:
+                stage = makers[phase](goal)
+                # THE STEPS OF A STAGE HAPPEN IN ORDER TOO. Only stages were
+                # chained, so a stage's own steps were all ready at once and the
+                # step that checks the file ran beside -- or before -- the step
+                # that writes it, and failed on an empty path.
+                for before, after in zip(stage, stage[1:]):
+                    after.dependencies = list(after.dependencies or []) + [before.id]
+                if subject:
+                    # WHAT THE WORK IS ABOUT travels with every step of it, so
+                    # no step has to recover it from its own instruction.
+                    for step in stage:
+                        step.provenance = dict(step.provenance or {})
+                        step.provenance["subject"] = subject
+                if previous and stage:
+                    # THE ORDER IS THE POINT. Without it the writer can run
+                    # before the research and write up nothing.
+                    stage[0].dependencies = list(stage[0].dependencies or []) + [previous[-1].id]
+                tasks.extend(stage)
+                previous = stage or previous
         else:
             # Default task breakdown
             tasks.append(Task(
@@ -663,24 +828,89 @@ class PlanningEngine:
             )
         ]
     
+    @staticmethod
+    def artefact_named_by(description: str) -> Optional[str]:
+        """The thing this goal says to CREATE, if it names one.
+
+        THE PLANNER IS THE GOAL-READER. "create a written summary at
+        /tmp/x/findings.md" names its own product, and the step that makes it
+        cannot make it without knowing what it is. Reading that here — once,
+        where the goal is already being read — is what lets the executor act on
+        a target instead of guessing one, and what lets VALIDATION check the
+        right thing afterwards.
+
+        Returns None when the goal names no artefact, and a creation step then
+        says so honestly rather than inventing a destination.
+        """
+        # A path-shaped token: at least one separator and a final segment. Not a
+        # guess about filesystems -- it is the only thing in the sentence that
+        # could be a destination, and if there is none there is no destination.
+        candidates = re.findall(r"(?:/|~/)[\w./~-]*[\w-]", str(description or ""))
+        return candidates[-1] if candidates else None
+
+    @staticmethod
+    def subject_named_by(description: str) -> Optional[str]:
+        """WHAT this goal is about, as distinct from what it says to do.
+
+        A step's description is an INSTRUCTION — "Information gathering for:
+        Research photosynthesis and create a written summary at <path>" — and
+        asking the knowledge loop about the whole sentence asks about the
+        sentence. Measured: the loop took `summary` for the topic and the
+        substrate wrote a correct, verified file that said "summary is a
+        written or spoken work". A file about nothing, passing every check
+        except the one that reads it.
+
+        So the subject is read once, here, where the goal is already being read:
+        what follows the instruction verb, up to where the instruction turns to
+        what to DO with it. Returns None when the goal names no subject, and the
+        loop then falls back to its own reading of the description.
+        """
+        text = " ".join(str(description or "").split())
+        after = re.sub(
+            r"^(?:please\s+)?(?:research|investigate|study|look\s+up|find\s+out"
+            r"(?:\s+about)?|learn\s+about|gather\s+information\s+(?:on|about))\s+",
+            "", text, flags=re.IGNORECASE)
+        if after == text:
+            # A GOAL TO MAKE SOMETHING NAMES ITS SUBJECT AFTER WHAT IT MAKES:
+            # "a written summary of what you know ABOUT centrifugal pumps", "a
+            # report ON cavitation", "a summary OF photosynthesis". The first
+            # `about` wins; failing that, what a summary/report/note is of or on.
+            found = (re.search(r"\babout\s+(.+)", text, flags=re.IGNORECASE)
+                     or re.search(r"\b(?:summary|report|overview|description|notes?|"
+                                  r"write-?up)\s+(?:of|on)\s+(?!what\b)(.+)",
+                                  text, flags=re.IGNORECASE))
+            if not found:
+                return None
+            after = found.group(1)
+        # The subject ends where the goal starts saying what to do with it, or
+        # where it names the destination ("... at /tmp/x/summary.md").
+        subject = re.split(
+            r"\s+(?:and|then|,|;|so\s+that|in\s+order\s+to)\s+"
+            r"|\s+(?:at|to|in|into)\s+(?=[/~])",
+            after, maxsplit=1, flags=re.IGNORECASE)[0]
+        subject = subject.strip(" .:;")
+        return subject or None
+
     def _generate_creation_tasks(self, goal: Goal) -> List[Task]:
         """Generate creation-specific tasks"""
+        artefact = self.artefact_named_by(goal.description)
+        # WHAT IS TO BE MADE TRAVELS WITH THE STEPS THAT MAKE AND CHECK IT.
+        # Without it the creation step has a sentence and no target, and the
+        # validation step has nothing to verify -- which is how a plan came to
+        # report done with no file anywhere.
+        made = {"artefact": artefact} if artefact else {}
+        # No "plan the creation" step: this plan IS that, and the step that
+        # asked for it again had no path that could carry it out, so every
+        # creation plan held a step that could only fail.
         return [
-            Task(
-                id=str(uuid4()),
-                type=TaskType.PLANNING,
-                description=f"Plan creation process for: {goal.description}",
-                priority=goal.priority,
-                estimated_duration=20.0,
-                created_at=datetime.now()
-            ),
             Task(
                 id=str(uuid4()),
                 type=TaskType.EXECUTION,
                 description=f"Create: {goal.description}",
                 priority=goal.priority,
                 estimated_duration=90.0,
-                created_at=datetime.now()
+                created_at=datetime.now(),
+                provenance=dict(made),
             ),
             Task(
                 id=str(uuid4()),
@@ -688,10 +918,59 @@ class PlanningEngine:
                 description=f"Validate creation: {goal.description}",
                 priority=goal.priority,
                 estimated_duration=15.0,
-                created_at=datetime.now()
+                created_at=datetime.now(),
+                provenance=dict(made),
             )
         ]
     
+    async def _account_for_creation_steps(self, plan: "Plan", goal: Goal) -> int:
+        """Record WHY each step that must make something is happening.
+
+        The constitution reads an account at the gate and recognised three:
+        a proved route, an experiment, or looking. A plain instruction is none
+        of them, so a step planned to write a file the goal explicitly asked for
+        was refused as "an act nothing can explain" — measured in
+        RESEARCH-WRITE-01, where every step succeeded and no file was ever
+        written.
+
+        Only the intent's ID travels, exactly as a proved plan's does. What is
+        recorded here is checkable by `_carrying_out_is_earned` against this
+        plan and this goal, so this states a claim rather than granting itself
+        permission. A failure to record leaves the step with no account, and it
+        is then refused — which is the correct answer to work nothing can
+        explain, not a reason to act anyway.
+        """
+        stamped = 0
+        for task in plan.tasks or []:
+            artefact = (task.provenance or {}).get("artefact")
+            if not artefact or task.type is not TaskType.EXECUTION:
+                continue
+            try:
+                from core.agents.autonomous.shared_types import SUBSTRATE_ACTOR
+                from core.reasoning.intent_authority import get_intent_authority
+
+                intent = await get_intent_authority().form(
+                    "goal", SUBSTRATE_ACTOR, f"plan:{plan.id}:{task.id}",
+                    shape={
+                        # `proved` is deliberately ABSENT: no route was proved
+                        # over a learned operator, and claiming one would be the
+                        # fabricated-intent hole the constitution closed.
+                        "purpose": "carry_out",
+                        "plan_id": plan.id,
+                        "goal_id": goal.id,
+                        "artefact": artefact,
+                        "steps": len(plan.tasks or []),
+                    })
+                task.provenance = dict(task.provenance or {})
+                task.provenance["intent_id"] = getattr(intent, "intent_id", None)
+                task.provenance["plan_id"] = plan.id
+                stamped += 1
+            except Exception as e:
+                raise_if_structural(e, 'planning_engine._account_for_creation_steps')
+                logger.error("could not record an account for %s: %s — it will "
+                             "be refused for having none", task.id, e)
+        return stamped
+
     def _estimate_plan_duration(self, tasks: List[Task]) -> float:
         """Estimate total duration for plan execution"""
         return sum(task.estimated_duration for task in tasks)
@@ -752,7 +1031,9 @@ class PlanningEngine:
                 content={
                     "aim": goal.description,
                     "bindings": [a.get("bindings", {}) for a in actions],
-                })
+                },
+                # The pursuit this goal was raised inside, when there is one.
+                parent_intent_id=context.get("parent_intent_id"))
             return {"recorded": True, "intent_id": intent.intent_id,
                     "actor": actor, "operators": len(operators)}
         except Exception as e:
@@ -1143,8 +1424,187 @@ class PlanningEngine:
         # let a crash in between lose the event and leave an invalidated plan
         # still queued, with nothing left to say why it should not be.
         report["drained"] = await mark_consumed(
-            self.connection, [e.event_id for e in events], "planning_engine")
+            [e.event_id for e in events], "planning_engine")
+
+        # THE GOALS THOSE PLANS SERVED NOW HAVE NO ROUTE, and this is the only
+        # moment anything knows which ones. Announced rather than repaired here:
+        # replanning is a search and this runs inside `get_next_tasks`, the call
+        # that asks what to run next. The reaction is deferred for that reason.
+        stranded = self.withdrawn_goals()
+        report["goals_stranded"] = stranded
+        if stranded:
+            await self._announce_route_withdrawal(stranded, report)
         return report
+
+    async def _announce_route_withdrawal(self, stranded: List[str],
+                                         report: Dict[str, Any]) -> None:
+        """Say that these pursuits lost their route, through the substrate's own
+        event dispatch.
+
+        NOT BEST-EFFORT SILENCE. A withdrawal nothing hears leaves the goal
+        exactly as stranded as having no repair at all, and the whole reason
+        this exists is that such a state used to be invisible — so a failure to
+        announce is logged as the unrepaired goals it actually is.
+        """
+        from core.agents.autonomous.runtime_registry import get_autonomous_coordinator
+
+        coordinator = get_autonomous_coordinator()
+        if coordinator is None:
+            logger.error(
+                "%d goal(s) lost their route and no live substrate is "
+                "registered to hear it, so none will be replanned: %s",
+                len(stranded), ", ".join(stranded))
+            return
+        try:
+            await coordinator.announce_route_withdrawal(
+                goal_ids=stranded, plan_ids=report["plans_invalidated"],
+                rule_ids=report["rules"], tasks_blocked=report["tasks_blocked"])
+        except Exception as e:
+            logger.error(
+                "the withdrawal of %d goal(s)' routes could not be announced "
+                "(%s: %s); they stay stranded: %s",
+                len(stranded), type(e).__name__, e, ", ".join(stranded))
+
+    # ── the far end of the edge: the goal gets a new route ───────────────────
+
+    def withdrawn_goals(self) -> List[str]:
+        """Goals whose only route was withdrawn — an invalidated plan and no
+        live one.
+
+        STRANDED IS NOT THE SAME AS UNPLANNED. A goal that was never planned is
+        waiting for whoever raised it; a goal whose proved route was taken away
+        under it has nobody waiting, because the thing that would have planned
+        it already did. Only the second is this engine's to repair, so the test
+        is the presence of an invalidated plan, not merely the absence of an
+        active one.
+        """
+        live, withdrawn = set(), set()
+        for plan in self.active_plans.values():
+            if plan.status == "active":
+                live.add(plan.goal_id)
+            elif plan.status == "invalidated":
+                withdrawn.add(plan.goal_id)
+        return sorted(
+            goal_id for goal_id in withdrawn - live
+            if (goal := self.current_goals.get(goal_id)) is not None
+            and goal.status not in ("completed", "abandoned"))
+
+    async def replan_withdrawn_goals(self) -> Dict[str, Any]:
+        """Give a goal a new route when the one it stood on was taken away.
+
+        THE NEAR END OF THIS EDGE WAS THE ONLY END THAT EXISTED. A runtime
+        contradiction refutes a rule, the refutation is written durably, and
+        `consume_rule_authority_changes` withdraws every plan standing on it --
+        all correct, and all of it leaves the GOAL with nothing. Refuting a rule
+        and stranding the pursuit it served is a worse failure than continuing
+        to run the refuted rule would have been, because nothing reports it: the
+        plan says `invalidated`, the goal says `active`, and no cycle ever asks
+        again.
+
+        Repair is driven by the ABSENCE OF A ROUTE, not run every cycle -- a
+        goal that still has a live plan is not touched.
+
+        THE WORLD IS RE-OBSERVED, NEVER REMEMBERED. A state goal is replanned
+        against what the domain's bindings see NOW: the rule was refuted BY the
+        world, so the world the withdrawn plan was proved against is precisely
+        the account that turned out to be wrong. Where the world cannot be
+        observed the goal is reported `unobservable` and left alone, because
+        planning a state goal against an invented empty world would make every
+        goal unreachable for a reason about this method rather than the world.
+
+        `plan_for_goal` is the one entry, so the goal is replanned in the mode
+        its TYPE requires and a state goal cannot fall through to template
+        decomposition here any more than anywhere else.
+        """
+        from core.reasoning.temporal_reasoning import PlanningStatus
+
+        stranded = self.withdrawn_goals()
+        report: Dict[str, Any] = {
+            "stranded": len(stranded), "replanned": 0, "unreachable": 0,
+            "indeterminate": 0, "unobservable": 0, "goals": [], "routes": [],
+        }
+        for goal_id in stranded:
+            goal = self.current_goals[goal_id]
+            context = self._replan_context(goal_id)
+            if context is None:
+                report["unobservable"] += 1
+                report["goals"].append({"goal_id": goal_id,
+                                        "status": "unobservable"})
+                logger.warning(
+                    "goal %s lost its route and cannot be replanned: its domain "
+                    "has no binding that can observe the world", goal_id)
+                continue
+
+            outcome = await self.plan_for_goal(goal_id, context)
+            if outcome.status is PlanningStatus.PLAN_FOUND:
+                report["replanned"] += 1
+                # THE NEW ROUTE IS CARRIED OUT, not just named. A plan nothing
+                # runs is not a repair, and the substrate that made it is the
+                # only thing that can close it -- so the caller is handed what
+                # it needs to pursue the route rather than a count of routes it
+                # cannot reach.
+                report["routes"].append({
+                    "goal_id": goal_id, "plan": outcome.plan,
+                    "domain_id": context.get("domain_id"),
+                    "goal_conditions": list(outcome.goal_conditions
+                                            or goal.state_conditions or []),
+                })
+                logger.info("goal %s was replanned after its route was withdrawn",
+                            goal_id)
+            elif outcome.status is PlanningStatus.UNREACHABLE:
+                # A PROOF, so the pursuit ends rather than being retried on every
+                # future withdrawal. INDETERMINATE is not: the search hit its
+                # bound, and closing the goal on that would record ignorance as
+                # impossibility.
+                report["unreachable"] += 1
+                goal.status = "abandoned"
+                await self._store_goal(goal)
+                logger.warning("goal %s is unreachable over what is still "
+                               "validated: %s", goal_id, outcome.reason)
+            else:
+                report["indeterminate"] += 1
+                logger.warning("goal %s could not be replanned (%s): %s",
+                               goal_id, outcome.status.value, outcome.reason)
+            report["goals"].append({"goal_id": goal_id,
+                                    "status": outcome.status.value,
+                                    "reason": outcome.reason})
+        return report
+
+    def _replan_context(self, goal_id: str) -> Optional[Dict[str, Any]]:
+        """What planning this goal again needs, or None if it cannot be had.
+
+        A descriptive goal needs nothing. A STATE goal needs the domain its
+        withdrawn plan was proved in and a fresh reading of that domain's world;
+        both are refused rather than guessed.
+        """
+        goal = self.current_goals[goal_id]
+        if goal.goal_type is not GoalType.STATE:
+            return {}
+
+        domain_id = next(
+            (step.provenance["domain_id"]
+             for plan in self.active_plans.values()
+             if plan.goal_id == goal_id and plan.status == "invalidated"
+             for step in plan.tasks
+             if (step.provenance or {}).get("domain_id")), None)
+        if not domain_id:
+            return None
+
+        from core.execution.operator_binding import get_binding_registry
+
+        # THE UNION OF WHAT EVERY BINDING IN THE DOMAIN SEES, which is what the
+        # domain's world IS -- one predicate's observer sees one slice of it.
+        observed = set()
+        saw_anything = False
+        for binding in get_binding_registry().bindings_for(domain_id):
+            facts = binding.observe()
+            if facts is None:
+                continue          # this observer could not read; others may
+            saw_anything = True
+            observed |= set(facts)
+        if not saw_anything:
+            return None
+        return {"world_state": sorted(observed, key=str), "domain_id": domain_id}
 
     async def _check_plan_completion(self, plan_id: str):
         """Check if plan is complete and update goal status"""
@@ -1366,6 +1826,17 @@ class PlanningEngine:
                         status=row['status']
                     )
                     self.active_plans[plan.id] = plan
+
+            # A RESTART MUST NOT RESURRECT THEM. The query above asks for every
+            # plan still marked active, with no age bound, so without this a
+            # boot restores a month of unfinished test runs and they hold the
+            # dispatch slots again. Retiring here rather than adding a date to
+            # the SQL keeps ONE rule for what stale means — `_plan_is_stale` —
+            # instead of a second copy of it that can drift.
+            retired = await self.retire_stale_plans()
+            if retired:
+                logger.info("boot: %d restored plan(s) were already stale and "
+                            "were not returned to the queue", len(retired))
 
         except Exception as e:
             logger.error(f"Error loading persistent state: {e}")

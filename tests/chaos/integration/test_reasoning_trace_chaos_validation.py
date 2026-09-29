@@ -90,6 +90,7 @@ class TestReasoningTraceChaosValidation:
         """Test reasoning trace capture quality when storage is slow"""
 
         # Get baseline metrics
+        from core.memory import Origin
         baseline_metrics = await self.memory_adapter.get_reasoning_trace_metrics()
         baseline_completeness = baseline_metrics.get("reasoning_trace_completeness_rate", 0.0)
 
@@ -123,7 +124,7 @@ class TestReasoningTraceChaosValidation:
                 },
                 emotional_context={
                     "confidence": 0.9
-                }
+                }, origin=Origin.own("test_reasoning_trace_chaos_validation")
             )
 
             if success:
@@ -155,6 +156,7 @@ class TestReasoningTraceChaosValidation:
         """Test that chain of thought isn't dropped during database errors"""
 
         # Load chaos scenario
+        from core.memory import Origin
         scenario = get_scenario("chain_of_thought_persistence_under_errors")
 
         # Store memories with comprehensive chain of thought
@@ -180,7 +182,7 @@ class TestReasoningTraceChaosValidation:
                 decision_factors={
                     "primary_factor": "test_validation",
                     "confidence_threshold": 0.8
-                }
+                }, origin=Origin.own("test_reasoning_trace_chaos_validation")
             )
 
             if success:
@@ -211,6 +213,7 @@ class TestReasoningTraceChaosValidation:
         """Test all chain of thought fields under connection pool pressure"""
 
         # Load chaos scenario
+        from core.memory import Origin
         scenario = get_scenario("thinking_state_capture_completeness")
 
         # Store memories with complete chain of thought data
@@ -240,7 +243,7 @@ class TestReasoningTraceChaosValidation:
                 emotional_context={
                     "confidence": 0.95,
                     "certainty": "high"
-                }
+                }, origin=Origin.own("test_reasoning_trace_chaos_validation")
             )
 
         # Get metrics under resource pressure

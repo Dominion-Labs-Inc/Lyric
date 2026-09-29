@@ -1,0 +1,102 @@
+{
+  "experiment": "SELF-PARTITION-01",
+  "run": "2026-09-20T20:27:25.665631+00:00",
+  "outcome": "PASS",
+  "exit_code": 0,
+  "checks_passed": 23,
+  "checks_total": 23,
+  "checks": [
+    {
+      "kind": "PASS",
+      "text": "substrate fact admitted"
+    },
+    {
+      "kind": "PASS",
+      "text": "UNIVERSAL belief moved"
+    },
+    {
+      "kind": "PASS",
+      "text": "the SHARED concept graph has the edge (reasoner can walk it) \u2014 instance_predicates=['gadget']"
+    },
+    {
+      "kind": "PASS",
+      "text": "NO scoped row for substrate learning"
+    },
+    {
+      "kind": "PASS",
+      "text": "user fact admitted (to the scoped layer)"
+    },
+    {
+      "kind": "PASS",
+      "text": "NO universal belief created"
+    },
+    {
+      "kind": "PASS",
+      "text": "NO edge in the SHARED concept graph (the leak is closed at the graph) \u2014 instance_predicates=[]"
+    },
+    {
+      "kind": "PASS",
+      "text": "a SCOPED belief exists for the user"
+    },
+    {
+      "kind": "PASS",
+      "text": "a SCOPED edge exists for the user"
+    },
+    {
+      "kind": "PASS",
+      "text": "Bob's context does NOT contain Alice's belief"
+    },
+    {
+      "kind": "PASS",
+      "text": "after ONE actor: not in the universal belief"
+    },
+    {
+      "kind": "PASS",
+      "text": "after ONE actor: not in the shared graph"
+    },
+    {
+      "kind": "PASS",
+      "text": "after a SECOND independent actor: promoted to the UNIVERSAL belief"
+    },
+    {
+      "kind": "PASS",
+      "text": "after promotion: now in the SHARED concept graph too"
+    },
+    {
+      "kind": "PASS",
+      "text": "the claim is flagged promoted (lifted once, not per telling)"
+    },
+    {
+      "kind": "PASS",
+      "text": "belief_for_claim does not return the scoped-only claim"
+    },
+    {
+      "kind": "PASS",
+      "text": "beliefs_for_domain excludes the scoped-only claim"
+    },
+    {
+      "kind": "PASS",
+      "text": "beliefs_for_domain includes the substrate-learned + promoted claims \u2014 domain=['fendril97c00753 isa gadget', 'the substrate has learned the operators of domain partition_probe_97c00753', 'zorptl97c00753 isa gadget']"
+    },
+    {
+      "kind": "PASS",
+      "text": "for the OWNER, the scoped fact chains onto the shared graph -> TRUE \u2014 verdict=true"
+    },
+    {
+      "kind": "PASS",
+      "text": "for ANOTHER user, the chain does NOT exist -> not TRUE \u2014 verdict=unknown"
+    },
+    {
+      "kind": "PASS",
+      "text": "for the SHARED mind (no actor), the scoped fact is invisible -> not TRUE \u2014 verdict=unknown"
+    },
+    {
+      "kind": "PASS",
+      "text": "instance_predicates overlays the owner's scoped feature"
+    },
+    {
+      "kind": "PASS",
+      "text": "instance_predicates hides it from another user"
+    }
+  ]
+}

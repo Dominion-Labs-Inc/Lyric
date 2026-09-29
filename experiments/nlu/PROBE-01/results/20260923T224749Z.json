@@ -1,0 +1,21 @@
+{
+  "experiment": "PROBE-01 \u2014 does a finding become knowledge?",
+  "writes_to_store": false,
+  "notes": [],
+  "data": {},
+  "checks": [
+    {
+      "name": "reads comparatives",
+      "passed": true,
+      "detail": "iron is heavier than aluminium"
+    },
+    {
+      "name": "reads subordination",
+      "passed": false,
+      "detail": "two clauses glued into one"
+    }
+  ],
+  "passed": 1,
+  "total": 2,
+  "seconds": 0.0
+}

@@ -1,0 +1,173 @@
+{
+  "experiment": "TOOLDOMAIN-01",
+  "claim": "The substrate learns what an act does from doing it, with nothing written by hand: the act names its domain, practice in a sandbox it is given teaches the operator, and ordinary work files demonstrations read through the self's own perception.",
+  "hypothesis": "If domains, operators and observations are derived from the act and the tools, then a sandbox needs only to be named for an executable operator to be induced from practice, and ordinary acts file before/after demonstrations.",
+  "started_at": "2026-09-28T16:14:21.021008+00:00",
+  "duration_seconds": 1.324,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/TorinAI/venv_torin/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/TorinAI",
+    "shadow_mode": null,
+    "git_commit": "20deb447498593391eca0286916b8f986c560a26",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "torinai_dev",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "torinai_dev",
+        "model": "torinai_dev",
+        "user_context": "torinai_dev",
+        "learning": "torinai_dev"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "environment",
+        "database": "environment",
+        "user": "environment",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 1632,
+    "database_verified": "torinai_dev",
+    "database_verified_reason": "asked the server"
+  },
+  "summary": {
+    "checks": 20,
+    "passed": 16,
+    "failed": 4,
+    "outcome": "FAIL"
+  },
+  "metrics": [],
+  "checks": [
+    {
+      "label": "the registry names the LIVE substrate",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-28T16:14:21.021021+00:00"
+    },
+    {
+      "label": "an observation index is derived with no domain declared",
+      "passed": true,
+      "detail": "27 kind(s), e.g. ['address', 'code', 'component', 'data', 'doi', 'domain']",
+      "at": "2026-09-28T16:14:21.021318+00:00"
+    },
+    {
+      "label": "`path` is one kind among many \u2014 not a special case in the code",
+      "passed": true,
+      "detail": "path has 19 observers; other kinds: ['address', 'code', 'component', 'data', 'doi', 'domain', 'email', 'file']",
+      "at": "2026-09-28T16:14:21.021330+00:00"
+    },
+    {
+      "label": "an INVESTIGATION is not watched \u2014 it has no effect to learn",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-28T16:14:21.021548+00:00"
+    },
+    {
+      "label": "an act naming nothing observable is not watched, not guessed at",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-28T16:14:21.021552+00:00"
+    },
+    {
+      "label": "the act's own arguments name the domain \u2014 no workspace_root declared",
+      "passed": true,
+      "detail": "domain='tools:path'",
+      "at": "2026-09-28T16:14:21.022004+00:00"
+    },
+    {
+      "label": "and MOVE_FILE becomes a bound operator of it",
+      "passed": true,
+      "detail": "True -> True; tool=move_file",
+      "at": "2026-09-28T16:14:21.022010+00:00"
+    },
+    {
+      "label": "its world is the resources it has MET, not a directory someone named",
+      "passed": true,
+      "detail": "2 path(s) encountered",
+      "at": "2026-09-28T16:14:21.022017+00:00"
+    },
+    {
+      "label": "practising is NOT armed by meeting \u2014 asking and practising differ",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-28T16:14:21.022023+00:00"
+    },
+    {
+      "label": "the sandbox is actable and observable, derived from the tools",
+      "passed": true,
+      "detail": "operators=['MOVE_FILE'] refused=0",
+      "at": "2026-09-28T16:14:21.023569+00:00"
+    },
+    {
+      "label": "it practised \u2014 real acts, in the real world",
+      "passed": true,
+      "detail": "24 action(s)",
+      "at": "2026-09-28T16:14:22.292769+00:00"
+    },
+    {
+      "label": "and INDUCED an executable operator from what happened",
+      "passed": false,
+      "detail": "[]",
+      "at": "2026-09-28T16:14:22.300176+00:00"
+    },
+    {
+      "label": "the acts really happened in the real world",
+      "passed": false,
+      "detail": "0/0 moved",
+      "at": "2026-09-28T16:14:22.305407+00:00"
+    },
+    {
+      "label": "ordinary work FILED DEMONSTRATIONS \u2014 the seam that was missing",
+      "passed": false,
+      "detail": "14 -> 14",
+      "at": "2026-09-28T16:14:22.308572+00:00"
+    },
+    {
+      "label": "each carries a world read BEFORE and AFTER, and they DIFFER",
+      "passed": false,
+      "detail": "",
+      "at": "2026-09-28T16:14:22.308579+00:00"
+    },
+    {
+      "label": "the unaccounted act was refused",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-28T16:14:22.326632+00:00"
+    },
+    {
+      "label": "and NOTHING was filed from it \u2014 a refusal is not a negative result",
+      "passed": true,
+      "detail": "14 -> 14",
+      "at": "2026-09-28T16:14:22.326641+00:00"
+    },
+    {
+      "label": "it knows which observations this operator MOVES",
+      "passed": true,
+      "detail": "3: ['ABSENT', 'KIND', 'SIZE']",
+      "at": "2026-09-28T16:14:22.332584+00:00"
+    },
+    {
+      "label": "so it stops reading what this operator never moves",
+      "passed": true,
+      "detail": "38 pointable readings -> 2 kept",
+      "at": "2026-09-28T16:14:22.333018+00:00"
+    },
+    {
+      "label": "with every in-process cache dropped, it is re-derived from the store",
+      "passed": true,
+      "detail": "3 predicate(s) recovered from unified.operator_demonstrations",
+      "at": "2026-09-28T16:14:22.337885+00:00"
+    }
+  ],
+  "notes": []
+}

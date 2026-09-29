@@ -1,0 +1,133 @@
+{
+  "experiment": "REPLAN-01",
+  "claim": "A refuted rule's goal gets a new route without anything asking, and the substrate carries the repaired route out; a goal that still has a live plan is not replanned, and one whose world cannot be observed is reported unobservable.",
+  "hypothesis": "If ROUTE_WITHDRAWN reaches a deferred reaction that replans over what is still validated and pursues the new route, then a refutation caused by acting repairs the pursuit it stranded.",
+  "started_at": "2026-09-25T23:41:05.840834+00:00",
+  "duration_seconds": 75.136,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/TorinAI/venv_torin/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/TorinAI",
+    "shadow_mode": null,
+    "git_commit": "20deb447498593391eca0286916b8f986c560a26",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "torinai_db",
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "environment",
+        "database": "environment",
+        "user": "environment",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres"
+      }
+    },
+    "git_uncommitted_changes": 911,
+    "database_verified": "torinai_db",
+    "database_verified_reason": "asked the server"
+  },
+  "summary": {
+    "checks": 15,
+    "passed": 15,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [],
+  "checks": [
+    {
+      "label": "ROUTE_WITHDRAWN has a registered reaction",
+      "passed": true,
+      "detail": "reactions: ['replan_withdrawn_routes']",
+      "at": "2026-09-25T23:42:15.020733+00:00"
+    },
+    {
+      "label": "it is DEFERRED, so it never runs on the dispatch path",
+      "passed": true,
+      "detail": "mode=deferred",
+      "at": "2026-09-25T23:42:15.020747+00:00"
+    },
+    {
+      "label": "the registry still names the LIVE substrate",
+      "passed": true,
+      "detail": "a later AutonomousCoordinator() would have displaced it",
+      "at": "2026-09-25T23:42:15.020752+00:00"
+    },
+    {
+      "label": "the act ran and the world CONTRADICTED the rule",
+      "passed": true,
+      "detail": "outcome=runtime_contradiction refused=None",
+      "at": "2026-09-25T23:42:16.299011+00:00"
+    },
+    {
+      "label": "the rule lost VALIDATED",
+      "passed": true,
+      "detail": "status=refuted",
+      "at": "2026-09-25T23:42:16.305008+00:00"
+    },
+    {
+      "label": "the plan standing on it was withdrawn by DISPATCH",
+      "passed": true,
+      "detail": "active -> invalidated",
+      "at": "2026-09-25T23:42:16.310231+00:00"
+    },
+    {
+      "label": "a plan on an unrelated rule was NOT touched",
+      "passed": true,
+      "detail": "status=active",
+      "at": "2026-09-25T23:42:16.310240+00:00"
+    },
+    {
+      "label": "the stranded goal has a LIVE plan again, without anything asking",
+      "passed": true,
+      "detail": "plan=c195f96d-5b04-43a9-a3f6-208450d426d0 (goal status=active)",
+      "at": "2026-09-25T23:42:20.728394+00:00"
+    },
+    {
+      "label": "the withdrawn plan is still recorded as withdrawn, not rewritten",
+      "passed": true,
+      "detail": "status=invalidated",
+      "at": "2026-09-25T23:42:20.728404+00:00"
+    },
+    {
+      "label": "before the repair, z is still where the withdrawal left it",
+      "passed": true,
+      "detail": "['SBAT(z, HALL)']",
+      "at": "2026-09-25T23:42:20.753871+00:00"
+    },
+    {
+      "label": "THE WORLD MOVED \u2014 the repaired route was carried out, not just formed",
+      "passed": true,
+      "detail": "LAB/z=True HALL/z=False",
+      "at": "2026-09-25T23:42:20.854056+00:00"
+    },
+    {
+      "label": "the pursuit was RECONCILED \u2014 meant vs happened is recorded on it",
+      "passed": true,
+      "detail": "intent=9128b0b52a1c438ba530a3f35f2193d6 outcome={'detail': '1 step(s) ran', 'intent_id': '9128b0b52a1c438ba530a3f35f2193d6', 'matched_aim': True, 'outcome_class': 'success', 'goal_conditions': ['SBAT(z, LAB)'], 'goal_conditions_met': ['SBAT(z, LAB)']}",
+      "at": "2026-09-25T23:42:20.955722+00:00"
+    },
+    {
+      "label": "a goal that already has a live plan is NOT replanned again",
+      "passed": true,
+      "detail": "stranded=0 replanned=0",
+      "at": "2026-09-25T23:42:20.956218+00:00"
+    },
+    {
+      "label": "a state goal whose world cannot be observed is reported UNOBSERVABLE",
+      "passed": true,
+      "detail": "{'stranded': 1, 'replanned': 0, 'unreachable': 0, 'indeterminate': 0, 'unobservable': 1, 'routes': []}",
+      "at": "2026-09-25T23:42:20.957668+00:00"
+    },
+    {
+      "label": "...and it was not abandoned on a world nobody read",
+      "passed": true,
+      "detail": "status=active",
+      "at": "2026-09-25T23:42:20.957689+00:00"
+    }
+  ],
+  "notes": []
+}

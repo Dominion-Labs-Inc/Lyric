@@ -301,7 +301,19 @@ class AgentCoordinator:
             allowed_tools=(list(allowed_tools) if allowed_tools is not None else None),
             metadata={"agent": True, "parameters": parameters},
         )
+        # WHY THIS WORK EXISTS: an agent of the self was deployed to do it. Agent
+        # work runs straight through `execute_task`, not the task runner that
+        # decides completion, so its pursuit is closed here, with its real result.
+        await self._coordinator.intend(task, pursuit="agent_work", trigger={
+            "what": "deployment",
+            "source": "substrate" if (actor or SUBSTRATE_ACTOR) == SUBSTRATE_ACTOR else "person",
+            "content": {"deployment_id": deployment_id, "description": description,
+                        "parameters": parameters,
+                        "allowed_tools": list(allowed_tools) if allowed_tools is not None else None}})
         result = await self._coordinator.execute_task(task)
+        await self._coordinator.conclude_pursuit(
+            task, result, completed=isinstance(result, dict)
+            and result.get("success") is True)
         return result if isinstance(result, dict) else {"result": result}
 
     async def await_findings(self, deployment_id: str) -> Optional[Dict[str, Any]]:

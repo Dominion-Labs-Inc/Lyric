@@ -14,7 +14,7 @@ unrecognised edge licenses no inference rather than a wrong one.
 from __future__ import annotations
 
 import logging
-from typing import FrozenSet, List, Sequence, Tuple
+from typing import Dict, FrozenSet, List, Optional, Sequence, Set, Tuple
 
 from core.reasoning.relation_algebra import Answer, Edge, answer, derive_from
 from core.semantics.relation_types import SemanticRelation
@@ -23,12 +23,21 @@ logger = logging.getLogger(__name__)
 
 _BY_VALUE = {r.value: r for r in SemanticRelation}
 
+#: ONE ROW PER TYPED TRIPLE, WITH EVERY ENVELOPE THAT ASSERTED IT. This used to
+#: select names only, so the graph walk -- the route that answers most
+#: questions -- produced a chain it could show and never trace: `zorb -> glomph
+#: -> fizzly` with no way back to the facts that licensed each hop. The same
+#: triple asserted by several sources is several rows (evidence_id is part of the
+#: relation's key); aggregated here it is one edge carrying all of its support,
+#: which is what "what does this rest on" has to answer.
 _SUBGRAPH_SQL = (
-    "SELECT c1.name AS subj, cr.relation AS rel, c2.name AS obj, cr.polarity AS pol "
+    "SELECT c1.name AS subj, cr.relation AS rel, c2.name AS obj, cr.polarity AS pol, "
+    "       array_remove(array_agg(DISTINCT cr.evidence_id), NULL) AS ev "
     "FROM unified.concept_relations cr "
     "JOIN unified.concepts c1 ON cr.source_concept_id = c1.concept_id "
     "JOIN unified.concepts c2 ON cr.target_concept_id = c2.concept_id "
-    "WHERE c1.name = ANY($1)")
+    "WHERE c1.name = ANY($1) "
+    "GROUP BY c1.name, cr.relation, c2.name, cr.polarity")
 
 
 def _typed_edge(row) -> "Tuple[Optional[Edge], bool]":
@@ -40,7 +49,10 @@ def _typed_edge(row) -> "Tuple[Optional[Edge], bool]":
     if rel is None:
         return None, False                     # untyped/legacy edge: no inference
     denied = str(row.get("pol") or "positive") == "negative"
-    return Edge(row["subj"], rel, row["obj"]), denied
+    # A scoped (per-user) row carries no envelope ids, so its evidence is empty
+    # -- "no stored assertion to point at", not a missing lookup.
+    evidence = tuple(sorted(str(e) for e in (row.get("ev") or ()) if e))
+    return Edge(row["subj"], rel, row["obj"], evidence), denied
 
 
 async def _scoped_rows(actor, frontier):
@@ -140,6 +152,198 @@ async def instance_predicates(db, subject: str, *, actor=None) -> List[str]:
         if rel in _COPULAR and obj and obj not in out:
             out.append(obj)
     return out
+
+
+#: Relations that say where a thing was IN THIS PICTURE, not what it looks like.
+#:
+#: The substrate already drew this line and measured it. `extent` is "the
+#: property D3 removed from `isa` for being about the framing", and over
+#: geometric transforms of two-object scenes the frame-INVARIANT relations
+#: survived where the frame-relative ones did not: `larger_than` 48/48 and
+#: invented nothing, `left_of` 94%, `above` 88% -- against 73% for the size band
+#: and 52% for the position word. Generalising `sits center` to a KIND would
+#: describe the photography and call it the object.
+#:
+#: Hearing has the same line. How loud a sound came out (`level`) depends on the
+#: gain and on how near the microphone was, as extent depends on how near the
+#: camera was. When it began (`starts_at`) depends on where the recording
+#: started, as `sits` depends on where the frame was put. How long it stayed
+#: above this recording's ground (`lasts`) shortens as the noise rises: under
+#: 20 dB of noise a struck glass measured half its length. Each is true of that
+#: recording and none is what the sound is.
+_FRAMING = frozenset({"occupies", "sits", "extent", "level", "starts_at", "lasts"})
+
+#: Facts about the PHOTOGRAPH rather than the thing in it. These sit on the
+#: percept, not on the blob, so reading an instance does not reach them -- listed
+#: because a describer must never state them of a kind even if it did.
+_OF_THE_PICTURE = frozenset({
+    "has_format", "has_width", "has_height", "has_orientation",
+    "focus", "view_is",
+})
+
+#: The same for a RECORDING: its container, codec, rate and channels, how good
+#: the hearing was, what it rests on between sounds, and how much of it was heard.
+_OF_THE_RECORDING = frozenset({
+    "has_format", "has_codec", "has_sample_rate", "has_channels", "has_sound_codec",
+    "hearing_is", "background_is", "heard_for",
+})
+
+
+async def observed_kind_description(db, category: str, *, min_instances: int = 2
+                                    ) -> Tuple[List[Tuple[str, str]], List[str]]:
+    """What EVERY observed instance of `category` was SEEN to be like, as
+    (relation, value) pairs, and the evidence that saw it.
+
+    SIGHT COULD ONLY EVER SPEAK OF PARTICULARS. Reading "a hammer is a tool"
+    makes a claim about the KIND on the first telling; seeing a hammer made
+    claims about THIS BLOB, and the category concept held zero relations. So the
+    substrate could pick a hammer out of a lineup and had nothing to say about
+    what a hammer looks like.
+
+    THE RELATION IS PART OF THE DESCRIPTION, AND DROPPING IT WAS THE FIRST
+    MISTAKE. This began by reusing `observed_instance_features`, which filters to
+    COPULAR edges because that is what RECOGNITION needs -- bare feature names to
+    match a rule against. Sight measures far more than that, and all of it was
+    discarded: a kind came out describable only as "a circle" and "a red". What
+    something LOOKS LIKE is mostly not copular.
+
+    FRAMING IS NOT APPEARANCE. `occupies 0.269` and `sits center` are true of
+    that photograph, not of the kind, and `_FRAMING` says so with the
+    measurements behind it. What survives a change of viewpoint is what belongs
+    to the thing: its own properties, and how its PARTS stand to one another.
+
+    THE INTERSECTION, NOT A VOTE. A pair is the kind's only when every observed
+    instance has it; one counterexample ends it. Two instances minimum, because
+    one instance's features are its own. An instance with nothing observed ends
+    it, rather than letting the claim rest on fewer sightings than it appears to.
+
+    Reads ONLY root-sourced observations, so a name the substrate CONCLUDED can
+    never become part of how it describes the kind it concluded.
+    """
+    rows = await db.execute_query(
+        "SELECT c1.name AS instance FROM unified.concept_relations cr "
+        "JOIN unified.concepts c1 ON cr.source_concept_id = c1.concept_id "
+        "LEFT JOIN unified.concepts c2 ON cr.target_concept_id = c2.concept_id "
+        "WHERE COALESCE(c2.name, cr.target_surface) = $1 "
+        "AND cr.relation = 'isa' "
+        "AND COALESCE(cr.polarity, 'positive') = 'positive'",
+        (str(category),), fetch_all=True) or []
+
+    instances: List[str] = []
+    for row in rows:
+        name = str(row["instance"] or "").strip()
+        if name and name != str(category) and name not in instances:
+            instances.append(name)
+    if len(instances) < int(min_instances):
+        return [], []
+
+    shared: Optional[Set[Tuple[str, str]]] = None
+    evidence: List[str] = []
+    for instance in instances:
+        pairs, ev = await observed_instance_description(db, instance)
+        if not pairs:
+            return [], []
+        shared = set(pairs) if shared is None else (shared & set(pairs))
+        for e in ev:
+            if e not in evidence:
+                evidence.append(e)
+        if not shared:
+            return [], []
+    return sorted(shared or set()), evidence
+
+
+async def observed_instance_description(db, subject: str
+                                        ) -> Tuple[List[Tuple[str, str]], List[str]]:
+    """Everything OBSERVED of `subject` that describes it, as (relation, value).
+
+    The describing counterpart of `observed_instance_features`, which returns
+    bare names for rule matching. Here the relation is kept, because `looked
+    vivid` and `larger_than handle` are not the same kind of fact as `isa red`
+    and a description that flattened them would say neither.
+
+    Same evidence discipline: root sources only, positive edges only. Framing and
+    picture facts are excluded by name -- they are measured, they are true, and
+    they are not what the thing looks like.
+    """
+    from core.domain.concept_ingestion import ROOT_SOURCE_VALUES
+    rows = await db.execute_query(
+        "SELECT cr.relation AS rel, "
+        "COALESCE(c2.name, cr.target_surface) AS obj, cr.evidence_id AS ev "
+        "FROM unified.concept_relations cr "
+        "JOIN unified.concepts c1 ON cr.source_concept_id = c1.concept_id "
+        "LEFT JOIN unified.concepts c2 ON cr.target_concept_id = c2.concept_id "
+        "JOIN unified.evidence_envelopes ee ON ee.evidence_id = cr.evidence_id "
+        "WHERE c1.name = $1 AND COALESCE(cr.polarity, 'positive') = 'positive' "
+        "AND ee.source_type = ANY($2::text[])",
+        (str(subject), list(ROOT_SOURCE_VALUES)), fetch_all=True) or []
+
+    # A PART IS DESCRIBED BY WHAT IT IS, NEVER BY WHAT THIS PICTURE CALLED IT.
+    #
+    # Sight measures the structure of a thing as relations between the blobs it
+    # segmented -- `head above handle`, `head larger_than handle` -- and those
+    # are the claims that survive a change of viewpoint (`left_of` and `above`
+    # "survive a translation 100% of the time"). But the object of such a
+    # relation is a blob NAME minted for that one photograph
+    # (`probex379bd0ec08_orangerectangle`), so the next sighting of the same kind
+    # of thing produces a different name and the two have nothing in common. The
+    # structure was measured, generalised over nothing, and lost.
+    #
+    # A part is recognised by what it is part of: another individual the SAME
+    # PERCEPT contains, since both were perceived in it and `contains` is what
+    # records that. Such a target is replaced by what was OBSERVED of it, so
+    # "above <that orange rectangle>" becomes "above an orange rectangle", which
+    # the next hammer can agree with.
+    #
+    # NOT BY SHARING A DOMAIN with the thing described. That stands in for this
+    # only while every feature word lives in the taught graph. A feature never
+    # taught is created where it is first stated, and `describe_kind` states
+    # `<kind> has_property <feature>` in the perception domain, so a domain test
+    # reads every such feature as a co-perceived part with nothing observed of
+    # it, and drops it. Measured on hearing: once one kind had been described in
+    # a domain, no later kind in that domain could be described at all.
+    held_by = await db.execute_query(
+        "SELECT DISTINCT COALESCE(p.name, part.target_surface) AS part "
+        "FROM unified.concept_relations holds "
+        "LEFT JOIN unified.concepts s ON holds.target_concept_id = s.concept_id "
+        "JOIN unified.concept_relations part "
+        "ON part.source_concept_id = holds.source_concept_id "
+        "AND part.relation = 'contains' "
+        "LEFT JOIN unified.concepts p ON part.target_concept_id = p.concept_id "
+        "WHERE holds.relation = 'contains' "
+        "AND COALESCE(s.name, holds.target_surface) = $1",
+        (str(subject),), fetch_all=True) or []
+    siblings = {str(r["part"]).strip() for r in held_by} - {str(subject)}
+    co_seen = {str(r["obj"]).strip() for r in rows
+               if r["obj"] and str(r["obj"]).strip() in siblings}
+    described_as: Dict[str, str] = {}
+    for blob in co_seen:
+        labels, _ev = await observed_instance_features(db, blob)
+        if labels:
+            described_as[blob] = " ".join(sorted(labels))
+
+    pairs: List[Tuple[str, str]] = []
+    evidence: List[str] = []
+    for row in rows:
+        rel = str(row["rel"] or "").strip().lower().replace(" ", "_")
+        obj = str(row["obj"] or "").strip()
+        if not rel or not obj:
+            continue
+        if rel in _FRAMING or rel in _OF_THE_PICTURE or rel in _OF_THE_RECORDING:
+            continue
+        if obj in co_seen:
+            # A part whose own description is unknown cannot stand in a claim
+            # about the kind: naming it by its per-picture id would state a
+            # structure no second sighting could ever match.
+            if obj not in described_as:
+                continue
+            obj = described_as[obj]
+        pair = (rel, obj)
+        if pair not in pairs:
+            pairs.append(pair)
+        ev = str(row["ev"] or "").strip()
+        if ev and ev not in evidence:
+            evidence.append(ev)
+    return pairs, evidence
 
 
 async def observed_instance_features(db, subject: str) -> Tuple[List[str], List[str]]:

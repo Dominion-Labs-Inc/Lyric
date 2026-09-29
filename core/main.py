@@ -191,6 +191,8 @@ class TorinAISystem:
         # System state
         self.running = False
         self.initialized = False
+        #: Listening and looking while it runs (`run`); None until then.
+        self.live_senses = None
 
         # PHASE 2: Database Systems
         self.unified_database = None  # PostgreSQL unified database
@@ -231,7 +233,6 @@ class TorinAISystem:
 
         # PHASE 11: Security & Safety
         self.security_system = None
-        self.asi_safety = None
         self.integrated_security = None
 
         # PHASE 12: Additional Services
@@ -243,14 +244,11 @@ class TorinAISystem:
         self.memory_injector = None
         self.slack_notifier = None
         self.logical_integration = None
-        self.training_pipeline = None
         self.backup_scheduler = None
         self.testing_tools = None
 
-        # Governance & Task Management
-        self.governance_system = None  # GovernanceTriggerEngine
+        # Task Management
         self.tool_registry = None  # Central tool registry
-        self.extrinsic_task_manager = None  # External task manager
 
         # Statistics
         self.stats = {
@@ -452,7 +450,6 @@ class TorinAISystem:
 
                 # Autonomous operations
                 if getattr(self, 'autonomous_coordinator', None): autonomous_services.append("Coordinator")
-                if getattr(self, 'governance_system', None): autonomous_services.append("Governance")
                 if getattr(self, 'health_monitor', None): autonomous_services.append("Health Monitor")
                 if getattr(self, 'recovery_manager', None): autonomous_services.append("Recovery")
 
@@ -542,10 +539,56 @@ class TorinAISystem:
                 # the curiosity goal lane silently produced nothing at all.
                 try:
                     from core.reasoning.epistemic_engine import get_epistemic_engine
-                    uncertainty = get_epistemic_engine()._uncertainty()
+                    engine = get_epistemic_engine()
+                    uncertainty = engine._uncertainty()
                     await uncertainty.load_from_db()
                     loaded = len(getattr(uncertainty, "beliefs", {}) or {})
                     logger.info("✅ Epistemic state hydrated: %d belief(s)", loaded)
+                    # THE BASELINE IS WHAT THE SUBSTRATE KNEW WHEN IT WOKE UP.
+                    #
+                    # `interpret_drift` reports what moved since it was last
+                    # asked, and primes on its FIRST call so a fresh process
+                    # does not read the whole existing graph as new knowledge.
+                    # That priming was LAZY -- whoever asked first set the
+                    # baseline -- so everything the substrate learned between
+                    # boot and that first ask was silently swallowed, and the
+                    # size of the swallowed window depended on who happened to
+                    # call and when. Measured: 20 facts taught at boot were
+                    # absorbed into the baseline by the first scheduled drain a
+                    # minute later, and the substrate never felt having learned
+                    # them.
+                    #
+                    # Primed HERE, immediately after hydration, because this is
+                    # the moment the baseline is true. Priming any earlier would
+                    # read an empty graph and then report every hydrated belief
+                    # as newly learned -- the flood the priming exists to stop.
+                    # A STANDING HALT IS READ BACK BEFORE ANYTHING RUNS.
+                    # Restored here, beside the other state that has to survive
+                    # a restart, because a halt that only lived in the process
+                    # was lifted by stopping the process.
+                    try:
+                        from core.agents.autonomous.autonomous_coordinator import (
+                            get_constitution)
+                        await get_constitution().restore_halt()
+                    except Exception as halt_err:
+                        logger.error("❌ standing halt NOT restored — this "
+                                     "substrate may run while stopped: %s",
+                                     halt_err)
+                    # And every standing quarantine, for the same reason: a
+                    # quarantine a restart lifts is not one.
+                    try:
+                        await get_constitution().restore_quarantines()
+                    except Exception as quarantine_err:
+                        logger.error("❌ standing quarantines NOT restored: %s",
+                                     quarantine_err)
+                    try:
+                        await engine.interpret_drift()
+                        logger.info("✅ Epistemic drift baseline primed at %d "
+                                    "belief(s)", loaded)
+                    except Exception as prime_err:
+                        logger.error("❌ Epistemic drift baseline NOT primed — the "
+                                     "first knowledge the substrate gains will be "
+                                     "read as no change: %s", prime_err)
                 except Exception as belief_err:
                     # Report it; an empty belief graph is a degraded state, not
                     # a reason to abort startup.
@@ -1083,14 +1126,9 @@ class TorinAISystem:
                     coordinator.intelligence = self.predictive_intelligence
                     logger.info("✓ Autonomous coordinator connected to predictive intelligence")
 
-                # Inject health monitoring systems (SINGLETON pattern - only ONE instance)
-                if hasattr(self, 'health_monitor') and self.health_monitor:
-                    coordinator.health_monitor = self.health_monitor
-                    logger.info("✓ Health Monitor injected into coordinator")
-
-                if hasattr(self, 'recovery_manager') and self.recovery_manager:
-                    coordinator.recovery_manager = self.recovery_manager
-                    logger.info("✓ Recovery Manager injected into coordinator")
+                # Health and recovery are NOT injected: the coordinator holds
+                # `get_health_monitor()` / `get_recovery_manager()` itself, the
+                # same instances `_initialize_health_monitoring` initialised.
 
                 # The agent authority (factory). The substrate holds it so it can
                 # deploy agents of self (deploy_agent/await_agent/…); the factory is
@@ -1199,11 +1237,6 @@ class TorinAISystem:
                         "reasoning will refuse every request"
                     )
 
-                # Wire up governance system reference
-                if self.governance_system:
-                    self.autonomous_coordinator.governance_system = self.governance_system
-                    logger.info("✓ Autonomous coordinator connected to governance system")
-
                 logger.info("✅ Autonomous Coordinator (THE SINGLETON) initialized")
                 self.stats['services_initialized'] += 1
             else:
@@ -1233,24 +1266,6 @@ class TorinAISystem:
             logger.error(f"Slack notifier initialization failed: {e}")
             self.stats['services_failed'] += 1
 
-        # Security Training Pipeline
-        try:
-            from core.security.security_training_pipeline import get_training_pipeline
-
-            logger.info("Initializing security training pipeline...")
-            self.training_pipeline = get_training_pipeline()
-
-            # Wire up slack integration
-            if self.slack_notifier:
-                self.training_pipeline.set_slack_notifier(self.slack_notifier)
-
-            logger.info("✓ Security training pipeline initialized")
-            self.stats['services_initialized'] += 1
-
-        except Exception as e:
-            logger.error(f"Security training pipeline initialization failed: {e}")
-            self.stats['services_failed'] += 1
-
         # SECURITY IS NOT STARTED BY THE SUBSTRATE.
         # The shield is the DHCM membrane (Dominion Labs/DHCM/) around the WORLD — the
         # environment the substrate operates in (like nature around the earth). The
@@ -1260,34 +1275,12 @@ class TorinAISystem:
         # self.integrated_security stays None — the honest state — and every
         # `if self.integrated_security` guard downstream skips cleanly.
 
-        # Governance System (SINGLETON pattern)
-        try:
-            from core.governance import get_governance_trigger_engine
-
-            logger.info("Initializing governance system (singleton)...")
-            self.governance_system = get_governance_trigger_engine()  # Get singleton instance
-
-            # Wire up slack integration
-            if self.slack_notifier:
-                self.governance_system.slack_notifier = self.slack_notifier
-
-            logger.info("✓ Governance system initialized (singleton)")
-            self.stats['services_initialized'] += 1
-
-        except Exception as e:
-            logger.error(f"Governance system initialization failed: {e}")
-            self.stats['services_failed'] += 1
-
         # Tool Registry
         try:
             from core.tools.tool_registry import get_tool_registry
 
             logger.info("Initializing tool registry...")
             self.tool_registry = get_tool_registry()
-
-            # Wire up governance integration
-            if self.governance_system:
-                self.tool_registry.governance_system = self.governance_system
 
             # PROJECT THE TOOLS AS OPERATORS, EVERY BOOT.
             #
@@ -1308,16 +1301,28 @@ class TorinAISystem:
             # re-run reinforces the existing concepts instead of duplicating
             # them. Failure is logged and never fatal -- the registry is usable
             # whether or not the concept layer accepted the projection.
-            try:
-                projection = await self.tool_registry.project_capabilities()
-                logger.info(
-                    "✓ Tools projected as operators: %d/%d (%d declare no "
-                    "structure, %d unreadable)",
-                    projection.get("projected", 0), projection.get("tools", 0),
-                    projection.get("no_structure", 0), projection.get("failed", 0))
-            except Exception as e:
-                logger.warning("Tool capability projection failed: %s: %s",
-                               type(e).__name__, e)
+            #
+            # A frozen release already holds the projection: it was cut in
+            # development with the code this process runs. It also holds the
+            # tools a serving environment does not carry (the ones that reach
+            # its own databases); the registry, not the projection, decides
+            # what can run.
+            from core.database import get_database_manager
+            _db = get_database_manager()
+            if _db.frozen:
+                logger.info("✓ Tools: release %s holds their projection as operators",
+                            _db.release)
+            else:
+                try:
+                    projection = await self.tool_registry.project_capabilities()
+                    logger.info(
+                        "✓ Tools projected as operators: %d/%d (%d declare no "
+                        "structure, %d unreadable)",
+                        projection.get("projected", 0), projection.get("tools", 0),
+                        projection.get("no_structure", 0), projection.get("failed", 0))
+                except Exception as e:
+                    logger.warning("Tool capability projection failed: %s: %s",
+                                   type(e).__name__, e)
 
             logger.info("✓ Tool registry initialized")
             self.stats['services_initialized'] += 1
@@ -1429,30 +1434,6 @@ class TorinAISystem:
             logger.info("✓ All services started successfully")
             logger.info("🎉 Service initialization complete!")
             
-            # DERIVED READING — after everything is up. A cached derivation is
-            # rehydrated; otherwise its search runs in a separate process and the
-            # result is persisted. In a thread here it held the GIL for longer
-            # than a boot: every single-text encode ran at ~2 it/s instead of
-            # ~120, and it never finished to write its cache. The reading
-            # registry is honestly empty until it completes.
-            from core.semantics.derived_reader import register_off_process
-
-            async def _register_reading():
-                try:
-                    ok, why = await register_off_process()
-                except asyncio.CancelledError:
-                    raise
-                except Exception:
-                    logger.error("derived reading registration failed", exc_info=True)
-                    return
-                if ok:
-                    logger.info("✓ derived reading registered")
-                else:
-                    logger.warning("derived reading not registered: %s", why)
-
-            self._derived_reading_task = asyncio.create_task(
-                _register_reading(), name="derived-reading")
-
         except Exception as e:
             logger.error(f"Service startup failed: {e}", exc_info=True)
             raise
@@ -1463,6 +1444,18 @@ class TorinAISystem:
             await self.start()
 
         logger.info("TorinAI system running... (Press Ctrl+C to stop)")
+        # THE LIVE SENSES ARE ON WHILE IT RUNS: listening and looking all the
+        # time, keeping only what is said to it (`core.perception.live`). They
+        # start here, with the running substrate, and never with a boot that
+        # only starts its services -- an experiment or a test opens no
+        # microphone and no camera.
+        if self.autonomous_coordinator:
+            from core.perception.live import LiveSenses, sources_from_environment
+            microphone, camera = sources_from_environment()
+            if microphone or camera:
+                self.live_senses = LiveSenses(self.autonomous_coordinator,
+                                              microphone=microphone, camera=camera)
+                await self.live_senses.start()
         logger.info("📡 Creating startup signal...")
         logger.info("📡 Startup signal created - proceeding to launch servers")
 
@@ -1559,6 +1552,14 @@ class TorinAISystem:
             # Stop services
             logger.info("Stopping services...")
 
+            # The live senses stop first: nothing more is heard or seen once the
+            # substrate is shutting down.
+            if self.live_senses is not None:
+                try:
+                    await self.live_senses.stop()
+                except Exception as e:
+                    logger.error(f"Error stopping the live senses: {e}")
+
             # Shutdown autonomous coordinator first (stops coordination cycle + modules)
             if self.autonomous_coordinator:
                 try:
@@ -1573,10 +1574,6 @@ class TorinAISystem:
 
             if self.universal_domain_master:
                 await self.universal_domain_master.shutdown()
-
-            reading_task = getattr(self, "_derived_reading_task", None)
-            if reading_task is not None and not reading_task.done():
-                reading_task.cancel()  # terminates the derivation process
 
             if self.backup_scheduler:
                 await self.backup_scheduler.stop_scheduler()
@@ -1606,18 +1603,27 @@ class TorinAISystem:
             except Exception as e:
                 logger.warning(f"belief/volatility flush failed: {e}")
             try:
-                from core.semantics.lexicon import get_lexicon
-                get_lexicon().save()                        # in-memory POS proposals since last save
-                logger.info("✓ Lexicon saved")
-            except Exception as e:
-                logger.warning(f"lexicon save failed: {e}")
-            try:
+                # The learning authority finishes its own in-flight learning and
+                # persists what only it holds (the classifier MECHANISM).
                 from core.learning import get_learning_authority
-                saved = get_learning_authority().save_classifiers()  # the classifier MECHANISM
-                if saved:
-                    logger.info("✓ %d clause classifier(s) persisted", saved)
+                done = await get_learning_authority().shutdown()
+                logger.info("✓ learning authority shut down: %s", done)
             except Exception as e:
-                logger.warning(f"classifier persist failed: {e}")
+                logger.warning(f"learning authority shutdown failed: {e}")
+            try:
+                # MEMORY IS A FIRE-AND-FORGET STORE AND WAS NOT ON THIS LIST.
+                # `enqueue_memory` hands back a `pending_` id immediately and
+                # the write lands later on a background worker; the pool closes
+                # a few lines below, so anything still queued was lost. Every
+                # reasoning memory the neural bridge writes goes that way.
+                from core.agents.memory_agent import _memory_agent as _mem
+                if _mem is not None:
+                    landed = await _mem.drain_writes()
+                    await _mem.stop_memory_loops()
+                    logger.info("✓ Memory flushed (%d queued write(s) drained)",
+                                landed)
+            except Exception as e:
+                logger.warning(f"memory flush failed: {e}")
 
             # Close unified database connections (singleton - closes all 3 pools)
             if self.unified_database:
@@ -1706,9 +1712,6 @@ class TorinAISystem:
 
             if self.memory_injector:
                 status['subsystems']['memory_injector'] = await self.memory_injector.get_statistics()
-
-            if self.training_pipeline:
-                status['subsystems']['training_pipeline'] = await self.training_pipeline.get_statistics()
 
             if self.backup_scheduler:
                 status['subsystems']['backup_scheduler'] = await self.backup_scheduler.get_statistics()

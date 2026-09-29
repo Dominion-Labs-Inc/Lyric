@@ -91,6 +91,7 @@ def draw(path: Path, shape: str, colour: str, radius: int) -> None:
 
 
 async def main() -> int:
+    from core.memory import Origin
     STIM.mkdir(exist_ok=True)
     buf = io.StringIO()
     tag = uuid.uuid4().hex[:6]
@@ -133,7 +134,7 @@ async def main() -> int:
         path = STIM / f"{name}.png"
         draw(path, shape, colour, radius)
         with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
-            percept = await coord.see(str(path), source=name, domain=DOMAIN)
+            percept = await coord.see(str(path), source=name, domain=DOMAIN, actor_identity=None)
             await get_uncertainty_system().drain_writes()
         # ASK THE SUBSTRATE WHAT IT CALLED THE PERCEPT rather than rebuilding
         # the name from the label handed in. The two used to be the same string
@@ -187,7 +188,7 @@ async def main() -> int:
               bool(mine) and mine[0].hypotheses >= 1,
               f"{mine[0].hypotheses} hypothesis/es" if mine else "n/a")
         with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
-            asked = await coord.reason_about(f"is {fresh} a {CAT}?")
+            asked = await coord.reason_about(f"is {fresh} a {CAT}?", origin=Origin.own("RECOGNISE-01"))
         answer = (getattr(asked, "answer", "") or "").strip()
         check("asking gives the SAME answer — one authority, two doors",
               answer.lower().startswith("yes"), answer[:80] or "(no answer)")
@@ -197,7 +198,7 @@ async def main() -> int:
         check("a blob seen BEFORE the rule existed carries no name",
               CAT not in untouched_held, untouched)
         with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
-            applied = await coord.reason_about(f"is {untouched} a {CAT}?")
+            applied = await coord.reason_about(f"is {untouched} a {CAT}?", origin=Origin.own("RECOGNISE-01"))
         ans2 = (getattr(applied, "answer", "") or "").strip()
         steps = list(getattr(applied, "reasoning_steps", []) or [])
         check("so the reasoner must APPLY the rule to answer — and does",
@@ -209,12 +210,12 @@ async def main() -> int:
               any(s.startswith(f"{untouched} is ") and CAT not in s for s in steps),
               next((s for s in steps if s.startswith(f"{untouched} is ")), "n/a"))
         with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
-            wrong = await coord.reason_about(f"is {wrong_kind} a {CAT}?")
+            wrong = await coord.reason_about(f"is {wrong_kind} a {CAT}?", origin=Origin.own("RECOGNISE-01"))
         check("and the wrong kind of thing is not named",
               not (getattr(wrong, "answer", "") or "").lower().startswith("yes"),
               (getattr(wrong, "answer", "") or "(abstained)")[:60])
         with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
-            action = await coord.reason_about(f"is {untouched} a TEXT?")
+            action = await coord.reason_about(f"is {untouched} a TEXT?", origin=Origin.own("RECOGNISE-01"))
         check("an ACTION rule is not reachable as a naming rule",
               not (getattr(action, "answer", "") or "").lower().startswith("yes"),
               "` -> TEXT(?X0) <?X0 := READ()>` is precondition-free and would "
@@ -345,22 +346,27 @@ async def main() -> int:
 
         # ── I. A TAUGHT INSTANCE SURVIVES THE PROCESS ───────────────────────
         print("\n== I. A reference instance outlives the process that learned it ==")
-        from core.perception.vision_faculty import VisionFaculty, get_vision_faculty
+        from core.perception.perception_faculty import PerceptionFaculty, get_perception_faculty
         ref_name = f"recog_ref_{tag}"
         ref_path = STIM / f"recog_{tag}_1.png"
-        kp = get_vision_faculty().learn_instance(ref_name, str(ref_path))
+        kp = await get_perception_faculty().learn_instance(ref_name, str(ref_path))
         check("the faculty learned a reference instance", kp > 0, f"{kp} keypoints")
-        fresh_faculty = VisionFaculty()
+        fresh_faculty = PerceptionFaculty()
+        await fresh_faculty.load_instances()
         check("a faculty that never saw it knows it — the library is durable",
               ref_name in fresh_faculty.known_instances,
               f"knows {len(fresh_faculty.known_instances)} instance(s)")
-        matched = fresh_faculty._match_instances(str(ref_path))
+        _modality, seen_again = await fresh_faculty.sense(str(ref_path))
+        matched = [(d["label"], d["confidence"]) for d in seen_again.get("detections") or []]
         check("and can actually recognise it again from the pixels",
               any(m[0] == ref_name for m in matched),
               f"{len(matched)} match(es)")
-        get_vision_faculty().forget_instance(ref_name)
+        fresh_faculty.close()
+        await get_perception_faculty().forget_instance(ref_name)
+        after_forget = PerceptionFaculty()
+        await after_forget.load_instances()
         check("forgetting it is durable too",
-              ref_name not in VisionFaculty().known_instances, "gone")
+              ref_name not in after_forget.known_instances, "gone")
 
     finally:
         with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):

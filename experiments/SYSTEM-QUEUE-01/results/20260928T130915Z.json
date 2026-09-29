@@ -1,0 +1,264 @@
+{
+  "experiment": "SYSTEM-QUEUE-01",
+  "claim": "The queue is one authority: work is admitted, drawn and completed; discretionary work is deferred under pressure and user-directed work never is; a failed job is an error, not a result; a scheduled job fires; and the durable queue is untouched.",
+  "hypothesis": "A second queue, a deferred user task, a failure returned as a result, or a dead public method would each fail here.",
+  "started_at": "2026-09-28T13:09:15.355761+00:00",
+  "duration_seconds": 31.04,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/TorinAI/venv_torin/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/TorinAI",
+    "shadow_mode": null,
+    "git_commit": "20deb447498593391eca0286916b8f986c560a26",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "torinai_db",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "torinai_db",
+        "model": "torinai_db",
+        "user_context": "torinai_db",
+        "learning": "torinai_db"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "dotenv:.env.postgres",
+        "database": "dotenv:.env.postgres",
+        "user": "dotenv:.env.postgres",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 1349,
+    "database_verified": null,
+    "database_verified_reason": "no initialized connection in this process"
+  },
+  "summary": {
+    "checks": 24,
+    "passed": 24,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [
+    {
+      "name": "queue_construction_sites",
+      "value": 1,
+      "unit": "count",
+      "note": "core/agents/autonomous/queue_authority.py:1128"
+    },
+    {
+      "name": "queue_public_methods",
+      "value": 30,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "queue_internal_only_public_methods",
+      "value": 5,
+      "unit": "count",
+      "note": "used only inside their own file: prune_history, timeout_for, await_result, await_pending, scheduled_jobs"
+    },
+    {
+      "name": "queue_experiments_only",
+      "value": 0,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "queue_uncalled",
+      "value": 0,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "queue_not_implemented",
+      "value": 0,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "queue_constant",
+      "value": 0,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "queue_empty",
+      "value": 0,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "behaviour_checks_passed",
+      "value": 24,
+      "unit": "count",
+      "note": "of 24"
+    },
+    {
+      "name": "wiring_findings",
+      "value": 0,
+      "unit": "count",
+      "note": "0 exercised only by experiments/tests, 0 called by nothing"
+    },
+    {
+      "name": "completeness_findings",
+      "value": 0,
+      "unit": "count",
+      "note": "0 NotImplementedError, 0 return a literal, 0 empty"
+    }
+  ],
+  "checks": [
+    {
+      "label": "queue: the coordinator holds the instance the accessor returns",
+      "passed": true,
+      "detail": "held=QueueAuthority same=True",
+      "at": "2026-09-28T13:09:39.158247+00:00"
+    },
+    {
+      "label": "queue: QueueAuthority is constructed in one place",
+      "passed": true,
+      "detail": "in its module: ['core/agents/autonomous/queue_authority.py:1128']; elsewhere: []",
+      "at": "2026-09-28T13:09:41.022181+00:00"
+    },
+    {
+      "label": "the probe queue never reaches the durable store",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-28T13:09:44.906448+00:00"
+    },
+    {
+      "label": "work is admitted and drawn in order",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-28T13:09:44.906628+00:00"
+    },
+    {
+      "label": "the non-blocking pull (timeout=0) returns nothing from an empty queue and the ready job from a non-empty one",
+      "passed": true,
+      "detail": "empty=None drawn=isoq_1",
+      "at": "2026-09-28T13:09:44.906634+00:00"
+    },
+    {
+      "label": "drawn work is active until it finishes",
+      "passed": true,
+      "detail": "active=['isoq_1']",
+      "at": "2026-09-28T13:09:44.906642+00:00"
+    },
+    {
+      "label": "completion is recorded with its result",
+      "passed": true,
+      "detail": "{'task_id': 'isoq_1', 'status': 'completed', 'result': {'done': True}}",
+      "at": "2026-09-28T13:09:44.906653+00:00"
+    },
+    {
+      "label": "finished work is no longer active, and another actor cannot read it",
+      "passed": true,
+      "detail": "active=[] other={'task_id': 'isoq_1', 'status': 'not_found'}",
+      "at": "2026-09-28T13:09:44.906667+00:00"
+    },
+    {
+      "label": "the backlog reads soft pressure at the soft limit",
+      "passed": true,
+      "detail": "soft",
+      "at": "2026-09-28T13:09:44.906823+00:00"
+    },
+    {
+      "label": "discretionary autonomous work is deferred, a user's and urgent work are not",
+      "passed": true,
+      "detail": "deferred=False user=True urgent=True metrics=1",
+      "at": "2026-09-28T13:09:44.906954+00:00"
+    },
+    {
+      "label": "a job's value comes back",
+      "passed": true,
+      "detail": "42",
+      "at": "2026-09-28T13:09:44.907270+00:00"
+    },
+    {
+      "label": "a failed job is returned as an error, never as a result",
+      "passed": true,
+      "detail": "{'job_id': 'job_6c5c97111033', 'name': 'isoprobe failing job', 'result': None, 'error': 'isoprobe: this job fails'}",
+      "at": "2026-09-28T13:09:44.907473+00:00"
+    },
+    {
+      "label": "a recurring job fires",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-28T13:09:45.907851+00:00"
+    },
+    {
+      "label": "registering the name again retunes its cadence and keeps its record",
+      "passed": true,
+      "detail": "before={'name': 'isoprobe_every', 'interval_s': 0.2, 'runs': 1, 'errors': 0, 'last_error': None} after={'name': 'isoprobe_every', 'interval_s': 3600.0, 'runs': 1, 'errors': 0, 'last_error': None}",
+      "at": "2026-09-28T13:09:45.907928+00:00"
+    },
+    {
+      "label": "cancel stops a scheduled job; an unknown id is reported, not faked",
+      "passed": true,
+      "detail": "stopped=True unknown=False jobs=[]",
+      "at": "2026-09-28T13:09:45.908077+00:00"
+    },
+    {
+      "label": "a timed one-shot waits out its delay, runs once, and its value comes back",
+      "passed": true,
+      "detail": "waiting at 0.1 s=True waited=0.31s result=42",
+      "at": "2026-09-28T13:09:46.219640+00:00"
+    },
+    {
+      "label": "statistics are flat scalars",
+      "passed": true,
+      "detail": "keys=['await_cancelled', 'await_completed', 'await_delivered', 'await_delivery_failed', 'await_failed', 'await_pending', 'await_submitted', 'bg_max_parallel']",
+      "at": "2026-09-28T13:09:46.219879+00:00"
+    },
+    {
+      "label": "a second add of a queued id reports it queued and adds no copy",
+      "passed": true,
+      "detail": "heap=1 already_queued=1",
+      "at": "2026-09-28T13:09:46.220297+00:00"
+    },
+    {
+      "label": "an add while it runs queues nothing, so it runs once and stays completed",
+      "passed": true,
+      "detail": "drawn again=None status=completed",
+      "at": "2026-09-28T13:09:46.220472+00:00"
+    },
+    {
+      "label": "a finished id may be queued again as new work",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-28T13:09:46.220621+00:00"
+    },
+    {
+      "label": "five simultaneous adds of one id leave one copy",
+      "passed": true,
+      "detail": "copies=1",
+      "at": "2026-09-28T13:09:46.221340+00:00"
+    },
+    {
+      "label": "an id a living instance holds is not taken over or queued by another",
+      "passed": true,
+      "detail": "b queued=False owner is a=True",
+      "at": "2026-09-28T13:09:46.247834+00:00"
+    },
+    {
+      "label": "once that instance stops, another may take the id",
+      "passed": true,
+      "detail": "owner is b=True",
+      "at": "2026-09-28T13:09:46.251153+00:00"
+    },
+    {
+      "label": "the durable queue is untouched",
+      "passed": true,
+      "detail": "pending 0 -> 0",
+      "at": "2026-09-28T13:09:46.253949+00:00"
+    }
+  ],
+  "notes": []
+}

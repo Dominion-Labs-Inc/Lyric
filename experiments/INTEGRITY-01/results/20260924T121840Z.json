@@ -1,0 +1,167 @@
+{
+  "experiment": "INTEGRITY-01",
+  "claim": "Integrity is an EMERGENT coherence over the chain identity \u2192 intention \u2192 action \u2192 outcome \u2014 the mean of the links actually measured, never zero-filled \u2014 and it is orthogonal to success: a faithful attempt thwarted externally keeps integrity intact, while acting in a way that does not realize one's own intent dents it. Low integrity drives RE-ALIGNMENT (verify more, re-examine the approach); high integrity backs confident engagement.",
+  "hypothesis": "If integrity were a generic success score, the EXECUTION failure (a worse outcome) would score at or below the STRATEGY failure. If it is chain coherence, the execution failure scores HIGHER, because its break was not the substrate's own. And an unmeasured chain contributes nothing to caution rather than reading as zero.",
+  "started_at": "2026-09-24T12:18:40.716943+00:00",
+  "duration_seconds": 0.0,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/TorinAI/venv_torin/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/TorinAI",
+    "shadow_mode": null,
+    "git_commit": "20deb447498593391eca0286916b8f986c560a26",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "torinai_db",
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "dotenv:.env.postgres",
+        "database": "dotenv:.env.postgres",
+        "user": "dotenv:.env.postgres",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres"
+      }
+    },
+    "git_uncommitted_changes": 550,
+    "database_verified": null,
+    "database_verified_reason": "not verified"
+  },
+  "summary": {
+    "checks": 9,
+    "passed": 9,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [
+    {
+      "name": "integrity_self_initiated_success",
+      "value": 1.0,
+      "unit": "coherence [0,1]",
+      "note": "all three links measured and coherent"
+    },
+    {
+      "name": "integrity_strategy_failure",
+      "value": 0.6666666666666666,
+      "unit": "coherence [0,1]",
+      "note": "acted, but its own approach did not realize the intent"
+    },
+    {
+      "name": "integrity_execution_failure",
+      "value": 1.0,
+      "unit": "coherence [0,1]",
+      "note": "could not act at all \u2014 faithful but externally thwarted"
+    },
+    {
+      "name": "orthogonality_margin",
+      "value": 0.3333,
+      "unit": "coherence delta",
+      "note": "execution_failure MINUS strategy_failure; > 0 is the orthogonality claim \u2014 a generic success score would put this at or below zero"
+    },
+    {
+      "name": "caution_low_integrity",
+      "value": 0.5,
+      "unit": "pressure [0,1]",
+      "note": "integrity=0.1, all other dimensions held equal"
+    },
+    {
+      "name": "caution_high_integrity",
+      "value": 0.2333,
+      "unit": "pressure [0,1]",
+      "note": "integrity=0.9, same state otherwise"
+    },
+    {
+      "name": "caution_unmeasured_integrity",
+      "value": 0.3,
+      "unit": "pressure [0,1]",
+      "note": "integrity=None \u2014 must sit BETWEEN the extremes, proving it contributes nothing rather than reading as zero"
+    },
+    {
+      "name": "replan_low_integrity",
+      "value": 0.72,
+      "unit": "pressure [0,1]",
+      "note": "incoherence drives re-examination of the approach"
+    },
+    {
+      "name": "replan_high_integrity",
+      "value": 0.08,
+      "unit": "pressure [0,1]",
+      "note": ""
+    },
+    {
+      "name": "approach_high_integrity",
+      "value": 0.5833,
+      "unit": "pressure [0,1]",
+      "note": "coherence backs confident engagement"
+    },
+    {
+      "name": "approach_low_integrity",
+      "value": 0.45,
+      "unit": "pressure [0,1]",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "self-initiated success is maximally coherent",
+      "passed": true,
+      "detail": "integrity=1.0",
+      "at": "2026-09-24T12:18:40.717004+00:00"
+    },
+    {
+      "label": "a strategy failure dents integrity",
+      "passed": true,
+      "detail": "integrity=0.6666666666666666",
+      "at": "2026-09-24T12:18:40.717010+00:00"
+    },
+    {
+      "label": "ORTHOGONAL: the external-failure outcome keeps integrity HIGHER than the self-incoherent one",
+      "passed": true,
+      "detail": "execution_failure=1.0 vs strategy_failure=0.6666666666666666",
+      "at": "2026-09-24T12:18:40.717013+00:00"
+    },
+    {
+      "label": "integrity unmeasured with no chain signal",
+      "passed": true,
+      "detail": "integrity=None",
+      "at": "2026-09-24T12:18:40.717024+00:00"
+    },
+    {
+      "label": "and it is named in `unmeasured`",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-24T12:18:40.717026+00:00"
+    },
+    {
+      "label": "low integrity raises caution (verify more)",
+      "passed": true,
+      "detail": "low=0.500 hi=0.233",
+      "at": "2026-09-24T12:18:40.717038+00:00"
+    },
+    {
+      "label": "low integrity raises replan (re-examine the approach)",
+      "passed": true,
+      "detail": "low=0.720 hi=0.080",
+      "at": "2026-09-24T12:18:40.717040+00:00"
+    },
+    {
+      "label": "high integrity backs approach",
+      "passed": true,
+      "detail": "hi=0.583 lo=0.450",
+      "at": "2026-09-24T12:18:40.717043+00:00"
+    },
+    {
+      "label": "unmeasured integrity leaves caution between the low and high extremes (contributes nothing)",
+      "passed": true,
+      "detail": "none=0.300 (hi=0.233, lo=0.500)",
+      "at": "2026-09-24T12:18:40.717050+00:00"
+    }
+  ],
+  "notes": [
+    "Pure appraisal computation: no database is touched, so the run record reports no verified database rather than claiming one.",
+    "Integrity's action\u2194outcome link is read from a RECONCILED INTENT in the live substrate (matched_aim, from a fresh re-observation of the world) \u2014 this experiment exercises the derivation those readings feed."
+  ]
+}

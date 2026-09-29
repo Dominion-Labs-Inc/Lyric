@@ -1,15 +1,19 @@
 #!/usr/bin/env python3
 """Oracles for the semantic-extraction typed contract.
 
-  CONTRACT        the typed result cannot express a self-contradictory state
-  EXTRACTION MODE the structured-interpretation path suppresses deliberation
+  CONTRACT  the typed result cannot express a self-contradictory state
 
 The LLM `SemanticExtractor` was retired on 2026-08-28: concept extraction is
 substrate-first now (the deterministic `ConceptExtractor` is the sole production
 writer — see tests/test_e2e and `concept_ingestion.ConceptExtractor`). What
-survives here is the model-neutral typed contract (`ExtractionResult`) and the
-extraction-mode flag the one remaining model consumer (the teacher's
-`extract_structured`) still relies on.
+survives here is the model-neutral typed contract (`ExtractionResult`).
+
+THE EXTRACTION-MODE TEST IS GONE, and so is its subject. It pinned a chat-template
+flag on `core.services.unified_llm`, guarding "the one remaining model consumer,
+in the teacher" -- and that module, the teacher, and `TeacherPolicy` were all
+deleted on 2026-09-13 when the substrate became model-free by construction. The
+test had raised ModuleNotFoundError on every run since. There is no model
+consumer left to bound, so the guard is not restored, it is retired.
 """
 
 import pytest
@@ -57,20 +61,3 @@ def test_no_concepts_is_never_retried():
     r = ExtractionResult(execution_status=S.SUCCESS, semantic_outcome=O.NO_CONCEPTS,
                          evidence_id="e", extractor_id="x", extractor_version="1")
     assert r.is_retryable is False
-
-
-# ---------------------------------------------------- execution-mode guard
-
-def test_extraction_mode_disables_deliberation():
-    """The teacher's structured-interpretation path must not deliberate.
-
-    Measured on this server: reasoning_effort=low had no effect and a /no_think
-    prefix still produced 1591ch of reasoning; only the chat-template flag
-    suppresses deliberation. This is what keeps `extract_structured` (the one
-    remaining model consumer, in the teacher) a bounded interpretation call and
-    not an open-ended reasoning one.
-    """
-    from core.services.unified_llm import UnifiedLLMService
-
-    mode = UnifiedLLMService.EXTRACTION_MODE
-    assert mode["chat_template_kwargs"]["enable_thinking"] is False

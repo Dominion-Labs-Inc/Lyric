@@ -1,0 +1,46 @@
+{
+  "experiment": "NLU-08 \u2014 Does it ANSWER the question, or recite what it holds?",
+  "writes_to_store": true,
+  "notes": [
+    "runs the real conversation path \u2014 understand() then say() \u2014 which STORES what it is told; the taught claims below enter the store",
+    "asked \u201cWhat does a glarnick shape?\u201d -> \u201cA glarnick shapes metal.\u201d",
+    "asked \u201cIs a glarnick heavy?\u201d -> \u201cI remember: A glarnick shapes metal.\nA glarnick is a tool. It shapes metal.\nI hold nothing for heavy. Tell me what it is and I will keep it.\u201d",
+    "asked \u201cWhat is a glarnick?\u201d -> \u201cI remember: A glarnick shapes metal.\nA glarnick is a tool. It shapes metal.\u201d"
+  ],
+  "data": {},
+  "checks": [
+    {
+      "name": "answers 'What does a glarnick shape?'",
+      "passed": true,
+      "detail": "looked for 'metal' in the reply"
+    },
+    {
+      "name": "does not recite everything for 'What does a glarnick shape?'",
+      "passed": true,
+      "detail": "reply names 1 of the 3 held facts"
+    },
+    {
+      "name": "answers 'Is a glarnick heavy?'",
+      "passed": true,
+      "detail": "looked for 'heavy' in the reply"
+    },
+    {
+      "name": "does not recite everything for 'Is a glarnick heavy?'",
+      "passed": false,
+      "detail": "reply names 3 of the 3 held facts"
+    },
+    {
+      "name": "answers 'What is a glarnick?'",
+      "passed": true,
+      "detail": "looked for 'tool' in the reply"
+    },
+    {
+      "name": "does not recite everything for 'What is a glarnick?'",
+      "passed": true,
+      "detail": "reply names 2 of the 3 held facts"
+    }
+  ],
+  "passed": 5,
+  "total": 6,
+  "seconds": 8.24
+}

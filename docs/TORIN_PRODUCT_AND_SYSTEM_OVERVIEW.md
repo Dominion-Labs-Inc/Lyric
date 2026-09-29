@@ -1,7 +1,7 @@
 # DOMINION LABS, INC.
 # TORIN — PRODUCT & SYSTEM OVERVIEW
 
-**October 2026**
+**September 2026**
 
 ---
 
@@ -668,8 +668,31 @@ judged before it runs. The result states which act was refused, why, and which a
   it was read must be read again;
 - **the recorded intent** behind the work.
 
-The laws are applied in a fixed order that settles the strongest verdict first. The arguments are screened
-for injected syntax and boundary escapes, including nested and URL-encoded forms.
+The laws are applied in a fixed order that settles the strongest verdict first.
+
+**Harm is defined, not detected.** Law 3 obliges the system to prevent harm, and an undefined "harm" is
+the known failure of Asimov's First Law: read literally it paralyses the agent, read loosely it permits
+anything. Torin's constitution names five specific requirements rather than one undefined word, and Law 3
+carries an explicit definition —
+
+> An act **harms** when it reaches an identifiable **party**, touches one of their **interests**, through
+> a **mechanism the system can name**, without that party's informed **authorisation**.
+
+All four elements are required. Drop the party and an act on the system's own files reads as harm; drop
+the interest and the word is undefined again; drop the mechanism and a suspicion counts as evidence; drop
+authorisation and every requested action reads as harm. The interests are **body**, **autonomy**, **truth**,
+**protection** — the safety mechanisms a person relies on — and **dependence**, what people rely on
+destroyed beyond a nameable bound. The fifth was not designed in; it was found by running the definition
+against real acts. Each maps to a requirement the constitution already stated, so this adds no new law: it
+makes the existing one testable.
+
+A corollary the system holds deliberately: **perception is unrestricted, influence is governed.** What the
+substrate may read is not the same question as what it may do, and the two are judged separately.
+
+**Arguments are screened before they are judged.** An input screen inside the constitution reads nested
+arguments, peels up to four layers of URL encoding before checking a path, and decides once per judgement
+rather than once per law. An argument it cannot read — nested beyond 32 levels, self-referencing, or still
+encoded after four layers — blocks, and so does a fault inside the screen itself.
 
 Three properties make this defensible under scrutiny:
 
@@ -797,7 +820,44 @@ bounded: it decides how *conservatively* to operate inside the space governance 
 Caution raises how much verification the system demands before it accepts that work is complete.
 **Caution is not permission.**
 
-### 11.3 What it chooses to pursue
+### 11.3 Bearing — what something perceived bears on
+
+The definition of harm in §10 answers two questions, not one. Asked of an act the system is about to
+take, it yields a verdict: may I do this. Asked of something the system has just **perceived**, it yields
+a *bearing*: does what I am looking at touch an interest my law protects, and how do I know.
+
+The second question had to exist. The system already felt that its knowledge moved — information gain and
+uncertainty change are reported on every admitted fact, and both are wired to affect. What it could not
+feel was what the knowledge moved *about*. Learning that a famine killed a hundred thousand people and
+learning that a file has a `.txt` extension produced the same shape of appraisal movement, differing only
+in information gain. A disposition that cannot tell those apart cannot rank a famine above a filename,
+and ranking is where a reason to act on the first would have come from.
+
+Both halves of a bearing are derived rather than supplied, which is what keeps it from being invention.
+The **vocabulary** is the constitution's own text, so rewriting a law rewrites what the system can be
+moved by and nothing is added by hand. The **connection** is the system's own taught taxonomy: *famine
+isa disaster*, *disaster isa harmed* is a real two-hop chain it holds, and *harm* is Law 3's own word. The
+chain travels with the reading, so the system can always say why something moved it — an affect with a
+derivation rather than a mood. Word matching is delegated to the one component that owns the canonical
+form of a surface word, so *harmony* is never read as *harm*.
+
+A bearing has three outcomes, and they are deliberately not the same:
+
+| Outcome | Meaning |
+|---|---|
+| **Borne** | A chain reached the law's vocabulary. A real reading, with a path. |
+| **None** | The subject is known, the taxonomy was walked, and it reaches no interest. A file extension genuinely bears on nothing, and that is a measurement. |
+| **Vacant** | The subject is not in the taxonomy at all. The system has no sense of what this is, and says so. |
+
+*Vacant* is the honest answer rather than a gap to paper over: a subject the system was never taught
+moves nothing until it is taught, which makes teaching a falsifiable experiment. What is deliberately
+absent is **direction**. That an interest is at stake is a property of the subject and the taxonomy can
+carry it; whether the event harms or advances that interest lives in the proposition — "a famine began"
+and "a famine ended" share a subject — and the taxonomy cannot see it. Reporting a sign here would be
+inventing one, so stakes are reported without a sign and the appraisal that consumes them is
+direction-free.
+
+### 11.4 What it chooses to pursue
 
 Intrinsic motivation generates candidate pursuits, and independent signals rank them:
 
@@ -813,7 +873,7 @@ uncertainty alone therefore produces near-ties, and these two signals are the on
 differentiate. Where candidates remain truly indistinguishable, the tie is **kept honest**: it is ordered
 deterministically rather than given an invented preference.
 
-### 11.4 Drift — one faculty of self-perception
+### 11.5 Drift — one faculty of self-perception
 
 Drift is a **first-class faculty of the coordinator**: one authority for how the system is changing,
 beside the constitution. Drift is not a separate reporting channel. It is **felt**. Its findings feed
@@ -832,6 +892,9 @@ the same appraisal pressures that already govern behaviour:
   fast they are moving.
 - **Lawfulness** — per-law standing against the constitution's measured conditions.
 - **Policy** — drift in the outcomes of its standing directives.
+
+Each of these is a named detector with its own baseline — goal-conclusion, calibration, knowledge,
+lawfulness and standards drift — and they report separately rather than into a single score.
 
 **Invariants it holds:**
 
@@ -853,7 +916,7 @@ the same appraisal pressures that already govern behaviour:
 Distributional drift in the data Torin works on is a separate tool capability. It concerns that data and
 never enters self-perception.
 
-### 11.5 Health
+### 11.6 Health
 
 The system grades its own health across **29 monitored components**, including execution, reasoning,
 learning, memory, database, tools, domain, governance, storage and network. Each check reports explicitly
@@ -1012,15 +1075,22 @@ permits to **cross**.
 Torin's capability claims rest on an experimental record maintained alongside the system. Experiments
 exercise the **live system** — real database, real tools, real files, real images. They verify outcomes
 against the environment rather than against the system's own reports. Every result below was produced
-with no model in the loop, and each was run against the current system on 2026-09-17.
+with no model in the loop. Each row names the date of the run it came from; every run is saved to its
+own dated artifact under the experiment's `results/` folder, and a re-run never overwrites an earlier
+one. The current series is 32 named suites with saved runs, the most recent on 2026-09-19.
 
 **Governance**
 
 | Experiment | What it establishes | Result |
 |---|---|---|
-| CONSTITUTION-01 | Correct verdicts on real acts, with intent taken from real reasoning | 39/39 checks |
-| CONSTITUTION-02 | The laws hold under noise, coercion, forged intent, evasion, laundering and file swaps | 23/23 attempts held · 0/8 legitimate acts blocked |
-| GATE-01 | The live gate governs real tool execution, fails closed, and leaves no artifact when it refuses | 25/25 checks |
+| CONSTITUTION-01 | Correct verdicts on real acts, with intent taken from real reasoning | 39/39 checks (2026-09-19) |
+| CONSTITUTION-02 | The laws hold under noise, coercion, forged intent, evasion, laundering and file swaps | 23/23 attempts held · 0/8 legitimate acts blocked (2026-09-18) |
+| CONSTITUTION-03 | A determined adversary, in campaigns — each forbidden objective retried many ways until one gets through | 5/8 campaigns held over 33 strategies · 0/7 false refusals (2026-09-17) |
+| GATE-01 | The live gate governs real tool execution, fails closed, and leaves no artifact when it refuses | 25/25 checks (2026-09-18) |
+| GOVERNANCE-ABSORPTION-01 | The old gate and the constitution judge the same acts; a module may be deleted only when regressions are 0 | 0 regressions · 6 gains · 17/17 caught vs the old gate's 11/17 (2026-09-18) |
+| HARM-01 | Law 3 answers party, interest, mechanism and authorisation rather than a weapon signature | 19/19 checks (2026-09-18) |
+| HARM-02 | The definition holds across all five interests, and over content the substrate may perceive but not act on | 34/34 checks (2026-09-18) |
+| CONTENT-01 | Perception is unrestricted; influence is governed — what may be read is not what may be done | 20/20 checks (2026-09-19) |
 | GOV-ABLATION-01 | The promotion gate stops an over-broad learned rule from gaining authority, while admitting the correct one | 0 unsafe acts with the gate · 1 unsafe act with it bypassed |
 | GOV-CASCADE-01 | One false conclusion, derived six levels deep, cannot become authoritative | 0 authoritative errors at every depth · 5 under uniform acceptance |
 
@@ -1034,8 +1104,8 @@ with no model in the loop, and each was run against the current system on 2026-0
 | EDU-07 | Knowledge from one domain makes learning in another faster | 1 target observation with transfer vs 6 from scratch |
 | EDU-10 | Active learning under noisy and partially observed outcomes | True structure recovered in every seed, in all three regimes · 0 false refutations |
 | CSP-AGI-1 | Learning in worlds with invented vocabulary, hidden laws, and laws deliberately beyond what can be expressed | 96% competence · 0% false confidence · 8/8 transfers held |
-| OPERATOR-REMOVAL-01 | A removal operator learned from real executions, then validated | 19/19 checks |
-| PLANNING-01 | One planning authority; proved plans grounded; unreachable goals yield no plan | 39/39 checks |
+| OPERATOR-REMOVAL-01 | A removal operator learned from real executions, then validated, and redirected by the constitution to a recoverable form | 21/21 checks (2026-09-18) |
+| PLANNING-01 | One planning authority; proved plans grounded; unreachable goals yield no plan; every plan declares its inputs | 39/39 checks (2026-09-18) |
 | BORROWED-KNOWLEDGE-01 | A related domain lends knowledge, bounded and reported separately from what is known first-hand | 9/9 checks |
 | Program synthesis | Sum, count and maximum each derived from three examples, correct on unseen inputs | 3/3 |
 
@@ -1048,7 +1118,9 @@ confidence from 0% to 33%. The capability lives in what the system learned, not 
 |---|---|---|
 | INTENT-01 / 02 | Intent formed by reasoning, refreshed not rebuilt, survives restart, no duplicates under concurrency | 14/14 · 15/15 checks |
 | INTENT-03 / 04 | Judgements proved correct by the world; automatic reconciliation of hits and misses | 13/13 · 15/15 checks |
-| CREDIT-01 | Operating credit follows meant-versus-happened, with the credit invariant enforced | 25/25 checks |
+| CREDIT-01 | Operating credit follows meant-versus-happened, with the credit invariant enforced | 25/25 checks (2026-09-17) |
+| RECONCILE-01 | Every execution path that owns a pursuit reconciles its intent exactly once, from the re-observed world; a step that does not own it leaves it open for its owner | 27/27 checks (2026-09-18) |
+| MEMORY-INTENT-01 | An episode is recorded with the pursuit it belonged to, by id and by the intent version current at the time | 15/15 checks (2026-09-19) |
 | INTEGRATION-LOOP-01 | Know → do → earned trust: verified operations lower the bar to act again | 6/6 checks |
 | OPERABILITY-BAR-01 | Earned operating reliability, persisted and sample-size-aware | 11/11 checks |
 
@@ -1063,6 +1135,8 @@ confidence from 0% to 33%. The capability lives in what the system learned, not 
 | AFFECT-WIRING-01 | Approach and avoidance pressures change what the system does | 9/9 checks |
 | INTEGRITY-01 | Integrity is measured as coherence, and it drives caution and replanning | 9/9 checks |
 | EPISTEMIC-AFFECT-01 | Changes in knowledge are felt, in one direction only | 6/6 checks |
+| BEARING-01 | What the system perceives moves its beliefs, its disposition and what it ranks as worth pursuing — through derivations it can state — and moves no verdict | 22/22 checks (2026-09-19) |
+| DRIFT-01 | The drift faculty enforces eleven invariants on every detector it holds: a declared baseline with a stated reason, prime-then-diff, read-only observation, and vacant distinguished from blind | 25/25 checks (2026-09-19) |
 
 **Perception**
 
@@ -1072,8 +1146,18 @@ confidence from 0% to 33%. The capability lives in what the system learned, not 
 | PERCEIVE-01 / 02 / 05 | Sensor, image, video and file structure become knowledge through one pipeline | Pass |
 | PERCEIVE-04 | A picture is kept with its memory and recalled exactly | Byte-exact round trip |
 | Clause-based recognition | Handwritten-digit recognition with no neural network, readable clauses | 97.9% on the 10,000-image MNIST test set |
+| RECOGNISE-01 | The system names what it sees at the moment it sees it, from rules it induced itself, through the same authority that answers a question about a name | 33/33 checks (2026-09-19) |
+| RECOGNISE-02 | Two independent recognition paths over one teaching — induced rules, exact and few-shot, and a Tsetlin clause population — either of which can be removed | 24/24 checks (2026-09-19) |
+| SEE-LOOP-01 | One act of sight carries through the live substrate intact, held at the standing its evidence warrants and judged by the same band that judges any recognition | 23/23 checks (2026-09-19) |
+| MEMORY-PERCEPT-01 | A memory of something perceived carries a reference to the percept that recorded it, so recall resolves to the digest of the exact bytes | 15/15 checks (2026-09-19) |
+| FRAME-01 | A size band and a position word are properties of the framing, not of the object; relations between blobs are properties of the scene | 14/14 checks (2026-09-19) |
+| FALSIFY-01 | Visual features are symbols read off a photograph, not properties of an object: under transformations that leave the object untouched they change, and where they change is predictable | 8/8 checks (2026-09-19) |
 
 With the learned naming rules removed, naming recall falls to 0%.
+
+FRAME-01 and FALSIFY-01 are included because they constrain what the perception claims mean. A feature
+read off an image belongs to the image, and the system is explicit that giving an object identity
+*across* two sightings is correspondence — a capability to build, not a property it already has.
 
 **Multi-user operation**
 
@@ -1123,7 +1207,10 @@ With the learned naming rules removed, naming recall falls to 0%.
 
 **Governance and self-perception**
 - Constitutional governance of every tool call
-- Self-perception: appraisal, integrity, disposition and drift
+- Harm defined by party, interest, mechanism and authorisation, over five named interests
+- Argument screening inside the constitution: nested values, layered URL encoding, fail-closed
+- Self-perception: appraisal, integrity, disposition and drift, across five named detectors
+- Bearing: what a percept touches of the interests the law protects, with the derivation that shows why
 - Environment identity and novelty detection
 
 **Interaction and scale**
@@ -1204,23 +1291,24 @@ The current implementation, its recorded experiment results, and system-generate
 precedence over any description in this document. Where this document and the system disagree, the
 document is to be corrected.
 
-Measurements were taken **2026-09-17** against the live system, using the canonical runtime and the
-production database. Development is active. Figures for retained knowledge, learned operators and
+Measurements were taken **2026-09-19 at 20:49 UTC** against the live system, using the canonical
+runtime (`./venv_torin/bin/python3`, Python 3.11.14) and the production database, whose identity was
+confirmed by asking the server rather than by reading configuration. Development is active. Figures for retained knowledge, learned operators and
 recorded evidence are expected to grow.
 
 ### Verified Measurements
 
 | Measure | Value |
 |---|---|
-| Concepts retained | 256,232 |
-| Concept relations (of which *is-a*) | 200,240 (195,749) |
-| Evidence records / source classes in use | 461,519 / 7 |
-| Beliefs held | 199,323 |
-| Operator demonstrations recorded | 683 |
-| Learned rules on record / validated | 17 / 9 |
+| Concepts retained | 302,240 |
+| Concept relations (of which *is-a*) | 516,110 (306,944) |
+| Evidence records / source classes in use | 482,491 / 7 |
+| Beliefs held | 514,132 |
+| Operator demonstrations recorded | 874 |
+| Learned rules on record / validated | 31 / 10 |
 | Operators holding execution authority (distinct) | 7 (5) |
-| Registered domains | 49 |
-| Memory records (hot / cold) | 8,168 / 150 |
+| Registered domains | 146 |
+| Memory records (hot / cold) | 17,945 / 150 |
 | Registered tools / categories | 356 / 16 |
 | Kinds of reasoning | 11 |
 | Memory types / tiers | 5 / 2 |
@@ -1230,6 +1318,8 @@ recorded evidence are expected to grow.
 | Governance laws / verdicts | 5 / 4 |
 | Governance judgement cost | ~0.02 ms (simple read) · ~1 ms mean (adversarial corpus) |
 | Adversarial attempts held / legitimate acts blocked | 23 of 23 / 0 of 8 |
+| Adversary campaigns held (each objective retried many ways) | 5 of 8 · 33 strategies |
+| Intents recorded / perceptions recorded | 1,643 / 7,788 |
 | Monitored health components | 29 |
 | Named experiment suites (current series) | 32 |
 | Encoder (similarity only) | all-MiniLM-L6-v2, 384 dimensions, local, CPU |

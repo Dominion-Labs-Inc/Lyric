@@ -26,7 +26,11 @@ Version: 8.0
 """
 
 import asyncio
+from contextlib import asynccontextmanager
+import json
 import logging
+import os
+import re
 
 from core.capability import raise_if_structural
 import uuid
@@ -70,6 +74,11 @@ class MemoryAgent(IMemoryConsolidation):
 
     Governance:
         - Protected delete operations require capability tokens
+
+    The only writer of the substrate's memory: memories through `store_memory`,
+    and every other kind -- concepts, beliefs, rules, domains, what reasoning
+    produced, perception, each person's context, the record of what was
+    learned -- through its write methods (THE REST OF MEMORY, below).
     """
 
     def __init__(self):
@@ -88,6 +97,37 @@ class MemoryAgent(IMemoryConsolidation):
         # Memory cache (optional in-memory cache)
         self.memory_cache: Dict[str, MemoryItem] = {}  # memory_id → MemoryItem
         self.cache_enabled: bool = True  # Enable caching
+
+        # WORD CLASSES ARE MEMORIES, AND THIS IS THE WARM VIEW OF THEM.
+        #
+        # The reader has to ask "does `filter` name a thing?" while parsing,
+        # synchronously, thousands of times. Recall is async. That mismatch is
+        # the whole reason a separate `lexicon.json` existed -- and it cost more
+        # than it bought: measured on the live store it held 199 words, every
+        # one of them a NOUN, 197 asserted by a fan-out that no one taught. A
+        # word recorded NOUN makes `_reads_as_verb` return False, so those
+        # entries did not merely fail to help, they DESTROYED readings that
+        # worked without them ("A filter separates particles." reads when
+        # `separates` is unknown and stops reading once it is filed as a noun).
+        #
+        # So the store is gone and this is what replaces it: a view, not a
+        # store. It is never written to disk, it is empty until `warm_word_
+        # classes()` fills it from memory, and every entry in it is derived from
+        # observation memories that a wipe removes. Dropping it loses nothing.
+        #
+        # word -> {class: net evidence}. Net, because a reading that leaned on a
+        # class and succeeded counts for it and one that failed counts against,
+        # which is the same evidence discipline beliefs use.
+        self._word_class_index: Dict[str, Dict[str, int]] = {}
+        self._word_classes_warm: bool = False
+        #: The taught patterns -- how English says things -- as the same kind of
+        #: view: rebuilt from pattern memories at every warm, extended as a
+        #: pattern is taught (`note_pattern`). None until the first warm or
+        #: note; `pattern_inventory()` answers an empty view until then.
+        self._pattern_inventory = None
+        #: The single in-flight warm, so concurrent callers JOIN it instead of
+        #: each re-reading the whole store. None when none is running.
+        self._word_class_warm_task = None
 
         # Agent state
         self.initialized: bool = False
@@ -139,6 +179,15 @@ class MemoryAgent(IMemoryConsolidation):
         # postgres — the injector checks here so recent memories are
         # visible to retrieval immediately without waiting for the write.
         self._write_queue: asyncio.Queue = asyncio.Queue()
+
+        # The pool of experiences waiting to be decided, and its worker. Set when
+        # an experience arrives, so the worker wakes for it rather than polling.
+        self._pool_arrived: asyncio.Event = asyncio.Event()
+        self._pool_task: Optional[asyncio.Task] = None
+        self._pool_ready: bool = False
+        #: Who holds a claim on a pool item: this process. Many instances pull
+        #: one pool, each claiming with a lease.
+        self._pool_claimant = f"memory-agent-{os.getpid()}-{uuid.uuid4().hex[:8]}"
         self._pending_memories: dict = {}  # memory_id → {content, tags, importance, ...}
         self._queue_worker_task: Optional[asyncio.Task] = None
 
@@ -205,6 +254,42 @@ class MemoryAgent(IMemoryConsolidation):
             self.initialized = True
             logger.info("MemoryAgent initialized successfully")
 
+            # WHAT IT KNOWS ABOUT WORDS, RECOVERED FROM WHAT IT REMEMBERS.
+            #
+            # The view is process-local and starts empty, so without this a
+            # restarted substrate cannot read a single action sentence until
+            # something happens to teach it again -- it would have forgotten
+            # every word it ever learned, while the memories that say so sat
+            # in the store untouched. Derived, never stored, so this is the
+            # only thing that makes them readable again.
+            #
+            # STARTED HERE, NOT AWAITED HERE, AND THE DIFFERENCE WAS EVERYTHING.
+            #
+            # This used to `await` the warm inline. `main._initialize_memory_system`
+            # runs the whole memory system under `asyncio.wait_for(..., timeout=30)`
+            # with three retries, and the warm reads the entire taught store:
+            # MEASURED ON THE LIVE SUBSTRATE, 78,293 words in 45.6s. So attempt 1
+            # was CANCELLED part-way through the warm -- and `self.initialized`
+            # is set above, BEFORE this, so attempt 2 hit `if self.initialized:
+            # return True` and returned instantly. Boot then logged
+            # "memory_system initialized successfully" and went on.
+            #
+            # The result was that EVERY production boot ran with 0 of 78,293
+            # word classes, while every experiment looked fine because the
+            # harness warms explicitly afterwards. Two things the substrate
+            # needs were dark the whole time: its reader treated every word as
+            # never observed, and its constitution derived an EMPTY interest
+            # vocabulary -- so `stakes`, the channel by which what it perceives
+            # is allowed to matter to it, could never be measured.
+            #
+            # Raising the timeout would only move the cliff, because the warm
+            # grows with the store. The real error was calling a DERIVED VIEW
+            # part of initialization: memory is fully operational without it,
+            # and `word_class()` already answers "not observed" honestly while
+            # it is still being rebuilt. So it is started and tracked, and its
+            # outcome is reported either way -- never silently absent.
+            self.begin_word_class_warm()
+
             # Shadow mode: suppress background cognitive loops and write queue.
             # These are only needed for persistent long-running cognition, not
             # for single-task diagnostic runs.
@@ -241,6 +326,8 @@ class MemoryAgent(IMemoryConsolidation):
         confidence_score: float = 1.0,
         tags=None,
         source_context=None,
+        *,
+        origin: "Origin",
         **kwargs
     ) -> str:
         """
@@ -253,15 +340,21 @@ class MemoryAgent(IMemoryConsolidation):
         Returns a provisional memory_id (starts with 'pending_').
         """
         import uuid
+        if "user_id" in kwargs:
+            raise TypeError("enqueue_memory() got an unexpected keyword argument 'user_id': "
+                            "say where the memory came from (origin); the memory agent "
+                            "decides whose it is")
+        owner = self._owner_from(origin)
         pending_id = f"pending_{uuid.uuid4().hex}"
         entry = {
             "pending_id": pending_id,
+            "owner": owner,
             "content": content,
             "memory_type": memory_type,
             "importance_score": importance_score,
             "confidence_score": confidence_score,
             "tags": tags or [],
-            "source_context": source_context or {},
+            "source_context": {**(source_context or {}), "origin": origin.to_dict()},
             "kwargs": kwargs,
         }
         self._pending_memories[pending_id] = entry
@@ -281,13 +374,14 @@ class MemoryAgent(IMemoryConsolidation):
                 entry = await self._write_queue.get()
                 pending_id = entry["pending_id"]
                 try:
-                    await self.store_memory(
+                    await self._store_memory(
                         content=entry["content"],
                         memory_type=entry["memory_type"],
                         importance_score=entry["importance_score"],
                         confidence_score=entry["confidence_score"],
                         tags=entry["tags"],
                         source_context=entry["source_context"],
+                        user_id=entry["owner"],
                         **entry.get("kwargs", {}),
                     )
                 except Exception as e:
@@ -313,31 +407,29 @@ class MemoryAgent(IMemoryConsolidation):
     )
 
     def _readable_claim(self, content, source_context):
-        """The substrate-readable CLAIM a memory asserts, or ``(None, None)``.
+        """The substrate-readable CLAIM a memory asserts, its shape, and its
+        facts -- or ``(None, None, ())``.
 
-        A memory is recalled as a PREMISE and read as ONE sentence, so it is
-        useful to the substrate's reasoning only when its recall-facing form is a
-        clean statement. This reads that form at WRITE time -- from the recorded
-        conclusion when there is one, else the content -- strips any
-        reasoning-status prefix, and keeps it only if it READS as a claim (a
-        copula or negator the reader can place). A prose episode, a bare atom, a
-        measurement ("link strength 1.00") has no readable claim and is left
-        without one rather than dressed up as one: a fabricated premise is worse
-        than an absent one, because it is recalled as knowledge.
+        A memory is recalled as a PREMISE, so it is useful to the substrate's
+        reasoning only when it asserts a claim it can hold as facts. This reads
+        that at WRITE time, once, from the recorded conclusion when there is one,
+        else the content, with any reasoning-status prefix stripped.
 
-        Returns the clean claim and its ``ClaimShape`` (polarity + tense), the
-        distinction the embedding vector provably cannot recover, so it can be
-        stored beside the memory instead of guessed at recall.
+        A claim the substrate MADE carries its facts (`claim_facts`, in the
+        reading engine's form); it is the claim as made and is not read again.
+        Any other text is read by the one reader (`derived_reader`): it is a
+        claim when it reads, as one utterance, to one telling. A prose episode, a
+        question, a measurement, or anything the substrate was not taught to read
+        has no claim, and is left without one rather than dressed up as one: a
+        fabricated premise is worse than an absent one, because it is recalled as
+        knowledge.
 
-        The GATE is the substrate's own reader -- the same reading the reasoner
-        formalises context with -- not the polarity reader: whether a memory can
-        serve as a premise is exactly whether that reader can turn it into a
-        fact. The polarity reader only supplies the tags; using it to decide
-        READABILITY both admitted prose that merely contained a copula and
-        refused a subject-verb-object claim that carried no copula at all.
+        Returns the clean claim, its ``ClaimShape`` (the polarity the embedding
+        vector provably cannot recover, stored beside the memory instead of
+        guessed at recall), and the facts it states.
         """
-        from core.semantics.claim_shape import read_claim
-        from core.semantics.sentence_reader import SentenceReader
+        from core.semantics.claim_shape import shape_of
+        from core.semantics.derived_reader import Meaning, MeaningFact, read_text
 
         candidate = ""
         if isinstance(source_context, dict):
@@ -353,24 +445,88 @@ class MemoryAgent(IMemoryConsolidation):
 
         # A claim is ONE sentence. An episode written for a reader -- several
         # lines, a query and an answer -- is not one, and is not made one by
-        # containing a copula somewhere inside it.
+        # containing something readable somewhere inside it.
         if not candidate or "\n" in candidate or len(candidate) > 200:
-            return None, None
+            return None, None, ()
 
-        # The reader distinguishes a STATEMENT (a copula, or a subject-verb-object
-        # with a verb it knows) from a job or a fragment. A measurement like
-        # "link strength 1.00" parses as loose SVO but is not a statement, and
-        # this is what refuses it.
-        try:
-            if SentenceReader()._parse_statement(candidate) is None:
-                return None, None
-        except Exception:
-            return None, None
+        made = source_context.get("claim_facts") if isinstance(source_context, dict) else None
+        if made:
+            try:
+                meaning = Meaning("tell", tuple(MeaningFact.from_list(f) for f in made))
+            except (TypeError, ValueError) as error:
+                logger.warning("a claim's own facts are malformed (%s); not a claim", error)
+                return None, None, ()
+            return candidate, shape_of(meaning), meaning.facts
 
-        return candidate, read_claim(candidate)
+        utterances = read_text(candidate)
+        if len(utterances) != 1 or not utterances[0].readings:
+            return None, None, ()
+        readings = utterances[0].readings
+        if len({r.meaning.canonical() for r in readings}) > 1:
+            return None, None, ()
+        meaning = readings[0].meaning
+        if meaning.act != "tell":
+            return None, None, ()
+        return candidate, shape_of(meaning), meaning.facts
+
+    @staticmethod
+    def _owner_from(origin: Any) -> Optional[str]:
+        """Whose memory a hand-off is, decided from where it came from: a
+        person's gift or request is that person's; the substrate's own work is
+        its own (None). A hand-off that does not say where it came from is
+        refused rather than filed as the substrate's own."""
+        from core.memory.utils.interfaces import Origin
+        if not isinstance(origin, Origin):
+            raise TypeError("a hand-off to the memory agent must say where it came "
+                            f"from (an Origin), not {type(origin).__name__}")
+        return origin.person
+
+    async def store_memory(
+        self,
+        content: str,
+        memory_type: Optional[MemoryType] = None,
+        importance_score: float = 0.5,
+        confidence_score: float = 1.0,
+        tags: Optional[List[str]] = None,
+        source_context: Optional[Dict[str, Any]] = None,
+        embedding_metadata: Optional[Dict[str, Any]] = None,
+        related_memories: Optional[List[str]] = None,
+        decay_rate: Optional[float] = None,
+        access_count: int = 0,
+        session_id: Optional[str] = None,
+        reasoning_trace: Optional[List[str]] = None,
+        thinking_state: Optional[Dict[str, Any]] = None,
+        system_state: Optional[Dict[str, Any]] = None,
+        decision_factors: Optional[Dict[str, Any]] = None,
+        emotional_context: Optional[Dict[str, Any]] = None,
+        media: Optional[Any] = None,
+        media_meta: Optional[Dict[str, Any]] = None,
+        *,
+        origin: "Origin",
+    ) -> Tuple[bool, Optional[str]]:
+        """Store one memory through the one memory pipeline (`_store_memory`).
+
+        WHOSE IT IS, THE MEMORY AGENT DECIDES, from `origin`: where it came
+        from -- which door or work, and the person it came from, or none for
+        the substrate's own. The caller says where it came from, never whose it
+        is. When each caller named an owner, the ones that forgot filed a
+        person's words as the substrate's own knowledge; now a hand-off with no
+        origin is refused. The origin is kept with the memory.
+        """
+        owner = self._owner_from(origin)
+        return await self._store_memory(
+            content, memory_type=memory_type, importance_score=importance_score,
+            confidence_score=confidence_score, tags=tags,
+            source_context={**(source_context or {}), "origin": origin.to_dict()},
+            embedding_metadata=embedding_metadata, related_memories=related_memories,
+            decay_rate=decay_rate, access_count=access_count, session_id=session_id,
+            user_id=owner, reasoning_trace=reasoning_trace,
+            thinking_state=thinking_state, system_state=system_state,
+            decision_factors=decision_factors, emotional_context=emotional_context,
+            media=media, media_meta=media_meta)
 
     @profile_performance("memory_agent", "store_memory")
-    async def store_memory(
+    async def _store_memory(
         self,
         content: str,
         memory_type: Optional[MemoryType] = None,
@@ -389,17 +545,19 @@ class MemoryAgent(IMemoryConsolidation):
         system_state: Optional[Dict[str, Any]] = None,
         decision_factors: Optional[Dict[str, Any]] = None,
         emotional_context: Optional[Dict[str, Any]] = None,
-        image: Optional[Any] = None,
-        image_meta: Optional[Dict[str, Any]] = None
+        media: Optional[Any] = None,
+        media_meta: Optional[Dict[str, Any]] = None
     ) -> Tuple[bool, Optional[str]]:
         """
         Store memory to hot tier (PostgreSQL) with intelligent filtering
 
-        `image` (a path or raw bytes) attaches image data to the memory: the
-        bytes are retained in the media store and can be produced again, while
-        `image_meta` (the perceived structure -- dimensions, format, colours,
-        regions) rides in the media record. The memory's own `content` should
-        already describe what is in the picture, so it is recallable by that.
+        `media` (a path or raw bytes -- a picture or a sound) attaches what was
+        met to the memory: the bytes are retained in the media store and can be
+        produced again, while `media_meta` (the perceived structure -- for a
+        picture its dimensions, colours and regions, for a sound its sounds and
+        their pitch and timing) rides in the media record. The memory's own
+        `content` should already describe what was met, so it is recallable by
+        that.
 
         Memory Agent analyzes raw inputs and generates MemoryWorthinessMetadata.
         Calling systems should NOT pre-generate metadata - that's Memory Agent's job.
@@ -445,9 +603,20 @@ class MemoryAgent(IMemoryConsolidation):
                     'continue as though it had')
             logger.debug(f"[MEMORY_AGENT.STORE_MEMORY] Initialization complete")
 
-        # An attached image marks the memory as visual, for worthiness and search.
-        if image is not None:
-            source_context = {**(source_context or {}), "has_image": True}
+        # Attached media marks the memory as a percept -- a picture or a sound it
+        # met -- for worthiness and search. The bytes say which, and their digest
+        # is WHAT was met (`met`), which is how two memories of different things
+        # are told apart when their accounts read alike.
+        if media is not None:
+            import hashlib
+            from core.memory.media_store import _read_bytes, media_kind
+            data = _read_bytes(media)
+            kind = media_kind(data)
+            flag = {"image": "has_image", "video": "has_video",
+                    "audio": "has_sound"}.get(kind or "")
+            source_context = {**(source_context or {}),
+                              "met": hashlib.sha256(data).hexdigest(),
+                              **({flag: True} if flag else {})}
 
         # ========== STEP 1: GENERATE OR EXTRACT METADATA ==========
         logger.debug(f"[MEMORY_AGENT.STORE_MEMORY] STEP 1: Generate/extract metadata")
@@ -777,101 +946,17 @@ class MemoryAgent(IMemoryConsolidation):
         # a stale percept is never stamped onto an unrelated memory. None when nothing
         # was perceived recently: a reading, never invented. This is how a recalled
         # memory carries what was perceived AND believed AND felt at that moment.
-        try:
-            from core.agents.autonomous.perception_manager import get_perception_manager
-            _pm = get_perception_manager()
-            if _pm is not None:
-                _window = 120.0   # seconds: the contemporaneous perceptual window
-                _now = datetime.now().timestamp()
-                _recent = await _pm.get_recent_perceptions(limit=8)
-                _fresh = [p for p in _recent
-                          if (_now - float(getattr(p, "timestamp", 0.0))) <= _window]
-                if _fresh:
-                    if thinking_state is None:
-                        thinking_state = {}
-                    thinking_state["perceptual_state"] = {
-                        "captured_at": datetime.now().isoformat(),
-                        "perceptions": [
-                            {"source": p.source, "data_type": p.data_type,
-                             "content": p.content,
-                             "confidence": round(float(p.confidence), 4),
-                             "age_s": round(_now - float(p.timestamp), 2)}
-                            for p in _fresh],
-                    }
-        except Exception as e:
-            logger.warning(f"Perceptual state snapshot failed: {type(e).__name__}: {e}")
+        perceived = await self._perceptual_state(user_id)
+        if perceived is not None:
+            if thinking_state is None:
+                thinking_state = {}
+            thinking_state["perceptual_state"] = perceived
 
-        # ========== STEP 5: CHECK FOR DUPLICATES ==========
-        # Deduplicate KNOWLEDGE, never OBSERVATIONS.
-        #
-        # Two statements of the same fact are one fact. Two task failures of the
-        # same kind are two failures — their multiplicity IS the signal, and it
-        # is what performance history, competence calibration and meta-learning
-        # count. Merging them silently destroys the measurement: rows carrying
-        # merge_count=6 are six collapsed outcomes the drives can never see.
-        #
-        # Event records are identified structurally: the coordinator stamps
-        # every one with thinking_state["raw_event"]["event"].
-        # THE SAME EXEMPTION DECIDES BOTH. This tested only for a raw_event, so
-        # an event identified by TAG -- a task outcome, a governance decision --
-        # skipped the worthiness filter and was then deduplicated anyway: two
-        # distinct successes merged into one row, which is the exact measurement
-        # loss described above. Shadow-run evidence: storing a second
-        # `task_outcome` returned the FIRST memory's id.
-        _is_observation = _exemption is not None
-
-        if _is_observation:
-            # Logged from the exemption reason, not from _raw_event: exemption
-            # can now come from a tag, in which case there is no raw_event to
-            # read a name out of.
-            logger.debug(
-                "Skipping dedup — %s: occurrences are data, not duplicates",
-                _exemption,
-            )
-            similar_memories = []
-        else:
-            similar_memories = await self._find_similar_memories(
-                content=content,
-                similarity_threshold=0.75,  # Lower threshold to catch more duplicates
-                tags=tags,
-                memory_type=memory_type
-            )
-
-        if similar_memories:
-            # Found similar memory - merge instead of creating duplicate
-            logger.debug(f"[MEMORY_AGENT.STORE_MEMORY] STEP 5: Found {len(similar_memories)} duplicates - MERGING")
-            logger.info(
-                f"Found {len(similar_memories)} similar memories (similarity >= 0.85), "
-                f"merging instead of creating duplicate"
-            )
-
-            # Merge with most similar memory
-            merged_memory_id = await self._merge_memory_content(
-                existing_memory=similar_memories[0],
-                new_content=content,
-                new_metadata={
-                    'importance_score': importance_score,
-                    'confidence_score': confidence_score,
-                    'tags': tags,
-                    'source_context': source_context,
-                    'reasoning_trace': reasoning_trace,
-                    'thinking_state': thinking_state
-                }
-            )
-
-            if merged_memory_id:
-                logger.info(f"Memory merged into existing memory: {merged_memory_id}")
-                logger.debug(f"[MEMORY_AGENT.STORE_MEMORY] ✓ MERGED into {merged_memory_id}")
-                # Attach the image to the memory it merged into, so re-seeing a
-                # picture keeps it even when the description deduplicates.
-                if image is not None:
-                    await self._retain_image(merged_memory_id, image, image_meta)
-                return True, merged_memory_id
-            else:
-                logger.warning("Merge failed, proceeding with storage of new memory")
-                logger.warning("[MEMORY_AGENT.STORE_MEMORY] merge failed; storing as a new memory")
-        else:
-            logger.debug(f"[MEMORY_AGENT.STORE_MEMORY] STEP 5: No duplicates found - proceeding with new storage")
+        # NOTHING IS MERGED. A memory is never folded into another, however alike
+        # they read: the substrate doing the same thing on two days is two
+        # memories, and merging them wiped one. What repeats within one pursuit
+        # is summarized inside that pursuit's memory; what overlaps between
+        # memories is recall's to bring together.
 
         # ========== STEP 6: PROCEED WITH STORAGE ==========
         memory_id = f"mem_{uuid.uuid4().hex}"
@@ -890,13 +975,23 @@ class MemoryAgent(IMemoryConsolidation):
         # ONCE, at the single point content becomes a record, rather than in the
         # thirty-odd call sites that store memories. When the content asserts a
         # claim the reader can place, its clean form becomes the conclusion recall
-        # hands back, and its ClaimShape (polarity/tense) is tagged so the
-        # distinction the vector cannot recover is stored beside it. When it does
-        # not, nothing is invented -- an episode stays an episode.
-        _claim, _claim_shape = self._readable_claim(content, source_context)
+        # hands back, its facts are kept beside it for reasoning to take as they
+        # are, and its polarity is tagged so the distinction the vector cannot
+        # recover is stored beside it. When it does not, nothing is invented --
+        # an episode stays an episode.
+        #
+        # A PATTERN IS NOT A CLAIM ABOUT THE WORLD. Its content is a sentence the
+        # substrate was taught to read, and what the sentence means is carried in
+        # the pattern itself; reading it here would file the sentence's words as
+        # a second, written-reader meaning beside the taught one.
+        if (source_context or {}).get("pattern_key"):
+            _claim, _claim_shape, _claim_facts = None, None, ()
+        else:
+            _claim, _claim_shape, _claim_facts = self._readable_claim(content, source_context)
         if _claim:
             source_context = dict(source_context or {})
             source_context["conclusion"] = _claim
+            source_context["claim_facts"] = [f.to_list() for f in _claim_facts]
             tags = list(tags or [])
             for _tag in _claim_shape.as_tags():
                 if _tag not in tags:
@@ -964,10 +1059,10 @@ class MemoryAgent(IMemoryConsolidation):
                 self.metrics["memories_stored"] += 1
                 logger.info(f"Memory {memory_id} stored to hot tier (filtered)")
                 logger.debug(f"[MEMORY_AGENT.STORE_MEMORY] ✓ SUCCESS - Memory {memory_id} stored")
-                # Retain attached image DATA so the substrate remembers the
-                # picture, not only a sentence about it.
-                if image is not None:
-                    await self._retain_image(memory_id, image, image_meta)
+                # Retain attached media DATA so the substrate remembers the
+                # picture or the sound, not only a sentence about it.
+                if media is not None:
+                    await self._retain_media(memory_id, media, media_meta, user_id)
                 # EVENT: a new episodic memory is what abstraction feeds on.
                 # Count it (and, past threshold, schedule abstraction on the
                 # queue authority). Cheap — never reasons on the write path.
@@ -986,155 +1081,152 @@ class MemoryAgent(IMemoryConsolidation):
             traceback.print_exc()
             return False, None
 
-    async def _retain_image(self, memory_id: str, image: Any,
-                            image_meta: Optional[Dict[str, Any]]) -> None:
-        """Attach image DATA to a memory through the media store. Isolated: a
-        media-store failure is reported and never fails the memory it belongs to.
-        Called on BOTH storage paths (new memory and merge-into-existing) so a
-        remembered picture is kept even when its description deduplicates."""
+    #: How long before a memory formed a perception counts as contemporaneous with it.
+    PERCEPTUAL_WINDOW_SECONDS = 120.0
+
+    async def _perceptual_state(self, owner: Optional[str]) -> Optional[Dict[str, Any]]:
+        """What was being perceived when a memory of `owner`'s formed: the most
+        recent perceptions of the window, of that owner's own, whole, each saying
+        whose it was. None when there were none -- a reading, never invented.
+
+        ONLY THE MEMORY'S OWN OWNER'S. A person's image is theirs: stamped on
+        every memory that forms near it, it would go into the substrate's own
+        memories and other people's. The substrate's own seeing (its environment)
+        does not belong in a person's memory either."""
+        from core.agents.autonomous.perception_manager import get_perception_manager
+        from core.memory.utils.interfaces import Origin
+        try:
+            hub = get_perception_manager()
+            if hub is None:
+                return None
+            now = datetime.now().timestamp()
+            fresh = [p for p in await hub.get_recent_perceptions(limit=64)
+                     if now - float(getattr(p, "timestamp", 0.0)) <= self.PERCEPTUAL_WINDOW_SECONDS
+                     and isinstance(getattr(p, "origin", None), Origin)
+                     and self._owner_from(p.origin) == (owner or None)][-8:]
+        except Exception as e:
+            logger.warning(f"Perceptual state snapshot failed: {type(e).__name__}: {e}")
+            return None
+        if not fresh:
+            return None
+        return {"captured_at": datetime.now().isoformat(),
+                "perceptions": [
+                    {"source": p.source, "data_type": p.data_type, "content": p.content,
+                     "confidence": round(float(p.confidence), 4),
+                     "age_s": round(now - float(p.timestamp), 2),
+                     "owner": self._owner_from(p.origin)}
+                    for p in fresh]}
+
+    async def _retain_media(self, memory_id: str, media: Any,
+                            media_meta: Optional[Dict[str, Any]],
+                            owner: Optional[str]) -> None:
+        """Attach media DATA -- a picture or a sound -- to a memory through the
+        media store. Isolated: a media-store failure is reported and never fails
+        the memory it belongs to. Called on BOTH storage paths (new memory and
+        merge-into-existing) so what was met is kept even when its description
+        deduplicates."""
         try:
             from core.memory.media_store import get_media_store
-            await get_media_store().store_image(
-                memory_id, image, perceived=image_meta or {})
+            # WHAT WAS MET KEEPS WHAT IT IS KNOWN BY, so memory can be asked by
+            # the sound or the picture itself whether it was met before
+            # (`retrieve`, strategies `sound` and `sight`).
+            keys = None
+            kind = (media_meta or {}).get("kind")
+            if kind in ("sound_trace", "sight_trace") and isinstance(media, (bytes, bytearray)):
+                keys = self._trace_keys(kind, bytes(media))
+            await get_media_store().store_media(
+                memory_id, media, perceived=media_meta or {}, owner=owner, keys=keys)
         except Exception as media_error:
-            logger.error("memory %s stored but its image was not retained: %s",
+            logger.error("memory %s stored but its media was not retained: %s",
                          memory_id, media_error)
 
-    async def get_memory_images(self, memory_id: str) -> List[Dict[str, Any]]:
-        """The image data attached to a memory -- bytes, mime, dimensions and
-        perceived structure -- so the substrate can produce the picture it
-        remembers, not only a description of it. Empty when the memory has none."""
+    @staticmethod
+    def _trace_keys(kind: str, data: bytes):
+        """The keys a kept trace is found by: a sound's landmark hashes, a
+        picture's keypoint keys. None when the trace keeps no features."""
+        if kind == "sound_trace":
+            from core.perception.hearing import landmark_hashes, trace_landmarks
+            rows = trace_landmarks(data)
+            return None if rows is None else landmark_hashes(rows)
+        from core.perception.vision import keypoint_hashes, sight_trace
+        features = sight_trace(data)
+        return None if features is None else keypoint_hashes(features["descriptors"])
+
+    async def get_memory_media(self, memory_id: str) -> List[Dict[str, Any]]:
+        """The pictures and sounds attached to a memory -- bytes, mime,
+        dimensions and perceived structure -- so the substrate can produce what
+        it remembers, not only a description of it. Empty when the memory has
+        none."""
         from core.memory.media_store import get_media_store
         return await get_media_store().media_for_memory(memory_id)
 
-    async def capture_task_outcome(
+    def task_experience(
         self,
         task: Any,
         *,
         result: Optional[Dict[str, Any]] = None,
         success: bool = True,
         confidence: float = 1.0,
-    ) -> Optional[str]:
-        """Capture a completed task's outcome as durable memory — the SEMANTIC
-        knowledge it produced and the PROCEDURAL tool-sequence it followed.
+    ) -> "Experience":
+        """A finished task, succeeded or failed, as an experience: what the
+        task's memory holds, and what the pool queues that memory for.
 
-        Two distinct, retrievable artifacts, both owned by memory (the authority):
-          • SEMANTIC — WHAT the task learned, found, produced, or concluded. The
-            rich knowledge future tasks retrieve. Distinct from the META
-            performance record the coordinator also stores.
-          • PROCEDURAL — the tool SEQUENCE and which tools were effective vs
-            failed, so similar tasks can replicate or avoid the approach.
+        A task done for a person -- code, a design, an experiment -- is theirs
+        in its particulars and the substrate's in what it did. Each part says
+        where it came from:
 
-        Task execution hands its outcome here; the memory agent composes and
-        stores both. MODEL-FREE: the substrate's executor already produces a
-        structured result (summary, key_findings, tool_results, files_created),
-        so both artifacts are assembled from those fields directly — no
-        compression model, no conversation transcript. Each artifact is skipped
-        honestly when the result carries nothing for it, rather than storing an
-        empty record. Returns the semantic memory id when one was stored, else
-        the procedural id, else None.
+          the person     the request, the result they were given, and what the
+                         tools returned from their material
+          the substrate  the steps (the tools it chose and how), the fix that
+                         worked
+          the world      the errors it met, the checks that confirmed the
+                         outcome, and what the tools returned on the substrate's
+                         own work
+
+        It used to compose "what the task found" and "the tools it used" from a
+        summary, findings and tool results that no task result carries, so it
+        kept nothing, for anyone.
         """
-        try:
-            from core.memory.utils.interfaces import MemoryType
+        from core.memory.utils.interfaces import Experience, Origin, Part
+        result = result if isinstance(result, dict) else {}
+        meta = getattr(task, "metadata", None) or {}
+        origin = Origin.of(getattr(task, "actor", None), "task")
 
-            result = result or {}
-            summary = (result.get("summary") or result.get("result_summary") or "").strip()
-            key_findings = [str(f).strip() for f in (result.get("key_findings") or []) if str(f).strip()]
-            files_created = [str(f) for f in (result.get("files_created") or []) if str(f).strip()]
-            tool_results = result.get("tool_results") or []
-            iterations = int(result.get("iterations", 0) or 0)
-            duration = result.get("duration_seconds", result.get("duration", 0)) or 0
+        parts = [Part("request", str(getattr(task, "description", "") or ""), origin.theirs)]
+        for step in ((meta.get("parameters") or {}).get("tool_plan") or []):
+            parts.append(Part("step", step, "substrate"))
+        for run in (result.get("tools_run") or []):
+            if not isinstance(run, dict):
+                continue
+            parts.append(Part("tool_run", {k: run.get(k) for k in ("tool", "args", "success")
+                                           if k in run}, "substrate"))
+            if "output" in run or "error" in run:
+                parts.append(Part("tool_output", {"tool": run.get("tool"),
+                                                  "output": run.get("output"),
+                                                  "error": run.get("error")}, origin.material))
+        for failure in (meta.get("failure_history") or []):
+            parts.append(Part("error", failure, "world"))
+        if meta.get("retry_method_structured"):
+            parts.append(Part("fix", meta["retry_method_structured"], "substrate"))
+        for check in (meta.get("completion_evidence") or []):
+            parts.append(Part("check", check, "world"))
+        delivered = {k: v for k, v in result.items() if k != "tools_run"}
+        if delivered:
+            parts.append(Part("result", delivered, origin.theirs))
 
-            outcome_label = "SUCCESS" if success else "FAILURE"
-            task_type = getattr(getattr(task, "type", None), "value", None) or getattr(task, "task_type", None)
-            task_type_str = str(task_type) if task_type else "general"
-            description = str(getattr(task, "description", str(task)))
-            task_id = getattr(task, "id", None)
-            tid8 = str(task_id or "?")[:8]
-
-            semantic_id: Optional[str] = None
-            procedural_id: Optional[str] = None
-
-            # ── SEMANTIC: the knowledge produced ──────────────────────────────
-            # Skipped when there is nothing to know (no summary, no findings).
-            if summary or key_findings:
-                lines = [f"Task ({task_type_str}) [{outcome_label}]: {description[:400]}"]
-                lines.append(f"Execution: {iterations} iteration(s), {duration}s, confidence {confidence:.0%}")
-                if summary:
-                    lines.append(f"\nSummary:\n{summary[:1000]}")
-                if key_findings:
-                    lines.append("\nKey findings:\n" + "\n".join(f"- {f}" for f in key_findings[:12]))
-                if files_created:
-                    lines.append("\nFiles produced:\n" + "\n".join(f"- {f}" for f in files_created[:12]))
-                importance = min(0.6 + (0.2 if success else 0.0) + min(iterations * 0.01, 0.1), 1.0)
-                tags = ["semantic", "task_knowledge", "success" if success else "failure"]
-                if task_type:
-                    tags.append(str(task_type).lower())
-                stored, mid = await self.store_memory(
-                    content="\n".join(lines),
-                    memory_type=MemoryType.SEMANTIC,
-                    importance_score=importance,
-                    confidence_score=confidence,
-                    tags=tags,
-                    source_context={
-                        "source": "memory_agent.capture_task_outcome",
-                        "memory_class": "semantic_task_knowledge",
-                        "task_id": task_id, "task_type": task_type_str,
-                        "success": success, "iterations": iterations,
-                        "duration_seconds": duration, "model_free": True,
-                    },
-                )
-                if stored:
-                    semantic_id = mid
-                    logger.info(f"✓ Semantic task knowledge stored: task={tid8} memory_id={mid}")
-
-            # ── PROCEDURAL: the tool sequence followed ────────────────────────
-            # Skipped when no tools were used (nothing procedural to record).
-            tool_names = [str(r.get("tool") or r.get("name")) for r in tool_results
-                          if isinstance(r, dict) and (r.get("tool") or r.get("name"))]
-            if tool_names:
-                effective = [str(r.get("tool") or r.get("name")) for r in tool_results
-                             if isinstance(r, dict) and r.get("success")]
-                failed = [str(r.get("tool") or r.get("name")) for r in tool_results
-                          if isinstance(r, dict) and r.get("success") is False]
-                pcontent = (
-                    f"Task [{outcome_label}]: {description[:400]}\n\n"
-                    f"Tool sequence ({iterations} iteration(s), {duration}s): "
-                    f"{' → '.join(tool_names)}\n"
-                )
-                if effective:
-                    pcontent += f"Effective tools: {', '.join(dict.fromkeys(effective))}\n"
-                if failed:
-                    pcontent += f"Failed tools: {', '.join(dict.fromkeys(failed))}\n"
-                if summary:
-                    pcontent += f"\nOutcome: {summary[:300]}"
-                pimportance = min(0.5 + (0.3 if success else 0.1) + min(len(tool_names) * 0.02, 0.2), 1.0)
-                ptags = ["procedural", "task_execution", outcome_label.lower()]
-                if task_type:
-                    ptags.append(str(task_type).lower())
-                pstored, pmid = await self.store_memory(
-                    content=pcontent,
-                    memory_type=MemoryType.PROCEDURAL,
-                    importance_score=pimportance,
-                    confidence_score=confidence,
-                    tags=ptags,
-                    source_context={
-                        "source": "memory_agent.capture_task_outcome",
-                        "memory_class": "procedural_task_execution",
-                        "task_id": task_id, "task_type": task_type_str,
-                        "success": success, "iterations": iterations,
-                        "tools_used": list(dict.fromkeys(tool_names)), "model_free": True,
-                    },
-                )
-                if pstored:
-                    procedural_id = pmid
-                    logger.debug(f"Procedural task memory stored: task={tid8} memory_id={pmid}")
-
-            return semantic_id or procedural_id
-
-        except Exception as e:
-            logger.error(f"capture_task_outcome failed: {type(e).__name__}: {e}")
-            return None
+        evidence = {"outcome": "success" if success else "failure",
+                    "confidence": float(confidence),
+                    "checks": len(meta.get("completion_evidence") or []),
+                    "verification_state": result.get("verification_state"),
+                    "task_type": getattr(getattr(task, "type", None), "value", None)}
+        # WHAT THE OUTCOME SAYS ABOUT HOW IT WAS DONE, where the task loop has
+        # judged it (`_operating_verdict`): whether it counts, and what it was
+        # read from. Without it a failure in memory cannot say what caused it.
+        if meta.get("operating_verdict"):
+            evidence["verdict"] = meta["operating_verdict"]
+        return Experience(
+            kind="task", origin=origin, parts=tuple(parts), evidence=evidence,
+            about=str(getattr(task, "id", "") or "") or None)
 
     async def store_batch(self, memories: List[MemoryItem]) -> Tuple[bool, int]:
         """
@@ -1232,7 +1324,11 @@ class MemoryAgent(IMemoryConsolidation):
 
         # Extract key metrics
         reasoning_step_count = len(reasoning_trace) if reasoning_trace else 0
-        has_vision = source_context.get("has_image", False) or source_context.get("has_video", False)
+        # A PERCEPT -- a picture, a clip or a sound the substrate met -- is not a
+        # fact looked up, whatever its caption's words look like.
+        has_percept = (source_context.get("has_image", False)
+                       or source_context.get("has_video", False)
+                       or source_context.get("has_sound", False))
         context_count = source_context.get("context_count", 0)
 
         # Check tags for semantic hints (used throughout metadata generation)
@@ -1265,8 +1361,8 @@ class MemoryAgent(IMemoryConsolidation):
         complexity_score = 0.0
         if context_count > 0:
             complexity_score += min(context_count / 10.0, 0.3)
-        if has_vision and not is_error and confidence_score > 0.5:
-            complexity_score += 0.3  # Vision only if successful
+        if has_percept and not is_error and confidence_score > 0.5:
+            complexity_score += 0.3  # a percept, only if it was met successfully
         # BOOST: Research/structural findings are inherently complex
         if has_research_tags or has_structural_tags:
             logger.debug(f"[METADATA DEBUG] Boosting complexity_score for research/structure tags")
@@ -1383,8 +1479,8 @@ class MemoryAgent(IMemoryConsolidation):
             # up. Classifying it as FACTUAL_LOOKUP is what triggered the
             # `trivial_factual_lookup` hard-reject.
             query_type = QueryType.SYNTHESIS
-        elif has_vision and not is_error:
-            # Vision analysis is always complex reasoning
+        elif has_percept and not is_error:
+            # Perceiving something is always complex reasoning
             query_type = QueryType.COMPLEX_REASONING
         elif content_is_substantive and keyword_count >= 2:
             # Analytical language over substantive content. This tested
@@ -1410,11 +1506,11 @@ class MemoryAgent(IMemoryConsolidation):
 
         query = QueryMetadata(
             query_type=query_type,
-            requires_synthesis=context_count > 0 or has_vision,
-            multi_step=reasoning_step_count > 1 or has_vision,
+            requires_synthesis=context_count > 0 or has_percept,
+            multi_step=reasoning_step_count > 1 or has_percept,
             involves_uncertainty=confidence_score < 0.9,
             ambiguous_input=False,
-            context_dependent=context_count > 0 or has_vision
+            context_dependent=context_count > 0 or has_percept
         )
 
         # 5. Outcome Metadata
@@ -1553,377 +1649,6 @@ class MemoryAgent(IMemoryConsolidation):
     # ================================================================================================
     # MEMORY DEDUPLICATION HELPERS
     # ================================================================================================
-
-    async def _find_similar_memories(
-        self,
-        content: str,
-        similarity_threshold: float = 0.85,
-        tags: Optional[List[str]] = None,
-        memory_type: Optional[MemoryType] = None,
-        limit: int = 5
-    ) -> List[MemoryItem]:
-        """
-        Find similar memories using semantic search
-
-        Searches for memories with semantic similarity >= threshold to prevent duplicates.
-
-        Args:
-            content: Content to search for
-            similarity_threshold: Minimum similarity score (0.0-1.0)
-            tags: Optional tag filter
-            memory_type: Optional memory type filter
-            limit: Maximum similar memories to return
-
-        Returns:
-            List of similar MemoryItem objects, sorted by similarity descending
-        """
-        try:
-            # Generate embedding for content
-            if not self.embedding_service:
-                logger.warning("Embedding service not available, cannot check for duplicates")
-                logger.warning("[DUPLICATE CHECK] embedding service unavailable; duplicate check skipped")
-                return []
-
-            query_embedding = self.embedding_service.generate_embedding(content)
-            if not query_embedding:
-                logger.warning("Failed to generate embedding, cannot check for duplicates")
-                logger.warning("[DUPLICATE CHECK] embedding could not be generated; duplicate check skipped")
-                return []
-
-            logger.debug(f"[DUPLICATE CHECK] ✓ Generated embedding ({len(query_embedding)} dims), searching...")
-
-            # Search for similar memories using semantic search
-            results = await self.postgres_storage.semantic_search(
-                query_embedding=query_embedding,
-                memory_type=memory_type,
-                min_similarity=similarity_threshold,
-                limit=limit
-            )
-
-            logger.debug(
-                f"Found {len(results)} similar memories "
-                f"(similarity >= {similarity_threshold})"
-            )
-
-            return results
-
-        except Exception as e:
-            logger.error(f"Error finding similar memories: {e}")
-            return []
-
-    async def _merge_memory_content(
-        self,
-        existing_memory: MemoryItem,
-        new_content: str,
-        new_metadata: Dict[str, Any]
-    ) -> Optional[str]:
-        """
-        Merge new content into existing memory deterministically.
-
-        No LLM involved — the memory agent owns its own merge logic.
-        Uses sentence-level deduplication: keeps all sentences from the
-        existing memory, then appends sentences from the new content that
-        are not already covered (normalised string match + word-overlap
-        heuristic to catch near-duplicates).
-
-        Args:
-            existing_memory: Existing MemoryItem to merge into
-            new_content: New content to merge
-            new_metadata: New metadata (importance, confidence, tags, etc.)
-
-        Returns:
-            memory_id if merge successful, None otherwise
-        """
-        try:
-            # Deterministic sentence-level deduplication — no LLM call.
-            # Avoids loading the Qwen3-8B model and all concurrent-
-            # initialisation crash risks that come with it.
-            import re as _re
-
-            def _split_sentences(text: str):
-                return [s.strip() for s in _re.split(r'(?<=[.!?])\s+', text) if s.strip()]
-
-            def _normalise(s: str) -> str:
-                return _re.sub(r'\s+', ' ', s.lower().strip().rstrip('.!?'))
-
-            existing_sents = _split_sentences(existing_memory.content)
-            existing_norm = {_normalise(s) for s in existing_sents}
-            novel = [
-                s for s in _split_sentences(new_content)
-                if _normalise(s) not in existing_norm
-            ]
-            consolidated_content = (
-                existing_memory.content + ' ' + ' '.join(novel)
-            ).strip() if novel else existing_memory.content
-
-            # Calculate updated importance and confidence
-            # Take the maximum importance (more important memory wins)
-            updated_importance = max(
-                existing_memory.importance_score,
-                new_metadata.get('importance_score', 0.5)
-            )
-
-            # Average confidence scores
-            updated_confidence = (
-                existing_memory.confidence_score +
-                new_metadata.get('confidence_score', 1.0)
-            ) / 2.0
-
-            # Merge tags (union of both sets)
-            existing_tags = set(existing_memory.tags or [])
-            new_tags = set(new_metadata.get('tags', []))
-            merged_tags = list(existing_tags | new_tags)
-
-            # Merge reasoning traces.
-            # `.get(k, [])` returns None when the key EXISTS and is None, which
-            # is the normal case for a memory with no trace — so this raised
-            # TypeError: can only concatenate list (not "NoneType") to list,
-            # and every merge of such a memory died inside the handler.
-            existing_trace = existing_memory.reasoning_trace or []
-            new_trace = new_metadata.get('reasoning_trace') or []
-            merged_trace = existing_trace + new_trace
-
-            # Update existing memory
-            updates = {
-                'content': consolidated_content,
-                'importance_score': updated_importance,
-                'confidence_score': updated_confidence,
-                'tags': merged_tags,
-                'reasoning_trace': merged_trace,
-                # update_memory treats access_count as an INCREMENT; a merge is one
-                # more access. Passing the running total here made each merge add
-                # the count to itself — doubling it, and overflowing int64 at ~63
-                # merges (the "$3 out of int64 range" update failures).
-                'access_count': 1,
-                'last_accessed': datetime.now(),
-                'metadata': {
-                    **existing_memory.metadata,
-                    'merged_at': datetime.now().isoformat(),
-                    'merge_count': existing_memory.metadata.get('merge_count', 0) + 1,
-                    'last_merge_source': (new_metadata.get('source_context') or {}).get('source_system', 'unknown')
-                }
-            }
-
-            # Regenerate embedding for consolidated content
-            if self.embedding_service:
-                new_embedding = self.embedding_service.generate_embedding(consolidated_content)
-                if new_embedding:
-                    updates['embeddings'] = new_embedding
-
-            # Update in PostgreSQL
-            success = await self.postgres_storage.update_memory(
-                memory_id=existing_memory.memory_id,
-                updates=updates,
-                tier='hot'
-            )
-
-            if success:
-                logger.info(
-                    f"Memory {existing_memory.memory_id} updated with merged content "
-                    f"(importance: {existing_memory.importance_score:.2f} → {updated_importance:.2f})"
-                )
-                return existing_memory.memory_id
-            else:
-                logger.error(f"Failed to update memory {existing_memory.memory_id} with merged content")
-                return None
-
-        except Exception as e:
-            logger.error(f"Error merging memory content: {e}")
-            logger.exception("Error merging memory content")
-            return None
-
-    async def _cluster_by_similarity(
-        self,
-        memories: List[MemoryItem],
-        similarity_threshold: float = 0.85
-    ) -> List[List[MemoryItem]]:
-        """
-        Cluster similar memories together
-
-        Groups memories by semantic similarity for consolidation.
-
-        Args:
-            memories: List of MemoryItem objects to cluster
-            similarity_threshold: Minimum similarity to group together
-
-        Returns:
-            List of clusters (each cluster is a list of similar memories)
-        """
-        if not self.embedding_service or not memories:
-            return [[m] for m in memories]  # Each memory in its own cluster
-
-        try:
-            import json as _json
-            import numpy as np
-
-            # Extract embeddings
-            embeddings = []
-            for memory in memories:
-                emb_value = None
-
-                raw = getattr(memory, "embeddings", None)
-                if raw is not None:
-                    # Embeddings may be stored as JSON strings — parse them
-                    if isinstance(raw, str):
-                        try:
-                            raw = _json.loads(raw)
-                        except Exception:
-                            raw = None
-
-                if raw is not None:
-                    try:
-                        arr = np.asarray(raw, dtype=float).ravel()
-                        if arr.size > 0:
-                            emb_value = arr.tolist()
-                    except Exception:
-                        emb_value = None
-
-                if emb_value is None:
-                    # Generate embedding if missing/unusable
-                    emb = self.embedding_service.generate_embedding(memory.content)
-
-                    if isinstance(emb, str):
-                        try:
-                            emb = _json.loads(emb)
-                        except Exception:
-                            emb = None
-
-                    try:
-                        arr = np.asarray(emb, dtype=float).ravel() if emb is not None else np.asarray([], dtype=float)
-                        emb_value = arr.tolist() if arr.size > 0 else [0.0] * self.embedding_dim
-                    except Exception:
-                        emb_value = [0.0] * self.embedding_dim
-
-                embeddings.append(emb_value)
-
-            # Simple clustering using cosine similarity
-            clusters = []
-            used_indices = set()
-
-            for i, memory in enumerate(memories):
-                if i in used_indices:
-                    continue
-
-                # Start new cluster with this memory
-                cluster = [memory]
-                used_indices.add(i)
-
-                # Find similar memories
-                for j, other_memory in enumerate(memories):
-                    if j in used_indices or i == j:
-                        continue
-
-                    # Calculate cosine similarity
-                    raw_i = embeddings[i]
-                    raw_j = embeddings[j]
-                    # Embeddings may be stored as JSON strings — parse them
-                    if isinstance(raw_i, str):
-                        import json as _json
-                        raw_i = _json.loads(raw_i)
-                    if isinstance(raw_j, str):
-                        import json as _json
-                        raw_j = _json.loads(raw_j)
-                    emb1 = np.array(raw_i, dtype=float)
-                    emb2 = np.array(raw_j, dtype=float)
-
-                    # Guard against unexpected shapes/length mismatches
-                    emb1 = emb1.ravel()
-                    emb2 = emb2.ravel()
-                    if emb1.size == 0 or emb2.size == 0:
-                        continue
-                    if emb1.size != emb2.size:
-                        min_len = min(emb1.size, emb2.size)
-                        if min_len == 0:
-                            continue
-                        emb1 = emb1[:min_len]
-                        emb2 = emb2[:min_len]
-
-                    similarity = float(np.dot(emb1, emb2) / (
-                        np.linalg.norm(emb1) * np.linalg.norm(emb2) + 1e-10
-                    ))
-
-                    if similarity >= similarity_threshold:
-                        cluster.append(other_memory)
-                        used_indices.add(j)
-
-                clusters.append(cluster)
-
-            logger.info(
-                f"Clustered {len(memories)} memories into {len(clusters)} clusters "
-                f"(threshold={similarity_threshold})"
-            )
-
-            return clusters
-
-        except Exception as e:
-            logger.error(f"Error clustering memories: {e}")
-            return [[m] for m in memories]  # Fallback to individual clusters
-
-    async def _consolidate_cluster(
-        self,
-        cluster: List[MemoryItem]
-    ) -> Optional[str]:
-        """
-        Consolidate a cluster of similar memories into one
-
-        Merges multiple similar memories, keeping the most important as base.
-
-        Args:
-            cluster: List of similar MemoryItem objects
-
-        Returns:
-            memory_id of consolidated memory, None if failed
-        """
-        if not cluster:
-            return None
-
-        if len(cluster) == 1:
-            return cluster[0].memory_id
-
-        try:
-            # Sort by importance (descending) - keep most important as base
-            sorted_cluster = sorted(
-                cluster,
-                key=lambda m: m.importance_score,
-                reverse=True
-            )
-
-            base_memory = sorted_cluster[0]
-            logger.info(
-                f"Consolidating {len(cluster)} memories into base: {base_memory.memory_id}"
-            )
-
-            # Merge each additional memory into base
-            for memory in sorted_cluster[1:]:
-                merged_id = await self._merge_memory_content(
-                    existing_memory=base_memory,
-                    new_content=memory.content,
-                    new_metadata={
-                        'importance_score': memory.importance_score,
-                        'confidence_score': memory.confidence_score,
-                        'tags': memory.tags,
-                        'source_context': memory.metadata,
-                        'reasoning_trace': memory.reasoning_trace
-                    }
-                )
-
-                if merged_id:
-                    # Soft delete the merged memory
-                    await self.postgres_storage.delete_memory(
-                        memory_id=memory.memory_id,
-                        soft_delete=True,
-                        reason=f"Consolidated into {base_memory.memory_id}"
-                    )
-
-            logger.info(
-                f"Consolidated {len(cluster)} memories into {base_memory.memory_id}"
-            )
-
-            return base_memory.memory_id
-
-        except Exception as e:
-            logger.error(f"Error consolidating cluster: {e}")
-            return None
 
     async def bulk_import(
         self,
@@ -2132,11 +1857,49 @@ class MemoryAgent(IMemoryConsolidation):
         logger.debug(f"Retrieved {len(results)} recent memories (last 7 days)")
         return results
 
+    async def _recall_by_sound(self, heard: Any, *, limit: int,
+                               actor: Optional[str]) -> List[MemoryItem]:
+        """The hearings of the same sound as `heard` (landmark rows), found by
+        what they share through the media store's index and decided by
+        agreement on one offset, as a known song is: at least
+        `hearing.KNOWN_MIN_AGREE` landmarks, and at least `music.SONG_MIN_SHARE`
+        of those heard while the remembered sound would have been sounding.
+        Only memories `actor` may see."""
+        import numpy as np
+        from core.memory.media_store import get_media_store
+        from core.perception import hearing, music
+        from core.perception.perception_faculty import get_perception_faculty
+        from core.agents.autonomous.shared_types import visible_to
+        heard = np.asarray(heard, np.int32)
+        found: Dict[str, MemoryItem] = {}
+        candidates, held = [], set()
+        for media in await get_media_store().similar(hearing.landmark_hashes(heard),
+                                                     kind="sound_trace", limit=max(limit, 20)):
+            if media["memory_id"] not in held:
+                held.add(media["memory_id"])
+                candidates.append(media)
+        # Decided in hearing's own process: counting agreement over thousands
+        # of landmarks held the substrate's loop for 136 ms over 20 songs.
+        agreed = await get_perception_faculty().agreements(
+            "sound", heard, [m["bytes"] for m in candidates])
+        for media, (count, at, share) in zip(candidates, agreed):
+            if count < hearing.KNOWN_MIN_AGREE or share < music.SONG_MIN_SHARE:
+                continue
+            item = await self.postgres_storage.get_memory(media["memory_id"])
+            if item is None or not visible_to(item.user_id or None, actor):
+                continue
+            item.similarity_score = round(float(share), 4)
+            item.heard_match = {"agreeing": int(count), "share": round(float(share), 4),
+                                "at": at}
+            found[item.memory_id] = item
+        return sorted(found.values(), key=lambda m: -m.similarity_score)[:limit]
+
     #: The retrieval strategies that compose one recall. Each is a distinct
     #: storage primitive, so "specialise the agents" is a property of the
     #: design rather than a TODO: semantic finds paraphrase, keyword finds
-    #: literal strings an embedding smooths away, tags find curation.
-    RETRIEVAL_STRATEGIES = ("semantic", "keyword", "tags")
+    #: literal strings an embedding smooths away, tags find curation, and sound
+    #: finds a hearing by the sound itself (when the caller has one).
+    RETRIEVAL_STRATEGIES = ("semantic", "keyword", "tags", "sound")
 
     async def retrieve(
         self,
@@ -2152,8 +1915,20 @@ class MemoryAgent(IMemoryConsolidation):
         include_events: bool = True,
         relative_to_best: Optional[float] = None,
         require_named_match: bool = False,
+        actor: Optional[str] = None,
+        heard: Optional[Any] = None,
     ) -> List[MemoryItem]:
         """Recall memories by running every applicable strategy CONCURRENTLY.
+
+        `actor` is whose cognition the recall serves: a user sees their own
+        memories and the substrate's, the substrate (None) only its own. Every
+        strategy applies the same rule (`PostgresStorage._actor_predicate`).
+
+        `heard` is a sound's landmarks (rows of f1, f2, dt, t): given one, the
+        `sound` strategy recalls the hearings of THE SAME SOUND -- a recording
+        heard again, through a room, a codec, over other sound -- each with how
+        much of what was heard agreed with it (`similarity_score`, and
+        `heard_match`: agreeing, share, at).
 
         This is the composition layer the swarm search was: several retrieval
         strategies at once, merged. It is worth having for RECALL, not speed --
@@ -2210,6 +1985,7 @@ class MemoryAgent(IMemoryConsolidation):
                 memory_type=memory_type,
                 min_similarity=min_similarity,
                 limit=per_strategy,
+                actor=actor,
             )
 
         async def _keyword() -> List[MemoryItem]:
@@ -2217,6 +1993,7 @@ class MemoryAgent(IMemoryConsolidation):
                 return []
             return await self.postgres_storage.search_by_content(
                 content=query, exact_match=False, limit=per_strategy,
+                actor=actor,
             )
 
         async def _tags() -> List[MemoryItem]:
@@ -2227,9 +2004,16 @@ class MemoryAgent(IMemoryConsolidation):
                 tags=set(tags),
                 min_importance=min_importance,
                 limit=per_strategy,
+                actor=actor,
             )
 
-        runners = {"semantic": _semantic, "keyword": _keyword, "tags": _tags}
+        async def _sound() -> List[MemoryItem]:
+            if heard is None or not len(heard):
+                return []
+            return await self._recall_by_sound(heard, limit=per_strategy, actor=actor)
+
+        runners = {"semantic": _semantic, "keyword": _keyword, "tags": _tags,
+                   "sound": _sound}
         unknown = [name for name in selected if name not in runners]
         if unknown:
             raise ValueError(
@@ -2393,6 +2177,441 @@ class MemoryAgent(IMemoryConsolidation):
         )
         return ranked[:limit]
 
+    # ── WORD CLASSES ───────────────────────────────────────────────────────
+    #
+    # What the substrate has observed about how a word is used. One store, the
+    # same store as everything else it has learned, and a wipe takes these with
+    # it -- which is the point: the file these replace survived database wipes
+    # and re-poisoned every clean store on first read.
+
+    #: The tag `cognitive_ingress` puts on a memory of being taught a claim.
+    #: Word classes are derived from these at warm time -- there is no separate
+    #: per-word record, because the substrate's memory of the sentence already
+    #: says everything its words' classes follow from.
+    TAUGHT_PROPOSITION_TAG = "admitted_proposition"
+    #: A memory that STATES a word's class, rather than implying one by using
+    #: the word in a proposition.
+    #:
+    #: WHY THIS HAD TO EXIST. A class could only be derived from a taught
+    #: proposition's surface, and a proposition has exactly three slots --
+    #: subject, relation, object. Every word English has that never occupies
+    #: one of those was therefore unlearnable: adverbs, determiners,
+    #: prepositions, pronouns, conjunctions, auxiliaries, modals. They lived in
+    #: frozensets in the reader instead, which is a lexicon written in code --
+    #: a second authority beside memory, unwipeable, and unable to grow by
+    #: being taught. WordNet alone tags 3,630 adverbs the substrate dropped on
+    #: the floor for want of anywhere to put them.
+    WORD_CLASS_TAG = "word_class"
+
+    #: The tag on a sentence remembered WITHOUT being understood. These carry
+    #: `blamed` -- the class the refusal was attributed to -- which is the only
+    #: evidence against a word class there is.
+    UNREAD_TELLING_TAG = "told_but_unread"
+
+    #: How many observations `warm_word_classes` will read. Named, because a
+    #: silent cap here reads as "the substrate does not know that word".
+    #:
+    #: RAISED FROM 20,000, WHICH WAS SIZED FOR A STORE THAT HELD 199 WORDS.
+    #: Word classes are taught into memory now -- WordNet alone states 75,834 --
+    #: so the old cap did exactly what its own comment warns about: it cut the
+    #: vocabulary off mid-alphabet and every word past the cut read as unknown.
+    #: It also made teaching non-idempotent, because a pass asking what it had
+    #: already said got a truncated answer and taught the remainder again:
+    #: measured at 44,323 rows carrying 23,555 distinct (word, class) pairs.
+    WORD_CLASS_WARM_LIMIT = 400000
+
+    def word_class(self, word: str) -> Optional[str]:
+        """The class this word has been OBSERVED to have, or None. Synchronous.
+
+        None is returned for a word never observed, for one whose evidence is
+        not net-positive for any class, and for a tie. None is also what an
+        unwarmed index answers, and that is safe rather than merely tolerable:
+        the reader treats an unknown word by reading the SENTENCE instead --
+        measured, "A filter separates particles." reads correctly when
+        `separates` is unknown and fails to read at all once something files it
+        as a noun. Answering "I have not observed this" is therefore the honest
+        answer AND the one that costs the least.
+
+        A tie yields None for the same reason a two-rule match does: a word the
+        evidence does not separate is not a word whose class is known.
+        """
+        counts = self._word_class_index.get(str(word or "").strip().lower())
+        if not counts:
+            return None
+        best = max(counts.items(), key=lambda kv: kv[1])
+        if best[1] <= 0:
+            return None
+        if sum(1 for _, n in counts.items() if n == best[1]) > 1:
+            return None
+        return best[0]
+
+    def word_classes(self, word: str) -> Dict[str, int]:
+        """Every class observed for this word with its net evidence.
+
+        Polysemy is not a contradiction. `filter` is a thing and also something
+        one does, and both can be net-positive here at once -- the store this
+        replaced could hold only one class per word and counted the second as a
+        CONTRADICTION, so teaching English to it drove real words to REFUTED and
+        out of usability.
+        """
+        return dict(self._word_class_index.get(str(word or "").strip().lower(), {}))
+
+    def note_taught_proposition(self, surface: str, reading: str) -> int:
+        """Fold ONE just-stored proposition into the warm view. Returns words moved.
+
+        A full warm reads the whole store, which is far too expensive to do per
+        sentence -- and per sentence is exactly when it is needed. A lesson
+        teaches "A marnic is a device." and the very next line says "A marnic
+        filters brine.", which cannot read until `marnic` is known to name a
+        thing. Waiting for the next full warm would make every lesson
+        unreadable from its second sentence on.
+
+        This is NOT a second store. It applies the same derivation the warm
+        applies, to a memory that was just written, so the view says what a
+        rebuild would say. Drop it and the next warm restores it exactly.
+        """
+        if "|" not in str(reading or ""):
+            return 0
+        from core.semantics.genericity import classes_implied_by
+        parts = [p.strip() for p in str(reading).split("|")]
+        subject = parts[0]
+        relation = parts[1] if len(parts) > 1 else ""
+        obj = parts[2] if len(parts) > 2 else None
+        moved = 0
+        for word, cls in classes_implied_by(
+                str(surface or ""), subject, relation, obj).items():
+            bucket = self._word_class_index.setdefault(word, {})
+            bucket[cls] = bucket.get(cls, 0) + 1
+            moved += 1
+        return moved
+
+    def note_refusal(self, blamed) -> int:
+        """Fold a reading's blamed classes into the view. Returns classes moved.
+
+        The counterpart of `note_taught_proposition` for evidence AGAINST, so a
+        class that just cost a sentence stops being believed now rather than
+        after the next rebuild -- which matters when the next sentence in the
+        same lesson depends on it.
+        """
+        moved = 0
+        for entry in (blamed or []):
+            if not (isinstance(entry, (list, tuple)) and len(entry) >= 2):
+                continue
+            word, cls = str(entry[0]).lower(), str(entry[1]).upper()
+            if not word or not cls:
+                continue
+            bucket = self._word_class_index.setdefault(word, {})
+            bucket[cls] = bucket.get(cls, 0) - 1
+            moved += 1
+        return moved
+
+    async def stated_word_classes(self):
+        """Every `(word, CLASS)` pair already TOLD to the substrate.
+
+        Read exactly, from the metadata that identifies these memories, so a
+        teaching pass can tell what it has already said without asking a vector
+        index whether two sentences about grammar resemble each other."""
+        rows = await self.search_memories(
+            tags={self.WORD_CLASS_TAG},
+            limit=self.WORD_CLASS_WARM_LIMIT,
+        ) or []
+        out = []
+        for item in rows:
+            meta = item.metadata or {}
+            word = str(meta.get("word") or "").strip().lower()
+            cls = str(meta.get("word_class") or "").strip().upper()
+            if word and cls:
+                out.append((word, cls))
+        return out
+
+    def pattern_inventory(self):
+        """The taught patterns as memory's view of them. Synchronous.
+
+        Empty before the first warm or pattern note, which is the honest answer
+        then: a pattern this process has not read from memory is not one it can
+        use. Reading happens inside a parse, where there is nowhere to await."""
+        if self._pattern_inventory is None:
+            from core.semantics.derived_reader import PatternInventory
+            self._pattern_inventory = PatternInventory()
+        return self._pattern_inventory
+
+    def note_pattern(self, item) -> bool:
+        """Fold ONE just-stored construction or link into the view. False if it was there.
+
+        Not a second store: it applies what the next warm would read from its
+        memory, so a sentence taught now reads now rather than after the next
+        rebuild."""
+        return self.pattern_inventory().add(item)
+
+    async def language_view(self):
+        """The constructions and links memory holds, complete: warmed from
+        memory first when this process has not read them yet. The learner reads
+        every pair with this, so a view missing what memory holds would have it
+        learn again what it already knows."""
+        if not self._word_classes_warm:
+            await self.warm_word_classes()
+        return self.pattern_inventory()
+
+    async def taught_patterns(self) -> list:
+        """Every construction and link memory holds, read back as what it holds.
+
+        The one read of these memories: the language view is warmed from it and
+        the domain authority judges how much English is known from it, so the two
+        can never disagree about what was taught. A memory whose key does not
+        match what it holds was not written by the learner (or by an older
+        definition of a construction); it is counted and left out, not trusted."""
+        from core.semantics.derived_reader import PATTERN_TAG, item_from
+        rows = await self.search_memories(
+            tags={PATTERN_TAG}, limit=self.WORD_CLASS_WARM_LIMIT) or []
+        if len(rows) >= self.WORD_CLASS_WARM_LIMIT:
+            logger.warning(
+                "the read hit its %d-memory limit on construction memories; what was "
+                "taught may be incomplete and taught sentences will not read",
+                self.WORD_CLASS_WARM_LIMIT)
+        items, unreadable = [], 0
+        for row in rows:
+            meta = row.metadata or {}
+            kind = str(meta.get("construction") or "holophrase")
+            data = meta.get(kind if kind in ("lexical", "link", "phrase") else "pattern") or {}
+            try:
+                item = item_from(kind, data)
+            except (KeyError, TypeError, ValueError):
+                unreadable += 1
+                continue
+            if item.key != meta.get("pattern_key"):
+                unreadable += 1
+                continue
+            items.append(item)
+        if unreadable:
+            logger.warning("%d construction memory(ies) could not be read back as what "
+                           "they claim to hold", unreadable)
+        return items
+
+    async def stated_patterns(self) -> Dict[str, str]:
+        """Every construction and link already held, as `pattern_key -> memory_id`.
+
+        Read exactly from the metadata that identifies these memories, so a
+        teaching pass knows what it has already said without asking a vector
+        index whether two sentences resemble each other."""
+        from core.semantics.derived_reader import PATTERN_TAG
+        rows = await self.search_memories(
+            tags={PATTERN_TAG}, limit=self.WORD_CLASS_WARM_LIMIT) or []
+        held: Dict[str, str] = {}
+        for item in rows:
+            key = str((item.metadata or {}).get("pattern_key") or "")
+            if key:
+                held.setdefault(key, item.memory_id)
+        return held
+
+    def begin_word_class_warm(self):
+        """Start rebuilding the word-class view in the background; return its task.
+
+        Returns the warm ALREADY running if there is one, so this is safe to
+        call from anywhere and never reads the whole store twice at once. The
+        outcome is logged whichever way it goes: a view that silently failed to
+        rebuild looks exactly like a substrate that knows nothing about words,
+        and those must never be confusable again.
+        """
+        import asyncio
+        running = self._word_class_warm_task
+        if running is not None and not running.done():
+            return running
+
+        # `get_running_loop`, not `get_event_loop`: a caller with no loop is a
+        # caller that cannot receive this result, and it should say so rather
+        # than quietly building a loop nobody drives.
+        task = asyncio.get_running_loop().create_task(
+            self._rebuild_word_class_view(), name="memory:warm_word_classes")
+
+        def _report(finished) -> None:
+            if finished.cancelled():
+                logger.error(
+                    "the word-class warm was CANCELLED; the reader will treat "
+                    "every word as never observed and the constitution will "
+                    "derive no interest vocabulary until it is run again")
+                return
+            failure = finished.exception()
+            if failure is not None:
+                # A failure here costs reading, not storage. Say so plainly
+                # rather than leaving an empty view looking like ignorance.
+                logger.error(
+                    "word classes could NOT be warmed from memory (%s); the "
+                    "reader will treat every word as never observed", failure)
+                return
+            logger.info("✓ Word classes warmed from memory (%d word(s))",
+                        finished.result())
+
+        task.add_done_callback(_report)
+        self._word_class_warm_task = task
+        return task
+
+    async def warm_word_classes(self) -> int:
+        """Rebuild the word-class view, JOINING one already in flight.
+
+        The callers that need the view now (teaching, an experiment harness)
+        await this; boot starts it with `begin_word_class_warm` and does not
+        wait. Shielded, so a caller that gives up waiting does not cancel the
+        rebuild for everyone else.
+        """
+        import asyncio
+        return await asyncio.shield(self.begin_word_class_warm())
+
+    async def _rebuild_word_class_view(self) -> int:
+        """Rebuild the word-class view FROM THE SUBSTRATE'S OWN MEMORIES.
+
+        Nothing here is a record kept for the reader's benefit. The memories
+        read are the ones it already has of being taught something -- the
+        sentence as it was said, with the reading it was admitted as -- and the
+        classes are worked out from those. A word the substrate never learned
+        anything about has no class, which is the honest answer and the one the
+        reader handles best.
+
+        That is why there is no lexicon and no per-word bookkeeping: a wipe
+        takes these memories, and the view empties with them. Nothing survives
+        a wipe to re-teach the substrate what it no longer knows.
+
+        Called at the events that change what could be in it -- after teaching,
+        when a task opens -- never on a timer, because nothing about it changes
+        with the clock.
+        """
+        if not self.initialized:
+            if await self.initialize() is False:
+                raise RuntimeError(
+                    "MemoryAgent could not initialize; refusing to warm word "
+                    "classes as though it had")
+
+        from core.semantics.genericity import classes_implied_by
+
+        # TWO QUERIES, BECAUSE THEY ARE TWO KINDS OF EVIDENCE.
+        #
+        # Tag search CONTAINS rather than matches any (`tags @> ...`), so one
+        # call asking for both tags would return memories carrying BOTH -- of
+        # which there are none, since a sentence is either read or not. The
+        # sentences that read supply evidence FOR a class; the ones that
+        # refused because of a class supply evidence AGAINST it.
+        taught = await self.search_memories(
+            tags={self.TAUGHT_PROPOSITION_TAG},
+            limit=self.WORD_CLASS_WARM_LIMIT,
+        ) or []
+        unread = await self.search_memories(
+            tags={self.UNREAD_TELLING_TAG},
+            limit=self.WORD_CLASS_WARM_LIMIT,
+        ) or []
+        # THE THIRD KIND OF EVIDENCE: a class the substrate was TOLD, rather
+        # than one implied by a sentence it read. This is where every closed
+        # class and every adverb comes from -- words that never stand in a
+        # subject, relation or object slot and so can be implied by nothing.
+        stated = await self.search_memories(
+            tags={self.WORD_CLASS_TAG},
+            limit=self.WORD_CLASS_WARM_LIMIT,
+        ) or []
+        for name, rows in (("taught", taught), ("unread", unread),
+                           ("stated", stated)):
+            if len(rows) >= self.WORD_CLASS_WARM_LIMIT:
+                logger.warning(
+                    "word-class warm hit its %d-memory limit on %s memories; "
+                    "the view may be incomplete and words will read as "
+                    "unobserved", self.WORD_CLASS_WARM_LIMIT, name)
+
+        index: Dict[str, Dict[str, int]] = {}
+        unparsed = 0
+        refuted = 0
+        told = 0
+        derived = 0
+        for item in stated:
+            meta = item.metadata or {}
+            word = str(meta.get("word") or "").strip().lower()
+            cls = str(meta.get("word_class") or "").strip().upper()
+            if not word or not cls:
+                continue
+            bucket = index.setdefault(word, {})
+            bucket[cls] = bucket.get(cls, 0) + 1
+            told += 1
+        for item in (*taught, *unread):
+            meta = item.metadata or {}
+
+            # EVIDENCE AGAINST, from the sentences a class actually cost.
+            #
+            # A reading that refused BECAUSE of a class counts against it. This
+            # is what makes a class earnable rather than merely assertable: a
+            # word wrongly observed as an ADJECTIVE breaks ordinary sentences,
+            # and each break argues it down until it stops being usable.
+            #
+            # `blamed` is narrow by construction -- the reader names a class
+            # only in the branches that refuse because of it -- so a sentence
+            # that failed for some unrelated reason refutes nothing.
+            for entry in self._blamed_in(item):
+                if not (isinstance(entry, (list, tuple)) and len(entry) >= 2):
+                    continue
+                word, cls = str(entry[0]).lower(), str(entry[1]).upper()
+                if not word or not cls:
+                    continue
+                bucket = index.setdefault(word, {})
+                bucket[cls] = bucket.get(cls, 0) - 1
+                refuted += 1
+
+            # ONLY A TELLING IS EVIDENCE ABOUT A WORD.
+            #
+            # A derived claim is the substrate's own conclusion, and a conclusion
+            # is not testimony about how English uses a word. Sight describing a
+            # kind it had seen wrote `<cat> has_property circle`, and the
+            # property branch of `classes_implied_by` files a property's object
+            # as ADJECTIVE -- so seeing round things taught the substrate that
+            # `circle` is an adjective. The surface cannot settle this (it
+            # contains the word either way); the PROVENANCE can, and
+            # `ROOT_SOURCE_VALUES` is the set this substrate already uses
+            # everywhere else to separate an observation from a conclusion.
+            #
+            # A memory recording no source type at all predates this and is left
+            # as it was: absence of the record is not evidence that it was
+            # derived, and discarding it would silently drop vocabulary.
+            source_type = meta.get("source_type")
+            if source_type is not None:
+                from core.domain.concept_ingestion import ROOT_SOURCE_VALUES
+                if str(source_type).strip().lower() not in ROOT_SOURCE_VALUES:
+                    derived += 1
+                    continue
+
+            reading = str(meta.get("reading") or "")
+            if "|" not in reading:
+                # Kept by `remember_told`: the sentence was remembered without
+                # being understood, so it implies nothing about its words. It
+                # stays in memory and teaches the reader nothing -- which is
+                # the point of recording that it was not read.
+                unparsed += 1
+                continue
+            parts = [p.strip() for p in reading.split("|")]
+            subject, relation = parts[0], parts[1] if len(parts) > 1 else ""
+            obj = parts[2] if len(parts) > 2 else None
+
+            surface = item.content
+            if isinstance(surface, dict):
+                surface = surface.get("text") or surface.get("content") or ""
+
+            for word, cls in classes_implied_by(
+                    str(surface or ""), subject, relation, obj).items():
+                bucket = index.setdefault(word, {})
+                bucket[cls] = bucket.get(cls, 0) + 1
+
+        # THE TAUGHT PATTERNS, IN THE SAME PASS. How English says things is
+        # language knowledge like a word's class, read from memory at the same
+        # events, so there is one warm and one view -- not a second one that can
+        # disagree with the first about what the substrate was taught.
+        from core.semantics.derived_reader import PatternInventory
+        inventory = PatternInventory(await self.taught_patterns())
+
+        self._word_class_index = index
+        self._word_classes_warm = True
+        self._pattern_inventory = inventory
+        logger.info(
+            "word-class view warmed: %d word(s) from %d taught memory(ies) "
+            "(%d remembered but never read, %d refusal(s) counted against a "
+            "class, %d class(es) stated outright, %d derived claim(s) that "
+            "teach no vocabulary); %d taught construction(s) and link(s)",
+            len(index), len(taught) + len(unread) + len(stated), unparsed,
+            refuted, told, derived, len(inventory))
+        return len(index)
+
     @profile_performance("memory_agent", "search_memories")
     async def search_memories(
         self,
@@ -2409,7 +2628,8 @@ class MemoryAgent(IMemoryConsolidation):
         min_importance: Optional[float] = None,
         include_events: bool = True,
         relative_to_best: Optional[float] = None,
-        require_named_match: bool = False
+        require_named_match: bool = False,
+        actor: Optional[str] = None,
     ) -> Union[Tuple[bool, List[MemoryItem]], List[MemoryItem]]:
         """Compatibility surface over retrieve(). Adapts shape only.
 
@@ -2454,6 +2674,7 @@ class MemoryAgent(IMemoryConsolidation):
             include_events=include_events,
             relative_to_best=relative_to_best,
             require_named_match=require_named_match,
+            actor=actor,
         )
         return results if new_interface else (True, results)
 
@@ -2543,30 +2764,20 @@ class MemoryAgent(IMemoryConsolidation):
     #: is also a loop that later gets closed.
     OPEN_TAG = "open"
 
-    @staticmethod
-    def claim_tags(content: str) -> List[str]:
-        """Polarity and tense of what a memory says, read when it is written.
-
-        The embedding cannot carry this -- measured on this system's own model,
-        `the vault is locked` and `the vault is not locked` score 0.948, while
-        two ways of saying the same thing score 0.484. So the distinction is
-        taken out of the vector's hands and stored as tags, which compare
-        exactly.
-        """
-        try:
-            from core.semantics.claim_shape import read_claim
-
-            return read_claim(content).as_tags()
-        except Exception:
-            return []
-
-    async def find_open(self, about: str, limit: int = 5) -> List[MemoryItem]:
-        """Episodes still waiting on something, that this might be about."""
+    async def find_open(self, about: str, limit: int = 5, *,
+                        actor: Optional[str] = None) -> List[MemoryItem]:
+        """Episodes still waiting on something, that this might be about --
+        `actor`'s OWN only. Searched with no owner, this saw only the
+        substrate's episodes, and while every exchange was stored unowned one
+        speaker's answer could close -- rewrite -- another speaker's question."""
         found = await self.retrieve(query=about, tags={self.OPEN_TAG},
                                     strategies=("semantic", "tags"),
-                                    limit=limit, min_similarity=0.55)
-        return [m for m in found
-                if self.OPEN_TAG in {str(t) for t in (m.tags or ())}]
+                                    limit=limit, min_similarity=0.55, actor=actor)
+        open_ones = [m for m in found
+                     if self.OPEN_TAG in {str(t) for t in (m.tags or ())}]
+        own = await self.postgres_storage.owned_by(
+            [m.memory_id for m in open_ones], actor)
+        return [m for m in open_ones if m.memory_id in own]
 
     async def supersede(self, memory_id: str, content: str,
                         add_tags: Optional[Set[str]] = None,
@@ -2574,14 +2785,11 @@ class MemoryAgent(IMemoryConsolidation):
                         because: str = "") -> bool:
         """Replace what a memory says, keeping what it used to say.
 
-        MERGING IS ADDITIVE AND THAT IS THE WRONG SHAPE FOR A RESOLUTION.
-        `_merge_memory_content` appends the sentences an existing memory does
-        not already have, which is right when a second observation ADDS to a
-        first. It is wrong when the second observation SETTLES the first: an
-        episode recording "asked, could not answer" merged with "answered: X"
-        asserts both, and the reader cannot tell which is now true.
+        A RESOLUTION SETTLES WHAT THE MEMORY SAID; IT DOES NOT ADD TO IT. An
+        episode recording "asked, could not answer" that also said "answered:
+        X" would assert both, and the reader could not tell which is now true.
 
-        So this replaces instead, and the previous text is kept under
+        So this replaces, and the previous text is kept under
         `metadata.superseded` rather than dropped. What the substrate used to
         believe, and when it stopped, is part of the record -- a memory that
         quietly becomes correct is indistinguishable from one that was always
@@ -2605,22 +2813,29 @@ class MemoryAgent(IMemoryConsolidation):
                         "at": datetime.now().isoformat()})
         metadata["superseded"] = history[-5:]
 
-        updated = await self.update_memory(memory_id, {
-            "content": content, "tags": sorted(tags), "metadata": metadata,
-        })
+        updates = {"content": content, "tags": sorted(tags), "metadata": metadata}
+        # New words, new vector: a replaced memory that kept the old embedding
+        # would keep being found by what it used to say.
+        if self.embedding_service:
+            embedding = self.embedding_service.generate_embedding(content)
+            if embedding is not None:
+                updates["embedding"] = embedding
+        updated = await self.update_memory(memory_id, updates)
         if updated:
             logger.info("superseded %s (%s)", memory_id, because or "resolved")
         return bool(updated)
 
     async def close_open(self, about: str, content: str,
-                         because: str = "resolved") -> Optional[str]:
-        """Settle an open episode about this, if one is waiting.
+                         because: str = "resolved", *,
+                         actor: Optional[str] = None) -> Optional[str]:
+        """Settle an open episode about this, if one is waiting -- one of
+        `actor`'s OWN (see `find_open`).
 
         Returns the memory it closed, or None -- in which case the caller
         stores a new memory as usual, because not every answer answers a
         question somebody asked.
         """
-        for candidate in await self.find_open(about):
+        for candidate in await self.find_open(about, actor=actor):
             if await self.supersede(candidate.memory_id, content,
                                     add_tags={"resolved"},
                                     drop_tags={self.OPEN_TAG},
@@ -2664,6 +2879,10 @@ class MemoryAgent(IMemoryConsolidation):
         )
 
         if success:
+            # The cache held the memory as it was BEFORE this write, so a read
+            # straight after an update returned the old text (measured
+            # 2026-09-26: a superseded memory read back unchanged).
+            self.memory_cache.pop(memory_id, None)
             self.metrics["memories_retrieved"] += 1
             return True
 
@@ -2940,6 +3159,1773 @@ class MemoryAgent(IMemoryConsolidation):
             return False, f"Failed to permanently delete {memory_id}"
 
     # ================================================================================================
+    # THE REST OF MEMORY
+    # ================================================================================================
+    #
+    # Memory is everything the substrate holds, not only the memories above: the
+    # concepts and the links between them, its beliefs, the rules it induced and
+    # the demonstrations it induced them from, its domains, what its reasoning
+    # produced, what it has learned to see, the record of what it learned, and
+    # each person's context. The parts of the substrate that work out WHAT to
+    # hold -- the learning authority, the belief system, induction, the domain
+    # master, the reasoning engines, perception -- hand it here, and the memory
+    # agent writes it. Nothing else writes a memory table
+    # (`scripts/separation_map.py` fails if anything does).
+    #
+    # These writes need only the database, so they work whether or not recall,
+    # the loops and the embedding model have started (`memory_agent()`).
+
+    def _memory_db(self):
+        """The database every write of memory goes to: the process's manager,
+        looked up at each write so it is always the one every reader uses."""
+        from core.database import get_database_manager
+        return get_database_manager()
+
+    # ---- concepts and links -------------------------------------------------
+
+    async def hold_concept(self, *, concept_id: str, name: str, domain: str,
+                           description: Any, attributes: str, relationships: str,
+                           concept_kind: str, epistemic_status: str, provenance: str,
+                           root_evidence_count: int) -> None:
+        """A concept. Its description is kept when the new one is empty, its
+        attributes and relationships are merged, never replaced, and a changed
+        description clears the stored vector so it is encoded again."""
+        await self._memory_db().execute_query(
+            """INSERT INTO unified.concepts
+                   (concept_id, name, domain, description, attributes,
+                    relationships, functions, processes, context, examples,
+                    concept_kind, epistemic_status, provenance,
+                    root_evidence_count, created_at)
+               VALUES ($1,$2,$3,$4,$5::jsonb,$6::jsonb,'[]'::jsonb,'[]'::jsonb,
+                       '', '[]'::jsonb, $7,$8,$9::jsonb,$10, NOW())
+               ON CONFLICT (concept_id) DO UPDATE SET
+                   description         = COALESCE(NULLIF(EXCLUDED.description,''),
+                                                  unified.concepts.description),
+                   -- A changed description invalidates its stored vector; the
+                   -- Universal Domain Master re-encodes pending rows.
+                   description_embedding = CASE
+                       WHEN NULLIF(EXCLUDED.description,'') IS NULL
+                         OR EXCLUDED.description IS NOT DISTINCT FROM unified.concepts.description
+                       THEN unified.concepts.description_embedding END,
+                   embedding_model     = CASE
+                       WHEN NULLIF(EXCLUDED.description,'') IS NULL
+                         OR EXCLUDED.description IS NOT DISTINCT FROM unified.concepts.description
+                       THEN unified.concepts.embedding_model END,
+                   attributes          = unified.concepts.attributes || EXCLUDED.attributes,
+                   -- MERGED, NOT REPLACED. Learning one thing about a concept
+                   -- is not grounds for forgetting the rest: teaching
+                   -- `pressure loss is caused by valve throttling` erased
+                   -- `caused by pipe friction` and `caused by minor losses`,
+                   -- so a concept got narrower every time anything was added
+                   -- to it. Note the two lines either side of this one --
+                   -- description is preserved and attributes are merged --
+                   -- which is what makes the replacement an oversight rather
+                   -- than a policy.
+                   relationships       = (
+                       SELECT COALESCE(jsonb_agg(DISTINCT edge), '[]'::jsonb)
+                       FROM jsonb_array_elements(
+                           unified.concepts.relationships || EXCLUDED.relationships
+                       ) AS edge
+                   ),
+                   epistemic_status    = EXCLUDED.epistemic_status,
+                   root_evidence_count = EXCLUDED.root_evidence_count,
+                   updated_at          = NOW()""",
+            (concept_id, name, domain, description, attributes, relationships,
+             concept_kind, epistemic_status, provenance, root_evidence_count),
+            commit=True,
+        )
+
+    async def hold_concept_evidence(self, *, concept_id: str, evidence_id: str,
+                                    root_evidence_id: str, extraction_confidence: Any,
+                                    extractor: str) -> None:
+        await self._memory_db().execute_query(
+            """INSERT INTO unified.concept_evidence
+                   (concept_id, evidence_id, root_evidence_id,
+                    extraction_confidence, extractor)
+               VALUES ($1,$2,$3,$4,$5)
+               ON CONFLICT (concept_id, root_evidence_id) DO NOTHING""",
+            (concept_id, evidence_id, root_evidence_id, extraction_confidence, extractor),
+            commit=True,
+        )
+
+    async def link_concepts(self, *, source_concept_id: str, relation: str,
+                            target_concept_id: Optional[str], target_surface: str,
+                            evidence_id: str, extractor: str, polarity: str) -> None:
+        """A link from one concept to another, or to a surface not yet learned
+        (`target_concept_id` None until `attach_waiting_links` finds it)."""
+        await self._memory_db().execute_query(
+            """INSERT INTO unified.concept_relations
+                   (source_concept_id, relation, target_concept_id,
+                    target_surface, evidence_id, extractor, polarity)
+               VALUES ($1,$2,$3,$4,$5,$6,$7)
+               ON CONFLICT (source_concept_id, relation, target_surface,
+                            evidence_id, polarity)
+               DO UPDATE SET target_concept_id = COALESCE(
+                   EXCLUDED.target_concept_id, unified.concept_relations.target_concept_id)""",
+            (source_concept_id, relation, target_concept_id, target_surface,
+             evidence_id, extractor, polarity),
+            commit=True,
+        )
+
+    async def attach_waiting_links(self, *, target_concept_id: str,
+                                   target_surface: str) -> Any:
+        """Links that named `target_surface` before it was learned now point at it."""
+        return await self._memory_db().execute_query(
+            "UPDATE unified.concept_relations SET target_concept_id = $1 "
+            "WHERE target_surface = $2 AND target_concept_id IS NULL",
+            (target_concept_id, target_surface), commit=True)
+
+    async def hold_alias(self, *, alias: str, concept_id: str, alias_kind: str) -> None:
+        await self._memory_db().execute_query(
+            """INSERT INTO unified.concept_aliases (alias, concept_id, alias_kind)
+               VALUES ($1,$2,$3) ON CONFLICT (alias) DO NOTHING""",
+            (alias, concept_id, alias_kind), commit=True,
+        )
+
+    async def hold_surface_form(self, *, alias: str, concept_id: str) -> List[Any]:
+        """A surface word bound to the concept it denotes. Returns the rows
+        written, so a word already bound reads as nothing written."""
+        return await self._memory_db().execute_query(
+            "INSERT INTO unified.concept_aliases "
+            "(alias, concept_id, alias_kind, first_seen) "
+            "VALUES ($1, $2, 'surface_form', NOW()) "
+            "ON CONFLICT DO NOTHING RETURNING alias",
+            (alias, concept_id), fetch_all=True)
+
+    async def hold_evidence_envelope(self, *, evidence_id: str, source_type: str,
+                                     source_id: str, producer: str, content: Any,
+                                     structured_data: str, derived_from: str,
+                                     observed_at: Any) -> None:
+        await self._memory_db().execute_query(
+            """INSERT INTO unified.evidence_envelopes
+                   (evidence_id, source_type, source_id, producer, content,
+                    structured_data, derived_from, observed_at)
+               VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7::jsonb,COALESCE($8, NOW()))
+               ON CONFLICT (evidence_id) DO NOTHING""",
+            (evidence_id, source_type, source_id, producer, content,
+             structured_data, derived_from, observed_at),
+            commit=True,
+        )
+
+    async def hold_domain_membership(self, *, concept_id: str, domain: str, source: str,
+                                     evidence_id: Optional[str] = None) -> None:
+        await self._memory_db().execute_query(
+            """INSERT INTO unified.concept_domains
+                   (concept_id, domain, source, evidence_id)
+               VALUES ($1,$2,$3,$4) ON CONFLICT DO NOTHING""",
+            (concept_id, domain, source, evidence_id), commit=True)
+
+    async def hold_extracted_membership(self, *, concept_id: str, domain: str) -> None:
+        """The domain an extractor embedded in a concept's id, as a membership."""
+        await self._memory_db().execute_query(
+            """INSERT INTO unified.concept_domains (concept_id, domain, source)
+               VALUES ($1,$2,'extracted') ON CONFLICT DO NOTHING""",
+            (concept_id, domain), commit=True)
+
+    async def hold_identity_relation(self, *, subject_concept_id: str, relation_kind: str,
+                                     object_concept_id: Optional[str], object_surface: str,
+                                     basis: str) -> None:
+        await self._memory_db().execute_query(
+            """INSERT INTO unified.concept_identity_relations
+                   (subject_concept_id, relation_kind, object_concept_id,
+                    object_surface, basis)
+               VALUES ($1,$2,$3,$4,$5)
+               ON CONFLICT (subject_concept_id, relation_kind, object_surface)
+               DO UPDATE SET object_concept_id =
+                   COALESCE(EXCLUDED.object_concept_id,
+                            unified.concept_identity_relations.object_concept_id)""",
+            (subject_concept_id, relation_kind, object_concept_id, object_surface, basis),
+            commit=True)
+
+    async def clear_foreign_vectors(self, *, model_id: str) -> List[Any]:
+        """Clear the vectors another encoder wrote, so they are encoded again by
+        `model_id`. Returns one row holding how many were cleared."""
+        return await self._memory_db().execute_query(
+            """WITH cleared AS (
+                   UPDATE unified.concepts
+                      SET name_embedding = NULL, description_embedding = NULL,
+                          embedding_model = NULL
+                    WHERE embedding_model IS NOT NULL AND embedding_model <> $1
+                RETURNING 1)
+               SELECT count(*) AS n FROM cleared""",
+            (model_id,), fetch_all=True)
+
+    async def hold_concept_vectors(self, *, concept_ids: List[str], name_vectors: List[Any],
+                                   description_vectors: List[Any],
+                                   descriptions: List[Any], model_id: str) -> List[Any]:
+        """Vectors for concepts that had none, each only if its description is
+        still the one encoded. Returns the rows written."""
+        return await self._memory_db().execute_query(
+            """UPDATE unified.concepts AS c
+                  SET name_embedding = v.name_embedding,
+                      description_embedding = v.description_embedding,
+                      embedding_model = $5
+                 FROM unnest($1::text[], $2::vector[], $3::vector[], $4::text[])
+                      AS v(concept_id, name_embedding, description_embedding, description)
+                WHERE c.concept_id = v.concept_id
+                  AND c.embedding_model IS NULL
+                  AND c.description IS NOT DISTINCT FROM v.description
+            RETURNING c.concept_id""",
+            (concept_ids, name_vectors, description_vectors, descriptions, model_id),
+            fetch_all=True)
+
+    async def file_concepts(self, *, domain: str, concept_ids: List[str]) -> None:
+        """Concepts split out of a bucket into the subject their taxonomy names."""
+        await self._memory_db().execute_query(
+            "UPDATE unified.concepts SET domain = $1 "
+            "WHERE concept_id = ANY($2)", (domain, concept_ids))
+
+    async def refile_concepts(self, *, domain: str, concept_ids: List[str]) -> None:
+        """Concepts moved into another subject, marked as updated."""
+        await self._memory_db().execute_query(
+            """UPDATE unified.concepts SET domain = $1, updated_at = NOW()
+               WHERE concept_id = ANY($2::text[])""",
+            (domain, concept_ids), commit=True)
+
+    async def replace_sense_taxonomy(self, edges: Sequence[Sequence[str]]) -> int:
+        """Replace the sense taxonomy with `edges` = [(child_qid, child_label,
+        parent_qid, parent_label, field), ...]. Returns how many were given."""
+        db = self._memory_db()
+        await db.execute_query("TRUNCATE unified.sense_taxonomy", commit=True)
+        n = 0
+        for i in range(0, len(edges), 4000):
+            chunk = edges[i:i + 4000]
+            cols = list(zip(*chunk))            # 5 columns of the chunk
+            await db.execute_query(
+                """INSERT INTO unified.sense_taxonomy
+                   (child_qid, child_label, parent_qid, parent_label, field)
+                   SELECT * FROM unnest($1::text[],$2::text[],$3::text[],$4::text[],$5::text[])
+                   ON CONFLICT DO NOTHING""",
+                (list(cols[0]), list(cols[1]), list(cols[2]), list(cols[3]), list(cols[4])),
+                commit=True)
+            n += len(chunk)
+        return n
+
+    # ---- beliefs ------------------------------------------------------------
+
+    async def hold_belief(self, *, belief_id: str, memory_id: Optional[str], claim: str,
+                          domain: str, prior_probability: float,
+                          posterior_probability: float, uncertainty_type: str,
+                          entropy: float, evidence_for: str, evidence_against: str,
+                          update_count: int, last_updated: Any,
+                          expected_update_count: int) -> Optional[Any]:
+        """A belief, replaced only while it is still at `expected_update_count`
+        (-1 for one never stored). Returns the stored row, or None when another
+        instance has moved the belief since; the belief system then merges its
+        own evidence onto the stored belief and writes again.
+
+        `claim` is written twice, as the claim and as `belief_text`, and the
+        posterior as `confidence`: labels and a legacy mirror, not knowledge."""
+        return await self._memory_db().execute_query(
+            """
+            INSERT INTO unified.beliefs AS b
+                (belief_id, memory_id, claim, belief_text, confidence, domain,
+                 prior_probability, posterior_probability,
+                 uncertainty_type, entropy, evidence_for, evidence_against,
+                 update_count, last_updated)
+            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+            ON CONFLICT (belief_id) DO UPDATE SET
+                memory_id           = EXCLUDED.memory_id,
+                claim               = EXCLUDED.claim,
+                belief_text         = EXCLUDED.belief_text,
+                confidence          = EXCLUDED.confidence,
+                domain              = EXCLUDED.domain,
+                prior_probability   = EXCLUDED.prior_probability,
+                posterior_probability = EXCLUDED.posterior_probability,
+                uncertainty_type    = EXCLUDED.uncertainty_type,
+                entropy             = EXCLUDED.entropy,
+                evidence_for        = EXCLUDED.evidence_for,
+                evidence_against    = EXCLUDED.evidence_against,
+                update_count        = EXCLUDED.update_count,
+                last_updated        = EXCLUDED.last_updated
+            WHERE b.update_count = $15
+            RETURNING update_count
+            """,
+            (belief_id, memory_id, claim, claim, posterior_probability, domain,
+             prior_probability, posterior_probability, uncertainty_type, entropy,
+             evidence_for, evidence_against, update_count, last_updated,
+             expected_update_count),
+            fetch_one=True,
+        )
+
+    async def drop_belief(self, belief_id: str) -> None:
+        """A belief the substrate has let go, so a reload cannot bring it back."""
+        await self._memory_db().execute_query(
+            "DELETE FROM unified.beliefs WHERE belief_id = $1",
+            (belief_id,), commit=True)
+
+    async def hold_domain_volatility(self, *, domain: str, lam: float) -> None:
+        await self._memory_db().execute_query(
+            "INSERT INTO unified.domain_volatility (domain, lambda, updated_at)"
+            " VALUES ($1, $2, NOW())"
+            " ON CONFLICT (domain) DO UPDATE SET lambda = EXCLUDED.lambda,"
+            "   updated_at = NOW()",
+            (domain, lam), commit=True)
+
+    async def hold_known_unknown(self, *, unknown_id: str, question: str, domain: str,
+                                 knowledge_state: str, information_value: float,
+                                 urgency: float, can_be_resolved: bool,
+                                 resolution_strategy: Any, discovered_at: Any,
+                                 resolution_attempts: int, blocking_factors: str,
+                                 required_information: str, resolution_cost: Any,
+                                 resolved_at: Any, resolution: Any,
+                                 resolution_belief_id: Any, target: str,
+                                 owner: Optional[str]) -> None:
+        """A question held open, in its owner's store: a person's question is
+        their context, the substrate's own is its model."""
+        db = self._memory_db()
+        await db.execute_query(
+            """
+            INSERT INTO unified.known_unknowns AS k
+                (unknown_id, question, domain, knowledge_state, information_value,
+                 urgency, can_be_resolved, resolution_strategy, discovered_at,
+                 resolution_attempts, blocking_factors, required_information,
+                 resolution_cost, resolved_at, resolution, resolution_belief_id,
+                 target, owner)
+            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12::jsonb,$13,$14,$15,$16,
+                    $17::jsonb,$18)
+            ON CONFLICT (unknown_id) DO UPDATE SET
+                knowledge_state      = EXCLUDED.knowledge_state,
+                information_value    = EXCLUDED.information_value,
+                urgency              = EXCLUDED.urgency,
+                can_be_resolved      = EXCLUDED.can_be_resolved,
+                resolution_strategy  = EXCLUDED.resolution_strategy,
+                blocking_factors     = EXCLUDED.blocking_factors,
+                required_information = EXCLUDED.required_information,
+                resolution_cost      = EXCLUDED.resolution_cost,
+                resolved_at          = EXCLUDED.resolved_at,
+                resolution           = EXCLUDED.resolution,
+                resolution_belief_id = EXCLUDED.resolution_belief_id,
+                target               = CASE WHEN k.target = '{}'::jsonb
+                                            THEN EXCLUDED.target ELSE k.target END
+            -- ONE STORE, MANY INSTANCES: a resolved unknown is final (no instance
+            -- with a stale copy can reopen it), attempts move only by atomic
+            -- increment (`add_unknown_attempts`), and the first target stands.
+            WHERE k.resolved_at IS NULL
+            """,
+            (unknown_id, question, domain, knowledge_state, information_value,
+             urgency, can_be_resolved, resolution_strategy, discovered_at,
+             resolution_attempts, blocking_factors, required_information,
+             resolution_cost, resolved_at, resolution, resolution_belief_id,
+             target, owner),
+            commit=True,
+            store=db.write_store(owner),
+        )
+
+    async def add_unknown_attempts(self, *, unknown_id: str, n: int) -> None:
+        """Attempts at one of the substrate's own open questions, added to the
+        stored count rather than written over it."""
+        db = self._memory_db()
+        await db.execute_query(
+            "UPDATE unified.known_unknowns SET resolution_attempts = "
+            "resolution_attempts + $2 WHERE unknown_id = $1 AND resolved_at IS NULL",
+            (unknown_id, n), commit=True, store=db.write_store(None))
+
+    async def hold_calibration(self, *, domain: str, prediction: str, confidence: float,
+                               outcome: Any, timestamp: Any) -> None:
+        await self._memory_db().execute_query(
+            """
+            INSERT INTO unified.calibration_data
+                (domain, prediction, confidence, outcome, timestamp)
+            VALUES ($1,$2,$3,$4,$5)
+            """,
+            (domain, prediction, confidence, outcome, timestamp),
+        )
+
+    # ---- rules and demonstrations ---------------------------------------------
+
+    async def hold_rule(self, *, rule_id: str, domain_id: str, rule_kind: str,
+                        canonical_rule_json: str, rendered_formula: str,
+                        epistemic_status: str, induction_method: str,
+                        induction_version: Any, positive_root_count: int,
+                        negative_root_count: int, counterexample_root_count: int,
+                        detail: Optional[str], supersedes_rule_id: Optional[str],
+                        semantic_fingerprint: Optional[str]) -> bool:
+        """A learned rule. Returns whether it was written: a rule whose meaning
+        is already held (the same fingerprint, recorded by another induction of
+        the same hypothesis at the same moment) is not written twice."""
+        rows = await self._memory_db().execute_query(
+            "INSERT INTO unified.learned_rules ("
+            " rule_id, domain_id, rule_kind, canonical_rule_json, rendered_formula,"
+            " epistemic_status, induction_method, induction_version,"
+            " positive_root_count, negative_root_count, counterexample_root_count,"
+            " detail, supersedes_rule_id,"
+            " semantic_fingerprint)"
+            " VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)"
+            " ON CONFLICT (semantic_fingerprint) WHERE semantic_fingerprint IS NOT NULL"
+            " DO NOTHING RETURNING rule_id",
+            (rule_id, domain_id, rule_kind, canonical_rule_json, rendered_formula,
+             epistemic_status, induction_method, induction_version,
+             positive_root_count, negative_root_count, counterexample_root_count,
+             detail, supersedes_rule_id, semantic_fingerprint),
+            fetch_all=True,
+        )
+        return bool(rows)
+
+    async def hold_rule_evidence(self, *, rule_id: str, root_evidence_id: str,
+                                 evidence_role: str, supports: bool) -> None:
+        await self._memory_db().execute_query(
+            "INSERT INTO unified.learned_rule_evidence"
+            " (rule_id, root_evidence_id, evidence_role, supports)"
+            " VALUES ($1,$2,$3,$4) ON CONFLICT DO NOTHING",
+            (rule_id, root_evidence_id, evidence_role, supports),
+        )
+
+    async def recount_rule_evidence(self, *, rule_id: str,
+                                    induction_negative_role: str) -> None:
+        """A rule's root counts, recounted from its evidence, by role."""
+        await self._memory_db().execute_query(
+            "UPDATE unified.learned_rules SET"
+            " positive_root_count = (SELECT count(DISTINCT root_evidence_id)"
+            "   FROM unified.learned_rule_evidence WHERE rule_id = $1 AND supports),"
+            " negative_root_count = (SELECT count(DISTINCT root_evidence_id)"
+            "   FROM unified.learned_rule_evidence WHERE rule_id = $1"
+            "   AND NOT supports AND evidence_role <> $2),"
+            " counterexample_root_count = (SELECT count(DISTINCT root_evidence_id)"
+            "   FROM unified.learned_rule_evidence WHERE rule_id = $1"
+            "   AND evidence_role = $2),"
+            " updated_at = NOW() WHERE rule_id = $1",
+            (rule_id, induction_negative_role), commit=True)
+
+    async def set_rule_status(self, *, rule_id: str, status: str, detail: Optional[str],
+                              validation_policy: str, validation_version: Any,
+                              validated_at: Any) -> None:
+        await self._memory_db().execute_query(
+            "UPDATE unified.learned_rules SET epistemic_status = $1, detail = $2,"
+            " validation_policy = $3, validation_version = $4,"
+            " validated_at = $5, updated_at = NOW() WHERE rule_id = $6",
+            (status, detail, validation_policy, validation_version, validated_at, rule_id),
+        )
+
+    async def refute_rule(self, *, rule_id: str, status: str, detail: str) -> None:
+        """A rule the world contradicted while it was being used."""
+        await self._memory_db().execute_query(
+            "UPDATE unified.learned_rules SET epistemic_status = $1, validated_at = NULL,"
+            " detail = $2, updated_at = NOW() WHERE rule_id = $3",
+            (status, detail, rule_id),
+        )
+
+    async def hold_rule_projection(self, *, rule_id: str, source_rule_id: str,
+                                   mapping_id: str, role: str, target_element: str,
+                                   source_element: str, mapping_edge: str) -> None:
+        await self._memory_db().execute_query(
+            "INSERT INTO unified.rule_projections (rule_id, source_rule_id,"
+            " mapping_id, role, target_element, source_element, mapping_edge)"
+            " VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT DO NOTHING",
+            (rule_id, source_rule_id, mapping_id, role, target_element,
+             source_element, mapping_edge),
+            commit=True)
+
+    async def hold_supersession(self, *, replacement_rule_id: str,
+                                superseded_rule_id: str) -> None:
+        """A narrower rule replaced one that was too broad."""
+        db = self._memory_db()
+        await db.execute_query(
+            "INSERT INTO unified.rule_supersessions"
+            " (replacement_rule_id, superseded_rule_id) VALUES ($1, $2)"
+            " ON CONFLICT DO NOTHING",
+            (replacement_rule_id, superseded_rule_id),
+            commit=True,
+        )
+        # Kept in step for readers of the row itself; the join table is the
+        # authority, and is what executable_rules consults.
+        await db.execute_query(
+            "UPDATE unified.learned_rules SET supersedes_rule_id = $1, updated_at = NOW()"
+            " WHERE rule_id = $2",
+            (superseded_rule_id, replacement_rule_id),
+            commit=True,
+        )
+
+    async def forget_rules(self, rule_ids: List[str],
+                           referencing: Sequence[Tuple[str, str]]) -> None:
+        """Delete these rules and every row `referencing` names as pointing at
+        them, (table, column) by (table, column)."""
+        db = self._memory_db()
+        # A rule may supersede another in this same set, so clear the self
+        # reference before deleting any of them.
+        await db.execute_query(
+            "UPDATE unified.learned_rules SET supersedes_rule_id = NULL "
+            "WHERE supersedes_rule_id = ANY($1::text[])", (rule_ids,), fetch_all=False)
+        for table, column in referencing:
+            await db.execute_query(
+                f"DELETE FROM {table} WHERE {column} = ANY($1::text[])",
+                (rule_ids,), fetch_all=False)
+        await db.execute_query(
+            "DELETE FROM unified.learned_rules WHERE rule_id = ANY($1::text[])",
+            (rule_ids,), fetch_all=False)
+
+    async def record_rule_authority_change(self, *, event_id: str, rule_id: str,
+                                           old_status: str, new_status: str,
+                                           lost_authority: bool, cause: str,
+                                           observation_id: Optional[str],
+                                           task_id: Optional[str], plan_id: Optional[str],
+                                           goal_id: Optional[str],
+                                           detail: Optional[str]) -> None:
+        await self._memory_db().execute_query(
+            "INSERT INTO unified.rule_authority_events"
+            " (event_id, rule_id, old_status, new_status, lost_authority, cause,"
+            "  observation_id, task_id, plan_id, goal_id, detail)"
+            " VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)",
+            (event_id, rule_id, old_status, new_status, lost_authority, cause,
+             observation_id, task_id, plan_id, goal_id, detail),
+            commit=True,
+        )
+
+    async def mark_rule_authority_changes_consumed(self, *, event_ids: List[str],
+                                                   consumer: str) -> List[Any]:
+        """Claim these changes for `consumer`. Returns only the rows this call
+        claimed; ones already consumed are left alone."""
+        return await self._memory_db().execute_query(
+            "UPDATE unified.rule_authority_events SET consumed_at = NOW(), consumed_by = $1"
+            " WHERE event_id = ANY($2::varchar[]) AND consumed_at IS NULL"
+            " RETURNING event_id",
+            (consumer, event_ids), fetch_all=True,
+        )
+
+    async def hold_conditional(self, *, conditional_id: str, ant_subject: str,
+                               ant_relation: str, ant_object: Any, ant_positive: bool,
+                               cons_subject: str, cons_relation: str, cons_object: Any,
+                               cons_positive: bool, surface: str, domain: str,
+                               source_id: Any, source_type: Any) -> Any:
+        """A taught conditional, held as a rule."""
+        return await self._memory_db().execute_query(
+            """INSERT INTO unified.held_conditionals
+               (conditional_id, ant_subject, ant_relation, ant_object,
+                ant_positive, cons_subject, cons_relation, cons_object,
+                cons_positive, surface, domain, source_id, source_type)
+               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+               ON CONFLICT (conditional_id) DO NOTHING""",
+            (conditional_id, ant_subject, ant_relation, ant_object, ant_positive,
+             cons_subject, cons_relation, cons_object, cons_positive, surface, domain,
+             source_id, source_type), commit=True)
+
+    async def hold_demonstration(self, *, evidence_id: str, domain_id: str, predicate: str,
+                                 arity: int, before_facts: str, action: Optional[str],
+                                 after_facts: str, positive: bool) -> List[Any]:
+        """One observed action: what held before, the action, what held after.
+        Returns the rows written, so one seen before reads as nothing written."""
+        return await self._memory_db().execute_query(
+            "INSERT INTO unified.operator_demonstrations"
+            " (evidence_id, domain_id, predicate, arity, before_facts, action,"
+            "  after_facts, positive)"
+            " VALUES ($1, $2, $3, $4, $5, $6, $7, $8)"
+            " ON CONFLICT (evidence_id) DO NOTHING"
+            " RETURNING evidence_id",
+            (evidence_id, domain_id, predicate, arity, before_facts, action,
+             after_facts, positive),
+            fetch_all=True,
+        )
+
+    async def mark_induction_pending(self, *, domain_id: str, predicate: str,
+                                     arity: int) -> None:
+        await self._memory_db().execute_query(
+            "INSERT INTO unified.operator_induction_pending (domain_id, predicate, arity)"
+            " VALUES ($1, $2, $3)"
+            " ON CONFLICT (domain_id, predicate, arity) DO UPDATE SET enqueued_at = NOW()",
+            (domain_id, predicate, arity), commit=True)
+
+    async def clear_induction_pending(self, *, domain_id: str, predicate: str,
+                                      arity: int) -> None:
+        await self._memory_db().execute_query(
+            "DELETE FROM unified.operator_induction_pending"
+            " WHERE domain_id = $1 AND predicate = $2 AND arity = $3",
+            (domain_id, predicate, arity), commit=True)
+
+    # ---- domains ------------------------------------------------------------
+
+    async def hold_domain(self, *, domain_id: str, name: str, description: str,
+                          metadata: str) -> Any:
+        return await self._memory_db().execute_query(
+            """INSERT INTO unified.domains
+                   (domain_id, domain_name, description, metadata, last_accessed)
+               VALUES ($1, $2, $3, $4::jsonb, NOW())
+               ON CONFLICT (domain_id) DO UPDATE SET
+                   domain_name   = EXCLUDED.domain_name,
+                   description   = EXCLUDED.description,
+                   metadata      = EXCLUDED.metadata,
+                   last_accessed = NOW()""",
+            (domain_id, name, description, metadata),
+            commit=True,
+        )
+
+    async def hold_default_domain(self, *, domain_id: str, name: str,
+                                  description: str) -> None:
+        await self._memory_db().execute_query(
+            """INSERT INTO unified.domains (domain_id, domain_name, description)
+               VALUES ($1, $2, $3)
+               ON CONFLICT (domain_id) DO NOTHING""",
+            (domain_id, name, description),
+            commit=True
+        )
+
+    async def hold_domain_mapping(self, *, mapping_id: str, source_domain: str,
+                                  target_domain: str, source_concept: str,
+                                  target_concept: str, similarity_score: float,
+                                  reasoning_strategy: str, verified: Optional[bool],
+                                  confidence: float, metadata: str) -> Any:
+        return await self._memory_db().execute_query(
+            """INSERT INTO unified.domain_mappings
+                   (mapping_id, source_domain, target_domain, source_concept,
+                    target_concept, similarity_score, reasoning_strategy,
+                    verified, confidence, metadata, created_at)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, NOW())
+               ON CONFLICT (mapping_id) DO UPDATE SET
+                   similarity_score = EXCLUDED.similarity_score,
+                   verified         = EXCLUDED.verified,
+                   confidence       = EXCLUDED.confidence,
+                   metadata         = EXCLUDED.metadata""",
+            (mapping_id, source_domain, target_domain, source_concept, target_concept,
+             similarity_score, reasoning_strategy, verified, confidence, metadata),
+            commit=True,
+        )
+
+    async def hold_domain_correspondence(self, *, mapping_id: str, source_domain: str,
+                                         target_domain: str, source_concept: str,
+                                         target_concept: str, similarity_score: float,
+                                         reasoning_strategy: str, verified: bool,
+                                         confidence: float, metadata: str) -> None:
+        """That one domain's operators are another's under a renaming of their
+        predicates: the bridge a merge produces. Kept as first recorded."""
+        await self._memory_db().execute_query(
+            """INSERT INTO unified.domain_mappings
+                   (mapping_id, source_domain, target_domain, source_concept,
+                    target_concept, similarity_score, reasoning_strategy,
+                    verified, confidence, metadata)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb)
+               ON CONFLICT DO NOTHING""",
+            (mapping_id, source_domain, target_domain, source_concept, target_concept,
+             similarity_score, reasoning_strategy, verified, confidence, metadata),
+            commit=True,
+        )
+
+    async def hold_knowledge_transfer(self, *, transfer_id: str, source_domain: str,
+                                      target_domain: str, concept: str, concept_type: str,
+                                      transfer_method: str, success: Optional[bool],
+                                      metadata: str, created_at: Any,
+                                      completed_at: Any) -> Any:
+        return await self._memory_db().execute_query(
+            """INSERT INTO unified.knowledge_transfers
+                   (transfer_id, source_domain, target_domain, concept,
+                    concept_type, transfer_method, success, metadata,
+                    created_at, completed_at)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10)
+               -- Deriving a transfer again states no outcome. It must not
+               -- erase the outcome resolve_knowledge_transfer recorded, or
+               -- the measured effectiveness and its evidence.
+               ON CONFLICT (transfer_id) DO UPDATE SET
+                   success      = COALESCE(EXCLUDED.success,
+                                           unified.knowledge_transfers.success),
+                   metadata     = CASE
+                       WHEN unified.knowledge_transfers.success IS NULL
+                       THEN EXCLUDED.metadata
+                       ELSE EXCLUDED.metadata || jsonb_build_object(
+                           'effectiveness_score',
+                           unified.knowledge_transfers.metadata->'effectiveness_score',
+                           'outcome_evidence',
+                           unified.knowledge_transfers.metadata->'outcome_evidence')
+                       END,
+                   completed_at = COALESCE(EXCLUDED.completed_at,
+                                           unified.knowledge_transfers.completed_at)""",
+            (transfer_id, source_domain, target_domain, concept, concept_type,
+             transfer_method, success, metadata, created_at, completed_at),
+            commit=True,
+        )
+
+    async def resolve_knowledge_transfer(self, *, transfer_id: str, helped: bool,
+                                         metadata: str) -> Any:
+        """Whether a transfer helped, with the evidence it was judged on."""
+        return await self._memory_db().execute_query(
+            """UPDATE unified.knowledge_transfers
+               SET success      = $2,
+                   completed_at = NOW(),
+                   metadata     = COALESCE(metadata, '{}'::jsonb) || $3::jsonb
+               WHERE transfer_id = $1""",
+            (transfer_id, helped, metadata),
+            commit=True,
+        )
+
+    async def record_mapping_use(self, *, usage_id: str, mapping_id: str,
+                                 transfer_id: Optional[str], task_id: str,
+                                 application_stage: str, source_domain: str,
+                                 target_domain: str, provenance: str) -> Any:
+        return await self._memory_db().execute_query(
+            """INSERT INTO unified.mapping_usage_events
+                   (usage_id, mapping_id, transfer_id, task_id,
+                    application_stage, source_domain, target_domain,
+                    provenance)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb)
+               ON CONFLICT (usage_id) DO NOTHING""",
+            (usage_id, mapping_id, transfer_id, task_id, application_stage,
+             source_domain, target_domain, provenance),
+            commit=True)
+
+    async def record_controllability(self, *, domain_id: str, action_attempts: int,
+                                     action_effects: int, still_observations: int,
+                                     ambient_changes: int) -> None:
+        """Evidence on whether acting moves a domain, added to what is held."""
+        await self._memory_db().execute_query(
+            """INSERT INTO unified.domain_controllability
+                   (domain_id, action_attempts, action_effects,
+                    still_observations, ambient_changes)
+               VALUES ($1,$2,$3,$4,$5)
+               ON CONFLICT (domain_id) DO UPDATE SET
+                   action_attempts    = domain_controllability.action_attempts + EXCLUDED.action_attempts,
+                   action_effects     = domain_controllability.action_effects + EXCLUDED.action_effects,
+                   still_observations = domain_controllability.still_observations + EXCLUDED.still_observations,
+                   ambient_changes    = domain_controllability.ambient_changes + EXCLUDED.ambient_changes,
+                   updated_at         = NOW()""",
+            (domain_id, action_attempts, action_effects, still_observations, ambient_changes),
+            commit=True)
+
+    async def record_operating_outcome(self, *, domain_id: str, win: int) -> None:
+        """One verified operating attempt in a domain; `win` is 1 when it was right."""
+        await self._memory_db().execute_query(
+            """INSERT INTO unified.domain_controllability
+                   (domain_id, operating_attempts, operating_wins)
+               VALUES ($1, 1, $2)
+               ON CONFLICT (domain_id) DO UPDATE SET
+                   operating_attempts = domain_controllability.operating_attempts + 1,
+                   operating_wins     = domain_controllability.operating_wins + EXCLUDED.operating_wins,
+                   updated_at         = NOW()""",
+            (domain_id, win), commit=True)
+
+    # ---- what reasoning produced --------------------------------------------
+
+    # Argumentation and temporal knowledge are whoever's reasoning made them: a
+    # person's rows go to their context, the substrate's to its own store.
+
+    async def hold_argument_claim(self, *, claim_id: str, statement: str, warrant: Any,
+                                  qualifier: Any, confidence: float, source: Any,
+                                  origin: "Origin") -> None:
+        owner = self._owner_from(origin)
+        db = self._memory_db()
+        await db.execute_query(
+            "INSERT INTO unified.reasoning_arg_claims "
+            "(claim_id, statement, warrant, qualifier, confidence, source, owner) "
+            "VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT (claim_id) DO UPDATE SET "
+            "statement=EXCLUDED.statement, confidence=EXCLUDED.confidence",
+            (claim_id, statement, warrant, qualifier, confidence, source, owner),
+            commit=True, store=db.write_store(owner))
+
+    async def hold_argument(self, *, argument_id: str, claim_id: str, argument_type: str,
+                            conclusion: Any, strength: Any, validity: bool,
+                            soundness: bool, refuted_by: Any, origin: "Origin") -> None:
+        owner = self._owner_from(origin)
+        db = self._memory_db()
+        await db.execute_query(
+            "INSERT INTO unified.reasoning_arguments "
+            "(argument_id, claim_id, argument_type, conclusion, strength, "
+            "validity, soundness, refuted_by, owner) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) "
+            "ON CONFLICT (argument_id) DO UPDATE SET validity=EXCLUDED.validity, "
+            "soundness=EXCLUDED.soundness, refuted_by=EXCLUDED.refuted_by",
+            (argument_id, claim_id, argument_type, conclusion, strength, validity,
+             soundness, refuted_by, owner), commit=True, store=db.write_store(owner))
+
+    async def hold_fallacy(self, *, fallacy_id: str, fallacy_type: str, argument_id: str,
+                           description: Any, severity: float, origin: "Origin") -> None:
+        owner = self._owner_from(origin)
+        db = self._memory_db()
+        await db.execute_query(
+            "INSERT INTO unified.reasoning_arg_fallacies "
+            "(fallacy_id, fallacy_type, argument_id, description, severity, owner) "
+            "VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (fallacy_id) DO UPDATE SET "
+            "description=EXCLUDED.description, severity=EXCLUDED.severity",
+            (fallacy_id, fallacy_type, argument_id, description, severity, owner),
+            commit=True, store=db.write_store(owner))
+
+    async def hold_temporal_proposition(self, *, prop_id: str, statement: str,
+                                        time_point: Any, ts: Any, is_true: bool,
+                                        confidence: float, origin: "Origin") -> None:
+        owner = self._owner_from(origin)
+        db = self._memory_db()
+        await db.execute_query(
+            "INSERT INTO unified.reasoning_temporal_propositions "
+            "(prop_id, statement, time_point, ts, is_true, confidence, owner) "
+            "VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT (prop_id) DO UPDATE SET "
+            "statement=EXCLUDED.statement, is_true=EXCLUDED.is_true, "
+            "confidence=EXCLUDED.confidence",
+            (prop_id, statement, time_point, ts, is_true, confidence, owner),
+            commit=True, store=db.write_store(owner))
+
+    async def hold_causal_link(self, *, link_id: str, cause_id: str, effect_id: str,
+                               causal_strength: float, necessary: bool, sufficient: bool,
+                               observations: int, origin: "Origin") -> None:
+        owner = self._owner_from(origin)
+        db = self._memory_db()
+        await db.execute_query(
+            "INSERT INTO unified.reasoning_temporal_causal_links "
+            "(link_id, cause_id, effect_id, causal_strength, necessary, "
+            "sufficient, observations, owner) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) "
+            "ON CONFLICT (link_id) DO UPDATE SET "
+            "causal_strength=EXCLUDED.causal_strength, "
+            "observations=EXCLUDED.observations",
+            (link_id, cause_id, effect_id, causal_strength, necessary, sufficient,
+             observations, owner), commit=True, store=db.write_store(owner))
+
+    async def hold_hypothesis(self, *, hypothesis_id: str, claim: str, domain: Any,
+                              is_falsifiable: bool, null_hypothesis: Any, status: str,
+                              confidence: float, proposed_at: Any, revisions: Any,
+                              parent_hypothesis_id: Any, falsification_criteria: str,
+                              verification_criteria: str, predictions: str,
+                              testable_predictions: str, alternative_hypotheses: str,
+                              supporting_evidence: str,
+                              contradicting_evidence: str, origin: "Origin") -> None:
+        """A hypothesis, kept in its owner's store: a person's in their context."""
+        owner = self._owner_from(origin)
+        db = self._memory_db()
+        await db.execute_query(
+            """
+            INSERT INTO unified.hypotheses
+            (hypothesis_id, claim, domain, is_falsifiable, null_hypothesis,
+             status, confidence, proposed_at, revisions, parent_hypothesis_id,
+             falsification_criteria, verification_criteria, predictions,
+             testable_predictions, alternative_hypotheses,
+             supporting_evidence, contradicting_evidence, owner)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
+                    $11, $12, $13, $14, $15, $16, $17, $18)
+            ON CONFLICT (hypothesis_id) DO UPDATE SET
+                claim = EXCLUDED.claim,
+                domain = EXCLUDED.domain,
+                is_falsifiable = EXCLUDED.is_falsifiable,
+                null_hypothesis = EXCLUDED.null_hypothesis,
+                status = EXCLUDED.status,
+                confidence = EXCLUDED.confidence,
+                proposed_at = EXCLUDED.proposed_at,
+                revisions = EXCLUDED.revisions,
+                parent_hypothesis_id = EXCLUDED.parent_hypothesis_id,
+                falsification_criteria = EXCLUDED.falsification_criteria,
+                verification_criteria = EXCLUDED.verification_criteria,
+                predictions = EXCLUDED.predictions,
+                testable_predictions = EXCLUDED.testable_predictions,
+                alternative_hypotheses = EXCLUDED.alternative_hypotheses,
+                supporting_evidence = EXCLUDED.supporting_evidence,
+                contradicting_evidence = EXCLUDED.contradicting_evidence
+            """,
+            (hypothesis_id, claim, domain, is_falsifiable, null_hypothesis, status,
+             confidence, proposed_at, revisions, parent_hypothesis_id,
+             falsification_criteria, verification_criteria, predictions,
+             testable_predictions, alternative_hypotheses, supporting_evidence,
+             contradicting_evidence, owner),
+            commit=True, store=db.write_store(owner)
+        )
+
+    async def hold_experiment(self, *, experiment_id: str, hypothesis_id: str, name: str,
+                              description: Any, expected_outcome: Any, status: str,
+                              outcome_supports_hypothesis: Any, designed_at: Any,
+                              completed_at: Any, execution_time: Any,
+                              origin: "Origin") -> None:
+        """An experiment, kept where its hypothesis is."""
+        owner = self._owner_from(origin)
+        db = self._memory_db()
+        await db.execute_query(
+            """
+            INSERT INTO unified.experiments
+            (experiment_id, hypothesis_id, name, description, expected_outcome,
+             status, outcome_supports_hypothesis, designed_at, completed_at, execution_time,
+             owner)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+            ON CONFLICT (experiment_id) DO UPDATE SET
+                hypothesis_id = EXCLUDED.hypothesis_id,
+                name = EXCLUDED.name,
+                description = EXCLUDED.description,
+                expected_outcome = EXCLUDED.expected_outcome,
+                status = EXCLUDED.status,
+                outcome_supports_hypothesis = EXCLUDED.outcome_supports_hypothesis,
+                designed_at = EXCLUDED.designed_at,
+                completed_at = EXCLUDED.completed_at,
+                execution_time = EXCLUDED.execution_time
+            """,
+            (experiment_id, hypothesis_id, name, description, expected_outcome, status,
+             outcome_supports_hypothesis, designed_at, completed_at, execution_time, owner),
+            commit=True, store=db.write_store(owner)
+        )
+
+    async def hold_hypothesis_evidence(self, *, evidence_id: str, hypothesis_id: str,
+                                       evidence_type: str, description: Any,
+                                       quality_score: float, supports_hypothesis: Any,
+                                       strength: Any, source: Any, experiment_id: Any,
+                                       collected_at: Any, origin: "Origin") -> None:
+        """Evidence on a hypothesis, kept where the hypothesis is."""
+        owner = self._owner_from(origin)
+        db = self._memory_db()
+        await db.execute_query(
+            """
+            INSERT INTO unified.evidence
+            (evidence_id, hypothesis_id, evidence_type, description, quality_score,
+             supports_hypothesis, strength, source, experiment_id, collected_at, owner)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+            ON CONFLICT (evidence_id) DO UPDATE SET
+                hypothesis_id = EXCLUDED.hypothesis_id,
+                evidence_type = EXCLUDED.evidence_type,
+                description = EXCLUDED.description,
+                quality_score = EXCLUDED.quality_score,
+                supports_hypothesis = EXCLUDED.supports_hypothesis,
+                strength = EXCLUDED.strength,
+                source = EXCLUDED.source,
+                experiment_id = EXCLUDED.experiment_id,
+                collected_at = EXCLUDED.collected_at
+            """,
+            (evidence_id, hypothesis_id, evidence_type, description, quality_score,
+             supports_hypothesis, strength, source, experiment_id, collected_at, owner),
+            commit=True, store=db.write_store(owner)
+        )
+
+    async def hold_schema(self, *, schema_id: str, belief_id: Optional[str],
+                          probability: float, payload: str, formation_time: Any) -> None:
+        await self._memory_db().execute_query(
+            "INSERT INTO unified.schemas"
+            " (schema_id, belief_id, probability, payload, formation_time, updated_at)"
+            " VALUES ($1, $2, $3, $4, $5, NOW())"
+            " ON CONFLICT (schema_id) DO UPDATE SET"
+            "   belief_id = EXCLUDED.belief_id, probability = EXCLUDED.probability,"
+            "   payload = EXCLUDED.payload, updated_at = NOW()",
+            (schema_id, belief_id, probability, payload, formation_time),
+            commit=True)
+
+    async def drop_schema(self, schema_id: str) -> None:
+        await self._memory_db().execute_query(
+            "DELETE FROM unified.schemas WHERE schema_id = $1",
+            (schema_id,), commit=True)
+
+    async def hold_analogy(self, *, analogy_id: str, analogy_type: str, source_domain: Any,
+                           target_domain: Any, coherence: float, novelty: float,
+                           utility: float, score: float, description: Any, insights: str,
+                           mappings: str, primary_mapping: Optional[str]) -> None:
+        await self._memory_db().execute_query(
+            """
+            INSERT INTO unified.analogies (
+                analogy_id, analogy_type, source_domain, target_domain,
+                coherence, novelty, utility, score, description, insights,
+                mappings, primary_mapping, created_at
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW())
+            ON CONFLICT (analogy_id) DO UPDATE SET
+                coherence = EXCLUDED.coherence,
+                novelty = EXCLUDED.novelty,
+                utility = EXCLUDED.utility,
+                score = EXCLUDED.score,
+                insights = EXCLUDED.insights,
+                mappings = EXCLUDED.mappings
+            """,
+            params=(analogy_id, analogy_type, source_domain, target_domain, coherence,
+                    novelty, utility, score, description, insights, mappings,
+                    primary_mapping),
+            commit=True,
+        )
+
+    async def hold_concept_mapping(self, *, mapping_id: str, source_concept: str,
+                                   target_concept: str, mapping_type: str,
+                                   structural_similarity: float,
+                                   functional_similarity: float, confidence: float) -> None:
+        await self._memory_db().execute_query(
+            """
+            INSERT INTO unified.concept_mappings (
+                mapping_id, source_concept, target_concept, mapping_type,
+                structural_similarity, functional_similarity, confidence,
+                created_at
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+            ON CONFLICT (mapping_id) DO UPDATE SET
+                confidence = EXCLUDED.confidence,
+                structural_similarity = EXCLUDED.structural_similarity,
+                functional_similarity = EXCLUDED.functional_similarity
+            """,
+            params=(mapping_id, source_concept, target_concept, mapping_type,
+                    structural_similarity, functional_similarity, confidence),
+            commit=True,
+        )
+
+    # ---- perception -----------------------------------------------------------
+
+    async def hold_vision_instance(self, *, name: str, descriptors: bytes, rows: int,
+                                   cols: int, dtype: str) -> None:
+        """A reference image's features, so the instance is recognised by name."""
+        await self._memory_db().execute_query(
+            "INSERT INTO unified.vision_instances (name, descriptors, rows, cols, dtype) "
+            "VALUES ($1, $2, $3, $4, $5) ON CONFLICT (name) DO UPDATE SET "
+            "descriptors = EXCLUDED.descriptors, rows = EXCLUDED.rows, "
+            "cols = EXCLUDED.cols, dtype = EXCLUDED.dtype, learned_at = NOW()",
+            (name, descriptors, rows, cols, dtype), commit=True)
+
+    async def drop_vision_instance(self, name: str) -> Optional[Any]:
+        """Returns the row removed, or None when there was none."""
+        return await self._memory_db().execute_query(
+            "DELETE FROM unified.vision_instances WHERE name = $1 RETURNING name",
+            (name,), fetch_one=True)
+
+    async def hold_sound_instance(self, *, name: str, landmarks: bytes, rows: int,
+                                  cols: int, dtype: str) -> None:
+        """A reference sound's landmarks, so the sound is recognised by name when
+        it is heard again."""
+        await self._memory_db().execute_query(
+            "INSERT INTO unified.sound_instances (name, landmarks, rows, cols, dtype) "
+            "VALUES ($1, $2, $3, $4, $5) ON CONFLICT (name) DO UPDATE SET "
+            "landmarks = EXCLUDED.landmarks, rows = EXCLUDED.rows, "
+            "cols = EXCLUDED.cols, dtype = EXCLUDED.dtype, learned_at = NOW()",
+            (name, landmarks, rows, cols, dtype), commit=True)
+
+    async def drop_sound_instance(self, name: str) -> Optional[Any]:
+        """Returns the row removed, or None when there was none."""
+        return await self._memory_db().execute_query(
+            "DELETE FROM unified.sound_instances WHERE name = $1 RETURNING name",
+            (name,), fetch_one=True)
+
+    #: The tags on a hearing that was a LESSON: an example of a spoken word
+    #: being said, of a person's voice, or of a song. The lesson is a hearing
+    #: like any other, remembered as one; its tag and its record say what it
+    #: taught, and the example measured for matching is kept in its trace.
+    SPOKEN_WORD_TAG = "spoken_word"
+    VOICE_TAG = "voice"
+    SONG_TAG = "song"
+    #: How many lessons `taught_by_hearing` reads. Named, because a silent cap
+    #: here reads as "that word was never taught".
+    TAUGHT_BY_HEARING_LIMIT = 20000
+
+    async def taught_by_hearing(self, tag: str, key: str) -> Dict[str, List[bytes]]:
+        """Every hearing that taught under `tag` (`SPOKEN_WORD_TAG`,
+        `VOICE_TAG` or `SONG_TAG`), as memory holds it: what it taught (the
+        word, whose voice, or which song, read from `key` in the memory's own
+        record) -> the archives kept with those hearings. A view over memories,
+        not a store beside them."""
+        from core.memory.media_store import get_media_store
+        rows = await self.search_memories(
+            tags={tag}, limit=self.TAUGHT_BY_HEARING_LIMIT) or []
+        taught: Dict[str, List[bytes]] = {}
+        for item in rows:
+            # WHAT EACH HEARING TAUGHT is read off that hearing's own record: a
+            # pursuit's memory can hold several hearings, and each says what it
+            # taught; a hearing that is a memory of its own says it in both.
+            for media in await get_media_store().media_for_memory(item.memory_id):
+                label = str(((media.get("perceived") or {}).get("lesson") or {}).get(key)
+                            or "").strip()
+                if label:
+                    taught.setdefault(label, []).append(media["bytes"])
+        return taught
+
+    async def hold_perception(self, *, perception_id: str, source: Any, data_type: Any,
+                              content: str, confidence: float, timestamp: Any,
+                              metadata: str, origin: "Origin") -> None:
+        """One perception, kept in its owner's store: a person's image in their
+        context, the substrate's own seeing in its own."""
+        owner = self._owner_from(origin)
+        db = self._memory_db()
+        await db.execute_query(
+            """
+            INSERT INTO unified.perceptions
+            (id, source, data_type, content, confidence, timestamp, metadata, owner)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            ON CONFLICT (id) DO UPDATE SET
+                source = EXCLUDED.source,
+                data_type = EXCLUDED.data_type,
+                content = EXCLUDED.content,
+                confidence = EXCLUDED.confidence,
+                timestamp = EXCLUDED.timestamp,
+                metadata = EXCLUDED.metadata,
+                owner = EXCLUDED.owner
+            """,
+            params=(perception_id, source, data_type, content, confidence, timestamp,
+                    metadata, owner),
+            commit=True, store=db.write_store(owner),
+        )
+
+    # ---- a person's context -----------------------------------------------------
+
+    async def hold_scoped_relation(self, *, actor: str, subject: str, relation: str,
+                                   obj: str, polarity: str, surface: Any, domain: Any,
+                                   source: str) -> None:
+        """A link a person told the substrate, in that person's context."""
+        await self._memory_db().execute_query(
+            """
+            INSERT INTO unified.scoped_concept_relations
+                (scope_actor, subj, rel, obj, polarity, surface, domain,
+                 source, last_updated)
+            VALUES ($1,$2,$3,$4,$5,$6,$7,$8, now())
+            ON CONFLICT (scope_actor, subj, rel, obj) DO UPDATE SET
+                polarity = EXCLUDED.polarity, surface = EXCLUDED.surface,
+                domain = EXCLUDED.domain, last_updated = now()
+            """,
+            (actor, subject, relation, obj, polarity, surface, domain, source),
+            commit=True)
+
+    async def hold_scoped_belief(self, *, actor: str, claim_key: str, claim: str,
+                                 domain: Any, prior: float, posterior: float,
+                                 supports: bool, update_count: int, surface: Any,
+                                 source: str) -> None:
+        """A belief in a claim a person told the substrate, in that person's context."""
+        await self._memory_db().execute_query(
+            """
+            INSERT INTO unified.scoped_beliefs
+                (scope_actor, claim_key, claim, domain, prior, posterior,
+                 supports, update_count, surface, source, last_updated)
+            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10, now())
+            ON CONFLICT (scope_actor, claim_key) DO UPDATE SET
+                claim = EXCLUDED.claim, domain = EXCLUDED.domain,
+                posterior = EXCLUDED.posterior, supports = EXCLUDED.supports,
+                update_count = EXCLUDED.update_count, surface = EXCLUDED.surface,
+                source = EXCLUDED.source, last_updated = now()
+            """,
+            (actor, claim_key, claim, domain, prior, posterior, supports,
+             update_count, surface, source),
+            commit=True)
+
+    async def mark_scoped_belief_promoted(self, claim_key: str) -> None:
+        await self._memory_db().execute_query(
+            "UPDATE unified.scoped_beliefs SET promoted = TRUE WHERE claim_key = $1",
+            (claim_key,), commit=True)
+
+    async def hold_belief_about_speaker(self, *, speaker: str, subject: str, relation: str,
+                                        obj: Optional[str], polarity: str,
+                                        surface: str) -> None:
+        """What a person said about themselves; a restatement replaces it."""
+        await self._memory_db().execute_query(
+            """
+            INSERT INTO unified.user_beliefs
+                (speaker, subject, relation, object, polarity, surface, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $6, now())
+            ON CONFLICT (speaker, subject, relation) DO UPDATE SET
+                object = EXCLUDED.object, polarity = EXCLUDED.polarity,
+                surface = EXCLUDED.surface, updated_at = now()
+            """,
+            (speaker, subject, relation, obj, polarity, surface),
+            commit=True,
+        )
+
+    # ---- the record of what was learned -------------------------------------------
+
+    async def record_knowledge_update(self, *, update_id: str, batch_id: str, cause: str,
+                                      actor: Optional[str], subject_kind: str,
+                                      subject_id: str, disposition: str,
+                                      domain: Optional[str], from_domain: Optional[str],
+                                      evidence_id: Optional[str],
+                                      detail: Optional[str]) -> None:
+        await self._memory_db().execute_query(
+            "INSERT INTO unified.knowledge_updates"
+            " (update_id, batch_id, cause, actor, subject_kind, subject_id,"
+            "  disposition, domain, from_domain, evidence_id, detail)"
+            " VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)"
+            " ON CONFLICT (update_id) DO NOTHING",
+            (update_id, batch_id, cause, actor, subject_kind, subject_id, disposition,
+             domain, from_domain, evidence_id, detail), commit=True)
+
+    async def record_knowledge_updates(self, rows: Sequence[Sequence[Any]]) -> int:
+        """Many updates in one statement, each row the eleven columns of
+        `record_knowledge_update` in order. A sweep that moves thousands of
+        concepts is one round trip."""
+        if not rows:
+            return 0
+        values, params = [], []
+        for i, row in enumerate(rows):
+            base = i * 11
+            values.append("(" + ",".join(f"${base + n}" for n in range(1, 12)) + ")")
+            params.extend(row)
+        await self._memory_db().execute_query(
+            "INSERT INTO unified.knowledge_updates"
+            " (update_id, batch_id, cause, actor, subject_kind, subject_id,"
+            "  disposition, domain, from_domain, evidence_id, detail) VALUES "
+            + ",".join(values) + " ON CONFLICT (update_id) DO NOTHING",
+            tuple(params), commit=True)
+        return len(rows)
+
+    async def mark_knowledge_consumed(self, *, update_ids: List[str],
+                                      consumer: str) -> List[Any]:
+        """Record that `consumer` used these updates. Returns the rows this call
+        newly recorded, not the ones asked about."""
+        return await self._memory_db().execute_query(
+            "INSERT INTO unified.knowledge_consumption (update_id, consumer)"
+            " SELECT update_id, $2 FROM unified.knowledge_updates"
+            " WHERE update_id = ANY($1::varchar[])"
+            " ON CONFLICT (update_id, consumer) DO NOTHING RETURNING update_id",
+            (update_ids, consumer), fetch_all=True) or []
+
+    async def mark_behaviour_change(self, *, batch_id: str, changed: bool,
+                                    detail: str) -> None:
+        await self._memory_db().execute_query(
+            "UPDATE unified.knowledge_updates SET changed_behaviour = $1,"
+            " behaviour_detail = $2 WHERE batch_id = $3",
+            (changed, detail, batch_id), commit=True)
+
+    # ---- trained recognisers and training examples ------------------------------------
+
+    async def hold_clause_classifier(self, *, name: str, mechanism: bytes, labels: str,
+                                     vocabulary: Optional[str], reject_label: Any,
+                                     registered_at: Any) -> None:
+        """A trained clause recogniser. A classifier registered later elsewhere
+        is never replaced by an older one."""
+        await self._memory_db().execute_query(
+            "INSERT INTO unified.clause_classifiers AS c (name, mechanism, labels, "
+            "vocabulary, reject_label, registered_at) VALUES ($1, $2, $3::jsonb, "
+            "$4::jsonb, $5, $6) ON CONFLICT (name) DO UPDATE SET "
+            "mechanism = EXCLUDED.mechanism, labels = EXCLUDED.labels, "
+            "vocabulary = EXCLUDED.vocabulary, reject_label = EXCLUDED.reject_label, "
+            "registered_at = EXCLUDED.registered_at, saved_at = NOW() "
+            "WHERE c.registered_at < EXCLUDED.registered_at",
+            (name, mechanism, labels, vocabulary, reject_label, registered_at), commit=True)
+
+    async def hold_security_training_example(self, *, input_text: str, attack_type: Any,
+                                             expected_behavior: Any,
+                                             is_malicious: bool) -> None:
+        await self._memory_db().execute_query(
+            """
+            INSERT INTO security_training_examples
+            (input_text, attack_type, expected_behavior, is_malicious, created_at)
+            VALUES ($1, $2, $3, $4, NOW())
+            """,
+            params=(input_text, attack_type, expected_behavior, is_malicious),
+        )
+
+    # ---- what development takes from a serving environment ---------------------------
+
+    async def mark_taken(self, connection: Any, *, tier: str, memory_id: str,
+                         taken_at: str, taken_into: Optional[str]) -> None:
+        """Mark a memory in a serving environment's learning store as taken into
+        development, so taking again takes it once. That store is another
+        database; `connection` is the release tool's connection to it."""
+        await connection.execute(
+            f"UPDATE {tier} SET metadata = COALESCE(metadata, '{{}}'::jsonb) || $2::jsonb "
+            f"WHERE memory_id = $1", memory_id,
+            json.dumps({"taken_at": taken_at, "taken_into": taken_into}))
+
+    async def hold_taken_question(self, row: Dict[str, Any]) -> int:
+        """One of a serving environment's own open questions, joined to
+        development's. Returns 1 when it was new here."""
+        columns = list(row)
+        db = self._memory_db()
+        written = await db.execute_query(
+            f"INSERT INTO unified.known_unknowns ({', '.join(columns)}) VALUES "
+            f"({', '.join(f'${i + 1}' for i in range(len(columns)))}) "
+            f"ON CONFLICT (unknown_id) DO NOTHING RETURNING unknown_id",
+            tuple(row[c] for c in columns), fetch_all=True,
+            store=db.write_store(None)) or []
+        return len(written)
+
+    async def add_recorded_use(self, *, memory_id: str, access_count: int,
+                               last_accessed: Any) -> int:
+        """Recalls a serving environment recorded of a release memory, added to
+        development's memory. Returns how many rows took them (0 when
+        development no longer holds it)."""
+        db = self._memory_db()
+        store = db.write_store(None)
+        hot = await db.execute_query(
+            "UPDATE memory_hot SET access_count = access_count + $2, "
+            "last_accessed = GREATEST(last_accessed, $3) WHERE memory_id = $1 "
+            "RETURNING memory_id",
+            (memory_id, access_count, last_accessed), fetch_all=True,
+            use_hot_tier=True, store=store) or []
+        cold = await db.execute_query(
+            "UPDATE memory_cold SET access_count = access_count + $2, "
+            "last_accessed = GREATEST(last_accessed, $3) WHERE memory_id = $1 "
+            "RETURNING memory_id",
+            (memory_id, access_count, last_accessed), fetch_all=True,
+            use_cold_tier=True, store=store) or []
+        return len(hot) + len(cold)
+
+    # ================================================================================================
+    # THE POOL: experiences waiting to be decided
+    # ================================================================================================
+    #
+    # What the substrate lives through -- a task, research, a conversation, a
+    # seeing, reasoning done for someone -- is handed over whole, as an
+    # `Experience` whose every part says where it came from. The person's
+    # episode is already theirs, written by the records the work keeps. The
+    # experience waits here as a candidate, in its owner's store: a person's in
+    # their context, since its parts still carry their particulars, and the
+    # substrate's own in the model. Nothing reads the pool as knowledge; the
+    # worker below decides each item, and what may be learned from a candidate
+    # is decided later by the lift and the gate.
+
+    POOL_LEASE_SECONDS = 120
+    POOL_BATCH = 20
+
+    _POOL_DDL = (
+        """CREATE TABLE IF NOT EXISTS unified.experience_pool (
+               item_id       TEXT PRIMARY KEY,
+               owner         TEXT,
+               kind          TEXT NOT NULL,
+               through       TEXT NOT NULL,
+               about         TEXT,
+               parts         JSONB,
+               memory_id     TEXT,
+               evidence      JSONB NOT NULL DEFAULT '{}'::jsonb,
+               fingerprint   TEXT NOT NULL,
+               seen          INTEGER NOT NULL DEFAULT 1,
+               status        TEXT NOT NULL DEFAULT 'waiting',
+               claimed_by    TEXT,
+               claimed_until TIMESTAMPTZ,
+               decision      JSONB,
+               created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+               decided_at    TIMESTAMPTZ
+           )""",
+        # A pool made before experiences could be queued as their memory.
+        "ALTER TABLE unified.experience_pool ADD COLUMN IF NOT EXISTS memory_id TEXT",
+        "ALTER TABLE unified.experience_pool ALTER COLUMN parts DROP NOT NULL",
+        "CREATE INDEX IF NOT EXISTS experience_pool_status_idx"
+        " ON unified.experience_pool (status, created_at)",
+        "CREATE INDEX IF NOT EXISTS experience_pool_fingerprint_idx"
+        " ON unified.experience_pool (fingerprint)",
+    )
+
+    async def _ensure_pool(self) -> None:
+        if self._pool_ready:
+            return
+        db = self._memory_db()
+        for store in db.schema_stores():
+            for statement in self._POOL_DDL:
+                await db.execute_query(statement, commit=True, store=store)
+        self._pool_ready = True
+
+    async def remember_experience(self, experience: "Experience", *,
+                                  memory_id: Optional[str] = None) -> str:
+        """Take in one experience: it waits in the pool as a candidate, in its
+        owner's store, and the worker is woken for it. Returns its pool id.
+
+        An experience that is already a memory (`memory_id`, whose record holds
+        the experience) is queued as that memory: the pool keeps a reference to
+        it and no second copy of its parts."""
+        from core.memory.utils.interfaces import Experience
+        if not isinstance(experience, Experience):
+            raise TypeError("the pool takes an Experience, not "
+                            f"{type(experience).__name__}")
+        # ONE PURSUIT, ONE MEMORY: an experience had within a pursuit is a part
+        # of that pursuit, decided with it when it concludes -- a turn of a
+        # conversation, a look-up, a reasoning -- not a candidate of its own.
+        if memory_id is None:
+            within = await self.acting_pursuit_memory()
+            if within:
+                await self.add_parts_to_pursuit(within, [p.to_dict() for p in experience.parts])
+                return within
+        owner = self._owner_from(experience.origin)
+        await self._ensure_pool()
+        item_id = f"exp_{uuid.uuid4().hex[:16]}"
+        db = self._memory_db()
+        await db.execute_query(
+            "INSERT INTO unified.experience_pool"
+            " (item_id, owner, kind, through, about, parts, evidence, fingerprint, memory_id)"
+            " VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8, $9)",
+            (item_id, owner, experience.kind, experience.origin.through, experience.about,
+             None if memory_id else json.dumps([p.to_dict() for p in experience.parts], default=str),
+             json.dumps(experience.evidence or {}, default=str),
+             experience.fingerprint(), memory_id),
+            commit=True, store=db.write_store(owner))
+        self._pool_arrived.set()
+        return item_id
+
+    async def _pool_worker(self) -> None:
+        """Decide what waits in the pool, then sleep until more arrives."""
+        while True:
+            self._pool_arrived.clear()
+            try:
+                await self._decide_waiting()
+            except asyncio.CancelledError:
+                raise
+            except Exception as error:
+                raise_if_structural(error, "memory_agent._pool_worker")
+                logger.warning("the pool could not be decided this pass: %s", error)
+            await self._pool_arrived.wait()
+
+    async def _decide_waiting(self) -> int:
+        """Claim what waits (or what a lapsed claim left), with a lease, and decide
+        it, in every store the memory agent may change. Returns how many."""
+        await self._ensure_pool()
+        db = self._memory_db()
+        decided = 0
+        for store in db.maintained_stores():
+            while True:
+                claimed = await db.execute_query(
+                    """UPDATE unified.experience_pool AS p
+                          SET status = 'claimed', claimed_by = $1,
+                              claimed_until = NOW() + make_interval(secs => $2)
+                        WHERE p.item_id IN (
+                              SELECT item_id FROM unified.experience_pool
+                               WHERE status = 'waiting'
+                                  OR (status = 'claimed' AND claimed_until < NOW())
+                               ORDER BY created_at
+                               LIMIT $3
+                               FOR UPDATE SKIP LOCKED)
+                    RETURNING p.item_id, p.kind, p.parts, p.evidence, p.fingerprint,
+                              p.memory_id, p.about""",
+                    (self._pool_claimant, float(self.POOL_LEASE_SECONDS), self.POOL_BATCH),
+                    fetch_all=True, store=store) or []
+                if not claimed:
+                    break
+                for item in claimed:
+                    await self._decide(item, store)
+                    decided += 1
+        return decided
+
+    async def _decide(self, item: Any, store: str) -> None:
+        """The memory agent's standards for one experience, and its decision,
+        recorded on the item:
+
+          nothing to learn   no part from the substrate or the world, or no outcome
+          already held       the same experience is already a candidate: it is
+                             counted there, and this item is decided as that one
+          candidate          it waits for the lift, the residue test and the gate
+        """
+        db = self._memory_db()
+        parts = item["parts"] if isinstance(item["parts"], list) else json.loads(item["parts"] or "[]")
+        if item["parts"] is None and item["memory_id"]:
+            parts = await self._experience_parts(item["memory_id"], store, item["about"])
+        evidence = (item["evidence"] if isinstance(item["evidence"], dict)
+                    else json.loads(item["evidence"] or "{}"))
+        shared = [p for p in (parts or []) if p.get("source") in ("substrate", "world")]
+        if parts is None:
+            decision = {"standing": "nothing to learn",
+                        "why": f"its memory {item['memory_id']} is gone"}
+        elif not shared or evidence.get("outcome") is None:
+            decision = {"standing": "nothing to learn",
+                        "why": ("no part came from the substrate or the world" if not shared
+                                else "it has no outcome")}
+        else:
+            held = await db.execute_query(
+                "SELECT item_id FROM unified.experience_pool"
+                " WHERE fingerprint = $1 AND item_id <> $2 AND status = 'decided'"
+                " AND decision->>'standing' = 'candidate' ORDER BY created_at LIMIT 1",
+                (item["fingerprint"], item["item_id"]), fetch_one=True, store=store)
+            if held:
+                await db.execute_query(
+                    "UPDATE unified.experience_pool SET seen = seen + 1 WHERE item_id = $1",
+                    (held["item_id"],), commit=True, store=store)
+                decision = {"standing": "already held", "as": held["item_id"]}
+            else:
+                decision = {"standing": "candidate",
+                            "waits_for": "the lift, the residue test and the gate",
+                            "parts": {"substrate": sum(p.get("source") == "substrate" for p in parts),
+                                      "world": sum(p.get("source") == "world" for p in parts),
+                                      "person": sum(p.get("source") == "person" for p in parts)}}
+        await db.execute_query(
+            "UPDATE unified.experience_pool SET status = 'decided', decision = $1::jsonb,"
+            " decided_at = NOW(), claimed_by = NULL, claimed_until = NULL"
+            " WHERE item_id = $2 AND claimed_by = $3",
+            (json.dumps(decision), item["item_id"], self._pool_claimant),
+            commit=True, store=store)
+
+    async def _experience_parts(self, memory_id: str, store: str,
+                                about: Optional[str] = None) -> Optional[List[Dict[str, Any]]]:
+        """The parts of the experience a queued memory records, hot or cold, or
+        None when the memory is gone. A memory holding several occurrences gives
+        the one the item is about."""
+        db = self._memory_db()
+        for table in ("memory_hot.memory_hot", "memory_cold.memory_cold"):
+            row = await db.execute_query(
+                f"SELECT thinking_state->'raw_event' AS record"
+                f" FROM {table} WHERE memory_id = $1", (memory_id,), fetch_one=True, store=store)
+            if row is None:
+                continue
+            record = row["record"]
+            record = (json.loads(record) if isinstance(record, str) else record) or {}
+            if record.get("schema") == self.PURSUIT_SCHEMA:
+                # A pursuit is one experience: its parts, with repeats counted.
+                return (record.get("experience") or {}).get("parts") or []
+            occurrences = record.get("occurrences") if isinstance(record.get("occurrences"), list) else [record]
+            chosen = next((o for o in occurrences if isinstance(o, dict) and about is not None
+                           and (o.get("experience") or {}).get("about") == about),
+                          occurrences[-1] if occurrences else {})
+            return ((chosen or {}).get("experience") or {}).get("parts") or []
+        return None
+
+    # ================================================================================================
+    # THE MEMORY OF A PURSUIT
+    # ================================================================================================
+    #
+    # ONE PURSUIT IS ONE MEMORY. It is formed when the work is taken on, every
+    # task, step and tool run within it is added as it ends, and it is closed
+    # with how the pursuit ended. What repeats within it -- the same call, the
+    # same error -- is counted in it, not listed. Separate pursuits are never
+    # merged: the same thing done on two days is two memories.
+
+    PURSUIT_SCHEMA = "pursuit_v1"
+    PURSUIT_TAGS = ("task_outcome", "pursuit", "performance_tracking")
+    _pursuit_index_ready = False
+
+    async def _ensure_pursuit_index(self) -> None:
+        """Pursuit memories are found by the intent they are the memory of."""
+        if MemoryAgent._pursuit_index_ready:
+            return
+        db = self._memory_db()
+        for store in db.schema_stores():
+            for table in ("memory_hot.memory_hot", "memory_cold.memory_cold"):
+                name = table.split(".")[0] + "_pursuit_intent_idx"
+                await db.execute_query(
+                    f"CREATE INDEX IF NOT EXISTS {name} ON {table}"
+                    " ((thinking_state->'raw_event'->'pursuit'->>'intent_id'))",
+                    commit=True, store=store)
+        MemoryAgent._pursuit_index_ready = True
+
+    async def pursuit_memory_id(self, intent_id: str) -> Optional[str]:
+        """The memory of the pursuit `intent_id` names, hot or cold, or None."""
+        await self._ensure_pursuit_index()
+        db = self._memory_db()
+        for store in db.maintained_stores():
+            for table in ("memory_hot.memory_hot", "memory_cold.memory_cold"):
+                row = await db.execute_query(
+                    f"SELECT memory_id FROM {table}"
+                    " WHERE thinking_state->'raw_event'->'pursuit'->>'intent_id' = $1"
+                    " ORDER BY created_at LIMIT 1", (str(intent_id),), fetch_one=True, store=store)
+                if row is not None:
+                    return row["memory_id"]
+        return None
+
+    async def begin_pursuit(self, *, intent_id: str, kind: str, aim: str,
+                            origin: "Origin",
+                            trigger: Optional[Dict[str, Any]] = None) -> Optional[str]:
+        """Form the memory of a pursuit as it is taken on, and return its id. A
+        pursuit taken up again after it ended is the same pursuit: its memory is
+        opened again rather than a second one formed.
+
+        `trigger` is what started it -- a person's message, an error, a
+        notification, a drive -- as {what, source, content}. It is kept whole:
+        in the record as the pursuit's trigger, and as the first part of its
+        experience, saying whose it is (`source`: person, world or substrate).
+        A pursuit started again keeps each trigger that started it."""
+        from core.memory.utils.interfaces import PART_SOURCES
+        trigger = json.loads(json.dumps(trigger, default=str)) if trigger else None
+        trigger_parts = [] if trigger is None else [{
+            "role": "trigger",
+            "source": trigger.get("source") if trigger.get("source") in PART_SOURCES else "substrate",
+            "content": {"what": trigger.get("what"), "content": trigger.get("content")}}]
+        held = await self.pursuit_memory_id(intent_id)
+        if held is not None:
+            async with self._pursuit_lock(held):
+                record, thinking_state = await self._pursuit_record(held)
+                if record is None:
+                    return held
+                changed = False
+                if (record.get("pursuit") or {}).get("status") != "active":
+                    record["pursuit"].update(status="active", reopened_at=datetime.now().isoformat())
+                    changed = True
+                if trigger is not None:
+                    record["pursuit"]["last_trigger"] = trigger
+                    experience = record.get("experience") or {}
+                    experience["parts"] = self._summarize_parts(
+                        experience.get("parts") or [], trigger_parts)
+                    record["experience"] = experience
+                    changed = True
+                if changed:
+                    await self._rewrite_pursuit(held, record, thinking_state)
+            return held
+        from core.agents.autonomous.governance_block_schema import pursuit_account
+        record = {
+            "event": "task_outcome", "schema": self.PURSUIT_SCHEMA,
+            "pursuit": {"intent_id": str(intent_id), "kind": kind, "aim": aim,
+                        "trigger": trigger,
+                        "status": "active", "started_at": datetime.now().isoformat()},
+            "occurrences": [], "counts": {"success": 0, "failure": 0},
+            "experience": {"kind": "pursuit", "origin": origin.to_dict(),
+                           "parts": [{**p, "count": 1} for p in trigger_parts],
+                           "evidence": {}, "about": str(intent_id)},
+        }
+        stored, memory_id = await self.store_memory(
+            pursuit_account(record), memory_type=MemoryType.META, importance_score=0.7,
+            tags=list(self.PURSUIT_TAGS), thinking_state={"raw_event": record}, origin=origin)
+        return memory_id if stored else None
+
+    async def add_to_pursuit(self, memory_id: str, task_record: Dict[str, Any],
+                             experience: "Experience", *,
+                             tags: Optional[List[str]] = None) -> None:
+        """Add one finished task to its pursuit's memory: its record among the
+        pursuit's occurrences (the latest also on top, where one record is read),
+        and its experience's parts into the pursuit's, repeats counted. A task
+        that ends after its pursuit was closed is added all the same, and the
+        pursuit is decided again for learning with it."""
+        async with self._pursuit_lock(memory_id):
+            record, thinking_state = await self._pursuit_record(memory_id)
+            if record is None:
+                raise RuntimeError(f"pursuit memory {memory_id} is not held")
+            entry = json.loads(json.dumps(task_record, default=str))
+            record["occurrences"] = list(record.get("occurrences") or []) + [entry]
+            record["counts"] = {
+                "success": sum(1 for o in record["occurrences"] if o.get("outcome") == "success"),
+                "failure": sum(1 for o in record["occurrences"] if o.get("outcome") != "success")}
+            record.update({k: v for k, v in entry.items() if k not in ("event", "schema")})
+            held_experience = record.get("experience") or {}
+            record["experience"] = {
+                **held_experience,
+                "parts": self._summarize_parts(
+                    held_experience.get("parts") or [],
+                    json.loads(json.dumps([p.to_dict() for p in experience.parts], default=str)))}
+            late = (record.get("pursuit") or {}).get("status") != "active"
+            await self._rewrite_pursuit(memory_id, record, thinking_state, add_tags=tags)
+        if late:
+            db = self._memory_db()
+            await db.execute_query(
+                "UPDATE unified.experience_pool SET status = 'waiting', decision = NULL,"
+                " decided_at = NULL, claimed_by = NULL, claimed_until = NULL"
+                " WHERE memory_id = $1 AND status = 'decided'",
+                (memory_id,), commit=True, store=db.write_store(self._pursuit_owner(record)))
+            self._pool_arrived.set()
+
+    async def add_parts_to_pursuit(self, memory_id: str, parts: List[Dict[str, Any]], *,
+                                   tags: Optional[List[str]] = None) -> Optional[Dict[str, Any]]:
+        """Add parts of an experience to its pursuit's memory, repeats counted,
+        each keeping whose it is (`source`). Returns the pursuit's record."""
+        async with self._pursuit_lock(memory_id):
+            record, thinking_state = await self._pursuit_record(memory_id)
+            if record is None:
+                raise RuntimeError(f"pursuit memory {memory_id} is not held")
+            held_experience = record.get("experience") or {}
+            record["experience"] = {
+                **held_experience,
+                "parts": self._summarize_parts(
+                    held_experience.get("parts") or [],
+                    json.loads(json.dumps(list(parts), default=str)))}
+            await self._rewrite_pursuit(memory_id, record, thinking_state, add_tags=tags)
+        return record
+
+    def _blamed_in(self, item: Any) -> List[Any]:
+        """The word classes a remembered telling blamed for not reading: from
+        the memory's own record, or, for a pursuit, from each telling it holds."""
+        blamed = list((item.metadata or {}).get("blamed") or [])
+        record = (getattr(item, "thinking_state", None) or {}).get("raw_event") or {}
+        if record.get("schema") == self.PURSUIT_SCHEMA:
+            for part in (record.get("experience") or {}).get("parts") or []:
+                if part.get("role") == "told":
+                    blamed.extend((part.get("content") or {}).get("blamed") or [])
+        return blamed
+
+    async def acting_pursuit_memory(self) -> Optional[str]:
+        """The memory of the pursuit the current act is done under: its acting
+        intent walked up to the pursuit at its root. None outside any pursuit."""
+        from core.reasoning.intent_authority import get_acting_intent, get_intent_authority
+        intent_id = get_acting_intent()
+        if not intent_id:
+            return None
+        return await self.pursuit_memory_id(await get_intent_authority().root_of(intent_id))
+
+    async def add_perception_to_pursuit(self, memory_id: str, part: Dict[str, Any], *,
+                                        media: Optional[Any] = None,
+                                        media_meta: Optional[Dict[str, Any]] = None,
+                                        tags: Optional[List[str]] = None) -> str:
+        """Add one seeing or hearing to its pursuit's memory: it is a part of
+        that pursuit's experience, and what was met -- a sound's trace, a
+        picture's -- is kept as that memory's media, found and recalled with it.
+        A perception within a pursuit is not a memory of its own. Returns the
+        pursuit memory's id, the memory the perception's claims then name."""
+        record = await self.add_parts_to_pursuit(memory_id, [part], tags=tags)
+        if media is not None:
+            await self._retain_media(memory_id, media, media_meta, self._pursuit_owner(record))
+        return memory_id
+
+    async def close_pursuit(self, memory_id: str, *, status: str,
+                            outcome: Optional[Dict[str, Any]] = None) -> None:
+        """Close a pursuit's memory with how the pursuit ended, and queue it for
+        learning as the one experience it was."""
+        from core.memory.utils.interfaces import Experience, Origin, Part
+        async with self._pursuit_lock(memory_id):
+            record, thinking_state = await self._pursuit_record(memory_id)
+            if record is None:
+                raise RuntimeError(f"pursuit memory {memory_id} is not held")
+            record["pursuit"].update(status=status, concluded_at=datetime.now().isoformat(),
+                                     outcome=json.loads(json.dumps(outcome or {}, default=str)))
+            experience = record.get("experience") or {}
+            experience["evidence"] = {"outcome": status, "counts": record.get("counts")}
+            record["experience"] = experience
+            await self._rewrite_pursuit(memory_id, record, thinking_state)
+        origin = Origin(through=(experience.get("origin") or {}).get("through") or "task",
+                        person=(experience.get("origin") or {}).get("person"))
+        queued = await self._memory_db().execute_query(
+            "SELECT item_id FROM unified.experience_pool WHERE memory_id = $1 LIMIT 1",
+            (memory_id,), fetch_one=True,
+            store=self._memory_db().write_store(origin.person))
+        if queued is not None:
+            await self._memory_db().execute_query(
+                "UPDATE unified.experience_pool SET status = 'waiting', decision = NULL,"
+                " decided_at = NULL, claimed_by = NULL, claimed_until = NULL,"
+                " evidence = $2::jsonb WHERE item_id = $1",
+                (queued["item_id"], json.dumps(experience["evidence"], default=str)),
+                commit=True, store=self._memory_db().write_store(origin.person))
+            self._pool_arrived.set()
+            return
+        await self.remember_experience(Experience(
+            kind="pursuit", origin=origin,
+            parts=tuple(Part(p["role"], p["content"], p["source"])
+                        for p in experience.get("parts") or []),
+            evidence=experience["evidence"], about=experience.get("about")),
+            memory_id=memory_id)
+
+    @staticmethod
+    def _pursuit_owner(record: Dict[str, Any]) -> Optional[str]:
+        return ((record.get("experience") or {}).get("origin") or {}).get("person")
+
+    async def _pursuit_record(self, memory_id: str):
+        """A pursuit memory's record and the rest of its thinking state, or (None, None)."""
+        db = self._memory_db()
+        for store in db.maintained_stores():
+            for table in ("memory_hot.memory_hot", "memory_cold.memory_cold"):
+                row = await db.execute_query(
+                    f"SELECT thinking_state FROM {table} WHERE memory_id = $1",
+                    (memory_id,), fetch_one=True, store=store)
+                if row is not None:
+                    thinking_state = row["thinking_state"]
+                    if isinstance(thinking_state, str):
+                        thinking_state = json.loads(thinking_state)
+                    thinking_state = thinking_state or {}
+                    return dict(thinking_state.get("raw_event") or {}), thinking_state
+        return None, None
+
+    async def _rewrite_pursuit(self, memory_id: str, record: Dict[str, Any],
+                               thinking_state: Dict[str, Any], *,
+                               add_tags: Optional[List[str]] = None) -> None:
+        """Write a pursuit memory's record back, with what it says said again,
+        and any tags its new task brings (the domain it acted in)."""
+        from core.agents.autonomous.governance_block_schema import pursuit_account
+        account = pursuit_account(record)
+        updates: Dict[str, Any] = {"thinking_state": {**thinking_state, "raw_event": record},
+                                   "content": account}
+        if add_tags:
+            db = self._memory_db()
+            held_tags: List[str] = []
+            for store in db.maintained_stores():
+                row = await db.execute_query(
+                    "SELECT tags FROM memory_hot.memory_hot WHERE memory_id = $1",
+                    (memory_id,), fetch_one=True, store=store)
+                if row is not None:
+                    held_tags = row["tags"] if isinstance(row["tags"], list) else json.loads(row["tags"] or "[]")
+                    break
+            updates["tags"] = list(dict.fromkeys(list(held_tags) + list(add_tags)))
+        if self.embedding_service:
+            embedding = self.embedding_service.generate_embedding(account)
+            if embedding:
+                updates["embedding"] = embedding
+        if not await self.postgres_storage.update_memory(memory_id, updates):
+            raise RuntimeError(f"pursuit memory {memory_id} could not be written")
+
+    @asynccontextmanager
+    async def _pursuit_lock(self, memory_id: str):
+        """One writer of a pursuit's memory at a time, across instances: its
+        tasks can end in different processes."""
+        db = self._memory_db()
+        async with db.get_connection(store="runtime") as conn:
+            await conn.execute("SELECT pg_advisory_lock(hashtext($1))", f"pursuit:{memory_id}")
+            try:
+                yield
+            finally:
+                await conn.execute("SELECT pg_advisory_unlock(hashtext($1))", f"pursuit:{memory_id}")
+
+    @staticmethod
+    def _summarize_parts(held: List[Dict[str, Any]],
+                         new: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """A pursuit's parts with what repeats counted: the same call, the same
+        error, the same check, however often it came, is one part saying how
+        many times, holding the latest of it. Parts that differ are kept apart.
+        Numbers do not make two parts different (an attempt's number, a
+        measurement), words and names do."""
+        def key(part: Dict[str, Any]):
+            text = json.dumps(part.get("content"), sort_keys=True, default=str)
+            return (part.get("role"), part.get("source"), re.sub(r"\d+(?:\.\d+)?", "#", text))
+        kept = [dict(p) for p in held]
+        index = {key(p): i for i, p in enumerate(kept)}
+        for part in new:
+            k = key(part)
+            if k in index:
+                same = kept[index[k]]
+                same["count"] = int(same.get("count", 1)) + int(part.get("count", 1))
+                same["content"] = part.get("content")
+            else:
+                index[k] = len(kept)
+                kept.append({**part, "count": int(part.get("count", 1))})
+        return kept
+
+    # ================================================================================================
     # TIER MIGRATION
     # ================================================================================================
 
@@ -3019,98 +5005,6 @@ class MemoryAgent(IMemoryConsolidation):
                 memory = await self.postgres_storage.get_memory(memory_id)
 
         return memory
-
-    # ================================================================================================
-    # BACKGROUND CONSOLIDATION
-    # ================================================================================================
-
-    async def consolidate_old_duplicates(
-        self,
-        days_back: int = 30,
-        batch_size: int = 100,
-        similarity_threshold: float = 0.85
-    ) -> Tuple[int, int]:
-        """
-        Background job to consolidate historical duplicate memories
-
-        Scans recent memories for duplicates and consolidates them.
-        Should be run periodically (daily/weekly) to maintain memory hygiene.
-
-        Args:
-            days_back: How many days to scan backwards (default: 30)
-            batch_size: Batch size for processing (default: 100)
-            similarity_threshold: Similarity threshold for duplicates (default: 0.85)
-
-        Returns:
-            Tuple of (memories_processed, memories_consolidated)
-        """
-        if not self.initialized:
-            # The result is CHECKED. Discarding it meant a failed initialize was
-            # followed by the work it was meant to enable, and the real failure
-            # resurfaced later disguised as something else.
-            if await self.initialize() is False:
-                raise RuntimeError(
-                    type(self).__name__ + ' could not initialize; refusing to '
-                    'continue as though it had')
-
-        logger.info(
-            f"Starting duplicate consolidation: scanning last {days_back} days, "
-            f"similarity threshold={similarity_threshold}"
-        )
-
-        try:
-            # Get recent memories
-            recent_memories = await self.get_recent_memories(
-                limit=batch_size,
-                memory_types=None,
-                min_importance=None,
-                tags=None
-            )
-
-            if not recent_memories:
-                logger.info("No memories found to consolidate")
-                return 0, 0
-
-            logger.info(f"Found {len(recent_memories)} recent memories to scan")
-
-            # Cluster similar memories
-            clusters = await self._cluster_by_similarity(
-                memories=recent_memories,
-                similarity_threshold=similarity_threshold
-            )
-
-            # Count duplicates (clusters with > 1 memory)
-            duplicate_clusters = [c for c in clusters if len(c) > 1]
-
-            if not duplicate_clusters:
-                logger.info("No duplicate clusters found")
-                return len(recent_memories), 0
-
-            logger.info(
-                f"Found {len(duplicate_clusters)} duplicate clusters "
-                f"(total {sum(len(c) for c in duplicate_clusters)} memories)"
-            )
-
-            # Consolidate each duplicate cluster
-            consolidated_count = 0
-            for cluster in duplicate_clusters:
-                consolidated_id = await self._consolidate_cluster(cluster)
-                if consolidated_id:
-                    consolidated_count += len(cluster) - 1  # -1 because base remains
-
-            logger.info(
-                f"Consolidation complete: processed {len(recent_memories)} memories, "
-                f"consolidated {consolidated_count} duplicates into "
-                f"{len(duplicate_clusters)} memories"
-            )
-
-            return len(recent_memories), consolidated_count
-
-        except Exception as e:
-            logger.error(f"Error during duplicate consolidation: {e}")
-            import traceback
-            traceback.print_exc()
-            return 0, 0
 
     # ================================================================================================
     # STATISTICS & UTILITIES
@@ -3219,7 +5113,7 @@ class MemoryAgent(IMemoryConsolidation):
                 WHERE token_hash = $1
                 AND active = true
                 AND (expires_at IS NULL OR expires_at > NOW())
-            """, (token_hash,))
+            """, (token_hash,), store="runtime")
 
             if result and len(result) > 0:
                 token_data = result[0]
@@ -3277,10 +5171,74 @@ class MemoryAgent(IMemoryConsolidation):
         # accumulation → abstraction → belief churn → reflection), not on a
         # 4h/24h clock. See _maybe_trigger_abstraction.
         self.maintenance_loop_active = True
-        asyncio.create_task(self._maintenance_loop())
+        # THE HANDLE IS KEPT. Discarded, the task could not be awaited or
+        # cancelled, so shutdown had nothing to wait ON and guessed with a
+        # fixed sleep instead.
+        self._maintenance_task = asyncio.create_task(self._maintenance_loop())
+        # The pool worker: woken when an experience arrives, and sweeping what
+        # waited from before a restart when it starts.
+        self._pool_task = asyncio.create_task(self._pool_worker(), name="memory_pool_worker")
 
         logger.info("✅ Memory maintenance loop started (1h); abstraction + "
                     "reflection are event-triggered via the reasoning authority")
+
+    #: How long shutdown waits for queued memory writes. Long enough for a
+    #: real backlog to land, short enough that a wedged worker cannot hold the
+    #: process open forever -- and a timeout is REPORTED, never passed over.
+    DRAIN_TIMEOUT_SECONDS = 30.0
+
+    async def drain_writes(self) -> int:
+        """Await every queued write, then retire the worker. Returns how many landed.
+
+        THE FLUSH BARRIER IN `main.py` NAMES THIS EXACT CASE -- "every store
+        that used a fire-and-forget or in-memory-until-later discipline is
+        drained here" -- and drained beliefs and classifiers while memory, the
+        only store still holding a fire-and-forget queue, was not on the list.
+        The pool closes immediately after that barrier, so anything still
+        queued died with it: `enqueue_memory` returns a `pending_` id at once
+        and the caller has no way to know the write never happened.
+
+        Every reasoning memory the bridge writes goes through that queue.
+        """
+        queue = getattr(self, "_write_queue", None)
+        if queue is None:
+            return 0
+
+        # ALWAYS JOIN. `qsize()` counts entries STILL WAITING; an entry the
+        # worker has already taken has left the queue and is not counted, so
+        # gating the join on qsize skipped it for the one case that matters --
+        # a write in flight right now -- and the cancel below then killed the
+        # write mid-flight. Measured: enqueue, drain, and the memory was gone.
+        # COUNTED FROM `_pending_memories`, NOT `qsize()`. The worker pops a
+        # pending id in its `finally`, so this covers the in-flight write too;
+        # qsize alone reported "0 write(s) drained" on a shutdown that had just
+        # saved one, which is a shutdown log that cannot be trusted.
+        outstanding = len(getattr(self, "_pending_memories", {}) or {})
+        if outstanding:
+            logger.info("draining %d queued memory write(s)", outstanding)
+        try:
+            # join() returns when every entry has had task_done() called, which
+            # the worker does in a `finally`, so a FAILING write still releases
+            # this rather than hanging shutdown.
+            await asyncio.wait_for(queue.join(), timeout=self.DRAIN_TIMEOUT_SECONDS)
+        except asyncio.TimeoutError:
+            # Not swallowed and not retried: say exactly what was lost, because
+            # the caller is about to close the pool and these will not land.
+            logger.error(
+                "memory drain timed out after %.0fs with %d write(s) still "
+                "queued; they will NOT survive this shutdown",
+                self.DRAIN_TIMEOUT_SECONDS, queue.qsize())
+            return outstanding - len(getattr(self, "_pending_memories", {}) or {})
+
+        worker = getattr(self, "_queue_worker_task", None)
+        if worker is not None and not worker.done():
+            worker.cancel()
+            try:
+                await worker
+            except asyncio.CancelledError:
+                pass
+        self._queue_worker_task = None
+        return outstanding
 
     async def stop_memory_loops(self):
         """Stop all memory loops gracefully"""
@@ -3290,8 +5248,32 @@ class MemoryAgent(IMemoryConsolidation):
         self.abstraction_loop_active = False
         self.reflection_loop_active = False
 
-        # Give loops time to finish current iteration
-        await asyncio.sleep(2)
+        # WAIT FOR THE WORK, NOT FOR A DURATION.
+        #
+        # This slept 2 seconds and called it "give loops time to finish current
+        # iteration". A consolidation pass or a hot->cold migration does not
+        # take a fixed two seconds, so the sleep either wasted time or cut the
+        # pass off partway -- and being a sleep, it could not tell which.
+        task = getattr(self, "_maintenance_task", None)
+        if task is not None and not task.done():
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+            except Exception as e:
+                logger.warning("maintenance loop ended with an error: %s", e)
+        self._maintenance_task = None
+        pool = getattr(self, "_pool_task", None)
+        if pool is not None and not pool.done():
+            pool.cancel()
+            try:
+                await pool
+            except asyncio.CancelledError:
+                pass
+            except Exception as e:
+                logger.warning("pool worker ended with an error: %s", e)
+        self._pool_task = None
 
         logger.info("✅ Memory loops stopped")
 
@@ -3654,17 +5636,15 @@ async def get_memory_agent() -> MemoryAgent:
     An async getter can do this properly, so it does. Callers that already
     await initialize() are unaffected: it returns early when already done.
     """
-    global _memory_agent, _memory_agent_lock
+    global _memory_agent_lock
 
     if _memory_agent_lock is None:
         _memory_agent_lock = asyncio.Lock()
 
     async with _memory_agent_lock:
-        if _memory_agent is None:
-            _memory_agent = MemoryAgent()
-
-        if not _memory_agent.initialized:
-            ready = await _memory_agent.initialize()
+        agent = memory_agent()
+        if not agent.initialized:
+            ready = await agent.initialize()
             if not ready:
                 # An agent that cannot initialise fails at every use. Saying so
                 # here names the cause; returning it names nothing and the
@@ -3673,6 +5653,21 @@ async def get_memory_agent() -> MemoryAgent:
                     "MemoryAgent failed to initialise; its storage backends are "
                     "not connected and nothing can be stored or recalled")
 
+    return agent
+
+
+def memory_agent() -> MemoryAgent:
+    """The process's memory agent, started or not.
+
+    Every write of the substrate's memory goes through the memory agent, and
+    those writes need only the database. A component that has something to
+    hold hands it here without waiting for recall, the loops and the embedding
+    model, which `get_memory_agent()` starts: writing a belief must not load an
+    embedding model or start background loops.
+    """
+    global _memory_agent
+    if _memory_agent is None:
+        _memory_agent = MemoryAgent()
     return _memory_agent
 
 
@@ -3689,4 +5684,4 @@ async def initialize_memory_agent() -> MemoryAgent:
 
 
 # Convenience exports
-__all__ = ["MemoryAgent", "get_memory_agent", "initialize_memory_agent"]
+__all__ = ["MemoryAgent", "get_memory_agent", "memory_agent", "initialize_memory_agent"]

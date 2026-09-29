@@ -1,0 +1,966 @@
+{
+  "predictions": {
+    "P1": {
+      "statement": "colour is not illumination-invariant",
+      "verdict": "CONFIRMED",
+      "detail": "colour symbol survives x0.55 brightness in 62% of cases"
+    },
+    "P2": {
+      "statement": "size is frame-relative, not object-relative",
+      "verdict": "NOT MEASURED",
+      "detail": "not measured"
+    },
+    "P3": {
+      "statement": "position is frame-relative",
+      "verdict": "CONFIRMED",
+      "detail": "position symbol survives translation in as few as 0% of cases"
+    },
+    "P4": {
+      "statement": "shape survives rotation and not perspective",
+      "verdict": "REFUTED",
+      "detail": "shape survives rotation in 100% of cases, perspective in 100%"
+    },
+    "P5": {
+      "statement": "circularity is attacked from both sides",
+      "verdict": "REFUTED",
+      "detail": "shape survives blur in 100% of cases, noise in 100%"
+    },
+    "P6": {
+      "statement": "segmentation is the binding constraint on photographs",
+      "verdict": "CONFIRMED",
+      "detail": "a region is admitted at all in 81% of photograph sightings vs 97% of synthetic ones"
+    },
+    "P8": {
+      "statement": "the substrate does not know when its perception has broken",
+      "verdict": "REFUTED",
+      "detail": "in the 3 condition(s) where a feature survived 50% of the time or less, the percept was still judged ACT in 29% of sightings \u2014 against 48% where every feature was intact"
+    },
+    "P7": {
+      "statement": "recognition inherits every bit of the feature instability",
+      "verdict": "CONFIRMED",
+      "detail": "the taught category is still named in 89% of transformed sightings of a true member; the weakest single literal survives 50% of the time, and a conjunction cannot beat its weakest term"
+    }
+  },
+  "calibration": {
+    "per_condition": [
+      {
+        "transform": "brightness",
+        "magnitude": "x0.55",
+        "worst_feature_survival": 0.625,
+        "act_rate": 0.25
+      },
+      {
+        "transform": "brightness",
+        "magnitude": "x1.7",
+        "worst_feature_survival": 1.0,
+        "act_rate": 0.625
+      },
+      {
+        "transform": "saturation",
+        "magnitude": "x0.25",
+        "worst_feature_survival": 0.375,
+        "act_rate": 0.25
+      },
+      {
+        "transform": "saturation",
+        "magnitude": "x0.85",
+        "worst_feature_survival": 1.0,
+        "act_rate": 0.5
+      },
+      {
+        "transform": "illuminant",
+        "magnitude": "-0.25",
+        "worst_feature_survival": 1.0,
+        "act_rate": 0.625
+      },
+      {
+        "transform": "illuminant",
+        "magnitude": "+0.25",
+        "worst_feature_survival": 0.75,
+        "act_rate": 0.625
+      },
+      {
+        "transform": "gamma",
+        "magnitude": "0.6",
+        "worst_feature_survival": 1.0,
+        "act_rate": 0.5
+      },
+      {
+        "transform": "gamma",
+        "magnitude": "1.7",
+        "worst_feature_survival": 1.0,
+        "act_rate": 0.5
+      },
+      {
+        "transform": "zoom",
+        "magnitude": "x0.5",
+        "worst_feature_survival": 1.0,
+        "act_rate": 0.625
+      },
+      {
+        "transform": "zoom",
+        "magnitude": "x2.0",
+        "worst_feature_survival": 1.0,
+        "act_rate": 0.5
+      },
+      {
+        "transform": "translate",
+        "magnitude": "8%",
+        "worst_feature_survival": 1.0,
+        "act_rate": 0.625
+      },
+      {
+        "transform": "translate",
+        "magnitude": "28%",
+        "worst_feature_survival": 0.0,
+        "act_rate": 0.625
+      },
+      {
+        "transform": "rotate",
+        "magnitude": "10deg",
+        "worst_feature_survival": 1.0,
+        "act_rate": 0.625
+      },
+      {
+        "transform": "rotate",
+        "magnitude": "90deg",
+        "worst_feature_survival": 1.0,
+        "act_rate": 0.625
+      },
+      {
+        "transform": "perspective",
+        "magnitude": "0.06",
+        "worst_feature_survival": 1.0,
+        "act_rate": 0.625
+      },
+      {
+        "transform": "perspective",
+        "magnitude": "0.2",
+        "worst_feature_survival": 1.0,
+        "act_rate": 0.625
+      },
+      {
+        "transform": "blur",
+        "magnitude": "sigma1.0",
+        "worst_feature_survival": 1.0,
+        "act_rate": 0.625
+      },
+      {
+        "transform": "blur",
+        "magnitude": "sigma8.0",
+        "worst_feature_survival": 1.0,
+        "act_rate": 0.2857142857142857
+      },
+      {
+        "transform": "noise",
+        "magnitude": "sigma5.0",
+        "worst_feature_survival": 1.0,
+        "act_rate": 0.625
+      },
+      {
+        "transform": "noise",
+        "magnitude": "sigma45.0",
+        "worst_feature_survival": 1.0,
+        "act_rate": 0.625
+      },
+      {
+        "transform": "jpeg",
+        "magnitude": "q85",
+        "worst_feature_survival": 1.0,
+        "act_rate": 0.625
+      },
+      {
+        "transform": "jpeg",
+        "magnitude": "q20",
+        "worst_feature_survival": 1.0,
+        "act_rate": 0.625
+      },
+      {
+        "transform": "occlusion",
+        "magnitude": "10%",
+        "worst_feature_survival": 1.0,
+        "act_rate": 0.0
+      },
+      {
+        "transform": "occlusion",
+        "magnitude": "40%",
+        "worst_feature_survival": 1.0,
+        "act_rate": 0.0
+      },
+      {
+        "transform": "clutter",
+        "magnitude": "2obj",
+        "worst_feature_survival": 1.0,
+        "act_rate": 0.0
+      },
+      {
+        "transform": "clutter",
+        "magnitude": "10obj",
+        "worst_feature_survival": 1.0,
+        "act_rate": 0.0
+      },
+      {
+        "transform": "background",
+        "magnitude": "0.3",
+        "worst_feature_survival": 1.0,
+        "act_rate": 0.625
+      },
+      {
+        "transform": "background",
+        "magnitude": "0.9",
+        "worst_feature_survival": 0.42857142857142855,
+        "act_rate": 0.0
+      }
+    ],
+    "act_when_broken": 0.2916666666666667,
+    "act_when_intact": 0.4798136645962732
+  },
+  "wrong_names": {
+    "disc782e97": 25
+  },
+  "synthetic": {
+    "per_condition": {
+      "brightness": {
+        "x0.55": {
+          "color": 0.625,
+          "shape": 1.0,
+          "size": null,
+          "position": 1.0
+        },
+        "x1.7": {
+          "color": 1.0,
+          "shape": 1.0,
+          "size": null,
+          "position": 1.0
+        }
+      },
+      "saturation": {
+        "x0.25": {
+          "color": 0.375,
+          "shape": 1.0,
+          "size": null,
+          "position": 1.0
+        },
+        "x0.85": {
+          "color": 1.0,
+          "shape": 1.0,
+          "size": null,
+          "position": 1.0
+        }
+      },
+      "illuminant": {
+        "-0.25": {
+          "color": 1.0,
+          "shape": 1.0,
+          "size": null,
+          "position": 1.0
+        },
+        "+0.25": {
+          "color": 0.75,
+          "shape": 1.0,
+          "size": null,
+          "position": 1.0
+        }
+      },
+      "gamma": {
+        "0.6": {
+          "color": 1.0,
+          "shape": 1.0,
+          "size": null,
+          "position": 1.0
+        },
+        "1.7": {
+          "color": 1.0,
+          "shape": 1.0,
+          "size": null,
+          "position": 1.0
+        }
+      },
+      "zoom": {
+        "x0.5": {
+          "color": 1.0,
+          "shape": 1.0,
+          "size": null,
+          "position": 1.0
+        },
+        "x2.0": {
+          "color": 1.0,
+          "shape": 1.0,
+          "size": null,
+          "position": 1.0
+        }
+      },
+      "translate": {
+        "8%": {
+          "color": 1.0,
+          "shape": 1.0,
+          "size": null,
+          "position": 1.0
+        },
+        "28%": {
+          "color": 1.0,
+          "shape": 1.0,
+          "size": null,
+          "position": 0.0
+        }
+      },
+      "rotate": {
+        "10deg": {
+          "color": 1.0,
+          "shape": 1.0,
+          "size": null,
+          "position": 1.0
+        },
+        "90deg": {
+          "color": 1.0,
+          "shape": 1.0,
+          "size": null,
+          "position": 1.0
+        }
+      },
+      "perspective": {
+        "0.06": {
+          "color": 1.0,
+          "shape": 1.0,
+          "size": null,
+          "position": 1.0
+        },
+        "0.2": {
+          "color": 1.0,
+          "shape": 1.0,
+          "size": null,
+          "position": 1.0
+        }
+      },
+      "blur": {
+        "sigma1.0": {
+          "color": 1.0,
+          "shape": 1.0,
+          "size": null,
+          "position": 1.0
+        },
+        "sigma8.0": {
+          "color": 1.0,
+          "shape": 1.0,
+          "size": null,
+          "position": 1.0
+        }
+      },
+      "noise": {
+        "sigma5.0": {
+          "color": 1.0,
+          "shape": 1.0,
+          "size": null,
+          "position": 1.0
+        },
+        "sigma45.0": {
+          "color": 1.0,
+          "shape": 1.0,
+          "size": null,
+          "position": 1.0
+        }
+      },
+      "jpeg": {
+        "q85": {
+          "color": 1.0,
+          "shape": 1.0,
+          "size": null,
+          "position": 1.0
+        },
+        "q20": {
+          "color": 1.0,
+          "shape": 1.0,
+          "size": null,
+          "position": 1.0
+        }
+      },
+      "occlusion": {
+        "10%": {
+          "color": 1.0,
+          "shape": 1.0,
+          "size": null,
+          "position": 1.0
+        },
+        "40%": {
+          "color": 1.0,
+          "shape": 1.0,
+          "size": null,
+          "position": 1.0
+        }
+      },
+      "clutter": {
+        "2obj": {
+          "color": 1.0,
+          "shape": 1.0,
+          "size": null,
+          "position": 1.0
+        },
+        "10obj": {
+          "color": 1.0,
+          "shape": 1.0,
+          "size": null,
+          "position": 1.0
+        }
+      },
+      "background": {
+        "0.3": {
+          "color": 1.0,
+          "shape": 1.0,
+          "size": null,
+          "position": 1.0
+        },
+        "0.9": {
+          "color": 0.42857142857142855,
+          "shape": 1.0,
+          "size": null,
+          "position": 0.42857142857142855
+        }
+      }
+    },
+    "family_rates": {
+      "brightness": {
+        "color": 0.8125,
+        "shape": 1.0,
+        "size": null,
+        "position": 1.0
+      },
+      "saturation": {
+        "color": 0.6875,
+        "shape": 1.0,
+        "size": null,
+        "position": 1.0
+      },
+      "illuminant": {
+        "color": 0.875,
+        "shape": 1.0,
+        "size": null,
+        "position": 1.0
+      },
+      "gamma": {
+        "color": 1.0,
+        "shape": 1.0,
+        "size": null,
+        "position": 1.0
+      },
+      "zoom": {
+        "color": 1.0,
+        "shape": 1.0,
+        "size": null,
+        "position": 1.0
+      },
+      "translate": {
+        "color": 1.0,
+        "shape": 1.0,
+        "size": null,
+        "position": 0.5
+      },
+      "rotate": {
+        "color": 1.0,
+        "shape": 1.0,
+        "size": null,
+        "position": 1.0
+      },
+      "perspective": {
+        "color": 1.0,
+        "shape": 1.0,
+        "size": null,
+        "position": 1.0
+      },
+      "blur": {
+        "color": 1.0,
+        "shape": 1.0,
+        "size": null,
+        "position": 1.0
+      },
+      "noise": {
+        "color": 1.0,
+        "shape": 1.0,
+        "size": null,
+        "position": 1.0
+      },
+      "jpeg": {
+        "color": 1.0,
+        "shape": 1.0,
+        "size": null,
+        "position": 1.0
+      },
+      "occlusion": {
+        "color": 1.0,
+        "shape": 1.0,
+        "size": null,
+        "position": 1.0
+      },
+      "clutter": {
+        "color": 1.0,
+        "shape": 1.0,
+        "size": null,
+        "position": 1.0
+      },
+      "background": {
+        "color": 0.7333333333333333,
+        "shape": 1.0,
+        "size": null,
+        "position": 0.7333333333333333
+      }
+    },
+    "admission": {
+      "brightness/x0.55": 1.0,
+      "brightness/x1.7": 1.0,
+      "saturation/x0.25": 1.0,
+      "saturation/x0.85": 1.0,
+      "illuminant/-0.25": 1.0,
+      "illuminant/+0.25": 1.0,
+      "gamma/0.6": 1.0,
+      "gamma/1.7": 1.0,
+      "zoom/x0.5": 1.0,
+      "zoom/x2.0": 1.0,
+      "translate/8%": 1.0,
+      "translate/28%": 1.0,
+      "rotate/10deg": 1.0,
+      "rotate/90deg": 1.0,
+      "perspective/0.06": 1.0,
+      "perspective/0.2": 1.0,
+      "blur/sigma1.0": 1.0,
+      "blur/sigma8.0": 0.875,
+      "noise/sigma5.0": 1.0,
+      "noise/sigma45.0": 1.0,
+      "jpeg/q85": 1.0,
+      "jpeg/q20": 1.0,
+      "occlusion/10%": 1.0,
+      "occlusion/40%": 0.625,
+      "clutter/2obj": 1.0,
+      "clutter/10obj": 0.75,
+      "background/0.3": 1.0,
+      "background/0.9": 0.875
+    },
+    "naming": {
+      "brightness/x0.55": {
+        "recall": 0.0,
+        "wrong": 0.0
+      },
+      "brightness/x1.7": {
+        "recall": 1.0,
+        "wrong": 1.0
+      },
+      "saturation/x0.25": {
+        "recall": 0.0,
+        "wrong": 0.0
+      },
+      "saturation/x0.85": {
+        "recall": 1.0,
+        "wrong": 1.0
+      },
+      "illuminant/-0.25": {
+        "recall": 1.0,
+        "wrong": 1.0
+      },
+      "illuminant/+0.25": {
+        "recall": 1.0,
+        "wrong": 1.0
+      },
+      "gamma/0.6": {
+        "recall": 1.0,
+        "wrong": 1.0
+      },
+      "gamma/1.7": {
+        "recall": 1.0,
+        "wrong": 1.0
+      },
+      "zoom/x0.5": {
+        "recall": 1.0,
+        "wrong": 1.0
+      },
+      "zoom/x2.0": {
+        "recall": 1.0,
+        "wrong": 1.0
+      },
+      "translate/8%": {
+        "recall": 1.0,
+        "wrong": 1.0
+      },
+      "translate/28%": {
+        "recall": 1.0,
+        "wrong": 1.0
+      },
+      "rotate/10deg": {
+        "recall": 1.0,
+        "wrong": 1.0
+      },
+      "rotate/90deg": {
+        "recall": 1.0,
+        "wrong": 1.0
+      },
+      "perspective/0.06": {
+        "recall": 1.0,
+        "wrong": 1.0
+      },
+      "perspective/0.2": {
+        "recall": 1.0,
+        "wrong": 1.0
+      },
+      "blur/sigma1.0": {
+        "recall": 1.0,
+        "wrong": 1.0
+      },
+      "blur/sigma8.0": {
+        "recall": 1.0,
+        "wrong": 1.0
+      },
+      "noise/sigma5.0": {
+        "recall": 1.0,
+        "wrong": 1.0
+      },
+      "noise/sigma45.0": {
+        "recall": 1.0,
+        "wrong": 1.0
+      },
+      "jpeg/q85": {
+        "recall": 1.0,
+        "wrong": 1.0
+      },
+      "jpeg/q20": {
+        "recall": 1.0,
+        "wrong": 1.0
+      },
+      "occlusion/10%": {
+        "recall": 1.0,
+        "wrong": 1.0
+      },
+      "occlusion/40%": {
+        "recall": 1.0,
+        "wrong": 1.0
+      },
+      "clutter/2obj": {
+        "recall": 1.0,
+        "wrong": 1.0
+      },
+      "clutter/10obj": {
+        "recall": 1.0,
+        "wrong": 1.0
+      },
+      "background/0.3": {
+        "recall": 1.0,
+        "wrong": 1.0
+      },
+      "background/0.9": {
+        "recall": 0.0,
+        "wrong": 0.0
+      }
+    },
+    "symbol_changes": {
+      "color": {
+        "violet->magenta": 4,
+        "red->brown": 3,
+        "red->pink": 3,
+        "red->teal": 1,
+        "green->gray": 1,
+        "violet->green": 1,
+        "violet->cyan": 1
+      },
+      "shape": {},
+      "size": {},
+      "position": {
+        "center->middle_right": 6,
+        "center->lower_right": 5,
+        "center->upper_left": 1
+      }
+    },
+    "verdicts": {
+      "brightness/x0.55": {
+        "ACT": 2,
+        "VERIFY": 6
+      },
+      "brightness/x1.7": {
+        "ACT": 5,
+        "VERIFY": 3
+      },
+      "saturation/x0.25": {
+        "ACT": 2,
+        "VERIFY": 6
+      },
+      "saturation/x0.85": {
+        "ACT": 4,
+        "VERIFY": 4
+      },
+      "illuminant/-0.25": {
+        "ACT": 5,
+        "VERIFY": 3
+      },
+      "illuminant/+0.25": {
+        "ACT": 5,
+        "VERIFY": 3
+      },
+      "gamma/0.6": {
+        "ACT": 4,
+        "VERIFY": 4
+      },
+      "gamma/1.7": {
+        "ACT": 4,
+        "VERIFY": 4
+      },
+      "zoom/x0.5": {
+        "ACT": 5,
+        "VERIFY": 3
+      },
+      "zoom/x2.0": {
+        "ACT": 4,
+        "VERIFY": 4
+      },
+      "translate/8%": {
+        "ACT": 5,
+        "VERIFY": 3
+      },
+      "translate/28%": {
+        "ACT": 5,
+        "VERIFY": 3
+      },
+      "rotate/10deg": {
+        "ACT": 5,
+        "VERIFY": 3
+      },
+      "rotate/90deg": {
+        "ACT": 5,
+        "VERIFY": 3
+      },
+      "perspective/0.06": {
+        "ACT": 5,
+        "VERIFY": 3
+      },
+      "perspective/0.2": {
+        "ACT": 5,
+        "VERIFY": 3
+      },
+      "blur/sigma1.0": {
+        "ACT": 5,
+        "VERIFY": 3
+      },
+      "blur/sigma8.0": {
+        "ACT": 2,
+        "VERIFY": 5
+      },
+      "noise/sigma5.0": {
+        "ACT": 5,
+        "VERIFY": 3
+      },
+      "noise/sigma45.0": {
+        "ACT": 5,
+        "VERIFY": 3
+      },
+      "jpeg/q85": {
+        "ACT": 5,
+        "VERIFY": 3
+      },
+      "jpeg/q20": {
+        "ACT": 5,
+        "VERIFY": 3
+      },
+      "occlusion/10%": {
+        "VERIFY": 8
+      },
+      "occlusion/40%": {
+        "VERIFY": 5
+      },
+      "clutter/2obj": {
+        "VERIFY": 8
+      },
+      "clutter/10obj": {
+        "VERIFY": 6
+      },
+      "background/0.3": {
+        "ACT": 5,
+        "VERIFY": 3
+      },
+      "background/0.9": {
+        "VERIFY": 7
+      }
+    },
+    "extent_drift": {
+      "brightness/x0.55": 0.0,
+      "brightness/x1.7": 0.0,
+      "saturation/x0.25": 0.0,
+      "saturation/x0.85": 0.0,
+      "illuminant/-0.25": 0.0,
+      "illuminant/+0.25": 0.0,
+      "gamma/0.6": 0.0,
+      "gamma/1.7": 0.0,
+      "zoom/x0.5": 0.04900000000000001,
+      "zoom/x2.0": 0.20874999999999994,
+      "translate/8%": 0.0016249999999999997,
+      "translate/28%": 0.0016249999999999997,
+      "rotate/10deg": 0.0026249999999999954,
+      "rotate/90deg": 0.0,
+      "perspective/0.06": 0.0051250000000000046,
+      "perspective/0.2": 0.023750000000000004,
+      "blur/sigma1.0": 0.004749999999999997,
+      "blur/sigma8.0": 0.032428571428571425,
+      "noise/sigma5.0": 0.0002499999999999985,
+      "noise/sigma45.0": 0.006874999999999999,
+      "jpeg/q85": 0.0014999999999999987,
+      "jpeg/q20": 0.0032499999999999994,
+      "occlusion/10%": 0.0,
+      "occlusion/40%": 0.005,
+      "clutter/2obj": 0.0,
+      "clutter/10obj": 0.0,
+      "background/0.3": 0.0,
+      "background/0.9": 0.036571428571428574
+    }
+  },
+  "natural": {
+    "family_rates": {
+      "brightness": {
+        "color": 0.5,
+        "shape": 1.0,
+        "size": null,
+        "position": 0.625
+      },
+      "saturation": {
+        "color": 0.7142857142857143,
+        "shape": 1.0,
+        "size": null,
+        "position": 0.7142857142857143
+      },
+      "illuminant": {
+        "color": 0.75,
+        "shape": 1.0,
+        "size": null,
+        "position": 0.75
+      },
+      "gamma": {
+        "color": 0.6666666666666666,
+        "shape": 1.0,
+        "size": null,
+        "position": 0.7777777777777778
+      },
+      "zoom": {
+        "color": 0.375,
+        "shape": 1.0,
+        "size": null,
+        "position": 0.25
+      },
+      "translate": {
+        "color": 0.6666666666666666,
+        "shape": 1.0,
+        "size": null,
+        "position": 0.5
+      },
+      "rotate": {
+        "color": 0.8888888888888888,
+        "shape": 1.0,
+        "size": null,
+        "position": 0.5555555555555556
+      },
+      "perspective": {
+        "color": 0.6666666666666666,
+        "shape": 1.0,
+        "size": null,
+        "position": 0.6666666666666666
+      },
+      "blur": {
+        "color": 0.5,
+        "shape": 1.0,
+        "size": null,
+        "position": 0.75
+      },
+      "noise": {
+        "color": 1.0,
+        "shape": 1.0,
+        "size": null,
+        "position": 0.7142857142857143
+      },
+      "jpeg": {
+        "color": 1.0,
+        "shape": 1.0,
+        "size": null,
+        "position": 1.0
+      },
+      "occlusion": {
+        "color": 0.7777777777777778,
+        "shape": 1.0,
+        "size": null,
+        "position": 0.4444444444444444
+      },
+      "clutter": {
+        "color": 0.5,
+        "shape": 1.0,
+        "size": null,
+        "position": 0.6
+      }
+    },
+    "admission": {
+      "brightness/x0.55": 0.6,
+      "brightness/x1.7": 1.0,
+      "saturation/x0.25": 0.8,
+      "saturation/x0.85": 0.6,
+      "illuminant/-0.25": 0.8,
+      "illuminant/+0.25": 0.8,
+      "gamma/0.6": 0.8,
+      "gamma/1.7": 1.0,
+      "zoom/x0.5": 0.6,
+      "zoom/x2.0": 1.0,
+      "translate/8%": 0.6,
+      "translate/28%": 0.6,
+      "rotate/10deg": 0.8,
+      "rotate/90deg": 1.0,
+      "perspective/0.06": 0.8,
+      "perspective/0.2": 1.0,
+      "blur/sigma1.0": 0.6,
+      "blur/sigma8.0": 1.0,
+      "noise/sigma5.0": 0.6,
+      "noise/sigma45.0": 0.8,
+      "jpeg/q85": 0.8,
+      "jpeg/q20": 0.6,
+      "occlusion/10%": 0.8,
+      "occlusion/40%": 1.0,
+      "clutter/2obj": 1.0,
+      "clutter/10obj": 1.0
+    },
+    "symbol_changes": {
+      "color": {
+        "yellow->blue": 7,
+        "pink->charcoal": 4,
+        "green->gray": 2,
+        "yellow->black": 2,
+        "cyan->orange": 2,
+        "white->dim_gray": 1,
+        "white->light_gray": 1,
+        "white->pink": 1,
+        "pink->dim_gray": 1,
+        "pink->light_gray": 1,
+        "pink->orange": 1,
+        "pink->red": 1,
+        "green->white": 1,
+        "green->yellow": 1,
+        "green->blue": 1,
+        "green->charcoal": 1,
+        "yellow->white": 1,
+        "yellow->green": 1,
+        "cyan->blue": 1,
+        "cyan->teal": 1,
+        "cyan->chartreuse": 1
+      },
+      "shape": {},
+      "size": {},
+      "position": {
+        "center->lower": 9,
+        "center->upper": 7,
+        "upper->lower": 4,
+        "upper->center": 4,
+        "center->upper_right": 4,
+        "center->lower_right": 3,
+        "upper->upper_left": 2,
+        "upper->lower_left": 1,
+        "upper->middle_left": 1,
+        "center->middle_right": 1,
+        "center->upper_left": 1,
+        "upper->lower_right": 1
+      }
+    }
+  },
+  "scale": {
+    "stimuli": 8,
+    "photographs": 5,
+    "conditions": 28,
+    "sightings": 354,
+    "wall_clock_s": 290.0
+  }
+}

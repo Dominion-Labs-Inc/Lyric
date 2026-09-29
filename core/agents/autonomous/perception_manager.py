@@ -38,6 +38,10 @@ def get_perception_manager() -> Optional["PerceptionManager"]:
 #: resolves through search_path, which differs between the pooled connection
 #: and a psql session, so "the table exists" stops being a fact about the
 #: database and becomes a fact about who is asking.
+#:
+#: WHOSE A PERCEPTION IS, on the row. A person's image is theirs: its row is
+#: kept in their context (a per-owner table, `postgres_config.PER_OWNER_TABLES`)
+#: and says so, so a release cut can keep the substrate's own and leave theirs.
 PERCEPTIONS_DDL = """
 CREATE TABLE IF NOT EXISTS unified.perceptions (
     id          VARCHAR PRIMARY KEY,
@@ -47,8 +51,11 @@ CREATE TABLE IF NOT EXISTS unified.perceptions (
     confidence  DOUBLE PRECISION NOT NULL,
     timestamp   DOUBLE PRECISION NOT NULL,
     metadata    JSONB   NOT NULL DEFAULT '{}'::jsonb,
-    recorded_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    recorded_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    owner       TEXT
 );
+
+ALTER TABLE unified.perceptions ADD COLUMN IF NOT EXISTS owner TEXT;
 
 CREATE INDEX IF NOT EXISTS perceptions_source_idx    ON unified.perceptions (source);
 CREATE INDEX IF NOT EXISTS perceptions_timestamp_idx ON unified.perceptions (timestamp DESC);
@@ -93,9 +100,11 @@ class PerceptionManager:
 
             # The table this module writes to is created HERE, by the module
             # that owns it. Nothing else defined it, which is why every write
-            # failed.
-            for statement in [s for s in PERCEPTIONS_DDL.split(";") if s.strip()]:
-                await self.unified_db.execute_query(statement, commit=True)
+            # failed. It is created in every store its rows are kept in: the
+            # substrate's own and people's contexts.
+            for store in self.unified_db.schema_stores():
+                for statement in [s for s in PERCEPTIONS_DDL.split(";") if s.strip()]:
+                    await self.unified_db.execute_query(statement, commit=True, store=store)
 
             self.active = True
             logger.info("Perception manager initialized successfully")
@@ -105,8 +114,22 @@ class PerceptionManager:
             logger.error(f"Failed to initialize perception manager: {e}")
             return False
     
-    async def process_input(self, source: str, data_type: str, content: Dict[str, Any]) -> Optional[PerceptionData]:
-        """Process new sensory input"""
+    async def process_input(self, source: str, data_type: str,
+                            content: Dict[str, Any],
+                            memory_id: Optional[str] = None, *,
+                            origin: "Origin") -> Optional[PerceptionData]:
+        """Process new sensory input.
+
+        `memory_id` is the memory of HAVING PERCEIVED this, formed by the caller
+        that met it (`coord.see` remembers the image it looked at). It travels
+        to the evidence producer so every claim admitted from this percept is a
+        belief ABOUT that memory. Without it the belief store refuses the claims
+        — correctly, since a belief names the memory it is about — which is what
+        left seeing writing to the concept graph and believing nothing.
+
+        `origin` is whose perception this is, and it has no default. A person's
+        image is kept in their context, and what it shows goes where their words
+        go, never into the substrate's own knowledge."""
         if not self.active:
             return None
         
@@ -119,7 +142,8 @@ class PerceptionManager:
                 data_type=data_type,
                 content=content,
                 confidence=self._calculate_confidence(content),
-                timestamp=start_time
+                timestamp=start_time,
+                origin=origin,
             )
             
             # Process the perception
@@ -157,6 +181,10 @@ class PerceptionManager:
             _digest = (content or {}).get("sha256") or (content or {}).get("digest")
             if _digest:
                 processed_perception.metadata["digest"] = str(_digest)
+            # WHAT THE SUBSTRATE REMEMBERS OF THIS PERCEPT, so a caller reading
+            # the percept back can find the episode rather than re-deriving it.
+            if memory_id:
+                processed_perception.metadata["memory_id"] = str(memory_id)
 
             # A perception is an OBSERVATION of something the substrate can
             # name, and PerceptionManager was its only consumer -- perceptions
@@ -164,7 +192,15 @@ class PerceptionManager:
             # Health monitoring, the live producer, supplies a component and a
             # condition in typed fields, so nothing has to read the message
             # text to know what was observed.
-            await self._observe_semantically(source, data_type, content)
+            # ADMITTED INSIDE THE SCOPE OF THE PERCEPT, so anything formed
+            # while the evidence is being admitted links to what was perceived
+            # BY REFERENCE rather than by having happened near it in time.
+            token = set_acting_percept(perception_id, _digest)
+            try:
+                await self._observe_semantically(source, data_type, content,
+                                                 memory_id=memory_id, origin=origin)
+            finally:
+                reset_acting_percept(token)
 
             # Update statistics
             processing_time = datetime.now().timestamp() - start_time
@@ -178,16 +214,18 @@ class PerceptionManager:
             logger.error(f"Error processing perception input: {e}")
             return None
     
-    async def _observe_semantically(self, source, data_type, content) -> None:
+    async def _observe_semantically(self, source, data_type, content, *,
+                                    memory_id: Optional[str] = None,
+                                    origin: "Origin") -> None:
         """Submit a perception as evidence. Never fails perception itself.
 
-        Dispatched on modality: a sensor reading, an image, and a video each
-        carry structure a bare component/status envelope cannot (a typed value
-        and unit, recognised labels, temporal events), so each has its own
-        producer. Anything else -- the original health-monitoring case, a named
+        Dispatched on modality: a sensor reading, an image, a video and a sound
+        each carry structure a bare component/status envelope cannot (a typed
+        value and unit, perceived individuals, recognised labels, temporal
+        events), so each has its own producer. Anything else -- the original health-monitoring case, a named
         component in a named state -- takes the general `submit_perception` path.
         The producer decides what is nameable; an unrecognised modality is not
-        coerced into one that loses its structure."""
+        coerced into one that loses its structure. Whose it is travels with it."""
         try:
             from core.domain import evidence_producers as ep
 
@@ -195,28 +233,32 @@ class PerceptionManager:
                 "sensor": ep.submit_sensor_reading,
                 "image": ep.submit_image,
                 "video": ep.submit_video,
+                "audio": ep.submit_audio,
             }.get(str(data_type or "").strip().lower())
 
             if modality is not None:
-                await modality(source, content or {})
+                await modality(source, content or {}, memory_id=memory_id, origin=origin)
             else:
-                await ep.submit_perception(source, data_type, content or {})
+                await ep.submit_perception(source, data_type, content or {},
+                                           memory_id=memory_id, origin=origin)
         except Exception as e:
             logger.error(
                 "perception from %s could not be recorded as evidence: %s: %s",
                 source, type(e).__name__, e)
 
     def note_perception(self, source: str, data_type: str,
-                        content: Dict[str, Any], *, confidence: float = 1.0) -> PerceptionData:
+                        content: Dict[str, Any], *, origin: "Origin",
+                        confidence: float = 1.0) -> PerceptionData:
         """Record what was just perceived into the overall perceptual awareness —
         WITHOUT re-admitting it as evidence. For a percept whose evidence was already
         admitted by its own owner (a recognition rides `learn_fact`; a sensed image
         rides `process_input`): this only updates the live perceptual state, so the
         substrate knows what it is currently perceiving and a memory forming now can
-        stamp that context. Calling `process_input` here would double-admit."""
+        stamp that context. Calling `process_input` here would double-admit.
+        `origin` is whose perception it is, as for `process_input`."""
         perception = PerceptionData(source=source, data_type=data_type,
                                     content=dict(content or {}),
-                                    confidence=float(confidence))
+                                    confidence=float(confidence), origin=origin)
         self.perception_queue.append(perception)
         return perception
 
@@ -240,7 +282,10 @@ class PerceptionManager:
                 "perception manager has no database connection; initialize() "
                 "must run before perceptions can be searched")
 
-        conditions, params = [], []
+        # WHOSE: the substrate's own perceptions unless a person's are asked for
+        # (`owner`), never everyone's at once.
+        conditions, params = [], [query.get("owner")]
+        conditions.append("owner IS NOT DISTINCT FROM $1")
         for key, column, operator in (("source", "source", "="),
                                       ("data_type", "data_type", "="),
                                       ("min_confidence", "confidence", ">=")):
@@ -249,16 +294,20 @@ class PerceptionManager:
                 conditions.append(f"{column} {operator} ${len(params)}")
 
         params.append(int(query.get("limit", 50)))
-        where = " AND ".join(conditions) if conditions else "TRUE"
+        where = " AND ".join(conditions)
+        # A per-owner table is read where its owner's rows are kept: the
+        # substrate's own in the model, a person's in their context.
         rows = await self.connection.execute_query(
-            f"""SELECT id, source, data_type, content, confidence, timestamp, metadata
+            f"""SELECT id, source, data_type, content, confidence, timestamp, metadata, owner
                 FROM unified.perceptions
                 WHERE {where}
                 ORDER BY timestamp DESC
                 LIMIT ${len(params)}""",
-            tuple(params), fetch_all=True) or []
+            tuple(params), fetch_all=True,
+            store="user_context" if query.get("owner") else "model") or []
 
         import json
+        from core.memory import Origin
 
         def _obj(value):
             return json.loads(value) if isinstance(value, str) else (value or {})
@@ -270,6 +319,7 @@ class PerceptionManager:
             confidence=row["confidence"],
             timestamp=row["timestamp"],
             metadata=_obj(row["metadata"]),
+            origin=Origin.of(row["owner"], "perception"),
         ) for row in rows]
 
     async def get_statistics(self) -> Dict[str, Any]:
@@ -316,32 +366,12 @@ class PerceptionManager:
 
         try:
             import json
-            sql_query = """
-                INSERT INTO unified.perceptions
-                (id, source, data_type, content, confidence, timestamp, metadata)
-                VALUES ($1, $2, $3, $4, $5, $6, $7)
-                ON CONFLICT (id) DO UPDATE SET
-                    source = EXCLUDED.source,
-                    data_type = EXCLUDED.data_type,
-                    content = EXCLUDED.content,
-                    confidence = EXCLUDED.confidence,
-                    timestamp = EXCLUDED.timestamp,
-                    metadata = EXCLUDED.metadata
-            """
-
-            await self.connection.execute_query(
-                sql_query,
-                params=(
-                    perception_id,
-                    perception.source,
-                    perception.data_type,
-                    json.dumps(perception.content),
-                    perception.confidence,
-                    perception.timestamp,
-                    json.dumps(perception.metadata)
-                ),
-                commit=True,
-            )
+            from core.agents.memory_agent import memory_agent
+            await memory_agent().hold_perception(
+                perception_id=perception_id, source=perception.source,
+                data_type=perception.data_type, content=json.dumps(perception.content),
+                confidence=perception.confidence, timestamp=perception.timestamp,
+                metadata=json.dumps(perception.metadata), origin=perception.origin)
 
             return True
 

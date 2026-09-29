@@ -16,7 +16,6 @@ from dataclasses import dataclass, field
 from enum import Enum
 from abc import ABC, abstractmethod
 import re
-from typing import TYPE_CHECKING
 
 from core.capability import raise_if_structural
 from core.reasoning.unification import Atom, apply_substitution, match_body
@@ -38,22 +37,6 @@ from core.reasoning.reasoning_interfaces import (  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
-if TYPE_CHECKING:
-    from core.learning import MasterLearningSystem
-    from core.memory import MemoryAgent
-else:  # Direct imports - all systems must be working
-    from core.learning import MasterLearningSystem
-    try:
-        # Import MemoryAgent via core.memory facade to keep a single public entrypoint
-        from core.memory import MemoryAgent
-    except ImportError as e:
-        MemoryAgent = None
-        logger.debug(f"Neural-symbolic reasoning limited: MemoryAgent import deferred ({e})")
-
-# Compatibility aliases for consolidated modules
-AGILearningEngine = MasterLearningSystem
-AGIMemory = MemoryAgent  # MemoryAgent is the replacement for UnifiedMemorySystem
-
 # The universal ontology this engine reasons over
 from core.domain import UniversalOntology
 from core.capability import raise_if_structural
@@ -71,12 +54,40 @@ class ConfidenceLevel(Enum):
 
 @dataclass
 class ReasoningPremise:
-    """A premise or assumption used in reasoning"""
+    """A premise or assumption used in reasoning, AND WHERE IT CAME FROM.
+
+    `premise_id` is local to one reasoning context (`p0`, `p1`, ...) and is what
+    `ReasoningConclusion.supporting_premises` names. That is enough to say WHICH
+    premise a proof used inside this context, and nothing at all about which
+    stored thing the premise WAS.
+
+    `provenance` closes that. The substrate builds its premises from concepts it
+    resolved, memories it recalled and rules it holds -- every one of which has
+    an identity in the store at the moment it is read -- and that identity was
+    dropped when the premise became a string. The consequence was not only lost
+    telemetry: attributing support had to be done by MATCHING CONTENT WORDS
+    between a premise and the proof's `[Premise]` lines, so two premises sharing
+    their content words both counted as used when only one was. A heuristic
+    standing in for a link that had been thrown away three frames earlier.
+
+    None means the premise genuinely has no stored origin -- a caller's literal
+    context sentence -- which is different from "we forgot".
+    """
     premise_id: str
     statement: str
     confidence: float = 1.0
     source: str = "user"
-    
+
+    #: The store identity this premise came from (a concept id, memory id, rule
+    #: id, ...). None = no stored origin, never "unknown".
+    provenance: Optional[str] = None
+    #: What KIND of thing `provenance` names: concept | memory | rule | belief.
+    provenance_kind: Optional[str] = None
+    #: HOW THE PREMISE READS, for saying why. `statement` is what is reasoned
+    #: over -- for a held fact, its atom -- and this is the same premise as a
+    #: person reads it. None when the statement already reads as itself.
+    said: Optional[str] = None
+
     # Logical structure
     predicates: List[str] = field(default_factory=list)
     variables: List[str] = field(default_factory=list)
@@ -86,6 +97,16 @@ class ReasoningPremise:
     domain: Optional[str] = None
     timestamp: float = field(default_factory=lambda: datetime.now().timestamp())
     dependencies: List[str] = field(default_factory=list)
+
+    def __str__(self) -> str:
+        """The sentence, so a premise can travel anywhere a premise string could.
+
+        Every existing consumer of `ReasoningRequest.context` does `str(item)`;
+        this is what lets a provenance-carrying premise pass through all of them
+        unchanged instead of forcing a second, parallel list that could drift
+        out of step with the first.
+        """
+        return self.statement
 
 
 @dataclass
@@ -147,6 +168,11 @@ class ReasoningContext:
     # Goals
     target_conclusions: List[str] = field(default_factory=list)
     success_criteria: List[str] = field(default_factory=list)
+
+    #: WHOSE COGNITION THIS SERVES -- the actor the request was reasoned for
+    #: (None: the substrate's own). A user's premises can include their own
+    #: context, so everything this reasoning writes down is that user's.
+    actor: Optional[str] = None
 
 
 @dataclass
@@ -883,11 +909,14 @@ class AbductiveReasoningStrategy(ReasoningStrategy):
         if not system.db:
             await system.initialize()
 
+        # An explanation of a person's observations is theirs.
+        from core.memory import Origin
         hypothesis = await system.generate_hypothesis(
             claim=conclusion.statement,
             domain=context.domain,
             predictions=conclusion.reasoning_steps[:1],
             alternatives=conclusion.alternative_conclusions,
+            owner=Origin.of(context.actor, "hypothesis testing").person,
         )
         conclusion.reasoning_steps.append(f"registered as hypothesis {hypothesis.hypothesis_id}")
         return hypothesis
@@ -1143,12 +1172,17 @@ class CausalReasoningStrategy(ReasoningStrategy):
         # engine, and that was exactly what silently did not happen.
         known: Dict[str, Any] = {}
 
+        # WHOSE: a person's premises can be their own context, so what this
+        # reasoning writes down is theirs.
+        from core.memory import Origin
+        owner = Origin.of(context.actor, "temporal reasoning").person
+
         def proposition(text: str, when, confidence: float):
             existing = known.get(text)
             if existing is not None:
                 return existing
             made = engine.create_proposition(
-                statement=text, time_point=when, confidence=confidence)
+                statement=text, time_point=when, confidence=confidence, owner=owner)
             known[text] = made
             return made
 
@@ -1963,6 +1997,10 @@ class TemporalReasoningStrategy(ReasoningStrategy):
         # Bring prior temporal knowledge into memory (Postgres-backed) so
         # reasoning consults what earlier sessions established. Non-fatal.
         await engine.load()
+        # WHOSE: a person's premises can be their own context, so what this
+        # reasoning writes down is theirs.
+        from core.memory import Origin
+        owner = Origin.of(context.actor, "temporal reasoning").person
         timeline = []
         for premise in context.premises:
             text = str(getattr(premise, "statement", "") or "")
@@ -1971,7 +2009,8 @@ class TemporalReasoningStrategy(ReasoningStrategy):
             is_true = " never " not in f" {text.lower()} "
             timeline.append(engine.create_proposition(
                 statement=text, time_point=TimePoint.PRESENT, is_true=is_true,
-                confidence=float(getattr(premise, "confidence", 1.0) or 1.0)))
+                confidence=float(getattr(premise, "confidence", 1.0) or 1.0),
+                owner=owner))
 
         conclusions: List[ReasoningConclusion] = []
         for premise, proposition in zip(context.premises, timeline):
@@ -2528,6 +2567,9 @@ class AbstractReasoningEngine:
                        if result.conclusions else "")
                 ),
                 "source": "abstract_reasoning",
+                # Whose reasoning it was: the content names that actor's
+                # premises, so the record learning keeps of it is theirs.
+                "actor": result.context.actor,
                 # The duration of the REASONING, so the strategy is scored on
                 # the time its work took rather than on the learning system's
                 # own bookkeeping.
@@ -2763,9 +2805,13 @@ class AbstractReasoningEngine:
             }
 
             # Store to memory agent with full chain of thought
+            from core.memory import Origin
             success, memory_id = await self.memory.store_memory(
                 memory_type=MemoryType.SEMANTIC,
                 content=content_summary,
+                # Reasoned for a user, over premises that may be their own
+                # context: their memory, not the shared mind's.
+                origin=Origin.of(result.context.actor, "reasoning"),
                 importance_score=result.overall_confidence,
                 confidence_score=result.overall_confidence,
                 tags=["reasoning", result.context.problem_type, result.context.domain],

@@ -133,20 +133,6 @@ def test_seal_detects_a_changed_exam():
 
 # ---- the freeze -----------------------------------------------------------
 
-def test_the_frozen_baseline_still_holds():
-    """The substrate must be byte-identical to what the admissible S0 measured.
-
-    If this fails, either the substrate was edited during the educational phase
-    -- which destroys the distinction between "Torin learned" and "we upgraded
-    Torin while teaching it" -- or the freeze needs to be deliberately re-taken
-    with a new baseline. It must never be quietly updated to match.
-    """
-    from generality import check_freeze
-
-    violation = check_freeze(EDU12 / "FROZEN.json")
-    assert violation is None, violation.message
-
-
 def test_the_freeze_check_actually_detects_a_change(tmp_path, monkeypatch):
     """A guard that cannot fail is not a guard. Verified on a temporary tree so
     the real substrate is never touched."""

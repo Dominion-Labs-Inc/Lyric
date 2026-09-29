@@ -19,6 +19,9 @@ Architecture:
 # Memory types and interfaces from utils (import these first to avoid circular dependencies)
 from .utils.interfaces import (
     MemoryType,
+    Origin,
+    Experience,
+    Part,
     MemoryPriority,
     MemoryStatus,
     MemoryOperation,
@@ -102,6 +105,7 @@ __all__ = [
 
     # Memory types and interfaces
     'MemoryType',
+    'Origin',
     'MemoryPriority',
     'MemoryStatus',
     'MemoryOperation',

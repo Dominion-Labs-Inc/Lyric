@@ -47,7 +47,7 @@ import string
 import re
 import time
 import os
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, Tuple
 from pathlib import Path
 from urllib.parse import quote
 
@@ -66,6 +66,81 @@ from .capabilities import (
 
 
 logger = logging.getLogger(__name__)
+
+
+# ── Content checks ──────────────────────────────────────────────────────────
+# The logic behind validate_email, validate_url, check_malicious_patterns and
+# sanitize_filename. It lived in core/security/content_security.py, which was
+# deleted; the tools that use it keep it here.
+
+#: Patterns that mark content as carrying active script or code.
+MALICIOUS_PATTERNS = [
+    r'<script[^>]*>.*?</script>',  # Script tags
+    r'javascript:',  # JavaScript protocol
+    r'on\w+\s*=',  # Event handlers (onclick, onerror, etc.)
+    r'<iframe',  # Iframes
+    r'<object',  # Objects
+    r'<embed',  # Embeds
+    r'eval\s*\(',  # eval() calls
+    r'expression\s*\(',  # CSS expressions
+]
+
+EMAIL_REGEX = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+
+
+def sanitize_input(text: str, allow_html: bool = False) -> str:
+    """Escape HTML (unless allowed) and strip the malicious patterns."""
+    if not text:
+        return ""
+    if not allow_html:
+        import html
+        text = html.escape(text)
+    for pattern in MALICIOUS_PATTERNS:
+        text = re.sub(pattern, '', text, flags=re.IGNORECASE)
+    return text.strip()
+
+
+def validate_email(email: str) -> bool:
+    """True when the address has the shape of an email address."""
+    if not email:
+        return False
+    return bool(re.match(EMAIL_REGEX, email))
+
+
+def validate_url(url: str) -> bool:
+    """True for an http(s) URL with a host."""
+    if not url:
+        return False
+    try:
+        from urllib.parse import urlparse
+        result = urlparse(url)
+        return all([result.scheme, result.netloc]) and result.scheme in ['http', 'https']
+    except Exception:
+        return False
+
+
+def check_malicious_patterns(text: str) -> bool:
+    """True when the text contains any of the malicious patterns."""
+    if not text:
+        return False
+    for pattern in MALICIOUS_PATTERNS:
+        if re.search(pattern, text, re.IGNORECASE):
+            logger.warning(f"Malicious pattern detected: {pattern}")
+            return True
+    return False
+
+
+def sanitize_filename(filename: str) -> str:
+    """A filename with path separators and unsafe characters replaced."""
+    if not filename:
+        return ""
+    filename = filename.replace('/', '_').replace('\\', '_')
+    filename = re.sub(r'[^a-zA-Z0-9._-]', '_', filename)
+    filename = filename.lstrip('.')
+    if len(filename) > 255:
+        name, ext = filename.rsplit('.', 1) if '.' in filename else (filename, '')
+        filename = name[:250] + ('.' + ext if ext else '')
+    return filename
 
 
 class EncryptFileTool(Tool):
@@ -847,7 +922,7 @@ class BlockIPAddressTool(Tool):
     async def execute(self, ip_address: str, reason: str, attack_type: str = "suspicious_behavior", force_block: bool = False) -> ToolResult:
         try:
             from core.security import create_integrated_security_system
-            from core.security.active_defense_types import AttackType
+            from core.agents.autonomous.threat_sense import AttackType
 
             # Get integrated security system
             sec_system = create_integrated_security_system()
@@ -1074,7 +1149,7 @@ class CreateWAFRuleTool(Tool):
     async def execute(self, expression: str, description: str, action: str, priority: int = 50) -> ToolResult:
         try:
             from core.security import create_integrated_security_system
-            from core.security.active_defense_types import WAFRuleMode
+            from core.agents.autonomous.threat_sense import WAFRuleMode
 
             sec_system = create_integrated_security_system()
             waf_manager = sec_system.get('waf')
@@ -1446,7 +1521,7 @@ class AddInternalThreatTool(Tool):
     async def execute(self, ip_address: str, threat_types: List[str], reputation_score: float, evidence: Dict[str, Any] = None) -> ToolResult:
         try:
             from core.security import create_integrated_security_system
-            from core.security.active_defense_types import AttackType
+            from core.agents.autonomous.threat_sense import AttackType
 
             sec_system = create_integrated_security_system()
             threat_intel = sec_system.get('threat_intel')
@@ -1679,7 +1754,6 @@ class ValidateEmailTool(Tool):
 
     async def execute(self, email: str) -> ToolResult:
         try:
-            from core.security.content_security import validate_email, check_malicious_patterns
 
             is_valid = validate_email(email)
             has_malicious = check_malicious_patterns(email)
@@ -1740,7 +1814,6 @@ class ValidateURLTool(Tool):
 
     async def execute(self, url: str) -> ToolResult:
         try:
-            from core.security.content_security import validate_url, check_malicious_patterns
 
             is_valid = validate_url(url)
             has_malicious = check_malicious_patterns(url)
@@ -1801,7 +1874,6 @@ class CheckMaliciousPatternsTool(Tool):
 
     async def execute(self, text: str) -> ToolResult:
         try:
-            from core.security.content_security import check_malicious_patterns
 
             has_malicious = check_malicious_patterns(text)
 
@@ -1854,7 +1926,6 @@ class SanitizeFilenameTool(Tool):
 
     async def execute(self, filename: str) -> ToolResult:
         try:
-            from core.security.content_security import sanitize_filename
 
             sanitized = sanitize_filename(filename)
             is_sanitized = sanitized != filename
@@ -1872,13 +1943,150 @@ class SanitizeFilenameTool(Tool):
             return ToolResult(success=False, output=None, error=f"Filename sanitization failed: {str(e)}")
 
 
+# ---- SQL: what a value would DO inside a statement ---------------------------
+#
+# Read as SQL is read -- a lexer, not keyword patterns. Patterns over the raw
+# text decided both ways at once: `'.*?\bor\b` flagged "O'Brien or Smith" whether
+# or not it could escape anything, and missed any attack spelled without the
+# words it listed. A value is dangerous exactly when, placed where it goes, it
+# stops being one literal; that is what is measured.
+
+_SQL_NUMBER = re.compile(r"0[xX][0-9A-Fa-f]+|(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?")
+_SQL_WORD = re.compile(r"[^\W\d]\w*\$?|\$\d+", re.UNICODE)
+_SQL_DOLLAR_QUOTE = re.compile(r"\$(?:[A-Za-z_][A-Za-z0-9_]*)?\$")
+_SQL_IDENTIFIER = re.compile(r"[A-Za-z_][A-Za-z0-9_$]*(?:\.[A-Za-z_][A-Za-z0-9_$]*)*")
+_SQL_STATEMENTS = frozenset({
+    "select", "insert", "update", "delete", "drop", "alter", "create", "truncate", "grant",
+    "revoke", "merge", "call", "exec", "execute", "declare", "copy", "replace", "shutdown",
+    "attach", "load", "set", "use"})
+_SQL_COMPARISONS = frozenset({"=", "<", ">", "<>", "!=", "<=", ">=", "like", "ilike", "in",
+                              "is", "between", "regexp", "rlike", "similar"})
+_SQL_DELAYS = frozenset({"sleep", "pg_sleep", "benchmark", "waitfor"})
+
+
+def sql_tokens(text: str, *, backslash_escapes: bool = False) -> List[Tuple[str, str]]:
+    """`text` read as SQL: (kind, text) for every token -- string, quoted_identifier,
+    unterminated, comment, number, word, operator, punct. Comments are `--`, `#`
+    (MySQL) and `/* */`; strings double their quote to escape it, and with
+    `backslash_escapes` (MySQL, PostgreSQL E'' strings) a backslash escapes too."""
+    tokens: List[Tuple[str, str]] = []
+    i, n = 0, len(text)
+    while i < n:
+        c = text[i]
+        if c.isspace():
+            i += 1
+            continue
+        if text.startswith("--", i) or c == "#":
+            j = text.find("\n", i)
+            j = n if j < 0 else j
+            tokens.append(("comment", text[i:j]))
+            i = j
+            continue
+        if text.startswith("/*", i):
+            j = text.find("*/", i + 2)
+            j = n if j < 0 else j + 2
+            tokens.append(("comment", text[i:j]))
+            i = j
+            continue
+        if c in "'\"`":
+            j, closed = i + 1, False
+            while j < n:
+                if backslash_escapes and c != "`" and text[j] == "\\":
+                    j += 2
+                    continue
+                if text[j] == c:
+                    if j + 1 < n and text[j + 1] == c:
+                        j += 2
+                        continue
+                    closed, j = True, j + 1
+                    break
+                j += 1
+            kind = ("string" if c == "'" else "quoted_identifier") if closed else "unterminated"
+            tokens.append((kind, text[i:min(j, n)]))
+            i = min(j, n)
+            continue
+        if c == "$":
+            m = _SQL_DOLLAR_QUOTE.match(text, i)
+            if m:
+                j = text.find(m.group(0), m.end())
+                if j < 0:
+                    tokens.append(("unterminated", text[i:]))
+                    break
+                tokens.append(("string", text[i:j + len(m.group(0))]))
+                i = j + len(m.group(0))
+                continue
+        m = _SQL_NUMBER.match(text, i)
+        if m and m.group(0):
+            tokens.append(("number", m.group(0)))
+            i = m.end()
+            continue
+        m = _SQL_WORD.match(text, i)
+        if m:
+            tokens.append(("word", m.group(0)))
+            i = m.end()
+            continue
+        op = next((o for o in ("<>", "!=", "<=", ">=", "||", "&&", "::", ":=")
+                   if text.startswith(o, i)), None)
+        if op:
+            tokens.append(("operator", op))
+            i += len(op)
+            continue
+        tokens.append(("operator" if c in "=<>!|&+-*/%^~" else "punct", c))
+        i += 1
+    return tokens
+
+
+def sql_attack_shapes(tokens: List[Tuple[str, str]], *, comments: bool = True) -> List[str]:
+    """The ways these tokens would change a statement they were spliced into: an
+    added condition (OR/AND followed by a comparison), a stacked statement, a
+    UNION query, a subquery, a timing probe, a comment cutting the rest off."""
+    shapes: List[str] = []
+    lowered = [(kind, value.lower()) for kind, value in tokens]
+    for index, (kind, value) in enumerate(lowered):
+        ahead = lowered[index + 1:index + 5]
+        if kind == "comment" and comments:
+            shapes.append("a comment that cuts off the rest of the statement")
+        elif kind == "punct" and value == ";" and ahead[:1] and ahead[0][1] in _SQL_STATEMENTS:
+            shapes.append(f"a stacked statement ({ahead[0][1].upper()})")
+        elif kind == "word" and value == "union" and any(v == "select" for _, v in ahead[:2]):
+            shapes.append("a UNION query")
+        elif kind == "punct" and value == "(" and ahead[:1] and ahead[0][1] == "select":
+            shapes.append("a subquery")
+        elif kind == "word" and value in _SQL_DELAYS and ahead[:1] and ahead[0][1] in ("(", "delay"):
+            shapes.append(f"a timing probe ({value.upper()})")
+        elif value in ("or", "and", "xor", "||", "&&") and kind in ("word", "operator") and (
+                any(v in _SQL_COMPARISONS for _, v in ahead)
+                or (ahead[:1] and ahead[0][1] in ("true", "1"))):
+            shapes.append(f"an added condition ({value.upper()} ...)")
+    return list(dict.fromkeys(shapes))
+
+
+def _literal_breakout(value: str) -> Optional[Tuple[int, str, List[Tuple[str, str]]]]:
+    """Where `value`, placed between single quotes, stops being one string literal:
+    (index into value, why, the tokens that follow). None when it stays one literal
+    under BOTH escaping conventions, since which one the database uses is unknown."""
+    for backslash in (False, True):
+        tokens = sql_tokens(f"'{value}'", backslash_escapes=backslash)
+        if len(tokens) == 1 and tokens[0][0] == "string":
+            continue
+        first_kind, first_text = tokens[0]
+        if first_kind == "unterminated":
+            return (len(value), "a backslash escapes the closing quote where backslash "
+                                "escapes are on (MySQL, PostgreSQL E'' strings)", [])
+        at = len(first_text) - 2
+        return (at, f"the quote at character {at + 1} ends the string"
+                    + (" where backslash escapes are on" if backslash else ""), tokens[1:])
+    return None
+
+
 class ValidateSQLInputTool(Tool):
-    """Validate input for SQL injection patterns"""
+    """Whether a value can change the SQL statement it is placed in."""
 
     def __init__(self):
         super().__init__()
         self.name = "validate_sql_input"
-        self.description = "Check input for SQL injection patterns and validate safety for database queries"
+        self.description = ("Check whether a value can change the SQL statement it is placed in "
+                            "(SQL injection), read the way SQL is read")
         self.category = ToolCategory.SECURITY
         self.safety_level = ToolSafety.SAFE
         self.parameters = [
@@ -1887,6 +2095,15 @@ class ValidateSQLInputTool(Tool):
                 type="string",
                 description="Input text to validate for SQL injection",
                 required=True
+            ),
+            ToolParameter(
+                name="context",
+                type="string",
+                description=("Where the value goes: 'string' (inside quotes), 'number' (bare), "
+                             "'identifier' (a table or column name), or 'unknown'"),
+                required=False,
+                default="unknown",
+                enum=["string", "number", "identifier", "unknown"]
             )
         ]
 
@@ -1906,103 +2123,91 @@ class ValidateSQLInputTool(Tool):
             is_idempotent=True
         )
 
-    async def execute(self, input_text: str) -> ToolResult:
+    async def execute(self, input_text: str, context: str = "unknown") -> ToolResult:
+        """Exact where the position is known; where it is not ('unknown'), the value is
+        judged in the position its own shape puts it: inside quotes, and bare as well
+        when it begins as a number."""
         try:
-            from core.security.system_security import get_system_security
+            if not isinstance(input_text, str):
+                raise ValueError("input_text must be a string")
+            context = str(context or "unknown").lower()
+            if context not in ("string", "number", "identifier", "unknown"):
+                raise ValueError(f"unknown context {context!r}")
 
-            system_security = get_system_security()
-            is_safe, reason = system_security.validate_sql_input(input_text)
+            bare = sql_tokens(input_text)
+            unsigned = bare[1:] if bare and bare[0] in (("operator", "-"), ("operator", "+")) else bare
+            number_shaped = bool(unsigned) and unsigned[0][0] == "number"
+            single_number = len(unsigned) == 1 and number_shaped
+            breakout = _literal_breakout(input_text)
+            shapes: List[str] = []
+            reasons: List[str] = []
+
+            if context in ("string", "unknown") and breakout:
+                at, why, after = breakout
+                reasons.append(f"{why}; what follows would be read as SQL")
+                shapes += sql_attack_shapes(after)
+            if context == "number" or (context == "unknown" and number_shaped):
+                if not single_number:
+                    reasons.append("placed bare, it is more than one number" if number_shaped
+                                   else "placed bare, it is not a number")
+                    shapes += sql_attack_shapes(bare)
+            if context == "identifier" and not _SQL_IDENTIFIER.fullmatch(input_text):
+                reasons.append("not a plain identifier")
+                shapes += sql_attack_shapes(bare)
+            if context == "unknown":
+                # Placed bare anyway, these change any statement they reach. Comments
+                # are left out here: inside quotes they are text, and the breakout
+                # above already counts one that follows an escaped quote.
+                strong = sql_attack_shapes(bare, comments=False)
+                if strong and not reasons:
+                    reasons.append("read as SQL it carries " + "; ".join(strong))
+                shapes += strong
+            shapes = list(dict.fromkeys(shapes))
+            is_safe = not reasons
 
             return ToolResult(
                 success=True,
                 output={
                     'input': input_text[:100] + '...' if len(input_text) > 100 else input_text,
+                    'context': context,
                     'is_safe': is_safe,
                     'sql_injection_detected': not is_safe,
-                    'reason': reason if not is_safe else 'No SQL injection patterns detected',
-                    'safe_for_database': is_safe
-                }
+                    'safe_for_database': is_safe,
+                    'reason': "; ".join(reasons) if reasons else "stays one value where it is placed",
+                    'stays_one_string_literal': breakout is None,
+                    'breaks_out_at': breakout[0] if breakout else None,
+                    'is_single_number': single_number,
+                    'attack_shapes': shapes,
+                },
+                tool_name=self.name
             )
         except Exception as e:
-            return ToolResult(success=False, output=None, error=f"SQL validation failed: {str(e)}")
+            return ToolResult(success=False, output=None, error=f"SQL validation failed: {str(e)}",
+                              tool_name=self.name)
 
 
-class ValidatePathTool(Tool):
-    """Validate file path for path traversal attacks"""
+# ---- rate limits: one count, shared by every instance ------------------------
 
-    def __init__(self):
-        super().__init__()
-        self.name = "validate_path"
-        self.description = "Validate file path and check for path traversal attacks"
-        self.category = ToolCategory.SECURITY
-        self.safety_level = ToolSafety.SAFE
-        self.parameters = [
-            ToolParameter(
-                name="path",
-                type="string",
-                description="File path to validate",
-                required=True
-            ),
-            ToolParameter(
-                name="allowed_base",
-                type="string",
-                description="Optional base directory that path must be within",
-                required=False,
-                default=None
-            )
-        ]
-
-        self.capability_profile = ToolCapabilityProfile(
-            tool_name="validate_path",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.VALIDATE_INPUT,
-                    risk_level=RiskLevel.LOW,
-                    priority=7,
-                    approval_level="autonomous"
-                ),
-                CapabilityMetadata(
-                    capability=Capability.VALIDATE_DATA,
-                    risk_level=RiskLevel.LOW,
-                    priority=7,
-                    approval_level="autonomous"
-                )
-            ],
-            requires_filesystem=False,
-            requires_network=False,
-            requires_database=False,
-            is_idempotent=True
-        )
-
-    async def execute(self, path: str, allowed_base: str = None) -> ToolResult:
-        try:
-            from core.security.system_security import get_system_security
-
-            system_security = get_system_security()
-            is_safe, reason = system_security.validate_path(path, allowed_base)
-
-            return ToolResult(
-                success=True,
-                output={
-                    'path': path,
-                    'is_safe': is_safe,
-                    'path_traversal_detected': not is_safe,
-                    'reason': reason if not is_safe else 'No path traversal detected',
-                    'safe_to_use': is_safe,
-                    'allowed_base': allowed_base
-                }
-            )
-        except Exception as e:
-            return ToolResult(success=False, output=None, error=f"Path validation failed: {str(e)}")
+_RATE_LIMIT_DDL = [
+    """CREATE TABLE IF NOT EXISTS unified.rate_limit_events (
+           identifier TEXT NOT NULL,
+           at         TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
+           expires_at TIMESTAMPTZ NOT NULL)""",
+    "CREATE INDEX IF NOT EXISTS ix_rate_limit_identifier "
+    "ON unified.rate_limit_events (identifier, at)",
+    "CREATE INDEX IF NOT EXISTS ix_rate_limit_expires "
+    "ON unified.rate_limit_events (expires_at)",
+]
 
 
 class CheckRateLimitTool(Tool):
-    """Check if identifier has exceeded rate limit"""
+    """Count one request for an identifier and say whether it is within its limit."""
 
     def __init__(self):
         super().__init__()
         self.name = "check_rate_limit"
-        self.description = "Check if an identifier (IP, user ID) has exceeded rate limit"
+        self.description = ("Count a request for an identifier (IP, user ID) and check it against "
+                            "a rate limit shared by every running instance")
         self.category = ToolCategory.SECURITY
         self.safety_level = ToolSafety.SAFE
         self.parameters = [
@@ -2015,9 +2220,16 @@ class CheckRateLimitTool(Tool):
             ToolParameter(
                 name="max_requests",
                 type="number",
-                description="Maximum requests allowed (optional, uses default if not specified)",
+                description="Maximum requests allowed in the window",
                 required=False,
-                default=None
+                default=100
+            ),
+            ToolParameter(
+                name="window_seconds",
+                type="number",
+                description="Length of the sliding window in seconds",
+                required=False,
+                default=60
             )
         ]
 
@@ -2040,28 +2252,68 @@ class CheckRateLimitTool(Tool):
             requires_filesystem=False,
             requires_network=False,
             requires_database=True,
-            is_idempotent=True
+            is_idempotent=False
         )
 
-    async def execute(self, identifier: str, max_requests: int = None) -> ToolResult:
+    async def execute(self, identifier: str, max_requests: int = 100,
+                      window_seconds: float = 60) -> ToolResult:
+        """A sliding window kept IN THE STORE. It was a dict in one process, so each
+        running instance -- and each restart -- counted from zero, and a client spread
+        over instances had every limit multiplied by their number. The count for one
+        identifier is taken under a transaction lock on that identifier, so two
+        instances counting the same client at once cannot both see room for one."""
         try:
-            from core.security.system_security import get_system_security
+            if not isinstance(identifier, str) or not identifier:
+                raise ValueError("identifier must be a non-empty string")
+            limit = int(max_requests if max_requests is not None else 100)
+            window = float(window_seconds if window_seconds is not None else 60)
+            if limit < 1 or window <= 0:
+                raise ValueError("max_requests must be at least 1 and window_seconds above 0")
 
-            system_security = get_system_security()
-            is_allowed, remaining = system_security.check_rate_limit(identifier, max_requests)
+            from core.database import get_database_manager
+            db = get_database_manager()
+            await db.ensure_schema("rate_limit_events", _RATE_LIMIT_DDL)
+            async with db.get_connection() as conn:
+                async with conn.transaction():
+                    await conn.execute("SELECT pg_advisory_xact_lock(hashtext($1))",
+                                       f"rate_limit:{identifier}")
+                    row = await conn.fetchrow(
+                        "SELECT count(*) AS n, min(at) AS oldest, clock_timestamp() AS now "
+                        "FROM unified.rate_limit_events "
+                        "WHERE identifier = $1 AND at > clock_timestamp() - make_interval(secs => $2)",
+                        identifier, window)
+                    counted = int(row["n"])
+                    allowed = counted < limit
+                    if allowed:
+                        await conn.execute(
+                            "INSERT INTO unified.rate_limit_events (identifier, expires_at) "
+                            "VALUES ($1, clock_timestamp() + make_interval(secs => $2))",
+                            identifier, window)
+                # Rows past their own window count for nobody.
+                await conn.execute(
+                    "DELETE FROM unified.rate_limit_events WHERE expires_at < clock_timestamp()")
 
+            retry_after = None
+            if not allowed and row["oldest"] is not None:
+                retry_after = max(0.0, window - (row["now"] - row["oldest"]).total_seconds())
             return ToolResult(
                 success=True,
                 output={
                     'identifier': identifier,
-                    'is_allowed': is_allowed,
-                    'rate_limit_exceeded': not is_allowed,
-                    'requests_remaining': remaining,
-                    'action': 'Allow request' if is_allowed else 'Block - rate limit exceeded'
-                }
+                    'is_allowed': allowed,
+                    'rate_limit_exceeded': not allowed,
+                    'requests_counted': counted + (1 if allowed else 0),
+                    'requests_remaining': (limit - counted - 1) if allowed else 0,
+                    'max_requests': limit,
+                    'window_seconds': window,
+                    'retry_after_seconds': retry_after,
+                    'action': 'Allow request' if allowed else 'Block - rate limit exceeded'
+                },
+                tool_name=self.name
             )
         except Exception as e:
-            return ToolResult(success=False, output=None, error=f"Rate limit check failed: {str(e)}")
+            return ToolResult(success=False, output=None, error=f"Rate limit check failed: {str(e)}",
+                              tool_name=self.name)
 
 
 # ============================================================================
@@ -3592,34 +3844,6 @@ class DetectZeroDayTool(Tool):
                 ]
             }
 
-            # Zero-day detection using malware sandbox
-            if target_file:
-                try:
-                    from core.security.malware_sandbox import get_malware_sandbox
-                    sandbox = get_malware_sandbox()
-
-                    report = await sandbox.analyze_file(
-                        file_path=target_file,
-                        enable_dynamic=False
-                    )
-
-                    if report.threat_level.value in ["malicious", "critical"]:
-                        detections.append({
-                            "detection_id": report.analysis_id,
-                            "category": "malware_detected",
-                            "severity": report.threat_level.value.upper(),
-                            "heuristic_matched": "Malware sandbox analysis",
-                            "description": f"Threat detected: {report.threat_level.value}",
-                            "confidence": report.confidence,
-                            "evidence": {
-                                "iocs": report.iocs,
-                                "static_analysis": str(report.static_analysis)
-                            },
-                            "timestamp": datetime.now().isoformat()
-                        })
-
-                except Exception as e:
-                    logger.error(f"Zero-day detection failed: {e}")
 
             if analysis_scope in ["process_behavior", "comprehensive"]:
                 # Process behavior analysis

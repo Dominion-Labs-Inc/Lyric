@@ -26,6 +26,8 @@ The experiment deletes every intent it forms.
 
 **Results.** Every run is saved in `results/` (JSON + `.md`). Latest: 2026-09-17, **27/27**.
 
+**2026-09-28: 28/28.** The hand-written filesystem domain was deleted. This now plans over an operator the substrate learned from its own acts in `tools:path` (taught by `experiments/fs_move_teach.py` if the store has none), and states its goal in perception's words: `KIND(<path>, Ffile)`, and `¬KIND(...)` for "no longer there". It now declares the operator every case rests on (one check added).
+
 **What the first run found.** 25/27:
 - **C (a real gap):** a standalone operator closed its intent but did not return the verdict with its
   result. The plan and tool paths did. Fixed.

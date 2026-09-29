@@ -1,0 +1,42 @@
+{
+  "experiment": "LOOKUP-SINGLEFLIGHT-01",
+  "run": "2026-09-20T20:27:25.829032+00:00",
+  "outcome": "PASS",
+  "exit_code": 0,
+  "checks_passed": 8,
+  "checks_total": 8,
+  "checks": [
+    {
+      "kind": "PASS",
+      "text": "exactly ONE real research call for 100 identical concurrent asks \u2014 research calls = 1"
+    },
+    {
+      "kind": "PASS",
+      "text": "all 100 callers got the same result \u2014 distinct results = 1"
+    },
+    {
+      "kind": "PASS",
+      "text": "in-flight registry drained after completion \u2014 held = 0"
+    },
+    {
+      "kind": "PASS",
+      "text": "normalised variants dedup to ONE research \u2014 calls = 1"
+    },
+    {
+      "kind": "PASS",
+      "text": "three distinct phrases \u2192 three researches \u2014 calls = 3"
+    },
+    {
+      "kind": "PASS",
+      "text": "two sequential (non-overlapping) asks \u2192 two researches (world may have changed) \u2014 calls = 2"
+    },
+    {
+      "kind": "PASS",
+      "text": "concurrent callers all see the error (propagated, not swallowed) \u2014 raised=3"
+    },
+    {
+      "kind": "PASS",
+      "text": "registry drained after the error (no wedged key) \u2014 held = 0"
+    }
+  ]
+}

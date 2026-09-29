@@ -71,22 +71,6 @@ class TestEndToEndScenarioExecution:
         assert experiment.target_system == "intelligence_system"
 
     @pytest.mark.asyncio
-    async def test_services_llm_inference_scenario(self, orchestrator):
-        """Test services system LLM inference scenario end-to-end"""
-        scenario = get_scenario("llm_inference_latency")
-
-        experiment_manager = get_experiment_manager()
-        experiment = await experiment_manager.create_experiment_from_scenario(
-            scenario_id="llm_inference_latency",
-            environment="dev",
-            blast_radius=5
-        )
-
-        assert experiment is not None
-        assert experiment.name == "LLM Inference Latency Spike (dev)"
-        assert experiment.target_system == "services_system"
-
-    @pytest.mark.asyncio
     async def test_monitoring_prometheus_scenario(self, orchestrator):
         """Test monitoring system Prometheus export scenario end-to-end"""
         scenario = get_scenario("prometheus_export_latency")

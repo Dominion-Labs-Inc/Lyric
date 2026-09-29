@@ -3,11 +3,9 @@
 
 The authority is now `Constitution.judge`, reached through `get_constitution()`
 and applied at `tool_registry.execute_tool` — the single point every tool call
-passes through. `safety_framework.evaluate_action` was the authority before it;
-that module stays on disk as the reference its remaining capabilities are being
-taken from, but it no longer governs. Two gates would be two answers to "may this
-act happen", which is the duplicate-authority defect on the path where it matters
-most.
+passes through. `safety_framework.evaluate_action` was the authority before it,
+and is deleted. Two gates would be two answers to "may this act happen", which is
+the duplicate-authority defect on the path where it matters most.
 
 THE ORIGINAL DEFECT THIS FILE PINS is worth keeping legible, because it is the
 failure mode the constitution must never reproduce:
@@ -33,18 +31,17 @@ import textwrap
 import pytest
 
 
-def test_the_method_that_was_being_called_still_does_not_exist():
-    """Pins the diagnosis. If a `check_compliance` is ever added to the trigger
-    engine, this test should be revisited deliberately rather than silently
-    making the old call look correct.
-
-    The module this originally imported — `unified_governance_trigger_system` —
-    no longer exists; the engine now lives in `governance_triggers`. The test was
-    failing on that import before this file was rewritten, which is its own small
-    lesson: a test pinned to a module name stops testing the moment the module is
-    renamed, and says nothing while it does."""
-    from core.governance import get_governance_trigger_engine
-    assert not hasattr(get_governance_trigger_engine(), "check_compliance")
+def test_the_old_governance_machinery_is_gone():
+    """The trigger engine, the old gate and the old runtime governance were the
+    second and third answers to "may this act happen". They are deleted, not
+    kept as references: a module that still imports is a module something can
+    start consulting again."""
+    import importlib
+    for name in ("core.governance.governance_triggers", "core.security.safety_framework",
+                 "core.agents.autonomous.runtime_governance",
+                 "core.agents.autonomous.singleton_constitution", "core.safety"):
+        with pytest.raises(ModuleNotFoundError):
+            importlib.import_module(name)
 
 
 def test_the_memory_agent_no_longer_carries_a_governance_oracle_of_its_own():

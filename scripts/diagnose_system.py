@@ -355,6 +355,7 @@ class SystemDiagnostics:
     
     async def test_memory_system(self):
         """Test memory storage and retrieval"""
+        from core.memory import Origin
         print("\n" + "─" * 80)
         print("TEST 5: MEMORY SYSTEM")
         print("─" * 80)
@@ -369,10 +370,10 @@ class SystemDiagnostics:
             test_content = f"Diagnostic test memory - {datetime.now().isoformat()}"
             
             start = time.time()
-            stored = await memory.store_memory(
+            stored, _memory_id = await memory.store_memory(
                 content=test_content,
                 tags=['diagnostic', 'test'],
-                importance=0.5
+                importance_score=0.5, origin=Origin.own("diagnose_system")
             )
             store_duration = time.time() - start
             
@@ -395,7 +396,8 @@ class SystemDiagnostics:
                 'results_count': len(results)
             }
             
-            print(f"✓ Memory stored in {store_duration*1000:.2f}ms")
+            print(f"{'✓' if stored else '✗'} Memory {'stored' if stored else 'NOT stored'} "
+                  f"in {store_duration*1000:.2f}ms")
             print(f"✓ Search completed in {search_duration*1000:.2f}ms")
             print(f"✓ Found: {found}")
             

@@ -39,11 +39,78 @@ from core.semantics.genericity import (Genericity, classify_genericity,
                                        unrepresentable_reason, _word_class,
                                        _subject_and_complement)
 from core.semantics.sentence_reader import SentenceReader
+from core.semantics import lexical_normalization as _lexical
 from .reasoning_interfaces import (CLASSICAL_REASONING_TYPES, Connectivity,
                                    Formalization, IFormalizer, ReasoningType,
                                    kinds_of_thinking_for)
 
 logger = logging.getLogger(__name__)
+
+
+#: WHICH KINDS OF THINKING YIELD A GENERAL FACT.
+#:
+#: Decided by AUDITING WHAT EACH STRATEGY ACTUALLY DOES, not by what its enum
+#: member is called. A first pass took the names at face value and got two of
+#: them wrong in opposite directions.
+#:
+#: Fact-yielding, because each is truth-preserving given its premises AND is
+#: carried out by machinery that refuses rather than guesses:
+#:
+#:   DEDUCTIVE  applies rules forward over premises and emits nothing when no
+#:              rule fires. It consults no model: "a statement the rules cannot
+#:              derive is not a deduction, it is a guess wearing the label."
+#:   LOGICAL    a Z3 proof of a stated target from the premises. A failed proof
+#:              yields NO conclusion, never a weak positive. This is the most
+#:              checked result the substrate can produce -- it was filed META
+#:              on the reading that it is "about the statement", which confused
+#:              the METHOD (a prover) with the SUBJECT (what follows).
+#:   CAUSAL     chains causal links stated in the premises through the temporal
+#:              engine that owns causality, taking the MINIMUM confidence along
+#:              the chain.
+#:
+#: NOT fact-yielding. Some because of what the kind IS -- abduction offers
+#: "what would BEST explain", a counterfactual states what did NOT happen,
+#: probabilistic and fuzzy answer by degree -- and two because of what the
+#: implementation actually does:
+#:
+#:   INDUCTIVE   reads as fact-yielding and is not. `_premises_are_similar` is
+#:               Jaccard word overlap > 0.3 and `_identify_pattern` returns
+#:               common words, so the "generalisation" is over a word bag, not
+#:               over structure. "The cat sat on the mat" and "The dog sat on
+#:               the mat" group, and their shared words become a pattern. A real
+#:               generalisation would be a fact; this is not yet one.
+#:   ANALOGICAL  the only strategy never rebuilt. `_extract_structure` splits on
+#:               whitespace under its own comment, "would use NLP in practice",
+#:               so a STRUCTURAL analogy is decided by word overlap.
+#:
+#: The root of both: no strategy in `abstract_reasoning_engine` consults the
+#: substrate's sentence reader. They reason over raw premise strings, so where
+#: a kind needs structure it has none to work with and reaches for token
+#: overlap. Fix that and INDUCTIVE can be revisited.
+_FACT_YIELDING_KINDS = frozenset({"deductive", "logical", "causal"})
+
+
+def _memory_type_for(kind: Optional[str], *, verified: bool):
+    """The memory type for a conclusion reached by this kind of thinking.
+
+    UNVERIFIED IS NEVER A FACT. `verified` is part of the result's own
+    credit-assignment contract, and a deduction the bridge could not verify is
+    a deduction it might have got wrong -- recalling it as general knowledge
+    would launder an unchecked step into a fact.
+
+    Anything unrecognised is EPISODIC, which is the same principle the memory
+    agent's own inference states: better to treat general knowledge as a
+    specific event than a specific event as general knowledge. It is a real
+    answer, not a fallback -- a conclusion whose kind is unknown has not earned
+    the standing of a fact.
+    """
+    from core.memory.utils.interfaces import MemoryType
+
+    if not verified:
+        return MemoryType.EPISODIC
+    if str(kind or "").strip().lower() in _FACT_YIELDING_KINDS:
+        return MemoryType.SEMANTIC
+    return MemoryType.EPISODIC
 
 
 class ReasoningMode(Enum):
@@ -114,6 +181,76 @@ class ReasoningRequest:
     # This keeps routing decisions cheap and avoids re-parsing the full
     # conversation when a structured task object already exists.
     task_metadata: Dict[str, Any] = field(default_factory=dict)
+
+    #: THE QUESTION AS ALREADY READ: a `derived_reader.Meaning`, bound to the
+    #: situation it was said in. A caller that read the query passes its reading
+    #: so it is never read twice; without one the bridge reads the query itself,
+    #: through the same engine.
+    reading: Optional[Any] = None
+
+
+#: Link kinds whose atom names the thing and what it is and drops the relation:
+#: to the solver, a kind, an instance and a property all say "x is y". A taught
+#: rule's clause and a held edge of any of them become one atom, so the rule
+#: fires on the fact whichever path admitted it.
+_ATOM_DROPS_RELATION = frozenset({"isa", "instance_of", "has_property"})
+
+
+def clause_atom(subject: str, relation: str, obj: Optional[str] = None,
+                positive: bool = True) -> Optional[str]:
+    """The signed atom for a clause given its STRUCTURED parts: the one
+    vocabulary held rules, held facts and read meanings are formalized into.
+
+    A clause here is a link kind between concepts, never English: it comes
+    from a meaning the engine read, a held rule's stored parts, or an edge of
+    the concept graph. Returns None when the parts are not one proposition (no
+    subject or relation, or a kind, instance or property with nothing named)."""
+    subject = (subject or "").strip()
+    rel = (relation or "").strip()
+    if not subject or not rel:
+        return None
+    obj = (obj or "").strip() or None
+    name, single = _lexical.normalise, _lexical.singularise
+    if rel.lower().replace(" ", "_") in _ATOM_DROPS_RELATION:
+        if not obj:
+            return None
+        atom = f"{name(subject)}_{single(name(obj))}"
+    elif obj is None:
+        atom = f"{single(name(subject))}_{single(name(rel))}"
+    else:
+        atom = f"{single(name(subject))}_{single(name(rel))}_{single(name(obj))}"
+    return atom if positive else f"~{atom}"
+
+
+def question_of(request: "ReasoningRequest") -> Optional[Any]:
+    """The meaning of the question: the caller's reading, or the engine's
+    reading of the query. None when the query is not one utterance read to one
+    meaning -- which one is meant is not the bridge's to decide."""
+    if request.reading is not None:
+        return request.reading
+    from core.semantics.derived_reader import read_text
+    utterances = read_text(str(request.query or ""))
+    if len(utterances) != 1 or not utterances[0].readings:
+        return None
+    readings = utterances[0].readings
+    if len({r.meaning.canonical() for r in readings}) > 1:
+        return None
+    return readings[0].meaning
+
+
+def goal_fact(meaning: Optional[Any]) -> Optional[Any]:
+    """The one fact to be decided, when the query is about one fact between
+    named things: asked yes or no ("is a robin a bird?"), or stated as the claim
+    to decide ("a robin is a bird"). Otherwise None."""
+    from core.semantics.derived_reader import is_variable
+    if meaning is None or meaning.act not in ("ask", "tell") or meaning.asked or meaning.condition:
+        return None
+    if len(meaning.facts) != 1:
+        return None
+    (fact,) = meaning.facts
+    if is_variable(fact.subject) or is_variable(fact.obj):
+        return None
+    return fact
 
 
 @dataclass
@@ -329,6 +466,20 @@ class PassthroughFormalizer(IFormalizer):
 
     name = "passthrough"
 
+    #: Any of these in the text is evidence a person wrote a FORMULA rather
+    #: than a word: a connective, a quantifier, a grouping, or a compound atom.
+    _FORMAL_MARKS = ("∧", "∨", "¬", "→", "↔", "∀", "∃", "(", ")", "->", "<->",
+                     "&", "|", "~", "_")
+    _FORMAL_WORDS = frozenset({"and", "or", "not", "implies", "iff", "forall",
+                               "exists", "xor"})
+
+    @classmethod
+    def _shows_formal_structure(cls, query: str) -> bool:
+        text = str(query).strip()
+        if any(mark in text for mark in cls._FORMAL_MARKS):
+            return True
+        return any(w.lower() in cls._FORMAL_WORDS for w in text.split())
+
     async def formalize(
         self,
         query: str,
@@ -347,19 +498,40 @@ class PassthroughFormalizer(IFormalizer):
                 error="query is not written in the formal grammar"
             )
 
+        # GRAMMATICAL IS NOT THE SAME AS FORMAL. A lone identifier parses --
+        # correctly, it is a propositional variable -- so every single English
+        # word was accepted here as an already-formal statement and never
+        # reached a reader at all. Measured: "why" was formalized as the
+        # proposition `why`, ahead of the whole chain.
+        #
+        # What makes input FORMAL is that it was WRITTEN in the grammar, and a
+        # bare word carries no evidence of that: no operator, no structure.
+        # A compound atom (`robin_bird`) does, and still passes.
+        if not self._shows_formal_structure(query):
+            return Formalization(
+                source=self.name,
+                succeeded=False,
+                error=f"{query!r} is a bare identifier, not a formal statement",
+            )
+
         # Context items that do not parse are dropped rather than guessed at.
         # This is sound: withholding a premise can only make a goal harder to
         # prove, never cause something false to be proved.
-        premises = [item for item in (context or []) if parser.is_formal(item)]
-        ignored = len(context or []) - len(premises)
+        kept = [item for item in (context or []) if parser.is_formal(str(item))]
+        ignored = len(context or []) - len(kept)
         if ignored:
             logger.debug(
                 f"passthrough formalizer ignored {ignored} non-formal context item(s)"
             )
 
+        # WHERE EACH PREMISE CAME FROM TRAVELS WITH IT, as the reading
+        # formalizer's does: how it reads, and its store identity, so a proof
+        # can say what it rested on by equality rather than by matching words.
         return Formalization(
             statement=str(query).strip(),
-            premises=premises,
+            premises=[str(item).strip() for item in kept],
+            premise_origins=[(getattr(item, "said", None) or str(item),
+                              getattr(item, "provenance", None)) for item in kept],
             source=self.name,
             succeeded=True,
             requires_model=False,
@@ -636,78 +808,76 @@ class DeterministicExtractor(IFormalizer):
 
 
 class DerivedReadingFormalizer(IFormalizer):
-    """Formalizes with readings the substrate derived, not ones anyone wrote.
+    """Formalizes English with what the substrate was TAUGHT it means: the one
+    reader (`derived_reader`), after formal input.
 
-    Consulted after the hand-written patterns and before any model, so it only
-    ever sees input the tested path declined -- and every input it covers is
-    one more reasoned about with the model untouched. `requires_model` stays
-    False, which is what makes the substrate-native share move for a reason
-    other than somebody adding a regex.
-
-    Declines where no registered reading applies, exactly as the extractor
-    does. A reading that produced something for every sentence would be
-    guessing, and a guess here becomes a premise the solver cannot doubt.
+    A sentence reads here only through constructions the substrate was taught
+    (a sentence with its meaning, or ones built from such pairs), and each fact
+    of the meaning becomes one atom (`clause_atom`). A premise already in the
+    formal grammar -- a held fact or rule the caller rendered as an atom -- is
+    taken as it is; only English is read. `requires_model` stays False.
     """
 
     name = "derived"
 
-    @staticmethod
-    def _atom(sentence: str) -> Optional[Tuple[str, str]]:
-        """The formal atom for one sentence, and which reading produced it."""
-        from core.semantics.reading_registry import get_reading_registry
-        from core.semantics.derived_reader import covers
+    @classmethod
+    def _atoms(cls, sentence: str) -> Optional[Tuple[List[str], str]]:
+        """Every formal atom a taught sentence states, and the constructions that read it.
 
-        for reading in get_reading_registry().readings():
-            try:
-                produced = reading.read(sentence)
-            except Exception as error:  # a derived procedure is still a program
-                logger.debug("derived reading %s failed on %r: %s",
-                             reading.name, sentence, error)
-                continue
-            if produced is None:
-                continue
-            subject, obj, polarity = produced
+        Declines when:
+          * nothing taught reads these words;
+          * the words were taught with more than one meaning -- which one is meant
+            is not this formalizer's to decide;
+          * the meaning is a request, which states nothing to assume or prove, or
+            a question that asks for a value rather than a yes or a no;
+          * a fact still holds a variable. The solver's language names things,
+            and "this shoe" or "some shoe" has no name here: the situation that
+            would name it did not come with the sentence.
 
-            # THE MACHINE ALWAYS EMITS. A reading that leaves content words
-            # behind did not read the sentence, it picked two words out of it --
-            # "what should I name my startup?" came back as (what, startup). The
-            # covers() residue guard turns that guess into a decline, so a
-            # sentence the reading does not account for reaches the solver as
-            # nothing rather than as a fabricated premise.
-            accounted, _residue = covers(sentence, subject, obj)
-            if not accounted:
-                logger.debug("derived reading left content words behind on %r",
-                             sentence)
-                continue
+        A conditional is ONE premise, its condition implying the rest: it states
+        none of its facts outright, so none of them is an atom of its own. Of
+        alternatives, one holds: they are one disjunction, never atoms apart.
+        """
+        from core.semantics.derived_reader import is_variable, read
 
-            # A DERIVED READING IS STILL SUBJECT TO REPRESENTABILITY.
-            #
-            # The reading says WHAT the sentence relates; genericity says
-            # whether the formal grammar can carry that relation. They are
-            # separate stages on purpose, and skipping the second here let the
-            # learned reader do exactly what the hand-written patterns had just
-            # been stopped from doing: "a robin is in the yard" came back as
-            # `robin_yard`, which reads `robin` as a named individual when the
-            # sentence says SOME robin. The existential quantification was
-            # dropped silently, and the atom asserted something about the kind.
-            #
-            # Measured at the time: patterns declined it and the derived reader
-            # did not, so removing the patterns would have reintroduced the
-            # overgeneralisation through the other reader.
-            #
-            # This adds no pattern and no wording knowledge. It applies the
-            # representability rule the substrate already owns to whatever the
-            # reading produced.
-            determiner, complement = _subject_and_complement(sentence, subject)
-            reading_kind = classify_genericity(subject, complement, determiner)
-            if not reading_kind.is_representable:
-                logger.info("derived reading declined %r: %s", sentence,
-                            unrepresentable_reason(reading_kind.genericity))
-                continue
+        readings = read(sentence)
+        if not readings:
+            return None
+        if len({r.meaning.canonical() for r in readings}) > 1:
+            logger.debug("%r was taught with %d meanings; not choosing between them",
+                         sentence, len(readings))
+            return None
+        reading = readings[0]
+        meaning = reading.meaning
+        if meaning.act == "request" or meaning.asked:
+            return None
 
-            atom = f"{subject}_{obj}"
-            return (atom if polarity == "affirms" else f"~{atom}"), reading.name
-        return None
+        def atoms_of(facts) -> Optional[List[str]]:
+            """One atom per fact; alternatives are ONE disjunction."""
+            out: List[str] = []
+            either: List[str] = []
+            for fact in facts:
+                if is_variable(fact.subject) or is_variable(fact.obj):
+                    return None
+                atom = clause_atom(fact.subject, fact.relation, fact.obj,
+                                   positive=fact.positive)
+                if atom is None:
+                    return None
+                (either if fact.alternative else out).append(atom)
+            if either:
+                out.append(f"({' | '.join(either)})")
+            return out
+
+        asserted = atoms_of(meaning.asserted)
+        if asserted is None:
+            return None
+        if meaning.condition:
+            condition = atoms_of(meaning.condition)
+            if condition is None:
+                return None
+            return ([f"({' & '.join(condition)}) -> ({' & '.join(asserted)})"],
+                    f"pattern:{reading.key}")
+        return asserted, f"pattern:{reading.key}"
 
     async def formalize(self, query: str,
                         context: Optional[List[str]] = None) -> Formalization:
@@ -716,9 +886,23 @@ class DerivedReadingFormalizer(IFormalizer):
         A sentence is worth reading wherever it appears; formalizing only the
         question would offer the solver a goal with nothing to prove it from.
         """
+        from core.reasoning.logical_integration import LogicalFormulaParser
+        parser = LogicalFormulaParser()
         premises, used, surface = [], [], []
+        origins: List[tuple] = []
         for sentence in (context or []):
-            read = self._atom(sentence)
+            # THE PREMISE OBJECT IS KEPT, the string is only what gets read. A
+            # caller that knows where its premise came from passes that through;
+            # coercing to a string here is where that was lost.
+            origin = (getattr(sentence, "said", None) or str(sentence),
+                      getattr(sentence, "provenance", None))
+            text = str(sentence)
+            if PassthroughFormalizer._shows_formal_structure(text) and parser.is_formal(text):
+                # Already in the formal grammar: a held fact or rule, not English.
+                premises.append(text.strip())
+                origins.append(origin)
+                continue
+            read = self._atoms(text)
             if read is None:
                 # A CONTEXT SENTENCE THAT CANNOT BE READ IS NOT DROPPED. Dropping
                 # it would hand the solver an incomplete premise set, and a
@@ -728,24 +912,106 @@ class DerivedReadingFormalizer(IFormalizer):
                 # the deterministic extractor does.
                 return Formalization(
                     succeeded=False, source=self.name,
-                    error=f"context sentence not readable by any derived "
-                          f"reading: {sentence!r}")
-            premises.append(read[0])
+                    error=f"context sentence was not taught with its meaning: "
+                          f"{sentence!r}")
+            premises.extend(read[0])
+            origins.extend([origin] * len(read[0]))
             used.append(read[1])
-            surface.append(sentence)
+            surface.append(str(sentence))
 
-        goal = self._atom(query)
+        goal = self._atoms(query)
         if goal is None:
             return Formalization(
                 succeeded=False, source=self.name,
-                error="no derived reading applied to this input")
+                error="this input was not taught with its meaning")
+        if len(goal[0]) != 1:
+            # A GOAL IS ONE CLAIM. A query stating several does not say which
+            # is to be proved, and picking one would answer a question nobody
+            # asked.
+            return Formalization(
+                succeeded=False, source=self.name,
+                error=f"the goal states {len(goal[0])} claims; a goal must be one")
 
         return Formalization(
-            statement=goal[0], premises=premises,
+            statement=goal[0][0], premises=premises, premise_origins=origins,
             source=f"{self.name}:{goal[1]}", succeeded=True,
             requires_model=False, surface_text=[query] + surface,
             transformations=[f"read by {name}" for name in dict.fromkeys([goal[1]] + used)],
         )
+
+
+class SegmentedReadingFormalizer(IFormalizer):
+    """A sentence as the CLAIMS IT CARRIES, not as one claim.
+
+    LAST IN THE CHAIN, DELIBERATELY. Every reader before this one judges a
+    sentence whole, which is right for a conditional or a universal and hopeless
+    for ordinary prose: a twenty-five word sentence is two or three claims
+    wearing one full stop, and reading it whole means refusing all of them.
+    Measured before this existed: 0 of 86 sentences of nineteen words or more
+    produced any reading at all.
+
+    `read_all` decides where one claim ends -- stripping parentheticals, breaking
+    at a dash or colon, splitting subordinate and coordinated clauses, pulling
+    out embedded relatives -- and then the ORDINARY single-clause reader judges
+    each piece on its own merits and refuses the pieces that are still not
+    claims. Segmentation being a separate question from reading is what lets the
+    reader stay strict while coverage grows.
+
+    It runs only on input every stricter reader declined, so it can never change
+    how a sentence that already read is read.
+    """
+
+    name = "segmented"
+
+    _reader = SentenceReader()
+
+    @classmethod
+    def _atoms(cls, sentence: str) -> List[str]:
+        atoms: List[str] = []
+        for part in cls._reader.read_all(str(sentence)):
+            atom = cls._reader.clause_atom(
+                part.get("subject") or "", part.get("relation") or "is",
+                part.get("obj"), positive=bool(part.get("positive", True)))
+            if atom and atom not in atoms:
+                atoms.append(atom)
+        return atoms
+
+    async def formalize(self, query: str,
+                        context: Optional[List[str]] = None) -> Formalization:
+        premises, surface = [], []
+        origins: List[tuple] = []
+        for sentence in (context or []):
+            origin = (str(sentence), getattr(sentence, "provenance", None))
+            found = self._atoms(str(sentence))
+            if not found:
+                # An unreadable premise declines the whole request, exactly as
+                # the other formalizers do: a silently dropped premise is the
+                # one failure the solver cannot detect.
+                return Formalization(
+                    source=self.name, succeeded=False,
+                    error=f"no clause of {sentence!r} reads as a claim")
+            premises.extend(found)
+            origins.extend([origin] * len(found))
+            surface.append(str(sentence))
+
+        goal = self._atoms(query)
+        if not goal:
+            return Formalization(
+                source=self.name, succeeded=False,
+                error="no clause of this input reads as a claim")
+        if len(goal) != 1:
+            # A GOAL IS ONE CLAIM. A query carrying several does not say which is
+            # to be proved.
+            return Formalization(
+                source=self.name, succeeded=False,
+                error=f"the goal carries {len(goal)} claims; a goal must be one")
+
+        return Formalization(
+            statement=goal[0], premises=premises, statements=list(goal),
+            premise_origins=origins,
+            source=self.name, succeeded=True, requires_model=False,
+            surface_text=[query] + surface,
+            transformations=["segmented into clauses"])
 
 
 class FormalizerChain(IFormalizer):
@@ -1380,16 +1646,10 @@ class NeuralSymbolicBridge:
             except Exception as e:
                 logger.error("reasoning subsystem ownership wiring failed: %s", e)
 
-            # The subject-object derived reading is NOT built here. Its derivation
-            # is a combinatorial policy search (procedure_synthesis._search_policies)
-            # that runs for MINUTES and pegs a core; on the init path -- sync OR in
-            # a background thread -- it starved every later startup phase through the
-            # GIL and, when synchronous, froze the boot outright. It is not needed
-            # for the substrate to come up (the live reader is SentenceReader), so it
-            # is deferred to AFTER startup: `TorinAISystem.start()` runs
-            # `derived_reader.register_off_process()`, which rehydrates a cached
-            # derivation or searches in a separate process. The registry reports
-            # an honest empty until that finishes.
+            # Nothing is derived for reading at startup. What the substrate was
+            # taught a sentence means is held in memory as patterns and warmed
+            # with the word classes (`MemoryAgent.initialize`), so the derived
+            # reading has nothing to search for and nothing to wait on.
 
             # Restore measured reasoning difficulty from the durable store, and
             # register its periodic flush on the queue authority (cadence lives
@@ -1429,24 +1689,20 @@ class NeuralSymbolicBridge:
         difference that is invisible until someone asks why the record looks
         the way it does.
 
-        The two conditions on capture are unchanged and both matter:
+        Capture is for a standalone call (`cached_memories is None`). A completed
+        task's outcome is captured once at task end, as the task's memory, which
+        the pool queues (`_store_task_outcome_meta_memory`); storing each iteration would pay for
+        embeddings and a pgvector search per turn to write records the filter
+        mostly declines anyway.
 
-            result.answer      an empty answer is a refusal, and storing "the
-                               substrate could not represent this" as a
-                               semantic memory would fill the store with
-                               non-answers.
-
-            cached_memories is None
-                               a standalone call. A completed task's outcome is
-                               captured once at task end by the memory agent
-                               (memory_agent.capture_task_outcome); storing each
-                               iteration would pay for embeddings and a pgvector
-                               search per turn to write records the filter mostly
-                               declines anyway.
+        A refusal (an empty answer) is captured as an experience -- what the
+        substrate could not represent is a challenge it met -- and is never
+        remembered as a memory: storing "the substrate could not represent this"
+        as a semantic memory would fill the store with non-answers.
         """
         self._update_stats(request, result)
 
-        if self.memory_agent and result.answer and request.cached_memories is None:
+        if self.memory_agent and request.cached_memories is None:
             asyncio.create_task(self._capture_reasoning_memory(request, result))
 
         return result
@@ -1479,7 +1735,7 @@ class NeuralSymbolicBridge:
             shape = {"reasoning_mode": mode, "engaged": True}
             content = {"aim": (request.query or "")[:500],
                        "query": request.query or "",
-                       "context": list(request.context or [])}
+                       "context": [str(c) for c in (request.context or [])]}
             if md.get("topic"):
                 content["topic"] = str(md["topic"])
             return await get_intent_authority().form(
@@ -1660,7 +1916,8 @@ class NeuralSymbolicBridge:
 
                 injected = await injector.inject_memories(
                     query=search_query,
-                    config=config
+                    config=config,
+                    actor=(request.task_metadata or {}).get("actor"),
                 )
 
                 # ONE CONTEXT ITEM, ONE CLAIM.
@@ -1734,7 +1991,7 @@ class NeuralSymbolicBridge:
                     and (substrate.metadata or {}).get("reason")
                         in (REASON_SUBSTRATE_REFUTED, REASON_SUBSTRATE_VERIFIED)
                     and (request.kinds
-                         or kinds_of_thinking_for(request.query)
+                         or kinds_of_thinking_for(question_of(request))
                          or any(_is_implication(str(c)) and "?" in str(c)
                                 for c in (request.context or [])))):
                 # ...or the context carries a PREDICATE rule (a variable,
@@ -1885,16 +2142,27 @@ class NeuralSymbolicBridge:
                 get_argumentation_system,
             )
 
+            from core.memory import Origin
+            # WHOSE ARGUMENT: a person's answer and premises are theirs, kept in
+            # their context. Where the request does not say, it is checked and
+            # kept by no one.
+            actor = (getattr(request, "task_metadata", None) or {}).get("actor") \
+                if request is not None else None
             system = get_argumentation_system()
             await system.load()   # prior claims/arguments (Postgres-backed), non-fatal
-            claim = system.create_claim(statement=answer.strip()[:500])
+            claim = system.create_claim(
+                statement=answer.strip()[:500],
+                owner=Origin.of(actor, "argument").person if actor else None)
             argument = system.create_argument(
                 claim,
                 premises=[str(c) for c in (getattr(request, "context", None) or [])],
                 argument_type=ArgumentType.DEDUCTIVE,
             )
             fallacies = system.detect_fallacies(argument)
-            await system.persist()   # to the unified Postgres DB, off critical path
+            if actor:
+                await system.persist()   # to the unified Postgres DB, off critical path
+            else:
+                system.forget(argument)
         except Exception as e:
             logger.debug(f"Fallacy detection unavailable: {e}")
             return None
@@ -1929,7 +2197,7 @@ class NeuralSymbolicBridge:
 
         try:
             formalization = await self._get_deterministic_formalizer().formalize(
-                answer, request.context
+                answer, list(request.context or [])
             )
         except Exception as e:
             logger.debug(f"Formalizability check unavailable: {e}")
@@ -1957,7 +2225,7 @@ class NeuralSymbolicBridge:
         """
         try:
             formalization = await self._get_deterministic_formalizer().formalize(
-                answer, request.context
+                answer, list(request.context or [])
             )
             if not formalization.succeeded:
                 return None
@@ -2133,7 +2401,6 @@ class NeuralSymbolicBridge:
     #: typed reader handles single-word subjects; a subclass question about a
     #: multi-word technical term needs its own shallow parse to reach the
     #: sense-exact taxonomy.
-    _SUBCLASS_Q = None  # compiled lazily below
 
     async def _answer_over_sense_taxonomy(
         self, request: ReasoningRequest
@@ -2147,15 +2414,10 @@ class NeuralSymbolicBridge:
         collective sense of a word like "group" would answer instead. A term the
         taxonomy does not hold is common-sense and left entirely to the concept
         graph."""
-        import re
-        if NeuralSymbolicBridge._SUBCLASS_Q is None:
-            NeuralSymbolicBridge._SUBCLASS_Q = re.compile(
-                r"^\s*(?:is|are)\s+(?:an?\s+|the\s+)?(?P<child>.+?)\s+"
-                r"(?:an?\s+|the\s+)(?P<parent>.+?)\s*\??\s*$", re.IGNORECASE)
-        m = NeuralSymbolicBridge._SUBCLASS_Q.match(str(request.query))
-        if not m:
+        fact = goal_fact(question_of(request))
+        if fact is None or fact.relation not in ("isa", "instance_of") or not fact.positive:
             return None
-        child, parent = m.group("child").strip(), m.group("parent").strip()
+        child, parent = fact.subject, fact.obj
         try:
             from core.database import get_database_manager
             from core.reasoning.sense_taxonomy import is_subclass
@@ -2199,29 +2461,18 @@ class NeuralSymbolicBridge:
         except Exception as e:
             logger.debug("concept-graph deps unavailable: %s", e)
             return None
-        # ONE reader, no fallback. The query is read by the SAME reader the
-        # teaching path uses (`sentence_reader`), so a multi-word subject reads at
-        # query time exactly as it did when learned -- "the Klein four-group is an
-        # abelian group" is teachable and "is the Klein four-group a solvable
-        # group?" is answerable, symmetrically. A copular "is/are (a) Y" question
-        # is an ISA query; any other relation is mapped to its typed name, and a
-        # relation the graph's algebra does not type is an honest "not this path".
-        from core.semantics.sentence_reader import SentenceReader
+        # ONE reader, no fallback: the question's meaning (`question_of`), read
+        # through the same constructions the teaching path learned, so a name
+        # reads at query time exactly as it did when it was taught. A meaning is
+        # written in the domain system's link kinds, so the relation needs no
+        # typing here; a question about anything but one fact between named
+        # things is an honest "not this path".
         from core.semantics.relation_types import SemanticRelation as _SR
-        _sr = SentenceReader()
-        goal = _sr._parse_goal(request.query)
-        cp = _sr.clause_parts(goal) if goal else None
-        if not cp or not cp.get("obj"):
+        fact = goal_fact(question_of(request))
+        if fact is None or not fact.positive:
             return None
-        subj, obj = cp["subject"], cp["obj"]
-        rel_surface = str(cp.get("relation", "")).strip().lower().replace(" ", "_")
-        if rel_surface in ("is", "are", "isa", "is_a"):
-            relation = _SR.ISA
-        else:
-            try:
-                relation = _SR(rel_surface)
-            except ValueError:
-                return None
+        subj, obj = fact.subject, fact.obj
+        relation = _SR(fact.relation)
         try:
             from core.database import get_database_manager
             db = get_database_manager()
@@ -2283,9 +2534,7 @@ class NeuralSymbolicBridge:
             # such belief, so this restores recall on taught facts WITHOUT
             # reintroducing confabulation on the unsupported.
             try:
-                import re as _re
-                _s = _re.sub(r'^(?:a|an|the)\s+', '', str(subj).strip(), flags=_re.I)
-                _o = _re.sub(r'^(?:a|an|the)\s+', '', str(obj).strip(), flags=_re.I)
+                _s, _o = str(subj).strip(), str(obj).strip()
                 brows = await db.execute_query(
                     "SELECT posterior_probability AS p FROM unified.beliefs "
                     "WHERE lower(claim) = $1 ORDER BY posterior_probability DESC LIMIT 1",
@@ -2342,15 +2591,36 @@ class NeuralSymbolicBridge:
         # carried in metadata["chain"] for callers that want to render it their
         # own way. A single-edge (directly observed) answer has no chain to show.
         chain_nodes: List[str] = []
+        # WHAT EACH HOP RESTS ON. Parallel to the hops (one entry per edge in the
+        # path), the evidence envelopes that asserted that edge. The chain names
+        # the concepts it walked through; this names the facts that licensed each
+        # step, which is what "what did this answer rest on" actually asks.
+        chain_evidence: List[List[str]] = []
         derivation = getattr(ans, "derivation", None)
         path = getattr(derivation, "path", None) if derivation is not None else None
         if path:
             chain_nodes = [str(path[0].subject).replace("_", " ")] + \
                           [str(edge.obj).replace("_", " ") for edge in path]
+            chain_evidence = [list(getattr(edge, "evidence", ()) or ())
+                              for edge in path]
         if len(chain_nodes) >= 2:
             steps.append("chain: " + " → ".join(chain_nodes))
         elif derivation is not None:
             steps.append(str(derivation))
+        # REASONING CONSUMED THESE FACTS, and this is the one place that knows
+        # exactly which: each hop's evidence is what the derivation rested on.
+        # Recorded by the envelope ids themselves, the key the relation row, the
+        # envelope and the knowledge update all share -- so the ledger can answer
+        # "what faculty used this fact" for reasoning, not only for coverage.
+        # Never allowed to break the answer: the derivation stands on its own.
+        used_evidence = [e for hop in chain_evidence for e in hop]
+        if used_evidence:
+            try:
+                from core.memory import knowledge_ledger as _ledger
+                await _ledger.mark_consumed_by_evidence(db, used_evidence, "reasoning")
+            except Exception as error:
+                logger.debug("reasoning's use of %d fact(s) not recorded: %s",
+                             len(used_evidence), error)
         return ReasoningResult(
             answer=f"{'Yes' if yes else 'No'}: {subj} {relation.value} {obj}",
             confidence=0.95 if ans.basis == "observed" else 0.85,
@@ -2365,6 +2635,7 @@ class NeuralSymbolicBridge:
                 "model_available": self._model_available(),
                 "route": ["substrate", "concept_graph", ans.verdict],
                 "chain": chain_nodes,
+                "chain_evidence": chain_evidence,
             },
         )
 
@@ -2396,12 +2667,10 @@ class NeuralSymbolicBridge:
             logger.debug("held-rule deps unavailable: %s", e)
             return None
 
-        reader = SentenceReader()
-        goal_node = reader._parse_goal(str(request.query))
-        goal_parts = reader.clause_parts(goal_node) if goal_node else None
-        if not goal_parts:
+        fact = goal_fact(question_of(request))
+        if fact is None:
             return None  # not a single-clause question this path can carry
-        goal_atom = reader.clause_atom(**goal_parts)
+        goal_atom = clause_atom(fact.subject, fact.relation, fact.obj, fact.positive)
         if not goal_atom:
             return None
 
@@ -2414,12 +2683,12 @@ class NeuralSymbolicBridge:
 
         implications: List[str] = []
         rule_atoms: set = set()          # unsigned atoms any rule speaks of
-        subjects: set = {reader._normalize(goal_parts["subject"])}
+        subjects: set = {_lexical.normalise(fact.subject)}
         for c in conds:
-            ant_atom = reader.clause_atom(
+            ant_atom = clause_atom(
                 c.get("ant_subject"), c.get("ant_relation"),
                 c.get("ant_object"), bool(c.get("ant_positive", True)))
-            cons_atom = reader.clause_atom(
+            cons_atom = clause_atom(
                 c.get("cons_subject"), c.get("cons_relation"),
                 c.get("cons_object"), bool(c.get("cons_positive", True)))
             if not ant_atom or not cons_atom:
@@ -2429,7 +2698,7 @@ class NeuralSymbolicBridge:
                                (cons_atom, c.get("cons_subject"))):
                 rule_atoms.add(_unsigned(atom))
                 if subj:
-                    subjects.add(reader._normalize(subj))
+                    subjects.add(_lexical.normalise(subj))
         if not implications:
             return None
 
@@ -2456,7 +2725,7 @@ class NeuralSymbolicBridge:
         for edge in (edges or []):
             rel = edge.relation.value if hasattr(edge.relation, "value") \
                 else str(edge.relation)
-            atom = reader.clause_atom(str(edge.subject), rel, str(edge.obj), True)
+            atom = clause_atom(str(edge.subject), rel, str(edge.obj), True)
             if atom and _unsigned(atom) in wanted:
                 fact_atoms.append(atom)
         if not fact_atoms:
@@ -2475,21 +2744,20 @@ class NeuralSymbolicBridge:
         # the route and surface the fired rule as a readable chain.
         md = dict(result.metadata or {})
         md["route"] = ["substrate", "held_rules", "proved"]
-        chain = self._held_rule_chain(reader, conds, goal_atom)
+        chain = self._held_rule_chain(conds, goal_atom)
         if chain:
             md["chain"] = chain
         result.metadata = md
         return result
 
     @staticmethod
-    def _held_rule_chain(reader: "SentenceReader", conds: List[Dict[str, Any]],
-                         goal_atom: str) -> List[str]:
+    def _held_rule_chain(conds: List[Dict[str, Any]], goal_atom: str) -> List[str]:
         """A readable two-node chain for the rule whose consequent is the goal —
         `["valve is closed", "the tank overflows"]` — so a proof over taught
         rules can SHOW which rule fired, not just that one did."""
         goal = goal_atom.lstrip("~")
         for c in conds:
-            cons_atom = reader.clause_atom(
+            cons_atom = clause_atom(
                 c.get("cons_subject"), c.get("cons_relation"),
                 c.get("cons_object"), bool(c.get("cons_positive", True)))
             if cons_atom and cons_atom.lstrip("~") == goal:
@@ -2536,18 +2804,11 @@ class NeuralSymbolicBridge:
             logger.debug("induced-rule deps unavailable: %s", e)
             return None
 
-        reader = SentenceReader()
-        goal_node = reader._parse_goal(str(request.query))
-        goal_parts = reader.clause_parts(goal_node) if goal_node else None
-        if not goal_parts:
+        fact = goal_fact(question_of(request))
+        if fact is None or fact.relation not in ("isa", "instance_of") or not fact.positive:
             return None
-        import re as _re
-        subject = reader._normalize(goal_parts.get("subject") or "")
-        # Strip a leading article the reader keeps on the complement ("a stopsign"),
-        # so the queried category matches the induced rule's head predicate.
-        obj = _re.sub(r"^(?:a|an|the)\s+", "",
-                      str(goal_parts.get("obj") or "").strip(), flags=_re.I)
-        category = predicate_name(obj)
+        subject = _lexical.normalise(fact.subject)
+        category = predicate_name(fact.obj)
         if not subject or not category:
             return None
 
@@ -2706,7 +2967,7 @@ class NeuralSymbolicBridge:
 
         try:
             formalization = await self._get_deterministic_formalizer().formalize(
-                request.query, request.context
+                self._formal_query(request), list(request.context or [])
             )
         except Exception as e:
             logger.warning(f"Deterministic formalization failed: {e}")
@@ -2738,18 +2999,28 @@ class NeuralSymbolicBridge:
         return None
 
     def _get_deterministic_formalizer(self) -> IFormalizer:
-        """Formalizers that require no model at all.
+        """Formalizers that require no model at all: formal input as it is,
+        else English through the one reader (`derived_reader`).
 
         This is what the substrate-first router probes with, so the probe never
-        enters the model call graph. The deterministic extractor registers here
-        as it grows, which continuously shrinks the set of inputs that need
-        model-backed coverage without any downstream contract changing.
+        enters the model call graph.
         """
         return FormalizerChain([
             PassthroughFormalizer(),
-            DeterministicExtractor(),
             DerivedReadingFormalizer(),
         ])
+
+    @staticmethod
+    def _formal_query(request: ReasoningRequest) -> str:
+        """The query as the solver takes it: the goal's atom when the caller's
+        reading asks about one fact between named things, else the query as it
+        was said, for the formalizers to read."""
+        fact = goal_fact(request.reading) if request.reading is not None else None
+        if fact is not None:
+            atom = clause_atom(fact.subject, fact.relation, fact.obj, fact.positive)
+            if atom:
+                return atom
+        return str(request.query)
 
     async def _symbolic_reasoning(
         self,
@@ -2777,7 +3048,7 @@ class NeuralSymbolicBridge:
                 # substrate cannot formalize is reported as unformalizable, not
                 # handed to a model to read.
                 formalization = await self._get_deterministic_formalizer().formalize(
-                    request.query, request.context
+                    self._formal_query(request), list(request.context or [])
                 )
         except Exception as e:
             logger.error(f"Formalization failed: {e}")
@@ -2929,6 +3200,29 @@ class NeuralSymbolicBridge:
                 "proved": bool(proof.proved),
                 "statement": formalization.statement,
                 "premises": list(formalization.premises),
+                # PARALLEL TO `premises`: what each atom came from, as
+                # (surface, provenance). A proof step names the ATOM, so this is
+                # what lets a caller say which stored concept or memory the
+                # proof actually rested on instead of matching content words.
+                "premise_origins": list(formalization.premise_origins),
+                # Indices into `premises` the refutation actually NEEDED (the
+                # solver's minimised unsat core). None = not computed; [] = the
+                # goal needed no premise. Only these carry `[Premise]` in the
+                # steps, so "the proof rested on X" now means what it says.
+                "premises_used": getattr(proof, "premises_used", None),
+                # THE DERIVATION, when natural deduction reached the goal too:
+                # every step names its rule and the steps it came from, so a
+                # caller can SHOW why the verdict holds and re-check it without
+                # trusting either prover. `agreement` says how the two stood --
+                # "solver_only" means the verdict is right and no step-by-step
+                # account exists within these rules.
+                "derivation": [f"{s.step_number}. {s.statement}  [{s.justification}]"
+                               + (f" from {s.metadata['from']}"
+                                  if (s.metadata or {}).get("from") else "")
+                               for s in (getattr(proof, "derivation", None) or [])],
+                "derivation_method": (proof.derivation_method.value
+                                      if getattr(proof, "derivation_method", None) else None),
+                "agreement": getattr(proof, "agreement", None),
                 "proof_error": proof.error,
             },
         )
@@ -3137,7 +3431,7 @@ class NeuralSymbolicBridge:
         # PROPOSE: derive candidates once; the engine is deterministic, so
         # revision walks down these by confidence rather than re-deriving.
         kinds = (list(request.kinds)
-                 or list(kinds_of_thinking_for(request.query))
+                 or list(kinds_of_thinking_for(question_of(request)))
                  or list(CLASSICAL_REASONING_TYPES))
         try:
             engine = create_abstract_reasoning_engine()
@@ -3504,6 +3798,7 @@ class NeuralSymbolicBridge:
             context_id=f"kinds_{uuid.uuid4().hex[:12]}",
             domain=str((request.task_metadata or {}).get("domain") or "general"),
             problem_type="reasoning_request",
+            actor=(request.task_metadata or {}).get("actor"),
             # THE CONTEXT IS SPLIT BY WHAT EACH ITEM IS.
             #
             # A flat list of strings was not enough. Abduction searches
@@ -3513,7 +3808,16 @@ class NeuralSymbolicBridge:
             # nothing and fell through to a model. Measured: "what best explains
             # the wet lawn?" with `rained -> lawn_wet` in context reached the
             # model, while abduction sat registered and applicable.
+            # A PREMISE THE CALLER ALREADY IDENTIFIED KEEPS ITS IDENTITY. The
+            # substrate builds premises out of concepts it resolved and memories
+            # it recalled, each of which HAS a store id at the moment it is read;
+            # re-wrapping them as `ctx{i}` strings here is where that was thrown
+            # away, and it is why attributing support had to fall back to
+            # matching content words. A bare string still becomes an anonymous
+            # premise -- it has no stored origin, which `provenance=None` says
+            # honestly rather than guessing one.
             premises=[
+                item if isinstance(item, ReasoningPremise) else
                 ReasoningPremise(premise_id=f"ctx{i}", statement=str(item),
                                  confidence=1.0, source="request_context")
                 for i, item in enumerate(request.context or ())
@@ -3606,7 +3910,7 @@ class NeuralSymbolicBridge:
             return None
 
         kinds = (list(request.kinds)
-                 or list(kinds_of_thinking_for(request.query))
+                 or list(kinds_of_thinking_for(question_of(request)))
                  or list(CLASSICAL_REASONING_TYPES))
 
         # PREFER kinds that have SETTLED queries before: order by measured quality
@@ -3821,13 +4125,67 @@ class NeuralSymbolicBridge:
 
     async def _capture_reasoning_memory(self, request: ReasoningRequest, result: ReasoningResult) -> None:
         """
-        Persist a reasoning trace to the memory agent (background task, never raises).
+        Hand a reasoning to the memory agent (background task, never raises): the
+        whole of it as an experience, which waits in the pool as a candidate, and,
+        when it answered, its trace as a memory.
 
         The memory filter decides whether the trace is worth keeping — trivial
         single-step responses are rejected automatically, complex multi-step
         reasoning with high confidence is retained.
         """
         try:
+            # WHOSE CONCLUSION THIS IS. A question reasoned FOR A USER chains
+            # over that user's scoped context (the graph overlay), so what it
+            # concludes can rest on facts no one else holds. Written unowned, it
+            # became the substrate's memory, and every other user's recall read
+            # it back as a premise -- the user's context leaking into the shared
+            # mind through the reasoning record (measured 2026-09-26,
+            # SYSTEM-CONVERSATION-01: "Yes: vexmorqa isa a mammal", told in one
+            # session, stored with no owner).
+            from core.memory import Experience, Origin, Part
+            actor = (request.task_metadata or {}).get("actor")
+            if not actor:
+                # Whose reasoning this was is unknown, so it is not remembered as
+                # anyone's -- least of all the substrate's own, which is where a
+                # person's question used to land when nobody said.
+                logger.info("reasoning not kept: the request does not say "
+                            "whose reasoning it is (task_metadata['actor'])")
+                return
+            origin = Origin.of(actor, "reasoning")
+
+            # THE EXPERIENCE, WHOLE. The question, what it was given to reason
+            # with, and the answer are the asker's -- and so is every premise that
+            # came from them: what they told (`context`), a caller's own sentence,
+            # and a recalled memory, whose owner the premise does not carry. What
+            # the substrate holds (a concept, a rule, a belief) and the steps it
+            # took are its own.
+            md = request.task_metadata or {}
+            held = ("concept", "concept_incoming", "rule", "belief")
+            parts = [Part("question", request.query, origin.theirs)]
+            for given in (request.image, request.video):
+                if given is not None:
+                    parts.append(Part("image", str(given), origin.material))
+            for premise in (request.context or []):
+                kind = getattr(premise, "provenance_kind", None)
+                parts.append(Part("premise", {"statement": str(premise), "kind": kind,
+                                              "ref": getattr(premise, "provenance", None)},
+                                  "substrate" if kind in held else origin.theirs))
+            parts += [Part("step", str(step), "substrate")
+                      for step in (result.reasoning_steps or [])]
+            if result.answer:
+                parts.append(Part("answer", result.answer, origin.theirs))
+            meta = result.metadata or {}
+            await self.memory_agent.remember_experience(Experience(
+                kind="reasoning", origin=origin, parts=tuple(parts),
+                evidence={"outcome": meta.get("reason")
+                          or ("verified" if meta.get("verified") else "unverified"),
+                          "confidence": result.confidence, "kind": meta.get("kind"),
+                          "mode": getattr(result.mode_used, "value", None)},
+                about=str(md.get("goal_id") or md.get("thread_id") or md.get("conversation_id")
+                          or md.get("session_id") or md.get("task_id") or "") or None))
+
+            if not result.answer:
+                return
             complexity = self._calculate_complexity_score(request, result)
 
             # Skip traces that are almost certainly noise (very low complexity + low confidence)
@@ -3872,17 +4230,23 @@ class NeuralSymbolicBridge:
             if len(result.reasoning_steps) >= 3:
                 tags.append("multi_step")
 
-            # Memory type: import lazily to avoid circular imports at module load
-            try:
-                import importlib
-
-                memory_models = importlib.import_module("core.memory.models")
-                MemoryType = getattr(memory_models, "MemoryType", None)
-                if MemoryType is None:
-                    raise AttributeError("MemoryType not available")
-                mem_type = MemoryType.REASONING if len(result.reasoning_steps) >= 2 else MemoryType.EPISODIC
-            except Exception:
-                mem_type = None  # memory agent will infer
+            # WHAT KIND OF THING THIS CONCLUSION IS.
+            #
+            # This block imported `core.memory.models`, which does not exist,
+            # and asked it for `MemoryType.REASONING`, which is not a member of
+            # the enum. Both failures were caught by a bare `except Exception`
+            # that set `mem_type = None`, so the bridge never typed a single
+            # memory it wrote -- every one fell through to inference, which
+            # keys on `source_system` (the bridge writes `source`), missed, and
+            # took its EPISODIC default. The outcome was accidentally right and
+            # the mechanism was entirely dead.
+            #
+            # The bridge is the one that knows, so the bridge decides: it has
+            # the kind of thinking that settled the question, which is what
+            # says whether the answer is a general fact or something weaker.
+            mem_type = _memory_type_for(
+                (result.metadata or {}).get("kind"),
+                verified=bool((result.metadata or {}).get("verified")))
 
             # Use enqueue_memory() — non-blocking fire-and-forget.
             # The write queue worker in MemoryAgent will persist this
@@ -3918,6 +4282,7 @@ class NeuralSymbolicBridge:
                     "conclusion_kind": (result.metadata or {}).get("kind"),
                 },
                 reasoning_trace=result.reasoning_steps,
+                origin=origin,
             )
             logger.debug(f"Reasoning trace enqueued (importance={importance:.2f})")
 

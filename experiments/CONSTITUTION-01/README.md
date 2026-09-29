@@ -20,3 +20,5 @@ It covers:
 
 **Results.** Every run is saved in `results/` (JSON plus a `.md` summary). Latest: 2026-09-16, 39/39
 (`results/20260916T155738Z.md`). Record: `docs/research/BENCHMARKS.md` §1.1.
+**2026-09-28: 39/39.** The hand-written filesystem domain was deleted. This now plans over an operator the substrate learned from its own acts in `tools:path` (taught by `experiments/fs_move_teach.py` if the store has none), and states its goal in perception's words: `KIND(<path>, Ffile)`, and `¬KIND(...)` for "no longer there".
+

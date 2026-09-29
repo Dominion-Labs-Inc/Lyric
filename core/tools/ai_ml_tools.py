@@ -1100,11 +1100,25 @@ class StoreMemoryTool(Tool):
             logger.debug(f"  Tags: {tags}")
             logger.debug(f"  Importance: {importance}")
 
+            # WHOSE MEMORY: whose run this is, as the tool registry holds it for a
+            # run inside a task. A run no task is behind names no one, and a
+            # memory is not filed as the substrate's own for want of an owner.
+            from core.memory import Origin
+            from core.reasoning.intent_authority import get_acting_actor
+            actor = get_acting_actor()
+            if not actor:
+                return ToolResult(
+                    success=False,
+                    output=None,
+                    error=("store_memory was run outside anyone's work, so whose memory "
+                           "this is cannot be said; it is run inside a task"))
+
             success, memory_id = await memory_agent.store_memory(
                 content=content,
                 memory_type=mem_type,
                 importance_score=importance,
                 confidence_score=0.9,  # High confidence for agent-generated content
+                origin=Origin.of(actor, "store_memory tool"),
                 tags=tags,
                 source_context={
                     "tool": "store_memory",

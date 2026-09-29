@@ -35,10 +35,18 @@ def _stub(bridge):
     """A minimal object carrying only what reason_about touches."""
     stored = []
 
-    async def store_memory(memory_type, content, importance=0.0, tags=None):
-        stored.append(content)
+    # REBUILT ON THE REAL SHAPE. This mirrored a coordinator-side wrapper that
+    # took an event dict and rendered it into prose; that wrapper is gone, and
+    # `reason_about` now writes through the memory agent like everything else.
+    # A stub of the deleted signature would pass while the real call failed.
+    async def store_memory(content=None, memory_type=None, importance_score=0.0,
+                           source_context=None, tags=None, **rest):
+        stored.append({"content": content, "memory_type": memory_type,
+                       **(source_context or {})})
 
-    stub = types.SimpleNamespace(neural_bridge=bridge, store_memory=store_memory)
+    stub = types.SimpleNamespace(
+        neural_bridge=bridge,
+        memory=types.SimpleNamespace(store_memory=store_memory))
     stub.stored = stored
     return stub
 
@@ -47,10 +55,11 @@ def _stub(bridge):
 async def test_a_missing_substrate_is_a_wiring_fault_not_a_shrug():
     """The five things that used to collapse into a bare None must stay
     distinguishable: an unwired substrate is a FAULT, not ignorance."""
+    from core.memory import Origin
     from core.reasoning.neural_bridge import REASON_CAPABILITY_UNAVAILABLE
 
     stub = _stub(None)
-    result = await AutonomousCoordinator.reason_about(stub, "Is Socrates mortal?")
+    result = await AutonomousCoordinator.reason_about(stub, "Is Socrates mortal?", origin=Origin.own("test_coordinator_reason_about"))
     assert result is not None, "an unwired substrate must not look like 'no answer'"
     assert result.metadata["reason"] == REASON_CAPABILITY_UNAVAILABLE
     assert result.metadata["verified"] is False
@@ -59,22 +68,24 @@ async def test_a_missing_substrate_is_a_wiring_fault_not_a_shrug():
 
 @pytest.mark.asyncio
 async def test_a_malformed_request_is_not_the_same_as_a_broken_substrate():
+    from core.memory import Origin
     from core.reasoning.neural_bridge import REASON_INVALID_INPUT
 
     stub = _stub(_Bridge(None))
-    result = await AutonomousCoordinator.reason_about(stub, "   ")
+    result = await AutonomousCoordinator.reason_about(stub, "   ", origin=Origin.own("test_coordinator_reason_about"))
     assert result.metadata["reason"] == REASON_INVALID_INPUT, (
         "a malformed request must be distinguishable from a broken substrate")
 
 
 @pytest.mark.asyncio
 async def test_reaching_no_conclusion_is_a_result_not_a_fault():
+    from core.memory import Origin
     from core.reasoning.neural_bridge import ReasoningMode, ReasoningResult
 
     bridge = _Bridge(ReasoningResult(
         answer="", confidence=0.0, mode_used=ReasoningMode.SYMBOLIC,
         metadata={"verified": False, "reason": "substrate_refuted"}))
-    result = await AutonomousCoordinator.reason_about(_stub(bridge), "Is a whale a fish?")
+    result = await AutonomousCoordinator.reason_about(_stub(bridge), "Is a whale a fish?", origin=Origin.own("test_coordinator_reason_about"))
     assert result.metadata["reason"] == "substrate_refuted"
     assert result.metadata["model_calls"] == 0, "a symbolic refutation had a model on its route"
 
@@ -82,6 +93,7 @@ async def test_reaching_no_conclusion_is_a_result_not_a_fault():
 @pytest.mark.asyncio
 async def test_premises_and_rules_reach_the_substrate():
     """The original defect: context was built so that nothing could use it."""
+    from core.memory import Origin
     from core.reasoning.neural_bridge import ReasoningMode, ReasoningResult
 
     bridge = _Bridge(ReasoningResult(
@@ -92,7 +104,7 @@ async def test_premises_and_rules_reach_the_substrate():
 
     result = await AutonomousCoordinator.reason_about(
         stub, "Is Socrates mortal?",
-        context={"premises": ["Socrates is human"], "rules": ["All humans are mortal"]})
+        context={"premises": ["Socrates is human"], "rules": ["All humans are mortal"]}, origin=Origin.own("test_coordinator_reason_about"))
 
     assert bridge.seen is not None, "the substrate was never called"
     assert "Socrates is human" in bridge.seen.context
@@ -113,6 +125,7 @@ async def test_premises_and_rules_reach_the_substrate():
 async def test_an_unverified_answer_is_not_recorded_as_knowledge():
     """A solver-checked verdict and an unchecked assertion must not be stored
     with the same weight, or the memory becomes uncitable."""
+    from core.memory import Origin
     from core.reasoning.neural_bridge import ReasoningMode, ReasoningResult
 
     bridge = _Bridge(ReasoningResult(
@@ -120,8 +133,19 @@ async def test_an_unverified_answer_is_not_recorded_as_knowledge():
         metadata={"verified": False, "reason": "model_coverage"}))
     stub = _stub(bridge)
 
-    result = await AutonomousCoordinator.reason_about(stub, "Is a whale a fish?")
+    result = await AutonomousCoordinator.reason_about(stub, "Is a whale a fish?", origin=Origin.own("test_coordinator_reason_about"))
     assert result.metadata["verified"] is False
     assert result.metadata["reason"] == "model_coverage"
     assert result.metadata["model_calls"] == 1, "a model answer must be visible in the provenance"
     assert stub.stored and stub.stored[0]["verified"] is False
+
+    # THE DOCSTRING'S CLAIM, NOW ACTUALLY CHECKED. Carrying `verified: False`
+    # in the record was never enough on its own -- the memory was still filed
+    # SEMANTIC, so recall handed an unchecked assertion back as general
+    # knowledge and only a reader who thought to look at the field would know.
+    # An unverified answer must not be typed as a fact about the world.
+    from core.memory.utils.interfaces import MemoryType
+    assert stub.stored[0]["memory_type"] is not MemoryType.SEMANTIC, (
+        "an unchecked assertion was filed as general knowledge")
+    assert stub.stored[0]["memory_type"] is MemoryType.EPISODIC, (
+        "an unchecked assertion is an episode of reasoning, not a fact")

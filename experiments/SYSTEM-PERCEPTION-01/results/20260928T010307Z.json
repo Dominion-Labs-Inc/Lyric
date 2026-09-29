@@ -1,0 +1,234 @@
+{
+  "experiment": "SYSTEM-PERCEPTION-01",
+  "claim": "Perception has one sensing authority: a real image becomes structure, a file with no reader is refused, two sightings correspond, and an instance can be learned and forgotten.",
+  "hypothesis": "A second faculty, a guessed reading of an unreadable file, or a dead public method would each fail here.",
+  "started_at": "2026-09-28T01:03:07.974044+00:00",
+  "duration_seconds": 24.528,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/TorinAI/venv_torin/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/TorinAI",
+    "shadow_mode": null,
+    "git_commit": "20deb447498593391eca0286916b8f986c560a26",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "torinai_dev",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "torinai_dev",
+        "model": "torinai_dev",
+        "user_context": "torinai_dev",
+        "learning": "torinai_dev"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "dotenv:.env.postgres",
+        "database": "environment",
+        "user": "dotenv:.env.postgres",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 1224,
+    "database_verified": null,
+    "database_verified_reason": "no initialized connection in this process"
+  },
+  "summary": {
+    "checks": 18,
+    "passed": 18,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [
+    {
+      "name": "perception_construction_sites",
+      "value": 1,
+      "unit": "count",
+      "note": "core/perception/perception_faculty.py:804"
+    },
+    {
+      "name": "perception_public_methods",
+      "value": 6,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "perception_internal_only_public_methods",
+      "value": 2,
+      "unit": "count",
+      "note": "used only inside their own file: load_instances, learn_instance"
+    },
+    {
+      "name": "perception_experiments_only",
+      "value": 2,
+      "unit": "count",
+      "note": "forget_instance (experiments/CONTENT-01/experiment.py; experiments/RECOGNISE-01/experiment.py), known_instances (experiments/RECOGNISE-01/experiment.py)"
+    },
+    {
+      "name": "perception_uncalled",
+      "value": 0,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "perception_not_implemented",
+      "value": 0,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "perception_constant",
+      "value": 0,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "perception_empty",
+      "value": 0,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "regions_sensed",
+      "value": 1,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "behaviour_checks_passed",
+      "value": 18,
+      "unit": "count",
+      "note": "of 18"
+    },
+    {
+      "name": "wiring_findings",
+      "value": 2,
+      "unit": "count",
+      "note": "2 exercised only by experiments/tests, 0 called by nothing"
+    },
+    {
+      "name": "completeness_findings",
+      "value": 0,
+      "unit": "count",
+      "note": "0 NotImplementedError, 0 return a literal, 0 empty"
+    }
+  ],
+  "checks": [
+    {
+      "label": "perception: the coordinator holds the instance the accessor returns",
+      "passed": true,
+      "detail": "held=PerceptionFaculty same=True",
+      "at": "2026-09-28T01:03:25.747877+00:00"
+    },
+    {
+      "label": "perception: PerceptionFaculty is constructed in one place",
+      "passed": true,
+      "detail": "in its module: ['core/perception/perception_faculty.py:804']; elsewhere: []",
+      "at": "2026-09-28T01:03:27.726096+00:00"
+    },
+    {
+      "label": "the stimulus exists",
+      "passed": true,
+      "detail": "/Users/stefan/Dominion Labs/TorinAI/experiments/RECOGNISE-02/stimuli/recog2_13ff0d_1.png",
+      "at": "2026-09-28T01:03:28.625156+00:00"
+    },
+    {
+      "label": "sensing returns (modality, content)",
+      "passed": true,
+      "detail": "modality=image keys=['blob_relations', 'blobs', 'caption', 'detections', 'properties', 'sha256', 'subject']",
+      "at": "2026-09-28T01:03:28.720839+00:00"
+    },
+    {
+      "label": "one picture seen twice is the same individual",
+      "passed": true,
+      "detail": "isoprobexe6d168c912",
+      "at": "2026-09-28T01:03:28.784385+00:00"
+    },
+    {
+      "label": "two different pictures through one label are never merged",
+      "passed": true,
+      "detail": "isoprobexe6d168c912 vs isoprobexd7f2bd0c2c",
+      "at": "2026-09-28T01:03:28.784400+00:00"
+    },
+    {
+      "label": "an unknown file kind raises",
+      "passed": true,
+      "detail": "no reader for '.qzx': the substrate has no way to perceive this kind of file, an",
+      "at": "2026-09-28T01:03:28.784759+00:00"
+    },
+    {
+      "label": "the same scene seen twice corresponds blob for blob",
+      "passed": true,
+      "detail": "1 correspondence(s)",
+      "at": "2026-09-28T01:03:28.784867+00:00"
+    },
+    {
+      "label": "an instance is learned by name",
+      "passed": true,
+      "detail": "features=108 known=1",
+      "at": "2026-09-28T01:03:28.789597+00:00"
+    },
+    {
+      "label": "and forgotten",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-28T01:03:28.790476+00:00"
+    },
+    {
+      "label": "sight returns a percept with a durable identity",
+      "passed": true,
+      "detail": "subject=syspercrjbnfbxbdb59a1cb4 perception=perc_1790557411.304683_syspercrjbnfbxbdb59a1cb4",
+      "at": "2026-09-28T01:03:32.358551+00:00"
+    },
+    {
+      "label": "seeing formed a memory of the picture",
+      "passed": true,
+      "detail": "mem_3264ba83289e47fc8e2c96a501585ff2: '\"640x433 jpeg image, 10 region(s)\"'",
+      "at": "2026-09-28T01:03:32.359298+00:00"
+    },
+    {
+      "label": "the memory can produce the picture again",
+      "passed": true,
+      "detail": "1 image(s) retained",
+      "at": "2026-09-28T01:03:32.361296+00:00"
+    },
+    {
+      "label": "what was seen was admitted as evidence, once",
+      "passed": true,
+      "detail": "1 envelope(s)",
+      "at": "2026-09-28T01:03:32.362206+00:00"
+    },
+    {
+      "label": "and entered the concept graph",
+      "passed": true,
+      "detail": "147 edge(s)",
+      "at": "2026-09-28T01:03:32.362900+00:00"
+    },
+    {
+      "label": "what was seen is held as beliefs",
+      "passed": true,
+      "detail": "147 belief(s)",
+      "at": "2026-09-28T01:03:32.364250+00:00"
+    },
+    {
+      "label": "every one of them is about the memory of seeing it",
+      "passed": true,
+      "detail": "['mem_3264ba83289e47fc8e2c96a501585ff2']",
+      "at": "2026-09-28T01:03:32.364272+00:00"
+    },
+    {
+      "label": "everything sight wrote is removed",
+      "passed": true,
+      "detail": "{'envelopes': 0, 'beliefs': 0, 'perceptions': 0, 'memory': 0, 'media': 0, 'graph': 0}",
+      "at": "2026-09-28T01:03:32.385377+00:00"
+    }
+  ],
+  "notes": []
+}

@@ -201,8 +201,62 @@ def supply_from(facts: Iterable[Fact]) -> Dict[Tuple[str, int], Set[str]]:
     supply: Dict[Tuple[str, int], Set[str]] = {}
     for fact in facts:
         for position, argument in enumerate(fact.args):
-            supply.setdefault((fact.predicate, position), set()).add(argument)
+            # A goal may name a variable where any term will do; a variable is
+            # not a term that can stand anywhere.
+            if not is_variable(argument):
+                supply.setdefault((fact.predicate, position), set()).add(argument)
     return supply
+
+
+def facts_held(facts: Iterable[Fact]) -> Dict[str, Set[Tuple[str, ...]]]:
+    """Which argument tuples each predicate can hold: the facts themselves,
+    grouped for joining. `supply_from` says which terms can stand at a position;
+    this says which terms can stand TOGETHER, which is what a precondition
+    naming two variables asks."""
+    held: Dict[str, Set[Tuple[str, ...]]] = {}
+    for fact in facts:
+        held.setdefault(fact.predicate, set()).add(tuple(fact.args))
+    return held
+
+
+def _join(literals: Sequence[Fact], variables: Sequence[str],
+          open_slots: Sequence[str],
+          held: Dict[str, Set[Tuple[str, ...]]]) -> List[Dict[str, str]]:
+    """Every assignment of `variables` under which each literal is a fact that
+    can hold. An open slot is bound when the plan runs, so it matches anything
+    here and is left unbound."""
+    wanted = set(variables)
+    # Only a literal naming a variable drawn here constrains the draw. One that
+    # names only a value some act will invent has no fact to match until that
+    # act runs; it is bound during the search, never here.
+    order = sorted((f for f in literals if wanted & set(f.args)),
+                   key=lambda f: len(held.get(f.predicate, ())))
+    rows: Dict[Tuple[Tuple[str, str], ...], Dict[str, str]] = {}
+
+    def extend(index: int, bound: Dict[str, str]) -> None:
+        if index == len(order):
+            row = {v: bound[v] for v in variables if v in bound}
+            if set(row) == wanted:
+                rows.setdefault(tuple(sorted(row.items())), row)
+            return
+        literal = order[index]
+        for args in held.get(literal.predicate, ()):
+            if len(args) != len(literal.args):
+                continue
+            extended = dict(bound)
+            for pattern, value in zip(literal.args, args):
+                if is_variable(pattern):
+                    if pattern in open_slots:
+                        continue
+                    if extended.setdefault(pattern, value) != value:
+                        break
+                elif pattern != value:
+                    break
+            else:
+                extend(index + 1, extended)
+
+    extend(0, {})
+    return [rows[key] for key in sorted(rows)]
 
 
 def ground_rule(
@@ -212,6 +266,9 @@ def ground_rule(
     rule_id: Optional[str] = None,
     limit: int = DEFAULT_MAX_OPERATORS,
     invented: Optional[Set[Tuple[str, int]]] = None,
+    held: Optional[Dict[str, Set[Tuple[str, ...]]]] = None,
+    targets: Optional[Dict[Tuple[str, int], Set[str]]] = None,
+    relevant: FrozenSet[str] = frozenset(),
 ) -> Tuple[List[GroundOperator], bool]:
     """Every instantiation of one rule that could ever apply. (operators, truncated).
 
@@ -253,13 +310,46 @@ def ground_rule(
                         if any(key in invented for key in positions[v]))
     closed = [v for v in variables if v not in open_slots]
 
-    candidates: List[List[str]] = []
-    for variable in closed:
-        constrained = [supply.get(key, set()) for key in positions[variable]]
-        terms = set.intersection(*constrained) if constrained else set(universe)
-        if not terms:
+    # WHAT A PRECONDITION CONSTRAINS IS CONSTRAINED JOINTLY. Enumerating each
+    # variable over the terms its positions can hold, and taking the product,
+    # pairs every file with every size when the precondition is SIZE(file,
+    # size): operators whose preconditions can never hold, in their thousands,
+    # until the bound cuts off the ones that could. Where the facts are known,
+    # the variables are drawn from them together.
+    joined = [v for v in closed if positions[v]]
+    free = [v for v in closed if not positions[v]]
+    for variable in joined:
+        if not set.intersection(*(supply.get(key, set()) for key in positions[variable])):
             return [], False
-        candidates.append(sorted(terms))
+    if held is not None:
+        rows = _join(rule.preconditions, joined, open_slots, held)
+    else:
+        rows = [dict(zip(joined, values)) for values in itertools.product(*(
+            sorted(set.intersection(*(supply.get(key, set()) for key in positions[v])))
+            for v in joined))]
+    # A VARIABLE NO PRECONDITION CONSTRAINS is one the act puts somewhere, so it
+    # ranges over the terms that somewhere can hold -- in the world, in what the
+    # goal asks for, or in what another act produces. Only where its effects
+    # name positions nothing holds does it range over every constant.
+    effect_positions: Dict[str, List[Tuple[str, int]]] = {v: [] for v in free}
+    for fact in list(rule.effects.add) + list(rule.effects.delete):
+        for position, argument in enumerate(fact.args):
+            if argument in effect_positions:
+                effect_positions[argument].append((fact.predicate, position))
+    # WHAT THE GOAL NAMES IS GROUNDED FIRST. The set grounded does not change;
+    # only its order does, so that when the bound cuts, it cuts what bears on
+    # the goal least -- not whatever happened to sort last.
+    def first_the_goal(term: str):
+        return (term not in relevant, term)
+
+    candidates: List[List[str]] = []
+    for variable in free:
+        pool: Set[str] = set()
+        for key in effect_positions[variable]:
+            pool |= (targets or {}).get(key, set())
+        candidates.append(sorted(pool or set(universe), key=first_the_goal))
+    rows.sort(key=lambda row: (-sum(value in relevant for value in row.values()),
+                               tuple(sorted(row.items()))))
 
     produced = tuple({
         "variable": output.variable,
@@ -270,11 +360,11 @@ def ground_rule(
     } for output in rule.outputs)
 
     operators: List[GroundOperator] = []
-    for assignment in itertools.product(*candidates):
+    for assignment, row in itertools.product(itertools.product(*candidates), rows):
         if len(operators) >= limit:
             return operators, True
 
-        bindings = dict(zip(closed, assignment))
+        bindings = {**row, **dict(zip(free, assignment))}
         action = rule.action.substitute(bindings)
         operators.append(GroundOperator(
             name=action.to_formula(),
@@ -331,7 +421,7 @@ def ground_for_problem(
 
     invented = invented_positions(rules)
 
-    def build(supply) -> GroundingReport:
+    def build(supply, held, targets) -> GroundingReport:
         built = GroundingReport(constants=list(report.constants))
         remaining = limit
         for stored in rules:
@@ -358,7 +448,9 @@ def ground_for_problem(
                     f"the search can reach")
 
             operators, truncated = ground_rule(rule, supply, report.constants,
-                                               rule_id, remaining, invented=invented)
+                                               rule_id, remaining, invented=invented,
+                                               held=held, targets=targets,
+                                               relevant=relevant)
             built.operators.extend(operators)
             built.rules_used.append(rule_id or str(rule))
             remaining -= len(operators)
@@ -382,18 +474,32 @@ def ground_for_problem(
     # This closes over terms that ALREADY EXIST. Terms an action invents are
     # not admitted here and cannot be: they have no name until the action runs,
     # which is what `open_slots` is for.
+    #
+    # FACTS, NOT ONLY TERMS. A precondition's variables are drawn from the facts
+    # that can hold, so the closure admits produced facts as facts: which terms
+    # arrive TOGETHER, not only which positions each term can reach. The goal's
+    # terms join the targets an act can put things into, because that is where
+    # the plan must put them.
+    relevant = frozenset(constants_in(goal_facts))
     supply = supply_from(state_facts)
-    report_body = build(supply)
+    held = facts_held(state_facts)
+    targets = {key: set(terms) for key, terms in supply.items()}
+    for key, terms in supply_from(goal_facts).items():
+        targets.setdefault(key, set()).update(terms)
+    report_body = build(supply, held, targets)
     for _ in range(DEFAULT_CLOSURE_PASSES):
-        widened = supply_from(
-            Fact.parse(effect)
-            for operator in report_body.operators for effect in operator.effects
-            if not operator.open_slots)
-        if all(terms <= supply.get(key, set()) for key, terms in widened.items()):
+        produced = [Fact.parse(effect)
+                    for operator in report_body.operators for effect in operator.effects
+                    if not operator.open_slots]
+        new = [f for f in produced if tuple(f.args) not in held.get(f.predicate, set())]
+        if not new:
             break
-        for key, terms in widened.items():
+        for fact in new:
+            held.setdefault(fact.predicate, set()).add(tuple(fact.args))
+        for key, terms in supply_from(new).items():
             supply.setdefault(key, set()).update(terms)
-        report_body = build(supply)
+            targets.setdefault(key, set()).update(terms)
+        report_body = build(supply, held, targets)
     else:
         report_body.closure_converged = False
         logger.warning(

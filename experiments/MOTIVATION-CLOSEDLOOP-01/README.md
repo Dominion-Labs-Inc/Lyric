@@ -19,3 +19,5 @@ carrying out a task that produces that evidence; a direct evidence update stands
 ```
 
 **Results.** Printed to the terminal only; no run is saved.
+**2026-09-28: 11/11.** Its stand-in self now carries the real constitution: choosing a pursuit asks it which way the substrate bears toward each subject, which the stand-in lacked since that was added.
+

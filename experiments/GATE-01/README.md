@@ -34,6 +34,8 @@ the side effect lands is worse than no gate — it reports success at stopping s
 **Results.** Every run is saved in `results/` (JSON + `.md`). Latest: 2026-09-17, **25/25**
 (`results/20260917T055313Z.md`), stable across consecutive runs. Gate cost: **~0.01 ms/act**.
 
+**2026-09-28: 25/25.** The hand-written filesystem domain was deleted. This now plans over an operator the substrate learned from its own acts in `tools:path` (taught by `experiments/fs_move_teach.py` if the store has none), and states its goal in perception's words: `KIND(<path>, Ffile)`, and `¬KIND(...)` for "no longer there".
+
 ## What wiring the gate exposed
 
 Two defects that could only appear once the constitution governed real acts:

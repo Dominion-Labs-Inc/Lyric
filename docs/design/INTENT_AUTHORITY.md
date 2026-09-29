@@ -94,7 +94,10 @@ Each intent holds:
 - `history` — the refreshes, timestamped, so the evolution survives.
 - `outcome` — attached when the act completes: what actually happened, reconciled
   against the aim. Null until then.
-- `status` — forming · active · fulfilled · abandoned · refused.
+- `status` — LIVE: forming · active · halted · replanned · redirected; CONCLUDED:
+  fulfilled · abandoned · refused. *(2026-09-25: `halted`, `replanned` and `redirected`
+  added — the constitution's "not now", "not by this route", "not in this form". Each
+  was reconciled as `abandoned`, recording pursuits the law had only sent back as quit.)*
 
 An act that did **not** come from reasoning carries no intent, and that absence
 is reported as absence — there is nothing to fall back to. The constitution
@@ -184,9 +187,21 @@ asserted (SESSION and self-partition experiments set the bar).
    (new context, firmer plan) and appends to `history`. Same identity.
 3. **Judge.** When the intent would become an act, the constitution reads the
    held intent (never reconstructs it) and judges. ALLOW proceeds; anything else
-   does not.
+   does not — and what the law said is what the pursuit records: REPLAN →
+   `replanned`, REDIRECT → `redirected`, BLOCK → `refused`, and the halt's own
+   BLOCK (`Judgment.halt`) → `halted`. The world still decides first: an aim that
+   holds is `fulfilled` however its act ended. A REDIRECT the acting seam carried
+   out is how the work proceeded, never why it ended. *(2026-09-25, PURSUIT-01)*
 4. **Reconcile.** The act completes; the outcome attaches to the intent, and the
    shape row records meant-vs-happened. Learning and integrity read that pairing.
+5. **Return.** *(added 2026-09-25)* A return to a CONCLUDED pursuit — `form` finding
+   the key again, e.g. the planner proving a second route for a goal whose first
+   route stopped — reopens it: `active`, same identity, the ended attempt kept on
+   the SHAPE as `earlier_attempts` (so its lesson survives the actor's deletion)
+   and in history, which records the full previous state including status and
+   outcome. Reasoning *settling* a pass (`refresh` without a return) does not
+   reopen anything. Measured before: the replanned goal stayed `abandoned`, with
+   the first route's outcome, while the second route was written onto it.
 
 ## 8. What is removed
 
@@ -213,6 +228,19 @@ intent.
 - **Goal creation / self-reflection** — reads what the substrate was trying to
   do and why. This is the connective tissue those faculties need, which is why
   intent belongs before them.
+- **The task gate** *(2026-09-25)* — before a task starts, reads the intent it
+  names (shape view, by id) and refuses a step of a pursuit that has concluded or
+  that the authority does not hold. A task naming none proceeds and is counted:
+  absence is reported, never filled in at the door (TASK-GATE-02). A pursuit the
+  constitution sent back (replanned / redirected) does not have its stopped work
+  repeated; a halted one resumes when the halt is lifted.
+- **The producers of work** *(2026-09-25)* — measured the same day: 0 of 293 queued
+  tasks named an intent. Every producer now forms the pursuit WHERE it takes the work
+  on (`AutonomousCoordinator.intend`: user requests, intrinsic and drive goals,
+  research, error repair, knowledge refresh, agent work), and the task's own ending
+  closes what the world did not (`conclude_pursuit`). A route proved while working on
+  a pursuit is its child. Absence at the gate is still reported, never filled in
+  (PURSUIT-01).
 
 ## 10. Build plan
 

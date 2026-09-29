@@ -40,6 +40,7 @@ async def _cleanup(agent, memory_id: str) -> None:
 
 
 async def run() -> int:
+    from core.memory import Origin
     from core.memory import get_memory_agent
     from core.reasoning.neural_bridge import get_neural_bridge, ReasoningRequest
     from core.memory.utils.memory_injection_policy import get_memory_injection_policy
@@ -76,7 +77,7 @@ async def run() -> int:
 
     # ---- 1. STORE ----------------------------------------------------------
     ok, mem_id = await agent.store_memory(
-        content=claim, tags=["reasoning", "real_loop_test"], importance_score=0.9)
+        content=claim, tags=["reasoning", "real_loop_test"], importance_score=0.9, origin=Origin.own("test_memory_real_loop"))
     check("store_memory persists the conclusion", bool(ok) and bool(mem_id),
           f"id={mem_id}")
 

@@ -1,0 +1,70 @@
+{
+  "experiment": "ENCODER-10 \u2014 cost and determinism in the acting path",
+  "seed": 20260922,
+  "hypotheses": [
+    "H1 encoding is deterministic and reproducible across instances",
+    "H2 per-encode cost is under a millisecond",
+    "H3 the native encoder has no cold-start weight load",
+    "H4 cost grows sub-linearly in the amount taught"
+  ],
+  "data": {
+    "native_build_ms": 0.42837532237172127,
+    "minilm_cold_ms": 5579.0358749218285,
+    "native_encode_ms": 0.004055208992213011,
+    "minilm_encode_ms": 4.261297499760985,
+    "scaling": {
+      "10": {
+        "props": 20,
+        "encode_ms": 0.0030362489633262157
+      },
+      "25": {
+        "props": 50,
+        "encode_ms": 0.0035714590921998024
+      },
+      "50": {
+        "props": 100,
+        "encode_ms": 0.003874583635479212
+      }
+    }
+  },
+  "checks": [
+    {
+      "name": "H1 native encodes identically twice",
+      "passed": true,
+      "detail": "exact match"
+    },
+    {
+      "name": "H1b two native encoders taught the same thing agree exactly",
+      "passed": true,
+      "detail": "identical similarity to 1e-12"
+    },
+    {
+      "name": "H1c MiniLM is deterministic for identical input",
+      "passed": true,
+      "detail": "exact match"
+    },
+    {
+      "name": "H2 native encode is under a millisecond",
+      "passed": true,
+      "detail": "0.004 ms"
+    },
+    {
+      "name": "H2b MiniLM encode is under a millisecond",
+      "passed": false,
+      "detail": "4.261 ms"
+    },
+    {
+      "name": "H3 native has no cold-start weight load",
+      "passed": true,
+      "detail": "native build 0.4 ms vs MiniLM cold 5579.0 ms"
+    },
+    {
+      "name": "H4 cost grows sub-linearly in the amount taught",
+      "passed": true,
+      "detail": "5.0x more taught -> 1.3x cost"
+    }
+  ],
+  "passed": 6,
+  "total": 7,
+  "verdict": "native 0.004 ms/encode, no weight load; MiniLM 4.261 ms/encode, 5579 ms cold start"
+}

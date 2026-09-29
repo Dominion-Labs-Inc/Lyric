@@ -1,0 +1,42 @@
+{
+  "experiment": "PER-USER-CONCURRENCY-01",
+  "run": "2026-09-20T20:27:25.792995+00:00",
+  "outcome": "PASS",
+  "exit_code": 0,
+  "checks_passed": 8,
+  "checks_total": 8,
+  "checks": [
+    {
+      "kind": "PASS",
+      "text": "only the non-capped user's jobs were served \u2014 served actors=['user:B', 'user:B']"
+    },
+    {
+      "kind": "PASS",
+      "text": "the capped user's jobs are NOT lost (still queued) \u2014 qsize=4"
+    },
+    {
+      "kind": "PASS",
+      "text": "the previously-capped user is now served \u2014 actor=user:A"
+    },
+    {
+      "kind": "PASS",
+      "text": "a user at the cap is capped"
+    },
+    {
+      "kind": "PASS",
+      "text": "a user under the cap is not"
+    },
+    {
+      "kind": "PASS",
+      "text": "the substrate is NEVER capped (exempt even at 5 in-flight) \u2014 capped=frozenset({'user:A'})"
+    },
+    {
+      "kind": "PASS",
+      "text": "user A is at cap before reap"
+    },
+    {
+      "kind": "PASS",
+      "text": "reap released A's slots (count cleared, uncapped again) \u2014 by_actor={}"
+    }
+  ]
+}

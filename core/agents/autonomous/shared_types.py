@@ -174,6 +174,31 @@ def is_substrate_actor(actor: Optional[str]) -> bool:
     return actor is None or actor == SUBSTRATE_ACTOR
 
 
+def visible_to(owner: Optional[str], actor: Optional[str]) -> bool:
+    """Whether something OWNED by `owner` may enter cognition done for `actor`.
+
+    The substrate's own (owner None/''/substrate) is visible to everyone; a
+    user's is visible only to that user. The same rule the memory store applies
+    in SQL (`PostgresStorage._actor_predicate`), for what is held in process."""
+    if not owner or owner == SUBSTRATE_ACTOR:
+        return True
+    return not is_substrate_actor(actor) and owner == actor
+
+
+def store_for_owner(owner: Optional[str], substrate_store: str = "model") -> str:
+    """The store something OWNED by `owner` is kept in (postgres_config.STORES).
+
+    A person's is that person's context. The substrate's own (owner
+    None/''/substrate) is kept where the table keeps the substrate's rows
+    (postgres_config.PER_OWNER_TABLES): the model for its memories, runtime for
+    its intents' content. The same owners `visible_to` tells apart. A new row
+    is written through the database manager's `write_store`, which sends the
+    substrate's own to the learning store where the model is a frozen release."""
+    if not owner or owner == SUBSTRATE_ACTOR:
+        return substrate_store
+    return "user_context"
+
+
 # ============================================================================
 # CORE DATA STRUCTURES (Simplified from 40+ classes)
 # ============================================================================
@@ -340,6 +365,10 @@ class PerceptionData:
     confidence: float = 1.0
     timestamp: float = field(default_factory=lambda: datetime.now().timestamp())
     metadata: Dict[str, Any] = field(default_factory=dict)
+    #: Whose perception this is, as a `core.memory.Origin`: a person's image is
+    #: theirs, the substrate's own seeing its own. What it shows goes where its
+    #: owner's words go, and a memory is stamped only with its own owner's.
+    origin: Optional[Any] = None
 
 
 @dataclass
@@ -358,10 +387,10 @@ class Plan:
 
 @dataclass
 class SystemState:
-    """Current system state snapshot"""
+    """Current system state snapshot. Active TASKS are not kept here: the queue
+    authority owns them (`task_queue.active_tasks()`)."""
     timestamp: float = field(default_factory=lambda: datetime.now().timestamp())
     mode: SystemMode = SystemMode.AUTONOMOUS
-    active_tasks: List[str] = field(default_factory=list)
     active_goals: List[str] = field(default_factory=list)
     performance_metrics: Dict[str, float] = field(default_factory=dict)
     resources: Dict[str, Any] = field(default_factory=dict)

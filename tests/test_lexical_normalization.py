@@ -16,9 +16,13 @@ import inspect
 import pytest
 
 from core.domain.concept_ingestion import ConceptResolver
-from core.model_policy import (
-    ModelPolicy, assert_model_free, reset_model_telemetry, set_model_policy,
-)
+# THE MODEL-FREE GUARD IS GONE, AND SO IS WHAT IT GUARDED AGAINST.
+# These tests wrapped themselves in an autouse fixture that set
+# `ModelPolicy.STRICT_MODEL_FREE` and asserted afterwards that no model had been
+# called. `core.model_policy` was REMOVED when the substrate became model-free by
+# CONSTRUCTION -- there is no longer a policy to set, because there is nothing to
+# set it against. The guard's subject is gone; the subject of these tests is not,
+# and they had been uncollectable ever since.
 # MORPHOLOGY IS READING, AND READING IS SEMANTICS'. `_singular` and
 # `_normalize` moved from `DeterministicExtractor` to
 # `core.semantics.sentence_reader` on 2026-08-24, when 619 lines of English
@@ -30,14 +34,6 @@ from core.reasoning.reasoning_interfaces import Connectivity
 from core.semantics import lexical_normalization as lexical
 
 
-@pytest.fixture(autouse=True)
-def strict():
-    previous = set_model_policy(ModelPolicy.STRICT_MODEL_FREE)
-    reset_model_telemetry()
-    yield
-    assert_model_free("lexical normalization")
-    set_model_policy(previous)
-    reset_model_telemetry()
 
 
 # ------------------------------------------------------------------ one owner
@@ -111,10 +107,17 @@ def test_canonicalisation_does_not_invent_synonyms():
 
 
 def test_the_logic_path_uses_morphology_only_not_identity_policy():
-    """canonical_label also strips qualifier tails -- the claim that
+    """canonical_label can strip qualifier tails -- the claim that
     lithium_iron_phosphate_battery IS lithium_iron_phosphate. That is synonymy,
-    and a logical predicate must not acquire it from a string function."""
-    assert lexical.canonical_label("solar_system") != "solar_system"
+    and a logical predicate must not acquire it from a string function.
+
+    The tail-stripping is now OPT-IN (`document_derived=True`): applied by
+    default it renamed `nervous_system` to `nervous` across 691 of 83k facts, so
+    it runs only for text pulled out of a document. This first asserted the old
+    default -- i.e. the defect. The identity policy still exists when asked for,
+    which is what this test needs to show the logic path does NOT use it."""
+    assert lexical.canonical_label("solar_system", document_derived=True) != "solar_system"
+    assert lexical.canonical_label("solar_system") == "solar_system"
     assert SentenceReader()._singular("solar_system") == "solar_system"
 
 
@@ -188,3 +191,38 @@ def test_a_failed_formalization_is_never_reported_connected():
 
     assert Formalization(succeeded=False).connectivity is Connectivity.UNSUPPORTED
     assert Formalization(succeeded=True).connectivity is Connectivity.CONNECTED
+
+
+# ── names keep their words ──────────────────────────────────────────────────
+
+@pytest.mark.parametrize("label,as_name,as_phrase", [
+    ("A major", "a_major", "major"),
+    ("A Day in the Life", "a_day_in_the_life", "day_in_the_life"),
+    ("The Beatles", "the_beatles", "beatle"),
+    ("F-sharp minor", "f_sharp_minor", "f_sharp_minor"),
+])
+def test_a_name_keeps_its_words_and_a_phrase_is_read_as_before(label, as_name, as_phrase):
+    """A determiner and a plural are grammar in a noun phrase and part of a
+    title. The key "A major" became the word `major` until a producer could
+    say a label is a name."""
+    assert lexical.canonical_label(label, name=True) == as_name
+    assert ConceptResolver().canonical_label(label, name=True) == as_name
+    assert lexical.canonical_label(label) == as_phrase
+
+
+def test_a_producer_says_which_concept_is_a_name():
+    from core.domain.concept_ingestion import ConceptIngestionService, EvidenceEnvelope
+    from core.domain.concept_ingestion import EvidenceSourceType
+    from core.domain.concept_ingestion import ConceptExtractor
+    envelope = EvidenceEnvelope(
+        evidence_id="ev_names", source_type=EvidenceSourceType.PERCEPTION,
+        source_id="probe:audio", producer="probe", content="a recording in A major",
+        structured_data={"concepts": []})
+    read = ConceptExtractor()._read_concepts([
+        {"label": "a_major", "kind": "entity", "domains": ["hearing"], "is_name": True},
+        {"label": "the_ladders", "kind": "entity", "domains": ["hearing"]}], envelope)
+    named, phrase = read
+    resolver = ConceptIngestionService().resolver
+    assert named.is_name and named.attributes.get("is_name") is True
+    assert resolver.resolve(named).name == "a_major"
+    assert not phrase.is_name and resolver.resolve(phrase).name == "ladder"

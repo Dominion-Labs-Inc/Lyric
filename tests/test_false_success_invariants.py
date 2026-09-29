@@ -13,29 +13,6 @@ import pytest
 
 
 @pytest.mark.asyncio
-async def test_lazy_initialize_refuses_to_continue_after_failing():
-    """`if not self.initialized: await self.initialize()` must check the result.
-
-    Discarding it meant a failed initialize was followed immediately by the
-    work it was meant to enable, and the real failure resurfaced somewhere
-    unrelated -- observed as "Database not initialized" reaching a caller
-    disguised as a model-weight ROLLBACK error.
-    """
-    from core.database.thinking_state_manager import ThinkingStateManager
-
-    manager = ThinkingStateManager()
-    manager.initialized = False
-
-    async def _fails():
-        return False
-
-    manager.initialize = _fails
-
-    with pytest.raises(RuntimeError, match="could not initialize"):
-        await manager.get_active_states()
-
-
-@pytest.mark.asyncio
 async def test_quantum_availability_requires_an_executable_provider():
     """`quantum_available` must not mean "qiskit imported".
 

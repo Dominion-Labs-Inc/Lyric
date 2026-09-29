@@ -15,6 +15,7 @@ Author: Torin AI Team
 """
 
 import os
+import re
 import glob
 import logging
 import shutil
@@ -1482,13 +1483,66 @@ class AtomicWriteFileTool(Tool):
             )
 
 
+#: Encodings that decode to `.`, `/` or `\` and are used to smuggle a `..` past a
+#: filter that only looks for the literal: overlong UTF-8 forms, which a strict
+#: decoder rejects but some servers accepted.
+_OVERLONG = (("%c0%ae", "."), ("%e0%80%ae", "."), ("%c0%af", "/"), ("%c1%9c", "\\"),
+             ("%c1%1c", "\\"), ("%c0%5c", "\\"))
+
+
+def _path_forms(path: str) -> List[str]:
+    """The path as given and every distinct form URL-decoding makes of it.
+
+    Decoded until it stops changing, because a filter that decodes once lets
+    `%252e%252e` through as `%2e%2e`, which the next layer decodes to `..`."""
+    from urllib.parse import unquote
+    forms, current = [path], path
+    for _ in range(4):
+        lowered = current
+        for encoded, plain in _OVERLONG:
+            lowered = re.sub(re.escape(encoded), plain.replace("\\", "\\\\"), lowered,
+                             flags=re.IGNORECASE)
+        decoded = unquote(lowered)
+        if decoded == current:
+            break
+        forms.append(decoded)
+        current = decoded
+    return forms
+
+
+def path_traversal(path: str) -> Optional[str]:
+    """Why `path` is a traversal attempt, or None.
+
+    A traversal is a `..` SEGMENT -- in the path as given or in any form decoding
+    makes of it, with either separator -- or a NUL byte, which truncates the path
+    where the operating system reads it. `..` inside a name (`a..b`) is a name."""
+    for index, form in enumerate(_path_forms(path)):
+        if "\x00" in form:
+            return "contains a NUL byte" + (" once decoded" if index else "")
+        if ".." in re.split(r"[\\/]", form):
+            return ("a '..' segment" if index == 0
+                    else f"a '..' segment once decoded ({form!r})")
+    return None
+
+
 class ValidatePathTool(Tool):
-    """Validate path against allowed directories and sandbox enforcement"""
+    """Whether a path is safe to use: no traversal, inside the allowed roots.
+
+    ONE tool answers this. `security_tools` registered a second `validate_path`
+    under the same name, which silently replaced this one in the registry and
+    failed every call (it imported a module the security consolidation
+    archived). Both questions it asked are answered here: whether the string
+    tries to climb out (`..` segments, encoded or not, NUL bytes), and whether
+    the place it names is inside the allowed roots once symlinks are resolved.
+
+    An unsafe path is an ANSWER, not a failure of the tool: `success` is True
+    whenever the check ran, and the verdict is `valid`."""
 
     def __init__(self):
         super().__init__()
         self.name = "validate_path"
-        self.description = "Validate a path against allowed directories and sandbox root enforcement"
+        self.description = ("Validate a path: detect path traversal (including encoded) and "
+                            "check it resolves inside the allowed root directories")
         self.category = ToolCategory.FILESYSTEM
         self.safety_level = ToolSafety.SAFE
         self.parameters = [
@@ -1501,7 +1555,14 @@ class ValidatePathTool(Tool):
             ToolParameter(
                 name="allowed_roots",
                 type="array",
-                description="List of allowed root directories (defaults to current working directory)",
+                description="Directories the path must resolve inside (none: containment is not checked)",
+                required=False,
+                default=None
+            ),
+            ToolParameter(
+                name="allowed_base",
+                type="string",
+                description="One directory the path must resolve inside (added to allowed_roots)",
                 required=False,
                 default=None
             ),
@@ -1515,19 +1576,22 @@ class ValidatePathTool(Tool):
             ToolParameter(
                 name="allow_symlinks",
                 type="boolean",
-                description="Whether to allow symlinks",
+                description="Whether the path may pass through a symbolic link below its root",
                 required=False,
                 default=False
             )
         ]
 
-        # Capability profile
         self.capability_profile = ToolCapabilityProfile(
             tool_name="validate_path",
             capabilities=[
                 CapabilityMetadata(
                     capability=Capability.VALIDATE_DATA,
                     description="Validate file paths"
+                ),
+                CapabilityMetadata(
+                    capability=Capability.VALIDATE_INPUT,
+                    description="Detect path traversal in an untrusted path"
                 )
             ]
         )
@@ -1536,110 +1600,88 @@ class ValidatePathTool(Tool):
         self,
         path: str,
         allowed_roots: Optional[List[str]] = None,
+        allowed_base: Optional[str] = None,
         must_exist: bool = False,
         allow_symlinks: bool = False
     ) -> ToolResult:
         """Validate path"""
         try:
-            target = Path(path).expanduser()
+            if not isinstance(path, str) or not path:
+                raise ValueError("path must be a non-empty string")
+            roots = [str(r) for r in (allowed_roots or [])]
+            if allowed_base:
+                roots.append(str(allowed_base))
 
-            # Default to current working directory if no roots specified
-            if allowed_roots is None:
-                allowed_roots = [os.getcwd()]
+            output: Dict[str, Any] = {"path": path, "allowed_roots": None, "matched_root": None}
 
-            # Resolve to absolute path
-            try:
-                resolved = target.resolve(strict=must_exist)
-            except (FileNotFoundError, RuntimeError) as e:
-                return ToolResult(
-                    success=False,
-                    output={
-                        "path": path,
-                        "valid": False,
-                        "reason": f"Path resolution failed: {e}"
-                    },
-                    error=str(e)
-                )
+            def verdict(valid: bool, reason: str) -> ToolResult:
+                output.update({"valid": valid, "is_safe": valid, "safe_to_use": valid,
+                               "reason": reason})
+                return ToolResult(success=True, output=output, tool_name=self.name)
 
-            # Check if path exists (if required)
-            if must_exist and not resolved.exists():
-                return ToolResult(
-                    success=False,
-                    output={
-                        "path": path,
-                        "resolved": str(resolved),
-                        "valid": False,
-                        "reason": "Path does not exist"
-                    },
-                    error="Path does not exist"
-                )
+            traversal = path_traversal(path)
+            output["path_traversal_detected"] = traversal is not None
+            if traversal:
+                return verdict(False, f"path traversal: {traversal}")
 
-            # Check for symlinks
-            if not allow_symlinks and resolved.is_symlink():
-                return ToolResult(
-                    success=False,
-                    output={
-                        "path": path,
-                        "resolved": str(resolved),
-                        "valid": False,
-                        "reason": "Symlinks not allowed"
-                    },
-                    error="Symlinks not allowed"
-                )
+            # Normalised but NOT resolved, so the links it passes through can be named;
+            # then resolved, which is where the path actually leads.
+            absolute = os.path.abspath(os.path.expanduser(path))
+            resolved = os.path.realpath(absolute)
+            output["resolved"] = resolved
+            exists = os.path.exists(resolved)
+            output.update({
+                "exists": exists,
+                "is_file": os.path.isfile(resolved) if exists else None,
+                "is_directory": os.path.isdir(resolved) if exists else None,
+                "is_symlink": os.path.islink(absolute),
+            })
 
-            # Validate against allowed roots
-            is_within_allowed = False
-            matched_root = None
+            real_roots = [os.path.realpath(os.path.abspath(os.path.expanduser(r))) for r in roots]
+            output["allowed_roots"] = real_roots or None
+            if real_roots:
+                # commonpath, not startswith: "/srv/app-evil" starts with "/srv/app".
+                output["matched_root"] = next(
+                    (r for r in real_roots if os.path.commonpath([resolved, r]) == r), None)
+                if output["matched_root"] is None:
+                    return verdict(False, f"resolves to {resolved}, outside the allowed roots")
 
-            for allowed_root in allowed_roots:
-                root = Path(allowed_root).expanduser().resolve()
-                try:
-                    # Check if resolved path is relative to allowed root
-                    resolved.relative_to(root)
-                    is_within_allowed = True
-                    matched_root = str(root)
+            # The links on the way. With roots, a link the root itself sits behind is the
+            # caller's own layout (/tmp -> /private/tmp); only links below it count.
+            # Without roots, only the path's own final component.
+            steps, current = [], absolute
+            while True:
+                steps.append(current)
+                parent = os.path.dirname(current)
+                if parent == current:
                     break
-                except ValueError:
-                    # Path is not relative to this root
-                    continue
+                current = parent
+            links = [step for step in steps if os.path.islink(step)]
+            if real_roots:
+                root_forms = set(real_roots) | {
+                    os.path.abspath(os.path.expanduser(r)) for r in roots}
+                links = [step for step in links if not any(
+                    form == step or form.startswith(step.rstrip(os.sep) + os.sep)
+                    for form in root_forms)]
+            else:
+                links = [step for step in links if step == absolute]
+            output["symlinks"] = links
+            if links and not allow_symlinks:
+                return verdict(False, f"passes through a symbolic link ({links[0]} -> "
+                                      f"{os.path.realpath(links[0])}); allow_symlinks accepts it")
 
-            if not is_within_allowed:
-                return ToolResult(
-                    success=False,
-                    output={
-                        "path": path,
-                        "resolved": str(resolved),
-                        "valid": False,
-                        "reason": f"Path is outside allowed roots: {allowed_roots}",
-                        "allowed_roots": [str(Path(r).expanduser().resolve()) for r in allowed_roots]
-                    },
-                    error="Path is outside allowed roots"
-                )
+            if must_exist and not exists:
+                return verdict(False, "path does not exist")
 
-            return ToolResult(
-                success=True,
-                output={
-                    "path": path,
-                    "resolved": str(resolved),
-                    "valid": True,
-                    "matched_root": matched_root,
-                    "exists": resolved.exists(),
-                    "is_file": resolved.is_file() if resolved.exists() else None,
-                    "is_directory": resolved.is_dir() if resolved.exists() else None,
-                    "is_symlink": resolved.is_symlink()
-                }
-            )
+            return verdict(True, "no traversal" + (", inside an allowed root" if real_roots else ""))
 
         except Exception as e:
             logger.error(f"Error validating path {path}: {e}")
             return ToolResult(
                 success=False,
-                output={
-                    "error": "Failed to validate path",
-                    "path": path,
-                    "reason": str(e)
-                },
-                error=str(e)
+                output={"error": "Failed to validate path", "path": path, "reason": str(e)},
+                error=str(e),
+                tool_name=self.name
             )
 
 

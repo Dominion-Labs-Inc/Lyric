@@ -62,7 +62,7 @@ async def main() -> int:
 
     # === 1. a real IMAGE, perceived and admitted ==========================
     truth_img = vision.describe_image(IMAGE)
-    await coord.see(IMAGE, source="test_card")
+    await coord.see(IMAGE, source="test_card", actor_identity=None)
     img_edges = dict((rel, tgt) for rel, tgt in await edges_for("test_card"))
     perceived = {tgt for rel, tgt in await edges_for("test_card") if rel == "observed"}
     # Each object-like region is admitted as its own individual, so what the
@@ -107,7 +107,7 @@ async def main() -> int:
 
     # === 2. a real VIDEO, perceived and admitted ==========================
     truth_vid = vision.describe_video(VIDEO)
-    await coord.see(VIDEO, source="founder_clip")
+    await coord.see(VIDEO, source="founder_clip", actor_identity=None)
     vid_edges = dict((rel, tgt) for rel, tgt in await edges_for("founder_clip"))
     vid_observed = {tgt for rel, tgt in await edges_for("founder_clip") if rel == "observed"}
 
@@ -128,9 +128,9 @@ async def main() -> int:
     # === 3. model-free INSTANCE recognition ===============================
     # Learn a reference photo as a known instance, then confirm the faculty
     # recognises it in that same photo and does NOT hallucinate it in the card.
-    kp = coord.vision.learn_instance("known_face", REF_PHOTO)
-    await coord.see(REF_PHOTO, source="photo_a")
-    await coord.see(IMAGE, source="card_b")
+    kp = await coord.vision.learn_instance("known_face", REF_PHOTO)
+    await coord.see(REF_PHOTO, source="photo_a", actor_identity=None)
+    await coord.see(IMAGE, source="card_b", actor_identity=None)
     recognised_in_photo = "known_face" in {
         tgt for rel, tgt in await edges_for("photo_a") if rel == "observed"}
     recognised_in_card = "known_face" in {

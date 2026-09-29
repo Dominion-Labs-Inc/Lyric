@@ -1,0 +1,29 @@
+{
+  "experiment": "FEELING-OBJECT-01",
+  "run_at": "2026-09-25T04:49:40.391520+00:00",
+  "passed": 20,
+  "total": 20,
+  "threat": {
+    "felt": 1.0,
+    "level": "critical",
+    "about": "integrity:feeling_object_01.probe_module",
+    "events": 2,
+    "perceived": 2,
+    "perception_faults": 0,
+    "recent": [
+      {
+        "kind": "refusal",
+        "subject": "feeling_object_01.minor",
+        "detail": "a law stopped an act"
+      },
+      {
+        "kind": "integrity",
+        "subject": "feeling_object_01.probe_module",
+        "detail": "the judging machinery was changed"
+      }
+    ]
+  },
+  "said": "Right now what I mostly feel is doubt, about integrity:feeling_object_01.probe_module.",
+  "questions_kept": 1,
+  "questions_lost": 1
+}

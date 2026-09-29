@@ -12,10 +12,17 @@ Schema:
 - memory_hot.archive_log: Tracks archival operations
 
 Architecture:
-- Single PostgreSQL database (torinai_db) with 3 logical schemas
 - Hot tier: memory_hot schema for last 60 days (fast access, HNSW indexes)
 - Cold tier: memory_cold schema for 60+ day old memories (archival, long-term storage)
 - pgvector: 100x faster semantic search via native vector operations
+
+Whose memory, and where: a memory belongs to its owner. The substrate's own memories (no
+owner, or the substrate) are the model; a person's are that person's context. Development
+keeps both in one database. Staging and production keep them in two, and every read follows
+the one owner rule (`_actor_predicate`): the substrate's own work reads the model; work for a
+person reads the model and that person's context, never another person's. There the model is
+a frozen release: what the substrate remembers of its own while serving is written to the
+learning store, and never read back.
 
 Performance:
 - Semantic similarity search: 5,000ms (MySQL Python loop) → 50ms (pgvector HNSW index)
@@ -127,6 +134,65 @@ class PostgresStorage:
             f"(retention: {retention_days} days)"
         )
 
+    # ── Whose memory, and which store holds it ───────────────────────────
+
+    def _write_store(self, user_id: Optional[str]) -> str:
+        """The store a new memory row of `user_id`'s is written to: its owner's,
+        and for the substrate, where the model is a frozen release, the learning
+        store (the manager's `write_store`)."""
+        return self.db.write_store(user_id)
+
+    def _stores(self) -> List[str]:
+        """Every store memories are read from, once per database (the manager's
+        owner_stores). The learning store is not among them: what the substrate
+        remembers while serving a frozen release is never read back there."""
+        return self.db.owner_stores()
+
+    def _stores_for(self, actor: Optional[str], own_only: bool = False) -> List[str]:
+        """The stores a search done for `actor` reads, by the one owner rule
+        (`_actor_predicate`): the substrate's own work reads the model; work for
+        a person reads the model and that person's context. `own_only` is for
+        CHANGING a memory (deduplication, `owned_by`): a person's own context,
+        and the substrate's own rows -- where the model is a frozen release,
+        only what it wrote while serving, in the learning store. The predicate
+        still applies inside each store."""
+        stores = self._stores()
+        if len(stores) == 1:
+            return stores
+        from core.agents.autonomous.shared_types import is_substrate_actor
+        if is_substrate_actor(actor):
+            return ["learning"] if own_only else ["model"]
+        return ["user_context"] if own_only else ["model", "user_context"]
+
+    async def _holding_store(self, memory_id: str) -> Optional[str]:
+        """The store whose hot or cold tier holds `memory_id`, or None. Where the
+        model is a frozen release, the learning store is searched too: a memory
+        changed by id may be one written while serving."""
+        stores = self._stores() + (["learning"] if self.db.frozen else [])
+        for store in stores:
+            for table, hot, cold in (("memory_hot", True, False), ("memory_cold", False, True)):
+                if await self.db.execute_query(
+                        f"SELECT 1 AS held FROM {table} WHERE memory_id = $1", (memory_id,),
+                        use_hot_tier=hot, use_cold_tier=cold, fetch_one=True, store=store):
+                    return store
+        return None
+
+    async def _record_release_usage(self, memory_id: str, times: int = 1) -> None:
+        """A memory of the frozen release was recalled: counted in runtime
+        (`release_memory_usage`), never on the release's row. Development takes
+        the counts into its own memories (releases.take)."""
+        from core.database.releases import USAGE_DDL
+        await self.db.ensure_schema("release_memory_usage", list(USAGE_DDL), store="runtime")
+        await self.db.execute_query(
+            """
+            INSERT INTO unified.release_memory_usage AS u (release, memory_id, access_count, last_accessed)
+            VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
+            ON CONFLICT (release, memory_id) WHERE taken_at IS NULL
+            DO UPDATE SET access_count = u.access_count + EXCLUDED.access_count,
+                          last_accessed = EXCLUDED.last_accessed
+            """,
+            (self.db.release, memory_id, int(times)), commit=True, store="runtime")
+
     async def initialize(self) -> bool:
         """
         Initialize database and verify tables exist
@@ -140,17 +206,20 @@ class PostgresStorage:
         try:
             await self.db.initialize()
 
-            # Verify tables exist (they should from postgres_schemas.sql)
-            hot_exists = await self.db.table_exists('memory_hot', use_hot_tier=True)
-            cold_exists = await self.db.table_exists('memory_cold', use_cold_tier=True)
-            archive_log_exists = await self.db.table_exists('archive_log', use_hot_tier=True)
+            # Verify tables exist (they should from postgres_schemas.sql), in every
+            # store that holds memories
+            for store in self.db.schema_stores():
+                hot_exists = await self.db.table_exists('memory_hot', use_hot_tier=True, store=store)
+                cold_exists = await self.db.table_exists('memory_cold', use_cold_tier=True, store=store)
+                archive_log_exists = await self.db.table_exists('archive_log', use_hot_tier=True,
+                                                                store=store)
 
-            if not hot_exists:
-                logger.warning("memory_hot table doesn't exist - run postgres_schemas.sql")
-            if not cold_exists:
-                logger.warning("memory_cold table doesn't exist - run postgres_schemas.sql")
-            if not archive_log_exists:
-                logger.warning("archive_log table doesn't exist - run postgres_schemas.sql")
+                if not hot_exists:
+                    logger.warning("memory_hot table doesn't exist in %s - run postgres_schemas.sql", store)
+                if not cold_exists:
+                    logger.warning("memory_cold table doesn't exist in %s - run postgres_schemas.sql", store)
+                if not archive_log_exists:
+                    logger.warning("archive_log table doesn't exist in %s - run postgres_schemas.sql", store)
 
             self.initialized = True
             logger.info("PostgresStorage initialized successfully")
@@ -305,7 +374,8 @@ class PostgresStorage:
                     percept_digest
                 ),
                 use_hot_tier=True,
-                commit=True
+                commit=True,
+                store=self._write_store(getattr(memory, 'user_id', None)),
             )
 
             self.metrics['memories_stored'] += 1
@@ -352,29 +422,39 @@ class PostgresStorage:
                     'continue as though it had')
 
         try:
-            # Get memory from memory_hot table
-            row = await self.db.execute_query(
-                "SELECT * FROM memory_hot WHERE memory_id = $1",
-                (memory_id,),
-                use_hot_tier=True,
-                fetch_one=True
-            )
+            # Get memory from memory_hot table, in whichever store holds it
+            row, store = None, None
+            for store in self._stores():
+                row = await self.db.execute_query(
+                    "SELECT * FROM memory_hot WHERE memory_id = $1",
+                    (memory_id,),
+                    use_hot_tier=True,
+                    fetch_one=True,
+                    store=store,
+                )
+                if row:
+                    break
 
             if not row:
                 return None
 
-            # Update access count and last_accessed
-            await self.db.execute_query(
-                """
-                UPDATE memory_hot
-                SET access_count = access_count + 1,
-                    last_accessed = CURRENT_TIMESTAMP
-                WHERE memory_id = $1
-                """,
-                (memory_id,),
-                use_hot_tier=True,
-                commit=True
-            )
+            # Update access count and last_accessed -- on the row, or, for a
+            # memory of a frozen release, as usage recorded in runtime.
+            if self.db.is_frozen_store(store):
+                await self._record_release_usage(memory_id)
+            else:
+                await self.db.execute_query(
+                    """
+                    UPDATE memory_hot
+                    SET access_count = access_count + 1,
+                        last_accessed = CURRENT_TIMESTAMP
+                    WHERE memory_id = $1
+                    """,
+                    (memory_id,),
+                    use_hot_tier=True,
+                    commit=True,
+                    store=store,
+                )
 
             # Parse row into MemoryItem
             memory = self._row_to_memory_item(row)
@@ -399,6 +479,12 @@ class PostgresStorage:
                 logger.warning(f"Failed to send memory retrieval error notification: {notify_error}")
 
             return None
+
+    #: The fields `update_memory` knows how to write. Anything else is refused.
+    _UPDATABLE = frozenset({"content", "embedding", "confidence_score", "status",
+                            "access_count", "last_accessed", "importance_score",
+                            "tags", "metadata", "related_memories", "reasoning_trace",
+                            "thinking_state"})
 
     async def update_memory(
         self,
@@ -432,8 +518,38 @@ class PostgresStorage:
             params = []
             param_idx = 1
 
+            # EVERY KEY IS EITHER WRITTEN OR REFUSED. This chain used to fall
+            # through on a key it did not know -- `content` among them -- and
+            # then return True because some OTHER key had been written. So
+            # `supersede` reported a memory replaced whose text never changed,
+            # and the old text sat under `metadata.superseded` as the history of
+            # a change that had not happened (measured 2026-09-26, SYSTEM-MEMORY-01).
+            unknown = [k for k in updates
+                       if k not in self._UPDATABLE and k != "metadata.merge"]
+            if unknown:
+                logger.error("update_memory(%s): refusing -- no way to write %s",
+                             memory_id, unknown)
+                return False
             for key, value in updates.items():
-                if key == "access_count":
+                if key == "content":
+                    # Stored exactly as the insert stores it (JSON-encoded), so
+                    # the reader's json.loads gives back what was written.
+                    set_clauses.append(f"content = ${param_idx}")
+                    params.append(json.dumps(value))
+                    param_idx += 1
+                elif key == "embedding":
+                    set_clauses.append(f"embedding = ${param_idx}::text::vector")
+                    params.append(_vector_literal(value))
+                    param_idx += 1
+                elif key == "confidence_score":
+                    set_clauses.append(f"confidence_score = ${param_idx}")
+                    params.append(value)
+                    param_idx += 1
+                elif key == "status":
+                    set_clauses.append(f"status = ${param_idx}")
+                    params.append(getattr(value, "value", value))
+                    param_idx += 1
+                elif key == "access_count":
                     set_clauses.append(f"access_count = access_count + ${param_idx}")
                     params.append(value)
                     param_idx += 1
@@ -465,9 +581,21 @@ class PostgresStorage:
                         set_clauses.append(f"metadata = ${param_idx}::jsonb")
                     params.append(json.dumps(value) if isinstance(value, dict) else value)
                     param_idx += 1
+                elif key == "thinking_state":
+                    # The memory's record, as the insert encodes it: a memory that
+                    # holds every occurrence of what it records is rewritten when
+                    # another occurrence is merged into it.
+                    set_clauses.append(f"thinking_state = ${param_idx}::jsonb")
+                    params.append(json.dumps(value) if value is not None else None)
+                    param_idx += 1
                 elif key == "related_memories":
                     set_clauses.append(f"related_memories = ${param_idx}::jsonb")
                     params.append(json.dumps(value) if isinstance(value, list) else value)
+                    param_idx += 1
+                elif key == "reasoning_trace":
+                    # Encoded as the insert encodes it (a JSON list, or NULL).
+                    set_clauses.append(f"reasoning_trace = ${param_idx}::jsonb")
+                    params.append(json.dumps(value) if value else None)
                     param_idx += 1
 
             if not set_clauses:
@@ -481,26 +609,40 @@ class PostgresStorage:
             # unconditionally. Retrieval now spans both tiers, so a caller can
             # legitimately hold a COLD MemoryItem — and updating it matched zero
             # rows while reporting success. A write that changes nothing must
-            # never report that it did.
-            status = await self.db.execute_query(
-                query,
-                tuple(params),
-                use_hot_tier=True,
-                commit=True
-            )
-            if self._rows_affected(status) > 0:
-                return True
-
-            # Not in hot — try the cold tier before declaring failure.
+            # never report that it did. The memory is in exactly one store.
             cold_query = query.replace("UPDATE memory_hot SET", "UPDATE memory_cold SET", 1)
-            status = await self.db.execute_query(
-                cold_query,
-                tuple(params),
-                use_cold_tier=True,
-                commit=True
-            )
-            if self._rows_affected(status) > 0:
-                return True
+            stores = self._stores()
+            if len(stores) > 1:
+                # Separate databases: update it where it is held. Access to a
+                # memory of a frozen release is usage, recorded in runtime; any
+                # other change to one is routed to the release and refused
+                # there (the manager's ModelFrozenError, counted).
+                held = await self._holding_store(memory_id)
+                stores = [held] if held else []
+                if held == "model" and self.db.frozen and set(updates) <= {"access_count", "last_accessed"}:
+                    await self._record_release_usage(memory_id, int(updates.get("access_count", 1) or 1))
+                    return True
+            for store in stores:
+                status = await self.db.execute_query(
+                    query,
+                    tuple(params),
+                    use_hot_tier=True,
+                    commit=True,
+                    store=store,
+                )
+                if self._rows_affected(status) > 0:
+                    return True
+
+                # Not in hot — try the cold tier before declaring failure.
+                status = await self.db.execute_query(
+                    cold_query,
+                    tuple(params),
+                    use_cold_tier=True,
+                    commit=True,
+                    store=store,
+                )
+                if self._rows_affected(status) > 0:
+                    return True
 
             logger.warning(
                 "update_memory(%s): matched 0 rows in either tier — no field was "
@@ -559,7 +701,8 @@ class PostgresStorage:
         self,
         content: str,
         exact_match: bool = False,
-        limit: int = 10
+        limit: int = 10,
+        actor: Optional[str] = None,
     ) -> List[MemoryItem]:
         """
         Search memories by content string
@@ -568,6 +711,7 @@ class PostgresStorage:
             content: Content to search for
             exact_match: Use exact matching (default: LIKE fuzzy match)
             limit: Maximum results
+            actor: Whose memories may be returned (`_actor_predicate`)
 
         Returns:
             List of matching MemoryItem objects
@@ -582,22 +726,30 @@ class PostgresStorage:
                     'continue as though it had')
 
         try:
-            if exact_match:
-                rows = await self.db.execute_query(
-                    "SELECT * FROM memory_hot WHERE content = $1 LIMIT $2",
-                    (content, limit),
-                    use_hot_tier=True,
-                    fetch_all=True
-                )
-            else:
-                rows = await self.db.execute_query(
-                    "SELECT * FROM memory_hot WHERE content LIKE $1 LIMIT $2",
-                    (f"%{content}%", limit),
-                    use_hot_tier=True,
-                    fetch_all=True
-                )
+            actor_sql, actor_params = self._actor_predicate(actor, 2)
+            limit_idx = 2 + len(actor_params)
+            rows = []
+            for store in self._stores_for(actor):
+                if exact_match:
+                    rows += await self.db.execute_query(
+                        f"SELECT * FROM memory_hot WHERE content = $1{actor_sql} "
+                        f"LIMIT ${limit_idx}",
+                        (content, *actor_params, limit),
+                        use_hot_tier=True,
+                        fetch_all=True,
+                        store=store,
+                    ) or []
+                else:
+                    rows += await self.db.execute_query(
+                        f"SELECT * FROM memory_hot WHERE content LIKE $1{actor_sql} "
+                        f"LIMIT ${limit_idx}",
+                        (f"%{content}%", *actor_params, limit),
+                        use_hot_tier=True,
+                        fetch_all=True,
+                        store=store,
+                    ) or []
 
-            return [self._row_to_memory_item(row) for row in rows]
+            return [self._row_to_memory_item(row) for row in rows[:limit]]
 
         except Exception as e:
             # `except` must not turn a wiring defect into an empty result.
@@ -632,6 +784,25 @@ class PostgresStorage:
     # able to outrank an irrelevant hot one.
     HOT_TIER_RANKING_PRIOR = 0.02
 
+    async def owned_by(self, memory_ids: List[str], actor: Optional[str]) -> Set[str]:
+        """Which of these memories are `actor`'s OWN, by the one owner rule
+        (`_actor_predicate`, own-only): a user's own rows, or the substrate's.
+
+        For acts that CHANGE a memory on someone's behalf. Seeing a memory is
+        wider than owning it -- a user sees the substrate's too -- and closing or
+        rewriting one must never reach past what the actor owns."""
+        ids = [str(i) for i in (memory_ids or ()) if i]
+        if not ids:
+            return set()
+        actor_sql, actor_params = self._actor_predicate(actor, 2, own_only=True)
+        branches = [f"SELECT memory_id FROM {table} WHERE memory_id = ANY($1::text[]){actor_sql}"
+                    for table in ("memory_hot.memory_hot", "memory_cold.memory_cold")]
+        rows = []
+        for store in self._stores_for(actor, own_only=True):
+            rows += await self.db.execute_query(
+                " UNION ".join(branches), (ids, *actor_params), fetch_all=True, store=store) or []
+        return {str(r["memory_id"]) for r in rows}
+
     def _scope_tables(self, scope: 'RetrievalScope') -> List[Tuple[str, float]]:
         """Resolve a scope into (fully-qualified table, tier prior) pairs.
 
@@ -657,9 +828,11 @@ class PostgresStorage:
         status: Optional[MemoryStatus] = None,
         limit: int = 100,
         scope: Optional['RetrievalScope'] = None,
+        actor: Optional[str] = None,
     ) -> List[MemoryItem]:
         """
-        Search memories with filters
+        Search memories with filters (and only the memories `actor` may see --
+        `_actor_predicate`)
 
         Args:
             memory_type: Filter by memory type
@@ -726,6 +899,11 @@ class PostgresStorage:
                 params.append(status.value)
                 param_idx += 1
 
+            actor_sql, actor_params = self._actor_predicate(actor, param_idx)
+            predicate += actor_sql
+            params.extend(actor_params)
+            param_idx += len(actor_params)
+
             branches = [
                 f"SELECT *, {prior}::float8 AS tier_prior "
                 f"FROM {table} WHERE 1=1{predicate}"
@@ -744,11 +922,17 @@ class PostgresStorage:
             )
             params.append(limit)
 
-            rows = await self.db.execute_query(
-                query,
-                tuple(params),
-                fetch_all=True
-            )
+            rows = []
+            for store in self._stores_for(actor):
+                rows += await self.db.execute_query(
+                    query,
+                    tuple(params),
+                    fetch_all=True,
+                    store=store,
+                ) or []
+            # The same order the query gives inside one store, across the stores read.
+            rows.sort(key=lambda row: row['created_at'], reverse=True)
+            rows = rows[:limit]
 
             # Parse rows into MemoryItems
             memories = []
@@ -767,6 +951,41 @@ class PostgresStorage:
             self.metrics['failed_operations'] += 1
             return []
 
+    @staticmethod
+    def _actor_predicate(actor: Optional[str], param_idx: int, *,
+                         own_only: bool = False) -> Tuple[str, List[str]]:
+        """WHOSE MEMORIES MAY ENTER THIS COGNITION -- one rule for every way
+        memory is searched, as (` AND ...` SQL, its params from `$param_idx`).
+
+        `actor` is the task's owner. A task acting FOR A USER may see that
+        user's memories and the substrate's own shared knowledge -- never
+        another user's. A task that is the SUBSTRATE'S OWN work (actor None or
+        the substrate id) sees only the substrate's memories: health, security
+        and idle-loop cognition must not be coloured by whoever happened to be
+        connected.
+
+        Rows written before actors existed carry NULL/'' and are the
+        substrate's, so they surface for the substrate and for every user.
+
+        ONE RULE, EVERY STRATEGY. Only the semantic search applied it; the
+        keyword search (`content LIKE`) and the tag search read every row, so a
+        memory hidden from a user by meaning was handed to them by wording
+        (measured 2026-09-26, SYSTEM-CONVERSATION-01).
+
+        `own_only` narrows a user to THEIR OWN rows, for deduplication: a
+        user's memory may be seen beside the substrate's, but merging it INTO a
+        substrate memory would write the user's content into the shared one."""
+        from core.agents.autonomous.shared_types import (SUBSTRATE_ACTOR,
+                                                         is_substrate_actor)
+        if is_substrate_actor(actor):
+            return (f" AND (user_id IS NULL OR user_id = '' "
+                    f"OR user_id = ${param_idx})", [SUBSTRATE_ACTOR])
+        if own_only:
+            return f" AND user_id = ${param_idx}", [actor]
+        return (f" AND (user_id = ${param_idx} "
+                f"OR user_id IS NULL OR user_id = '' "
+                f"OR user_id = ${param_idx + 1})", [actor, SUBSTRATE_ACTOR])
+
     async def semantic_search(
         self,
         query_embedding: List[float],
@@ -775,6 +994,7 @@ class PostgresStorage:
         limit: int = 10,
         scope: Optional['RetrievalScope'] = None,
         actor: Optional[str] = None,
+        own_only: bool = False,
     ) -> List[MemoryItem]:
         """
         Semantic similarity search using pgvector (100x faster than MySQL!)
@@ -817,38 +1037,43 @@ class PostgresStorage:
                 params.append(memory_type.value)
                 param_idx += 1
 
-            # WHOSE MEMORIES MAY ENTER THIS COGNITION.
-            #
-            # `actor` is the task's owner. A task acting FOR A USER may see that
-            # user's memories and the substrate's own shared knowledge -- never
-            # another user's. A task that is the SUBSTRATE'S OWN work (actor
-            # None or the substrate id) sees only the substrate's memories:
-            # health, security and idle-loop cognition must not be coloured by
-            # whoever happened to be connected.
-            #
-            # Rows written before actors existed carry NULL/'' and are the
-            # substrate's by default -- 908 such rows today -- so they surface
-            # for the substrate and for no user. The columns exist; this is the
-            # first code to read them.
-            from core.agents.autonomous.shared_types import (SUBSTRATE_ACTOR,
-                                                             is_substrate_actor)
-            if is_substrate_actor(actor):
-                predicate += (f" AND (user_id IS NULL OR user_id = '' "
-                              f"OR user_id = ${param_idx})")
-                params.append(SUBSTRATE_ACTOR)
-                param_idx += 1
-            else:
-                predicate += (f" AND (user_id = ${param_idx} "
-                              f"OR user_id IS NULL OR user_id = '' "
-                              f"OR user_id = ${param_idx + 1})")
-                params.append(actor)
-                params.append(SUBSTRATE_ACTOR)
-                param_idx += 2
+            actor_sql, actor_params = self._actor_predicate(
+                actor, param_idx, own_only=own_only)
+            predicate += actor_sql
+            params.extend(actor_params)
+            param_idx += len(actor_params)
 
+            # THE HNSW INDEX IS ONLY USED BY `ORDER BY <distance> LIMIT k` ON
+            # THE TABLE ITSELF.
+            #
+            # This computed the distance as a CTE column and then filtered on
+            # that column, which the planner cannot answer from the index --
+            # so every semantic search was a SEQUENTIAL SCAN that computed
+            # cosine distance for every row in the tier. Measured on 77,626
+            # memories with EXPLAIN ANALYZE:
+            #
+            #     distance as a CTE column : Seq Scan, 77,670 rows filtered, 194 ms
+            #     ORDER BY distance LIMIT k: Index Scan on hnsw,          1.9 ms
+            #
+            # 102x, on an index that has existed the whole time -- and the
+            # module docstring above already claims "5,000ms -> 50ms via
+            # pgvector HNSW", which was true of the index and never of the
+            # query. The cost fell on every write, because storing a memory
+            # dedups against the store first: the fact phase of a teaching pass
+            # ran at 1.1 facts/s with 602 of its 614 ms per fact spent here.
+            #
+            # APPROXIMATE, DELIBERATELY. An ANN scan returns the k nearest and
+            # not every row above the floor, so a match ranked below k is
+            # missed. `k` over-fetches well past `limit` to keep that margin
+            # wide, and the threshold, the predicate and the final ordering are
+            # unchanged -- what changes is that the candidates come from the
+            # index instead of from reading the whole tier.
             sim = "1 - (embedding <=> $1::text::vector)"
+            ann_k = max(int(limit) * 8, 64)
             branches = [
-                f"SELECT *, {sim} AS similarity, {prior}::float8 AS tier_prior "
-                f"FROM {table} WHERE embedding IS NOT NULL{predicate}"
+                f"(SELECT *, {sim} AS similarity, {prior}::float8 AS tier_prior "
+                f"FROM {table} WHERE embedding IS NOT NULL{predicate} "
+                f"ORDER BY embedding <=> $1::text::vector LIMIT {ann_k})"
                 for table, prior in self._scope_tables(scope)
             ]
 
@@ -864,11 +1089,17 @@ class PostgresStorage:
             params.append(min_similarity)
             params.append(limit)
 
-            rows = await self.db.execute_query(
-                query,
-                tuple(params),
-                fetch_all=True
-            )
+            rows = []
+            for store in self._stores_for(actor, own_only=own_only):
+                rows += await self.db.execute_query(
+                    query,
+                    tuple(params),
+                    fetch_all=True,
+                    store=store,
+                ) or []
+            # The same order the query gives inside one store, across the stores read.
+            rows.sort(key=lambda row: row['similarity'] + row['tier_prior'], reverse=True)
+            rows = rows[:limit]
 
             # Parse rows into MemoryItems with similarity scores
             results = []
@@ -907,12 +1138,21 @@ class PostgresStorage:
                     'continue as though it had')
 
         try:
-            await self.db.execute_query(
-                "DELETE FROM memory_hot WHERE memory_id = $1",
-                (memory_id,),
-                use_hot_tier=True,
-                commit=True
-            )
+            # The memory is in exactly one store: deleted there. Development has
+            # one; elsewhere it is found first (a memory of a frozen release is
+            # routed to the release and refused there).
+            stores = self._stores()
+            if len(stores) > 1:
+                held = await self._holding_store(memory_id)
+                stores = [held] if held else []
+            for store in stores:
+                await self.db.execute_query(
+                    "DELETE FROM memory_hot WHERE memory_id = $1",
+                    (memory_id,),
+                    use_hot_tier=True,
+                    commit=True,
+                    store=store,
+                )
 
             self.metrics['memories_deleted'] += 1
             logger.debug(f"Deleted memory: {memory_id}")
@@ -950,16 +1190,20 @@ class PostgresStorage:
         try:
             cutoff_date = datetime.now() - timedelta(days=age_threshold)
 
-            rows = await self.db.execute_query(
-                """
-                SELECT memory_id FROM memory_hot
-                WHERE created_at < $1
-                ORDER BY created_at ASC
-                """,
-                (cutoff_date,),
-                use_hot_tier=True,
-                fetch_all=True
-            )
+            rows = []
+            for store in self.db.maintained_stores():
+                rows += await self.db.execute_query(
+                    """
+                    SELECT memory_id, created_at FROM memory_hot
+                    WHERE created_at < $1
+                    ORDER BY created_at ASC
+                    """,
+                    (cutoff_date,),
+                    use_hot_tier=True,
+                    fetch_all=True,
+                    store=store,
+                ) or []
+            rows.sort(key=lambda row: row['created_at'])
 
             return [row['memory_id'] for row in rows]
 
@@ -989,12 +1233,17 @@ class PostgresStorage:
                     'continue as though it had')
 
         try:
-            row = await self.db.execute_query(
-                "SELECT * FROM memory_cold WHERE memory_id = $1",
-                (memory_id,),
-                use_cold_tier=True,
-                fetch_one=True
-            )
+            row = None
+            for store in self._stores():
+                row = await self.db.execute_query(
+                    "SELECT * FROM memory_cold WHERE memory_id = $1",
+                    (memory_id,),
+                    use_cold_tier=True,
+                    fetch_one=True,
+                    store=store,
+                )
+                if row:
+                    break
 
             if not row:
                 return None
@@ -1088,7 +1337,9 @@ class PostgresStorage:
                      if getattr(memory, 'appraisal_snapshot', None) else None)
                 ),
                 use_cold_tier=True,
-                commit=True
+                commit=True,
+                # Archived in the store it lives in: its owner's.
+                store=self._write_store(memory.user_id),
             )
 
             # Delete from hot tier
@@ -1128,18 +1379,24 @@ class PostgresStorage:
             if not memory:
                 logger.warning(f"Memory {memory_id} not found in cold tier")
                 return False
+            if self.db.frozen and await self._holding_store(memory_id) == "model":
+                # Moving a memory of the release between tiers changes the
+                # release: refused by the manager, before anything is written.
+                self.db.refuse_if_frozen("DELETE FROM memory_cold WHERE memory_id = $1",
+                                         store="model", use_cold_tier=True)
 
             # Store to hot tier
             success = await self.store_memory(memory)
             if not success:
                 return False
 
-            # Delete from cold tier
+            # Delete from cold tier, in the store it was archived in: its owner's.
             await self.db.execute_query(
                 "DELETE FROM memory_cold WHERE memory_id = $1",
                 (memory_id,),
                 use_cold_tier=True,
-                commit=True
+                commit=True,
+                store=self._write_store(memory.user_id),
             )
 
             logger.info(f"Restored memory {memory_id} from cold tier")
@@ -1153,7 +1410,8 @@ class PostgresStorage:
     async def log_archive(
         self,
         memory_id: str,
-        size_bytes: int
+        size_bytes: int,
+        owner: Optional[str] = None,
     ) -> bool:
         """
         Log memory archival to cold tier
@@ -1161,6 +1419,7 @@ class PostgresStorage:
         Args:
             memory_id: Memory identifier
             size_bytes: Memory size in bytes
+            owner: the memory's owner (its user_id); the log is kept in its store
 
         Returns:
             True if successful
@@ -1173,7 +1432,8 @@ class PostgresStorage:
                 """,
                 (memory_id, size_bytes),
                 use_hot_tier=True,
-                commit=True
+                commit=True,
+                store=self._write_store(owner),
             )
             return True
 
@@ -1189,53 +1449,57 @@ class PostgresStorage:
             Dict with storage statistics
         """
         try:
-            # Total memories
-            total_result = await self.db.execute_query(
-                "SELECT COUNT(*) as count FROM memory_hot",
-                use_hot_tier=True,
-                fetch_one=True
-            )
-            total_count = total_result['count'] if total_result else 0
+            total_count, scored, importance_sum, oldest_memory = 0, 0, 0.0, None
+            by_type: Dict[str, int] = {}
+            by_status: Dict[str, int] = {}
+            for store in self._stores():
+                # Total memories, and the sum behind the average importance
+                total_result = await self.db.execute_query(
+                    "SELECT COUNT(*) as count, COUNT(importance_score) as scored, "
+                    "COALESCE(SUM(importance_score), 0) as importance, "
+                    "MIN(created_at) as oldest_memory FROM memory_hot",
+                    use_hot_tier=True,
+                    fetch_one=True,
+                    store=store,
+                )
+                if total_result:
+                    total_count += total_result['count']
+                    scored += total_result['scored']
+                    importance_sum += float(total_result['importance'])
+                    oldest = total_result['oldest_memory']
+                    if oldest is not None and (oldest_memory is None or oldest < oldest_memory):
+                        oldest_memory = oldest
 
-            # Memories by type
-            type_rows = await self.db.execute_query(
-                """
-                SELECT memory_type, COUNT(*) as count
-                FROM memory_hot
-                GROUP BY memory_type
-                """,
-                use_hot_tier=True,
-                fetch_all=True
-            )
-            by_type = {row['memory_type']: row['count'] for row in type_rows}
+                # Memories by type
+                type_rows = await self.db.execute_query(
+                    """
+                    SELECT memory_type, COUNT(*) as count
+                    FROM memory_hot
+                    GROUP BY memory_type
+                    """,
+                    use_hot_tier=True,
+                    fetch_all=True,
+                    store=store,
+                )
+                for row in type_rows or []:
+                    by_type[row['memory_type']] = by_type.get(row['memory_type'], 0) + row['count']
 
-            # Memories by status
-            status_rows = await self.db.execute_query(
-                """
-                SELECT status, COUNT(*) as count
-                FROM memory_hot
-                GROUP BY status
-                """,
-                use_hot_tier=True,
-                fetch_all=True
-            )
-            by_status = {row['status']: row['count'] for row in status_rows}
+                # Memories by status
+                status_rows = await self.db.execute_query(
+                    """
+                    SELECT status, COUNT(*) as count
+                    FROM memory_hot
+                    GROUP BY status
+                    """,
+                    use_hot_tier=True,
+                    fetch_all=True,
+                    store=store,
+                )
+                for row in status_rows or []:
+                    by_status[row['status']] = by_status.get(row['status'], 0) + row['count']
 
-            # Average importance
-            avg_result = await self.db.execute_query(
-                "SELECT AVG(importance_score) as avg_importance FROM memory_hot",
-                use_hot_tier=True,
-                fetch_one=True
-            )
-            avg_importance = float(avg_result['avg_importance']) if avg_result and avg_result['avg_importance'] else 0.0
-
-            # Oldest memory
-            oldest_result = await self.db.execute_query(
-                "SELECT MIN(created_at) as oldest_memory FROM memory_hot",
-                use_hot_tier=True,
-                fetch_one=True
-            )
-            oldest_memory = oldest_result['oldest_memory'] if oldest_result else None
+            # Average importance over every store read (AVG skips a NULL score; so does this)
+            avg_importance = importance_sum / scored if scored else 0.0
 
             return {
                 'total_memories': total_count,
@@ -1361,18 +1625,21 @@ class PostgresStorage:
 
             migrated_count = 0
 
-            # Get memories older than cutoff from hot tier
-            rows = await self.db.execute_query(
-                """
-                SELECT memory_id
-                FROM memory_hot
-                WHERE created_at < $1
-                AND status IN ('raw', 'processed')
-                """,
-                (cutoff_date,),
-                use_hot_tier=True,
-                fetch_all=True
-            )
+            # Get memories older than cutoff from hot tier, in every store
+            rows = []
+            for store in self.db.maintained_stores():
+                rows += await self.db.execute_query(
+                    """
+                    SELECT memory_id
+                    FROM memory_hot
+                    WHERE created_at < $1
+                    AND status IN ('raw', 'processed')
+                    """,
+                    (cutoff_date,),
+                    use_hot_tier=True,
+                    fetch_all=True,
+                    store=store,
+                ) or []
 
             memory_ids = [row['memory_id'] for row in rows]
 
@@ -1412,19 +1679,22 @@ class PostgresStorage:
             # Delete and count for real via RETURNING — a caller must be able to
             # tell "cleaned 12" from "cleaned none". Returning a hardcoded 0 made
             # every cleanup look like a no-op even when it deleted rows.
-            rows = await self.db.execute_query(
-                """
-                DELETE FROM memory_hot
-                WHERE created_at < $1
-                AND importance_score < $2
-                AND status IN ('raw', 'processed')
-                RETURNING memory_id
-                """,
-                (cutoff_date, importance_threshold),
-                use_hot_tier=True,
-                fetch_all=True
-            )
-            count = len(rows) if rows else 0
+            count = 0
+            for store in self.db.maintained_stores():
+                rows = await self.db.execute_query(
+                    """
+                    DELETE FROM memory_hot
+                    WHERE created_at < $1
+                    AND importance_score < $2
+                    AND status IN ('raw', 'processed')
+                    RETURNING memory_id
+                    """,
+                    (cutoff_date, importance_threshold),
+                    use_hot_tier=True,
+                    fetch_all=True,
+                    store=store,
+                )
+                count += len(rows) if rows else 0
             logger.info(f"Cleaned up {count} low-importance memories")
             return count
 
@@ -1444,17 +1714,19 @@ class PostgresStorage:
                 logger.error("Database not initialized")
                 return False
 
-            # PostgreSQL version of decay formula
-            await self.db.execute_query(
-                """
-                UPDATE memory_hot
-                SET importance_score = importance_score * EXP(-0.01 * EXTRACT(DAY FROM (NOW() - created_at)))
-                WHERE status IN ('raw', 'processed')
-                AND EXTRACT(DAY FROM (NOW() - created_at)) > 1
-                """,
-                use_hot_tier=True,
-                commit=True
-            )
+            # PostgreSQL version of decay formula, once in every store
+            for store in self.db.maintained_stores():
+                await self.db.execute_query(
+                    """
+                    UPDATE memory_hot
+                    SET importance_score = importance_score * EXP(-0.01 * EXTRACT(DAY FROM (NOW() - created_at)))
+                    WHERE status IN ('raw', 'processed')
+                    AND EXTRACT(DAY FROM (NOW() - created_at)) > 1
+                    """,
+                    use_hot_tier=True,
+                    commit=True,
+                    store=store,
+                )
 
             logger.info(f"Applied decay to memories in hot tier")
             return True
@@ -1497,12 +1769,18 @@ class PostgresStorage:
             query += f" ORDER BY created_at ASC LIMIT ${param_idx}"
             params.append(limit)
 
-            rows = await self.db.execute_query(
-                query,
-                tuple(params),
-                use_hot_tier=True,
-                fetch_all=True
-            )
+            rows = []
+            for store in self._stores():
+                rows += await self.db.execute_query(
+                    query,
+                    tuple(params),
+                    use_hot_tier=True,
+                    fetch_all=True,
+                    store=store,
+                ) or []
+            # The same order the query gives inside one store, across the stores read.
+            rows.sort(key=lambda row: row['created_at'])
+            rows = rows[:limit]
 
             memories = []
             for row in rows:

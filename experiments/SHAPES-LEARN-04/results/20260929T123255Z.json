@@ -1,0 +1,174 @@
+{
+  "experiment": "SHAPES-LEARN-04",
+  "claim": "Told sentences it cannot read whole, the substrate says what it understood and asks about what it did not, and remembers what was said. Answered by example through its one teaching path, with none of those sentences, it reads the sentences it asked about.",
+  "hypothesis": "A reply that refuses instead of reading what it can; a telling not remembered; one of the four sentences inside the answering lesson; one of them unread or read to the wrong meaning after it; an untaught shape read whole; a reading that writes; or any write to the main store would each show here. The prose sample is measured, not checked.",
+  "started_at": "2026-09-29T12:32:55.206075+00:00",
+  "duration_seconds": 113.957,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/TorinAI/venv_torin/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/TorinAI",
+    "shadow_mode": null,
+    "git_commit": "20deb447498593391eca0286916b8f986c560a26",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "torinai_dev",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "torinai_dev",
+        "model": "torinai_dev",
+        "user_context": "torinai_dev",
+        "learning": "torinai_dev"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "environment",
+        "database": "environment",
+        "user": "environment",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 1786,
+    "database_verified": null,
+    "database_verified_reason": "not verified"
+  },
+  "summary": {
+    "checks": 14,
+    "passed": 14,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [
+    {
+      "name": "answering lesson repair: add_links",
+      "value": 8,
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "answering lesson repair: item_based_lexical",
+      "value": 9,
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "answering lesson repair: lexical_item_based",
+      "value": 12,
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "prose read whole",
+      "value": "3/300",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "prose words read in whole sentences",
+      "value": "15/4081",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "prose words read in parts",
+      "value": "261/4081",
+      "unit": "",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "the run is in the sandbox",
+      "passed": true,
+      "detail": "connected to torinai_dev",
+      "at": "2026-09-29T12:32:57.195637+00:00"
+    },
+    {
+      "label": "the substrate is running",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-29T12:33:20.035273+00:00"
+    },
+    {
+      "label": "the first lesson is learned, none refused",
+      "passed": true,
+      "detail": "{'learned': 235, 'linked': 323, 'already': 1, 'understood': 60, 'refused': 0, 'total': 228, 'repair_holophrase': 19, 'repair_substitution': 26, 'repair_lexical_item_based': 58, 'repair_item_based_lexical': 65, 'repair_add_links': 59}",
+      "at": "2026-09-29T12:33:32.041041+00:00"
+    },
+    {
+      "label": "none of the four reads whole",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-29T12:33:32.049322+00:00"
+    },
+    {
+      "label": "every reply reads what it can and asks about the rest; none refuses",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-29T12:33:32.556564+00:00"
+    },
+    {
+      "label": "it asks about the word it does not know",
+      "passed": true,
+      "detail": "{'and': True, 'true': True}",
+      "at": "2026-09-29T12:33:32.556574+00:00"
+    },
+    {
+      "label": "each is remembered as said",
+      "passed": true,
+      "detail": "[1, 1, 1, 1, 1]",
+      "at": "2026-09-29T12:33:32.564408+00:00"
+    },
+    {
+      "label": "the answering lesson is learned, none refused",
+      "passed": true,
+      "detail": "{'learned': 21, 'linked': 63, 'already': 0, 'understood': 8, 'refused': 0, 'total': 29, 'repair_lexical_item_based': 12, 'repair_add_links': 8, 'repair_item_based_lexical': 9}",
+      "at": "2026-09-29T12:33:37.325312+00:00"
+    },
+    {
+      "label": "none of the four sentences is in either lesson",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-29T12:33:37.325353+00:00"
+    },
+    {
+      "label": "every answer is an example: nothing it states is held",
+      "passed": true,
+      "detail": "{'bound': 0, 'speaker_context': 0, 'no_speaker': 0, 'open': 0, 'not_told': 0, 'rule': 0, 'rule_not_held': 0, 'alternative': 0, 'example': 29}",
+      "at": "2026-09-29T12:33:37.325361+00:00"
+    },
+    {
+      "label": "each of the four reads whole, to the meaning it has",
+      "passed": true,
+      "detail": "4/4",
+      "at": "2026-09-29T12:33:37.334024+00:00"
+    },
+    {
+      "label": "what neither lesson taught stays unread whole",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-09-29T12:33:37.338431+00:00"
+    },
+    {
+      "label": "the view is as teaching left it",
+      "passed": true,
+      "detail": "642 -> 642",
+      "at": "2026-09-29T12:34:46.609436+00:00"
+    },
+    {
+      "label": "the main model's store is untouched",
+      "passed": true,
+      "detail": "188529 rows before, 188529 after",
+      "at": "2026-09-29T12:34:49.161045+00:00"
+    }
+  ],
+  "notes": []
+}

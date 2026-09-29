@@ -1,0 +1,74 @@
+{
+  "experiment": "NLU-09 \u2014 When it cannot represent a sentence, does it SAY so?",
+  "writes_to_store": false,
+  "notes": [
+    "the false-positive rate is the safety number here: a reading becomes a premise the solver cannot doubt, so a confident wrong reading is worse than no reading at all",
+    "false-positive rate on structures it cannot represent: 16.7% (2/12)"
+  ],
+  "data": {},
+  "checks": [
+    {
+      "name": "refuses relative clause",
+      "passed": true,
+      "detail": "guessed None []"
+    },
+    {
+      "name": "refuses NP coordination",
+      "passed": true,
+      "detail": "guessed None []"
+    },
+    {
+      "name": "refuses object coordination",
+      "passed": true,
+      "detail": "guessed None []"
+    },
+    {
+      "name": "refuses VP coordination",
+      "passed": true,
+      "detail": "guessed None []"
+    },
+    {
+      "name": "refuses subordination",
+      "passed": true,
+      "detail": "guessed None []"
+    },
+    {
+      "name": "refuses complement clause",
+      "passed": false,
+      "detail": "guessed ('scientists_believe_the_universe_expanding',) [extractor]"
+    },
+    {
+      "name": "refuses ditransitive",
+      "passed": true,
+      "detail": "guessed None []"
+    },
+    {
+      "name": "refuses apposition",
+      "passed": true,
+      "detail": "guessed None []"
+    },
+    {
+      "name": "refuses comparative",
+      "passed": true,
+      "detail": "guessed None []"
+    },
+    {
+      "name": "refuses quantified",
+      "passed": true,
+      "detail": "guessed None []"
+    },
+    {
+      "name": "refuses multi-clause definition",
+      "passed": true,
+      "detail": "guessed None []"
+    },
+    {
+      "name": "refuses bare fragment",
+      "passed": false,
+      "detail": "guessed ('why',) [passthrough]"
+    }
+  ],
+  "passed": 10,
+  "total": 12,
+  "seconds": 0.03
+}

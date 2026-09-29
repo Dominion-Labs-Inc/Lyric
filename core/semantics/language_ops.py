@@ -292,7 +292,7 @@ def extract_entities(text: str) -> Dict[str, List[str]]:
             continue                          # dangling title from an abbreviation split
         elif len(toks) >= 2:
             # A multi-word capitalized run is an entity regardless of position;
-            # sentence-initial names ("Stefan Ragland …") count.
+            # sentence-initial names ("Ada Lovelace …") count.
             _add(out["person"], span)
         elif start > 0:                       # a single mid-sentence Capitalized word
             _add(out["other"], span)

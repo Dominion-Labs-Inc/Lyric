@@ -362,7 +362,12 @@ class MetaLearner(IStrategySelection):
             return False
 
     async def save_strategy(self, strategy: "LearningStrategy") -> bool:
-        """Upsert one strategy's statistics."""
+        """Register one strategy's row if it is not stored yet. Never touches its
+        counters: those move only through `_record_outcome_row`, atomically.
+
+        This upserted the ABSOLUTE counts from the process's own copy, so two
+        instances of the model recording outcomes for one arm each overwrote the
+        other's -- last writer wins, outcomes lost."""
         if not await self._ensure_table():
             return False
         try:
@@ -374,17 +379,7 @@ class MetaLearner(IStrategySelection):
                     successes, failures, success_rate, avg_time_ms, total_time_ms,
                     effectiveness_score, confidence, last_used, updated_at
                 ) VALUES ($1,$2,$3,$4::jsonb,$5,$6,$7,$8,$9,$10,$11,$12,$13,NOW())
-                ON CONFLICT (strategy_id) DO UPDATE SET
-                    trials = EXCLUDED.trials,
-                    successes = EXCLUDED.successes,
-                    failures = EXCLUDED.failures,
-                    success_rate = EXCLUDED.success_rate,
-                    avg_time_ms = EXCLUDED.avg_time_ms,
-                    total_time_ms = EXCLUDED.total_time_ms,
-                    effectiveness_score = EXCLUDED.effectiveness_score,
-                    confidence = EXCLUDED.confidence,
-                    last_used = EXCLUDED.last_used,
-                    updated_at = NOW()
+                ON CONFLICT (strategy_id) DO NOTHING
                 """,
                 (
                     strategy.strategy_id, str(strategy.strategy_type),
@@ -400,6 +395,74 @@ class MetaLearner(IStrategySelection):
         except Exception as e:
             logger.error("Failed to persist strategy %s: %s", strategy.strategy_id, e)
             return False
+
+    def _derive(self, strategy: "LearningStrategy") -> None:
+        """The figures that follow from an arm's counters: success rate,
+        effectiveness (70% success rate, 30% efficiency) and confidence (grows
+        with trials up to 2x min_trials)."""
+        strategy.success_rate = (strategy.successes / strategy.trials
+                                 if strategy.trials > 0 else 0.0)
+        time_score = max(0.0, 100.0 - (strategy.avg_time_ms / 100.0))
+        strategy.effectiveness_score = strategy.success_rate * 70.0 + time_score * 0.3
+        strategy.confidence = min(1.0, strategy.trials / (self.min_trials * 2.0))
+
+    async def _record_outcome_row(self, strategy: "LearningStrategy", success: bool,
+                                  time_ms: float) -> bool:
+        """Add ONE outcome to an arm's stored counters in a single atomic
+        statement, and take the store's totals back into this process's copy.
+        The totals include every other instance's outcomes, so many instances of
+        the model learn into one posterior instead of overwriting each other's.
+        Returns False when the store could not be written (the caller then
+        applies the outcome in memory only, and says so)."""
+        if not await self._ensure_table():
+            return False
+        from core.database import get_database_manager
+        db = get_database_manager()
+        try:
+            row = await db.execute_query(
+                """
+                INSERT INTO meta_learning_strategies AS s (
+                    strategy_id, strategy_type, task_type, parameters, trials, successes,
+                    failures, success_rate, avg_time_ms, total_time_ms, effectiveness_score,
+                    confidence, last_used, updated_at
+                ) VALUES ($1, $2, $3, $4::jsonb, 1, $5, $6, 0, $7, $7, 0, 0, NOW(), NOW())
+                ON CONFLICT (strategy_id) DO UPDATE SET
+                    trials        = s.trials + 1,
+                    successes     = s.successes + $5,
+                    failures      = s.failures + $6,
+                    total_time_ms = s.total_time_ms + $7,
+                    avg_time_ms   = CASE WHEN s.trials = 0 THEN $7
+                                         ELSE 0.2 * $7 + 0.8 * s.avg_time_ms END,
+                    last_used     = NOW(),
+                    updated_at    = NOW()
+                RETURNING trials, successes, failures, total_time_ms, avg_time_ms, last_used
+                """,
+                (strategy.strategy_id, str(strategy.strategy_type), strategy.task_type.value,
+                 json.dumps(strategy.parameters or {}), 1 if success else 0,
+                 0 if success else 1, float(time_ms)),
+                fetch_one=True)
+        except Exception as e:
+            raise_if_structural(e, "meta_learning._record_outcome_row")
+            logger.error("Failed to record an outcome for %s: %s", strategy.strategy_id, e)
+            return False
+        if row is None:
+            return False
+        strategy.trials = int(row["trials"])
+        strategy.successes = int(row["successes"])
+        strategy.failures = int(row["failures"])
+        strategy.total_time_ms = float(row["total_time_ms"])
+        strategy.avg_time_ms = float(row["avg_time_ms"])
+        strategy.last_used = row["last_used"]
+        self._derive(strategy)
+        # The derived figures follow the counters; written only if no other
+        # instance has added an outcome since (its own write carries newer ones).
+        await db.execute_query(
+            "UPDATE meta_learning_strategies SET success_rate = $2, "
+            "effectiveness_score = $3, confidence = $4 WHERE strategy_id = $1 AND trials = $5",
+            (strategy.strategy_id, round(strategy.success_rate, 4),
+             round(strategy.effectiveness_score, 3), round(strategy.confidence, 4),
+             strategy.trials))
+        return True
 
     async def load_strategies(self) -> int:
         """Restore persisted statistics onto the registered strategies."""
@@ -649,46 +712,29 @@ class MetaLearner(IStrategySelection):
 
         if strategy_id:
             strategy = self.strategies[strategy_id]
-
-            # Update trial counts
-            strategy.trials += 1
-            if success:
-                strategy.successes += 1
-            else:
-                strategy.failures += 1
-
-            # Success rate
-            strategy.success_rate = (
-                strategy.successes / strategy.trials if strategy.trials > 0 else 0.0
-            )
-
-            # Exponential moving average for latency
-            if strategy.trials == 1:
-                strategy.avg_time_ms = time_ms
-            else:
-                alpha = 0.2
-                strategy.avg_time_ms = alpha * time_ms + (1 - alpha) * strategy.avg_time_ms
-
-            strategy.total_time_ms += time_ms
-
-            # Effectiveness: 70% success rate, 30% efficiency (inverse time)
-            time_score = max(0.0, 100.0 - (strategy.avg_time_ms / 100.0))
-            strategy.effectiveness_score = strategy.success_rate * 70.0 + time_score * 0.3
-
-            # Confidence grows with trials up to 2x min_trials
-            strategy.confidence = min(1.0, strategy.trials / (self.min_trials * 2.0))
-            strategy.last_used = datetime.now()
-
+            # THE STORE COUNTS, ATOMICALLY; this copy takes its totals back. The
+            # posterior is the learning and must outlive the process -- and with
+            # many instances of the model it must also be ONE posterior, not one
+            # per instance each overwriting the others'.
+            if not await self._record_outcome_row(strategy, success, time_ms):
+                strategy.trials += 1
+                if success:
+                    strategy.successes += 1
+                else:
+                    strategy.failures += 1
+                strategy.avg_time_ms = (time_ms if strategy.trials == 1
+                                        else 0.2 * time_ms + 0.8 * strategy.avg_time_ms)
+                strategy.total_time_ms += time_ms
+                strategy.last_used = datetime.now()
+                self._derive(strategy)
+                logger.error("strategy %s outcome recorded in THIS process only -- the "
+                             "store could not be written", strategy.strategy_id)
             logger.info(
                 "Updated strategy %s: success_rate=%.1f%%, effectiveness=%.1f",
                 strategy.strategy_type,
                 strategy.success_rate * 100.0,
                 strategy.effectiveness_score,
             )
-
-            # Persist immediately: the posterior is the learning, and losing it
-            # on restart is what made this loop reopen every process start.
-            await self.save_strategy(strategy)
 
             if decision_id:
                 await self._close_decision(

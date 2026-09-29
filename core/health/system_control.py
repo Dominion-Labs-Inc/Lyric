@@ -19,11 +19,10 @@ whether it is running -- `is_monitoring`, `monitoring_active`, `is_running`.
 `snapshot` reads those live, so a dot is green because the loop is actually
 turning, not because something claimed it started.
 
-SYSTEMS WITH NO LIFECYCLE ARE HONEST ABOUT IT. `safety_framework`, the security
-`controller` and `malware_sandbox` are always-on gates and analysers: they have
-no start/stop because they are not loops that can be off while the substrate is
-up. They appear with status and `controllable=False`, so the app shows a dot and
-no button rather than a button that would lie.
+SYSTEMS WITH NO LIFECYCLE ARE HONEST ABOUT IT. The Constitution is the gate
+every act passes: it has no start/stop because it is not a loop that can be off
+while the substrate is up. It appears with status and `controllable=False`, so
+the app shows a dot and no button rather than a button that would lie.
 """
 
 from __future__ import annotations
@@ -81,14 +80,9 @@ REGISTRY: Dict[str, ControlledSystem] = {
             holder_attr="threat_blocking", running_attr="monitoring_active",
             start_method="start_monitoring", stop_method="stop_monitoring"),
         ControlledSystem(
-            "safety_framework", SECURITY,
-            "The single evaluation point every tool call passes through",
-            holder_attr="safety_framework", running_attr=None,
-            start_method=None, stop_method=None),
-        ControlledSystem(
-            "malware_sandbox", SECURITY,
-            "Isolated static analysis of suspicious files",
-            holder_attr="malware_sandbox", running_attr=None,
+            "constitution", SECURITY,
+            "The gate every act passes through: five laws, judged before the act",
+            holder_attr="constitution", running_attr=None,
             start_method=None, stop_method=None),
         ControlledSystem(
             "backup_scheduler", MONITORING,
@@ -122,8 +116,7 @@ def resolve_live(autonomous_system: Any) -> Dict[str, Any]:
     return {
         "health_monitor": first((a, "health_monitor"), (coord, "health_monitor")),
         "threat_blocking": first((a, "threat_blocking"), (coord, "threat_blocking")),
-        "safety_framework": first((a, "safety_framework"), (coord, "safety_framework")),
-        "malware_sandbox": first((a, "malware_sandbox"), (coord, "malware_sandbox")),
+        "constitution": first((coord, "constitution"),),
     }
 
 

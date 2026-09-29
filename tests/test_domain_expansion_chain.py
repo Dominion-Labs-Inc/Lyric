@@ -48,6 +48,67 @@ def _load_env():
     load_dotenv(Path(__file__).resolve().parents[1] / ".env.production", override=True)
 
 
+#: The field these oracles act in. A task declares it; nothing infers it.
+FIELD = "fluid_mechanics"
+
+
+async def _field_is_held():
+    """THE DOMAIN IS TAUGHT, NOT ASSUMED. The chain runs through a field that
+    holds learned concepts, and a store that was never taught one -- the sandbox
+    after a reset, a model wiped for teaching -- has none to run through: every
+    oracle below then fails as though the chain were broken. Taught here through
+    the one learning path, into the sandbox the suite runs in, and only when the
+    field holds nothing yet."""
+    from core.domain.domain_registry import DomainRegistry, UnresolvedDomainReference
+    from core.learning.unified_learning_system import get_learning_authority
+
+    registry = DomainRegistry()
+    await registry.initialize()
+    try:
+        if registry.resolve_domain_reference(FIELD, require_concepts=True):
+            return
+    except UnresolvedDomainReference:
+        pass
+    admission = await get_learning_authority().learn_fact(
+        "pressure loss", "caused_by", "pipe friction", domain=FIELD,
+        description="the drop in pressure as a fluid flows through a pipe or a fitting")
+    assert admission.admitted, admission.refusals
+
+
+#: The analogy the transfer oracles run through. In both fields the concept is
+#: caused by pipe friction and reduces flow rate: the same relation to the same
+#: concept, which is what the validator accepts -- never a likeness of names.
+ANALOGY = (("clogged pipe", "caused_by", "pipe friction", "plumbing"),
+           ("clogged pipe", "reduces", "flow rate", "plumbing"),
+           ("pressure loss", "caused_by", "pipe friction", FIELD),
+           ("pressure loss", "reduces", "flow rate", FIELD))
+
+
+async def _analogy_is_held():
+    """THE ANALOGY IS TAUGHT, NOT ASSUMED. A transfer needs two fields whose
+    concepts share structure; a store never taught them has no mapping to
+    validate, and the oracles would have nothing to apply. Each fact is taught
+    through the one learning path, into the sandbox the suite runs in, only when
+    it is not already held."""
+    from core.database import get_database_manager
+    from core.learning.unified_learning_system import get_learning_authority
+
+    db = get_database_manager()
+    for subject, relation, obj, field in ANALOGY:
+        held = await db.execute_query(
+            "SELECT 1 FROM unified.concept_relations cr "
+            "JOIN unified.concepts c ON c.concept_id = cr.source_concept_id "
+            "WHERE c.name = $1 AND c.domain = $2 AND cr.relation = $3 "
+            "AND cr.target_surface = $4 LIMIT 1",
+            (subject.replace(" ", "_"), field, relation.replace("_", " "),
+             obj.replace(" ", "_")), fetch_all=True)
+        if held:
+            continue
+        admission = await get_learning_authority().learn_fact(
+            subject, relation, obj, domain=field)
+        assert admission.admitted, admission.refusals
+
+
 async def _storage():
     from core.agents.memory_agent import get_memory_agent
     agent = await get_memory_agent()
@@ -73,7 +134,20 @@ async def _coordinator():
     # singleton and is gone). get_learning_authority() == get_unified_learning_system().
     coord.learning = get_learning_authority()
     await coord.learning.start()
+    # Domain expansion is woken by the outcome it reads: a stored outcome sets
+    # this flag and starts the single-flight drain.
+    coord._domain_expansion_dirty = False
+    coord._domain_expansion_drain_task = None
     return coord
+
+
+async def _reader_woken_by(coord):
+    """Run to its end the reader a stored outcome woke. Expansion is event-driven:
+    storing an outcome starts the drain, and a pass run beside it would race it
+    for the same outcomes and the same status."""
+    drain = coord._domain_expansion_drain_task
+    assert drain is not None, "the stored outcome woke no reader"
+    await asyncio.wait_for(drain, timeout=120)
 
 
 def _task(description, task_type="analysis", task_id="oracle_task", domain_id=None):
@@ -150,10 +224,12 @@ async def test_learning_recorded_and_credit_earned_are_separately_representable(
     """The interface must express (recorded=True, credit=False)."""
     _load_env()
     from core.learning.unified_learning_system import get_unified_learning_system
+    from core.agents.autonomous.shared_types import SUBSTRATE_ACTOR
     from core.learning.learning_interfaces import LearningExample
 
     learning = get_unified_learning_system()
     await learning.start()
+    await _field_is_held()
 
     # A domain known to hold learned concepts, and an example that states no
     # accuracy -- so the strategy cannot earn credit while the example is still
@@ -161,10 +237,11 @@ async def test_learning_recorded_and_credit_earned_are_separately_representable(
     result = await learning.learn_with_domain_context(
         LearningExample(
             example_id="test_recorded_vs_credit",
+            actor=SUBSTRATE_ACTOR,
             inputs={"task_description": "verify pressure loss across a fitting"},
-            domain="practical",
+            domain=FIELD,
         ),
-        "practical",
+        FIELD,
     )
     meta = result.metadata or {}
 
@@ -225,20 +302,22 @@ async def test_producer_vocabulary_is_a_subset_of_what_the_resolver_accepts():
         assert of(task_type, None) is None, (
             f"a {task_type} task that declares no domain was given one")
 
-    # (c) Every category the producer can emit is ACCEPTED by the resolver --
-    # either resolving to fields or raising the explicit unresolved error. What
-    # must never happen is a crash or a silent empty for a category the producer
-    # routinely emits.
+    # (c) Every category is ACCEPTED by the resolver -- either resolving to
+    # fields or raising the explicit unresolved error. What must never happen is
+    # a crash or a silent empty. A category with no populated field is not a
+    # lost outcome: (b) is why -- the producer names only what a task declares,
+    # never a category it guessed.
+    await _field_is_held()
     registry = DomainRegistry()
     await registry.initialize()
     for dt in DomainType:
         try:
-            registry.resolve_domain_reference(dt.value, require_concepts=True)
+            fields = registry.resolve_domain_reference(dt.value, require_concepts=True)
         except UnresolvedDomainReference:
-            pytest.fail(
-                f"producer category {dt.value!r} is unresolvable; the producer "
-                f"can classify a task into it and the outcome could never reach "
-                f"any domain")
+            continue
+        assert fields, (
+            f"category {dt.value!r} resolved to nothing without saying so; an "
+            f"empty answer reads as 'resolved' to every caller")
 
     # (d) And every populated field is reachable from its own category, or a
     # task classified there resolves past the concepts it should have found.
@@ -301,31 +380,40 @@ async def test_universal_projection_is_derived_not_persisted():
 # ---------------------------------------------------------------- component 5
 
 @pytest.mark.asyncio
-async def test_idle_tier_registers_at_runtime_and_is_dispatchable():
-    """Registration is proven by RUNNING it, not by reading the source."""
+async def test_a_stored_outcome_wakes_its_reader():
+    """The task-outcome producer HAS A READER, and storing an outcome wakes it.
+
+    Domain expansion was an idle tier on a fixed poll; it is event-driven now: a
+    stored outcome starts a single-flight drain over `_idle_domain_expansion_work`.
+    Proven by storing an outcome through the real producer and seeing the drain
+    run to completion, not by reading the source.
+    """
     _load_env()
+    await _field_is_held()
+    from core.database import get_database_manager
+
     coord = await _coordinator()
+    db = get_database_manager()
+    assert asyncio.iscoroutinefunction(coord._idle_domain_expansion_work), (
+        "the reader is not awaitable; the drain awaits it")
 
-    # Source text can contain a registration that never executes, and a
-    # reformatting of the list would break a regex oracle without changing
-    # behaviour. Invoke the real registration path and inspect what it built.
-    coord._register_idle_subsystems()
-
-    assert "idle_domain_expansion" in coord.registered_capabilities, (
-        "the lifecycle did not register a domain-expansion tier; "
-        "TORINAI_REFERENCE.md:3114 specifies one, and without it the "
-        "task-outcome producer has no reader")
-
-    entry = coord.registered_capabilities["idle_domain_expansion"]
-    callback = getattr(entry["instance"], entry["method"], None)
-    assert callable(callback), (
-        f"idle_domain_expansion registers {entry['method']!r}, which is not "
-        f"callable on the registered instance; the tier would fail on every "
-        f"idle cycle")
-    assert asyncio.iscoroutinefunction(callback), (
-        f"{entry['method']!r} is not awaitable; the idle loop awaits its "
-        f"capabilities")
-    assert entry["status"] == "active" and entry["interval"] > 0
+    task = _task("check the pressure loss across the pipe fitting",
+                 task_id="oracle_wake", domain_id=FIELD)
+    memory_id = await coord._store_task_outcome_meta_memory(
+        task=task, outcome="success", confidence=0.8)
+    try:
+        assert isinstance(memory_id, str) and memory_id, (
+            f"the producer returned {memory_id!r}, not the stored outcome's id")
+        drain = coord._domain_expansion_drain_task
+        assert drain is not None, (
+            "a stored task outcome woke no reader; nothing expands what the "
+            "producer writes into the domain layer")
+        await asyncio.wait_for(drain, timeout=120)
+        assert coord._domain_expansion_status == "COMPLETED"
+    finally:
+        await db.execute_query(
+            "DELETE FROM memory_hot.memory_hot WHERE memory_id = $1",
+            (memory_id,), commit=True)
 
 
 # ---------------------------------------------------------------- component 6
@@ -335,8 +423,8 @@ async def test_tier_reads_the_structured_record_not_the_narrative():
     """store_memory keeps the record and the rendering apart; the tier must
     read the record.
 
-    `content` is a narrative built from the event dict -- "Task success in
-    domain 'scientific' at ...". The TaskOutcomeRecord fields are not
+    `content` is the substrate's own account -- "I was asked to ... I did
+    it." The TaskOutcomeRecord fields are not
     recoverable from it without parsing English, and store_memory preserves the
     original dict verbatim at thinking_state["raw_event"] for exactly that
     reason. A tier reading `content` finds no `domain` on any outcome and
@@ -348,12 +436,14 @@ async def test_tier_reads_the_structured_record_not_the_narrative():
     from core.database import get_database_manager
     from core.memory.utils.interfaces import MemoryType
 
+    await _field_is_held()
     coord = await _coordinator()
     storage = await _storage()
     db = get_database_manager()
 
+    # The task DECLARES its field: the producer names no domain it was not told.
     task = _task("test and verify pressure loss across the pipe fitting installation",
-                 task_id="oracle_record_vs_narrative")
+                 task_id="oracle_record_vs_narrative", domain_id=FIELD)
     memory_id = await coord._store_task_outcome_meta_memory(
         task=task, outcome="success", confidence=0.8,
         result_summary="verified against the minor-loss coefficient")
@@ -371,15 +461,18 @@ async def test_tier_reads_the_structured_record_not_the_narrative():
             "intentional the record has two representations and they can "
             "disagree")
 
-        await coord._idle_domain_expansion_work()
-        counts = coord._domain_expansion_counts
-        assert counts["skipped"].get("no_domain", 0) == 0, (
-            f"the tier classified {counts['skipped']['no_domain']} outcome(s) as "
-            f"having no domain while the stored records all carry one -- it is "
-            f"reading the narrative instead of thinking_state['raw_event']")
-        assert counts["expanded"] > 0, (
-            f"the tier considered {counts['considered']} outcome(s) and expanded "
-            f"none: {counts['skipped']}")
+        await _reader_woken_by(coord)
+        # THIS outcome, not the pass's totals: a shared store holds other
+        # outcomes the drain also passes over, and its last pass may see only
+        # those. The outcome carries the expansion mark only if the tier found
+        # its field, which the narrative never names.
+        rows = await db.execute_query(
+            f"SELECT metadata->>'{MARK}' AS m FROM memory_hot.memory_hot "
+            f"WHERE memory_id = $1", (memory_id,), fetch_all=True)
+        assert rows and rows[0]["m"], (
+            f"the tier did not expand an outcome whose record names its field "
+            f"({coord._domain_expansion_counts}); it is reading the narrative "
+            f"instead of thinking_state['raw_event']")
     finally:
         await db.execute_query(
             "DELETE FROM memory_hot.memory_hot WHERE memory_id = $1",
@@ -413,12 +506,14 @@ async def test_applying_a_mapping_counts_as_using_it():
     run = _uuid.uuid4().hex[:8]
     task_a, task_b = f"oracle_usage_{run}_a", f"oracle_usage_{run}_b"
 
+    await _analogy_is_held()
     before = await events_for([task_a, task_b])
     result = await learning.transfer_learning_across_domains(
         "domain_plumbing", "domain_fluid_mechanics",
         {"trigger": "usage oracle 1", "task_id": task_a})
-    if not result.get("success"):
-        pytest.skip(f"no validated mapping to apply: {result.get('error')}")
+    assert result.get("success"), (
+        f"a transfer between two fields that share structure did not apply: "
+        f"{result.get('error') or result}")
     once = await events_for([task_a, task_b])
 
     assert once > before, (
@@ -485,12 +580,14 @@ async def test_a_retried_application_is_not_a_second_use():
             ([task, other],), fetch_all=True)
         return rows[0]["n"]
 
+    await _analogy_is_held()
     try:
         r = await learning.transfer_learning_across_domains(
             "domain_plumbing", "domain_fluid_mechanics",
             {"trigger": "retry oracle", "task_id": task})
-        if not r.get("success"):
-            pytest.skip(f"no validated mapping to apply: {r.get('error')}")
+        assert r.get("success"), (
+            f"a transfer between two fields that share structure did not apply: "
+            f"{r.get('error') or r}")
         first = await events()
         assert first > 0, "the application recorded no usage event"
 
@@ -560,9 +657,12 @@ async def test_transfer_outcome_resolves_only_on_sufficient_evidence():
     storage = await _storage()
     db = get_database_manager()
 
-    # A field whose category carries NO real task outcomes, so the fixture is
-    # the only evidence and the verdict is attributable to it.
-    target_field, category = "fluid_mechanics", "physical"
+    # The field the fixture's outcomes bear on. An outcome bears on the field its
+    # task DECLARED (`knowledge_domain`), which is how the evaluator groups them,
+    # and no other oracle leaves outcomes there, so the fixture is the only
+    # evidence and the verdict is attributable to it.
+    await _field_is_held()
+    target_field = FIELD
     rich, thin = "test_xfer_rich", "test_xfer_thin"
     made = []
 
@@ -571,7 +671,8 @@ async def test_transfer_outcome_resolves_only_on_sufficient_evidence():
         await storage.store_memory(MemoryItem(
             memory_id=mid, memory_type=MemoryType.META,
             content={"event": "task_outcome"},
-            thinking_state={"raw_event": {"domain": category,
+            thinking_state={"raw_event": {"knowledge_domain": target_field,
+                                          "task_type": "analysis", "task_id": mid,
                                           "outcome": "success" if ok else "failure"}},
             tags={TAG, "test_transfer_fixture"}))
         await db.execute_query(
@@ -669,11 +770,13 @@ async def test_chain_end_to_end():
     from core.domain.domain_registry import DomainRegistry
     from core.memory.utils.interfaces import MemoryType
 
+    await _field_is_held()
     coord = await _coordinator()
     storage = await _storage()
     db = get_database_manager()
 
-    # 1. A task that acts in a domain HOLDING learned concepts.
+    # 1. A task that acts in a domain HOLDING learned concepts -- declared under
+    #    the prefixed spelling, which must reach the field as it is registered.
     task = _task("test and verify pressure loss across the pipe fitting installation",
                  task_id="oracle_chain_e2e", domain_id="domain_fluid_mechanics")
     domain = coord._task_domain(task)
@@ -707,8 +810,8 @@ async def test_chain_end_to_end():
         assert raw.get("knowledge_domain") == domain
         assert raw.get("outcome") == "success"
 
-        # 4. Run the tier.
-        await coord._idle_domain_expansion_work()
+        # 4. The reader the producer woke runs.
+        await _reader_woken_by(coord)
         assert coord._domain_expansion_status == "COMPLETED"
 
         # 5-8. The outcome is consumed, and the marker is durably written.

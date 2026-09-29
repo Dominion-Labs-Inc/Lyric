@@ -1,5 +1,7 @@
 # GOVERNANCE-ABSORPTION-01 — can the constitution replace the old gate?
 
+> **RETIRED 2026-09-26.** Its final run (`results/20260926T122208Z`) was the licence to delete the old gate: 12/12, 0 regressions, the constitution catching 17/17 against the old gate's 11/17, 0/10 false refusals. `safety_framework` was then deleted in the governance consolidation, so the old gate this compares against no longer exists and the script cannot run. Results are kept as the record.
+
 **What it tests.** The security modules are being folded into the coordinator's constitution, one
 capability at a time, so that they can be deleted. This experiment runs the gate that is live today
 (`safety_framework.evaluate_action`) and the constitution (`constitution.judge`) over the same acts.

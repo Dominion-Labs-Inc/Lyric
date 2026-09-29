@@ -553,7 +553,6 @@ class EpistemicEngine:
         — unknown tool, empty result, unparsable shape. UNKNOWN is not a
         polarity here; it is the absence of an update.
         """
-        params = parameters or {}
         cid = self._CANONICAL_TOOL_IDS.get(tool_name)
         if cid is None:
             return []                      # no interpreter -> no assertion
@@ -606,9 +605,11 @@ class EpistemicEngine:
                 return []
             changed = int(delta) != 0
             # A no-op patch must NOT assert that code changed on disk.
+            # Not the path: this belief is the substrate's, the evidence text is
+            # kept on it, and a path is the material of whoever's task it was.
             return upd(
                 "task changes have been applied to disk", changed, 0.9,
-                f"delta_bytes={delta} path={params.get('file_path') or params.get('path','')}",
+                f"delta_bytes={delta}",
             )
 
         # ── lint: absent output is UNKNOWN, never "clean" ────────────────
@@ -723,8 +724,10 @@ class EpistemicEngine:
         try:
             unc = self._uncertainty()
             for belief_id, belief in unc.beliefs.items():
-                # entropy > 0.7 → posterior roughly in (0.28, 0.72)
-                if belief.entropy > 0.7:
+                # Unstable = above the belief store's one boundary (entropy >
+                # 0.7 → posterior roughly in (0.28, 0.72)); the same boundary
+                # decides when a belief is settled enough to resolve an unknown.
+                if belief.entropy > unc.UNSTABLE_ENTROPY:
                     targets.append(EpistemicTarget(
                         target_id=belief_id,
                         target_type="belief",
@@ -805,6 +808,10 @@ class EpistemicEngine:
 
             for hyp in hyp_sys.hypotheses.values():
                 if hyp.status not in stalled_statuses:
+                    continue
+                # A person's hypothesis is theirs: it is not taken up as the
+                # substrate's own work.
+                if getattr(hyp, "owner", None):
                     continue
 
                 evidence_count = (

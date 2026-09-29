@@ -37,8 +37,13 @@ from core.learning.rule_grounding import ground_for_problem
 from core.learning.rule_induction import (BindingOrigin, Fact, TrainingExample,
                                           get_rule_inducer)
 from core.learning.rule_store import RuleStore
-from core.model_policy import (ModelPolicy, assert_model_free,
-                               reset_model_telemetry, set_model_policy)
+# THE MODEL-FREE GUARD IS GONE, AND SO IS WHAT IT GUARDED AGAINST.
+# These tests wrapped themselves in an autouse fixture that set
+# `ModelPolicy.STRICT_MODEL_FREE` and asserted afterwards that no model had been
+# called. `core.model_policy` was REMOVED when the substrate became model-free by
+# CONSTRUCTION -- there is no longer a policy to set, because there is nothing to
+# set it against. The guard's subject is gone; the subject of these tests is not,
+# and they had been uncollectable ever since.
 from core.reasoning.temporal_reasoning import (PlanGuarantee, PlanOutcome,
                                                PlanningStatus,
                                                TemporalReasoningSystem)
@@ -48,22 +53,38 @@ from experiments.computation_world import ComputationWorld
 DOMAIN = "test_computational_execution"
 
 
-@pytest.fixture(autouse=True)
-def strict():
-    previous = set_model_policy(ModelPolicy.STRICT_MODEL_FREE)
-    reset_model_telemetry()
-    yield
-    assert_model_free("computational execution")
-    set_model_policy(previous)
-    reset_model_telemetry()
 
 
 async def act(world, predicate, args=()):
-    """Run one action for real and report what the world then holds."""
+    """Run one action for real and report what the world then holds.
+
+    The act is an EXPERIMENT -- it is done to find out what the operator does --
+    and it gives that account the way the substrate's own explorer does: the
+    domain is explorable, the operator is bound in it, and the intent recorded
+    for the act names both, so the constitution checks the account rather than
+    taking it on trust.
+    """
+    from core.agents.autonomous.shared_types import SUBSTRATE_ACTOR
+    from core.learning.exploration import register_explorable_domain
+    from core.reasoning.intent_authority import (
+        get_intent_authority, reset_acting_intent, set_acting_intent)
+
     binding = world.binding(predicate)
+    action = Fact(predicate, tuple(args))
+    register_explorable_domain(DOMAIN, lambda: [action])
+    get_binding_registry().register(DOMAIN, binding)
+    intent = await get_intent_authority().form(
+        "self_goal", SUBSTRATE_ACTOR, f"experiment:{DOMAIN}:{predicate}",
+        shape={"purpose": "find_out", "operator": str(action),
+               "domain": DOMAIN, "predicate": predicate},
+        content={"aim": f"find out what {predicate} does in {DOMAIN}"})
     before = tuple(sorted(world.observe()))
-    result = await get_tool_registry().execute_tool(
-        binding.tool_name, binding.parameters(args))
+    token = set_acting_intent(intent.intent_id)
+    try:
+        result = await get_tool_registry().execute_tool(
+            binding.tool_name, binding.parameters(args))
+    finally:
+        reset_acting_intent(token)
     assert getattr(result, "success", False), (predicate, getattr(result, "error", None))
     return before, tuple(sorted(world.observe()))
 
@@ -150,6 +171,8 @@ async def taught():
 
     yield world, store, rules
 
+    from core.learning.exploration import unregister_explorable_domain
+    unregister_explorable_domain(DOMAIN)
     get_binding_registry().clear(DOMAIN)
     shutil.rmtree(root, ignore_errors=True)
     for table in ("rule_authority_events", "learned_rule_evidence"):
@@ -174,12 +197,31 @@ def plan_for(world, rules, goal_fact):
     return grounding, result
 
 
-def tasks_for(result, goal_fact):
+async def tasks_for(result, goal_fact, grounding=None):
+    """The step tasks of a proved plan, made the way the planner makes them.
+
+    THE PROVED ROUTE IS RECORDED AS AN INTENT BEFORE THE STEPS ARE CUT, and the
+    steps carry its id. This called `state_plan_to_tasks` with `intent_id`
+    left at its default of None, which produced steps that name no account of
+    why the substrate is acting — and once the constitution went live, Law 2
+    replanned every one of them before the tool ran.
+
+    `_record_plan_intent` is the planner's OWN recorder, so this uses it rather
+    than restating the shape it writes: a test that hand-builds the intent would
+    keep passing after the real one changed.
+    """
+    from core.agents.autonomous.planning_engine import PlanningEngine
+
     goal = Goal(id=f"goal_{uuid4().hex[:8]}", description=str(goal_fact),
                 priority=Priority.MEDIUM,
                 state_conditions=[goal_fact.to_formula()])
+    recorded = await PlanningEngine()._record_plan_intent(
+        goal, result, grounding, {"domain_id": DOMAIN})
+    assert recorded.get("recorded"), (
+        f"the proved route was not recorded as an intent: {recorded}")
     return state_plan_to_tasks(result, goal, f"plan_{uuid4().hex[:8]}",
-                               grounding_complete=True, domain_id=DOMAIN)
+                               grounding_complete=True, domain_id=DOMAIN,
+                               intent_id=recorded["intent_id"])
 
 
 def learned(rules, name):
@@ -230,7 +272,7 @@ async def test_a_program_is_planned_and_run_over_values_that_did_not_exist_yet(t
     planned = [p["term"] for step in result.trace for p in step["produced"]]
     assert planned and all(term.startswith("pending_") for term in planned)
 
-    tasks = tasks_for(result, Fact("WRITTEN", ("34",)))
+    tasks = await tasks_for(result, Fact("WRITTEN", ("34",)), grounding)
     assert len(tasks) == 4
 
     executed = []
@@ -276,8 +318,8 @@ async def test_a_file_that_is_not_a_number_stops_the_program_rather_than_inventi
     world, _, rules = taught
     world.clear_registers().put_source("source", "hello").put_factor(2)
 
-    _, result = plan_for(world, rules, Fact("WRITTEN", ("34",)))
-    tasks = tasks_for(result, Fact("WRITTEN", ("34",)))
+    grounding, result = plan_for(world, rules, Fact("WRITTEN", ("34",)))
+    tasks = await tasks_for(result, Fact("WRITTEN", ("34",)), grounding)
 
     read = await AutonomousCoordinator().execute_task(tasks[0])
     assert read["success"] is True

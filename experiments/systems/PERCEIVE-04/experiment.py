@@ -7,7 +7,7 @@ BYTES with the memory. This verifies, on the real system, that:
   1. the memory is stored and returns an id,
   2. the exact image bytes round-trip (sha-256 of what comes back == the file),
   3. the perceived structure (dimensions, palette, regions) rides with it,
-  4. the image is LINKED to its memory (recall_image finds it by memory id),
+  4. the image is LINKED to its memory (recall_media finds it by memory id),
   5. the memory's recallable text describes the picture.
 
     PYTHONPATH="$PWD" POSTGRES_PORT=5433 POSTGRES_USER=stefan TORIN_NO_WATCHDOG=1 \
@@ -29,6 +29,7 @@ IMAGE = str(REPO / "test_data" / "vision_test.png")
 
 
 async def main() -> int:
+    from core.memory import Origin
     file_sha = hashlib.sha256(Path(IMAGE).read_bytes()).hexdigest()
 
     buf = io.StringIO()
@@ -37,8 +38,8 @@ async def main() -> int:
         system = get_system(); await system.initialize()
         coord = system.autonomous_coordinator
 
-        memory_id = await coord.remember_image(IMAGE, note="a test card I was shown")
-        images = await coord.recall_image(memory_id) if memory_id else []
+        memory_id = await coord.remember_image(IMAGE, note="a test card I was shown", origin=Origin.own("PERCEIVE-04"))
+        images = await coord.recall_media(memory_id) if memory_id else []
 
     print(f"=== remembered {IMAGE} ===", flush=True)
     print(f"  memory_id: {memory_id}", flush=True)

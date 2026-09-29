@@ -1,0 +1,92 @@
+{
+  "experiment": "NLU-07 \u2014 Read -> said -> read: does meaning survive a round trip?",
+  "writes_to_store": false,
+  "notes": [
+    "`_triple_sentence` is the ONE place a held fact becomes words, so this measures understanding against expression: what the substrate SAYS of a claim must read back as the same claim",
+    "said back: 'A robin is a bird.' -> \u201ca robin is a bird\u201d",
+    "said back: 'The control rod is heavy.' -> \u201ca control rod is a heavy\u201d",
+    "said back: 'A dog is an animal.' -> \u201ca dog is an animal\u201d",
+    "said back: 'The engine is not cold.' -> \u201can engine is not a cold\u201d"
+  ],
+  "data": {},
+  "checks": [
+    {
+      "name": "round trip: 'A robin is a bird.'",
+      "passed": true,
+      "detail": "said \u201ca robin is a bird\u201d -> ('robin_bird',) [derived:subject_relation_object_polarity], wanted ('robin_bird',)"
+    },
+    {
+      "name": "says it as English: 'A robin is a bird.'",
+      "passed": true,
+      "detail": "said \u201ca robin is a bird\u201d \u2014 an indefinite article before a complement the store holds as an adjective"
+    },
+    {
+      "name": "can say back: 'The vault is locked.'",
+      "passed": false,
+      "detail": "the chain read it as ('vault_locked',) but no clause parts exist to render, so it cannot state what it understood"
+    },
+    {
+      "name": "round trip: 'The control rod is heavy.'",
+      "passed": true,
+      "detail": "said \u201ca control rod is a heavy\u201d -> ('control_rod_heavy',) [derived:subject_relation_object_polarity], wanted ('control_rod_heavy',)"
+    },
+    {
+      "name": "says it as English: 'The control rod is heavy.'",
+      "passed": true,
+      "detail": "said \u201ca control rod is a heavy\u201d \u2014 an indefinite article before a complement the store holds as an adjective"
+    },
+    {
+      "name": "round trip: 'A dog is an animal.'",
+      "passed": true,
+      "detail": "said \u201ca dog is an animal\u201d -> ('dog_animal',) [derived:subject_relation_object_polarity], wanted ('dog_animal',)"
+    },
+    {
+      "name": "says it as English: 'A dog is an animal.'",
+      "passed": true,
+      "detail": "said \u201ca dog is an animal\u201d \u2014 an indefinite article before a complement the store holds as an adjective"
+    },
+    {
+      "name": "round trip: 'The engine is not cold.'",
+      "passed": true,
+      "detail": "said \u201can engine is not a cold\u201d -> ('~engine_cold',) [derived:subject_relation_object_polarity], wanted ('~engine_cold',)"
+    },
+    {
+      "name": "says it as English: 'The engine is not cold.'",
+      "passed": true,
+      "detail": "said \u201can engine is not a cold\u201d \u2014 an indefinite article before a complement the store holds as an adjective"
+    },
+    {
+      "name": "round trip: 'A robin is not a mammal.'",
+      "passed": true,
+      "detail": "said \u201ca robin is not a mammal\u201d -> ('~robin_mammal',) [derived:subject_relation_object_polarity], wanted ('~robin_mammal',)"
+    },
+    {
+      "name": "says it as English: 'A robin is not a mammal.'",
+      "passed": true,
+      "detail": "said \u201ca robin is not a mammal\u201d \u2014 an indefinite article before a complement the store holds as an adjective"
+    },
+    {
+      "name": "round trip: 'The smoke alarm is red.'",
+      "passed": true,
+      "detail": "said \u201ca smoke alarm is a red\u201d -> ('smoke_alarm_red',) [derived:subject_relation_object_polarity], wanted ('smoke_alarm_red',)"
+    },
+    {
+      "name": "says it as English: 'The smoke alarm is red.'",
+      "passed": true,
+      "detail": "said \u201ca smoke alarm is a red\u201d \u2014 an indefinite article before a complement the store holds as an adjective"
+    },
+    {
+      "name": "round trip: 'The reactor is stable.'",
+      "passed": true,
+      "detail": "said \u201ca reactor is a stable\u201d -> ('reactor_stable',) [derived:subject_relation_object_polarity], wanted ('reactor_stable',)"
+    },
+    {
+      "name": "says it as English: 'The reactor is stable.'",
+      "passed": true,
+      "detail": "said \u201ca reactor is a stable\u201d \u2014 an indefinite article before a complement the store holds as an adjective"
+    }
+  ],
+  "passed": 14,
+  "total": 15,
+  "seconds": 0.08
+}

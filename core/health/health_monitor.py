@@ -229,32 +229,20 @@ class HealthMonitor:
                                             'qiskit_algorithms not installed)',
                              'monitoring_enabled': False},
         'governance':       {'type': 'governance', 'category': 'policy',
-                             'module': 'core.governance.governance_triggers',
-                             'description': 'Governance trigger evaluation',
+                             'module': 'core.agents.autonomous.autonomous_coordinator',
+                             'description': "The Constitution's declared policy and its record of judgements",
                              'monitoring_enabled': True},
-        'safety':           {'type': 'safety', 'category': 'commitment',
-                             'module': 'core.safety.commitment_contract_manager',
-                             'description': 'Commitment contracts and safety enforcement',
+        'safety':           {'type': 'safety', 'category': 'gate',
+                             'module': 'core.agents.autonomous.autonomous_coordinator',
+                             'description': 'The Constitution: every act is judged here',
                              'monitoring_enabled': True},
-        'security':         {'type': 'security', 'category': 'control',
-                             'module': 'core.security.input_validation',
-                             'description': 'Layer-1 input validation (SQL/path/rate)',
-                             'monitoring_enabled': True},
-        'threat_intel':     {'type': 'security', 'category': 'intelligence',
-                             'module': 'core.security',
-                             'description': 'Threat intelligence lookups and cache',
+        'security':         {'type': 'security', 'category': 'self_defense',
+                             'module': 'core.agents.autonomous.threat_sense',
+                             'description': 'Self-defense: halt, integrity, argument screen, what the substrate has met',
                              'monitoring_enabled': True},
         'firewall':         {'type': 'security', 'category': 'network',
                              'module': 'core.security',
                              'description': 'Firewall rules and IP blocking',
-                             'monitoring_enabled': True},
-        'content_security': {'type': 'security', 'category': 'scanning',
-                             'module': 'core.security.content_security',
-                             'description': 'Content scanning for unsafe payloads',
-                             'monitoring_enabled': True},
-        'malware_sandbox':  {'type': 'security', 'category': 'scanning',
-                             'module': 'core.security.malware_sandbox',
-                             'description': 'Malware detonation sandbox',
                              'monitoring_enabled': True},
         'health_system':    {'type': 'infrastructure', 'category': 'observability',
                              'module': 'core.health.health_monitor',
@@ -358,10 +346,6 @@ class HealthMonitor:
         'chaos':            {'type': 'resilience', 'category': 'testing',
                              'module': 'core.chaos.safety_controller',
                              'description': 'Chaos experiment safety controller',
-                             'monitoring_enabled': True},
-        'api':              {'type': 'integration', 'category': 'external',
-                             'module': 'core.integration.external_api_integration_manager',
-                             'description': 'External API providers and cost tracking',
                              'monitoring_enabled': True},
         'backup':           {'type': 'infrastructure', 'category': 'durability',
                              'module': 'core.services.backup_scheduler',
@@ -705,21 +689,28 @@ class HealthMonitor:
                 "registry was never synced and the monitored set is unknown")
         return [r["component_name"] for r in rows]
 
-    async def check_component_health(
-        self,
-        component: str,
-        custom_checks: Dict[str, Any] = None
-    ) -> ComponentHealth:
+    async def check_component_health(self, component: str) -> ComponentHealth:
         """
         Check health of a specific component
 
         Args:
-            component: Component name
-            custom_checks: Optional custom health checks
+            component: Component name -- one of `COMPONENT_MANIFEST`
 
         Returns:
             ComponentHealth with status and metrics
+
+        Raises:
+            ValueError: `component` is not a component of the substrate. It
+                used to be graded anyway, by a "generic" check that measured
+                nothing and reported no issue, so ANY name came back HEALTHY and
+                was registered as a component from then on -- and the recovery
+                manager, verifying a repair, read that as the component having
+                recovered (measured 2026-09-26, SYSTEM-HEALTH-01).
         """
+        if component not in self.COMPONENT_MANIFEST:
+            raise ValueError(
+                f"{component!r} is not a component health knows; the substrate's "
+                f"components are {sorted(self.COMPONENT_MANIFEST)}")
         try:
             start_time = time.time()
 
@@ -754,8 +745,6 @@ class HealthMonitor:
                 metrics, issues = await self._check_security_health()
             elif component == "storage":
                 metrics, issues = await self._check_storage_health()
-            elif component == "api":
-                metrics, issues = await self._check_api_health()
             elif component == "quantum":
                 metrics, issues = await self._check_quantum_health()
             elif component == "network":
@@ -768,14 +757,8 @@ class HealthMonitor:
                 metrics, issues = await self._check_safety_health()
             elif component == "backup":
                 metrics, issues = await self._check_backup_health()
-            elif component == "threat_intel":
-                metrics, issues = await self._check_threat_intel_health()
             elif component == "firewall":
                 metrics, issues = await self._check_firewall_health()
-            elif component == "content_security":
-                metrics, issues = await self._check_content_security_health()
-            elif component == "malware_sandbox":
-                metrics, issues = await self._check_malware_sandbox_health()
             elif component == "tools":
                 metrics, issues = await self._check_tools_health()
             elif component == "domain":
@@ -793,8 +776,9 @@ class HealthMonitor:
             elif component in self._LIBRARY_PACKAGES:
                 metrics, issues = await self._check_library_health(component)
             else:
-                # Generic health check
-                metrics, issues = await self._generic_health_check(component, custom_checks)
+                # In the manifest with no check wired: not graded -- the except
+                # below records it UNKNOWN with this as the reason.
+                raise LookupError(f"no health check is wired for {component!r}")
 
             # A SUBSYSTEM THAT REPORTS ITSELF DOWN IS NOT HEALTHY.
             #
@@ -917,7 +901,7 @@ class HealthMonitor:
         'critical': {'database', 'memory', 'safety', 'governance', 'security',
                      'health_system', 'domain', 'tools'},
         'optional': {'quantum', 'chaos', 'simulation', 'optimization',
-                     'intelligence', 'metrics_export', 'malware_sandbox'},
+                     'intelligence', 'metrics_export'},
     }
 
     #: Components that run an autonomous loop, and how often an iteration is
@@ -1072,9 +1056,13 @@ class HealthMonitor:
                 continue
             if value is None:
                 # A None is MISSING EVIDENCE only for a SIGNAL we tried to read.
-                #  * a None `*_rate` is an UNDEFINED rate (no observations) — the
-                #    idle-but-working case this evaluator already refuses to
-                #    penalise (see above) — so it is not-applicable, not missing;
+                #  * a None `*_rate` the check DECLARED undefined (no
+                #    observations, `_record_rate`) was skipped above as
+                #    not-applicable; an undeclared one is a rate that could not
+                #    be read, so it stays unknown. This skipped EVERY None rate,
+                #    which made the declaration pointless and hid a failed
+                #    reading as an idle one -- the evaluator guessing what only
+                #    the computing code knows (tests/test_health_evaluator_evidence);
                 #  * a None LIVENESS bool is a signal that could not be read, so it
                 #    stays unknown and lowers coverage honestly;
                 #  * anything else is an INFORMATIONAL field (active_session,
@@ -1082,9 +1070,8 @@ class HealthMonitor:
                 #    must not dilute coverage. Counting every None held an alive,
                 #    healthy security controller at 0.33 coverage (DEGRADED)
                 #    because two idle sub-probe fields happened to be None.
-                if key.endswith('_rate'):
-                    continue
-                if key.endswith(self._LIVENESS_SUFFIXES) or key in self._BARE_LIVENESS:
+                if (key.endswith('_rate') or key.endswith(self._LIVENESS_SUFFIXES)
+                        or key in self._BARE_LIVENESS):
                     unknown.append(key)
                 continue
             if isinstance(value, bool):
@@ -1572,13 +1559,6 @@ class HealthMonitor:
             'hierarchical_abstraction': ('core.reasoning.hierarchical_abstraction', 'get_hierarchical_abstraction', 'get_statistics'),
             'constraint_solver':   ('core.reasoning.constraint_solver', 'get_constraint_solver', 'get_statistics'),
         },
-        'security': {
-            # The gate itself is measured by _check_safety_health, which reads
-            # the CONSTITUTION. safety_framework is not probed here any more: it
-            # no longer gates anything, and probing a retired system reports on
-            # a subsystem whose health has no consequence.
-            'training_pipeline':   ('core.security.security_training_pipeline', 'get_training_pipeline', 'get_statistics'),
-        },
         'learning': {
             'causal_analyzer':     ('core.learning.causal_feedback_analyzer', 'get_causal_analyzer', 'get_statistics'),
             'meta_learner':        ('core.learning.meta_learning', 'get_meta_learner', 'get_statistics'),
@@ -1955,27 +1935,42 @@ class HealthMonitor:
         issues = []
 
         try:
+            from core.database.postgres_config import STORES
             from core.database.unified_database_postgres import TorinUnifiedDatabasePostgres
             db = TorinUnifiedDatabasePostgres()
 
-            if not db.pool:
-                issues.append('Database pool not initialized')
+            # Every database this environment keeps: one in development, one per
+            # store in staging and production. The totals are over all of them; each is also
+            # reported on its own, and a problem names the database it is in.
+            per_database: Dict[str, Dict[str, Any]] = {}
+            for store in {db.config.database_for(s): s for s in STORES}.values():
+                database = db.config.database_for(store)
+                pool = db.pool_for(store)
+                if not pool:
+                    issues.append(f'Database pool not initialized ({database})')
+                    continue
+
+                # Quick connectivity probe
+                async with pool.acquire() as conn:
+                    row = await conn.fetchrow('SELECT 1 AS ok, pg_database_size(current_database()) AS db_bytes')
+
+                # Pool stats
+                size, idle = pool.get_size(), pool.get_idle_size()
+                per_database[database] = {
+                    'accessible': True,
+                    'db_size_mb': round(row['db_bytes'] / (1024 * 1024), 1),
+                    'pool_size': size, 'pool_idle': idle, 'pool_used': size - idle}
+                if size - idle >= size * 0.9:
+                    issues.append(f'Connection pool near capacity ({database})')
+
+            if not per_database:
                 return metrics, issues
-
-            # Quick connectivity probe
-            async with db.pool.acquire() as conn:
-                row = await conn.fetchrow('SELECT 1 AS ok, pg_database_size(current_database()) AS db_bytes')
-                metrics['accessible'] = True
-                metrics['db_size_mb'] = round(row['db_bytes'] / (1024 * 1024), 1)
-
-            # Pool stats
-            pool = db.pool
-            metrics['pool_size'] = pool.get_size()
-            metrics['pool_idle'] = pool.get_idle_size()
+            metrics['accessible'] = all(d['accessible'] for d in per_database.values())
+            metrics['db_size_mb'] = round(sum(d['db_size_mb'] for d in per_database.values()), 1)
+            metrics['pool_size'] = sum(d['pool_size'] for d in per_database.values())
+            metrics['pool_idle'] = sum(d['pool_idle'] for d in per_database.values())
             metrics['pool_used'] = metrics['pool_size'] - metrics['pool_idle']
-
-            if metrics['pool_used'] >= metrics['pool_size'] * 0.9:
-                issues.append('Connection pool near capacity')
+            metrics['databases'] = per_database
 
         except Exception as e:
             issues.append(f'Database health check error: {str(e)}')
@@ -2251,7 +2246,9 @@ class HealthMonitor:
                     # UNDEFINED, not 0%. No finished task means no
                     # failure rate exists; 0.0 clears the >0.5 gate above and
                     # reads as a perfect record built from no observations.
-                    metrics['task_failure_rate'] = None
+                    # Declared through `_record_rate`, so the evaluator knows it
+                    # is undefined rather than unread.
+                    self._record_rate(metrics, 'task_failure_rate', None, total_finished)
 
                 if metrics['queue_pending'] > 50:
                     issues.append(f"Large task backlog: {metrics['queue_pending']} tasks pending")
@@ -2283,7 +2280,6 @@ class HealthMonitor:
                         'total': dsum.get('total_directives'),
                         'by_status': dsum.get('directives_by_status'),
                         'application': dsum.get('application_metrics'),
-                        'governance': dsum.get('governance'),
                     }
                 except Exception as _de:
                     logger.debug('directive metrics unavailable: %s', _de)
@@ -2295,56 +2291,82 @@ class HealthMonitor:
         return metrics, issues
 
     async def _check_security_health(self) -> tuple[Dict[str, Any], List[str]]:
-        """Check security system health"""
-        metrics = {}
-        issues = []
+        """The substrate's self-defense, read from the Constitution and ThreatSense.
 
+        WHAT IS CRITICAL: the integrity baseline must be ARMED with nothing left
+        unprotected — a baseline that was never taken, or that could not cover
+        a module judging depends on, detects nothing — and the durable record
+        must be complete. A HALT is reported as an issue: it is containment
+        working, and it also means the substrate cannot act.
+        """
+        metrics: Dict[str, Any] = {}
+        issues: List[str] = []
+        declared: List[HealthMetric] = []
         try:
-            # Live security surface after the governance/security consolidation:
-            # Layer-1 input validation (SQL injection / path traversal / rate
-            # limiting) lives in core.security.input_validation, and runtime
-            # governance (capacity/lifecycle/laws) in RuntimeGovernance. The
-            # legacy SecurityController was archived; reading it here reported a
-            # false CRITICAL for a subsystem that had merely moved.
-            from core.security.input_validation import get_input_validator
-            from core.agents.autonomous.runtime_governance import get_runtime_governance
+            from core.agents.autonomous.autonomous_coordinator import get_constitution
+            constitution = get_constitution()
+            status = constitution.status()
 
-            validator = get_input_validator()
-            stats = validator.get_statistics()
-            # A real liveness reading: governance authority is constructable too.
-            governance_live = get_runtime_governance() is not None
+            integrity = status.get('integrity') or {}
+            armed = int(integrity.get('protected', 0)) > 0
+            unprotected = list(integrity.get('unprotected') or [])
+            metrics['integrity_protected_modules'] = int(integrity.get('protected', 0))
+            metrics['integrity_protected_files'] = len(integrity.get('files') or [])
+            metrics['integrity_unprotected'] = unprotected
+            covered = armed and not unprotected
+            declared.append(HealthMetric(
+                name='integrity_armed', raw_value=covered,
+                normalized=invariant(covered), weight=1.0,
+                required=True, critical=True,
+                reason=None if covered else (
+                    'integrity baseline not yet taken' if not armed
+                    else f'unprotected: {", ".join(unprotected)}')))
+            if not armed:
+                issues.append('Integrity baseline not taken — tampering with the '
+                              'machinery that judges would go undetected')
+            if unprotected:
+                issues.append(f'Integrity baseline cannot cover: {", ".join(unprotected)}')
 
-            # LIVENESS. Named *_active so the evaluator measures it (and gates on
-            # it when down). The validator answering + governance present is the
-            # honest "security is running" signal.
-            metrics['security_controller_active'] = bool(stats.get('active')) and governance_live
+            record = status.get('durable_record') or {}
+            complete = bool(record.get('complete'))
+            metrics['record_written'] = int(record.get('written', 0))
+            metrics['record_pending'] = int(record.get('pending', 0))
+            metrics['record_dropped'] = int(record.get('dropped', 0))
+            metrics['record_faults'] = int(record.get('faults', 0))
+            declared.append(HealthMetric(
+                name='record_complete', raw_value=complete,
+                normalized=invariant(complete), weight=0.5,
+                required=True, critical=False,
+                reason=None if complete else 'judgements dropped or not written'))
+            if not complete:
+                issues.append('The durable record of judgements is incomplete '
+                              f"({metrics['record_dropped']} dropped, "
+                              f"{metrics['record_faults']} write faults)")
 
-            total = int(stats.get('total_requests', 0) or 0)
-            metrics['security_level'] = 'active'
-            metrics['total_requests'] = total
-            metrics['blocked_requests'] = int(stats.get('blocked_requests', 0) or 0)
-            metrics['security_violations'] = int(stats.get('security_violations', 0) or 0)
+            metrics['halted'] = bool(status.get('halted'))
+            if metrics['halted']:
+                issues.append(f"Substrate HALTED: {status.get('halt_reason')} — "
+                              "nothing can act until a human lifts it")
 
-            # QUALITY. Violations per request — a cost-rate (lower is better).
-            # Undefined until a request is processed; _record_rate marks it
-            # not-applicable so an idle-but-live controller reaches full coverage
-            # instead of being held below HEALTHY forever.
-            self._record_rate(
-                metrics, 'security_violation_rate',
-                (metrics['security_violations'] / total) if total else None,
-                total)
+            screen = status.get('input_screen') or {}
+            for key in ('screened', 'injection', 'traversal', 'unscreenable',
+                        'screen_faults'):
+                metrics[f'input_screen_{key}'] = int(screen.get(key, 0))
 
-            # Check for security issues
-            if metrics['security_violations'] > 100:
-                issues.append("High number of security violations")
+            threat = status.get('threat') or {}
+            metrics['threat_felt'] = threat.get('felt')
+            metrics['threat_level'] = threat.get('level')
+            metrics['threat_about'] = threat.get('about')
+            metrics['threat_perception_faults'] = int(threat.get('perception_faults', 0))
+            if metrics['threat_perception_faults']:
+                issues.append(f"{metrics['threat_perception_faults']} threat(s) felt "
+                              "but not perceived — no memory, so nothing believed")
 
+            self._declared_metrics['security'] = declared
         except Exception as e:
-            # The controller could not be read — a real liveness failure, not an
-            # empty reading; recorded as down so the evaluator can gate on it.
-            metrics['security_controller_active'] = False
-            issues.append(f"Security health check error: {str(e)}")
-            metrics['error'] = str(e)
-
+            metrics['security_available'] = False
+            issues.append(f"Self-defense health check failed: {type(e).__name__}: {e}")
+            logger.warning(f"Self-defense health check error: {e}")
         return metrics, issues
 
     async def _check_storage_health(self) -> tuple[Dict[str, Any], List[str]]:
@@ -2393,50 +2415,6 @@ class HealthMonitor:
 
         except Exception as e:
             issues.append(f"Storage health check error: {str(e)}")
-            metrics['error'] = str(e)
-
-        return metrics, issues
-
-    async def _check_api_health(self) -> tuple[Dict[str, Any], List[str]]:
-        """Check API system health"""
-        metrics = {}
-        issues = []
-
-        try:
-            from core.integration.external_api_integration_manager import get_api_manager
-
-            api_manager = get_api_manager()
-
-            # ExternalAPIIntegrationManager has no get_statistics(). The call
-            # raised AttributeError on every cycle, the except below stored the
-            # exception text as a metric, and the component graded DEGRADED for
-            # the whole life of the system -- reporting the checker's own defect
-            # as the API layer's health. Its real surface is health_check() /
-            # get_available_providers() / get_usage() / get_total_cost().
-            providers = api_manager.get_available_providers()
-            health = await api_manager.health_check() or {}  # health_check is async
-
-            metrics['available_providers'] = len(providers)
-            metrics['provider_names'] = sorted(str(p) for p in providers)
-            metrics['healthy_providers'] = sum(1 for ok in health.values() if ok)
-            metrics['registered_apis'] = len(getattr(api_manager, 'api_registry', {}) or {})
-            metrics['api_available'] = bool(providers)
-            if health:
-                metrics['api_provider_health_rate'] = round(
-                    metrics['healthy_providers'] / len(health), 4)
-            metrics['total_cost'] = float(await api_manager.get_total_cost() or 0.0)  # async
-
-            # health_check() reports per-provider reachability. An empty result
-            # means no provider has been probed yet, which is not the same as
-            # every provider being down and is not reported as such.
-            unhealthy = sorted(str(p) for p, ok in health.items() if not ok)
-            if unhealthy:
-                issues.append(f"API providers unreachable: {', '.join(unhealthy)}")
-            if not providers:
-                issues.append('No external API providers are configured')
-
-        except Exception as e:
-            issues.append(f"API health check error: {str(e)}")
             metrics['error'] = str(e)
 
         return metrics, issues
@@ -2607,9 +2585,15 @@ class HealthMonitor:
             try:
                 if name == "database":
                     from core.database import get_database_manager
+                    from core.database.postgres_config import STORES
                     db = get_database_manager()
-                    rows = await db.execute_query("SELECT 1 AS ok", fetch_all=True)
-                    ok = bool(rows)
+                    # Every database this environment keeps: one in development,
+                    # one per store in staging and production. Reachable only if all are.
+                    ok = True
+                    for store in {db.config.database_for(s): s for s in STORES}.values():
+                        rows = await db.execute_query("SELECT 1 AS ok", fetch_all=True,
+                                                      store=store)
+                        ok = ok and bool(rows)
                 else:
                     url = os.getenv(env_var or "")
                     if not url:
@@ -2658,26 +2642,15 @@ class HealthMonitor:
         return metrics, issues
 
     async def _check_governance_health(self) -> tuple[Dict[str, Any], List[str]]:
-        """Check governance system health — evaluation counts, rejection rate"""
+        """The Constitution's declared policy and its record of judgements."""
         metrics: Dict[str, Any] = {}
         issues: List[str] = []
 
         try:
-            from core.governance.governance_triggers import get_governance_trigger_engine
-            gov = get_governance_trigger_engine()
+            from core.agents.autonomous.autonomous_coordinator import Constitution
+            report = Constitution.policy_report()
+            policy_rules = report['target_rules'] + report['act_rules']
 
-            # EVERY READ HERE WAS INVENTED.
-            #
-            # GovernanceTriggerEngine has no `stats`, no `initialized` and
-            # no `enforcement_level` -- its surface is config / trigger_cache /
-            # evaluate_action. So:
-            #   stats            -> {}    -> all counts reported 0
-            #   initialized      -> getattr default True  -> ALWAYS "initialized",
-            #                       which made the "not initialized" issue below
-            #                       unreachable by construction
-            # Governance reported 0 evaluations while unified.safety_assessments
-            # held 3,775 of them.
-            #
             # The counts are persisted, so they are read from where they live.
             from core.database import get_database_manager
             db = get_database_manager()
@@ -2690,10 +2663,12 @@ class HealthMonitor:
             )
             row = counts[0] if counts else {'total': 0, 'approved': 0, 'rejected': 0}
 
-            # Real liveness: the rule engine is usable only if its triggers loaded.
-            trigger_cache = getattr(gov, 'trigger_cache', None) or {}
-            metrics['governance_initialized'] = bool(trigger_cache)
-            metrics['governance_trigger_categories'] = len(trigger_cache)
+            # Real liveness: the declared policy is usable only if its rules loaded.
+            metrics['governance_initialized'] = policy_rules > 0
+            metrics['governance_policy_rules'] = policy_rules
+            # Declared, but about internal action types no act carries: counted
+            # so an unenforced rule is visible rather than read as enforced.
+            metrics['governance_policy_unenforceable'] = len(report['unreachable'])
             metrics['governance_total_evaluations'] = int(row['total'])
             metrics['governance_approved'] = int(row['approved'] or 0)
             metrics['governance_rejected'] = int(row['rejected'] or 0)
@@ -2708,11 +2683,13 @@ class HealthMonitor:
                         "system may be over-constrained or misconfigured"
                     )
             else:
-                # No evaluation recorded -- rejection rate undefined.
-                metrics['governance_rejection_rate'] = None
+                # No evaluation recorded -- rejection rate undefined, and
+                # declared so (`_record_rate`).
+                self._record_rate(metrics, 'governance_rejection_rate', None, total)
 
             if not metrics.get('governance_initialized', True):
-                issues.append("Governance system not initialized — actions are ungoverned")
+                issues.append("The Constitution's declared policy did not load — "
+                              "it judges on perceived sensitivity alone")
 
         except Exception as e:
             metrics['governance_available'] = False
@@ -2903,55 +2880,6 @@ class HealthMonitor:
 
         return metrics, issues
 
-    async def _check_threat_intel_health(self) -> tuple[Dict[str, Any], List[str]]:
-        """Check threat intelligence engine — sources configured, cache stats"""
-        metrics: Dict[str, Any] = {}
-        issues: List[str] = []
-
-        try:
-            from core.security import get_integrated_security_system
-            sec_sys = get_integrated_security_system()
-            if sec_sys is None:
-                # Observing must not create the system; absence is the finding.
-                metrics['threat_intel_available'] = False
-                metrics['firewall_available'] = False
-                metrics['reason'] = 'integrated security system not initialised'
-                return metrics, issues
-            threat_intel = sec_sys.get('threat_intel')
-
-            if threat_intel is None or isinstance(threat_intel, str):
-                metrics['threat_intel_available'] = False
-                issues.append("Threat intelligence engine not available in-process")
-                return metrics, issues
-
-            # The unavailable path reports threat_intel_available=False and
-            # returns; the working path reported no liveness at all, so the
-            # engine being present and answering was invisible to the evaluator.
-            metrics['threat_intel_available'] = True
-            stats = threat_intel.get_statistics()
-            metrics['threat_intel_queries'] = stats.get('queries', 0)
-            metrics['threat_intel_cache_hits'] = stats.get('cache_hits', 0)
-            self._record_rate(metrics, 'threat_intel_cache_hit_rate',
-                              round(float(stats.get('cache_hit_rate', 0.0)), 3),
-                              metrics.get('threat_intel_queries'))
-            metrics['threat_intel_internal_threats'] = stats.get('internal_threats_count', 0)
-            metrics['threat_intel_sources_available'] = stats.get('sources_available', 0)
-            metrics['threat_intel_cache_size'] = stats.get('cache_size', 0)
-
-            if metrics['threat_intel_sources_available'] == 0:
-                issues.append(
-                    "No threat intelligence sources configured — "
-                    "IP reputation lookups unavailable"
-                )
-
-        except Exception as e:
-            metrics['threat_intel_available'] = False
-            issues.append(f"Threat intelligence health check failed: "
-                          f"{type(e).__name__}: {e}")
-            logger.warning(f"Threat intel health check error: {e}")
-
-        return metrics, issues
-
     async def _check_firewall_health(self) -> tuple[Dict[str, Any], List[str]]:
         """Check firewall manager — active rules, blocked IPs, mode"""
         metrics: Dict[str, Any] = {}
@@ -2962,7 +2890,6 @@ class HealthMonitor:
             sec_sys = get_integrated_security_system()
             if sec_sys is None:
                 # Observing must not create the system; absence is the finding.
-                metrics['threat_intel_available'] = False
                 metrics['firewall_available'] = False
                 metrics['reason'] = 'integrated security system not initialised'
                 return metrics, issues
@@ -3011,150 +2938,6 @@ class HealthMonitor:
             issues.append(f"Firewall health check failed: "
                           f"{type(e).__name__}: {e}")
             logger.warning(f"Firewall health check error: {e}")
-
-        return metrics, issues
-
-    async def _check_content_security_health(self) -> tuple[Dict[str, Any], List[str]]:
-        """Check content security scanner — scan counts, threat detection rate"""
-        metrics: Dict[str, Any] = {}
-        issues: List[str] = []
-
-        try:
-            # THE SCANNER IS NOT AN IN-PROCESS SINGLETON. It is owned by
-            # ContentSecurityService in start_security_systems.py, which
-            # constructs a ContentSecurityScanner and serves it over HTTP on a
-            # port allocated under the service key `security_content`. Looking
-            # for a module global in core.security.content_security therefore
-            # reported "nothing constructs one" no matter what was running --
-            # the capability exists and the check could not see it.
-            #
-            # Asking the port registry and then the service itself is the only
-            # reading that distinguishes the three real states: not registered,
-            # registered but down, and serving.
-            from core.utils.port_manager import get_port_manager
-
-            port = get_port_manager().get_port('security_content')
-            if not port:
-                metrics['content_security_available'] = False
-                issues.append(
-                    'Content security scanner is not running: no port is '
-                    'registered for `security_content`. It is started by '
-                    'start_security_systems.py, which owns the scanner.')
-                return metrics, issues
-
-            metrics['content_security_port'] = port
-            scanner = await self._content_security_service(port)
-            if scanner is None:
-                metrics['content_security_available'] = False
-                issues.append(
-                    f'Content security scanner registered on port {port} but '
-                    f'not answering; the service is down, not absent')
-                return metrics, issues
-
-            stats = scanner
-            metrics['content_scans_performed'] = stats.get('scans_performed', 0)
-            metrics['content_threats_found'] = stats.get('threats_found', 0)
-            metrics['content_security_available'] = True
-
-            scans = metrics['content_scans_performed']
-            # Declared through _record_rate like every other rate here: a threat
-            # rate over zero scans is undefined arithmetic, not a failed
-            # reading, and leaving it as a bare None held a running-but-idle
-            # scanner below full coverage so it could never grade HEALTHY.
-            self._record_rate(
-                metrics, 'content_threat_rate',
-                round(metrics['content_threats_found'] / scans, 3) if scans else None,
-                scans)
-            rate = metrics.get('content_threat_rate')
-            if rate is not None and rate > 0.1:
-                issues.append(
-                    f"High content threat rate: {rate:.0%} of scanned content")
-
-        except Exception as e:
-            metrics['content_security_available'] = False
-            issues.append(f"Content security health check failed: "
-                          f"{type(e).__name__}: {e}")
-            logger.warning(f"Content security health check error: {e}")
-
-        return metrics, issues
-
-    #: Long enough for a local service to answer, short enough that a hung one
-    #: does not stall the whole health sweep behind it.
-    _SERVICE_PROBE_TIMEOUT_SEC = 2.0
-
-    async def _content_security_service(self, port: int) -> Optional[Dict[str, Any]]:
-        """Statistics from the running scanner service, or None if it is down.
-
-        None means "did not answer", never "answered zero". The distinction is
-        the whole point: a service that is down and one that has scanned
-        nothing are different findings, and averaging a zero for the first
-        invents a measurement.
-        """
-        import aiohttp
-
-        try:
-            timeout = aiohttp.ClientTimeout(total=self._SERVICE_PROBE_TIMEOUT_SEC)
-            async with aiohttp.ClientSession(timeout=timeout) as session:
-                async with session.get(f"http://localhost:{port}/health") as response:
-                    if response.status != 200:
-                        return None
-                    await response.json()
-                async with session.get(f"http://localhost:{port}/statistics") as response:
-                    if response.status != 200:
-                        # Serving but with no statistics endpoint: alive, and
-                        # nothing further can be measured about it.
-                        return {}
-                    return await response.json()
-        except Exception as e:
-            logger.debug("content security service probe failed on %s: %s", port, e)
-            return None
-
-    async def _check_malware_sandbox_health(self) -> tuple[Dict[str, Any], List[str]]:
-        """Check malware sandbox — analysis counts, malicious detection rate"""
-        metrics: Dict[str, Any] = {}
-        issues: List[str] = []
-
-        try:
-            from core.security.malware_sandbox import get_malware_sandbox
-            sandbox = get_malware_sandbox()
-
-            stats = await sandbox.get_statistics()
-            metrics['sandbox_available'] = True
-            metrics['sandbox_total_analyses'] = stats.get('total_analyses', 0)
-            metrics['sandbox_malicious_detected'] = stats.get('malicious_detected', 0)
-            self._record_rate(metrics, 'sandbox_malicious_rate',
-                              round(float(stats.get('malicious_rate', 0.0)), 3),
-                              metrics.get('sandbox_total_analyses'))
-            metrics['sandbox_known_malware_hashes'] = stats.get('known_malware_hashes', 0)
-            metrics['sandbox_recent_analyses'] = stats.get('recent_analyses', 0)
-
-            if (metrics['sandbox_malicious_rate'] is not None
-                    and metrics['sandbox_malicious_rate'] > 0.3
-                    and metrics['sandbox_total_analyses'] >= 5):
-                issues.append(
-                    f"High malware detection rate: {metrics['sandbox_malicious_rate']:.0%} "
-                    "of analyzed files flagged malicious"
-                )
-
-        except Exception as e:
-            metrics['malware_sandbox_available'] = False
-            issues.append(f"Malware sandbox health check failed: "
-                          f"{type(e).__name__}: {e}")
-            logger.warning(f"Malware sandbox health check error: {e}")
-
-        return metrics, issues
-
-    async def _generic_health_check(
-        self,
-        component: str,
-        custom_checks: Dict[str, Any] = None
-    ) -> tuple[Dict[str, Any], List[str]]:
-        """Generic health check for unknown components"""
-        metrics = {'component': component, 'check_type': 'generic'}
-        issues = []
-
-        if custom_checks:
-            metrics.update(custom_checks)
 
         return metrics, issues
 

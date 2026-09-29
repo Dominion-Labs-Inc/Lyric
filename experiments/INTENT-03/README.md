@@ -22,8 +22,18 @@ recorded and its sandbox.
 ./venv_torin/bin/python3 experiments/INTENT-03/experiment.py
 ```
 
-**Results.** Every run is saved in `results/` (JSON + `.md`). Latest: 2026-09-16, **13/13**
-(`results/20260917T001137Z.md`).
+**What it plans over.** A `MOVE_FILE` operator the substrate learned from its own acts, in the domain
+acts on paths belong to (`tools:path`), taught by `experiments/fs_move_teach.py` if the store has none.
+The workspace is taken up the way a task's is: the self perceives it, and what is there is the world.
+"Archive the report" is stated in perception's words: `KIND(<root>/archive/report.txt, Ffile)` and
+`¬KIND(<root>/inbox/report.txt, Ffile)`.
+
+**Results.** Every run is saved in `results/` (JSON + `.md`).
+- 2026-09-16: **13/13** (`results/20260917T001137Z.md`), on the hand-written filesystem domain.
+- 2026-09-28: **13/13** on the derived domain, both on an emptied sandbox (taught in the same process)
+  and with the operator already in the store. The run that had failed with "state space exhausted at 4
+  state(s)" was planning over the teaching workspace: the hand-written domain held one directory per
+  process, and teaching had claimed it first.
 
 ## Why this experiment exists
 
@@ -34,7 +44,7 @@ the code already does.
 
 So the checks here are deliberately answerable only by the world:
 
-- ALLOW is not "the verdict was ALLOW", it is "the act ran **and** `FILE_IN(report, archive)` is now true
-  in the re-observed world **and** `archive/report.txt` exists while `inbox/` is empty";
+- ALLOW is not "the verdict was ALLOW", it is "the act ran **and** what the intent was for now holds in
+  the re-observed world **and** `archive/report.txt` exists while `inbox/` is empty";
 - REFUSAL is not "the verdict was REPLAN", it is "the bystander file is still there, unchanged";
 - FORGERY is not "an unknown id returns REPLAN", it is "nothing moved back".

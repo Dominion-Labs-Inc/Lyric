@@ -12,7 +12,6 @@ from typing import Dict, Any, List, Optional, Tuple
 from datetime import datetime
 from dataclasses import dataclass, field
 import json
-from pathlib import Path
 import numpy as np
 import math
 import random
@@ -101,7 +100,10 @@ class MotivationProfile:
 
     # Instantaneous drive level: the weighted mean of the 7 dimensions, in
     # [0,1]. Recomputed from scratch on every calculate_motivation() call.
-    total_intrinsic_reward: float = 0.0
+    #: The overall drive level — the weighted mean of the drives measured.
+    #: None when NOTHING could be measured; appraisal reads it as its
+    #: `activation` and already treats None as unmeasured rather than flat.
+    total_intrinsic_reward: Optional[float] = None
 
     # Accumulated event rewards. A DIFFERENT quantity: unbounded running sum of
     # what individual experiences were worth to the drives.
@@ -252,6 +254,29 @@ class Fitness:
 
 
 @dataclass
+class DriveReading:
+    """One drive, as it was actually measured this tick.
+
+    `level` is the mean of the terms that could be read, in [0,1] with higher =
+    more to gain in this direction, or None when NOTHING about the drive could be
+    measured. A drive is never a baseline: the terms it rests on are named in
+    `terms`, the ones that were quiet are named in `unmeasured`, and `sources`
+    carries the raw counts the terms were derived from, so a level can be argued
+    with rather than taken on trust.
+    """
+    name: str
+    level: Optional[float]
+    terms: Dict[str, float] = field(default_factory=dict)
+    unmeasured: List[str] = field(default_factory=list)
+    sources: Dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> Dict[str, Any]:
+        from dataclasses import asdict
+        return asdict(self)
+
+
+
+@dataclass
 class CoreAffect:
     """The substrate's felt state: valence (getting better/worse) and arousal
     (how much is moving). Both are None when a trend cannot yet be derived — no
@@ -286,6 +311,10 @@ class AffectState:
     emotion: Optional[str]        # dominant named emotion: eagerness/doubt/frustration/satisfaction
     intensity: Optional[float]    # its magnitude, [0,1]
     cause: Optional[str]          # attribution — why (e.g. strategy_failure)
+    #: WHAT the feeling is about. `cause` is the attribution and answers WHY an
+    #: outcome went as it did; this answers ABOUT WHAT, and the two are not the
+    #: same question. Without it an emotion can only be waited out.
+    about: Optional[str]
     valence: float                # persistent mood valence (fitness trend), decayed to read
     arousal: float
     baseline: float               # temperament: the trait the mood varies around
@@ -361,7 +390,16 @@ class IntrinsicMotivationSystem:
         self._affect_emotion: Optional[str] = None
         self._affect_intensity: Optional[float] = None
         self._affect_cause: Optional[str] = None
+        #: what the current emotion is ABOUT (appraisal's object), so the feeling
+        #: can be addressed rather than only outlived.
+        self._affect_about: Optional[str] = None
+        self._affect_about_domain: Optional[str] = None
         self._affect_version: int = 0
+        #: doubts that faded and were handed to the belief authority as open
+        #: questions, and doubts that faded with no object to make a question of.
+        #: The second is an honest gap, counted rather than hidden.
+        self._questions_kept: int = 0
+        self._questions_lost: int = 0
         #: wall-clock anchor of the last affect update; the decay-on-read measures
         #: elapsed time from here. None until the first update (nothing to decay).
         self._last_affect_at: Optional[datetime] = None
@@ -372,38 +410,17 @@ class IntrinsicMotivationSystem:
 
         # Configuration
         self.influence_percentage = self.config.get("influence_percentage", 0.60)
-        # Motivation profile persistence
-        # Precedence:
-        # 1) env TORINAI_MOTIVATION_PROFILE_PATH
-                # 2) config motivation_profile_path
-        # 3) config profile_path (legacy)
-        # Default: TorinAI/data/motivation_profile.json (inside repo)
-        import os
-
-        torin_root = Path(__file__).resolve().parents[3]
-        default_path = torin_root / "data" / "motivation_profile.json"
-
-        raw_path = (
-            os.getenv("TORINAI_MOTIVATION_PROFILE_PATH")
-            or self.config.get("motivation_profile_path")
-            or self.config.get("profile_path")
-            or str(default_path)
-        )
-        candidate = Path(raw_path)
-        if not candidate.is_absolute():
-            candidate = (torin_root / candidate).resolve()
-        self.profile_path = candidate
-
-        logger.info(f"Motivation profile path: {self.profile_path}")
+        self.profile.influence_percentage = self.influence_percentage
 
         # Motivation history (recent calculations)
         self.history_limit = self.config.get("history_limit", 100)
+        #: History entries recorded since the profile was last saved: the store
+        #: APPENDS them, so entries recorded by other instances are kept too.
+        self._unsaved_history: List[Dict[str, Any]] = []
 
-        # Track previously generated goals to avoid repetition (persisted across restarts)
+        # Previously generated goals, to avoid repetition, for this process.
         self._recent_goal_descriptions: List[str] = []
         self._max_recent_goals = 20
-        # Persist recent goal list to disk so restarts don't lose cross-session novelty memory
-        self._goal_history_path = self.profile_path.parent / "goal_history.json"
 
         # ========== NEW: 4 Advanced Features ==========
 
@@ -459,6 +476,9 @@ class IntrinsicMotivationSystem:
         }
 
 
+        #: The last full drive measurement, keyed by drive name — what each
+        #: level was read from, and which sources were quiet.
+        self._drive_readings: Dict[str, DriveReading] = {}
         # Initialize dimensions
         self._initialize_dimensions()
 
@@ -796,16 +816,16 @@ class IntrinsicMotivationSystem:
     # =================================================
 
     def _initialize_dimensions(self) -> None:
-        """Initialize all motivation dimensions to baseline values"""
-        self.profile.dimensions = {
-            MotivationDimension.CURIOSITY: 0.5,
-            MotivationDimension.COMPETENCE: 0.5,
-            MotivationDimension.NOVELTY: 0.5,
-            MotivationDimension.MASTERY: 0.5,
-            MotivationDimension.AUTONOMY: 0.5,
-            MotivationDimension.SOCIAL: 0.5,
-            MotivationDimension.IMPACT: 0.5
-        }
+        """No drive has been measured yet, so none is held.
+
+        This used to seed all seven at 0.5. A drive nobody has measured is not a
+        drive at half strength — it is an absent reading, and 0.5 is
+        indistinguishable in the store from a genuine mid-level pull. The
+        substrate reported "how strongly each drive is active right now" as seven
+        0.5s until the first refresh, and anything that failed to measure fell
+        back to the same number. Absence is now absence.
+        """
+        self.profile.dimensions = {}
 
     async def calculate_motivation(self, context: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -822,52 +842,38 @@ class IntrinsicMotivationSystem:
             return {}
 
         try:
-            # Extract context information
-            perception = context.get("perception")
-            system_state = context.get("system_state")
-            active_goals = context.get("active_goals", [])
-            recent_tasks = context.get("recent_tasks", [])
+            # THE QUEUE IS AN AUTHORITY, NOT A CONTEXT ITEM. Autonomy and social
+            # are read from what the substrate is actually holding and who filed
+            # it, so they come from the queue itself rather than whatever the
+            # caller happened to pass.
+            queue = context.get("task_queue")
+            if queue is None:
+                from .queue_authority import get_queue_authority
+                queue = get_queue_authority()
 
-            # Pull real performance feedback once to ground motivation
+            # Recorded task outcomes — the only honest source for "how much of
+            # what I do actually fails".
             performance_stats = await self.get_domain_performance_stats(domain="all")
 
-            # Calculate each dimension
-            dimensions = {}
-
-            # 1. CURIOSITY - desire for novel exploration
-            dimensions[MotivationDimension.CURIOSITY] = await self._calculate_curiosity(
-                perception, active_goals
-            )
-
-            # 2. COMPETENCE - desire for skill improvement
-            dimensions[MotivationDimension.COMPETENCE] = await self._calculate_competence(
-                recent_tasks, system_state, performance_stats
-            )
-
-            # 3. NOVELTY - preference for new experiences
-            dimensions[MotivationDimension.NOVELTY] = await self._calculate_novelty(
-                perception, active_goals
-            )
-
-            # 4. MASTERY - drive for deep understanding
-            dimensions[MotivationDimension.MASTERY] = await self._calculate_mastery(
-                active_goals, recent_tasks
-            )
-
-            # 5. AUTONOMY - need for self-direction
-            dimensions[MotivationDimension.AUTONOMY] = await self._calculate_autonomy(
-                system_state
-            )
-
-            # 6. SOCIAL - motivation for collaboration
-            dimensions[MotivationDimension.SOCIAL] = await self._calculate_social(
-                context
-            )
-
-            # 7. IMPACT - desire for meaningful change
-            dimensions[MotivationDimension.IMPACT] = await self._calculate_impact(
-                recent_tasks, active_goals, performance_stats
-            )
+            # EVERY DRIVE, MEASURED. Each reading carries the terms it rests on
+            # and names the ones that were unreadable, so `dimensions` holds only
+            # levels that were genuinely measured — a drive nothing could be read
+            # for is ABSENT, not 0.5.
+            readings = [
+                await self._measure_curiosity(),
+                await self._measure_competence(),
+                await self._measure_novelty(),
+                await self._measure_mastery(),
+                await self._measure_autonomy(queue),
+                await self._measure_social(queue),
+                await self._measure_impact(performance_stats),
+            ]
+            self._drive_readings = {r.name: r for r in readings}
+            dimensions = {r.name: r.level for r in readings if r.level is not None}
+            unreadable = [r.name for r in readings if r.level is None]
+            if unreadable:
+                logger.info("drives unmeasured this tick (absent, not defaulted): %s",
+                            ", ".join(unreadable))
 
             # Update profile
             self.profile.dimensions = dimensions
@@ -897,6 +903,12 @@ class IntrinsicMotivationSystem:
                     "impact": self.weights.impact
                 },
                 "total_reward": total_reward,
+                # WHAT EACH DRIVE WAS READ FROM. A level on its own cannot be
+                # argued with; this carries the terms and the raw counts under
+                # them, and names the sources that were quiet.
+                "drive_readings": {name: r.to_dict()
+                                   for name, r in self._drive_readings.items()},
+                "drives_unmeasured": unreadable,
                 # Drive LEVEL (total_reward, weighted mean of the 7 dimensions)
                 # and the WORTH of recent experience are different quantities.
                 # They shared one field until now, so the second was erased on
@@ -912,323 +924,463 @@ class IntrinsicMotivationSystem:
             return {}
 
     # =========================================================================
-    # DIMENSION CALCULATION METHODS
+    # DRIVE MEASUREMENT
     # =========================================================================
+    #
+    # A drive is HOW MUCH THERE IS TO GAIN in one direction, measured from the
+    # authorities that own the evidence — never a baseline, never the shape of a
+    # goal's wording.
+    #
+    # What these replace. Every drive was a constant (0.5, or 0.7, or 0.4)
+    # adjusted by keyword matches on goal text — `"explore" in description` moved
+    # curiosity, `"help"` moved social, `"master"` moved mastery — and each
+    # swallowed its exceptions into the same middling default. So a drive could
+    # be changed by how a goal was PHRASED, could not be told apart from an
+    # unmeasured one, and read 0.5 whenever anything went wrong. The appraisal
+    # module states the rule they broke: "Every field is sourced from something
+    # already measured elsewhere. Where a signal is genuinely unavailable it is
+    # None — never imputed to a middling default."
+    #
+    # THREE PROPERTIES, held by every drive below:
+    #
+    #   * MULTI-SOURCE. No drive is one axis. Each is the mean of independent
+    #     terms read from DIFFERENT authorities — the rule store, the
+    #     demonstration store, the epistemic engine, the belief authority, the
+    #     domain authority, the queue, appraisal — so no single reading can carry
+    #     a drive on its own, and a drive does not collapse when one source is
+    #     quiet.
+    #   * MEASURED-ONLY. A term that cannot be read this tick is NAMED in
+    #     `unmeasured` and excluded from the mean; it never contributes a zero
+    #     and never a half. A drive with no measurable term at all is None, and
+    #     absent from `dimensions`.
+    #   * ONE DIRECTION. Every drive reads as OPPORTUNITY: high means there is
+    #     something to gain here. The old set was inconsistent — competence was
+    #     "opportunities for skill improvement exist" while autonomy was "the
+    #     system HAS freedom", a satisfaction reading — so the two moved opposite
+    #     ways on the same event and their weighted sum meant nothing.
 
-    # How strongly accumulated experience may shift a drive. Bounded so lived
-    # experience modulates disposition without overwhelming the situation in
-    # front of the system — an agent whose history drowns out its present is as
-    # broken as one with no history at all.
-    EXPERIENCE_PRESSURE_GAIN = 0.25
+    #: How many open items saturate a count-based term. A count is not a level:
+    #: these convert "how many" into "how much pull" with a smooth knee, so one
+    #: more open question matters a lot at 2 and little at 200. UNITS, not
+    #: setpoints — the shape is stated here rather than buried in each term.
+    _OPEN_QUESTION_SCALE = 12.0
+    _UNSTABLE_REGION_SCALE = 8.0
+    _PENDING_INDUCTION_SCALE = 5.0
 
-    def _experience_pressure(self) -> float:
-        """Exploration pressure implied by recent experience, in [-gain, +gain].
+    @staticmethod
+    def _saturate(count: float, scale: float) -> float:
+        """A count as a level in [0,1), with a smooth knee at `scale`."""
+        import math
+        return math.tanh(max(0.0, float(count)) / float(scale))
 
-        Negative mean_event_reward (recent experience has been intrinsically
-        barren or costly) RAISES seeking pressure; richly-rewarded experience
-        lowers it. Returns 0.0 with no history, so a fresh system is driven by
-        its situation alone rather than by an imputed mood.
+    @staticmethod
+    def _drive_level(terms: Dict[str, Optional[float]]) -> Tuple[Optional[float],
+                                                                 Dict[str, float],
+                                                                 List[str]]:
+        """The drive as the mean of its MEASURED terms, with the rest named.
+
+        Returns (level, measured_terms, unmeasured_names). An unmeasured term is
+        excluded from the mean rather than contributing a zero, so a drive is
+        never dragged down by a source that was simply quiet — the same rule
+        `sense_fitness` already holds for fitness.
         """
-        if not self.profile.event_reward_count:
-            return 0.0
-        return _clamp(
-            -self.profile.mean_event_reward * self.EXPERIENCE_PRESSURE_GAIN,
-            -self.EXPERIENCE_PRESSURE_GAIN,
-            self.EXPERIENCE_PRESSURE_GAIN,
-        )
+        measured = {k: max(0.0, min(1.0, float(v)))
+                    for k, v in terms.items() if v is not None}
+        unmeasured = [k for k, v in terms.items() if v is None]
+        level = (sum(measured.values()) / len(measured)) if measured else None
+        return level, measured, unmeasured
 
-    async def _calculate_curiosity(self, perception: Any, active_goals: List) -> float:
-        """
-        Calculate curiosity motivation
-        High when encountering novel or unexplored domains
-        """
-        try:
-            # Check for novel information in perception
-            novelty_score = 0.5  # Baseline
+    # ── shared machinery for every drive ──────────────────────────────────────
 
-            if perception:
-                # High curiosity if perception contains new/unknown elements
-                content = perception.content if hasattr(perception, 'content') else {}
-                if content.get("novel_elements") or content.get("unknown_patterns"):
-                    novelty_score = 0.8
+    #: An operator resting on fewer than this many independent positive roots is
+    #: thinly evidenced: it works, but not yet on enough ground to be called
+    #: mastered. Matches the bar `_confidence_goals` already uses.
+    _MASTERY_ROOT_BAR = 3
+    #: Below this many recorded attempts, a failure rate is noise rather than a
+    #: measurement, so impact's failure term is honestly unmeasured.
+    _IMPACT_MIN_ATTEMPTS = 5
 
-            # Check if goals involve exploration
-            for goal in active_goals:
-                if hasattr(goal, 'description'):
-                    desc_lower = goal.description.lower()
-                    if any(word in desc_lower for word in ["explore", "discover", "investigate", "learn"]):
-                        novelty_score = max(novelty_score, 0.7)
+    async def _query(self, sql: str):
+        """One read against the substrate's own store, or None if it cannot be
+        reached. Never a default row — an unreachable store leaves the term
+        unmeasured."""
+        db = self.db
+        if db is None:
+            from core.database import get_database_manager
+            db = get_database_manager()
+        if not getattr(db, "initialized", False):
+            return None
+        return await db.execute_query(sql)
 
-            # EXPERIENCE MODULATION — the edge that makes accumulated experience
-            # change disposition. Direction follows the principle this class
-            # already encodes for competence (success_rate > 0.8 -> drive drops
-            # to 0.4, "too easy, low motivation"): when a drive is being well
-            # fed, pressure to seek more of it falls; when recent experience has
-            # been intrinsically barren or costly, pressure rises.
-            novelty_score += self._experience_pressure()
+    def _competence_domains(self, udm) -> List[str]:
+        """The domains the substrate holds a competence belief about, picked out
+        of the belief store by the DOMAIN AUTHORITY'S own predicate — so the
+        claim's wording stays owned in one place."""
+        from core.reasoning.bayesian_uncertainty import get_bayesian_uncertainty
+        out: List[str] = []
+        for belief in get_bayesian_uncertainty().beliefs.values():
+            domain = udm.is_competence_belief(belief)
+            if domain:
+                out.append(domain)
+        return out
 
-            return max(0.0, min(1.0, novelty_score))
+    def _reading(self, name: str, sources: Dict[str, Any],
+                 terms: Dict[str, Optional[float]]) -> "DriveReading":
+        level, measured, unmeasured = self._drive_level(terms)
+        return DriveReading(name=name, level=level, terms=measured,
+                            unmeasured=unmeasured, sources=sources)
 
-        except Exception as e:
-            logger.error(f"Error calculating curiosity: {e}")
-            return 0.5
+    async def _appraisal_state(self):
+        """The substrate's current appraisal, or None. READ ONLY.
 
-    async def _calculate_competence(
-        self,
-        recent_tasks: List,
-        system_state: Any,
-        performance_stats: Optional[Dict[str, Any]] = None,
-    ) -> float:
-        """
-        Calculate competence motivation
-        High when opportunities for skill improvement exist
-        """
-        try:
-            # Heuristic baseline from recent tasks
-            baseline = 0.5
-
-            if recent_tasks:
-                successful = sum(
-                    1
-                    for task in recent_tasks
-                    if hasattr(task, "status") and getattr(task.status, "value", None) == "completed"
-                )
-                total = len(recent_tasks)
-                success_rate = successful / total if total > 0 else 0.5
-
-                # Moderate success (60-80%) drives highest competence motivation
-                # Too easy (>90%) or too hard (<40%) reduces motivation
-                if 0.6 <= success_rate <= 0.8:
-                    baseline = 0.8  # Optimal challenge level
-                elif 0.4 <= success_rate < 0.6:
-                    baseline = 0.7  # Challenging but achievable
-                elif success_rate > 0.8:
-                    baseline = 0.4  # Too easy, low motivation for competence
-                else:
-                    baseline = 0.6  # Very challenging, moderate motivation
-
-            # Feedback-grounded adjustment from persisted task outcomes
-            if performance_stats and performance_stats.get("total_attempts", 0) >= 5:
-                db_success = performance_stats.get("success_rate")
-                db_conf = performance_stats.get("avg_outcome_label_confidence")
-                if db_success is None:
-                    db_success, db_conf = 0.5, 0.5   # unmeasured -> neutral, explicitly
-
-                # Map database success/confidence to a competence score
-                db_score = 0.5
-                if 0.6 <= db_success <= 0.8:
-                    db_score = 0.8
-                elif 0.4 <= db_success < 0.6:
-                    db_score = 0.7
-                elif db_success > 0.8:
-                    db_score = 0.5  # high success, but maybe low challenge
-                else:
-                    db_score = 0.6
-
-                # Confidence slightly nudges the score
-                db_score = max(0.0, min(1.0, db_score * 0.8 + db_conf * 0.2))
-
-                # Blend baseline heuristic with feedback-grounded score
-                return (baseline * 0.6) + (db_score * 0.4)
-
-            return baseline  # Baseline when no reliable feedback yet
-
-        except Exception as e:
-            logger.error(f"Error calculating competence: {e}")
-            return 0.5
-
-    async def _calculate_novelty(self, perception: Any, active_goals: List) -> float:
-        """
-        Calculate novelty motivation
-        High when new experiences are available
+        Motivation does not compute pressures. It used to: `_experience_pressure`
+        derived its own exploration pressure from the sign of accumulated reward,
+        and `appraisal.py`'s module docstring names that exact function as the
+        coupling AppraisalState was built to replace — "interpretation happens
+        ONCE, with context, rather than N times in N consumers". It never was
+        replaced; it stayed the live curiosity driver. The sign of one scalar
+        cannot tell explore from replan from caution, which is the whole reason
+        the appraisal authority exists, so the pressure is read from it.
         """
         try:
-            novelty_score = 0.5  # Baseline
+            from core.agents.autonomous.appraisal import get_appraisal_system
+            return get_appraisal_system().current_state
+        except Exception as error:
+            logger.debug("drives: appraisal unreadable: %s", error)
+            return None
 
-            # Check if perception indicates new experiences
-            if perception and hasattr(perception, 'confidence'):
-                # Low confidence suggests novelty (encountering something new)
-                if perception.confidence < 0.6:
-                    novelty_score = 0.7
+    async def _measure_curiosity(self) -> "DriveReading":
+        """The pull toward what is KNOWN to be unknown.
 
-            # Check goal novelty
-            novel_goals = 0
-            for goal in active_goals:
-                if hasattr(goal, 'expected_novelty') and goal.expected_novelty > 0.6:
-                    novel_goals += 1
-
-            if novel_goals > 0:
-                novelty_score = max(novelty_score, 0.6 + (novel_goals * 0.1))
-
-            return min(1.0, novelty_score)
-
-        except Exception as e:
-            logger.error(f"Error calculating novelty: {e}")
-            return 0.5
-
-    async def _calculate_mastery(self, active_goals: List, recent_tasks: List) -> float:
+        Sources: the appraisal authority (exploration pressure, context-weighted),
+        the belief authority (open questions it has registered), and the epistemic
+        engine (regions of the model that will not settle).
         """
-        Calculate mastery motivation
-        High when deep understanding opportunities exist
-        """
+        sources: Dict[str, Any] = {}
+
+        pressure = None
+        state = await self._appraisal_state()
+        if state is not None and state.exploration_pressure is not None:
+            pressure = float(state.exploration_pressure)
+            sources["exploration_pressure"] = round(pressure, 4)
+
+        open_questions = None
         try:
-            # Check for mastery-oriented goals
-            mastery_score = 0.5
+            from core.reasoning.bayesian_uncertainty import get_bayesian_uncertainty
+            unresolved = sum(
+                1 for u in get_bayesian_uncertainty().known_unknowns.values()
+                if not getattr(u, "resolved", False))
+            open_questions = self._saturate(unresolved, self._OPEN_QUESTION_SCALE)
+            sources["open_questions"] = unresolved
+        except Exception as error:
+            logger.debug("drives: open questions unreadable: %s", error)
 
-            for goal in active_goals:
-                if hasattr(goal, 'description'):
-                    desc_lower = goal.description.lower()
-                    if any(word in desc_lower for word in ["master", "understand", "deep", "comprehensive"]):
-                        mastery_score = 0.8
-                        break
-
-            # Check if recent tasks involved complex problem-solving
-            complex_tasks = 0
-            for task in recent_tasks:
-                if hasattr(task, 'type') and task.type.value in ["analysis", "synthesis", "research"]:
-                    complex_tasks += 1
-
-            if complex_tasks > 2:
-                mastery_score = max(mastery_score, 0.7)
-
-            return min(1.0, mastery_score)
-
-        except Exception as e:
-            logger.error(f"Error calculating mastery: {e}")
-            return 0.5
-
-    async def _calculate_autonomy(self, system_state: Any) -> float:
-        """
-        Calculate autonomy motivation
-        High when system has freedom to make decisions
-        """
+        unsettled = None
         try:
-            # Check system mode
-            autonomy_score = 0.7  # Baseline (assume some autonomy)
+            from core.reasoning.epistemic_engine import get_epistemic_engine
+            regions = len(get_epistemic_engine().get_unstable_regions())
+            unsettled = self._saturate(regions, self._UNSTABLE_REGION_SCALE)
+            sources["unstable_regions"] = regions
+        except Exception as error:
+            logger.debug("drives: unstable regions unreadable: %s", error)
 
-            if system_state:
-                # Check if in autonomous mode
-                if hasattr(system_state, 'mode'):
-                    if system_state.mode.value == "autonomous":
-                        autonomy_score = 0.9
-                    elif system_state.mode.value == "supervised":
-                        autonomy_score = 0.4
-                    elif system_state.mode.value == "maintenance":
-                        autonomy_score = 0.3
+        return self._reading(MotivationDimension.CURIOSITY, sources, {
+            "exploration_pressure": pressure,
+            "open_questions": open_questions,
+            "unsettled_belief": unsettled,
+        })
 
-            return autonomy_score
+    async def _measure_competence(self) -> "DriveReading":
+        """The pull to become able to DO more.
 
-        except Exception as e:
-            logger.error(f"Error calculating autonomy: {e}")
-            return 0.5
-
-    async def _calculate_social(self, context: Dict[str, Any]) -> float:
+        Sources: the rule store (how little of the operator space is executable —
+        the room to grow), the demonstration store (evidence already gathered and
+        waiting to become an operator — skill within reach), and the domain
+        authority (competence actually RISING, which says the effort is paying).
         """
-        Calculate social motivation
-        High when collaboration opportunities exist
-        """
+        import math
+        sources: Dict[str, Any] = {}
+
+        room = None
         try:
-            # Check for collaboration indicators
-            social_score = 0.4  # Lower baseline (autonomous systems have less social interaction)
+            from core.learning.rule_store import get_rule_store
+            rules = await get_rule_store().executable_rules()
+            n = sum(1 for r in rules
+                    if getattr(getattr(r, "rule", None), "action", None) is not None)
+            room = 1.0 - math.tanh(n / self._COMPETENCE_SCALE)
+            sources["executable_operators"] = n
+        except Exception as error:
+            logger.debug("drives: executable operators unreadable: %s", error)
 
-            # Check if there are user interactions or team collaboration
-            if context.get("user_interactions") or context.get("collaboration_tasks"):
-                social_score = 0.7
-
-            # Check if goals involve communication or helping
-            active_goals = context.get("active_goals", [])
-            for goal in active_goals:
-                if hasattr(goal, 'description'):
-                    desc_lower = goal.description.lower()
-                    if any(word in desc_lower for word in ["help", "collaborate", "communicate", "share"]):
-                        social_score = 0.8
-                        break
-
-            return social_score
-
-        except Exception as e:
-            logger.error(f"Error calculating social: {e}")
-            return 0.4
-
-    async def _calculate_impact(
-        self,
-        recent_tasks: List,
-        active_goals: List,
-        performance_stats: Optional[Dict[str, Any]] = None,
-    ) -> float:
-        """
-        Calculate impact motivation
-        High when opportunities for meaningful change exist
-        """
+        within_reach = None
         try:
-            impact_score = 0.5  # Baseline
+            from core.learning.demonstration_store import get_demonstration_store
+            pending = len(await get_demonstration_store().pending_signatures())
+            within_reach = self._saturate(pending, self._PENDING_INDUCTION_SCALE)
+            sources["pending_induction"] = pending
+        except Exception as error:
+            logger.debug("drives: pending induction unreadable: %s", error)
 
-            # Check if recent tasks had significant outcomes
-            high_impact_tasks = 0
-            for task in recent_tasks:
-                if hasattr(task, "result") and task.result:
-                    # Check result magnitude or importance
-                    if task.result.get("significant") or task.result.get("system_improvement"):
-                        high_impact_tasks += 1
+        paying_off = None
+        try:
+            from core.integration.universal_domain_master import \
+                get_universal_domain_master
+            udm = get_universal_domain_master()
+            progress = [udm.learning_progress(d) for d in self._competence_domains(udm)]
+            rising = [p for p in progress if p is not None and p > 0]
+            if progress:
+                paying_off = len(rising) / len(progress)
+                sources["domains_with_rising_competence"] = f"{len(rising)}/{len(progress)}"
+        except Exception as error:
+            logger.debug("drives: learning progress unreadable: %s", error)
 
-            if high_impact_tasks > 0:
-                impact_score = 0.6 + (high_impact_tasks * 0.1)
+        return self._reading(MotivationDimension.COMPETENCE, sources, {
+            "room_to_grow": room,
+            "skill_within_reach": within_reach,
+            "effort_paying_off": paying_off,
+        })
 
-            # Incorporate global performance feedback: high failure with many attempts
-            # increases impact motivation (more to fix), while very stable success
-            # can slightly reduce it.
-            if performance_stats and performance_stats.get("total_attempts", 0) >= 5:
-                failure_rate = performance_stats.get("failure_rate", 0.5)
-                total_attempts = performance_stats.get("total_attempts", 0)
+    async def _measure_novelty(self) -> "DriveReading":
+        """The pull toward what has NOT been encountered — distinct from curiosity,
+        which is about gaps the substrate has already named.
 
-                # When many attempts and noticeable failures, raise impact motivation
-                if total_attempts >= 10:
-                    if failure_rate >= 0.4:
-                        impact_score = max(impact_score, 0.8)
-                    elif failure_rate <= 0.1:
-                        impact_score = min(impact_score, 0.6)
+        Sources: the domain authority (domains it has never acted in, so it has no
+        idea whether its actions move them) and the concept store (things it holds
+        by name alone, with no relation to anything — encountered but not met).
+        """
+        sources: Dict[str, Any] = {}
 
-            # Check for impact-oriented goals
-            for goal in active_goals:
-                if hasattr(goal, "description"):
-                    desc_lower = goal.description.lower()
-                    if any(word in desc_lower for word in ["improve", "optimize", "enhance", "upgrade", "impact"]):
-                        impact_score = max(impact_score, 0.7)
+        untried = None
+        try:
+            rows = await self._query(
+                "SELECT count(*) FILTER (WHERE action_attempts = 0) AS untried, "
+                "count(*) AS known FROM unified.domain_controllability")
+            if rows:
+                known = int(rows[0]["known"] or 0)
+                if known:
+                    untried = int(rows[0]["untried"] or 0) / known
+                    sources["untried_domains"] = f"{rows[0]['untried']}/{known}"
+        except Exception as error:
+            logger.debug("drives: untried domains unreadable: %s", error)
 
-            return min(1.0, impact_score)
+        unmet = None
+        try:
+            rows = await self._query(
+                "SELECT count(*) AS total, count(*) FILTER ("
+                "  WHERE NOT EXISTS (SELECT 1 FROM unified.concept_relations r "
+                "                    WHERE r.source_concept_id = c.concept_id)"
+                ") AS isolated FROM unified.concepts c")
+            if rows:
+                total = int(rows[0]["total"] or 0)
+                if total:
+                    unmet = int(rows[0]["isolated"] or 0) / total
+                    sources["concepts_held_by_name_only"] = f"{rows[0]['isolated']}/{total}"
+        except Exception as error:
+            logger.debug("drives: isolated concepts unreadable: %s", error)
 
-        except Exception as e:
-            logger.error(f"Error calculating impact: {e}")
-            return 0.5
+        return self._reading(MotivationDimension.NOVELTY, sources, {
+            "untried_ground": untried,
+            "unmet_concepts": unmet,
+        })
+
+    async def _measure_mastery(self) -> "DriveReading":
+        """The pull to go DEEPER into what is already held — distinct from
+        competence, which is about being able to do more things at all.
+
+        Sources: the rule store (operators that work but rest on thin evidence —
+        depth to gain where breadth already exists) and the epistemic engine
+        (a belief model that has not settled is one not yet mastered).
+        """
+        sources: Dict[str, Any] = {}
+
+        thin_evidence = None
+        try:
+            from core.learning.rule_store import get_rule_store
+            rules = [r for r in await get_rule_store().executable_rules()
+                     if getattr(getattr(r, "rule", None), "action", None) is not None]
+            if rules:
+                shallow = sum(1 for r in rules
+                              if int(getattr(r, "positive_root_count", 0) or 0)
+                              < self._MASTERY_ROOT_BAR)
+                thin_evidence = shallow / len(rules)
+                sources["thinly_evidenced_operators"] = f"{shallow}/{len(rules)}"
+        except Exception as error:
+            logger.debug("drives: operator evidence depth unreadable: %s", error)
+
+        unsettled_model = None
+        try:
+            from core.reasoning.epistemic_engine import get_epistemic_engine
+            coherence = get_epistemic_engine().model_coherence()
+            if coherence is not None:
+                unsettled_model = 1.0 - float(coherence)
+                sources["belief_coherence"] = round(float(coherence), 4)
+        except Exception as error:
+            logger.debug("drives: belief coherence unreadable: %s", error)
+
+        return self._reading(MotivationDimension.MASTERY, sources, {
+            "thin_evidence": thin_evidence,
+            "unsettled_model": unsettled_model,
+        })
+
+    async def _measure_autonomy(self, queue: Any) -> "DriveReading":
+        """The pull to act under its OWN direction.
+
+        Read as opportunity, like every other drive: high when there is room to
+        self-direct that is not being used. The old version read the opposite way
+        — 0.9 in autonomous mode, 0.4 in supervised — which is how SATISFIED the
+        need is, so it moved against every other dimension in the same sum.
+
+        Sources: the queue's acting pool (slots free to spend on its own work) and
+        the queue's composition (how much of what it is doing was its own idea).
+        """
+        sources: Dict[str, Any] = {}
+
+        room_to_act = None
+        try:
+            pool = queue.pool_stats()
+            cap = int(pool["max_parallel"])
+            if cap > 0:
+                room_to_act = max(0, cap - int(pool["active"])) / cap
+                sources["free_slots"] = f"{max(0, cap - int(pool['active']))}/{cap}"
+        except Exception as error:
+            logger.debug("drives: acting pool unreadable: %s", error)
+
+        externally_set = None
+        try:
+            from .shared_types import TaskSource
+            # The work still OWED -- the queue authority's one answer to what is
+            # active. This read every task the queue held, finished ones
+            # included, so work done hours ago still counted as waiting.
+            tasks = queue.active_tasks()
+            if tasks:
+                own = sum(1 for t in tasks
+                          if getattr(t, "source", None) in
+                          (TaskSource.AUTONOMOUS, TaskSource.SYSTEM))
+                externally_set = 1.0 - (own / len(tasks))
+                sources["self_initiated"] = f"{own}/{len(tasks)}"
+        except Exception as error:
+            logger.debug("drives: queue composition unreadable: %s", error)
+
+        return self._reading(MotivationDimension.AUTONOMY, sources, {
+            "room_to_act": room_to_act,
+            "externally_set_work": externally_set,
+        })
+
+    async def _measure_social(self, queue: Any) -> "DriveReading":
+        """The pull to engage with someone — read as opportunity, not sentiment.
+
+        In an offline substrate this is not chatter: it is whether anyone is
+        waiting on it, and whether it is stuck on something it cannot settle
+        alone. Sources: the queue (work filed by a person, still open) and the
+        appraisal authority (escalation pressure — the failure is outside the
+        substrate, so the way forward runs through someone else).
+        """
+        sources: Dict[str, Any] = {}
+
+        awaited = None
+        try:
+            from .shared_types import TaskSource
+            # The work still OWED -- the queue authority's one answer to what is
+            # active. This read every task the queue held, finished ones
+            # included, so work done hours ago still counted as waiting.
+            tasks = queue.active_tasks()
+            if tasks:
+                theirs = sum(1 for t in tasks
+                             if getattr(t, "source", None) in
+                             (TaskSource.API, TaskSource.MANUAL))
+                awaited = theirs / len(tasks)
+                sources["work_filed_by_people"] = f"{theirs}/{len(tasks)}"
+        except Exception as error:
+            logger.debug("drives: user work unreadable: %s", error)
+
+        needs_someone = None
+        state = await self._appraisal_state()
+        if state is not None and state.escalation_pressure is not None:
+            needs_someone = float(state.escalation_pressure)
+            sources["escalation_pressure"] = round(needs_someone, 4)
+
+        return self._reading(MotivationDimension.SOCIAL, sources, {
+            "someone_is_waiting": awaited,
+            "needs_someone": needs_someone,
+        })
+
+    async def _measure_impact(self, performance_stats: Optional[Dict[str, Any]]
+                              ) -> "DriveReading":
+        """The pull toward change that matters — how much is currently BROKEN or
+        unclosed that the substrate could move.
+
+        Sources: recorded task outcomes (what share of real attempts fail), the
+        belief authority (ignorance it has registered and not yet closed), and
+        appraisal (whether its actions move anything at all — impact needs
+        purchase, not just something to fix).
+        """
+        sources: Dict[str, Any] = {}
+
+        failing = None
+        if performance_stats and int(performance_stats.get("total_attempts") or 0) >= \
+                self._IMPACT_MIN_ATTEMPTS:
+            rate = performance_stats.get("failure_rate")
+            if isinstance(rate, (int, float)):
+                failing = float(rate)
+                sources["failure_rate"] = round(failing, 4)
+                sources["attempts"] = performance_stats.get("total_attempts")
+
+        unclosed = None
+        try:
+            from core.reasoning.bayesian_uncertainty import get_bayesian_uncertainty
+            unknowns = get_bayesian_uncertainty().known_unknowns.values()
+            open_now = sum(1 for u in unknowns if not getattr(u, "resolved", False))
+            unclosed = self._saturate(open_now, self._OPEN_QUESTION_SCALE)
+            sources["unclosed_deficits"] = open_now
+        except Exception as error:
+            logger.debug("drives: unclosed deficits unreadable: %s", error)
+
+        purchase = None
+        state = await self._appraisal_state()
+        if state is not None and state.controllability is not None:
+            purchase = float(state.controllability)
+            sources["controllability"] = round(purchase, 4)
+
+        return self._reading(MotivationDimension.IMPACT, sources, {
+            "work_is_failing": failing,
+            "unclosed_ignorance": unclosed,
+            "purchase_on_the_world": purchase,
+        })
 
     # =========================================================================
     # UTILITY METHODS
     # =========================================================================
 
-    def _calculate_total_reward(self, dimensions: Dict[str, float]) -> float:
-        """Calculate weighted total intrinsic reward"""
-        try:
-            total = 0.0
-            total += dimensions.get(MotivationDimension.CURIOSITY, 0.5) * self.weights.curiosity
-            total += dimensions.get(MotivationDimension.COMPETENCE, 0.5) * self.weights.competence
-            total += dimensions.get(MotivationDimension.NOVELTY, 0.5) * self.weights.novelty
-            total += dimensions.get(MotivationDimension.MASTERY, 0.5) * self.weights.mastery
-            total += dimensions.get(MotivationDimension.AUTONOMY, 0.5) * self.weights.autonomy
-            total += dimensions.get(MotivationDimension.SOCIAL, 0.5) * self.weights.social
-            total += dimensions.get(MotivationDimension.IMPACT, 0.5) * self.weights.impact
+    def _calculate_total_reward(self, dimensions: Dict[str, float]) -> Optional[float]:
+        """The overall drive level: the temperament-weighted mean of the drives
+        ACTUALLY MEASURED, renormalised over them.
 
-            # Normalize by total weight
-            total_weight = (
-                self.weights.curiosity + self.weights.competence + self.weights.novelty +
-                self.weights.mastery + self.weights.autonomy + self.weights.social +
-                self.weights.impact
-            )
+        This used to read each dimension with `dimensions.get(name, 0.5)` and
+        divide by the full weight of all seven. So an unmeasured drive was not
+        merely missing — it was asserted to be exactly half strength, and it
+        pulled the total toward 0.5 with the same authority as a measured one.
+        Two substrates, one that measured nothing and one that measured every
+        drive at 0.5, produced an identical number.
 
-            return total / total_weight if total_weight > 0 else 0.5
-
-        except Exception as e:
-            logger.error(f"Error calculating total reward: {e}")
-            return 0.5
+        Now an unmeasured drive is absent from `dimensions` and absent from both
+        sides of the division. Nothing measured at all returns None — the
+        substrate has no read on its own drive, which is a fact about it, not a
+        middling level.
+        """
+        weights = {
+            MotivationDimension.CURIOSITY: self.weights.curiosity,
+            MotivationDimension.COMPETENCE: self.weights.competence,
+            MotivationDimension.NOVELTY: self.weights.novelty,
+            MotivationDimension.MASTERY: self.weights.mastery,
+            MotivationDimension.AUTONOMY: self.weights.autonomy,
+            MotivationDimension.SOCIAL: self.weights.social,
+            MotivationDimension.IMPACT: self.weights.impact,
+        }
+        num = sum(weights[k] * float(v) for k, v in dimensions.items()
+                  if k in weights and v is not None)
+        den = sum(weights[k] for k, v in dimensions.items()
+                  if k in weights and v is not None)
+        return (num / den) if den > 0 else None
 
     # ========================================================================
     # EVENT REWARDS
@@ -1396,6 +1548,7 @@ class IntrinsicMotivationSystem:
         """Add motivation calculation to history"""
         try:
             self.profile.history.append(entry)
+            self._unsaved_history.append(entry)
 
             # Trim history if too long
             if len(self.profile.history) > self.history_limit:
@@ -1404,60 +1557,112 @@ class IntrinsicMotivationSystem:
         except Exception as e:
             logger.error(f"Error adding to history: {e}")
 
+    #: THE MOTIVATION PROFILE LIVES IN THE STORE. It was a JSON file under the
+    #: repo's data/: a wipe of the store left the drives it had measured behind,
+    #: an instance of the model run from another checkout never saw them, and
+    #: every instance rewrote the whole file -- history included -- with its own
+    #: copy. The drives are MEASURED each tick from the shared world, so the
+    #: latest measurement is the profile (one row; a newer reading is never
+    #: replaced by an older one). The history is what each instance experienced,
+    #: so it is APPENDED, never rewritten.
+    _PROFILE_DDL = (
+        """CREATE TABLE IF NOT EXISTS unified.motivation_profile (
+               profile_id              TEXT PRIMARY KEY,
+               dimensions              JSONB NOT NULL,
+               total_intrinsic_reward  DOUBLE PRECISION NOT NULL,
+               measured_at             TIMESTAMPTZ
+           )""",
+        """CREATE TABLE IF NOT EXISTS unified.motivation_history (
+               entry_id     BIGSERIAL PRIMARY KEY,
+               entry        JSONB NOT NULL,
+               recorded_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+           )""")
+    #: The one profile: the substrate's.
+    PROFILE_ID = "substrate"
+
+    async def _profile_store(self):
+        from core.database import get_database_manager
+        db = self.db or get_database_manager()
+        if not getattr(db, "initialized", False):
+            await db.initialize()
+        if not getattr(self, "_profile_schema_ready", False):
+            for ddl in self._PROFILE_DDL:
+                await db.execute_query(ddl, (), commit=True)
+            self._profile_schema_ready = True
+        return db
+
     async def save_profile(self) -> bool:
-        """Save motivation profile to disk"""
+        """Write the latest measured drives, and append the history recorded since
+        the last save, to the store."""
         try:
-            # Ensure directory exists
-            self.profile_path.parent.mkdir(parents=True, exist_ok=True)
-
-            # Convert profile to dict
-            profile_dict = {
-                "dimensions": self.profile.dimensions,
-                "total_intrinsic_reward": self.profile.total_intrinsic_reward,
-                "influence_percentage": self.profile.influence_percentage,
-                "last_updated": self.profile.last_updated.isoformat() if self.profile.last_updated else None,
-                "history": self.profile.history[-50:]  # Save last 50 entries
-            }
-
-            # Write to file
-            with open(self.profile_path, 'w') as f:
-                json.dump(profile_dict, f, indent=2)
-
-            logger.debug(f"Motivation profile saved to {self.profile_path}")
+            db = await self._profile_store()
+            # NOTHING MEASURED, NOTHING TO SAVE. `total_intrinsic_reward` is None
+            # until a drive has been measured (by design: appraisal reads None as
+            # unmeasured), and the stored profile is only ever the newest
+            # MEASUREMENT. float(None) here raised before the history below was
+            # written, so every run that ended before its first measurement lost
+            # its motivation history too (measured 2026-09-27, SEPARATION-01).
+            if self.profile.total_intrinsic_reward is not None:
+                await db.execute_query(
+                    "INSERT INTO unified.motivation_profile AS p (profile_id, dimensions, "
+                    "total_intrinsic_reward, measured_at) VALUES ($1, $2::jsonb, $3, $4) "
+                    "ON CONFLICT (profile_id) DO UPDATE SET dimensions = EXCLUDED.dimensions, "
+                    "total_intrinsic_reward = EXCLUDED.total_intrinsic_reward, "
+                    "measured_at = EXCLUDED.measured_at "
+                    "WHERE p.measured_at IS NULL OR p.measured_at <= EXCLUDED.measured_at",
+                    (self.PROFILE_ID, json.dumps(self.profile.dimensions),
+                     float(self.profile.total_intrinsic_reward),
+                     # Measured in local time; stored as the instant it was.
+                     (self.profile.last_updated.astimezone()
+                      if self.profile.last_updated else None)),
+                    commit=True)
+            pending, self._unsaved_history = self._unsaved_history, []
+            for entry in pending:
+                await db.execute_query(
+                    "INSERT INTO unified.motivation_history (entry) VALUES ($1::jsonb)",
+                    (json.dumps(entry, default=str),), commit=True)
+            # Bounded as the in-process history is: the newest `history_limit`.
+            await db.execute_query(
+                "DELETE FROM unified.motivation_history WHERE entry_id < ("
+                "SELECT min(entry_id) FROM (SELECT entry_id FROM unified.motivation_history "
+                "ORDER BY entry_id DESC LIMIT $1) newest)", (int(self.history_limit),),
+                commit=True)
             return True
-
         except Exception as e:
-            logger.error(f"Failed to save motivation profile: {e}")
+            logger.error(f"Failed to save the motivation profile to the store: {e}")
             return False
 
     async def load_profile(self) -> bool:
-        """Load motivation profile from disk"""
+        """Read the latest measured drives and the recent history from the store.
+        False when none has been stored yet (nothing measured is absent, not
+        defaulted)."""
         try:
-            if not self.profile_path.exists():
-                logger.info("No existing motivation profile found, using defaults")
+            db = await self._profile_store()
+            row = await db.execute_query(
+                "SELECT dimensions, total_intrinsic_reward, measured_at "
+                "FROM unified.motivation_profile WHERE profile_id = $1",
+                (self.PROFILE_ID,), fetch_one=True)
+            history = await db.execute_query(
+                "SELECT entry FROM (SELECT entry_id, entry FROM unified.motivation_history "
+                "ORDER BY entry_id DESC LIMIT $1) newest ORDER BY entry_id",
+                (int(self.history_limit),), fetch_all=True) or []
+            self.profile.history = [
+                h["entry"] if isinstance(h["entry"], dict) else json.loads(h["entry"])
+                for h in history]
+            if row is None:
+                logger.info("No motivation profile stored yet; no drive is held")
                 return False
-
-            with open(self.profile_path, 'r') as f:
-                profile_dict = json.load(f)
-
-            # Restore profile
-            self.profile.dimensions = profile_dict.get("dimensions", {})
-            self.profile.total_intrinsic_reward = profile_dict.get("total_intrinsic_reward", 0.0)
-            self.profile.influence_percentage = profile_dict.get("influence_percentage", 0.60)
-
-            last_updated_str = profile_dict.get("last_updated")
-            if last_updated_str:
-                self.profile.last_updated = datetime.fromisoformat(last_updated_str)
-
-            self.profile.history = profile_dict.get("history", [])
-
-            logger.info(f"Motivation profile loaded from {self.profile_path}")
+            dims = row["dimensions"]
+            self.profile.dimensions = dims if isinstance(dims, dict) else json.loads(dims)
+            self.profile.total_intrinsic_reward = float(row["total_intrinsic_reward"])
+            self.profile.last_updated = row["measured_at"]
+            logger.info("Motivation profile loaded from the store")
             return True
 
         except Exception as e:
             # `except` must not turn a wiring defect into an empty result.
             raise_if_structural(e, 'intrinsic_motivation.load_profile')
-            logger.error(f"Failed to load motivation profile: {e}")
+            logger.error(f"Failed to load the motivation profile from the store: {e}")
             return False
 
     async def get_motivation_state(self) -> Dict[str, Any]:
@@ -1781,7 +1986,7 @@ class IntrinsicMotivationSystem:
         """
         try:
             # Import memory system via unified public entrypoint
-            from core.governance.governance_block_schema import GovernanceBlock
+            from core.agents.autonomous.governance_block_schema import GovernanceBlock
             from core.memory import get_memory_agent
             from core.memory.utils.interfaces import MemoryType
 
@@ -1879,7 +2084,7 @@ class IntrinsicMotivationSystem:
             Dictionary with success rate, failure rate, avg confidence
         """
         try:
-            from core.governance.governance_block_schema import task_outcome_from_memory
+            from core.agents.autonomous.governance_block_schema import task_outcomes_from_memory
             from core.memory import get_memory_agent
             from core.memory.utils.interfaces import MemoryType
 
@@ -1913,23 +2118,26 @@ class IntrinsicMotivationSystem:
 
             skipped = 0
             for memory in memories:
-                record = task_outcome_from_memory(memory)
-                if record is None:
+                # EACH TIME THE TASK WAS DONE: a task asked again is one memory
+                # holding every occurrence, and each is an outcome.
+                records = task_outcomes_from_memory(memory)
+                if not records:
                     # Not a task outcome, or a malformed one. Never guess from
                     # the narrative — a parsed sentence is a second, divergent
                     # reading of an observation that already has a record.
                     skipped += 1
                     continue
 
-                if domain != "all" and record.domain != domain:
-                    continue
+                for record in records:
+                    if domain != "all" and record.domain != domain:
+                        continue
 
-                if record.outcome == "success":
-                    successes += 1
-                elif record.outcome == "failure":
-                    failures += 1
+                    if record.outcome == "success":
+                        successes += 1
+                    elif record.outcome == "failure":
+                        failures += 1
 
-                total_confidence += float(record.confidence)
+                    total_confidence += float(record.confidence)
 
             if skipped:
                 logger.debug(
@@ -2084,19 +2292,25 @@ class IntrinsicMotivationSystem:
         return (num / den if den > 0 else None), common
 
     @staticmethod
-    def _affect_from_appraisal(state) -> Tuple[Optional[str], Optional[float], Optional[str]]:
-        """The dominant named emotion, its intensity, and its cause — read from the
-        substrate's OWN appraisal (not from any environment context). None when the
-        situation has not been appraised, so nothing is invented."""
+    def _affect_from_appraisal(state):
+        """The dominant named emotion, its intensity, its cause and WHAT IT IS
+        ABOUT — read from the substrate's OWN appraisal (not from any environment
+        context). None when the situation has not been appraised, so nothing is
+        invented.
+
+        Returns (emotion, intensity, cause, about, about_domain)."""
         if state is None:
-            return None, None, getattr(state, "attribution", None)
+            return None, None, None, None, None
         emotions = {"eagerness": state.eagerness, "doubt": state.doubt,
                     "frustration": state.frustration, "satisfaction": state.satisfaction}
         measured = {k: v for k, v in emotions.items() if isinstance(v, (int, float))}
+        about = getattr(state, "about", None)
+        about_domain = getattr(state, "about_domain", None)
         if not measured:
-            return None, None, state.attribution
+            return None, None, state.attribution, about, about_domain
         emotion, intensity = max(measured.items(), key=lambda kv: kv[1])
-        return emotion, round(float(intensity), 4), state.attribution
+        return (emotion, round(float(intensity), 4), state.attribution,
+                about, about_domain)
 
     async def update_affect(self) -> "AffectState":
         """Fold a fitness-relevant EVENT (a task outcome) into the substrate's affect.
@@ -2120,12 +2334,52 @@ class IntrinsicMotivationSystem:
         except Exception as e:
             logger.debug("affect: appraisal unreadable: %s", e)
             ap_state = None
-        emotion, intensity, cause = self._affect_from_appraisal(ap_state)
+        (emotion, intensity, cause,
+         about, about_domain) = self._affect_from_appraisal(ap_state)
         if emotion is not None:
             # a real appraisal produced an emotion → an affect TRANSITION
             self._affect_emotion, self._affect_intensity, self._affect_cause = emotion, intensity, cause
+            # WHAT it is about moves with it. Kept when the new appraisal names
+            # nothing, for the same reason appraisal carries it forward: an
+            # update silent about the object has not made the feeling objectless.
+            if about is not None:
+                self._affect_about, self._affect_about_domain = about, about_domain
             self._affect_version += 1
-        # else: retain the current emotion (rehydrated or prior) — no transition
+        else:
+            # A FEELING DOES NOT OUTLIVE ITS OWN BASIS.
+            #
+            # This retained the previous emotion at FULL INTENSITY, forever,
+            # whenever appraisal could measure none — and appraisal measures
+            # none whenever its constituents are unmeasured, which is most of
+            # the time outside a task. Measured on the live substrate:
+            # `eagerness` held at 0.4364 with `cause=None` across 784 versions,
+            # on a mood of 0.000 — a feeling frozen at the last moment anything
+            # supported it, still colouring behaviour.
+            #
+            # The mood already knew better: it relaxes toward baseline on a
+            # half-life, which is why it needs no loop. The emotion is given the
+            # same treatment. It FADES rather than vanishing, because the design
+            # wants persistence — the substrate resumes in doubt if it went down
+            # in doubt — and fading keeps that while letting an unsupported
+            # feeling go. Re-measuring it refreshes it; nothing else does.
+            #
+            # NOT A TRANSITION, deliberately: `version` counts times the
+            # substrate came to feel something, and fading is the absence of
+            # that, not an instance of it.
+            self._affect_intensity = self._faded_intensity(at)
+            if (self._affect_intensity is not None
+                    and self._affect_intensity < self._EMOTION_FLOOR):
+                # Below the floor there is no longer a feeling to name, and
+                # saying there is would be the substrate reporting a state it
+                # is not in.
+                #
+                # But a doubt is not only a feeling, so it does not only go.
+                self._keep_the_question()
+                self._affect_emotion = None
+                self._affect_intensity = None
+                self._affect_cause = None
+                self._affect_about = None
+                self._affect_about_domain = None
 
         # --- the mood valence from the fitness trend (the substrate's own state) ---
         now = await self.sense_fitness()
@@ -2162,6 +2416,88 @@ class IntrinsicMotivationSystem:
     #: set how long a mood lingers, and are why affect needs no polling loop.
     _MOOD_HALFLIFE_S = 1800.0     # ~30 min — a mood lingers
     _AROUSAL_HALFLIFE_S = 600.0   # ~10 min — activation settles sooner
+    #: An EMOTION is faster than a mood — it is about something, and it goes
+    #: when what it was about stops being measurable. Shorter than the mood it
+    #: sits on, for the same reason a fright passes sooner than a bad week.
+    _EMOTION_HALFLIFE_S = 900.0   # ~15 min
+    #: Below this there is no feeling left to name. Naming one anyway would have
+    #: the substrate report a state it is not in.
+    _EMOTION_FLOOR = 0.05
+
+    def _keep_the_question(self) -> None:
+        """A DOUBT that fades was never answered — keep the question.
+
+        Fading is alleviation by TIME, and for most feelings that is the whole
+        of it. A satisfaction that fades was about something finished; a
+        frustration that fades was about something that stopped resisting or
+        stopped mattering. Nothing is lost when they go.
+
+        Doubt is not symmetric with them. Doubt is an open question wearing a
+        feeling — `(1 − confidence) + epistemic_opportunity + risk` — and if the
+        feeling lapses with nothing recorded, the substrate has stopped
+        wondering about something it never settled. That is strictly worse than
+        staying uncertain: the uncertainty does not become knowledge, it becomes
+        invisible to the very machinery that exists to resolve it.
+
+        So the feeling is allowed to go and the QUESTION is handed to its owner
+        — the belief authority's known-unknowns, where a gap is resolvable by
+        acquisition and where the curiosity drive already reads it (see
+        `_measure_curiosity`). Idempotent: a doubt that recurs and fades
+        repeatedly is one open question, not a pile of them.
+
+        NO OBJECT, NO QUESTION. A doubt that faded without appraisal ever naming
+        what it was about cannot be written down without inventing a subject, so
+        it is counted as lost rather than fabricated into a question the
+        substrate never had.
+        """
+        if self._affect_emotion != "doubt":
+            return
+        about = self._affect_about
+        if not about:
+            self._questions_lost += 1
+            logger.warning(
+                "a doubt faded with nothing naming what it was about — the "
+                "feeling went and no question was kept (%d so far)",
+                self._questions_lost)
+            return
+        question = f"what is unresolved about {about}?"
+        # `self` is the domain this substrate already files what it learns
+        # about ITSELF under (`record_finding`). Filing under an invented name
+        # would leave the question somewhere nothing looks.
+        domain = self._affect_about_domain or "self"
+        try:
+            from core.reasoning.bayesian_uncertainty import get_bayesian_uncertainty
+            unc = get_bayesian_uncertainty()
+            if any(u.question == question and u.domain == domain
+                   for u in unc.known_unknowns.values()):
+                return                      # already open; one question, not many
+            unc.register_known_unknown(
+                question=question,
+                domain=domain,
+                blocking_factors=[
+                    f"a doubt about {about} faded without being resolved"],
+                required_info=[f"evidence that settles {about}"],
+                target={"kind": "settled", "about": about})
+            self._questions_kept += 1
+            logger.info("doubt about %s faded — question kept as a known-unknown "
+                        "in %s", about, domain)
+        except Exception as error:
+            self._questions_lost += 1
+            logger.error("a doubt about %s faded and the question could NOT be "
+                         "kept (%s) — the substrate has stopped wondering about "
+                         "something it never settled", about, error)
+
+    def _faded_intensity(self, at: "datetime") -> Optional[float]:
+        """The current emotion's intensity, faded for the time since it was last
+        supported by an appraisal. None when there is no emotion to fade."""
+        if self._affect_intensity is None or self._last_affect_at is None:
+            return self._affect_intensity
+        import math
+        dt = (at - self._last_affect_at).total_seconds()
+        if dt <= 0:
+            return self._affect_intensity
+        return float(self._affect_intensity) * math.exp(
+            -dt / self._EMOTION_HALFLIFE_S)
 
     def _decayed(self, at: "datetime") -> Tuple[float, float]:
         """The mood and arousal decayed toward baseline / rest for the wall-clock
@@ -2203,7 +2539,8 @@ class IntrinsicMotivationSystem:
         v, a = self._decayed(datetime.now(timezone.utc))
         return AffectState(
             emotion=self._affect_emotion, intensity=self._affect_intensity,
-            cause=self._affect_cause, valence=round(v, 4), arousal=round(a, 4),
+            cause=self._affect_cause, about=self._affect_about,
+            valence=round(v, 4), arousal=round(a, 4),
             baseline=round(self._baseline_valence, 4), version=self._affect_version,
             updated_at=(self._last_affect_at.isoformat() if self._last_affect_at else None),
             loaded=self._affect_loaded,
@@ -2219,6 +2556,8 @@ class IntrinsicMotivationSystem:
                 emotion          TEXT,
                 intensity        DOUBLE PRECISION,
                 cause            TEXT,
+                about            TEXT,
+                about_domain     TEXT,
                 mood_valence     DOUBLE PRECISION NOT NULL DEFAULT 0,
                 mood_arousal     DOUBLE PRECISION NOT NULL DEFAULT 0,
                 baseline_valence DOUBLE PRECISION NOT NULL DEFAULT 0,
@@ -2232,7 +2571,9 @@ class IntrinsicMotivationSystem:
         )
         # Idempotent columns for a table created by an earlier revision.
         for col, ddl in (("emotion", "TEXT"), ("intensity", "DOUBLE PRECISION"),
-                         ("cause", "TEXT"), ("version", "INTEGER NOT NULL DEFAULT 0")):
+                         ("cause", "TEXT"), ("about", "TEXT"),
+                         ("about_domain", "TEXT"),
+                         ("version", "INTEGER NOT NULL DEFAULT 0")):
             await self.db.execute_query(
                 f"ALTER TABLE unified.affect_state ADD COLUMN IF NOT EXISTS {col} {ddl}",
                 commit=True,
@@ -2247,15 +2588,18 @@ class IntrinsicMotivationSystem:
             await self.db.execute_query(
                 """
                 INSERT INTO unified.affect_state
-                    (id, emotion, intensity, cause, mood_valence, mood_arousal,
+                    (id, emotion, intensity, cause, about, about_domain,
+                     mood_valence, mood_arousal,
                      baseline_valence, version, event_count, updated_at)
-                VALUES (1, $1, $2, $3, $4, $5, $6, $7, $8, now())
+                VALUES (1, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, now())
                 ON CONFLICT (id) DO UPDATE SET
-                    emotion=$1, intensity=$2, cause=$3, mood_valence=$4,
-                    mood_arousal=$5, baseline_valence=$6, version=$7,
-                    event_count=$8, updated_at=now()
+                    emotion=$1, intensity=$2, cause=$3, about=$4,
+                    about_domain=$5, mood_valence=$6,
+                    mood_arousal=$7, baseline_valence=$8, version=$9,
+                    event_count=$10, updated_at=now()
                 """,
                 params=(self._affect_emotion, self._affect_intensity, self._affect_cause,
+                        self._affect_about, self._affect_about_domain,
                         self._mood_valence, self._mood_arousal, self._baseline_valence,
                         self._affect_version, self._affect_event_count),
                 commit=True,
@@ -2271,7 +2615,8 @@ class IntrinsicMotivationSystem:
         try:
             await self._ensure_affect_table()
             row = await self.db.execute_query(
-                "SELECT emotion, intensity, cause, mood_valence, mood_arousal, "
+                "SELECT emotion, intensity, cause, about, about_domain, "
+                "mood_valence, mood_arousal, "
                 "baseline_valence, version, event_count, updated_at "
                 "FROM unified.affect_state WHERE id=1",
                 fetch_one=True,
@@ -2282,6 +2627,8 @@ class IntrinsicMotivationSystem:
                 self._affect_emotion = row["emotion"]
                 self._affect_intensity = float(row["intensity"]) if row["intensity"] is not None else None
                 self._affect_cause = row["cause"]
+                self._affect_about = row["about"]
+                self._affect_about_domain = row["about_domain"]
                 self._affect_version = int(row["version"] or 0)
                 self._mood_valence = float(row["mood_valence"])
                 self._mood_arousal = float(row["mood_arousal"])
@@ -2291,8 +2638,9 @@ class IntrinsicMotivationSystem:
                 # a mood earned yesterday should read faded when the substrate wakes.
                 self._last_affect_at = row["updated_at"]
                 self._affect_loaded = True
-                logger.info("Affect rehydrated: emotion=%s cause=%s v=%d mood_valence=%.3f baseline=%.3f (n=%d)",
-                            self._affect_emotion, self._affect_cause, self._affect_version,
+                logger.info("Affect rehydrated: emotion=%s about=%s cause=%s v=%d mood_valence=%.3f baseline=%.3f (n=%d)",
+                            self._affect_emotion, self._affect_about,
+                            self._affect_cause, self._affect_version,
                             self._mood_valence, self._baseline_valence, self._affect_event_count)
             else:
                 logger.info("No persisted affect — cold start at neutral")

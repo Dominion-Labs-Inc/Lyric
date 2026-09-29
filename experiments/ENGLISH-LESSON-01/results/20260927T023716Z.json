@@ -1,0 +1,55 @@
+{
+  "experiment": "ENGLISH-LESSON-01",
+  "claim": "Taught a preschool lesson's sentences on an empty store, the substrate reads them, holds what they say, and answers questions about it in English.",
+  "hypothesis": "A sentence it cannot read, a reading that is not what the sentence says, a question about the lesson it cannot answer, or an answer that is not what was taught would each show here.",
+  "started_at": "2026-09-27T02:37:16.099063+00:00",
+  "duration_seconds": 5.282,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/TorinAI/venv_torin/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/TorinAI",
+    "shadow_mode": null,
+    "git_commit": "20deb447498593391eca0286916b8f986c560a26",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "torinai_db",
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "environment",
+        "database": "environment",
+        "user": "environment",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres"
+      }
+    },
+    "git_uncommitted_changes": 1147,
+    "database_verified": "torinai_db",
+    "database_verified_reason": "asked the server"
+  },
+  "summary": {
+    "checks": 1,
+    "passed": 0,
+    "failed": 1,
+    "outcome": "FAIL"
+  },
+  "metrics": [],
+  "checks": [
+    {
+      "label": "every sentence of the lesson was read",
+      "passed": false,
+      "detail": "2/11 sentences gave a reading",
+      "at": "2026-09-27T02:37:21.380316+00:00"
+    }
+  ],
+  "notes": [
+    "OBSERVED \u2014 the store before the lesson: {'memories': 0, 'concepts': 0, 'graph_edges': 0, 'beliefs': 0, 'knowledge_updates': 0}",
+    "OBSERVED \u2014 records given / facts taught: given=11 taught={'admitted': 2, 'already': 0, 'refused': 1, 'total': 3}",
+    "OBSERVED \u2014 the store after the lesson: {'memories': 11, 'concepts': 3, 'graph_edges': 2, 'beliefs': 3, 'knowledge_updates': 3}",
+    "OBSERVED \u2014 the lesson's words it has a class for: {'black': ['NOUN']}",
+    "OBSERVED \u2014 the lesson's words it has no class for: ['a', 'all', 'and', 'are', 'at', 'brown', 'by', 'chance', 'choose', 'closet', 'create', 'each', 'from', 'get', 'going', 'group', 'has', 'have', 'here', 'i', \"i'm\", 'in', 'is', 'it', 'laces', 'look', 'morning', 'my', 'myself', 'of', 'on', 'paint', 'painted', 'paints', 'pictures', 'put', 'red', 'shoe', 'shoes', 'small', 'sole', 'the', 'they', 'this', 'tie', 'time', 'to', 'week', 'will', 'you', 'your']"
+  ]
+}

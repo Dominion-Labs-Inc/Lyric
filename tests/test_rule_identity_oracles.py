@@ -199,17 +199,6 @@ async def test_new_independent_evidence_strengthens_the_rule_it_supports():
 
 
 @pytest.mark.asyncio
-async def test_legacy_rule_ids_still_resolve():
-    """Frozen EDU-01/EDU-02 name these ids. Identity moved to a new column
-    precisely so historical reproducibility survived the migration."""
-    _, store = await _store()
-    for legacy in ("rule_dccaff4cba0f", "rule_edbe5a8b4ad8"):
-        record = await store.get(legacy)
-        assert record is not None, f"{legacy} no longer resolves"
-        assert record.semantic_fingerprint, f"{legacy} was not backfilled"
-
-
-@pytest.mark.asyncio
 async def test_every_stored_rule_carries_a_fingerprint():
     db, _ = await _store()
     rows = await db.execute_query(

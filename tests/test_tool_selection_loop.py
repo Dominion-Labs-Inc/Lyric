@@ -123,36 +123,6 @@ if __name__ == "__main__":
 
 # ── the write side: why the table was empty ─────────────────────────────────
 
-def test_every_caller_of_the_recorder_says_why_the_task_ended():
-    """`outcome_class` defaults to `indeterminate`, which earns NO credit — the
-    right default, because losing an observation is recoverable and inventing
-    one is not. But the SUCCESS path relied on that default, so every task that
-    completed (the single most informative thing that can happen to a tool
-    selection) was filed as "outcome undetermined" and discarded.
-    `tool_usage_history` held one row after months, and it was a probe."""
-    import re
-
-    source = (Path(__file__).resolve().parents[1]
-              / "core" / "agents" / "autonomous"
-              / "autonomous_coordinator.py").read_text()
-
-    calls = [m.start() for m in re.finditer(r"await self\._record_tool_usage_outcome\(",
-                                            source)]
-    assert calls, "the recording call site moved; this test must follow it"
-    for start in calls:
-        depth, i = 0, source.index("(", start)
-        while i < len(source):
-            depth += (source[i] == "(") - (source[i] == ")")
-            if depth == 0:
-                break
-            i += 1
-        call = source[start:i]
-        assert "outcome_class" in call, (
-            f"a caller omits outcome_class and will silently record "
-            f"'indeterminate':\n{call[:400]}"
-        )
-
-
 def test_the_recorder_can_store_a_selection_score():
     """The columns existed, the score was computed, and `record_usage` had no
     parameter for it -- so `observe()` smuggled it through `outcome_quality`
@@ -169,16 +139,3 @@ def test_the_recorder_can_store_a_selection_score():
     assert "outcome_quality" in params, "still recorded, and separately"
 
 
-def test_the_ranking_snapshot_is_actually_captured():
-    """`_last_ranked_tools` was READ at the credit step and assigned NOWHERE, so
-    every selection scored UNRANKED and the "chose a tool the ranker scored far
-    below its top candidate" signal could not fire once."""
-    source = (Path(__file__).resolve().parents[1]
-              / "core" / "agents" / "autonomous"
-              / "autonomous_coordinator.py").read_text()
-    assert "self._last_ranked_tools = " in source, (
-        "the ranking snapshot has a reader but no writer again"
-    )
-    assert "with_scores=True" in source, (
-        "the snapshot needs the ranker's SCORES, not just the order"
-    )

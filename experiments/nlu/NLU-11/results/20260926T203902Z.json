@@ -1,0 +1,63 @@
+{
+  "experiment": "NLU-11 \u2014 Is reading deterministic and order-independent?",
+  "writes_to_store": false,
+  "notes": [
+    "the same sentence must read the same way however often it is asked and whatever was asked before it; a reader whose answer drifts makes every other measurement here unrepeatable"
+  ],
+  "data": {},
+  "checks": [
+    {
+      "name": "stable: 'Is the reactor stable?'",
+      "passed": true,
+      "detail": "('reactor_stable',) then ('reactor_stable',)"
+    },
+    {
+      "name": "stable: 'A robin is not a mammal.'",
+      "passed": true,
+      "detail": "('~robin_mammal',) then ('~robin_mammal',)"
+    },
+    {
+      "name": "stable: 'The vault is locked.'",
+      "passed": true,
+      "detail": "('vault_locked',) then ('vault_locked',)"
+    },
+    {
+      "name": "stable: 'The kidney filters plasma.'",
+      "passed": true,
+      "detail": "('kidney_filter_plasma',) then ('kidney_filter_plasma',)"
+    },
+    {
+      "name": "stable: 'A robin is a bird.'",
+      "passed": true,
+      "detail": "('robin_bird',) then ('robin_bird',)"
+    },
+    {
+      "name": "stable: 'Is the reactor stable?'",
+      "passed": true,
+      "detail": "('reactor_stable',) then ('reactor_stable',)"
+    },
+    {
+      "name": "stable: 'A robin is not a mammal.'",
+      "passed": true,
+      "detail": "('~robin_mammal',) then ('~robin_mammal',)"
+    },
+    {
+      "name": "stable: 'The vault is locked.'",
+      "passed": true,
+      "detail": "('vault_locked',) then ('vault_locked',)"
+    },
+    {
+      "name": "stable: 'The kidney filters plasma.'",
+      "passed": true,
+      "detail": "('kidney_filter_plasma',) then ('kidney_filter_plasma',)"
+    },
+    {
+      "name": "stable: 'A robin is a bird.'",
+      "passed": true,
+      "detail": "('robin_bird',) then ('robin_bird',)"
+    }
+  ],
+  "passed": 10,
+  "total": 10,
+  "seconds": 0.08
+}

@@ -132,41 +132,72 @@ def test_isolation_is_the_default_across_all_pairs():
     assert licensed < total * 0.10, f"too many licensed pairs ({licensed}/{total})"
 
 
-# ------------------------------------------- reader integration (real machine)
+# ------------------------------------------------ a kind by its own name
 
-def test_read_typed_covers_all_seven_constructions():
-    from core.semantics import derived_reader as dr
-    cases = {
-        "A zorble is a fintch.": R.ISA,
-        "A zorble has flippers.": R.HAS_PART,
-        "A zorble eats krill.": R.EATS,
-        "A tinker makes a widget.": R.CREATES,
-        "A zorble lives in a burrow.": R.LOCATED_IN,
-        "A zorble is part of a colony.": R.PART_OF,
-        "A widget is made of brass.": R.MADE_OF,
-    }
-    for sent, expected in cases.items():
-        tr = dr.read_typed(sent)
-        assert tr is not None and tr.relation is not None, f"declined: {sent}"
-        assert tr.relation.relation is expected, \
-            f"{sent} -> {tr.relation.relation} != {expected}"
+def test_every_kind_resolves_to_itself_by_name():
+    """A relation read back from the store arrives as its kind's name, and every
+    kind must resolve to itself that way, whether or not any English phrase is
+    written for it. Measured before: `synonym_of` resolved to RELATED_TO."""
+    for kind in R:
+        assert classify(kind.value).relation is kind, kind
+        assert classify(kind.value.replace("_", " ")).relation is kind, kind
 
 
-def test_read_typed_object_is_clean_after_overextension_recovery():
-    from core.semantics import derived_reader as dr
-    tr = dr.read_typed("A widget is made of brass.")
-    assert tr.obj == "brass" and tr.relation.relation is R.MADE_OF
-    tr2 = dr.read_typed("A finger is part of a hand.")
-    assert tr2.obj == "hand" and tr2.relation.relation is R.PART_OF
+# ------------------------------------------------ event participants
+
+def test_event_participants_carry_no_english_and_license_nothing():
+    """`done_by` / `done_to` say who did an event and what it was done to. No
+    English is written for them -- which words say them is learned -- and they
+    compose to nothing: no chaining, no inheritance down ISA, no inverse."""
+    from core.semantics.relation_types import get_spec
+    for kind in (R.DONE_BY, R.DONE_TO):
+        spec = get_spec(kind)
+        assert spec.surface_forms == frozenset()
+        assert spec.inverse is None and not spec.inheritable and not spec.symmetric
+        for other in R:
+            assert not is_licensed(kind, other), (kind, other)
+            assert not is_licensed(other, kind), (other, kind)
 
 
-def test_made_of_sentence_never_licenses_isa_end_to_end():
-    """The whole arc: read a made-of sentence, feed the typed edge to the
-    algebra with the material itself a kind, and confirm no ISA is derivable."""
-    from core.semantics import derived_reader as dr
-    tr = dr.read_typed("A cabinet is made of oak.")
-    assert tr.relation.relation is R.MADE_OF
-    edges = [Edge(tr.subject, tr.relation.relation, tr.obj),
+def test_an_event_participant_stays_a_fact_about_that_event():
+    """"Tie your shoe.": a tying, done by the listener, done to the shoe. What
+    the listener or the shoe is a kind of does not leak into the event."""
+    from core.reasoning.relation_algebra import answer, TRUE, UNKNOWN, OBSERVED
+    edges = [Edge("tying_1", R.INSTANCE_OF, "tying"),
+             Edge("tying_1", R.DONE_BY, "listener"),
+             Edge("tying_1", R.DONE_TO, "shoe_1"),
+             Edge("listener", R.ISA, "person"),
+             Edge("shoe_1", R.INSTANCE_OF, "shoe")]
+    done_by = answer("tying_1", R.DONE_BY, "listener", edges)
+    assert done_by.verdict == TRUE and done_by.basis == OBSERVED
+    assert answer("tying_1", R.DONE_BY, "person", edges).verdict == UNKNOWN
+    assert answer("tying_1", R.DONE_TO, "shoe", edges).verdict == UNKNOWN
+    assert answer("listener", R.DONE_BY, "tying_1", edges).verdict == UNKNOWN
+
+
+def test_the_graph_types_an_event_participant_row():
+    """The graph decodes a stored row by the kind's name, so a participant link
+    written to the store is walked as that kind, not skipped as untyped."""
+    from core.reasoning.concept_graph_reasoning import _typed_edge
+    for stored, kind in (("done by", R.DONE_BY), ("done_to", R.DONE_TO)):
+        edge, denied = _typed_edge({"subj": "tying_1", "rel": stored, "obj": "x",
+                                    "pol": "positive", "ev": []})
+        assert edge is not None and edge.relation is kind and not denied
+
+
+# --------------------------------------------- typed edges through the algebra
+#
+# These three were reader-integration tests over `derived_reader.read_typed`,
+# which was removed on 2026-09-04, so they had not run since. What they state
+# about the ALGEBRA is kept here with the typed edges given directly. Reading
+# the seven constructions ("A zorble is a fintch.", "… has flippers.", "… eats
+# krill.", "A tinker makes a widget.", "… lives in a burrow.", "… is part of a
+# colony.", "A widget is made of brass.") is an acceptance case for the pattern
+# reader once it has been taught them (docs/research/SHAPES_CHANGE_MAP.md, step 3).
+
+def test_made_of_never_licenses_isa_through_the_material_kind():
+    """A made-of edge, with the material itself a kind: no ISA is derivable."""
+    edges = [Edge("cabinet", R.MADE_OF, "oak"),
              Edge("oak", R.ISA, "wood"), Edge("wood", R.ISA, "material")]
     assert entails("cabinet", R.ISA, "oak", edges) is None
     assert entails("cabinet", R.ISA, "material", edges) is None
@@ -174,28 +205,15 @@ def test_made_of_sentence_never_licenses_isa_end_to_end():
 
 # ===================== ACQUISITION + GENERALIZATION (open-world) =============
 
-def _teach(sentences):
-    """Teach via the REAL reader; return typed Edges (subject, relation, obj)."""
-    from core.semantics import derived_reader as dr
-    edges = []
-    for s in sentences:
-        tr = dr.read_typed(s)
-        assert tr is not None and tr.relation is not None, f"could not read: {s}"
-        edges.append(Edge(tr.subject, tr.relation.relation, tr.obj))
-    return edges
-
-
 def test_open_world_acquisition_and_generalization():
     from core.reasoning.relation_algebra import answer, TRUE, UNKNOWN, OBSERVED, DERIVED
 
-    # Phase 1 — teach only these five facts.
-    edges = _teach([
-        "A zorble is a fintch.",
-        "A fintch is an animal.",
-        "A zorble has flippers.",
-        "A zorble eats krill.",
-        "A zorble lives in a burrow.",
-    ])
+    # Phase 1 — only these five facts are held.
+    edges = [Edge("zorble", R.ISA, "fintch"),
+             Edge("fintch", R.ISA, "animal"),
+             Edge("zorble", R.HAS_PART, "flippers"),
+             Edge("zorble", R.EATS, "krill"),
+             Edge("zorble", R.LOCATED_IN, "burrow")]
 
     # Phase 2 — ask what it was NOT directly told.
 
@@ -218,8 +236,8 @@ def test_open_world_acquisition_and_generalization():
 def test_inverse_is_derived_with_provenance_not_observed():
     from core.reasoning.relation_algebra import (
         answer, derive_from, TRUE, DERIVED, INVERSE)
-    # "A zorble has flippers."  =>  flippers PART_OF zorble  (DERIVED, not seen)
-    edges = _teach(["A zorble has flippers."])
+    # zorble HAS_PART flippers  =>  flippers PART_OF zorble  (DERIVED, not seen)
+    edges = [Edge("zorble", R.HAS_PART, "flippers")]
     inv = answer("flippers", R.PART_OF, "zorble", edges)
     assert inv.verdict == TRUE and inv.basis == DERIVED
     assert inv.derivation.rules == (INVERSE,)

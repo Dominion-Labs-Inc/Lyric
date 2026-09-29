@@ -54,8 +54,7 @@ ROUTES: Tuple[Tuple[str, str], ...] = (
 
     # SECURITY: what was permitted, refused, or recorded.
     ("core.security",       SECURITY),
-    ("core.governance",     SECURITY),
-    ("core.safety",         SECURITY),
+    ("core.agents.autonomous.threat_sense", SECURITY),
 
     # HEALTH: the monitoring faculty, its own panel now, not folded into SYSTEM.
     ("core.health",         HEALTH),

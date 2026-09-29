@@ -63,7 +63,7 @@ class FakeMemoryAgent:
     async def search_memories(self, *args, **kwargs):
         return self.items
 
-    async def get_memory(self, memory_id, **kwargs):
+    async def retrieve_memory(self, memory_id, **kwargs):
         return next((m for m in self.items if m.memory_id == memory_id), None)
 
     async def update_memory(self, memory_id, *args, **kwargs):
@@ -72,14 +72,28 @@ class FakeMemoryAgent:
 
 
 def build_pipeline(count=30):
+    """A pipeline over the belief store it WRITES to. Schema beliefs are created
+    through the one learning authority, whose store is the one production hands
+    the pipeline; a store of the test's own would be one the pipeline reads and
+    never writes."""
+    from core.reasoning.bayesian_uncertainty import get_uncertainty_system
+
     now = time.time()
     items = [make_memory(i, now) for i in range(count)]
     agent = FakeMemoryAgent(items)
     pipeline = AbstractionPipeline(
         memory_agent=agent,
-        uncertainty_system=BayesianUncertaintySystem(),
+        uncertainty_system=get_uncertainty_system(),
     )
     return pipeline, agent, items
+
+
+def schema_beliefs_held(pipeline):
+    """Every schema formed has its belief, held in the store the pipeline reads."""
+    schemas = list(pipeline.active_schemas.values())
+    return bool(schemas) and all(
+        schema.belief_id and schema.belief_id in pipeline.beliefs.beliefs
+        for schema in schemas)
 
 
 def raw_dicts(items):
@@ -155,12 +169,11 @@ def test_schema_formation_creates_a_belief_and_a_concept():
     """
     pipeline, _, items = build_pipeline()
 
-    beliefs_before = len(pipeline.beliefs.beliefs)
     nodes_before = len(pipeline.concept_hierarchy.nodes)
 
     asyncio.run(pipeline.process_memories(raw_dicts(items)))
 
-    assert len(pipeline.beliefs.beliefs) > beliefs_before, "no Bayesian belief created"
+    assert schema_beliefs_held(pipeline), "no Bayesian belief created"
     assert len(pipeline.concept_hierarchy.nodes) > nodes_before, "not added to hierarchy"
 
 
@@ -194,7 +207,7 @@ def test_enrichment_failure_does_not_invalidate_a_schema():
     result = asyncio.run(pipeline.process_memories(raw_dicts(items)))
 
     assert result["schemas_formed"] >= 1
-    assert len(pipeline.beliefs.beliefs) >= 1, "belief creation must precede enrichment"
+    assert schema_beliefs_held(pipeline), "belief creation must precede enrichment"
 
 
 def test_a_slow_model_cannot_stall_schema_formation():
@@ -235,7 +248,7 @@ def test_a_slow_model_cannot_stall_schema_formation():
     # The schema, its belief and its hierarchy node must all exist despite
     # enrichment never having completed.
     assert len(pipeline.active_schemas) >= 1
-    assert len(pipeline.beliefs.beliefs) >= 1
+    assert schema_beliefs_held(pipeline)
     assert len(pipeline.concept_hierarchy.nodes) >= 1
     assert elapsed < 45
 
@@ -491,7 +504,8 @@ def test_abstraction_is_event_triggered_not_polled():
     # The event trigger exists and the store path invokes it.
     assert hasattr(MemoryAgent, "note_episodic_stored")
     assert hasattr(MemoryAgent, "_run_abstraction_then_reflect")
-    store_src = inspect.getsource(MemoryAgent.store_memory)
+    # The storing pipeline, behind the door that decides whose a memory is.
+    store_src = inspect.getsource(MemoryAgent._store_memory)
     assert "note_episodic_stored" in store_src, "episodic store does not trigger abstraction"
     # The memory agent asks the authority rather than owning a pipeline.
     gate_src = inspect.getsource(MemoryAgent.form_abstractions_if_due)
@@ -534,7 +548,7 @@ def _relation_fixture():
         async def get_recent_memories(self, limit=10, **kwargs):
             return []
 
-        async def get_memory(self, memory_id, **kwargs):
+        async def retrieve_memory(self, memory_id, **kwargs):
             return None
 
         async def update_memory(self, memory_id, *args, **kwargs):
@@ -646,32 +660,22 @@ def test_dropped_belief_writes_are_counted_not_swallowed():
     assert stats["persistence_healthy"] is False
 
 
-def test_concept_persistence_uses_a_stable_natural_key():
-    """Concept has no concept_id field; reading one raised before the query ran,
-    so every concept write failed silently."""
-    import inspect
-
-    from core.reasoning.analogy_discovery import AnalogyDiscovery
-
-    source = inspect.getsource(AnalogyDiscovery._persist_concept)
-
-    assert "concept.concept_id" not in source, "reads a field Concept does not have"
-    assert "unified.concepts" in source, "must write the declared table, not a duplicate"
-    assert "_json.dumps" in source, "JSONB columns require JSON, not str() reprs"
-
-
 def test_analogy_persistence_targets_the_declared_table():
     """unified.analogies matches the Analogy dataclass exactly; the old INSERT
-    named columns present in neither."""
+    named columns present in neither. The analogy engine hands an analogy to the
+    memory agent, which writes it."""
     import inspect
 
+    from core.agents.memory_agent import MemoryAgent
     from core.reasoning.analogy_discovery import AnalogyDiscovery
 
-    source = inspect.getsource(AnalogyDiscovery._persist_analogy)
+    handed = inspect.getsource(AnalogyDiscovery._persist_analogy)
+    written = inspect.getsource(MemoryAgent.hold_analogy)
 
-    assert "unified.analogies" in source
+    assert "hold_analogy" in handed
+    assert "unified.analogies" in written
     for absent in ("source_concept_id", "target_concept_id", "analogy.strength"):
-        assert absent not in source, f"{absent} exists on neither table nor dataclass"
+        assert absent not in handed + written, f"{absent} exists on neither table nor dataclass"
 
 
 def test_module_does_not_recreate_tables_owned_by_the_schema_file():

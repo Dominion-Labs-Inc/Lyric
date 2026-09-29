@@ -1,0 +1,209 @@
+{
+  "experiment": "SYSTEM-HEALTH-01",
+  "claim": "Health and recovery are each one authority: health grades a component from evidence and refuses to grade with none, recovery records a failure and its history, and the throttle the tool gate reads is a number.",
+  "hypothesis": "A health monitor or recovery manager the coordinator holds that is not the one the accessor returns, a grade with no evidence, or a dead public method would each fail here.",
+  "started_at": "2026-09-26T17:12:57.268462+00:00",
+  "duration_seconds": 99.098,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/TorinAI/venv_torin/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/TorinAI",
+    "shadow_mode": null,
+    "git_commit": "20deb447498593391eca0286916b8f986c560a26",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "torinai_db",
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "dotenv:.env.postgres",
+        "database": "dotenv:.env.postgres",
+        "user": "dotenv:.env.postgres",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres"
+      }
+    },
+    "git_uncommitted_changes": 1079,
+    "database_verified": null,
+    "database_verified_reason": "no initialized connection in this process"
+  },
+  "summary": {
+    "checks": 17,
+    "passed": 15,
+    "failed": 2,
+    "outcome": "FAIL"
+  },
+  "metrics": [
+    {
+      "name": "health_construction_sites",
+      "value": 1,
+      "unit": "count",
+      "note": "core/health/health_monitor.py:3180"
+    },
+    {
+      "name": "health_public_methods",
+      "value": 17,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "health_dead_public_methods",
+      "value": 4,
+      "unit": "count",
+      "note": "used nowhere in core, not even in their own file: get_component_health, get_health_history, clear_component_health, reset_statistics"
+    },
+    {
+      "name": "health_internal_only_public_methods",
+      "value": 6,
+      "unit": "count",
+      "note": "used only inside their own file: discover_components, sync_component_registry, monitored_components, evaluate_declared, activity_state, get_all_component_health"
+    },
+    {
+      "name": "health_stub_public_methods",
+      "value": 0,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "recovery_construction_sites",
+      "value": 1,
+      "unit": "count",
+      "note": "core/health/recovery_manager.py:1075"
+    },
+    {
+      "name": "recovery_public_methods",
+      "value": 11,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "recovery_dead_public_methods",
+      "value": 2,
+      "unit": "count",
+      "note": "used nowhere in core, not even in their own file: register_snapshot_handler, clear_failure_history"
+    },
+    {
+      "name": "recovery_internal_only_public_methods",
+      "value": 4,
+      "unit": "count",
+      "note": "used only inside their own file: register_restart_handler, get_throttle_delay_seconds, can_restart, handle_failure"
+    },
+    {
+      "name": "recovery_stub_public_methods",
+      "value": 0,
+      "unit": "count",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "health: the coordinator holds the instance the accessor returns",
+      "passed": true,
+      "detail": "held=HealthMonitor same=True",
+      "at": "2026-09-26T17:14:26.208183+00:00"
+    },
+    {
+      "label": "health: HealthMonitor is constructed in one place",
+      "passed": true,
+      "detail": "in its module: ['core/health/health_monitor.py:3180']; elsewhere: []",
+      "at": "2026-09-26T17:14:28.440007+00:00"
+    },
+    {
+      "label": "health: no public method of HealthMonitor is dead (used nowhere in core)",
+      "passed": false,
+      "detail": "4/17 dead: ['get_component_health', 'get_health_history', 'clear_component_health', 'reset_statistics']",
+      "at": "2026-09-26T17:14:30.310549+00:00"
+    },
+    {
+      "label": "health: no public method of HealthMonitor is a stub body",
+      "passed": true,
+      "detail": "stubs: []",
+      "at": "2026-09-26T17:14:30.310593+00:00"
+    },
+    {
+      "label": "recovery: the coordinator holds the instance the accessor returns",
+      "passed": true,
+      "detail": "held=RecoveryManager same=True",
+      "at": "2026-09-26T17:14:30.329701+00:00"
+    },
+    {
+      "label": "recovery: RecoveryManager is constructed in one place",
+      "passed": true,
+      "detail": "in its module: ['core/health/recovery_manager.py:1075']; elsewhere: []",
+      "at": "2026-09-26T17:14:32.514314+00:00"
+    },
+    {
+      "label": "recovery: no public method of RecoveryManager is dead (used nowhere in core)",
+      "passed": false,
+      "detail": "2/11 dead: ['register_snapshot_handler', 'clear_failure_history']",
+      "at": "2026-09-26T17:14:33.690232+00:00"
+    },
+    {
+      "label": "recovery: no public method of RecoveryManager is a stub body",
+      "passed": true,
+      "detail": "stubs: []",
+      "at": "2026-09-26T17:14:33.690267+00:00"
+    },
+    {
+      "label": "no signals yields no score and UNKNOWN",
+      "passed": true,
+      "detail": "{'status': <HealthStatus.UNKNOWN: 'unknown'>, 'score': None, 'criticality': 'standard', 'coverage': 0.0, 'signals_measured': 0, 'signals_unknown': [], 'gate_failures': []}",
+      "at": "2026-09-26T17:14:33.690604+00:00"
+    },
+    {
+      "label": "the Constitution is graded from its own surface",
+      "passed": true,
+      "detail": "status=HealthStatus.HEALTHY metrics=['_activity_state', '_criticality', '_evidence_coverage', '_health_score', '_not_applicable', '_signals_measured']",
+      "at": "2026-09-26T17:14:33.703892+00:00"
+    },
+    {
+      "label": "a name health does not know is refused, not graded",
+      "passed": true,
+      "detail": "'isoprobe_not_a_component' is not a component health knows; the substrate's components are",
+      "at": "2026-09-26T17:14:33.703923+00:00"
+    },
+    {
+      "label": "and is not registered as a component",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-26T17:14:33.703935+00:00"
+    },
+    {
+      "label": "system health is a dict",
+      "passed": true,
+      "detail": "keys=['component_count', 'components', 'cpu_percent', 'disk_percent', 'healthy_components', 'issues', 'memory_percent', 'network_active']",
+      "at": "2026-09-26T17:14:34.745619+00:00"
+    },
+    {
+      "label": "a failure is handled and returns a result",
+      "passed": true,
+      "detail": "success=False actions=['cleanup', 'alert']",
+      "at": "2026-09-26T17:14:36.035788+00:00"
+    },
+    {
+      "label": "and is in the history",
+      "passed": true,
+      "detail": "0 -> 1",
+      "at": "2026-09-26T17:14:36.035815+00:00"
+    },
+    {
+      "label": "the throttle the tool gate reads is a non-negative number",
+      "passed": true,
+      "detail": "0.0",
+      "at": "2026-09-26T17:14:36.035834+00:00"
+    },
+    {
+      "label": "recovery statistics are a dict",
+      "passed": true,
+      "detail": "keys=['active_failures', 'escalations', 'failed_recoveries', 'failure_rate', 'successful_recoveries', 'total_failures']",
+      "at": "2026-09-26T17:14:36.035852+00:00"
+    }
+  ],
+  "notes": [
+    "health: 6 public method(s) are used only inside their own file (public in name only, not dead): discover_components, sync_component_registry, monitored_components, evaluate_declared, activity_state, get_all_component_health",
+    "recovery: 4 public method(s) are used only inside their own file (public in name only, not dead): register_restart_handler, get_throttle_delay_seconds, can_restart, handle_failure"
+  ]
+}

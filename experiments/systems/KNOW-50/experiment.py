@@ -62,6 +62,7 @@ def yes_no(answer):
 
 
 async def main() -> int:
+    from core.memory import Origin
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
         from core.main import get_system
@@ -89,7 +90,7 @@ async def main() -> int:
     for i, (s, o, expected) in enumerate(QUESTIONS, 1):
         q = question_text(s, o)
         try:
-            r = await coord.reason_about(q)
+            r = await coord.reason_about(q, origin=Origin.own("KNOW-50"))
             answer = str(getattr(r, "answer", "") or "")
             conf = round(float(getattr(r, "confidence", 0.0) or 0.0), 3)
             mode = str(getattr(r, "mode_used", "") or "")

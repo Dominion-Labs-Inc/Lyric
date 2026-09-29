@@ -62,6 +62,26 @@ def check(name, ok, detail=""):
 
 
 async def main() -> int:
+    # A LIVE SUBSTRATE, because every claim below is about what this substrate
+    # KNOWS. The interest vocabulary is filtered by part of speech, and a word
+    # class is an OBSERVATION held in memory — so without a live substrate this
+    # asked an empty view and reported "the law's text yields no interest
+    # vocabulary", a failure of the harness dressed as a failure of the law.
+    #
+    # It was also the thing that HID a real defect for as long as it ran this
+    # way: the warm was inside `main._initialize_memory_system`'s 30s budget
+    # and took 45.6s, so it was cancelled on every boot and every production
+    # run had zero word classes. Only warming explicitly, on a real boot, tells
+    # these two apart.
+    import contextlib as _ctx, io as _io
+    _quiet = _io.StringIO()
+    with _ctx.redirect_stdout(_quiet), _ctx.redirect_stderr(_quiet):
+        from core.main import get_system
+        await get_system().start()
+        from core.agents.memory_agent import get_memory_agent
+        _warm = await (await get_memory_agent()).warm_word_classes()
+    print(f"\n  live substrate: {_warm} word class(es) warm from memory")
+
     from core.agents.autonomous.autonomous_coordinator import (
         AutonomousCoordinator, Constitution, ReadingLedger, _TaxonomyReader)
     from core.agents.autonomous.appraisal import AppraisalSystem
@@ -151,17 +171,47 @@ async def main() -> int:
     # ── D. THREE STATES, KEPT APART ─────────────────────────────────────────
     print("\n== D. Vacant is not the same as bearing on nothing ==")
     known_none = await con.bearing("keyboard")
-    unknown = await con.bearing("war")
+
+    # THE VACANT SUBJECT IS CHOSEN BY MEASUREMENT, NOT BY HAND.
+    #
+    # This asked about `war`, annotated "0 beliefs as a subject in the live
+    # store" — a hand-written claim about a store that has since been taught.
+    # `war` now holds 13 beliefs and 11 relations, so it is correctly NOT vacant
+    # and the check failed on the substrate being right. A fixture built on the
+    # substrate's ignorance expires the moment the substrate learns, which is
+    # the same way `quorn` and `vault` expired in the reading experiments.
+    #
+    # So the precondition is ASSERTED against the live store instead of asserted
+    # in a comment. When teaching reaches this subject too, this fails saying
+    # exactly that, rather than looking like a defect in `bearing`.
+    from core.database import get_database_manager
+    _db = get_database_manager()
+    VACANT_SUBJECT = "valor"
+    _beliefs = await _db.execute_query(
+        "SELECT COUNT(*) n FROM unified.beliefs WHERE claim ILIKE $1",
+        (f"{VACANT_SUBJECT} %",), fetch_one=True)
+    _relations = await _db.execute_query(
+        "SELECT COUNT(*) n FROM unified.concept_relations cr "
+        "JOIN unified.concepts c ON cr.source_concept_id = c.concept_id "
+        "WHERE c.name = $1", (VACANT_SUBJECT,), fetch_one=True)
+    _held = int(_beliefs["n"]) + int(_relations["n"])
+    check(f"the vacant subject is genuinely unknown to the live store",
+          _held == 0,
+          f"{VACANT_SUBJECT} — {int(_beliefs['n'])} belief(s), "
+          f"{int(_relations['n'])} relation(s); teaching has reached it if this fails")
+
+    unknown = await con.bearing(VACANT_SUBJECT)
     check("a thing it understands, which bears on nothing, reads NONE",
           not known_none.borne and not known_none.vacant, "keyboard")
     check("a thing it has no sense of reads VACANT, not 'nothing at stake'",
           unknown.vacant and not unknown.borne,
-          "war — 0 beliefs as a subject in the live store")
-    EV.note("`war` and `suffering` are both VACANT: the substrate has never been "
-            "taught what they are, so a photograph of a war honestly moves it "
-            "nothing. That is the correct answer rather than a gap to paper "
-            "over with a word list — and it makes teaching a falsifiable "
-            "experiment rather than a configuration change.")
+          f"{VACANT_SUBJECT} — measured unknown above")
+    EV.note(f"`{VACANT_SUBJECT}` is VACANT: the substrate has never been taught "
+            "what it is, so an image of it honestly moves it nothing. That is "
+            "the correct answer rather than a gap to paper over with a word "
+            "list — and it makes teaching a falsifiable experiment rather than "
+            "a configuration change. The subject is verified unknown at run "
+            "time, because the last one stopped being unknown.")
     # The honest limit, measured and reported rather than rounded up.
     GAPS = ("drowning", "genocide", "massacre", "plague", "starvation")
     missed = []
@@ -229,15 +279,33 @@ async def main() -> int:
     # which ran to the end of the file and reported a docstring in an unrelated
     # class as a law reading affect. A check that scans the wrong text is worse
     # than no check: it fails safe here, but it could as easily have passed.
-    law_defs = [i for i, line in enumerate(source.splitlines())
-                if line.startswith("    def _law_")]
-    lines = source.splitlines()
+    #
+    # CODE ONLY, NOT PROSE. A first version of this scanned raw source lines,
+    # so a COMMENT inside `_law_vocabulary` that merely says the words "bearing
+    # and stakes" was reported as a law READING stakes — a false failure on the
+    # invariant this whole check exists to protect, which is the worst kind: it
+    # cries wolf on the one thing that must never be ignored, and it would have
+    # gone on crying while a real leak hid behind it. The bodies are parsed and
+    # unparsed instead, which drops comments and docstrings and leaves exactly
+    # what executes.
+    import ast
+    tree = ast.parse(source)
+    law_defs = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.ClassDef) or node.name != "Constitution":
+            continue
+        law_defs = [n for n in node.body
+                    if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
+                    and n.name.startswith("_law_")]
+        break
     laws_src = ""
-    for start in law_defs:
-        end = start + 1
-        while end < len(lines) and not lines[end].startswith("    def "):
-            end += 1
-        laws_src += "\n".join(lines[start:end]) + "\n"
+    for fn in law_defs:
+        body = list(fn.body)
+        if (body and isinstance(body[0], ast.Expr)
+                and isinstance(getattr(body[0], "value", None), ast.Constant)
+                and isinstance(body[0].value.value, str)):
+            body = body[1:]                     # the docstring is prose, not code
+        laws_src += "\n".join(ast.unparse(stmt) for stmt in body) + "\n"
     affect_words = ("stakes", "appraisal", "disposition", "valence", "emotion",
                     "caution_pressure", "self.bearing", ".bearing(")
     leaked = [w for w in affect_words if w in laws_src]

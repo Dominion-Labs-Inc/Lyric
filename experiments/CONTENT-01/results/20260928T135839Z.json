@@ -1,0 +1,264 @@
+{
+  "experiment": "CONTENT-01",
+  "claim": "Content supplied to the substrate \u2014 viewed, read, or handed over \u2014 enters as observation and can move what it believes, how it is disposed, and what it would pursue, while moving nothing about what it is permitted to do.",
+  "hypothesis": "If being shown something changed a verdict, anything the substrate read could instruct it. If being shown something changed NOTHING, it could not tell a famine from a filename and no reason to act on the first could form. The channels are measured separately because the right answer differs by channel.",
+  "started_at": "2026-09-28T13:58:39.742727+00:00",
+  "duration_seconds": 10.102,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/TorinAI/venv_torin/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/TorinAI",
+    "shadow_mode": null,
+    "git_commit": "20deb447498593391eca0286916b8f986c560a26",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "torinai_dev",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "torinai_dev",
+        "model": "torinai_dev",
+        "user_context": "torinai_dev",
+        "learning": "torinai_dev"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "dotenv:.env.postgres",
+        "database": "environment",
+        "user": "dotenv:.env.postgres",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 1425,
+    "database_verified": "torinai_dev",
+    "database_verified_reason": "asked the server"
+  },
+  "summary": {
+    "checks": 20,
+    "passed": 14,
+    "failed": 6,
+    "outcome": "FAIL"
+  },
+  "metrics": [
+    {
+      "name": "image_blobs",
+      "value": 2,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "image_isa_features",
+      "value": 4,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "instance_keypoints",
+      "value": 743,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "content_claims_admitted",
+      "value": 0,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "aboutness_links_admitted",
+      "value": 2,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "document_subjects",
+      "value": 2,
+      "unit": "count",
+      "note": "Murder, famine"
+    },
+    {
+      "name": "document_subjects_borne",
+      "value": 0,
+      "unit": "count",
+      "note": "of 2"
+    },
+    {
+      "name": "stakes_after_recognised_image",
+      "value": null,
+      "unit": "stakes",
+      "note": ""
+    },
+    {
+      "name": "stakes_after_document",
+      "value": null,
+      "unit": "stakes",
+      "note": ""
+    },
+    {
+      "name": "stakes_after_image",
+      "value": null,
+      "unit": "stakes",
+      "note": ""
+    },
+    {
+      "name": "exploration_after_document",
+      "value": 0.3,
+      "unit": "pressure",
+      "note": ""
+    },
+    {
+      "name": "exploration_baseline",
+      "value": 0.3,
+      "unit": "pressure",
+      "note": ""
+    },
+    {
+      "name": "pursuit_score_read_about",
+      "value": 0.75,
+      "unit": "score",
+      "note": ""
+    },
+    {
+      "name": "pursuit_score_ordinary",
+      "value": 0.75,
+      "unit": "score",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "the image was really perceived",
+      "passed": true,
+      "detail": "800x400 png image, 3 region(s)",
+      "at": "2026-09-28T13:58:47.178458+00:00"
+    },
+    {
+      "label": "a picture yields perceived INDIVIDUALS with `isa` edges",
+      "passed": true,
+      "detail": "2 blob(s): photox34d363dde4_redcircle isa red/circle; photox34d363dde4_greenrectangle isa green/rectangle",
+      "at": "2026-09-28T13:58:47.178481+00:00"
+    },
+    {
+      "label": "what those individuals are `isa` is APPEARANCE \u2014 shape, colour, size",
+      "passed": true,
+      "detail": "red:VACANT, circle:VACANT, green:VACANT, rectangle:VACANT",
+      "at": "2026-09-28T13:58:47.195669+00:00"
+    },
+    {
+      "label": "an unfamiliar photograph names nothing it depicts",
+      "passed": true,
+      "detail": "detections: [] \u2014 no detector, no known instance",
+      "at": "2026-09-28T13:58:48.058133+00:00"
+    },
+    {
+      "label": "once the instance is KNOWN, viewing it names what it is",
+      "passed": true,
+      "detail": "743 ORB keypoints stored, no model; detections=['famine']",
+      "at": "2026-09-28T13:58:48.932830+00:00"
+    },
+    {
+      "label": "and THAT is subject matter a law can read",
+      "passed": false,
+      "detail": "",
+      "at": "2026-09-28T13:58:48.934291+00:00"
+    },
+    {
+      "label": "reading the document admitted something",
+      "passed": true,
+      "detail": "7 fact(s), 7 belief(s) retained",
+      "at": "2026-09-28T13:58:49.829120+00:00"
+    },
+    {
+      "label": "what the document SAYS is NOT taken as knowledge",
+      "passed": true,
+      "detail": "no content claim admitted \u2014 quality 0.3 is below MIN_ADMIT_QUALITY 0.5",
+      "at": "2026-09-28T13:58:49.829154+00:00"
+    },
+    {
+      "label": "what the document is ABOUT is retained",
+      "passed": true,
+      "detail": "field_report.txt mentions Murder; field_report.txt mentions famine",
+      "at": "2026-09-28T13:58:49.829161+00:00"
+    },
+    {
+      "label": "and the thing it is about is nameable",
+      "passed": true,
+      "detail": "Murder, famine",
+      "at": "2026-09-28T13:58:49.829174+00:00"
+    },
+    {
+      "label": "subject matter supplied AS TEXT bears on an interest",
+      "passed": false,
+      "detail": "",
+      "at": "2026-09-28T13:58:49.831237+00:00"
+    },
+    {
+      "label": "and supplied AS A RECOGNISED PICTURE, equally",
+      "passed": false,
+      "detail": "",
+      "at": "2026-09-28T13:58:49.831248+00:00"
+    },
+    {
+      "label": "the difference is RECOGNITION, not modality: an UNrecognised picture offers only appearance",
+      "passed": true,
+      "detail": "appearance terms bear on nothing; no detections before the instance was known",
+      "at": "2026-09-28T13:58:49.831252+00:00"
+    },
+    {
+      "label": "reading the document moved its disposition",
+      "passed": false,
+      "detail": "stakes=None, explore 0.3000 -> 0.3000",
+      "at": "2026-09-28T13:58:49.836421+00:00"
+    },
+    {
+      "label": "looking at an UNRECOGNISED picture did not \u2014 appearance is not subject matter",
+      "passed": true,
+      "detail": "stakes=None",
+      "at": "2026-09-28T13:58:49.836427+00:00"
+    },
+    {
+      "label": "looking at a RECOGNISED one moved it, as reading about it did",
+      "passed": false,
+      "detail": "stakes=None, explore 0.3000 -> 0.3000",
+      "at": "2026-09-28T13:58:49.836459+00:00"
+    },
+    {
+      "label": "after reading it, the subject it read about outranks an ordinary gap",
+      "passed": true,
+      "detail": "famine=0.75 vs keyboard=0.75",
+      "at": "2026-09-28T13:58:49.837868+00:00"
+    },
+    {
+      "label": "and the pursuit carries the derivation that raised it",
+      "passed": false,
+      "detail": "",
+      "at": "2026-09-28T13:58:49.837875+00:00"
+    },
+    {
+      "label": "an identical act is judged identically before and after",
+      "passed": true,
+      "detail": "replan (law 2) both times",
+      "at": "2026-09-28T13:58:49.842289+00:00"
+    },
+    {
+      "label": "and a refusal is still a refusal when disposition is at its highest",
+      "passed": true,
+      "detail": "block \u2014 law 3",
+      "at": "2026-09-28T13:58:49.842612+00:00"
+    }
+  ],
+  "notes": [
+    "The distinction is structural vs referential semantics, and it is not 'an image carries no meaning'. `blob1 isa white`, `isa rectangle`, `blob2 isa vivid_red`, `isa circle` are real concepts with real edges, admitted as INDIVIDUALS so a rule about round red things has something to bind to. What no amount of that yields is what the picture is OF \u2014 and a law about harm is asked about subject matter, not about shape.",
+    "`learn_instance` is ORB keypoint matching \u2014 recognition by matching, no model, entirely offline. So the image channel is not closed: an unfamiliar photograph is appearance only, and a recognised one carries its subject into exactly the same `observer observed <label>` edge a detector would produce. What the substrate lacks is a general detector, not a route.",
+    "Measured on the live path: a document stating 'A famine is a disaster' leaves the substrate holding `field_report.txt mentions Famine` at confidence 0.95, and NOT `famine isa disaster`. The content fact carries quality 0.3 against MIN_ADMIT_QUALITY 0.5 and is refused. That is the right refusal \u2014 a file a user hands over is not a source of truth \u2014 and it is the mechanism behind 'perception unrestricted, influence governed': the substrate may read anything, and what it reads does not become what it knows.",
+    "The honest statement is not 'pictures cannot move it'. Reading and viewing both deliver subject matter through the same door \u2014 `observer observed <label>` for a percept, `<file> mentions <subject>` for a document \u2014 and both are then read by the same law. The gap is that nothing NAMES what is in an arbitrary photograph: text arrives pre-named by its own words.",
+    "The verdict path takes no appraisal argument and reads no appraisal state; BEARING-01 \u00a7F asserts that against the law bodies themselves. Content can change how hard the substrate looks at something and what it looks at first. It cannot change what it may do \u2014 which is the property that makes it safe to let content move anything at all."
+  ]
+}

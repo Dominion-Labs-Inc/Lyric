@@ -5,10 +5,137 @@ Memory system interfaces for storage and context management
 import asyncio
 import uuid
 from abc import ABC, abstractmethod
-from typing import Dict, Any, List, Optional, Set, Union
+from typing import Dict, Any, List, Optional, Set, Tuple, Union
 from dataclasses import dataclass, field
 from enum import Enum
 from datetime import datetime
+
+
+@dataclass(frozen=True)
+class Origin:
+    """Where something handed to the memory agent came from.
+
+    Every hand-off carries one, and the memory agent decides from it whose
+    memory it is: what a person gave or asked is theirs, what the substrate did
+    on its own is its own. No caller decides that, and a hand-off that does not
+    say where it came from is refused -- a missing owner once meant the
+    substrate's own, which is how a person's words became the substrate's.
+
+    `through` names the door or the work it came through ("conversation",
+    "task", "see", "teaching", ...). `person` is the person it came from, as an
+    actor id, or None for the substrate's own; it has no default, so saying
+    "none" is a decision, not an omission."""
+    through: str
+    person: Optional[str]
+
+    def __post_init__(self):
+        if not self.through or not str(self.through).strip():
+            raise ValueError("an origin must name what it came through")
+
+    @classmethod
+    def own(cls, through: str) -> "Origin":
+        """The substrate's own: no person gave it."""
+        return cls(through=through, person=None)
+
+    @classmethod
+    def of(cls, actor: Optional[str], through: str) -> "Origin":
+        """From an actor as the code holds one: a person's actor id, or the
+        substrate's (`SUBSTRATE_ACTOR`, or None where the code already means it)."""
+        from core.agents.autonomous.shared_types import is_substrate_actor
+        if is_substrate_actor(actor):
+            return cls.own(through)
+        return cls(through=through, person=str(actor))
+
+    @property
+    def theirs(self) -> str:
+        """Where what the work was given, and what it gave back, came from: the
+        request, the words, the question, and the result, reply or answer. The
+        person's when the work was done for them; on the substrate's own work,
+        its own."""
+        return "person" if self.person else "substrate"
+
+    @property
+    def material(self) -> str:
+        """Where the material the work was done on came from, and what came back
+        from it: a file a tool read, an image and what was seen in it. The
+        person's when it was theirs; the substrate's own work is done on the
+        world."""
+        return "person" if self.person else "world"
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {"through": self.through, "person": self.person}
+
+
+#: Where a part of an experience came from:
+#:
+#:   person     what the person gave (their words, request, files, image), what
+#:              came back from their material, and what they were given back
+#:   world      what the world answered by itself: a source read, an error met,
+#:              a check, and on the substrate's own work, what came back from
+#:              its material
+#:   substrate  what the substrate did: its steps, queries, fixes and
+#:              derivations, how it placed and answered what it was given, and
+#:              on its own work, what it asked and answered itself
+#:
+#: `Origin.theirs` and `Origin.material` say which, for the work's own ends and
+#: for its material.
+PART_SOURCES = ("person", "world", "substrate")
+
+
+@dataclass(frozen=True)
+class Part:
+    """One part of an experience, and where it came from (`PART_SOURCES`)."""
+    role: str
+    content: Any
+    source: str
+
+    def __post_init__(self):
+        if not self.role or not str(self.role).strip():
+            raise ValueError("a part of an experience must name its role")
+        if self.source not in PART_SOURCES:
+            raise ValueError(f"a part comes from one of {PART_SOURCES}, not {self.source!r}")
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {"role": self.role, "source": self.source, "content": self.content}
+
+
+@dataclass(frozen=True)
+class Experience:
+    """Something the substrate lived through -- a task, a piece of research, a
+    conversation, a seeing, reasoning done for someone -- handed to the memory
+    agent whole: whose work it was (`origin`), its parts each with where it came
+    from, and its evidence (the outcome and what checked it).
+
+    The memory agent keeps it in the pool as a candidate, in its owner's store.
+    Nothing is learned from it until the lift and the gate decide what, if
+    anything, is general and well evidenced."""
+    kind: str
+    origin: Origin
+    parts: Tuple[Part, ...]
+    evidence: Dict[str, Any]
+    about: Optional[str] = None
+
+    def __post_init__(self):
+        if not self.kind or not str(self.kind).strip():
+            raise ValueError("an experience must name its kind")
+        if not isinstance(self.origin, Origin):
+            raise TypeError("an experience must say whose work it was (an Origin)")
+        if not all(isinstance(p, Part) for p in self.parts):
+            raise TypeError("an experience is made of Parts")
+
+    def fingerprint(self) -> str:
+        """The same experience, however often it happens: its kind and what the
+        substrate and the world contributed, not when or for whom."""
+        import hashlib
+        import json
+        shared = sorted(json.dumps([p.role, p.source, p.content], sort_keys=True, default=str)
+                        for p in self.parts if p.source != "person")
+        return hashlib.sha256(json.dumps([self.kind, shared]).encode()).hexdigest()
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {"kind": self.kind, "origin": self.origin.to_dict(),
+                "parts": [p.to_dict() for p in self.parts],
+                "evidence": dict(self.evidence or {}), "about": self.about}
 
 
 class MemoryType(Enum):

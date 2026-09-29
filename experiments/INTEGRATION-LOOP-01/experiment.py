@@ -31,13 +31,23 @@ def check(n, ok, d=""):
     print(f"  [{'PASS' if ok else 'FAIL'}] {n}" + (f" — {d}" if d else ""))
 
 DOMAIN = "kite17"
-RULE = "rule_edbe5a8b4ad8"
 RUNS = 5            # ≥ OPERATING_MIN_SAMPLE (4) so earned moves off neutral
 
 
 async def main() -> int:
     from core.database import get_database_manager
     db = get_database_manager(); await db.initialize()
+
+    # THE PRECONDITION IS DECLARED, NOT ASSUMED: every run acts through kite17's
+    # learned MOVE. It was named here by one historical id that only the main
+    # store resolves; it is the executable MOVE the store holds, taught from
+    # demonstrations if there is none.
+    from experiments.kite_teach import ensure_taught
+    from core.learning.rule_store import get_rule_store
+    taught = await ensure_taught()
+    check("kite17's MOVE operator is held, or taught", taught)
+    RULE = next((r.rule_id for r in await get_rule_store().executable_rules(domain_id=DOMAIN)
+                 if r.rule.action is not None and r.rule.action.predicate == "MOVE"), None)
 
     from core.agents.autonomous.autonomous_coordinator import AutonomousCoordinator
     from core.agents.autonomous.shared_types import Task, TaskType, TaskSource
@@ -76,7 +86,10 @@ async def main() -> int:
         from core.agents.autonomous.idle_work_playbook import IdleWorkPlaybook as _IWP
         _opfp = _IWP.description_fingerprint(OPERATOR)
         coord._permanently_failed_fps.discard(_opfp)
-        coord._save_permanently_failed_fps()
+        from core.database import get_database_manager as _gdm
+        await _gdm().execute_query(
+            "DELETE FROM unified.failed_task_fingerprints WHERE fingerprint = $1",
+            (_opfp,), commit=True, store="runtime")
     except Exception:
         pass
     try:
@@ -109,15 +122,18 @@ async def main() -> int:
         from core.reasoning.intent_authority import (
             get_intent_authority, continuity_goal, SUBSTRATE_ACTOR)
         from uuid import uuid4 as _uuid4
-        acting = await get_intent_authority().form(
-            "goal", SUBSTRATE_ACTOR, continuity_goal(f"intloop_{_uuid4().hex[:8]}"),
-            shape={"proved": True, "operator": OPERATOR, "operators": [OPERATOR],
-                   "goal_conditions": [f"AT({ITEM}, LAB)"], "rule_ids": [RULE],
-                   "domain": DOMAIN, "steps": 1, "grounding_complete": True},
-            content={"aim": "move the item to the lab", "bindings": [{}]})
-        created_intents.append(acting.intent_id)
 
         for i in range(RUNS):
+            # EACH RUN IS ITS OWN PURSUIT, with its own intent. One intent for
+            # all five ends at the first success: the task gate then rightly
+            # refuses the next four, whose pursuit has concluded.
+            acting = await get_intent_authority().form(
+                "goal", SUBSTRATE_ACTOR, continuity_goal(f"intloop_{_uuid4().hex[:8]}"),
+                shape={"proved": True, "operator": OPERATOR, "operators": [OPERATOR],
+                       "goal_conditions": [f"AT({ITEM}, LAB)"], "rule_ids": [RULE],
+                       "domain": DOMAIN, "steps": 1, "grounding_complete": True},
+                content={"aim": "move the item to the lab", "bindings": [{}]})
+            created_intents.append(acting.intent_id)
             world.clear(ITEM); world.place(ITEM, "HALL")
             await coord.tool_registry.execute_tool(
                 "read_file", {"file_path": str(world.root / "HALL" / ITEM)})

@@ -1,0 +1,227 @@
+{
+  "experiment": "RELEASE-01",
+  "claim": "A release of the model is cut from development, checked before it is served, served by production without ever changing, and replaced only by a newer release or by rolling back; what production keeps while serving reaches development, and through it the next release.",
+  "hypothesis": "A release served unstaged, tampered or cut with other code; any refusal while production serves; a person's context outside user context; the substrate's own memory in the release; a recall written on the release; own learning or a belief change let through; a release changed by serving; a take that loses or duplicates what production kept; a next release without it; a rollback that does not serve; or any write to the main line would each show here.",
+  "started_at": "2026-09-28T14:49:46.618362+00:00",
+  "duration_seconds": 220.489,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/TorinAI/venv_torin/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/TorinAI",
+    "shadow_mode": null,
+    "git_commit": "20deb447498593391eca0286916b8f986c560a26",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "torinai_dev",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "torinai_dev",
+        "model": "torinai_dev",
+        "user_context": "torinai_dev",
+        "learning": "torinai_dev"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "environment",
+        "database": "environment",
+        "user": "environment",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "environment": "environment",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 1501,
+    "database_verified": null,
+    "database_verified_reason": "not verified"
+  },
+  "summary": {
+    "checks": 29,
+    "passed": 28,
+    "failed": 1,
+    "outcome": "FAIL"
+  },
+  "metrics": [],
+  "checks": [
+    {
+      "label": "release 1 is registered as a candidate",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-28T14:50:41.411847+00:00"
+    },
+    {
+      "label": "it is read-only in the database itself",
+      "passed": true,
+      "detail": "default_transaction_read_only=on; a direct write: ReadOnlySQLTransactionError",
+      "at": "2026-09-28T14:50:41.430013+00:00"
+    },
+    {
+      "label": "its content, schema and code are recorded",
+      "passed": true,
+      "detail": "263 files",
+      "at": "2026-09-28T14:50:41.430027+00:00"
+    },
+    {
+      "label": "it holds no person's memory",
+      "passed": true,
+      "detail": "0",
+      "at": "2026-09-28T14:50:41.430030+00:00"
+    },
+    {
+      "label": "a candidate cannot be promoted",
+      "passed": true,
+      "detail": "release 1 is candidate; a release is promoted from staging",
+      "at": "2026-09-28T14:50:41.704999+00:00"
+    },
+    {
+      "label": "staging will not serve a candidate",
+      "passed": true,
+      "detail": "staging will not serve release 1: release 1 is candidate, not the release staging serves (it must be registered as staging)",
+      "at": "2026-09-28T14:50:48.373676+00:00"
+    },
+    {
+      "label": "staging serves the staged release",
+      "passed": true,
+      "detail": "{'started': True, 'environment': 'staging', 'release': 1, 'databases': {'runtime': 'torinai_dev_staging_runtime', 'model': 'torinai_dev_model_v1', 'user_context': 'torinai_dev_staging_user_context', 'learning': 'torinai_dev_staging_learning'}}",
+      "at": "2026-09-28T14:50:55.655715+00:00"
+    },
+    {
+      "label": "a changed release is found out",
+      "passed": true,
+      "detail": "['its content no longer matches the checksum it was cut with']",
+      "at": "2026-09-28T14:50:55.996073+00:00"
+    },
+    {
+      "label": "staging will not serve it",
+      "passed": true,
+      "detail": "staging will not serve release 1: its content no longer matches the checksum it was cut with",
+      "at": "2026-09-28T14:51:02.353796+00:00"
+    },
+    {
+      "label": "put back, it is intact and served again",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-09-28T14:51:09.542826+00:00"
+    },
+    {
+      "label": "a release cut with other code is not served",
+      "passed": true,
+      "detail": "staging will not serve release 1: release 1 was cut with other code (commit 20deb447498593391eca0286916b8f986c560a26); the release and the code must match",
+      "at": "2026-09-28T14:51:16.214139+00:00"
+    },
+    {
+      "label": "production served, with nothing refused: no statement, and no change to the release",
+      "passed": true,
+      "detail": "routing []; frozen []",
+      "at": "2026-09-28T14:52:49.152429+00:00"
+    },
+    {
+      "label": "creation statements were checked against the release, not run",
+      "passed": true,
+      "detail": "68 checked",
+      "at": "2026-09-28T14:52:49.152468+00:00"
+    },
+    {
+      "label": "the person's fact and memory are in user context, and her context answers her",
+      "passed": true,
+      "detail": "1 fact, 1 memory, answer true",
+      "at": "2026-09-28T14:52:49.256440+00:00"
+    },
+    {
+      "label": "its own memory is in the learning store, not the release",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-28T14:52:49.317716+00:00"
+    },
+    {
+      "label": "recalling the release's memory is counted in runtime",
+      "passed": true,
+      "detail": "{'mem_01b806ba263c4bcf8905de9215e11770': 1}",
+      "at": "2026-09-28T14:52:49.341754+00:00"
+    },
+    {
+      "label": "its own learning is refused, with the reason",
+      "passed": true,
+      "detail": "the model is release 1, frozen: production never changes it (development teaches the model and cuts the next release). R",
+      "at": "2026-09-28T14:52:49.341767+00:00"
+    },
+    {
+      "label": "a belief it would form or move is refused, and no belief moved",
+      "passed": true,
+      "detail": "272 beliefs held; refusals counted 3",
+      "at": "2026-09-28T14:52:49.341779+00:00"
+    },
+    {
+      "label": "maintenance ran on people's memory only",
+      "passed": true,
+      "detail": "cleaned 0",
+      "at": "2026-09-28T14:52:49.341782+00:00"
+    },
+    {
+      "label": "after serving, release 1 is exactly what was cut",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-09-28T14:52:49.644094+00:00"
+    },
+    {
+      "label": "development takes every memory production kept, through the memory agent",
+      "passed": true,
+      "detail": "{'memories': 1, 'already': 0, 'images': 0, 'usage': 1, 'usage_unmatched': 0, 'questions': 0}",
+      "at": "2026-09-28T14:52:56.223964+00:00"
+    },
+    {
+      "label": "and its recalls, as access counts",
+      "passed": true,
+      "detail": "{'mem_01b806ba263c4bcf8905de9215e11770': 0} -> {'mem_01b806ba263c4bcf8905de9215e11770': 2}",
+      "at": "2026-09-28T14:52:56.223998+00:00"
+    },
+    {
+      "label": "taking again takes nothing",
+      "passed": true,
+      "detail": "{'memories': 0, 'already': 1, 'images': 0, 'usage': 0, 'usage_unmatched': 0, 'questions': 0}",
+      "at": "2026-09-28T14:53:02.801270+00:00"
+    },
+    {
+      "label": "release 2 carries what production kept",
+      "passed": true,
+      "detail": "1",
+      "at": "2026-09-28T14:53:05.076425+00:00"
+    },
+    {
+      "label": "promoted, release 2 retires release 1",
+      "passed": true,
+      "detail": "{1: 'retired', 2: 'production'}",
+      "at": "2026-09-28T14:53:05.799169+00:00"
+    },
+    {
+      "label": "production serves release 2, and no longer release 1",
+      "passed": true,
+      "detail": "production will not serve release 1: release 1 is retired, not the release production serves (it must be registered as p",
+      "at": "2026-09-28T14:53:19.528532+00:00"
+    },
+    {
+      "label": "production goes back to release 1 and serves it",
+      "passed": false,
+      "detail": "{1: 'production', 2: 'retired'}",
+      "at": "2026-09-28T14:53:26.407156+00:00"
+    },
+    {
+      "label": "both releases are intact",
+      "passed": true,
+      "detail": "[] []",
+      "at": "2026-09-28T14:53:26.927905+00:00"
+    },
+    {
+      "label": "the main line is untouched",
+      "passed": true,
+      "detail": "(9372, []) before, (9372, []) after (rows, releases)",
+      "at": "2026-09-28T14:53:27.110581+00:00"
+    }
+  ],
+  "notes": []
+}

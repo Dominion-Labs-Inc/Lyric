@@ -684,6 +684,24 @@ def _generalize_facts(
     return out
 
 
+def anti_unify(pairs: Iterable[Tuple[Fact, Fact]]
+               ) -> Optional[Tuple[List[Fact], Dict[Tuple[str, str], str]]]:
+    """Plotkin's anti-unification of literals already paired up, under one substitution table.
+
+    Returns the generalized literals, in the order given, and the table: every pair of terms that differ,
+    mapped to the one variable standing for it everywhere it occurs. None when a pair has different
+    predicates, since there is then no common literal to generalize to.
+    """
+    gen = _Generalizer()
+    out: List[Fact] = []
+    for left, right in pairs:
+        generalized = gen.fact(left, right)
+        if generalized is None:
+            return None
+        out.append(generalized)
+    return out, dict(gen._pairs)
+
+
 def generalize(left: CandidateRule, right: CandidateRule) -> Optional[CandidateRule]:
     """The least general rule subsuming both, or None if the effects disagree.
 
@@ -790,8 +808,44 @@ class RuleInducer:
                 supporting_evidence=self._ids(positives),
             )
 
+        # THE BODY BOUND IS APPLIED WHILE THE BODY GROWS, NOT AFTER.
+        #
+        # The size check below ran only once every demonstration had been
+        # folded in -- after the multiplicative growth it exists to bound.
+        # Measured 2026-09-26 on 14 `tools:path` DELETE_FILE demonstrations,
+        # each carrying the 59 facts the observer saw: 60, 108, 420, 2_532,
+        # 17_100, 118_428, 825_780, 5_771_412 literals after 8 of the 14. The
+        # fold ran on the event loop's thread, so the process stopped answering
+        # for eleven minutes at a time and then ran out of memory, all to
+        # return a verdict the first comparison already determined.
+        #
+        # A literal whose signature appears in EVERY remaining demonstration
+        # survives each fold as at least one distinct literal (the generalizer
+        # maps each term pair to one term, and renaming is a bijection). Their
+        # count is therefore a floor on the final body, and once that floor
+        # passes the bound the verdict is already known. `_seed_rules` has
+        # refused demonstrations whose consequents differ, so no later fold can
+        # return a contradiction instead: stopping here changes no verdict.
+        signatures_ahead: List[FrozenSet[Tuple[str, int]]] = [frozenset()] * len(seeds)
+        for i in range(len(seeds) - 1, 0, -1):
+            here = frozenset(f.signature for f in seeds[i].body)
+            signatures_ahead[i] = (here if i == len(seeds) - 1
+                                   else here & signatures_ahead[i + 1])
+
         lgg = seeds[0]
-        for seed in seeds[1:]:
+        for folded, seed in enumerate(seeds[1:], 1):
+            floor = sum(1 for f in lgg.body if f.signature in signatures_ahead[folded])
+            if floor > self.MAX_BODY_LITERALS:
+                return InductionResult(
+                    status=InductionStatus.INSUFFICIENT_EVIDENCE,
+                    detail=(
+                        f"generalization retains at least {floor} literals "
+                        f"after {folded} of {len(seeds)} demonstrations — the "
+                        f"demonstrations share too little structure to separate "
+                        f"the rule from its examples"
+                    ),
+                    supporting_evidence=self._ids(positives),
+                )
             generalized = generalize(lgg, seed)
             if generalized is None:
                 return InductionResult(
@@ -820,6 +874,7 @@ class RuleInducer:
         # not asserted here and is not hand-written per action: the value
         # authority is searched for a function over already-grounded terms that
         # accounts for the observed value in EVERY demonstration.
+        lgg = self._carried_values(lgg)
         lgg, ambiguous = self._explain_outputs(lgg, positives)
         if ambiguous:
             return InductionResult(
@@ -976,6 +1031,58 @@ class RuleInducer:
                 )
             )
         return seeds, ""
+
+    @staticmethod
+    def _carried_values(lgg: CandidateRule) -> CandidateRule:
+        """A VALUE THE ACT CARRIES IS NOT A VALUE IT REQUIRES.
+
+        When every demonstration moved the same thing, generalization keeps what
+        that thing measured as constants: one 22-byte file moved about reads as
+        "moves 22-byte files, making 22-byte files", and whether the guard is
+        its kind or its size cannot be decided. Where an added fact states about
+        one term the constant a precondition states about another -- the same
+        relation, in the same place -- the act took the value from the one and
+        put it on the other. That is the simplest account of where the effect's
+        value came from (the identity), so the constant becomes a variable in
+        both and the rule says the act keeps whatever it found. A demonstration
+        in which the value is NOT carried contradicts this, and induction from
+        that evidence keeps the constant.
+        """
+        body = set(lgg.body)
+        add = set(lgg.effects.add)
+        delete = set(lgg.effects.delete)
+        carried = 0
+        for effect in sorted(lgg.effects.add):
+            for position, value in enumerate(effect.args):
+                if is_variable(value):
+                    continue
+                sources = [b for b in sorted(body)
+                           if b.predicate == effect.predicate
+                           and len(b.args) == len(effect.args)
+                           and b.args[position] == value
+                           and b.args != effect.args]
+                if not sources or effect not in add:
+                    continue
+                variable = f"{VARIABLE_PREFIX}C{carried}"
+                carried += 1
+
+                def with_variable(fact: Fact) -> Fact:
+                    args = list(fact.args)
+                    args[position] = variable
+                    return Fact(fact.predicate, tuple(args))
+
+                add.discard(effect)
+                add.add(with_variable(effect))
+                for source in sources:
+                    body.discard(source)
+                    body.add(with_variable(source))
+                    if source in delete:
+                        delete.discard(source)
+                        delete.add(with_variable(source))
+        if not carried:
+            return lgg
+        return _canonical(body, RuleEffects(add=frozenset(add), delete=frozenset(delete)),
+                          lgg.action, lgg.outputs)
 
     def _explain_outputs(
         self, lgg: CandidateRule, positives: Sequence[TrainingExample]

@@ -147,14 +147,14 @@ async def main() -> int:
     with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
         from core.main import get_system
         from core.database import get_database_manager
-        from core.perception.vision_faculty import get_vision_faculty
+        from core.perception.perception_faculty import get_perception_faculty
         from core.reasoning.bayesian_uncertainty import get_uncertainty_system
         system = get_system()
         await system.initialize()
         coord = system.autonomous_coordinator
         db = get_database_manager()
         await db.initialize()
-        eyes = get_vision_faculty()
+        eyes = get_perception_faculty()
 
     cases = [
         ("red", (150, 200), 70, "blue", (450, 200), 35),
@@ -298,7 +298,7 @@ async def main() -> int:
     subject = f"frame_{tag}"
     with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
         percept = await coord.see(str(WORK / "case0.png"), source=subject,
-                                  domain=DOMAIN)
+                                  domain=DOMAIN, actor_identity=None)
         await get_uncertainty_system().drain_writes()
     # The substrate names a percept from the image's own content digest, so the
     # label handed in is not the concept's name. Ask for it.
@@ -311,7 +311,7 @@ async def main() -> int:
         "JOIN unified.concepts c1 ON cr.source_concept_id = c1.concept_id "
         "LEFT JOIN unified.concepts c2 ON cr.target_concept_id = c2.concept_id "
         "WHERE c1.name LIKE $1 AND cr.relation = ANY($2::text[])",
-        (f"{subject}_blob%", ["larger_than", "left_of", "above"]),
+        (f"{subject}\\_%", ["larger_than", "left_of", "above"]),
         fetch_all=True) or []
     held = {(r["subj"], r["rel"], r["obj"]) for r in rows}
     check("the relations between blobs are admitted to the concept graph",
@@ -322,7 +322,7 @@ async def main() -> int:
         "SELECT belief_text, prior_probability p FROM unified.beliefs "
         "WHERE belief_text LIKE $1 AND (belief_text LIKE '%larger_than%' "
         "OR belief_text LIKE '%left_of%' OR belief_text LIKE '%above%')",
-        (f"{subject}_blob%",), fetch_all=True) or []
+        (f"{subject}\\_%",), fetch_all=True) or []
     check("and they move posteriors, like every other observation",
           bool(beliefs),
           "; ".join(f"{b['belief_text']} @{b['p']}" for b in beliefs[:3]) or "none")
@@ -346,7 +346,7 @@ async def main() -> int:
         "JOIN unified.concepts c1 ON cr.source_concept_id = c1.concept_id "
         "LEFT JOIN unified.concepts c2 ON cr.target_concept_id = c2.concept_id "
         "WHERE c1.name LIKE $1 AND cr.relation = 'isa'",
-        (f"{subject}_blob%",), fetch_all=True) or []
+        (f"{subject}\\_%",), fetch_all=True) or []
     check("and the live substrate holds no size membership either",
           not ({str(r["obj"]) for r in isa_rows} & bands),
           f"isa in the graph: {sorted({str(r['obj']) for r in isa_rows})}")

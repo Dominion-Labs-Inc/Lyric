@@ -1,0 +1,188 @@
+{
+  "experiment": "SONGS-01",
+  "claim": "The substrate hears music with no model: a song is taught by hearing it and known again through a room and a codec; a song's key and tempo, and a sung melody's notes, are heard as people annotated them, admitted, believed and remembered in words; speech is heard as no music.",
+  "hypothesis": "H1 a taught song is known from 6 s of it played into a real room and a 64 kbit/s codec, and a song never taught is not. H2 a song's key and tempo are heard as annotated, with firm support. H3 a sung melody's notes match the annotator's at 0.65 or more. H4 the melody rebuilt from its trace is heard as the same notes, 0.8 or more. H5 speech gets no key, tempo, melody or song.",
+  "started_at": "2026-09-29T13:12:08.514072+00:00",
+  "duration_seconds": 28.007,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/TorinAI/venv_torin/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/TorinAI",
+    "shadow_mode": null,
+    "git_commit": "20deb447498593391eca0286916b8f986c560a26",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "torinai_dev",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "torinai_dev",
+        "model": "torinai_dev",
+        "user_context": "torinai_dev",
+        "learning": "torinai_dev"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "dotenv:.env.postgres",
+        "database": "environment",
+        "user": "dotenv:.env.postgres",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 1788,
+    "database_verified": "torinai_dev",
+    "database_verified_reason": "asked the server"
+  },
+  "summary": {
+    "checks": 20,
+    "passed": 19,
+    "failed": 1,
+    "outcome": "FAIL"
+  },
+  "metrics": [
+    {
+      "name": "sung_notes_matched",
+      "value": 0.734,
+      "unit": "F",
+      "note": "onset 50 ms, pitch 50 cents"
+    },
+    {
+      "name": "recalled_notes_same",
+      "value": 0.852,
+      "unit": "F",
+      "note": "rebuilt melody against heard melody"
+    }
+  ],
+  "checks": [
+    {
+      "label": "every song taught was heard, and remembered as a hearing of its own",
+      "passed": true,
+      "detail": "['mem_33c6b893edb14b94a1da57c223a06003', 'mem_89f9cd8cb39447a68418922228075c05', 'mem_99e2d3142e8242648c6e329b9cedd35a']",
+      "at": "2026-09-29T13:12:29.422688+00:00"
+    },
+    {
+      "label": "a song's lesson is the same memory as any hearing, and says what it taught",
+      "passed": true,
+      "detail": "tags ['percept', 'hearing', 'sound', 'song'], song country song 43788d, says so: True",
+      "at": "2026-09-29T13:12:29.424596+00:00"
+    },
+    {
+      "label": "its trace keeps the song's landmarks, never the recording",
+      "passed": true,
+      "detail": "84877 bytes, 9512 landmarks",
+      "at": "2026-09-29T13:12:29.541975+00:00"
+    },
+    {
+      "label": "a recording too plain to know again is refused, and nothing is kept",
+      "passed": true,
+      "detail": "/Users/stefan/Dominion Labs/TorinAI/experiments/SONGS-01/stimuli/tone.wav has 66 different landmark(s); a song is known again by at least 100",
+      "at": "2026-09-29T13:12:29.656189+00:00"
+    },
+    {
+      "label": "every taught song",
+      "passed": true,
+      "detail": "{'country song 43788d': 1, 'disco song 43788d': 1, 'pop song 43788d': 1}",
+      "at": "2026-09-29T13:12:29.697445+00:00"
+    },
+    {
+      "label": "exactly as it was taught",
+      "passed": true,
+      "detail": "9512 landmarks",
+      "at": "2026-09-29T13:12:29.697472+00:00"
+    },
+    {
+      "label": "each taught song is known from 6 s of it played into the room",
+      "passed": true,
+      "detail": "{'country': [('country song 43788d', 1.0)], 'disco': [('disco song 43788d', 1.0)], 'pop': [('pop song 43788d', 1.0)]}",
+      "at": "2026-09-29T13:12:30.843711+00:00"
+    },
+    {
+      "label": "and the hearing says so in words",
+      "passed": true,
+      "detail": "n abrupt unpitched sound, an abrupt unpitched sound; playing \"country song 43788d\", in A major, about 127 beats a minute",
+      "at": "2026-09-29T13:12:30.843729+00:00"
+    },
+    {
+      "label": "a song never taught is not known as any taught one",
+      "passed": true,
+      "detail": "None",
+      "at": "2026-09-29T13:12:31.168915+00:00"
+    },
+    {
+      "label": "in A major, firmly (annotated A major)",
+      "passed": true,
+      "detail": "{'key': 'A major', 'support': 0.95}",
+      "at": "2026-09-29T13:12:32.132952+00:00"
+    },
+    {
+      "label": "at the annotated tempo, within 4% (127.05 bpm)",
+      "passed": true,
+      "detail": "{'bpm': 127.0, 'rival_bpm': 85.2, 'support': 0.6}",
+      "at": "2026-09-29T13:12:32.132966+00:00"
+    },
+    {
+      "label": "the recording heard in the room PLAYS the song, in the graph",
+      "passed": true,
+      "detail": "plays country_song_43788d",
+      "at": "2026-09-29T13:12:32.134547+00:00"
+    },
+    {
+      "label": "the song is IN its key and HAS its tempo, in the graph",
+      "passed": false,
+      "detail": "has_tempo 127.0, in_key major, plays country_song_43788d",
+      "at": "2026-09-29T13:12:32.134562+00:00"
+    },
+    {
+      "label": "and they are held as beliefs",
+      "passed": true,
+      "detail": "s43788dwholexfb348a10e7 in_key a_major; s43788droomcountryxc64ffa92ca in_key a_major; s43788dwholexfb348a10e7 has_tempo 127.0; s43788droomcountryxc64ffa92ca plays country_song_43788d; s43788droomcountryxc64ffa92ca has_tempo 127.0; s43788dwh",
+      "at": "2026-09-29T13:12:32.135786+00:00"
+    },
+    {
+      "label": "its notes match the annotator's at 0.65 or more",
+      "passed": true,
+      "detail": "0.734 over 81 notes",
+      "at": "2026-09-29T13:12:33.133241+00:00"
+    },
+    {
+      "label": "and it is remembered in words: a melody, its notes, how it goes",
+      "passed": true,
+      "detail": "nd, an abrupt low-pitched sound, an abrupt unpitched sound, an abrupt low-pitched sound; a melody of 81 notes from E3 to C#4, going G3 A#3 C#4 B3 C#4 B3 A#3 G#3",
+      "at": "2026-09-29T13:12:33.133820+00:00"
+    },
+    {
+      "label": "its memory keeps the melody, not the recording",
+      "passed": true,
+      "detail": "1 media",
+      "at": "2026-09-29T13:12:33.134770+00:00"
+    },
+    {
+      "label": "rebuilt from its trace, it is heard as the same notes, 0.8 or more",
+      "passed": true,
+      "detail": "0.852",
+      "at": "2026-09-29T13:12:33.785098+00:00"
+    },
+    {
+      "label": "no key, no tempo, no melody, no song",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-09-29T13:12:34.343199+00:00"
+    },
+    {
+      "label": "the clip is seen, and heard playing the song",
+      "passed": true,
+      "detail": "['disco song 43788d']",
+      "at": "2026-09-29T13:12:36.497571+00:00"
+    }
+  ],
+  "notes": [
+    "Cleanup by nonce 43788d and exact memory id: 875 tagged row(s) written, 0 left."
+  ]
+}

@@ -56,21 +56,9 @@ async def ensure_schema(db) -> None:
 async def load_edges(db, edges: Sequence[Sequence[str]]) -> int:
     """Replace the taxonomy with `edges` = [(child_qid, child_label, parent_qid,
     parent_label, field), ...]. Idempotent on (child_qid, parent_qid)."""
+    from core.agents.memory_agent import memory_agent
     await ensure_schema(db)
-    await db.execute_query("TRUNCATE unified.sense_taxonomy", commit=True)
-    n = 0
-    for i in range(0, len(edges), 4000):
-        chunk = edges[i:i + 4000]
-        cols = list(zip(*chunk))            # 5 columns of the chunk
-        await db.execute_query(
-            """INSERT INTO unified.sense_taxonomy
-               (child_qid, child_label, parent_qid, parent_label, field)
-               SELECT * FROM unnest($1::text[],$2::text[],$3::text[],$4::text[],$5::text[])
-               ON CONFLICT DO NOTHING""",
-            (list(cols[0]), list(cols[1]), list(cols[2]), list(cols[3]), list(cols[4])),
-            commit=True)
-        n += len(chunk)
-    return n
+    return await memory_agent().replace_sense_taxonomy(edges)
 
 
 async def _qids_for(db, label: str) -> List[str]:

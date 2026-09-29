@@ -1,0 +1,33 @@
+{
+  "experiment": "NLU-06 \u2014 Does a question relate the same things as its statement?",
+  "writes_to_store": false,
+  "notes": [
+    "a question and its statement make the SAME claim and differ only in what the asker wants done with it, so they must formalise alike"
+  ],
+  "data": {},
+  "checks": [
+    {
+      "name": "'Is the vault locked?' pairs with its statement",
+      "passed": true,
+      "detail": "('vault_locked',) vs ('vault_locked',)"
+    },
+    {
+      "name": "'Is a robin a bird?' pairs with its statement",
+      "passed": true,
+      "detail": "('robin_bird',) vs ('robin_bird',)"
+    },
+    {
+      "name": "'Is the reactor stable?' pairs with its statement",
+      "passed": true,
+      "detail": "('reactor_stable',) vs ('reactor_stable',)"
+    },
+    {
+      "name": "'Is the engine not cold?' pairs with its statement",
+      "passed": true,
+      "detail": "('~engine_cold',) vs ('~engine_cold',)"
+    }
+  ],
+  "passed": 4,
+  "total": 4,
+  "seconds": 0.03
+}

@@ -1,0 +1,297 @@
+{
+  "experiment": "SHAPES-LEARN-07",
+  "claim": "Word shapes are learned from the fillers held, never told: taught plurals, possessives and contractions by example through its one teaching path, the substrate reads a word written in a learned shape as the word it is, reads possessives and contractions it was never taught, says a concept in the shape its slot takes, and every sentence it says reads back to what it meant.",
+  "hypothesis": "A lesson pair refused; a taught sentence that no longer reads; a plural ending not found, or an irregular form taken for a shape; a probe unread or misread; a plural said in a shape it does not take, or a sentence said that reads back to another meaning; a shape never taught read whole; a reading or saying that writes; or a write to the main store would each show here.",
+  "started_at": "2026-09-29T14:51:15.695465+00:00",
+  "duration_seconds": 171.65,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/TorinAI/venv_torin/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/TorinAI",
+    "shadow_mode": null,
+    "git_commit": "20deb447498593391eca0286916b8f986c560a26",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "torinai_dev",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "torinai_dev",
+        "model": "torinai_dev",
+        "user_context": "torinai_dev",
+        "learning": "torinai_dev"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "environment",
+        "database": "environment",
+        "user": "environment",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 1792,
+    "database_verified": null,
+    "database_verified_reason": "not verified"
+  },
+  "summary": {
+    "checks": 16,
+    "passed": 16,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [
+    {
+      "name": "productive shapes",
+      "value": 26,
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "shapes",
+      "value": {
+        "s->": [
+          29,
+          32
+        ],
+        "es->": [
+          9,
+          11
+        ],
+        "es->e": [
+          6,
+          6
+        ],
+        "ies->y": [
+          5,
+          5
+        ],
+        "hes->h": [
+          4,
+          4
+        ],
+        "ls->l": [
+          4,
+          4
+        ],
+        "ts->t": [
+          4,
+          4
+        ],
+        "ats->at": [
+          3,
+          3
+        ],
+        "gs->g": [
+          3,
+          3
+        ],
+        "rs->r": [
+          3,
+          3
+        ],
+        "ses->s": [
+          3,
+          5
+        ],
+        "ys->y": [
+          3,
+          3
+        ],
+        "als->al": [
+          2,
+          2
+        ],
+        "ches->ch": [
+          2,
+          2
+        ],
+        "cks->ck": [
+          2,
+          2
+        ],
+        "ins->in": [
+          2,
+          2
+        ],
+        "ks->k": [
+          2,
+          2
+        ],
+        "les->le": [
+          2,
+          2
+        ],
+        "mals->mal": [
+          2,
+          2
+        ],
+        "ns->n": [
+          2,
+          2
+        ],
+        "oxes->ox": [
+          2,
+          2
+        ],
+        "oys->oy": [
+          2,
+          2
+        ],
+        "ses->se": [
+          2,
+          3
+        ],
+        "shes->sh": [
+          2,
+          2
+        ],
+        "sses->ss": [
+          2,
+          2
+        ],
+        "xes->x": [
+          2,
+          2
+        ]
+      },
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "never-taught probes read as they mean",
+      "value": "19/19",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "facts said in the slot's shape, reading back",
+      "value": "8/8",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "prose read whole",
+      "value": "3/300",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "prose words read in whole sentences",
+      "value": "14/4112",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "prose words read in parts",
+      "value": "461/4112",
+      "unit": "",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "the run is in the sandbox",
+      "passed": true,
+      "detail": "connected to torinai_dev",
+      "at": "2026-09-29T14:51:17.920472+00:00"
+    },
+    {
+      "label": "the substrate is running",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-29T14:51:40.938312+00:00"
+    },
+    {
+      "label": "english_01.json is learned, none refused",
+      "passed": true,
+      "detail": "{'learned': 236, 'linked': 325, 'already': 1, 'understood': 61, 'refused': 0, 'total': 228, 'repair_holophrase': 19, 'repair_substitution': 26, 'repair_lexical_item_based': 56, 'repair_item_based_lexical': 66, 'repair_add_links': 60}",
+      "at": "2026-09-29T14:51:53.549771+00:00"
+    },
+    {
+      "label": "english_02.json is learned, none refused",
+      "passed": true,
+      "detail": "{'learned': 22, 'linked': 65, 'already': 0, 'understood': 8, 'refused': 0, 'total': 29, 'repair_lexical_item_based': 11, 'repair_add_links': 8, 'repair_item_based_lexical': 10}",
+      "at": "2026-09-29T14:51:58.102621+00:00"
+    },
+    {
+      "label": "english_03.json is learned, none refused",
+      "passed": true,
+      "detail": "{'learned': 16, 'linked': 47, 'already': 0, 'understood': 4, 'refused': 0, 'total': 21, 'repair_item_based_lexical': 5, 'repair_add_links': 4, 'repair_phrase_in_slot': 11, 'repair_addition': 1}",
+      "at": "2026-09-29T14:51:59.777573+00:00"
+    },
+    {
+      "label": "english_04.json is learned, none refused",
+      "passed": true,
+      "detail": "{'learned': 101, 'linked': 109, 'already': 0, 'understood': 4, 'refused': 0, 'total': 70, 'repair_item_based_lexical': 26, 'repair_holophrase': 4, 'repair_substitution': 1, 'repair_lexical_item_based': 35, 'repair_add_links': 4}",
+      "at": "2026-09-29T14:52:15.149775+00:00"
+    },
+    {
+      "label": "english_05.json is learned, none refused",
+      "passed": true,
+      "detail": "{'learned': 43, 'linked': 72, 'already': 0, 'understood': 10, 'refused': 0, 'total': 52, 'repair_lexical_item_based': 11, 'repair_item_based_lexical': 28, 'repair_phrase_in_slot': 3, 'repair_add_links': 10}",
+      "at": "2026-09-29T14:52:18.473101+00:00"
+    },
+    {
+      "label": "every taught sentence of the five lessons reads to its meaning",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-09-29T14:52:19.130664+00:00"
+    },
+    {
+      "label": "the plural endings are productive, each in its context",
+      "passed": true,
+      "detail": "missing []",
+      "at": "2026-09-29T14:52:19.130762+00:00"
+    },
+    {
+      "label": "an irregular form is a word of its own, not a shape",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-09-29T14:52:19.130781+00:00"
+    },
+    {
+      "label": "each reads whole, to the meaning it has",
+      "passed": true,
+      "detail": "19/19",
+      "at": "2026-09-29T14:52:19.159198+00:00"
+    },
+    {
+      "label": "two words never met stand one to a slot in a frame with one word of its own",
+      "passed": true,
+      "detail": "['Rain', 'floods']",
+      "at": "2026-09-29T14:52:19.160508+00:00"
+    },
+    {
+      "label": "each is said in the plural slot's shape, and everything said reads back to what it meant",
+      "passed": true,
+      "detail": "8/8",
+      "at": "2026-09-29T14:52:19.233839+00:00"
+    },
+    {
+      "label": "shapes no lesson taught stay unread whole",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-09-29T14:52:19.254123+00:00"
+    },
+    {
+      "label": "the view is as teaching left it",
+      "passed": true,
+      "detail": "1036 -> 1036",
+      "at": "2026-09-29T14:54:04.879417+00:00"
+    },
+    {
+      "label": "the main model's store is untouched",
+      "passed": true,
+      "detail": "192294 rows before, 192294 after",
+      "at": "2026-09-29T14:54:07.345880+00:00"
+    }
+  ],
+  "notes": []
+}

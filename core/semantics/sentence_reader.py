@@ -7,17 +7,13 @@ a reading, not implement one, and language is this faculty's job -- the learned
 reader, the lexicon, the claim shapes and the sentence machine all already live
 here.
 
-WHAT THIS IS, AND WHAT IT IS NOT. These are hand-written patterns, and they are
-scaffolding. The substrate's own reader is DERIVED -- learned from
-sentence/meaning pairs, in `derived_reader` and `reading_registry` -- and
-measured broader than these on the forms both attempt, while correctly refusing
-what it cannot represent. The intended direction is that the derived reading
-takes over and this shrinks toward nothing.
-
-It has not been removed because it has not been replaced: these patterns also
-cover universals, conditionals, questions and conjunctions, and what share of
-those the derived reading handles is unmeasured. Deleting on an unmeasured
-assumption would trade working coverage for a silent gap.
+WHAT THIS IS, AND WHAT IT IS NOT. These are hand-written patterns: English
+written into the code. The substrate's own reading is LEARNED -- sentences taught
+with their meaning, held in memory as patterns and read by `derived_reader`.
+Every caller of this module switches to that reading in one step, and then this
+module goes (docs/research/SHAPES_CHANGE_MAP.md, step 3). Until then it reads
+what it always read, and `clause_atom` below stays the one place clause parts
+become a solver atom.
 
 WHAT A READING IS. A sentence in, a structure out, or None. It decides only WHAT
 a sentence relates -- never whether the formal grammar can carry that relation,
@@ -31,9 +27,9 @@ import logging
 import re
 from typing import Any, Dict, List, Optional, Tuple
 
-from core.reasoning.reasoning_interfaces import Connectivity  # noqa: F401
 from core.semantics import lexical_normalization as _lexical
-from core.semantics.genericity import (Genericity, classify_genericity,
+from core.semantics.genericity import (ADJECTIVE, Genericity, blame,
+                                       classify_genericity, depending,
                                        unrepresentable_reason, _word_class)
 
 logger = logging.getLogger(__name__)
@@ -70,9 +66,27 @@ class SentenceReader:
     #: water". Up to four tokens (digits allowed, so a quantity survives), an
     #: optional leading determiner or number kept inside the object. Still
     #: anchored on a known verb, so an all-unknown run reads as nothing.
+    #: A SUBJECT MAY BE NAMED RELATIONALLY: "the resistance OF a component
+    #: depends on charge" is a claim about the component's resistance, and a
+    #: single-token subject slot cannot hold it.
+    #: Either a relationally-named subject ("the reusable block OF code", "the
+    #: resistance OF a component") or a single token. The of-phrase is a
+    #: separate alternative rather than an optional tail, so the plain case is
+    #: NOT widened: a greedy multi-word subject is what made "The water filter
+    #: works" read `filter` as the action.
+    _SVO_SUBJ = (r"(?P<subject>[\w'-]+(?:\s+[\w'-]+){0,2}\s+of\s+"
+                 r"(?:(?:a|an|the)\s+)?[\w'-]+|[\w'-]+)")
     _SVO = re.compile(
-        rf"^{_DETERMINER}(?P<subject>[\w'-]+)\s+(?P<verb>[\w'-]+)\s+"
-        rf"(?:(?:a|an|the)\s+)?(?P<object>[\w'-]+(?:\s+[\w'-]+){{0,3}})$", re.IGNORECASE)
+        rf"^{_DETERMINER}{_SVO_SUBJ}\s+(?P<verb>[\w'-]+)\s+"
+        rf"(?:(?:a|an|the)\s+)?(?P<object>[\w'-]+(?:\s+[\w'-]+){{0,3}}?)"
+        # A TRAILING PREPOSITIONAL PHRASE MODIFIES THE CLAIM; it is not part of
+        # what the verb reaches. "a device moves fluid through a pipe" is about
+        # fluid, and reading the object as `fluid through a pipe` names a thing
+        # that does not exist and that no other sentence about fluid can meet.
+        r"(?:\s+(?:in|on|at|by|under|inside|outside|above|below|over|near|"
+        r"behind|beside|within|atop|beneath|among|around|through|before|after|"
+        r"during|to|from|into|onto|with|for)\s+.*)?$",
+        re.IGNORECASE)
     #: Prepositions that name a RELATION between two things when they stand
     #: after the copula ("X is PREP Y"). Spatial AND temporal/associative: "at
     #: noon", "before dawn", "over the river", "by Tolkien" are relations, not
@@ -88,8 +102,38 @@ class SentenceReader:
         rf"^(?P<prep>{'|'.join(_PREPOSITIONS)})\s+"
         r"(?:(?:a|an|the)\s+)?(?P<object>[\w'-]+(?:\s+[\w'-]+)*)$",
         re.IGNORECASE)
+    #: An adverb standing BETWEEN a subject and its verb. "a percept ALSO
+    #: feeds the emotional state" read `also` as the relation and then refused,
+    #: so an ordinary claim was lost to one word.
+    #:
+    #: THIS WAS A LIST OF TWENTY-FOUR WORDS WRITTEN HERE. English has thousands
+    #: -- WordNet alone settles the class of 3,276 -- so the list could only
+    #: ever cover the ones somebody thought of, and the reader was blind to
+    #: every other adverb in the language. The class is taught now, like every
+    #: other class, so this asks what the substrate has learned instead of what
+    #: was typed.
+    def _drop_preverbal_adverb(self, sentence: str) -> str:
+        """`a percept also feeds X` -> `a percept feeds X`, or the sentence.
+
+        A word is dropped only where the substrate has OBSERVED it as an
+        adverb. A word it knows nothing about is left alone -- dropping an
+        unknown word to make a sentence parse is guessing, and the reading that
+        followed would rest on it."""
+        from core.semantics.genericity import _word_classes
+        words = sentence.split()
+        for i, word in enumerate(words):
+            if i == 0:
+                continue
+            bare = word.strip(",").lower()
+            classes = _word_classes(bare)
+            # ONLY an adverb. A word that is also a noun or a verb here is
+            # doing that job -- "the report RUNS" must not lose its verb.
+            if "ADVERB" in classes and not (classes - {"ADVERB"}):
+                return " ".join(words[:i] + words[i + 1:])
+        return sentence
+
     _SV = re.compile(
-        rf"^{_DETERMINER}(?P<subject>[\w'-]+)\s+(?P<verb>[\w'-]+)$",
+        rf"^{_DETERMINER}{_SVO_SUBJ}\s+(?P<verb>[\w'-]+)$",
         re.IGNORECASE)
     #: `the battle happened in 1066`, `water flows through the pipe`. An action
     #: with a prepositional phrase -- a subject, a verb, and the thing the verb
@@ -99,11 +143,82 @@ class SentenceReader:
     #: 1066", "on 2026-08-26"). The object admits digits, dots, slashes and
     #: hyphens so a literal survives, and runs to at most three words.
     _SVO_PREP = re.compile(
-        rf"^{_DETERMINER}(?P<subject>[\w'-]+)\s+(?P<verb>[\w'-]+)\s+"
+        rf"^{_DETERMINER}{_SVO_SUBJ}\s+(?P<verb>[\w'-]+)\s+"
         rf"(?P<prep>in|on|at|by|under|inside|above|below|near|behind|through|"
         rf"over|during|into|onto|from|to)\s+"
         rf"(?:(?:a|an|the)\s+)?(?P<object>[\w./'-]+(?:\s+[\w./'-]+){{0,2}})$",
         re.IGNORECASE)
+    #: A COMPARATIVE relates two things on a scale: "iron is heavier than
+    #: aluminium" is not a claim that iron is a kind of `heavier than
+    #: aluminium`. The scale and the standard are both carried -- the relation
+    #: is `heavier than` and the object is what it is measured against -- so the
+    #: claim can be reasoned with rather than stored as a name. Matched BEFORE
+    #: `_FACT`, whose trailing `.+` would otherwise swallow `than` and all.
+    _COMPARATIVE = re.compile(
+        rf"^{_DETERMINER}{_SUBJ}\s+{_COPULA}\s+(?P<scale>[\w'-]+)\s+than\s+"
+        r"(?:(?:a|an|the)\s+)?(?P<standard>[\w\s'-]+)$", re.IGNORECASE)
+    #: MODALITY IS PART OF THE CLAIM, not a word to refuse. "a pump CAN fail"
+    #: says something weaker than "a pump fails", and reading it as the latter
+    #: would put a claim in front of the solver that the sentence never made.
+    #: The modal is kept IN the relation, so `pump_can_fail` and `pump_fail` are
+    #: different atoms and neither is mistaken for the other.
+    _MODALS = ("can", "could", "may", "might", "must", "shall", "should",
+               "will", "would")
+    _MODAL_CLAIM = re.compile(
+        rf"^{_DETERMINER}{_SUBJ}\s+(?P<modal>{'|'.join(_MODALS)})\s+"
+        r"(?P<verb>[\w'-]+)(?:\s+(?:(?:a|an|the)\s+)?(?P<object>[\w\s'-]+))?$",
+        re.IGNORECASE)
+    #: A QUANTIFIER scopes a claim; it is not part of the subject. "most birds
+    #: can fly" is a claim about birds, and reading `most birds` as the thing it
+    #: is about invents a kind that does not exist. `all`/`every`/`no` are NOT
+    #: here -- they are universals and are read above, with their own meaning.
+    _QUANTIFIERS = ("most", "some", "many", "several", "few", "certain")
+    _QUANTIFIED = re.compile(
+        rf"^(?P<quant>{'|'.join(_QUANTIFIERS)})\s+(?P<rest>.+)$", re.IGNORECASE)
+    #: A PASSIVE names the same event as its active, with the roles in the other
+    #: order: "the letter was written by Alice" and "Alice wrote the letter" are
+    #: one claim, not two, and storing the surface order would file the letter
+    #: as the thing that did the writing.
+    _PASSIVE_BY = re.compile(
+        rf"^{_DETERMINER}(?P<patient>[\w'-]+(?:\s+[\w'-]+){{0,3}}?)\s+"
+        r"(?:is|are|was|were)\s+(?P<participle>[\w'-]+)\s+by\s+"
+        r"(?:(?:a|an|the)\s+)?(?P<agent>[\w\s'-]+)$", re.IGNORECASE)
+    #: `The pump was replaced` -- a passive with no agent named. The event is
+    #: still asserted of the patient, so the claim is kept with the voice IN the
+    #: relation rather than lost. `is`/`are` are deliberately absent: "the vault
+    #: is locked" is a state already read as a property, and routing it here
+    #: would change a reading that is correct.
+    _PASSIVE_STATE = re.compile(
+        rf"^{_DETERMINER}(?P<patient>[\w'-]+(?:\s+[\w'-]+){{0,3}}?)\s+"
+        r"(?P<aux>was|were)\s+(?P<participle>[\w'-]+)$", re.IGNORECASE)
+    #: `Paris the capital of France is on the Seine` -- a name, then another
+    #: name for the same thing, then what is said of it. Two claims, and the
+    #: appositive is the one a reader loses first.
+    _APPOSITION = re.compile(
+        r"(?i)^(?P<head>[\w'-]+)\s+(?P<appos>(?:a|an|the)\s+[\w\s'-]+?)\s+"
+        r"(?P<rest>(?:is|are|was|were)\s+.+)$")
+    #: A complement that carries its own relative clause: `a device THAT moves
+    #: fluid`. The head names the kind; the tail says something about the kind.
+    _COMPLEMENT_RELATIVE = re.compile(
+        r"(?i)^(?P<subject>.+?)\s+(?P<cop>is|are)\s+(?P<head>(?:a|an|the)\s+[\w\s'-]+?)\s+"
+        r"(?P<rel>that|which|whose)\s+(?P<inner>.+)$")
+    #: `The vault holds gold and silver` / `The valve opens and closes` -- one
+    #: subject, a coordinated object or a coordinated verb.
+    _OBJECT_COORD = re.compile(
+        r"(?i)^(?P<lead>.+?)\s+(?P<a>[\w'-]+)\s+and\s+(?P<b>[\w'-]+)$")
+    #: `Alice gave Bob a book` -- ONE verb reaching TWO things: what was given
+    #: and who it went to. English marks the theme with a determiner and leaves
+    #: the recipient bare, which is the only signal available without a frame
+    #: for the verb, so the determiner is what this keys on.
+    _DITRANSITIVE = re.compile(
+        r"(?i)^(?:(?:a|an|the)\s+)?(?P<subject>[\w'-]+(?:\s+[\w'-]+){0,2}?)\s+"
+        # NOT a copula: "the cup is in the box" is a relation, not a giving.
+        r"(?!(?:is|are|am|was|were)\b)(?P<verb>[\w'-]+)\s+"
+        # The proper-noun alternative is case-SENSITIVE -- under the pattern's
+        # own `(?i)`, `[A-Z]` matched every word, and "the cup is IN the box"
+        # parsed as a gift to something called `in`.
+        r"(?P<recipient>(?:a|an|the)\s+[\w'-]+|(?-i:[A-Z][\w'-]*))\s+"
+        r"(?P<theme>(?:a|an|the)\s+[\w'-]+)$")
     _UNIVERSAL = re.compile(
         r"^(?:all|every)\s+(?P<p>[\w\s'-]+?)\s+(?:are|is)\s+(?P<q>[\w\s'-]+)$",
         re.IGNORECASE,
@@ -135,6 +250,157 @@ class SentenceReader:
         r"(?i)^(?:what|where|who|whom|whose|why|when|which|how|"
         r"is|are|was|were|do|does|did|can|could|will|would|should|has|have|had)\b")
 
+    #: Words that MARK STRUCTURE THIS READER CANNOT CARRY. A relative pronoun
+    #: opens a clause inside a noun phrase; a coordinator makes a sentence state
+    #: more than one claim; `than` heads a comparative; a subordinator joins two
+    #: claims. None of these can be represented as one (subject, relation,
+    #: object), so a sentence containing one must be REFUSED rather than matched.
+    #:
+    #: MEASURED, AND THIS IS WHY IT EXISTS. `_FACT` is `^det? SUBJ is (.+)$` and
+    #: that `.+` is unbounded, so everything after a copula became the property:
+    #:   "There is no longer any path from the substrate to a generative model."
+    #:      -> subject `there`
+    #:   "Scientists believe the universe is expanding."
+    #:      -> subject `scientists believe the universe`
+    #:   "Iron is heavier than aluminium."   -> property `heavier than aluminium`
+    #: The NLU suite measured a 58.3% false-positive rate on structures the
+    #: reader cannot represent, and 17% of real prose "read" as atoms like
+    #: `there_no_longer_any_path_from_the_substrate_to_a_generative_model`. Each
+    #: one becomes a premise the solver cannot doubt.
+    #:
+    #: `if`/`then` are absent deliberately: a conditional IS representable and is
+    #: read above this guard. Prepositions are absent too -- "the cup is in the
+    #: box" is a relation the reader carries.
+    #: MEASURED PER CLASS, not guessed: modals, passive auxiliaries and
+    #: non-universal quantifiers each produced a specific confident misreading
+    #: (`valve_may_stick`, `letter_was_written_by_alice`, `some_metal_rust`).
+    #: The universals all/every/no are absent because the reader DOES represent
+    #: them, above this guard.
+    #: `France's capital` -- a thing named by its relation to another thing.
+    _POSSESSIVE = re.compile(r"(?i)^(?P<owner>[\w-]+)'s?\s+(?P<owned>.+)$")
+
+    def _possessive_subject(self, phrase: str) -> str:
+        """`France's capital` -> `capital of France`.
+
+        A POSSESSIVE NAMES A THING BY ANOTHER THING, and the two are not
+        interchangeable: read as written it produced a subject called `frances
+        capital`, an atom for a thing that does not exist and that no other
+        sentence about France could ever meet. Turning it into the relational
+        phrase keeps both names present and separable."""
+        phrase = str(phrase).strip()
+        match = self._POSSESSIVE.match(phrase)
+        if not match:
+            return phrase
+        return f"{match.group('owned').strip()} of {match.group('owner').strip()}"
+
+    def _complement_clause(self, sentence: str) -> Optional[str]:
+        """The inner claim of `SUBJ VERB <clause>`, or None.
+
+        `Scientists believe the universe is expanding` -> `the universe is
+        expanding`. A DETERMINER OPENS A NOUN PHRASE, so one standing inside
+        what was matched as the subject means the match ran across a clause
+        boundary and the real subject starts at that determiner. Read whole, the
+        sentence produced a claim about a thing called `scientists believe the
+        universe`.
+
+        The OUTER claim -- that scientists believe it -- is not returned,
+        because a claim whose object is another claim has no representation
+        here. What is returned is the part that is separately true.
+        """
+        match = self._FACT.match(sentence)
+        if not match:
+            return None
+        words = match.group("subject").split()
+        for i in range(1, len(words)):
+            if words[i].lower() in ("a", "an", "the"):
+                return " ".join(words[i:]) + sentence[match.end("subject"):]
+        return None
+
+    #: `Dogs and cats are mammals` -- ONE predicate over TWO subjects.
+    _SUBJECT_COORD = re.compile(
+        r"(?i)^(?:(?:a|an|the)\s+)?(?P<a>[\w'-]+(?:\s+[\w'-]+){0,2}?)\s+(?:and|or)\s+"
+        r"(?:(?:a|an|the)\s+)?(?P<b>[\w'-]+(?:\s+[\w'-]+){0,2}?)\s+"
+        r"(?P<rest>(?:is|are|was|were)\s+.+)$")
+
+    def _distribute_subject(self, clause: str) -> List[str]:
+        """`Dogs and cats are mammals` -> two claims, one per subject.
+
+        A COORDINATED SUBJECT IS NOT A NAME. Read whole it produced the atom
+        `dogs_and_cat_mammal` -- a single thing called "dogs and cats", which
+        nothing else the substrate ever reads about dogs could meet. The
+        predicate is shared, so it is said of each conjunct separately, which is
+        exactly what the sentence says.
+        """
+        match = self._SUBJECT_COORD.match(str(clause).strip().rstrip(".!?"))
+        if not match:
+            return [clause]
+        rest = match.group("rest")
+        return [f"{match.group('a')} {rest}", f"{match.group('b')} {rest}"]
+
+    def _appositive_clauses(self, clause: str) -> List[str]:
+        """`Paris the capital of France is on the Seine` -> two claims.
+
+        AN APPOSITIVE IS A SECOND NAME, not part of the first. Read whole, the
+        subject became `paris the capital of france` -- one atom naming a thing
+        no other sentence could ever refer to, and the sentence's own claim
+        about the Seine went with it."""
+        match = self._APPOSITION.match(str(clause).strip().rstrip(".!?"))
+        if not match:
+            return [clause]
+        head = match.group("head")
+        return [f"{head} is {match.group('appos')}",
+                f"{head} {match.group('rest')}"]
+
+    def _complement_relative_clauses(self, clause: str) -> List[str]:
+        """`A pump is a device that moves fluid` -> the kind, and what the kind
+        does. The relative tail is a claim about the COMPLEMENT, not about the
+        subject, and dropping it loses the half of a definition that says what
+        the thing is for."""
+        match = self._COMPLEMENT_RELATIVE.match(str(clause).strip().rstrip(".!?"))
+        if not match:
+            return [clause]
+        head = match.group("head").strip()
+        bare = re.sub(r"(?i)^(?:a|an|the)\s+", "", head)
+        inner = match.group("inner").strip()
+        if match.group("rel").lower() == "whose":
+            # `a component whose resistance depends on charge` -- the claim is
+            # about the component's resistance, which is named relationally.
+            owned, _, rest = inner.partition(" ")
+            return [f"{match.group('subject')} {match.group('cop')} {head}",
+                    f"{owned} of {bare} {rest}".strip()]
+        return [f"{match.group('subject')} {match.group('cop')} {head}",
+                f"{bare} {inner}"]
+
+    def _distribute_tail_coordination(self, clause: str) -> List[str]:
+        """`The vault holds gold and silver` -> two claims; `The valve opens and
+        closes` -> two claims. A coordinator at the END of a clause shares
+        everything before it, so each conjunct is said with that shared lead."""
+        text = str(clause).strip().rstrip(".!?")
+        match = self._OBJECT_COORD.match(text)
+        if not match:
+            return [clause]
+        lead, a, b = match.group("lead"), match.group("a"), match.group("b")
+        if self._COPULA_RE.search(lead):
+            return [clause]        # `X is A and B` is the complement path
+        words = lead.split()
+        if len(words) >= 2:        # a shared verb: `the vault holds` + gold/silver
+            return [f"{lead} {a}", f"{lead} {b}"]
+        return [f"{lead} {a}", f"{lead} {b}"]
+
+    def _ditransitive_clauses(self, clause: str) -> List[str]:
+        """`Alice gave Bob a book` -> what was given, and who it went to.
+
+        Read as a plain SVO the object became `Bob a book` -- one thing, named
+        after two. The recipient is restated with the preposition English uses
+        for it when the order is the other way round ("gave a book TO Bob"), so
+        both claims are ordinary readings rather than a new arity."""
+        match = self._DITRANSITIVE.match(str(clause).strip().rstrip(".!?"))
+        if not match:
+            return [clause]
+        subject, verb = match.group("subject"), match.group("verb")
+        return [f"{subject} {verb} {match.group('theme')}",
+                f"{subject} {verb} to {match.group('recipient')}"]
+
     def _normalize(self, phrase: str) -> str:
         """Reduce a phrase to a snake_case atom fragment.
 
@@ -164,7 +430,32 @@ class SentenceReader:
     def _atom(self, subject: str, prop: str) -> str:
         return f"{self._normalize(subject)}_{self._singular(self._normalize(prop))}"
     def _parse_statement(self, text: str) -> Optional[Dict[str, Any]]:
-        """Classify one sentence, or return None if it is outside the slice."""
+        """Classify one sentence, or return None if it is outside the slice.
+
+        ATTESTATION IS NOT WIRED, AND THIS IS THE GAP.
+
+        Word classes are now DERIVED, at warm time, from the substrate's own
+        memories of what it was taught: a class is supported by however many
+        taught propositions imply it. That gives evidence FOR a class and no
+        route for evidence AGAINST -- the lexicon's `confirm`/`refute`, which
+        this method used to drive, went with the store.
+
+        It is left unbuilt rather than half-built. The obvious shape is to
+        remember a failed reading as the experience it is, but a failed parse
+        is common and individually worthless, and writing one record per
+        failure is how memory filled with telemetry the last time. Choosing
+        that is a decision about what belongs in memory, not a detail to settle
+        inside the reader.
+
+        `depending()` still runs, so what a reading leaned on is still
+        collected and the hook has somewhere to attach when the question is
+        settled.
+        """
+        with depending() as leaned_on:
+            return self._read_statement(text)
+
+    def _read_statement(self, text: str) -> Optional[Dict[str, Any]]:
+        """The reading itself. Wrapped by `_parse_statement`, which attests it."""
         sentence = text.strip().rstrip(".")
         if not sentence:
             return None
@@ -208,6 +499,62 @@ class SentenceReader:
                 "q": match.group("q"),
                 "negated": False,
             }
+
+        # A QUANTIFIER scopes the claim; the claim under it is read normally.
+        # Read FIRST so "most birds can fly" reaches the modal reading below
+        # instead of being refused for a subject that is not a kind.
+        match = self._QUANTIFIED.match(sentence)
+        if match:
+            inner = self._read_statement(match.group("rest"))
+            if inner is not None:
+                inner = dict(inner)
+                inner["quantifier"] = match.group("quant").lower()
+                return inner
+            return None
+
+        # A COMPARATIVE, before `_FACT` swallows `than` into the complement.
+        match = self._COMPARATIVE.match(sentence)
+        if match:
+            return {"kind": "relation",
+                    "subject": self._possessive_subject(match.group("subject")),
+                    "preposition": f"{match.group('scale').lower()} than",
+                    "object": match.group("standard").strip()}
+
+        # A PASSIVE with a named agent, before `_FACT` reads the participle as a
+        # property of the patient. The roles go back in their active order.
+        match = self._PASSIVE_BY.match(sentence)
+        if match:
+            return {"kind": "svo",
+                    "subject": match.group("agent").strip(),
+                    "verb": match.group("participle").lower(),
+                    "object": self._possessive_subject(match.group("patient"))}
+
+        # MODALITY, kept in the relation so a possibility is never stored as a
+        # fact. Before `_FACT` only so "the tank might overflow" is not read as
+        # a subject called "the tank might".
+        match = self._PASSIVE_STATE.match(sentence)
+        if match:
+            return {"kind": "sv",
+                    "subject": self._possessive_subject(match.group("patient")),
+                    "verb": f"{match.group('aux').lower()} "
+                            f"{match.group('participle').lower()}"}
+
+        match = self._MODAL_CLAIM.match(sentence)
+        if match:
+            relation = f"{match.group('modal').lower()} {match.group('verb').lower()}"
+            subject = self._possessive_subject(match.group("subject"))
+            obj = (match.group("object") or "").strip()
+            if obj:
+                return {"kind": "svo", "subject": subject, "verb": relation,
+                        "object": obj}
+            return {"kind": "sv", "subject": subject, "verb": relation}
+
+        # A SUBJECT THAT SPANS A CLAUSE BOUNDARY carries an inner claim.
+        inner = self._complement_clause(sentence)
+        if inner is not None:
+            read = self._read_statement(inner)
+            if read is not None:
+                return read
 
         match = self._NEGATED_FACT.match(sentence)
         if match:
@@ -266,17 +613,178 @@ class SentenceReader:
         sentence is about anchors the word after it as the action, which is how a
         learner meets a new verb. No anchor, no reading -- this never guesses
         from an all-unknown sentence."""
-        cls = _word_class(verb)
-        if cls == "VERB":
-            return True
-        if cls == "ADJECTIVE":
-            return False
+        from core.semantics.genericity import _word_classes
         from core.semantics.lexical_normalization import deinflect_verb
-        if any(_word_class(base) == "VERB" for base in deinflect_verb(verb)):
+
+        # MEMBERSHIP, NOT IDENTITY.
+        #
+        # This asked `_word_class(verb)` for THE class of the word, and a word
+        # that is honestly two things has no such answer: `filter` is a thing
+        # and also something one does, and so is `separates`, `blocks`, `runs`.
+        # A single-answer lookup either picks one and is wrong half the time or
+        # -- when the evidence is even -- answers nothing at all, and the
+        # sentence stops reading. What the verb slot needs to know is not what
+        # the word IS, it is whether the substrate has ever seen it used as an
+        # action, which is a question polysemy does not spoil.
+        seen = _word_classes(verb)
+        if "VERB" in seen:
             return True
-        if cls == "NOUN":
+        if any("VERB" in _word_classes(base) for base in deinflect_verb(verb)):
+            return True
+        # An adjective in the verb slot is never the action, and neither is an
+        # adverb -- an adverb MODIFIES the action, so a sentence read with one
+        # in the relation slot states a claim nobody made.
+        if "ADJECTIVE" in seen or "ADVERB" in seen:
             return False
-        return _word_class(subject) == "NOUN"
+        # Observed ONLY as a thing: the pattern almost certainly mis-split, as
+        # it does on "The water filter works" -- greedy subject, `filter` taken
+        # for the action. Rejecting is what stops that reading.
+        if "NOUN" in seen:
+            return False
+        # Observed, and never as an action: a determiner, preposition, pronoun,
+        # conjunction or auxiliary is a word the substrate KNOWS, and knows is
+        # not a verb. This fell through to the unknown-word case below, so an
+        # imperative with a noun-like first word read as a statement:
+        # "Read the maintenance note" -> subject `Read`, verb `the` -- a telling,
+        # answered from memory, and the work asked for was never done.
+        if seen:
+            return False
+        # Never observed at all. THE KNOWN WORDS AROUND IT IDENTIFY THE VERB:
+        # the thing the sentence is about anchors the word after it as the
+        # action, which is how a learner meets a new verb. No anchor, no
+        # reading -- this never guesses from an all-unknown sentence.
+        return "NOUN" in _word_classes(self._subject_head(subject))
+
+    def _subject_head(self, subject: str) -> str:
+        """The HEAD noun of a subject phrase.
+
+        `_reads_as_verb` asks whether the subject is a known NOUN, and it asked
+        it of the WHOLE phrase -- so "the resistance of a component" was looked
+        up as one word, found nothing, and the sentence stopped reading. An
+        English noun phrase is headed by the last word of its core, and a
+        post-modifier introduced by `of` elaborates the head rather than
+        replacing it."""
+        core = re.split(r"(?i)\s+of\s+", str(subject or "").strip())[0]
+        words = [w for w in core.split() if w.lower() not in ("a", "an", "the")]
+        return words[-1] if words else str(subject or "").strip()
+
+    #: A complement may name a kind or a property. It may NOT contain a
+    #: preposition (that heads a phrase of its own), another copula, a
+    #: coordinator, or a relative pronoun -- each opens structure a single
+    #: (subject, relation, object) cannot hold. Four content words is the widest
+    #: noun phrase the store itself admits as a name; past that it is a clause.
+    _COMPLEMENT_BREAKS = frozenset(
+        {"is", "are", "am", "was", "were", "be", "been", "being",
+         "and", "or", "but", "than", "that", "which", "who", "whom", "whose",
+         "not",
+         # A WH-WORD OPENS A CLAUSE. "this is HOW the substrate forgets" is not
+         # a thing called "how the substrate forgets".
+         "how", "what", "where", "when", "why", "whether",
+         # Prepositions absent from `_PREPOSITIONS` (which lists only the ones
+         # that can BE a relation). "an INPUT to drift" read as a kind named
+         # "input to drift".
+         # `of` is NOT here, and `_NP_TAIL` says why: it belongs to NAMES --
+         # "the capital of France", "the ring of integers", "the field of
+         # fractions". Listing it made a compound name unreadable, so an
+         # appositive like "Paris the capital of France" lost the half of the
+         # sentence that says what Paris IS. The four-content-word bound below
+         # is what stops a genuine run-on, not a ban on the commonest word in
+         # English naming.
+         "to", "from", "with", "for", "into", "onto", "about", "per"}
+    )
+    _MAX_COMPLEMENT_WORDS = 4
+
+    #: A bare pronoun or demonstrative NAMES NOTHING. "This is temperament
+    #: forming" and "it is an INPUT" file claims about things called `this` and
+    #: `it`, which no later sentence can ever be about. English resolves these
+    #: from context the reader does not carry, so a claim anchored on one is not
+    #: a claim about the world.
+    #: ONLY words that POINT, never words that name. `each`, `one`, `both` and
+    #: `note` were here and each of them can head a real subject -- "Each element
+    #: has a single authority" is an ordinary claim and was being refused for the
+    #: determiner in front of it.
+    _EMPTY_SUBJECTS = frozenset({
+        "this", "that", "these", "those", "it", "they", "there", "here",
+        "he", "she", "we", "you", "i", "who", "what", "which",
+        "something", "anything", "everything", "nothing",
+        "someone", "anyone", "everyone", "none",
+    })
+
+    def _names_something(self, subject: str) -> bool:
+        """Does the subject NAME a thing, or only point at one?"""
+        words = [w for w in str(subject or "").strip().lower().split()
+                 if w not in ("a", "an", "the")]
+        return bool(words) and words[0] not in self._EMPTY_SUBJECTS
+
+    def _is_bounded_complement(self, prop: str) -> bool:
+        """Is what follows the copula a PHRASE, or the rest of the sentence?"""
+        text = str(prop or "").strip()
+        if not text:
+            return False
+        # A PREPOSITIONAL COMPLEMENT IS A RELATION, NOT A RUN-ON. "the cup is IN
+        # the box" relates two things through the preposition and is read by
+        # `_PREPOSITIONAL` below; bounding it away took the locative reading with
+        # it, and with that the named existential decline of "a robin is in the
+        # yard" -- which turned a negative control into a false proof.
+        if self._PREPOSITIONAL.match(text):
+            return True
+        # An em-dash, colon or semicolon starts a new breath; what follows is
+        # elaboration, not part of the complement.
+        if any(mark in text for mark in ("—", "–", ":", ";")):
+            return False
+        words = [w.strip(",.").lower() for w in text.split() if w.strip(",.")]
+        if any(w in self._COMPLEMENT_BREAKS or w in self._PREPOSITIONS
+               for w in words):
+            return False
+        content = [w for w in words if w not in ("a", "an", "the")]
+        return 0 < len(content) <= self._MAX_COMPLEMENT_WORDS
+
+    #: "a TYPE of Y" names a Y. The classifier noun says what kind of thing the
+    #: subject is and adds nothing to it, and it cost the complement two of its
+    #: four words: "A peristaltic pump is a type of positive displacement pump"
+    #: -- the way a definition most often opens -- read nothing at all, while
+    #: "... is a positive displacement pump" read.
+    _CLASSIFIER_OF = re.compile(
+        r"(?i)^(?:a|an|one)\s+(?:type|kind|sort|variety|class|species)\s+of\s+(?P<rest>.+)$")
+    #: What may follow a participle that narrows the noun before it.
+    _NARROWING_NEXT = frozenset(
+        ("in", "on", "at", "by", "for", "to", "as", "with", "from", "into", "of"))
+
+    def _complement_head(self, prop: str) -> str:
+        """The noun phrase a copular complement names, without what only narrows it.
+
+        Three things lengthen a complement without changing what the subject IS:
+          * a classifier -- "a type of Y", "a kind of Y" -- which names a Y;
+          * a participle after the noun that narrows it -- "a pump USED FOR
+            pumping fluids", "an animal FOUND IN Africa" -- a Y of a certain
+            sort, still a Y;
+          * a relative clause after the noun -- "a pump THAT can move fluids".
+        Both are set aside, and the bound on the complement then judges the noun
+        phrase itself. A participle BEFORE the noun ("a reinforced concrete
+        beam") is not followed by a preposition and is left where it is; only a
+        word observed as a verb, in a participle form, followed by a preposition,
+        ends the phrase."""
+        from core.semantics.genericity import _word_classes
+        from core.semantics.lexical_normalization import deinflect_verb
+
+        text = " ".join(str(prop or "").split())
+        classified = self._CLASSIFIER_OF.match(text)
+        if classified:
+            text = f"a {classified.group('rest')}"
+        words = text.split()
+        for index in range(2, len(words) - 1):
+            word = words[index].lower().strip(",")
+            # A RELATIVE CLAUSE after the noun narrows it the same way: "a
+            # rotary positive displacement pump THAT can move fluids" is a pump.
+            if word in ("that", "which", "who"):
+                return " ".join(words[:index]).rstrip(",")
+            if not word.endswith(("ed", "en", "ing")):
+                continue
+            if words[index + 1].lower().strip(",") not in self._NARROWING_NEXT:
+                continue
+            if any("VERB" in _word_classes(base) for base in deinflect_verb(word)):
+                return " ".join(words[:index]).rstrip(",")
+        return text
 
     def _read_copular(self, match, *, negated: bool) -> Dict[str, Any]:
         """Classify a copular sentence BEFORE deciding how to represent it.
@@ -286,9 +794,27 @@ class SentenceReader:
         proposition type is decided first and the representation follows from
         it.
         """
-        subject = match.group("subject")
+        subject = self._possessive_subject(match.group("subject"))
         prop = match.group("prop")
         determiner = match.groupdict().get("det")
+
+        # A COMPLEMENT IS A PHRASE, NOT A REMAINDER. `_FACT` ends in `(.+)$`, so
+        # whatever followed the copula became the property however long and
+        # however structured it was:
+        #   "Cognition is one body — not a bus between independent services."
+        #      -> property `one body — not a bus between independent services`
+        #   "There is no longer any path from the substrate to a generative model."
+        #      -> property `no longer any path from the substrate to a generative model`
+        # Each was stored as a class a thing belongs to. Bounding the complement
+        # is what separates reading a claim from swallowing the rest of the line.
+        # NONE, NOT A NODE WITH kind=None. Callers test `if not node`, and a
+        # dict is truthy -- an empty-kind node travelled on as though it were a
+        # reading.
+        prop = self._complement_head(prop)
+        if not self._is_bounded_complement(prop):
+            return None
+        if not self._names_something(subject):
+            return None
 
         # THE LEXICON DISCRIMINATES THE COPULAR FORM TOO.
         #
@@ -303,6 +829,14 @@ class SentenceReader:
         # where teaching has happened and takes none away where it has not.
         # That is what makes the frames a measurement instead of a formality.
         if _word_class(subject) == "ADJECTIVE":
+            # THE CLASS IS WHAT REFUSED, SO THE CLASS IS WHAT IS ON TRIAL. If
+            # `subject` really is an adjective this refusal is correct and the
+            # entry survives being doubted once; if it was recorded ADJECTIVE in
+            # error -- which bulk teaching did to every `isa` parent it saw --
+            # then a perfectly ordinary sentence just failed because of it, and
+            # that is precisely the evidence REFUTED is defined by.
+            blame(subject, ADJECTIVE,
+                  "read as the subject of a fact though observed ADJECTIVE")
             return {"kind": "unsupported",
                     "reason": "an adjective cannot be the subject of a fact",
                     "genericity": "n/a", "cue": f"{subject} is a known adjective"}
@@ -327,6 +861,9 @@ class SentenceReader:
         if relation:
             other = relation.group("object")
             if _word_class(other) == "ADJECTIVE":
+                blame(other, ADJECTIVE,
+                      "read as the object of a preposition though observed "
+                      "ADJECTIVE")
                 return {"kind": "unsupported",
                         "reason": "a preposition relates two things, and an "
                                   "adjective is not a thing",
@@ -398,7 +935,41 @@ class SentenceReader:
                     "reason": "a conjunct that is not a single property",
                     "genericity": "n/a", "cue": prop}
 
-        if _word_class(prop) == "NOUN":
+        # WHAT THE COMPLEMENT IS *HERE*, NOT WHAT THE WORD USUALLY IS.
+        #
+        # This asked `_word_class(prop) == "NOUN"` — the word's MAJORITY class —
+        # and refused the property reading outright. That is the same SUBTRACTIVE
+        # failure `_word_class`'s own docstring records as the reason the lexicon
+        # file was deleted ("`A filter separates particles.` read correctly while
+        # `separates` was unknown and stopped reading once the file called it a
+        # noun"), arriving again from memory instead of a file.
+        #
+        # Why the majority is the wrong question, measured on the live
+        # vocabulary: `white` is ADJECTIVE 1 / NOUN 12, `red` 2/7, `closed`
+        # 1/NOUN 8/VERB 3 — a dictionary has many noun senses for a colour and
+        # one adjective sense. So the better the substrate learned a word, the
+        # more certainly it concluded NOUN, and `Snow is white.` / `The circuit
+        # is closed.` / `The vault is cold and heavy.` all read BEFORE the
+        # vocabulary was warm and read NOTHING after it. The substrate got worse
+        # at English by learning more of it.
+        #
+        # `complement_class` asks the question this branch actually needs, on the
+        # structure first: a complement opened by a DETERMINER is a noun phrase
+        # and so a kind; a BARE complement is predicative and is a property when
+        # its head has EVER been observed as an adjective. Evidence permits, it
+        # does not win a vote. A bare word never observed as an adjective but
+        # observed as a noun is still refused — the original intent, kept.
+        from core.semantics.relation_types import complement_class as _complement
+        from core.semantics.genericity import NOUN as _NOUN, _word_classes
+        if _complement(prop, _word_classes) is None and _word_class(prop) == _NOUN:
+            # THE CLASS IS WHAT REFUSED, SO THE CLASS IS WHAT IS ON TRIAL — the
+            # same rule the sibling branches above already follow, and the one
+            # thing this branch never did. Without it the refusal was SILENT:
+            # `depending()` came back with `blamed=[]`, nothing argued the class
+            # down, and a word wrongly filed as a noun blocked every ordinary
+            # sentence about it forever.
+            blame(prop, _NOUN,
+                  "read as a property though observed only as a NOUN")
             return {"kind": "unsupported",
                     "reason": "a noun cannot be a property",
                     "genericity": "n/a", "cue": f"{prop} is a known noun"}
@@ -592,18 +1163,46 @@ class SentenceReader:
         in turn."""
         out: List[Dict[str, Any]] = []
         seen = set()
+        # A SPACE BEFORE PUNCTUATION MEANS NOTHING IN ENGLISH, and extracted text
+        # is full of it: a fetched page arrives as "A peristaltic pump , also
+        # known as a roller pump , is ...", and every comma-set structure below
+        # (appositives, relatives) looks for the comma against its word.
+        text = re.sub(r"[ \t]+([,.;:!?])", r"\1", str(text))
         # A newline ends a unit too: extracted text arrives one paragraph/heading
         # per line, and a heading or list item often carries no full stop.
         for sentence in re.split(r"(?<=[.!?])\s+|\n+", str(text).strip()):
-            for clause in self._decompose(sentence):
-                node = self._parse_statement(clause)
-                if not node:
+            for segment in self._split_clauses(sentence):
+              for clause in self._decompose(segment):
+                # AN EMBEDDED RELATIVE WITH NO COMMA. "the pump that failed was
+                # replaced" is two claims about the pump, and neither is
+                # reachable while the sentence is read whole.
+                embedded = self._EMBEDDED_RELATIVE.match(clause)
+                candidates = [clause]
+                if embedded:
+                    candidates = self._relative_clauses(
+                        embedded.group("head").strip(),
+                        embedded.group("inner").strip())
+                # A SHARED PREDICATE is said of each coordinated subject.
+                candidates = [d for c in candidates
+                              for d in self._distribute_subject(c)]
+                for split in (self._appositive_clauses,
+                              self._complement_relative_clauses,
+                              self._ditransitive_clauses,
+                              self._distribute_tail_coordination):
+                    candidates = [d for c in candidates for d in split(c)]
+                for candidate in candidates:
+                  node = self._parse_statement(candidate)
+                  if not node:
+                    # ONE ADVERB SHOULD NOT COST A CLAIM. Tried only after the
+                    # sentence as written has been refused, so nothing that
+                    # already read can change its reading.
+                    stripped = self._drop_preverbal_adverb(candidate)
+                    node = (self._parse_statement(stripped)
+                            if stripped != candidate else None)
+                  if not node:
                     continue
-                for cp in self._expand_conjuncts(node):
-                    # A CLASSIFICATION names a KIND, not a paragraph. "an abelian
-                    # group with four elements, in which each element ..." is the
-                    # class `abelian group` plus elaboration; the post-modifier is
-                    # dropped so the edge is a chainable class, not a clause.
+                  for cp in self._expand_conjuncts(node):
+                    # A CLASSIFICATION names a KIND, not a paragraph.
                     if str(cp.get("relation", "")).lower() in ("is", "are") and cp.get("obj"):
                         cp["obj"] = self._head_np(cp["obj"])
                     key = (str(cp.get("subject") or "").lower(), str(cp.get("relation", "")).lower(),
@@ -648,6 +1247,92 @@ class SentenceReader:
             return None
         words = m.group(1).split()
         return words[-1] if words else None
+
+    #: Words that JOIN two claims. Splitting on one yields both sides as
+    #: clauses; the relation BETWEEN them ("because", "although") is not
+    #: represented, and that is stated rather than hidden -- two claims read is
+    #: strictly more than one sentence refused, and the causal link was never
+    #: representable either way.
+    _SUBORDINATORS = re.compile(
+        r"(?i)(?:^|\s)(?:because|although|though|whereas|while|unless|since|"
+        r"whenever|wherever|when|if)\s+")
+    #: A parenthetical is an aside, not part of the claim carrying it.
+    _PARENTHETICAL = re.compile(r"\s*\([^)]*\)")
+    #: A breath break. What follows elaborates; each side is read on its own.
+    _BREATH = re.compile(r"\s*[—–:;]\s*")
+    #: `HEAD <relative> REST` with no comma: "the pump that failed was replaced".
+    _EMBEDDED_RELATIVE = re.compile(
+        r"(?i)^(?P<head>(?:the |a |an )?[\w'-]+(?:\s+[\w'-]+){0,2})\s+"
+        r"(?P<rel>which|who|that|whose)\s+(?P<inner>.+)$")
+
+    def _split_clauses(self, sentence: str) -> List[str]:
+        """One sentence into the CLAUSES it carries, before any of them is read.
+
+        THIS IS WHERE LENGTH IS WON OR LOST. A twenty-five word sentence is not
+        one claim and cannot be read as one; refusing it loses the two or three
+        perfectly ordinary claims inside it. Measured before this existed: 0 of
+        86 sentences of 19 words or more produced any reading at all, because
+        every one of them carried a coordinator, a relative pronoun or a
+        subordinate clause and the single-clause reader correctly refused the
+        lot.
+
+        Segmentation is a SEPARATE question from reading, and keeping them apart
+        is what lets the reader stay strict: this decides where one claim ends,
+        and the reader then judges each piece on its own merits, refusing the
+        pieces that are still not claims.
+        """
+        text = self._PARENTHETICAL.sub(" ", str(sentence).strip().rstrip(".!?"))
+        pieces = [p.strip() for p in self._BREATH.split(text) if p.strip()]
+
+        out: List[str] = []
+        for piece in pieces:
+            # A subordinator joins two claims; both sides are kept.
+            parts = [p.strip(" ,") for p in self._SUBORDINATORS.split(piece)]
+            for part in (p for p in parts if p):
+                out.extend(self._split_coordinated_clauses(part))
+        return out or [text]
+
+    #: Where a relative clause ENDS and the main predicate resumes. "the valve
+    #: which LEAKED *is* closed" -- the main clause picks up at the copula or
+    #: auxiliary that follows the relative's own verb.
+    _MAIN_RESUMES = re.compile(
+        r"(?i)^(?P<inner>.+?)\s+(?P<main>(?:is|are|am|was|were|has|have|had)\b.*)$")
+
+    def _relative_clauses(self, head: str, inner: str) -> List[str]:
+        """`the valve` + `leaked is closed` -> two claims about the valve.
+
+        BOTH, NOT ONE GLUED TOGETHER. Offering `the valve leaked is closed` as a
+        single candidate let it read as one atom `valve_leaked_closed`, which
+        states neither of the two things the sentence says. A relative clause
+        makes a claim about the head and the main clause makes another; the
+        whole point of pulling it apart is that each is separately true.
+        """
+        split = self._MAIN_RESUMES.match(inner)
+        if not split:
+            # No main predicate after the relative: the sentence is the relative
+            # clause itself ("the pump that failed"), which states one claim.
+            return [f"{head} {inner}"]
+        return [f"{head} {split.group('inner').strip()}",
+                f"{head} {split.group('main').strip()}"]
+
+    def _split_coordinated_clauses(self, piece: str) -> List[str]:
+        """`X is A and Y is B` -> two clauses; `X is A and B` is left alone.
+
+        A coordinator joins two CLAUSES only when each side can stand as one.
+        The complement case ("a whale is a mammal and a vertebrate") is the
+        existing `_decompose` path and is left to it, so this never splits a
+        conjunction that shares its subject.
+        """
+        for joiner in (" and ", " or ", " but "):
+            head, sep, tail = piece.partition(joiner)
+            if not sep:
+                continue
+            if self._COPULA_RE.search(head) and self._COPULA_RE.search(tail):
+                return (self._split_coordinated_clauses(head.strip())
+                        + self._split_coordinated_clauses(tail.strip()))
+        return [piece.strip()]
+
+    _COPULA_RE = re.compile(r"(?i)(?:^|\s)(?:is|are|am|was|were)(?:\s|$)")
 
     def _decompose(self, sentence: str) -> List[str]:
         """Split one sentence into simple clauses that share the subject.

@@ -90,8 +90,8 @@ async def main():
     from core.agents.autonomous.autonomous_coordinator import AutonomousCoordinator
     from core.agents.autonomous.appraisal import get_appraisal_system
     from core.agents.autonomous.shared_types import Priority
-    from core.execution.filesystem_domain import ensure_filesystem_domain, _encode
     from core.execution.operator_binding import get_binding_registry
+    from core.execution.tool_domain import sensed_fact
     from core.learning.rule_induction import Fact
     from core.reasoning.intent_authority import get_intent_authority
     from core.reasoning.temporal_reasoning import PlanningStatus
@@ -105,16 +105,31 @@ async def main():
     (root / "inbox").mkdir()
     (root / "archive").mkdir()
     (root / "inbox" / "report.txt").write_text("the file the intent is about\n")
-    DOMAIN = "fs_g2_real1"
+    # THE PRECONDITION IS DECLARED, NOT ASSUMED. This plans over a MOVE_FILE
+    # operator the substrate LEARNED from its own acts. That was ambient state:
+    # when the store was wiped, this failed with a signature that reads like
+    # broken code rather than a missing prerequisite. `ensure_taught` teaches it
+    # from real executions if it is not there, and costs a store read if it is.
+    from experiments.fs_move_teach import DOMAIN, ensure_taught
+    if not await ensure_taught():
+        print("  [precondition] FAILED: no executable MOVE_FILE operator in "
+              f"{DOMAIN}; nothing below can plan", flush=True)
+        return 1
 
     coord = AutonomousCoordinator()
     check("execution faculty up", await coord.initialize_execution_faculty())
     await coord.planning.initialize()
-    ensure_filesystem_domain(DOMAIN, str(root))
-    reach_goal = Fact("FILE_IN", (_encode("report.txt"), _encode("archive"))).to_formula()
+    def archived(name):
+        # "Archive it", in perception's words: it is a file in archive, and is
+        # no longer one in the inbox.
+        return [sensed_fact("kind", "path", str(root / "archive" / name), "file").to_formula(),
+                "¬" + sensed_fact("kind", "path", str(root / "inbox" / name), "file").to_formula()]
+
+    reach_goal = archived("report.txt")
 
     before = await intents_with_outcomes(IA)
-    result = await drive(coord, root, DOMAIN, [reach_goal], "archive the report")
+    # The task names its workspace; taking it up is the substrate's own doing.
+    result = await drive(coord, root, DOMAIN, reach_goal, "archive the report")
     check("the substrate drove the goal and reached it",
           bool(result) and result.get("success") and result.get("goal_reached"),
           f"success={result.get('success') if result else None}")
@@ -129,7 +144,7 @@ async def main():
           hit["status"] == "fulfilled" and hit["outcome"].get("matched_aim") is True,
           f"status={hit['status']} matched_aim={hit['outcome'].get('matched_aim')}")
     check("what it counts as met came from the RE-OBSERVED world",
-          hit["outcome"].get("goal_conditions_met") == [reach_goal],
+          hit["outcome"].get("goal_conditions_met") == sorted(reach_goal),
           str(hit["outcome"].get("goal_conditions_met")))
     check("the file really moved on disk",
           (root / "archive" / "report.txt").exists()
@@ -162,9 +177,9 @@ async def main():
     # verdict must come from the WORLD, which is the property under test.
     second = root / "inbox" / "second.txt"
     second.write_text("this one is never acted on\n")
-    miss_goal = Fact("FILE_IN", (_encode("second.txt"), _encode("archive"))).to_formula()
+    miss_goal = archived("second.txt")
     goal2 = await coord.planning.create_goal(
-        "archive the second file", Priority.MEDIUM, state_conditions=[miss_goal])
+        "archive the second file", Priority.MEDIUM, state_conditions=miss_goal)
     world2 = get_binding_registry().observe_world(DOMAIN) or set()
     out2 = await coord.planning.plan_for_goal(
         goal2.id, {"world_state": [str(f) for f in world2], "domain_id": DOMAIN})
@@ -175,14 +190,14 @@ async def main():
 
     # The plan is NOT run, so the world still does not satisfy the goal.
     reconciled2 = await coord._reconcile_plan_intent(
-        out2.plan, DOMAIN, goal_conditions=[miss_goal],
+        out2.plan, DOMAIN, goal_conditions=miss_goal,
         detail="the route was proved but not carried out")
     check("reconciliation reads the WORLD, and says missed",
           bool(reconciled2) and reconciled2["matched_aim"] is False
           and reconciled2["outcome_class"] == "missed",
           f"matched_aim={reconciled2['matched_aim'] if reconciled2 else None}")
     check("the miss records what it MEANT beside what actually held",
-          reconciled2["goal_conditions"] == [miss_goal]
+          reconciled2["goal_conditions"] == miss_goal
           and reconciled2["goal_conditions_met"] == [],
           f"meant={reconciled2['goal_conditions']} met={reconciled2['goal_conditions_met']}")
     stored_miss = await IA.get_by_id(miss_intent_id)

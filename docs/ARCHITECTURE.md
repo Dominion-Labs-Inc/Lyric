@@ -22,9 +22,11 @@ revises a belief, an action produces an experience, an experience induces an ope
 competence gap raises the motivation to explore.
 
 > **Language models.** TorinAI's cognition uses no language model. Reasoning, learning,
-> planning, action, and verification consult none. The only component that can consult a
-> model at all is a single teaching module (`core/learning/teacher_policy.py`), essentially
-> unused — remove it and the substrate is unchanged.
+> planning, action, and verification consult none. The last component that could consult one
+> — the teaching module `core/learning/teacher_policy.py` — has been deleted, along with
+> `unified_llm` and `llm_teacher`. There is no longer any path from the substrate to a
+> generative model. One local sentence encoder remains, for vector similarity only; it
+> produces vectors, never text, and decides nothing.
 
 ---
 
@@ -36,7 +38,7 @@ system is *one coherent entity with one state*, not a service mesh.
 ```mermaid
 flowchart TB
     subgraph BODY["AutonomousCoordinator — the body / self (holds every authority)"]
-      COORD["self-state: affect · disposition · appraisal · identity<br/>execution · event spine (on/emit/drain) · 13 idle tiers"]
+      COORD["self-state: affect · disposition · appraisal · identity<br/>execution · event spine (on/emit/drain) · constitution · bearing · drift · idle tiers"]
     end
 
     subgraph Module ["Authorities — one owner per subsystem"]
@@ -48,8 +50,8 @@ flowchart TB
       BELIEF["**Beliefs — circulation hub**<br/>BayesianUncertaintySystem<br/>get_uncertainty_system()"]
     end
 
-    subgraph SEC["Internal safety — the substrate's own"]
-      SAFETY["SafetyFramework<br/>input validation + ASI assessment<br/>→ RuntimeGovernance"]
+    subgraph SEC["Governance — the substrate's own law"]
+      SAFETY["Constitution (in the coordinator)<br/>five laws · four verdicts · input screen<br/>the single gate on execute_tool"]
     end
 
     COORD --> LEARN & REASON & MEM & DOM & SAFETY
@@ -76,7 +78,7 @@ flowchart TB
 | Beliefs | `BayesianUncertaintySystem` — `get_uncertainty_system()` | `core/reasoning/bayesian_uncertainty.py` | [beliefs.md](architecture/beliefs.md) |
 | Domain | `UniversalDomainMaster` — `get_universal_domain_master()` | `core/integration/universal_domain_master.py` | [domain.md](architecture/domain.md) |
 | Semantics-write | `CognitiveIngress` — `get_cognitive_ingress()` | `core/semantics/cognitive_ingress.py` | [semantics-ingress.md](architecture/semantics-ingress.md) |
-| Internal safety | `SafetyFramework` — `get_safety_framework()` | `core/security/safety_framework.py` | [security.md](architecture/security.md) |
+| Governance (the act gate) | `Constitution` — `get_constitution()` / `judge_act()` | `core/agents/autonomous/autonomous_coordinator.py` | [security.md](architecture/security.md) |
 | Body / control plane | `AutonomousCoordinator` — `get_autonomous_coordinator()` | `core/agents/autonomous/autonomous_coordinator.py` | [coordinator.md](architecture/coordinator.md) |
 
 ### The belief circulation (feeders → hub → consumers)
@@ -160,9 +162,46 @@ Each links to its exhaustive method reference.
 - **Semantics-write** — [`architecture/semantics-ingress.md`](architecture/semantics-ingress.md).
   `CognitiveIngress`: the one door knowledge comes through (admit → concepts + aliases +
   evidence + memory), with the `MIN_ADMIT_QUALITY` floor.
-- **Perception** — the one sensory pipeline. `coord.see(path)` *senses* (classical CV, no
-  model) and routes the structure through `PerceptionManager.process_input`, the **sole
-  admitter** — every modality (vision, sensors) admitted once, through one owner.
+- **Perception** — the one sensory pipeline. `coord.see(path)` and `coord.hear(path)` *sense*
+  (classical CV and classical signal processing, no model) through ONE faculty
+  (`PerceptionFaculty`, readers `vision` and `hearing`) and route the structure through
+  `PerceptionManager.process_input`, the **sole admitter** — every modality (vision, hearing,
+  sensors) admitted once, through one owner. Hearing states each sound as a perceived
+  individual on sight's own contract (`isa` pitched/unpitched, register, onset; level, start
+  and length as facts about the recording; `before`/`louder_than`/`higher_than` between
+  neighbours), so the naming reflex, induction and `describe_kind` serve it unchanged, and it
+  recognises known sounds by spectral-landmark agreement. REMEMBERING IS REBUILDING: a hearing
+  is kept as a trace (each sound's envelope, pitch, periodicity, loudness, rise; a few percent
+  of the recording, which is not kept) and a seeing as a gist (the scene small, the most
+  prominent things in detail); `coord.recollect(memory_id)` rebuilds them, and the rebuilt
+  sound or picture is perceived as the same (RECALL-01). SPEECH IS HEARD AS FAR AS IT WAS
+  TAUGHT (`core.perception.speech`): words and voices are taught by HEARING an example, told
+  what it is (`coord.learn_word`, `coord.learn_voice`) -- the lesson is a hearing like any
+  other, remembered as one, its trace keeping the example measured for matching;
+  a recording is divided into words in one pass (connected-word dynamic time warping, pauses
+  where hearing hears no sound), each span named only when one taught word clearly wins
+  (`said`, `heard_text`), each sound judged a voice by how near the taught voices it lies
+  (`isa voice`), and whose voice named only when one clearly wins on a second of voiced
+  speech (`spoken_by`) (SPEECH-01). MUSIC IS HEARD IN EVERY RECORDING (`core.perception.music`,
+  no model): the key by the fit of its pitch-class profile to the Krumhansl-Kessler key profiles
+  (`in_key`, claimed only when the fit is close), the tempo by the periodicity of its onsets
+  (Ellis; `has_tempo`, with the half- or double-speed rival kept), and the notes of a melody
+  where a single line holds its pitches at a singer's pace (`melody`, kept in the percept and
+  its memory, told in words); each claim's support is set from how often such a reading
+  matched people's annotations (GTZAN, GiantSteps, vocadito), and speech is heard as no music.
+  A SONG is taught as a word is, by hearing it, told its title (`coord.learn_song`); its trace
+  keeps the song's landmarks, and a recording playing it is known by the share of landmarks
+  that agree (`plays`), through a room and a codec (SONGS-01). EACH SENSE MEASURES IN A PROCESS OF ITS OWN
+  (`core.perception.senses`): sight and hearing are programs the faculty talks to over pipes,
+  so the substrate hears, sees and reasons at the same time; a sense process found dead is
+  started again and the perception given to it once (SENSES-TOGETHER-01). THE LIVE SENSES
+  (`core.perception.live`) listen to a microphone and look at a camera for as long as the
+  substrate runs (`core/main.py`'s `run`, never a bare `start`); the ear cuts the stream into
+  utterances by hearing's own sounds and keeps one only when the substrate's taught NAME is in
+  it, or taught words are firmly heard in it within attention of one that was -- everything
+  else is dropped inside the ear's process. A kept utterance is heard through `hear`, the scene
+  looked at through `see`, and a complete hearing goes to the front door
+  (`handle_user_request`), the same conversation typed words go to (LIVE-01).
   `coord.perceive(classifier, instance, id)` recognizes and lets the recognition's
   posterior govern behaviour through the **same acceptance band as completion**, emitting
   `PERCEPT_RECOGNIZED` → `_react_percept` (ACT stands; VERIFY → known-unknown; ABSTAIN
@@ -171,8 +210,10 @@ Each links to its exhaustive method reference.
   felt. A percept also **feeds the emotional state** — not by a perception-specific hook,
   but because a percept moves beliefs, and belief movement is read by the epistemic
   channel (below) like movement from any other source.
-- **Security** — [`architecture/security.md`](architecture/security.md). The substrate's internal
-  safety (`SafetyFramework`); world/DHCM security lives in the world's factory, outside TorinAI.
+- **Governance** — [`architecture/security.md`](architecture/security.md). The substrate's own law,
+  held by the `Constitution` inside the coordinator and applied at the single gate every tool call
+  passes (`tool_registry.execute_tool`); self-defense is the Constitution and `ThreatSense`
+  together. World/DHCM security lives in the world's factory, outside TorinAI.
 - **The body / coordinator** — [`architecture/coordinator.md`](architecture/coordinator.md).
   Holds every authority; execution faculty (`execute_task`), the self (`state`/`render`/
   `disposition`), grounded completion (`_derive_completion_anchor`→`_decide_completion`, DID+SAW),

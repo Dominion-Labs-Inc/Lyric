@@ -145,6 +145,16 @@ def _percept_suffix(mem: Dict[str, Any]) -> str:
     return f" (seen: {pid}" + (f" #{str(digest)[:12]})" if digest else ")")
 
 
+def _heard_suffix(mem: Dict[str, Any]) -> str:
+    """" (heard before: the same sound, <share> of it agreed)" when the memory
+    was recalled BY THE SOUND, else "". A memory found by the sound is not a
+    memory about a topic; it is this very sound, met before, and says so."""
+    match = mem.get('heard_match')
+    if not match:
+        return ""
+    return f" (heard before: the same sound, {float(match.get('share') or 0):.0%} of it agreed)"
+
+
 class MemoryInjector:
     """
     Memory Injector for LLM Prompts
@@ -182,6 +192,8 @@ class MemoryInjector:
         query: str,
         config: InjectionConfig = None,
         plan: Optional[Any] = None,
+        actor: Optional[str] = None,
+        heard: Optional[Any] = None,
     ) -> InjectedMemories:
         """
         Inject memories into prompt
@@ -189,6 +201,12 @@ class MemoryInjector:
         Args:
             query: Current query/context
             config: Injection configuration
+            actor: Whose cognition this serves -- only memories visible to
+                them are injected (`shared_types.visible_to`)
+            heard: A sound being heard (its landmarks): the memories of the
+                same sound, recalled by the sound itself, are injected first,
+                and whatever the policy decides about the words -- a sound
+                met again is about this, by what it is
 
         Returns:
             InjectedMemories with formatted text
@@ -244,7 +262,7 @@ class MemoryInjector:
                 )
                 _warranted, _why = False, "policy_unreachable"
 
-        if not _warranted:
+        if not _warranted and heard is None:
             logger.debug(f"Query does not warrant memory search — skipping ({_why})")
             return InjectedMemories(
                 formatted_text="",
@@ -260,10 +278,12 @@ class MemoryInjector:
             # Retrieve relevant memories
             retrieval_start = datetime.now()
             memories = await self._retrieve_memories(
-                query,
+                query if _warranted else None,
                 max_results=config.max_memories,
                 min_score=config.min_relevance_score,
-                min_importance=config.min_importance_score
+                min_importance=config.min_importance_score,
+                actor=actor,
+                heard=heard,
             )
             retrieval_time = (datetime.now() - retrieval_start).total_seconds()
 
@@ -325,12 +345,15 @@ class MemoryInjector:
         query: str,
         max_results: int,
         min_score: float,
-        min_importance: float = 0.5
+        min_importance: float = 0.5,
+        actor: Optional[str] = None,
+        heard: Optional[Any] = None,
     ) -> List[Dict[str, Any]]:
         """Retrieve relevant memories, filtering by both similarity and importance.
         
         Like human memory, we don't recall trivial/routine memories even if
-        they're semantically similar to the current context.
+        they're semantically similar to the current context. With `heard`, the
+        memories of that same sound come first, recalled by the sound itself.
         """
         try:
             # Import memory agent
@@ -345,17 +368,24 @@ class MemoryInjector:
             # near-identical to one another, and answer nothing about a topic;
             # in a similarity search they only take the places that would have
             # gone to something the system actually knows.
-            success, results = await memory_agent.search_memories(
-                query=query,
-                limit=max_results,
-                min_similarity=min_score,
-                include_events=False,
-                require_named_match=True
-            )
-
-            if not success:
-                logger.warning("Memory search failed")
-                return []
+            results = []
+            if heard is not None:
+                results = list(await memory_agent.retrieve(
+                    strategies=["sound"], heard=heard, actor=actor, limit=max_results))
+            if query:
+                success, found = await memory_agent.search_memories(
+                    query=query,
+                    limit=max_results,
+                    min_similarity=min_score,
+                    include_events=False,
+                    require_named_match=True,
+                    actor=actor,
+                )
+                if not success:
+                    logger.warning("Memory search failed")
+                    found = []
+                held = {r.memory_id for r in results}
+                results += [r for r in found if r.memory_id not in held]
 
             # Convert to dict format, filtering by importance
             # Like human memory: we don't recall trivial/routine memories
@@ -427,6 +457,8 @@ class MemoryInjector:
                     # gets the reference, not just the recollection.
                     'percept_id': getattr(result, 'percept_id', None),
                     'percept_digest': getattr(result, 'percept_digest', None),
+                    # RECALLED BY THE SOUND: how much of what is heard agreed.
+                    'heard_match': getattr(result, 'heard_match', None),
                 })
 
             if len(results) > len(memories):
@@ -439,11 +471,16 @@ class MemoryInjector:
             # Memories enqueued via enqueue_memory() haven't landed in postgres
             # yet but are immediately visible here so the model sees recent context.
             pending = getattr(memory_agent, '_pending_memories', {})
-            if pending:
+            if pending and query:
+                from core.agents.autonomous.shared_types import visible_to
                 query_words = set(query.lower().split())
                 pending_added = 0
                 for pid, entry in list(pending.items()):
                     if entry.get('importance_score', 0) < min_importance:
+                        continue
+                    # Not yet in the store, so the store's actor rule has not
+                    # been applied to it: apply the same rule here.
+                    if not visible_to((entry.get('kwargs') or {}).get('user_id'), actor):
                         continue
                     # Simple keyword overlap as a fast relevance proxy
                     content_words = set(entry['content'].lower().split())
@@ -503,7 +540,7 @@ class MemoryInjector:
 
         for mem in memories:
             lines.append(f"• {mem['content']}" + _pursuit_suffix(mem)
-                         + _percept_suffix(mem))
+                         + _percept_suffix(mem) + _heard_suffix(mem))
 
         return "\n".join(lines)
 
@@ -520,7 +557,7 @@ class MemoryInjector:
             # from dominating the context window
             if len(content) > 300:
                 content = content[:300] + "..."
-            lines.append(f"• {content}")
+            lines.append(f"• {content}" + _heard_suffix(mem))
 
         return "\n".join(lines)
 

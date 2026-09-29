@@ -1,0 +1,39 @@
+{
+  "experiment": "NLU-01 \u2014 What share of REAL prose does the substrate read?",
+  "writes_to_store": false,
+  "notes": [
+    "corpus: 300 human-written sentences from the repo's docs (median 13 words)",
+    "READ 26 (8.7%) \u00b7 DECLINED 274 (91.3%) \u00b7 RAISED 0",
+    "which reader answered: extractor=23, derived:subject_relation_object_polarity=3",
+    "read  \u201cThe canonical architecture document.\u201d -> canonical_architecture_document [derived:subject_relation_object_polarity]",
+    "read  \u201cCognition is one body \u2014 not a bus between independent services.\u201d -> cognition_one_body__not_a_bus_between_independent_service [extractor]",
+    "read  \u201cThere is no longer any path from the substrate to a generative model.\u201d -> there_no_longer_any_path_from_the_substrate_to_a_generative_model [extractor]",
+    "read  \u201cPerception classifiers are owned here.\u201d -> perception_classifiers_owned_here [extractor]"
+  ],
+  "data": {
+    "sentences": 300,
+    "read": 26,
+    "declined": 274,
+    "raised": 0,
+    "yield_pct": 8.67,
+    "by_reader": {
+      "derived:subject_relation_object_polarity": 3,
+      "extractor": 23
+    }
+  },
+  "checks": [
+    {
+      "name": "no sentence made the reader raise",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "every reading names at least one atom",
+      "passed": true,
+      "detail": ""
+    }
+  ],
+  "passed": 2,
+  "total": 2,
+  "seconds": 2.22
+}

@@ -1,5 +1,7 @@
 # GOVERNANCE-MONITOR-01 — runtime governance as a live monitor
 
+> **RETIRED 2026-09-26.** `RuntimeGovernance.monitor()` was deleted in the governance consolidation: it scored completed tasks' descriptions with keyword laws, which the constitution's pre-act judgement replaces. This experiment tested the deleted module and can no longer run.
+
 **What it tests.** `RuntimeGovernance.monitor()` watches actions from the live stream and checks them
 against the five laws, instead of gating them beforehand.
 - A compliant action is allowed and leaves no snapshot.

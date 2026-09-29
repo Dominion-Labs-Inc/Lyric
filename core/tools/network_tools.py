@@ -1001,9 +1001,10 @@ class WebSearchTool(Tool):
             if results is None:
                 return ToolResult(success=False, output=None, error="Search returned no results")
 
-            # CLEAN CONTENT for the top hit. A DuckDuckGo snippet drops the spaces
-            # around highlighted terms ("the Klein four-group is anabelian group")
-            # and prepends a date, so a reader cannot parse it. The article's own
+            # CLEAN CONTENT for the top hit. A snippet is an excerpt led by a date
+            # and cut off mid-sentence (and until ddgs 9.16 it dropped the spaces
+            # around highlighted terms: "the Klein four-group is anabelian group"),
+            # so a reader cannot rely on it. The article's own
             # text, fetched and tag-stripped, is clean and canonical -- so the top
             # result also carries `content`, the WHOLE readable page, which is what
             # a caller should read rather than the snippet. The substrate is not a

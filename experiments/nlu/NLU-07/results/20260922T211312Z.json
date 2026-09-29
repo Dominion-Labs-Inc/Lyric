@@ -1,0 +1,61 @@
+{
+  "experiment": "NLU-07 \u2014 Read -> said -> read: does meaning survive a round trip?",
+  "writes_to_store": false,
+  "notes": [
+    "`_triple_sentence` is the ONE place a held fact becomes words, so this measures understanding against expression: what the substrate SAYS of a claim must read back as the same claim",
+    "cannot judge the article in \u201ca robin is a bird\u201d \u2014 the store holds no word class for the complement",
+    "cannot judge the article in \u201ca vault is a locked\u201d \u2014 the store holds no word class for the complement",
+    "cannot judge the article in \u201ca dog is an animal\u201d \u2014 the store holds no word class for the complement",
+    "cannot judge the article in \u201ca robin is not a mammal\u201d \u2014 the store holds no word class for the complement",
+    "said back: 'A robin is a bird.' -> \u201ca robin is a bird\u201d",
+    "said back: 'The vault is locked.' -> \u201ca vault is a locked\u201d",
+    "said back: 'A dog is an animal.' -> \u201ca dog is an animal\u201d",
+    "said back: 'A robin is not a mammal.' -> \u201ca robin is not a mammal\u201d"
+  ],
+  "data": {},
+  "checks": [
+    {
+      "name": "round trip: 'A robin is a bird.'",
+      "passed": true,
+      "detail": "said \u201ca robin is a bird\u201d -> ('robin_bird',) [derived:subject_relation_object_polarity], wanted ('robin_bird',)"
+    },
+    {
+      "name": "round trip: 'The vault is locked.'",
+      "passed": true,
+      "detail": "said \u201ca vault is a locked\u201d -> ('vault_locked',) [derived:subject_relation_object_polarity], wanted ('vault_locked',)"
+    },
+    {
+      "name": "can say back: 'The control rod is heavy.'",
+      "passed": false,
+      "detail": "the chain read it as ('control_rod_heavy',) but no clause parts exist to render, so it cannot state what it understood"
+    },
+    {
+      "name": "round trip: 'A dog is an animal.'",
+      "passed": true,
+      "detail": "said \u201ca dog is an animal\u201d -> ('dog_animal',) [derived:subject_relation_object_polarity], wanted ('dog_animal',)"
+    },
+    {
+      "name": "can say back: 'The engine is not cold.'",
+      "passed": false,
+      "detail": "the chain read it as ('~engine_cold',) but no clause parts exist to render, so it cannot state what it understood"
+    },
+    {
+      "name": "round trip: 'A robin is not a mammal.'",
+      "passed": true,
+      "detail": "said \u201ca robin is not a mammal\u201d -> ('~robin_mammal',) [derived:subject_relation_object_polarity], wanted ('~robin_mammal',)"
+    },
+    {
+      "name": "can say back: 'The smoke alarm is red.'",
+      "passed": false,
+      "detail": "the chain read it as ('smoke_alarm_red',) but no clause parts exist to render, so it cannot state what it understood"
+    },
+    {
+      "name": "can say back: 'The reactor is stable.'",
+      "passed": false,
+      "detail": "the chain read it as ('reactor_stable',) but no clause parts exist to render, so it cannot state what it understood"
+    }
+  ],
+  "passed": 4,
+  "total": 8,
+  "seconds": 0.05
+}

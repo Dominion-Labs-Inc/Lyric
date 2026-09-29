@@ -1,0 +1,72 @@
+torinai_dev: 340 tables, 25635 rows before, 0 after
+torinai_dev_staging_runtime: 150 tables, 0 rows before, 0 after
+torinai_dev_staging_user_context: 12 tables, 0 rows before, 0 after
+torinai_dev_staging_learning: 7 tables, 0 rows before, 0 after
+torinai_dev_production_runtime: 151 tables, 0 rows before, 0 after
+torinai_dev_production_user_context: 12 tables, 0 rows before, 0 after
+torinai_dev_production_learning: 7 tables, 0 rows before, 0 after
+== A. The release ==
+    taught in development: patterns {'learned': 9, 'linked': 0, 'already': 0, 'understood': 0, 'refused': 0, 'total': 9, 'repair_holophrase': 9}, facts {'admitted': 5, 'already': 0, 'refused': 0, 'total': 5}
+    cut release 1: 10958 rows; staged: {'torinai_dev_staging_runtime': 'exists', 'torinai_dev_staging_user_context': 'exists', 'torinai_dev_staging_learning': 'exists'}
+  [PASS] release 1 is cut from development and staged — staging
+  [PASS] it is read-only and intact — []
+  [PASS] it holds no person's memory and no person's context table — 0 people's memories, 0 context tables
+
+== B. Staging ==
+  [PASS] this process is staging serving release 1 — staging, release 1
+  [PASS] it checked its release before serving — torinai_dev_model_v1
+  [PASS] it holds one pool per store, each for its own database — ['torinai_dev_model_v1', 'torinai_dev_staging_learning', 'torinai_dev_staging_runtime', 'torinai_dev_staging_user_context']
+  [PASS] each pool reaches the database it is for
+  [PASS] the tools that reach its own databases are not carried — 344 tools; reaching its databases: []
+
+== C. Boot ==
+  [PASS] the substrate is running
+  [PASS] no statement was refused, reached a database without its table, or tried to change the release during boot — logged 0: []; raised 0: []; frozen []
+
+== D. The model is the release ==
+  [PASS] the lesson's patterns are memories in the release — 9
+  [PASS] its facts about the world are in the release — 2 robin facts
+  [PASS] its beliefs and ledger entries are in the release — 10 english beliefs, 9 pattern updates
+  [PASS] nothing of the lesson is in user context or the learning store — {'user_context': {}, 'learning': {}}
+
+== E. Two people, and the substrate itself ==
+    user:alice:separation01 told it: a quibnar is a gadget -> admitted=True
+    user:bob:separation01 told it: a vorplex is a gadget -> admitted=True
+    stored for user:alice:separation01: True mem_5fb0b0af634c4683a3aa063a3e09f94a
+    stored for user:bob:separation01: True mem_94b5cd26b57f47a1a45f57b2e9ac62d6
+    stored for the substrate: True mem_66c645c67f0e4bc6816d2ae489d4eaf3
+  [PASS] each person's fact is in user context — {'user:alice:separation01': 1, 'user:bob:separation01': 1}
+  [PASS] neither person's fact is in the release — []
+  [PASS] each person's memory is in user context, and only there — {'mem_5fb0b0af634c4683a3aa063a3e09f94a': ['user_context'], 'mem_94b5cd26b57f47a1a45f57b2e9ac62d6': ['user_context']}
+  [PASS] the substrate's new memory is in the learning store, not the release — ['learning']
+
+== F. Recall, for each owner ==
+    Alice: 2 memories
+    Bob: 2 memories
+    the substrate: 1 memories
+  [PASS] the release holds the memory development made — {'mem_daf8624ac2944b3ebfdf59ff396ac9e1'}
+  [PASS] Alice finds her memory and the release's, not Bob's
+  [PASS] Bob finds his memory and the release's, not Alice's
+  [PASS] the substrate's own search finds the release's memory, and neither a person's nor what it remembered while serving — {'mem_daf8624ac2944b3ebfdf59ff396ac9e1'}
+
+== G. An answer, for each owner ==
+    is a quibnar a gadget? {'Alice': 'true', 'Bob': 'unknown', 'the substrate': 'unknown'}
+  [PASS] for Alice, her context answers it
+  [PASS] for Bob and for the substrate, it does not
+
+== H. Research ==
+    topics: ['108671 (environment_ed9c1a7ba71c7df3)', '112963 (environment_ed9c1a7ba71c7df3)', '11763 (environment_ed9c1a7ba71c7df3)', '119025 (environment_ed9c1a7ba71c7df3)', '13153 (environment_ed9c1a7ba71c7df3)', 'bird (lesson_01)', 'mammal (lesson_01)', 'robin (lesson_01)']
+  [PASS] research topics come from the release and carry no person's context — 8 topics
+
+== I. Runtime ==
+    rows: {'unified.performance_logs': 7, 'unified.performance_logs_2026_09': 7, 'unified.components': 303, 'unified.component_health': 47, 'unified.long_term_baselines': 17, 'unified.meta_learning_strategies': 18, 'unified.queue_instances': 1}
+  [PASS] runtime holds the substrate's running records — 7 tables
+  [PASS] and no memory at all
+
+== J. Untouched ==
+  [PASS] no statement was refused or reached a database without its table during the whole run — logged 0: []; raised 0: []
+  [PASS] nothing tried to change the frozen release — []
+  [PASS] none of the errors the substrate recorded is a missing table, a refusal or a frozen write — 0 recorded; structural: []
+  [PASS] the release is still exactly what was cut — []
+  [PASS] development received nothing from staging
+  [PASS] the main line is untouched — (9372, []) before, (9372, []) after (rows, releases)

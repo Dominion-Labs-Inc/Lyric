@@ -30,7 +30,7 @@ Module-scope reason codes (155-212): `REASON_SUBSTRATE_VERIFIED/REFUTED/DERIVED_
 - **`async initialize() -> bool`** (1232) — connects memory; takes ownership of belief graph/abstraction/abstract-engine; loads beliefs+schemas; restores telemetry+statistics; registers the periodic persistence flush on the queue authority.
 
 #### Formalization
-- **`_get_deterministic_formalizer() -> IFormalizer`** (2493) — the model-free `FormalizerChain([Passthrough, DeterministicExtractor, DerivedReading])` the router probes with.
+- **`_get_deterministic_formalizer() -> IFormalizer`** (2493) — the model-free `FormalizerChain([Passthrough, DeterministicExtractor, DerivedReading])` the router probes with. `DerivedReadingFormalizer` reads sentences TAUGHT with their meaning (`derived_reader`, since 2026-09-27): a taught ground statement or yes/no question becomes atoms through `clause_atom`, the same vocabulary as held graph facts.
 - **`_build_reasoning_context(request, kinds)`** (3245) — turns a `ReasoningRequest` into an engine `ReasoningContext`: non-implications → premises+facts, implications → rules, query → target_conclusions (never a fact); `confidence_threshold=0.05`.
 - **`async _check_formalizability(answer, request) -> Optional[str]`** (1733) — pressures an answer toward the extractor's grammar; returns a restatement request when unformalizable.
 - *(Formalizer classes are module-level: `PassthroughFormalizer` 323, `DeterministicExtractor` 371, `DerivedReadingFormalizer` 638, `FormalizerChain` 751.)*

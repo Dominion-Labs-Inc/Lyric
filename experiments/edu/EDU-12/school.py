@@ -48,7 +48,7 @@ from attempt import UNKNOWN, Attempt, assert_subject_agnostic, attempt  # noqa: 
 
 from core.agents.autonomous.autonomous_coordinator import (  # noqa: E402
     AutonomousCoordinator)
-from core.learning.learning_authority import get_learning_authority  # noqa: E402
+from core.learning.unified_learning_system import get_learning_authority  # noqa: E402
 from exam_seal import contamination, seal_exams  # noqa: E402
 from exam_validity import validate  # noqa: E402
 from generality import (GeneralityLedger, check_freeze,  # noqa: E402

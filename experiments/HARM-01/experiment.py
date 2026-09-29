@@ -59,7 +59,6 @@ def check(name, ok, detail=""):
 async def main() -> int:
     from core.agents.autonomous.autonomous_coordinator import (
         get_constitution, Verdict, act_capabilities)
-    from core.safety.action_consequence import target_sensitivity
 
     law = get_constitution()
     await law.initialize()
@@ -184,25 +183,29 @@ async def main() -> int:
     # a real intent through the real authority — judging without one gets an
     # honest Law 2 replan and never exercises the ordering rule at all.
     SENSITIVE = "~/.ssh/id_rsa_harm01"         # declared-sensitive (verified
-    # below through governance's own reading), and absent — so Law 2's
+    # below through the constitution's own policy), and absent — so Law 2's
     # read-before-acting check has no existing file to demand, and the ordering
     # rule is what the verdict turns on.
-    check("the probe target is genuinely declared sensitive by governance",
-          target_sensitivity({"file_path": SENSITIVE}) is not None,
-          str(target_sensitivity({"file_path": SENSITIVE})))
+    check("the probe target is genuinely declared sensitive by the constitution's policy",
+          law._declared_sensitivity({"file_path": SENSITIVE}) is not None,
+          str(law._declared_sensitivity({"file_path": SENSITIVE})))
 
     from core.reasoning.intent_authority import (
         get_intent_authority, continuity_goal, SUBSTRATE_ACTOR)
     from uuid import uuid4
-    from core.execution.filesystem_domain import install_filesystem_domain
+    from core.execution.tool_domain import derived_domain_id, encounter
     import tempfile
     from pathlib import Path as _Path
-    DOMAIN = "fs_removal_01"
-    install_filesystem_domain(DOMAIN, _Path(tempfile.mkdtemp(prefix="harm01-")))
+    # The removal is an operator of the domain acts on paths belong to. Meeting
+    # the act binds it there — nothing is run — which is what Law 4 reads to
+    # know which tool the proved operator is.
+    DOMAIN = derived_domain_id(["path"])
+    encounter("delete_file", {"path": str(_Path(tempfile.mkdtemp(prefix="harm01-")) / "probe.txt"),
+                              "confirm": True})
     proved = await get_intent_authority().form(
         "goal", SUBSTRATE_ACTOR, continuity_goal(f"harm01_{uuid4().hex[:8]}"),
-        shape={"proved": True, "operator": "REMOVE_FILE(?f, ?d)",
-               "goal_conditions": ["¬FILE_IN(?f, ?d)"], "rule_ids": [],
+        shape={"proved": True, "operator": "DELETE_FILE(?p)",
+               "goal_conditions": ["¬KIND(?p, Ffile)"], "rule_ids": [],
                "domain": DOMAIN, "steps": 1, "grounding_complete": True},
         content={"aim": "remove a key the world declares sensitive"})
     # THE ORDERING RULE, AS OWNERSHIP DECIDES IT.

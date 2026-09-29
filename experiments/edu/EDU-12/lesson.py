@@ -205,7 +205,7 @@ async def teach(authority, teacher_name: str, lessons: Sequence[Dict[str, Any]],
     to what was said to Torin -- and, more importantly, so it can be shown that
     what was said never counted as evidence.
     """
-    from core.learning.learning_authority import Contribution, ContributionKind
+    from core.learning.unified_learning_system import Contribution, ContributionKind
 
     admitted = []
     for lesson in lessons:

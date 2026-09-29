@@ -1,0 +1,243 @@
+{
+  "experiment": "CHAT-CONCURRENCY-01",
+  "claim": "Chat through the real front door stays up under rising concurrency: every simultaneous user gets an answer, with no errors, while latency degrades.",
+  "hypothesis": "Questions run as coroutines on one event loop, not through the work-job cap, so they all complete and the cost of concurrency shows up as latency rather than as refusals or errors.",
+  "started_at": "2026-09-28T17:16:53.122861+00:00",
+  "duration_seconds": 45.277,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/TorinAI/venv_torin/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/TorinAI",
+    "shadow_mode": null,
+    "git_commit": "20deb447498593391eca0286916b8f986c560a26",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "torinai_dev",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "torinai_dev",
+        "model": "torinai_dev",
+        "user_context": "torinai_dev",
+        "learning": "torinai_dev"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "dotenv:.env.postgres",
+        "database": "environment",
+        "user": "dotenv:.env.postgres",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 1692,
+    "database_verified": "torinai_dev",
+    "database_verified_reason": "asked the server"
+  },
+  "summary": {
+    "checks": 6,
+    "passed": 6,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [
+    {
+      "name": "warm_up_ms",
+      "value": 5559,
+      "unit": "ms",
+      "note": ""
+    },
+    {
+      "name": "users_1_wall_s",
+      "value": 3.94,
+      "unit": "s",
+      "note": ""
+    },
+    {
+      "name": "users_1_q_per_s",
+      "value": 0.25,
+      "unit": "q/s",
+      "note": ""
+    },
+    {
+      "name": "users_1_p50_ms",
+      "value": 3937,
+      "unit": "ms",
+      "note": ""
+    },
+    {
+      "name": "users_1_p95_ms",
+      "value": 3937,
+      "unit": "ms",
+      "note": ""
+    },
+    {
+      "name": "users_4_wall_s",
+      "value": 4.18,
+      "unit": "s",
+      "note": ""
+    },
+    {
+      "name": "users_4_q_per_s",
+      "value": 0.96,
+      "unit": "q/s",
+      "note": ""
+    },
+    {
+      "name": "users_4_p50_ms",
+      "value": 4139,
+      "unit": "ms",
+      "note": ""
+    },
+    {
+      "name": "users_4_p95_ms",
+      "value": 4175,
+      "unit": "ms",
+      "note": ""
+    },
+    {
+      "name": "users_8_wall_s",
+      "value": 4.92,
+      "unit": "s",
+      "note": ""
+    },
+    {
+      "name": "users_8_q_per_s",
+      "value": 1.62,
+      "unit": "q/s",
+      "note": ""
+    },
+    {
+      "name": "users_8_p50_ms",
+      "value": 4882,
+      "unit": "ms",
+      "note": ""
+    },
+    {
+      "name": "users_8_p95_ms",
+      "value": 4923,
+      "unit": "ms",
+      "note": ""
+    },
+    {
+      "name": "users_16_wall_s",
+      "value": 5.1,
+      "unit": "s",
+      "note": ""
+    },
+    {
+      "name": "users_16_q_per_s",
+      "value": 3.14,
+      "unit": "q/s",
+      "note": ""
+    },
+    {
+      "name": "users_16_p50_ms",
+      "value": 5020,
+      "unit": "ms",
+      "note": ""
+    },
+    {
+      "name": "users_16_p95_ms",
+      "value": 5102,
+      "unit": "ms",
+      "note": ""
+    },
+    {
+      "name": "users_32_wall_s",
+      "value": 6.7,
+      "unit": "s",
+      "note": ""
+    },
+    {
+      "name": "users_32_q_per_s",
+      "value": 4.77,
+      "unit": "q/s",
+      "note": ""
+    },
+    {
+      "name": "users_32_p50_ms",
+      "value": 6569,
+      "unit": "ms",
+      "note": ""
+    },
+    {
+      "name": "users_32_p95_ms",
+      "value": 6699,
+      "unit": "ms",
+      "note": ""
+    },
+    {
+      "name": "users_64_wall_s",
+      "value": 8.89,
+      "unit": "s",
+      "note": ""
+    },
+    {
+      "name": "users_64_q_per_s",
+      "value": 7.2,
+      "unit": "q/s",
+      "note": ""
+    },
+    {
+      "name": "users_64_p50_ms",
+      "value": 8409,
+      "unit": "ms",
+      "note": ""
+    },
+    {
+      "name": "users_64_p95_ms",
+      "value": 8877,
+      "unit": "ms",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "1 simultaneous user(s): every one got an answer, with no errors",
+      "passed": true,
+      "detail": "answered 1/1, errors 0",
+      "at": "2026-09-28T17:17:08.608538+00:00"
+    },
+    {
+      "label": "4 simultaneous user(s): every one got an answer, with no errors",
+      "passed": true,
+      "detail": "answered 4/4, errors 0",
+      "at": "2026-09-28T17:17:12.784074+00:00"
+    },
+    {
+      "label": "8 simultaneous user(s): every one got an answer, with no errors",
+      "passed": true,
+      "detail": "answered 8/8, errors 0",
+      "at": "2026-09-28T17:17:17.707286+00:00"
+    },
+    {
+      "label": "16 simultaneous user(s): every one got an answer, with no errors",
+      "passed": true,
+      "detail": "answered 16/16, errors 0",
+      "at": "2026-09-28T17:17:22.809394+00:00"
+    },
+    {
+      "label": "32 simultaneous user(s): every one got an answer, with no errors",
+      "passed": true,
+      "detail": "answered 32/32, errors 0",
+      "at": "2026-09-28T17:17:29.510980+00:00"
+    },
+    {
+      "label": "64 simultaneous user(s): every one got an answer, with no errors",
+      "passed": true,
+      "detail": "answered 64/64, errors 0",
+      "at": "2026-09-28T17:17:38.398358+00:00"
+    }
+  ],
+  "notes": [
+    "'Answered' means an answer came back \u2014 NOT that it was correct. The docstring says correctness is measured; it is not.",
+    "Each run teaches the SHARED mind two facts under fresh names (robin<hex> isa bird<hex>, bird<hex> isa animal) and does not remove them."
+  ]
+}

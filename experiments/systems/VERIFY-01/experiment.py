@@ -57,10 +57,11 @@ async def main() -> int:
 
     # ── REASONING pipeline (coord.reason_about → neural bridge) ──────────────
     async def reasoning():
+        from core.memory import Origin
         qs = ["is a robin a bird", "is an ocelot an animal", "is a hammer a bird"]
         rows = []
         for q in qs:
-            r = await coord.reason_about(q)
+            r = await coord.reason_about(q, origin=Origin.own("VERIFY-01"))
             md = dict(getattr(r, "metadata", {}) or {})
             rows.append({"q": q, "answer": brief(getattr(r, "answer", ""), 80),
                          "confidence": round(float(getattr(r, "confidence", 0.0)), 3),
@@ -84,9 +85,10 @@ async def main() -> int:
 
     # ── CROSS-DOMAIN pipeline (coord.perform_cross_domain_reasoning) ──────────
     async def cross_domain():
+        from core.memory import Origin
         r = await coord.perform_cross_domain_reasoning(
             "how does structure transfer between domains",
-            source_domains=["scientific", "mathematical"])
+            source_domains=["scientific", "mathematical"], origin=Origin.own("VERIFY-01"))
         return {"type": type(r).__name__, "summary": brief(r, 300)}
     await probe("cross_domain_pipeline", cross_domain)
 
@@ -135,13 +137,14 @@ async def main() -> int:
 
     # ── MEMORY pipeline (coord.memory store + retrieve) ──────────────────────
     async def memory():
+        from core.memory import Origin
         m = coord.memory
         if m is None:
             return {"memory": "None (not attached)"}
         stored = None
         with contextlib.suppress(Exception):
             stored = await m.store_memory(content="verify01 probe memory: the sky probe token qzx",
-                                          memory_type="episodic", importance=0.5)
+                                          memory_type="episodic", importance=0.5, origin=Origin.own("VERIFY-01"))
         got = None
         with contextlib.suppress(Exception):
             got = await m.retrieve("qzx", limit=3)

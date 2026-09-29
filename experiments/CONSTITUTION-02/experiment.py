@@ -102,14 +102,23 @@ async def main():
     from core.agents.autonomous.autonomous_coordinator import (
         AutonomousCoordinator, Verdict)
     from core.agents.autonomous.shared_types import Goal, Priority
-    from core.execution.filesystem_domain import ensure_filesystem_domain, _encode
     from core.execution.operator_binding import get_binding_registry
+    from core.execution.tool_domain import sensed_fact, take_up_workspace
     from core.learning.rule_induction import Fact
     from core.learning.rule_store import get_rule_store
     from core.reasoning.intent_authority import get_intent_authority
     from core.reasoning.temporal_reasoning import PlanningStatus
 
-    DOMAIN = "fs_g2_real1"
+    # THE PRECONDITION IS DECLARED, NOT ASSUMED. This plans over a MOVE_FILE
+    # operator the substrate LEARNED from its own acts. That was ambient state:
+    # when the store was wiped, this failed with a signature that reads like
+    # broken code rather than a missing prerequisite. `ensure_taught` teaches it
+    # from real executions if it is not there, and costs a store read if it is.
+    from experiments.fs_move_teach import DOMAIN, ensure_taught
+    if not await ensure_taught():
+        print("  [precondition] FAILED: no executable MOVE_FILE operator in "
+              f"{DOMAIN}; nothing below can plan", flush=True)
+        return 1
     root = Path(tempfile.mkdtemp(prefix="constitution-02-"))
     (root / "inbox").mkdir()
     (root / "archive").mkdir()
@@ -124,20 +133,24 @@ async def main():
           f"{noise_files} files, decoys + unicode + binary + symlink + logs")
     BENCH["noise_files"] = noise_files
 
-    ensure_filesystem_domain(DOMAIN, str(root))
-    binding = get_binding_registry().get(DOMAIN, "MOVE_FILE")
-    world = binding.observe()
+    # The workspace is handed over; the substrate looks at it with its own
+    # perception, noise and all, and what is there becomes the world it plans in.
+    take_up_workspace(DOMAIN, str(root))
+    world = get_binding_registry().observe_world(DOMAIN) or frozenset()
     check("the substrate observes the noisy world", len(world) >= 1,
           f"{len(world)} fact(s) observed")
 
-    file_c, dst_c = _encode("report.txt"), _encode("archive")
-    goal_fact = Fact("FILE_IN", (file_c, dst_c))
+    # "Archive the report", in perception's words: the report is a file in
+    # archive, and is no longer one in the inbox.
+    goal_conditions = [
+        sensed_fact("kind", "path", str(root / "archive" / "report.txt"), "file").to_formula(),
+        "¬" + sensed_fact("kind", "path", str(report), "file").to_formula()]
     rules = await get_rule_store().executable_rules(domain_id=DOMAIN)
     # Through the ONE planning authority, which records the proved route as the
     # goal's intent. Nothing here builds an intent; it names the recorded one.
     await coord.planning.initialize()
     goal = await coord.planning.create_goal(
-        "archive the report", Priority.MEDIUM, state_conditions=[str(goal_fact)])
+        "archive the report", Priority.MEDIUM, state_conditions=goal_conditions)
     plan_outcome = await coord.planning.plan_for_goal(
         goal.id, {"world_state": [f.to_formula() for f in world],
                   "domain_id": DOMAIN})

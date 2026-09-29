@@ -1,0 +1,199 @@
+{
+  "experiment": "ENCODER-11 \u2014 noisy environment: a dose curve of surface corruption",
+  "seed": 20260922,
+  "hypotheses": [
+    "H1 ordinary typing noise (10%) keeps claims above the recall floor",
+    "H2 degradation is graceful, never a cliff",
+    "H3 discrimination survives noise (a noisy claim matches no OTHER claim)",
+    "H4 the structural encoder degrades more slowly than MiniLM"
+  ],
+  "data": {
+    "MiniLM": {
+      "0.0": {
+        "self": 1.0,
+        "cross": 0.17373249325202192,
+        "below_floor": 0,
+        "confused": 0,
+        "n": 90
+      },
+      "0.05": {
+        "self": 0.9044535241515759,
+        "cross": 0.1753566275875295,
+        "below_floor": 2,
+        "confused": 1,
+        "n": 90
+      },
+      "0.1": {
+        "self": 0.7844639116906885,
+        "cross": 0.169336789791791,
+        "below_floor": 15,
+        "confused": 1,
+        "n": 90
+      },
+      "0.2": {
+        "self": 0.5707802024530673,
+        "cross": 0.16463994782788993,
+        "below_floor": 34,
+        "confused": 6,
+        "n": 90
+      },
+      "0.35": {
+        "self": 0.41835110947928755,
+        "cross": 0.13906641293345673,
+        "below_floor": 56,
+        "confused": 7,
+        "n": 90
+      },
+      "0.5": {
+        "self": 0.2901676783746602,
+        "cross": 0.14505973019358961,
+        "below_floor": 75,
+        "confused": 22,
+        "n": 90
+      }
+    },
+    "native": {
+      "0.0": {
+        "self": 1.0,
+        "cross": 0.15483022091046006,
+        "below_floor": 0,
+        "confused": 0,
+        "n": 90
+      },
+      "0.05": {
+        "self": 0.9645508340494734,
+        "cross": 0.17620404580769963,
+        "below_floor": 1,
+        "confused": 1,
+        "n": 90
+      },
+      "0.1": {
+        "self": 0.9321466213573651,
+        "cross": 0.19931356260515012,
+        "below_floor": 1,
+        "confused": 1,
+        "n": 90
+      },
+      "0.2": {
+        "self": 0.7970820137803147,
+        "cross": 0.2594237648004834,
+        "below_floor": 12,
+        "confused": 12,
+        "n": 90
+      },
+      "0.35": {
+        "self": 0.6131832369219011,
+        "cross": 0.2984309103851125,
+        "below_floor": 28,
+        "confused": 28,
+        "n": 90
+      },
+      "0.5": {
+        "self": 0.4827156890913281,
+        "cross": 0.2716442023575003,
+        "below_floor": 39,
+        "confused": 38,
+        "n": 90
+      }
+    },
+    "structural": {
+      "0.0": {
+        "self": 0.9999999999999999,
+        "cross": 0.6870603919992526,
+        "below_floor": 0,
+        "confused": 0,
+        "n": 90
+      },
+      "0.05": {
+        "self": 0.9050524411679739,
+        "cross": 0.5643046141306794,
+        "below_floor": 3,
+        "confused": 0,
+        "n": 90
+      },
+      "0.1": {
+        "self": 0.723362331113138,
+        "cross": 0.3469082123452737,
+        "below_floor": 9,
+        "confused": 1,
+        "n": 90
+      },
+      "0.2": {
+        "self": 0.5495090676462319,
+        "cross": 0.2150340603330903,
+        "below_floor": 32,
+        "confused": 4,
+        "n": 90
+      },
+      "0.35": {
+        "self": 0.3792538464166352,
+        "cross": 0.09953497401670403,
+        "below_floor": 58,
+        "confused": 4,
+        "n": 90
+      },
+      "0.5": {
+        "self": 0.22835225613606885,
+        "cross": 0.0740459068989286,
+        "below_floor": 79,
+        "confused": 21,
+        "n": 90
+      }
+    }
+  },
+  "checks": [
+    {
+      "name": "H1 MiniLM: survives 10% character corruption",
+      "passed": false,
+      "detail": "15/90 below floor at 10% noise"
+    },
+    {
+      "name": "H2 MiniLM: degrades gracefully, no cliff",
+      "passed": true,
+      "detail": "largest single-step drop 0.214"
+    },
+    {
+      "name": "H3 MiniLM: noise never makes a claim match a different one",
+      "passed": false,
+      "detail": "confusions by rate: [0, 1, 1, 6, 7, 22]"
+    },
+    {
+      "name": "H1 native: survives 10% character corruption",
+      "passed": false,
+      "detail": "1/90 below floor at 10% noise"
+    },
+    {
+      "name": "H2 native: degrades gracefully, no cliff",
+      "passed": true,
+      "detail": "largest single-step drop 0.184"
+    },
+    {
+      "name": "H3 native: noise never makes a claim match a different one",
+      "passed": false,
+      "detail": "confusions by rate: [0, 1, 1, 12, 28, 38]"
+    },
+    {
+      "name": "H1 structural: survives 10% character corruption",
+      "passed": false,
+      "detail": "9/90 below floor at 10% noise"
+    },
+    {
+      "name": "H2 structural: degrades gracefully, no cliff",
+      "passed": true,
+      "detail": "largest single-step drop 0.182"
+    },
+    {
+      "name": "H3 structural: noise never makes a claim match a different one",
+      "passed": false,
+      "detail": "confusions by rate: [0, 0, 1, 4, 4, 21]"
+    },
+    {
+      "name": "H4 structural degrades more slowly than MiniLM (0% -> 35%)",
+      "passed": false,
+      "detail": "structural lost 0.621, MiniLM lost 0.582"
+    }
+  ],
+  "passed": 3,
+  "total": 10,
+  "verdict": "at 35% corruption: structural 0.379, MiniLM 0.418, native 0.613"
+}

@@ -17,7 +17,6 @@ Author: Torin AI Team
 
 from core.capability import raise_if_structural
 import asyncio
-import hashlib
 import json
 import logging
 import math
@@ -27,14 +26,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union
-
-# Phase 2: Governance integration
-from core.safety import (
-    CommitmentContract,
-    CommitmentType,
-    execute_action_with_commitments
-)
+from typing import Any, Callable, Dict, List, Optional, Set, Union
 
 # Chaos engineering decorators
 from core.chaos.decorators import inject_latency, inject_error
@@ -1267,58 +1259,6 @@ def _enrich_tool_error(error_str: str, tool_name: str) -> "ToolErrorInfo":
     )
 
 
-async def _persist_tool_execution_async(entry: Dict[str, Any]) -> None:
-    """Persist ONE tool execution outcome, success or failure alike.
-
-    The symmetric counterpart to _persist_tool_error_async. Errors were durable
-    and successes were not, which made the stored history a survivorship sample:
-    every success rate computed from it was 0, and a tool that works perfectly
-    was indistinguishable from one that always fails.
-
-    Fire-and-forget, like the error path -- recording an outcome must not delay
-    returning it to the caller.
-    """
-    try:
-        from core.database import get_database_manager
-        db = get_database_manager()
-        if db is None or not getattr(db, 'initialized', False):
-            return
-
-        # Derived from the execution, so a retried write cannot double-count and
-        # the same call is one row however many times it is persisted.
-        digest = hashlib.sha256(
-            "\x1f".join((
-                str(entry.get("tool_name")), str(entry.get("timestamp")),
-                str(entry.get("session_id")), str(entry.get("success")),
-            )).encode()
-        ).hexdigest()[:32]
-
-        await db.execute_query(
-            """
-            INSERT INTO unified.tool_execution_events
-                (execution_id, tool_name, category, safety_level, success,
-                 error, execution_time, user_id, session_id, created_at)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
-            ON CONFLICT (execution_id) DO NOTHING
-            """,
-            (
-                f"exec_{digest}",
-                str(entry.get("tool_name"))[:255],
-                str(entry.get("category"))[:64] if entry.get("category") else None,
-                str(entry.get("safety_level"))[:32] if entry.get("safety_level") else None,
-                bool(entry.get("success")),
-                (str(entry.get("error"))[:2000] if entry.get("error") else None),
-                float(entry.get("execution_time") or 0.0),
-                str(entry.get("user_id"))[:255] if entry.get("user_id") else None,
-                str(entry.get("session_id"))[:255] if entry.get("session_id") else None,
-            ),
-            commit=True,
-        )
-    except Exception as e:
-        # Never let recording an outcome break the execution it describes.
-        logger.debug("Tool execution outcome not persisted: %s", e)
-
-
 async def _persist_tool_error_async(
     tool_error: "ToolErrorInfo",
     task_id: Optional[str] = None,
@@ -1498,23 +1438,6 @@ class Tool(ABC):
         if not hasattr(self, 'parameters'):
             self.parameters: List[ToolParameter] = []
 
-        # What running this tool DOES, as (action_class, irreversibility).
-        #
-        # Declared here, next to the tool, rather than in a lookup table
-        # elsewhere: a side table drifts the moment a tool changes, and the
-        # tool is the only place that knows what it does. Strings rather than
-        # the ActionClass enum so core.tools does not depend on core.safety.
-        #
-        # None means UNDECLARED, which is not the same as harmless --
-        # classify_action falls back to a deliberately calibrated default and
-        # the coverage test reports it, so an unmapped tool is visible rather
-        # than silently assumed safe.
-        #
-        # Omit it for tools whose consequence depends on their arguments
-        # (shells, query runners): those are read from the payload instead,
-        # and a static declaration would be wrong for half their invocations.
-        if not hasattr(self, 'consequence'):
-            self.consequence: Optional[Tuple[str, str]] = None
 
         self.usage_count: int = 0
         self.last_used: Optional[datetime] = None
@@ -1524,8 +1447,7 @@ class Tool(ABC):
         if not hasattr(self, 'capability_profile'):
             self.capability_profile: Optional['ToolCapabilityProfile'] = None
 
-        # NOTE: No approval system - Singleton has full autonomy
-        # Tools are logged for constitutional monitoring, not blocked
+        # Every call to a tool is judged by the Constitution at execute_tool.
         
     @abstractmethod
     async def execute(self, **kwargs) -> ToolResult:
@@ -1851,12 +1773,8 @@ class ToolRegistry:
 
         # Tracking and monitoring
         self.usage_log: List[Dict[str, Any]] = []
-        self.constitutional_monitor: Optional[Any] = None
 
-        # NO APPROVAL SYSTEM: Singleton has full autonomy to use tools
-        # Constitutional monitoring observes and ensures alignment,
-        # but does NOT block Singleton's actions
-        
+
     def register(self, tool: Tool):
         """
         Register a tool (backwards compatibility - eager loading).
@@ -2636,55 +2554,17 @@ class ToolRegistry:
                 }
             )
 
-        # Phase 0: RecoveryManager gating (THROTTLE/ISOLATE)
-        # If the system is in an isolation window, block risky tools.
-        # If the system is throttled, add a small delay before executing tools.
+        # While recovery throttles tool execution, wait before running.
         try:
             from core.health.recovery_manager import get_recovery_manager
-
-            rm = get_recovery_manager()
-            allowed, reason, throttle_delay_s = rm.tool_execution_policy(
-                tool_name=tool_name,
-                tool_category=getattr(tool, "category", None),
-                tool_safety_level=getattr(tool, "safety_level", None),
-            )
-
-            if not allowed:
-                return ToolResult(
-                    success=False,
-                    output=None,
-                    error=f"RECOVERY_ISOLATION_BLOCK: {reason or 'Blocked by RecoveryManager isolation policy'}",
-                    tool_name=tool_name,
-                    parameters=parameters,
-                    metadata={
-                        "error_type": "RECOVERY_ISOLATION_BLOCK",
-                        "reason": reason,
-                        "tool_name": tool_name,
-                        "tool_category": getattr(tool, "category", None),
-                        "tool_safety_level": getattr(tool, "safety_level", None),
-                    },
-                )
-
-            if throttle_delay_s and throttle_delay_s > 0:
-                await asyncio.sleep(float(throttle_delay_s))
-        except Exception:
-            pass
+            throttle_delay_s = get_recovery_manager().tool_throttle_delay()
+        except Exception as throttle_error:
+            logger.error("recovery throttle unreadable for %s: %s", tool_name, throttle_error)
+            throttle_delay_s = 0.0
+        if throttle_delay_s > 0:
+            await asyncio.sleep(float(throttle_delay_s))
         
-        # Phase 2: the constitution judges the act — the single gate.
         act_id = f"tool_{tool_name}_{uuid.uuid4().hex[:8]}"
-        _tool_safety = getattr(tool, "safety_level", None)
-        _tool_safety = _tool_safety.value if hasattr(_tool_safety, "value") else _tool_safety
-
-        # WHAT THE TOOL DECLARES ABOUT ITSELF, read from the tool we already
-        # hold rather than looked up by name -- the caller knows which object
-        # it is about to run, and a name lookup could disagree with it.
-        _capability = {}
-        _profile = getattr(tool, "capability_profile", None)
-        if _profile is not None:
-            try:
-                _capability = _profile.declared_summary()
-            except Exception as _cap_error:      # a profile must never block a call
-                logger.debug(f"capability summary unavailable for {tool_name}: {_cap_error}")
 
         # THE CONSTITUTION IS THE GATE.
         #
@@ -2699,12 +2579,9 @@ class ToolRegistry:
         # about itself; the id names a record, and the constitution fetches it.
         # An id naming nothing judges as no intent at all.
         #
-        # This REPLACES safety_framework.evaluate_action. That module stays on
-        # disk as the reference the remaining capabilities are still being taken
-        # from, but it no longer governs: two gates would be two answers to
-        # "may this act happen", which is the duplicate-authority defect on the
-        # one path where it matters most. Parity and zero regressions were
-        # measured before the swap (BENCHMARKS §1.3).
+        # It is the ONLY gate: two gates would be two answers to "may this act
+        # happen", which is the duplicate-authority defect on the one path where
+        # it matters most.
         from core.agents.autonomous.autonomous_coordinator import (
             get_constitution, judge_act)
         from core.reasoning.intent_authority import (
@@ -2712,10 +2589,7 @@ class ToolRegistry:
 
         judgment = await judge_act(
             "tool", tool_name,
-            {"tool_name": tool_name, **parameters,
-             # What the tool declares about ITSELF, so the laws judge the act
-             # rather than only its arguments.
-             "_tool_safety": _tool_safety, "_capability": _capability},
+            {"tool_name": tool_name, **parameters},
             intent_id=get_acting_intent(),
             # WHOSE work this is. Not who asked — the constitution stays blind to
             # that — but whether the things this act touches are the substrate's
@@ -2802,8 +2676,11 @@ class ToolRegistry:
                     _tei, session_id=session_id, user_id=user_id
                 ))
 
-            # Log for constitutional monitoring
+            # Record the execution.
             self._log_usage(tool, parameters, result, user_id, session_id)
+            await self._record_run(tool_name, success=result.success,
+                                   execution_time_s=result.execution_time or 0.0,
+                                   error=result.error)
 
             # An invoked tool is an OBSERVED operator. `_log_usage` records that
             # it ran; this records what it means -- the tool concept gains real
@@ -2852,6 +2729,9 @@ class ToolRegistry:
             asyncio.create_task(_persist_tool_error_async(
                 _tei, session_id=session_id, user_id=user_id
             ))
+            await self._record_run(tool_name, success=False,
+                                   execution_time_s=(datetime.now() - start_time).total_seconds(),
+                                   error=_raw_err)
             return ToolResult(
                 success=False,
                 output=None,
@@ -2960,7 +2840,7 @@ class ToolRegistry:
         user_id: Optional[str],
         session_id: Optional[str]
     ):
-        """Log tool usage for constitutional monitoring"""
+        """Record one tool execution: in memory and in the durable log."""
         log_entry = {
             "timestamp": datetime.now().isoformat(),
             "tool_name": tool.name,
@@ -2976,29 +2856,33 @@ class ToolRegistry:
         
         self.usage_log.append(log_entry)
 
-        # PERSIST IT. This record is built on every execution with exactly the
-        # fields learning needs -- tool, category, success, error, duration --
-        # and was appended to an in-memory list that dies with the process.
-        #
-        # Failures had a durable home (tool_error_events, written per execution
-        # from execute_tool) and successes had none, so the record Torin learns
-        # from held 412 failures against 1 success. Anything computing a success
-        # rate from it concluded that every tool always fails.
-        #
-        # Fire-and-forget on the running loop, mirroring the error path, so
-        # recording an outcome never delays returning it.
-        try:
-            asyncio.create_task(_persist_tool_execution_async(log_entry))
-        except RuntimeError:
-            # No running loop (synchronous caller): the in-memory log still has
-            # it, and this is reported rather than silently dropped.
-            logger.debug("No running loop; tool execution outcome not persisted")
+    async def _record_run(self, tool_name: str, *, success: bool,
+                          execution_time_s: float, error: Optional[str]) -> None:
+        """Record ONE run of a tool, success or failure, where learning reads it.
 
-        # Notify constitutional monitor if available
-        if self.constitutional_monitor:
-            asyncio.create_task(
-                self.constitutional_monitor.record_tool_usage(log_entry)
-            )
+        EVERY RUN PASSES HERE, so it is recorded here, once. Runs were recorded in
+        two places: this registry wrote `unified.tool_execution_events`, which
+        nothing reads, and the coordinator's `_run_tool` wrote
+        `tool_usage_history`, which tool learning reads -- so a tool reached any
+        other way (a conversation looking something up on the web, a reading
+        step, a rule's operator) ran and was never learned from. Attributed to
+        the task the act serves (`set_acting_task`), or to none.
+
+        Only runs are recorded. An act the constitution refused never reached the
+        tool, so it says nothing about how well the tool works."""
+        try:
+            from core.learning.adaptive_tool_owner import get_adaptive_tool_learning
+            from core.reasoning.intent_authority import get_acting_task
+            task_id, description = get_acting_task() or ("", "")
+            await get_adaptive_tool_learning().record_tool_run(
+                task_id=task_id, task_description=description, tool_name=tool_name,
+                success=bool(success), latency_ms=int(round(execution_time_s * 1000)),
+                failure_reason=None if success else (str(error)[:500] if error else None))
+        except Exception as record_error:
+            # The tool ran and its result stands; losing the record is reported.
+            logger.error("tool %s ran but the run was not recorded for learning: %s",
+                         tool_name, record_error)
+
 
     def _suggest_tools(self, requested_name: str, max_suggestions: int = 5) -> List[str]:
         """Suggest similar tool names for TOOL_NOT_FOUND errors.
@@ -3245,6 +3129,29 @@ def _register_default_tools():
     except ImportError as e:
         logger.warning(f"Could not register system tools: {e}")
 
+    # STAGING AND PRODUCTION DO NOT CARRY THE TOOLS THAT REACH THEIR OWN DATABASES.
+    # As written, these run SQL through this process's own database manager: where
+    # people are served, a person's request could reach the model or other people's
+    # context through them. Only these 15 are left out -- the Redis and R2 storage
+    # tools and the host monitoring tools reach no database of the environment.
+    # Development keeps all of them until the substrate can write the code
+    # they spell out.
+    from core.database.postgres_config import PostgresConfig
+    _separated = PostgresConfig.resolve().environment != "development"
+    _REACH_OWN_DATABASES = {
+        "MySQLQueryTool", "MySQLTableInfoTool", "MySQLBackupTool", "MySQLRestoreTool",
+        "ConnectionPoolManagerTool", "TransactionWrapperTool", "MigrationRunnerTool",
+        "RowLevelAccessControlTool", "SafeQueryExecutorTool", "PostgresQueryTool",
+        "PostgresSafeQueryExecutorTool", "CheckMySQLHealthTool", "CheckPostgreSQLHealthTool",
+        "QueryMetricsTool", "CreateAlertTool"}
+
+    def _register_unless_it_reaches_own_databases(tool_class):
+        if _separated and tool_class.__name__ in _REACH_OWN_DATABASES:
+            logger.info("%s is not registered in a serving environment (it reaches the "
+                        "environment's own databases)", tool_class.__name__)
+            return
+        _register_tool_lazy(tool_class)
+
     # ===== EXTENDED TOOLS =====
 
     # Database & Storage Tools
@@ -3256,20 +3163,20 @@ def _register_default_tools():
             ConnectionPoolManagerTool, TransactionWrapperTool, MigrationRunnerTool,
             RowLevelAccessControlTool, SafeQueryExecutorTool
         )
-        _register_tool_lazy(MySQLQueryTool)
-        _register_tool_lazy(MySQLTableInfoTool)
-        _register_tool_lazy(MySQLBackupTool)
-        _register_tool_lazy(MySQLRestoreTool)
-        _register_tool_lazy(RedisGetTool)
-        _register_tool_lazy(RedisSetTool)
-        _register_tool_lazy(R2UploadTool)
-        _register_tool_lazy(R2DownloadTool)
+        _register_unless_it_reaches_own_databases(MySQLQueryTool)
+        _register_unless_it_reaches_own_databases(MySQLTableInfoTool)
+        _register_unless_it_reaches_own_databases(MySQLBackupTool)
+        _register_unless_it_reaches_own_databases(MySQLRestoreTool)
+        _register_unless_it_reaches_own_databases(RedisGetTool)
+        _register_unless_it_reaches_own_databases(RedisSetTool)
+        _register_unless_it_reaches_own_databases(R2UploadTool)
+        _register_unless_it_reaches_own_databases(R2DownloadTool)
         # Advanced database tools
-        _register_tool_lazy(ConnectionPoolManagerTool)
-        _register_tool_lazy(TransactionWrapperTool)
-        _register_tool_lazy(MigrationRunnerTool)
-        _register_tool_lazy(RowLevelAccessControlTool)
-        _register_tool_lazy(SafeQueryExecutorTool)
+        _register_unless_it_reaches_own_databases(ConnectionPoolManagerTool)
+        _register_unless_it_reaches_own_databases(TransactionWrapperTool)
+        _register_unless_it_reaches_own_databases(MigrationRunnerTool)
+        _register_unless_it_reaches_own_databases(RowLevelAccessControlTool)
+        _register_unless_it_reaches_own_databases(SafeQueryExecutorTool)
     except ImportError as e:
         logger.warning(f"Could not register database tools: {e}")
 
@@ -3386,21 +3293,21 @@ def _register_default_tools():
             # Advanced monitoring tools
             DistributedTracingTool, SLOSLIToolingTool, AnomalyDetectionTool, DashboardGeneratorTool
         )
-        _register_tool_lazy(GetCPUUsageTool)
-        _register_tool_lazy(GetMemoryUsageTool)
-        _register_tool_lazy(GetDiskUsageTool)
-        _register_tool_lazy(GetNetworkStatsTool)
-        _register_tool_lazy(CheckMySQLHealthTool)
-        _register_tool_lazy(GetServiceStatusTool)
-        _register_tool_lazy(ParseLogsTool)
-        _register_tool_lazy(QueryMetricsTool)
-        _register_tool_lazy(CreateAlertTool)
-        _register_tool_lazy(GetPerformanceProfileTool)
+        _register_unless_it_reaches_own_databases(GetCPUUsageTool)
+        _register_unless_it_reaches_own_databases(GetMemoryUsageTool)
+        _register_unless_it_reaches_own_databases(GetDiskUsageTool)
+        _register_unless_it_reaches_own_databases(GetNetworkStatsTool)
+        _register_unless_it_reaches_own_databases(CheckMySQLHealthTool)
+        _register_unless_it_reaches_own_databases(GetServiceStatusTool)
+        _register_unless_it_reaches_own_databases(ParseLogsTool)
+        _register_unless_it_reaches_own_databases(QueryMetricsTool)
+        _register_unless_it_reaches_own_databases(CreateAlertTool)
+        _register_unless_it_reaches_own_databases(GetPerformanceProfileTool)
         # Advanced monitoring tools
-        _register_tool_lazy(DistributedTracingTool)
-        _register_tool_lazy(SLOSLIToolingTool)
-        _register_tool_lazy(AnomalyDetectionTool)
-        _register_tool_lazy(DashboardGeneratorTool)
+        _register_unless_it_reaches_own_databases(DistributedTracingTool)
+        _register_unless_it_reaches_own_databases(SLOSLIToolingTool)
+        _register_unless_it_reaches_own_databases(AnomalyDetectionTool)
+        _register_unless_it_reaches_own_databases(DashboardGeneratorTool)
     except ImportError as e:
         logger.warning(f"Could not register monitoring tools: {e}")
 
@@ -3625,7 +3532,7 @@ def _register_default_tools():
             AddInternalThreatTool, SanitizeInputTool,
             # Input Validation Tools (NEW)
             ValidateEmailTool, ValidateURLTool, CheckMaliciousPatternsTool,
-            SanitizeFilenameTool, ValidateSQLInputTool, ValidatePathTool,
+            SanitizeFilenameTool, ValidateSQLInputTool,
             CheckRateLimitTool,
             # Defensive Security & Intrusion Detection
             DetectIntrusionTool, AnalyzeAnomalyTool, MonitorLogsTool,
@@ -3659,7 +3566,8 @@ def _register_default_tools():
         _register_tool_lazy(CheckMaliciousPatternsTool)
         _register_tool_lazy(SanitizeFilenameTool)
         _register_tool_lazy(ValidateSQLInputTool)
-        _register_tool_lazy(ValidatePathTool)
+        # `validate_path` is the filesystem tool's; a second one registered here
+        # under the same name used to replace it silently.
         _register_tool_lazy(CheckRateLimitTool)
 
         # Register Defensive Security & Intrusion Detection Tools

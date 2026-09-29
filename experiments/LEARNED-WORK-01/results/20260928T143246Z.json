@@ -1,0 +1,98 @@
+{
+  "experiment": "LEARNED-WORK-01",
+  "claim": "After a lesson it did not already hold, the substrate knows what it was taught and says so, says what it was not taught, can say what it can and cannot do, does multi-step work built on the lesson, and is different after it has tried.",
+  "hypothesis": "Confidence that does not follow what was taught, a gap answered as if known, a task it cannot do claimed as doable (or the reverse), work that ignores the lesson, or confidence that does not move after doing would each show here.",
+  "started_at": "2026-09-28T14:32:46.111744+00:00",
+  "duration_seconds": 97.54,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/TorinAI/venv_torin/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/TorinAI",
+    "shadow_mode": null,
+    "git_commit": "20deb447498593391eca0286916b8f986c560a26",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "torinai_dev",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "torinai_dev",
+        "model": "torinai_dev",
+        "user_context": "torinai_dev",
+        "learning": "torinai_dev"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "dotenv:.env.postgres",
+        "database": "environment",
+        "user": "dotenv:.env.postgres",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 1475,
+    "database_verified": null,
+    "database_verified_reason": "no initialized connection in this process"
+  },
+  "summary": {
+    "checks": 2,
+    "passed": 2,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [
+    {
+      "name": "user",
+      "value": "learned-work-adwll",
+      "unit": "",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "the lesson is read and held",
+      "passed": true,
+      "detail": "read=8 taught={'admitted': 8, 'already': 0, 'refused': 0, 'total': 8}",
+      "at": "2026-09-28T14:33:06.898521+00:00"
+    },
+    {
+      "label": "the rule is held",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-09-28T14:33:06.900542+00:00"
+    }
+  ],
+  "notes": [
+    "OBSERVED \u2014 before the lesson \u2014 the taught facts: {'cathodic protection isa corrosion control method': None, 'cathodic protection prevents corrosion': None, 'sacrificial anode isa anode': None, 'sacrificial anode part_of cathodic protection system': None, 'sacrificial anode made_of zinc': None, 'moisture causes corrosion': None, 'corrosion causes pipeline failure': None, 'coating prevents corrosion': None}",
+    "OBSERVED \u2014 before the lesson \u2014 confidence in the domain: {'competence': None, 'operating': {'attempts': 0, 'wins': 0, 'earned': 0.5}}",
+    "OBSERVED \u2014 stores moved by the lesson: {'memories': 19, 'concepts': 10, 'graph_edges': 8, 'beliefs': 9, 'knowledge_updates': 8, 'held_rules': 1}",
+    "OBSERVED \u2014 after the lesson \u2014 the taught facts (posterior, updates): {'cathodic protection isa corrosion control method': None, 'cathodic protection prevents corrosion': (0.997, 1), 'sacrificial anode isa anode': None, 'sacrificial anode part_of cathodic protection system': (0.997, 1), 'sacrificial anode made_of zinc': (0.997, 1), 'moisture causes corrosion': (0.997, 1), 'corrosion causes pipeline failure': (0.997, 1), 'coating prevents corrosion': (0.997, 1)}",
+    "OBSERVED \u2014 after the lesson \u2014 confidence in the domain: {'competence': 0.5, 'operating': {'attempts': 0, 'wins': 0, 'earned': 0.5}}",
+    "OBSERVED \u2014 before the work \u2014 confidence in the domain: {'competence': 0.5, 'operating': {'attempts': 0, 'wins': 0, 'earned': 0.5}}",
+    "OBSERVED \u2014 D1 tool runs: {'[\"web_search\"]': (2, 0)}",
+    "OBSERVED \u2014 D1 learned: []",
+    "OBSERVED \u2014 D1 file: not written",
+    "OBSERVED \u2014 D2 steps as run: [('RESEARCH', True), ('ANALYSIS', True), ('EXECUTION', True), ('VALIDATION', True)]",
+    "OBSERVED \u2014 D2 tool runs: {'[\"web_search\"]': (2, 0), '[\"write_file\"]': (1, 1), '[\"read_file\"]': (1, 1)}",
+    "OBSERVED \u2014 D2 learned: [('write_file', 'adds', 'kind', 'task_artifact', 'tools:path:WRITE_FILE'), ('write_file', 'adds', 'size', 'task_artifact', 'tools:path:WRITE_FILE')]",
+    "OBSERVED \u2014 D2 file: Yes, cathodic protection is a corrosion control method.\nYes, cathodic protection prevents corrosion.\nYes, corrosion causes pipeline failure.\nI hold nothing for protects pipelines.",
+    "OBSERVED \u2014 D2 file \u2014 lesson terms it uses: ['cathodic protection', 'coating', 'corrosion', 'moisture']",
+    "OBSERVED \u2014 confidence in the domain: before the work -> after: {'competence': 0.5, 'operating': {'attempts': 0, 'wins': 0, 'earned': 0.5}} -> {'competence': 0.5, 'operating': {'attempts': 0, 'wins': 0, 'earned': 0.5}}",
+    "OBSERVED \u2014 the taught facts after the work (posterior, updates): {'cathodic protection isa corrosion control method': None, 'cathodic protection prevents corrosion': (0.997, 1), 'sacrificial anode isa anode': None, 'sacrificial anode part_of cathodic protection system': (0.997, 1), 'sacrificial anode made_of zinc': (0.997, 1), 'moisture causes corrosion': (0.997, 1), 'corrosion causes pipeline failure': (0.997, 1), 'coating prevents corrosion': (0.997, 1)}",
+    "OBSERVED \u2014 second attempt: steps as run: [('RESEARCH', True), ('ANALYSIS', True), ('EXECUTION', True), ('VALIDATION', True)] (first: [('RESEARCH', True), ('ANALYSIS', True), ('EXECUTION', True), ('VALIDATION', True)])",
+    "OBSERVED \u2014 second attempt: tool runs: {'[\"web_search\"]': (2, 1), '[\"web_fetch\"]': (2, 1), '[\"write_file\"]': (1, 1), '[\"read_file\"]': (1, 1)}",
+    "OBSERVED \u2014 second attempt: file: Yes, cathodic protection is a corrosion control method.\nYes, cathodic protection prevents corrosion.\nYes, corrosion causes pipeline failure.\nI hold nothing for protects pipelines.",
+    "OBSERVED \u2014 confidence in the domain after the second attempt: {'competence': 0.5, 'operating': {'attempts': 0, 'wins': 0, 'earned': 0.5}}",
+    "OBSERVED \u2014 stores moved: {'memories': 54, 'concepts': 14, 'graph_edges': 24, 'beliefs': 9, 'knowledge_updates': 8, 'held_rules': 1, 'tool_runs': 29, 'demonstrations': 2, 'learned_rules': 1}",
+    "OBSERVED \u2014 knowledge ledger by cause: [('learning.bulk_teach.teaching', 'new', 8)]",
+    "OBSERVED \u2014 tool runs (runs, successes): {'[\"web_search\"]': (15, 5), '[\"web_fetch\"]': (9, 6), '[\"write_file\"]': (2, 2), '[\"read_file\"]': (3, 3)}",
+    "OBSERVED \u2014 open questions it registered: []",
+    "OBSERVED \u2014 this person's own context: [('sacrificial_anode', 'isa', 'depleted')]"
+  ]
+}

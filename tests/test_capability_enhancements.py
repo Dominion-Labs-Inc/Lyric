@@ -2,11 +2,10 @@
 """
 Test Enhanced Capability System
 ================================
-Integration tests for the 4 architectural enhancements:
+Integration tests for three architectural enhancements:
 1. Weighted scoring function with configurable weights
 2. Capability dependencies and execution planning
-3. Risk-based governance integration
-4. Improved inference with confidence scoring
+3. Improved inference with confidence scoring
 
 Author: Torin AI Team
 """
@@ -23,10 +22,8 @@ from core.tools.capabilities import (
     Capability,
     CapabilityMetadata,
     ToolCapabilityProfile,
-    RiskLevel,
     infer_capability_from_task
 )
-from core.tools.filesystem_tools import ReadFileTool
 
 
 def test_weighted_scoring():
@@ -146,82 +143,6 @@ def test_capability_dependencies():
     print("\n✅ Capability dependencies work correctly!")
 
 
-def test_risk_based_governance():
-    """Test risk-based approval requirements"""
-    print("\n" + "="*70)
-    print("TEST 3: Risk-Based Governance Integration")
-    print("="*70)
-
-    # Create tool profiles with different risk levels
-    print("\n1. Creating tools with different risk levels...")
-
-    profile_safe = ToolCapabilityProfile(
-        tool_name="read_file",
-        capabilities=[
-            CapabilityMetadata(
-                capability=Capability.READ_DATA,
-                description="Safe read operation",
-                risk_level=RiskLevel.LOW
-            )
-        ]
-    )
-
-    profile_moderate = ToolCapabilityProfile(
-        tool_name="write_file",
-        capabilities=[
-            CapabilityMetadata(
-                capability=Capability.WRITE_DATA,
-                description="Moderate risk write operation",
-                risk_level=RiskLevel.MEDIUM,
-                approval_level="team_lead"
-            )
-        ]
-    )
-
-    profile_high = ToolCapabilityProfile(
-        tool_name="delete_database",
-        capabilities=[
-            CapabilityMetadata(
-                capability=Capability.DELETE_DATA,
-                description="High risk deletion",
-                risk_level=RiskLevel.HIGH
-            )
-        ]
-    )
-
-    profile_critical = ToolCapabilityProfile(
-        tool_name="deploy_production",
-        capabilities=[
-            CapabilityMetadata(
-                capability=Capability.RUN_COMMAND,
-                description="Critical production deployment",
-                risk_level=RiskLevel.CRITICAL,
-                approval_level="security_officer"
-            )
-        ]
-    )
-
-    # Test approval requirements
-    print("\n2. Testing approval requirements...")
-
-    requires_approval_safe = profile_safe.requires_approval(Capability.READ_DATA)
-    requires_approval_moderate = profile_moderate.requires_approval(Capability.WRITE_DATA)
-    requires_approval_high = profile_high.requires_approval(Capability.DELETE_DATA)
-    requires_approval_critical = profile_critical.requires_approval(Capability.RUN_COMMAND)
-
-    print(f"   Safe (READ): Requires approval? {requires_approval_safe}")
-    print(f"   Moderate (WRITE): Requires approval? {requires_approval_moderate}")
-    print(f"   High (DELETE): Requires approval? {requires_approval_high}")
-    print(f"   Critical (DEPLOY): Requires approval? {requires_approval_critical}")
-
-    assert not requires_approval_safe, "LOW risk should not require approval"
-    assert requires_approval_moderate, "MEDIUM with approval_level should require approval"
-    assert requires_approval_high, "HIGH risk should require approval"
-    assert requires_approval_critical, "CRITICAL risk should require approval"
-
-    print("\n✅ Risk-based governance integration works correctly!")
-
-
 def test_improved_inference():
     """Test improved capability inference with confidence scoring"""
     print("\n" + "="*70)
@@ -266,53 +187,6 @@ def test_improved_inference():
     print("\n✅ Improved inference works correctly!")
 
 
-def test_integrated_workflow():
-    """Test complete workflow with all enhancements"""
-    print("\n" + "="*70)
-    print("TEST 5: Integrated Workflow")
-    print("="*70)
-
-    registry = ToolRegistry()
-
-    # Register a real tool
-    print("\n1. Registering ReadFileTool with capability metadata...")
-    tool = ReadFileTool()
-    registry.register(tool)
-    print(f"   Registered: {tool.name}")
-
-    # Infer capabilities from task
-    print("\n2. Inferring capabilities from task description...")
-    task = "read the configuration file at /etc/config.yaml"
-    capabilities = infer_capability_from_task(task, threshold=5.0)
-
-    print(f"   Task: \"{task}\"")
-    for cap, score in capabilities.items():
-        print(f"      {cap.value}: {score:.1f}")
-
-    # Select best provider with custom weights
-    print("\n3. Selecting best provider with reliability focus...")
-    weights = {"priority": 1.0, "reliability": 2.0, "latency": -0.1, "cost": -0.1}
-
-    best_tool = registry.select_best_provider(
-        Capability.READ_DATA,
-        context={"data_source": "file"},
-        weights=weights
-    )
-
-    if best_tool:
-        print(f"   Selected tool: {best_tool.name}")
-
-        # Check risk level
-        if best_tool.capability_profile:
-            cap_meta = best_tool.capability_profile.get_capability_metadata(Capability.READ_DATA)
-            if cap_meta:
-                print(f"   Risk level: {cap_meta.risk_level.value}")
-                requires_approval = best_tool.capability_profile.requires_approval(Capability.READ_DATA)
-                print(f"   Requires approval: {requires_approval}")
-
-    print("\n✅ Integrated workflow works correctly!")
-
-
 def run_all_tests():
     """Run all enhancement tests"""
     print("\n")
@@ -327,14 +201,8 @@ def run_all_tests():
         # Test 2: Capability dependencies
         test_capability_dependencies()
 
-        # Test 3: Risk-based governance
-        test_risk_based_governance()
-
-        # Test 4: Improved inference
+        # Test 3: Improved inference
         test_improved_inference()
-
-        # Test 5: Integrated workflow
-        test_integrated_workflow()
 
         # Summary
         print("\n" + "="*70)
@@ -343,12 +211,10 @@ def run_all_tests():
         print("\nEnhanced capability system is production-ready:")
         print("  ✓ Weighted scoring enables optimization (not just filtering)")
         print("  ✓ Capability dependencies enable automatic chaining")
-        print("  ✓ Risk-based governance integrates with approval tiers")
         print("  ✓ Improved inference reduces false positives")
         print("\nArchitectural Evolution Complete:")
         print("  • From boolean matching → weighted optimization")
         print("  • From isolated capabilities → dependency graphs")
-        print("  • From binary safety → tiered governance")
         print("  • From substring inference → pattern-based scoring")
         print()
 

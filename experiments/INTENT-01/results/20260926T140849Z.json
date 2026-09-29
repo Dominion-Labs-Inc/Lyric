@@ -1,0 +1,152 @@
+{
+  "experiment": "INTENT-01",
+  "claim": "Intent is a first-class, durable, reasoning-owned entity: formed on engagement, refreshed not rebuilt, tree-structured so a goal never collapses into its thread, split into substrate-wide shape and actor-scoped content, and surviving a restart.",
+  "hypothesis": "If the reasoning authority owns intent and persists it split by shape/content, then a return refreshes the same node, a goal raised in a thread is a distinct parented intent, the outcome reconciles onto it, it survives a fresh process, and forgetting the actor leaves the anonymous shape behind.",
+  "started_at": "2026-09-26T14:08:49.789969+00:00",
+  "duration_seconds": 6.214,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/TorinAI/venv_torin/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/TorinAI",
+    "shadow_mode": "1",
+    "git_commit": "20deb447498593391eca0286916b8f986c560a26",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "torinai_db",
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "dotenv:.env.postgres",
+        "database": "dotenv:.env.postgres",
+        "user": "dotenv:.env.postgres",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres"
+      }
+    },
+    "git_uncommitted_changes": 1003,
+    "database_verified": "torinai_db",
+    "database_verified_reason": "asked the server"
+  },
+  "summary": {
+    "checks": 14,
+    "passed": 14,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [
+    {
+      "name": "intents_formed",
+      "value": 2,
+      "unit": "count",
+      "note": "one thread, one goal"
+    },
+    {
+      "name": "refresh_version_reached",
+      "value": 2,
+      "unit": "version",
+      "note": ""
+    },
+    {
+      "name": "actor_content_rows_removed",
+      "value": 2,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "restart_readback_ok",
+      "value": true,
+      "unit": "",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "forming a thread intent creates it",
+      "passed": true,
+      "detail": "id=52fe2ae5 v1 forming",
+      "at": "2026-09-26T14:08:49.894247+00:00"
+    },
+    {
+      "label": "a return keeps the same intent id",
+      "passed": true,
+      "detail": "52fe2ae5 == 52fe2ae5",
+      "at": "2026-09-26T14:08:49.898506+00:00"
+    },
+    {
+      "label": "refresh bumps version and appends history, not a new intent",
+      "passed": true,
+      "detail": "v2, history=1",
+      "at": "2026-09-26T14:08:49.898512+00:00"
+    },
+    {
+      "label": "refreshed content is the newer understanding",
+      "passed": true,
+      "detail": "archive report.txt into /archive",
+      "at": "2026-09-26T14:08:49.898516+00:00"
+    },
+    {
+      "label": "the goal is a distinct intent, not the thread's",
+      "passed": true,
+      "detail": "goal=4fb9bc4c thread=52fe2ae5",
+      "at": "2026-09-26T14:08:49.901687+00:00"
+    },
+    {
+      "label": "the goal is parented to the thread it was raised in",
+      "passed": true,
+      "detail": "52fe2ae5",
+      "at": "2026-09-26T14:08:49.901695+00:00"
+    },
+    {
+      "label": "goal key and thread key resolve to different intents (no collision)",
+      "passed": true,
+      "detail": "goalkey->4fb9bc4c threadkey->52fe2ae5",
+      "at": "2026-09-26T14:08:49.904498+00:00"
+    },
+    {
+      "label": "the proved goal reads as stated (operator + goal + proof)",
+      "passed": true,
+      "detail": "operator=MOVE_FILE proved=True",
+      "at": "2026-09-26T14:08:49.904508+00:00"
+    },
+    {
+      "label": "the substrate-wide view carries no actor and no content",
+      "passed": true,
+      "detail": "actor='' content={} operator=MOVE_FILE",
+      "at": "2026-09-26T14:08:49.904516+00:00"
+    },
+    {
+      "label": "the outcome attaches to the intent, substrate-wide",
+      "passed": true,
+      "detail": "outcome={'matched_aim': True, 'outcome_class': 'success'} status=fulfilled",
+      "at": "2026-09-26T14:08:49.906209+00:00"
+    },
+    {
+      "label": "a fresh process reloads the thread intent at its latest version",
+      "passed": true,
+      "detail": "{\"thread_reloaded\": true, \"thread_version\": 2, \"thread_aim\": \"archive report.txt into /archive\", \"goal_reloaded\": true, \"goal_outcome_class\": \"success\", \"goal_operator\": \"MOVE_FILE\", \"goal_parent\": \"52fe2ae518cb4c4eb303eeb20b0039ff\"}",
+      "at": "2026-09-26T14:08:55.996753+00:00"
+    },
+    {
+      "label": "a fresh process reloads the goal intent with its outcome and parent",
+      "passed": true,
+      "detail": "{\"thread_reloaded\": true, \"thread_version\": 2, \"thread_aim\": \"archive report.txt into /archive\", \"goal_reloaded\": true, \"goal_outcome_class\": \"success\", \"goal_operator\": \"MOVE_FILE\", \"goal_parent\": \"52fe2ae518cb4c4eb303eeb20b0039ff\"}",
+      "at": "2026-09-26T14:08:55.996800+00:00"
+    },
+    {
+      "label": "forgetting the actor removes their content + continuity",
+      "passed": true,
+      "detail": "removed 2 rows, full_view=None",
+      "at": "2026-09-26T14:08:56.001818+00:00"
+    },
+    {
+      "label": "the anonymous shape (the lesson) survives the actor's deletion",
+      "passed": true,
+      "detail": "operator=MOVE_FILE",
+      "at": "2026-09-26T14:08:56.001828+00:00"
+    }
+  ],
+  "notes": []
+}

@@ -500,18 +500,12 @@ class AbstractionPipeline:
             import json as _json
             await self._ensure_schema_table()
             payload = self._schema_to_payload(schema)
-            await self._db().execute_query(
-                "INSERT INTO unified.schemas"
-                " (schema_id, belief_id, probability, payload, formation_time, updated_at)"
-                " VALUES ($1, $2, $3, $4, $5, NOW())"
-                " ON CONFLICT (schema_id) DO UPDATE SET"
-                "   belief_id = EXCLUDED.belief_id, probability = EXCLUDED.probability,"
-                "   payload = EXCLUDED.payload, updated_at = NOW()",
-                (schema.schema_id, getattr(schema, "belief_id", None),
-                 float(getattr(schema, "probability", 0.0)),
-                 _json.dumps(payload, default=str),
-                 getattr(schema, "formation_time", None)),
-                commit=True)
+            from core.agents.memory_agent import memory_agent
+            await memory_agent().hold_schema(
+                schema_id=schema.schema_id, belief_id=getattr(schema, "belief_id", None),
+                probability=float(getattr(schema, "probability", 0.0)),
+                payload=_json.dumps(payload, default=str),
+                formation_time=getattr(schema, "formation_time", None))
             return True
         except Exception as e:
             logger.warning("save_schema failed for %s: %s",
@@ -521,9 +515,8 @@ class AbstractionPipeline:
     async def _delete_schema(self, schema_id: str) -> bool:
         try:
             await self._ensure_schema_table()
-            await self._db().execute_query(
-                "DELETE FROM unified.schemas WHERE schema_id = $1",
-                (schema_id,), commit=True)
+            from core.agents.memory_agent import memory_agent
+            await memory_agent().drop_schema(schema_id)
             return True
         except Exception as e:
             logger.warning("delete_schema failed for %s: %s", schema_id, e)
@@ -1411,9 +1404,14 @@ class AbstractionPipeline:
                 # actually flagged. Mirrors the correct call at line ~1231.
                 memory = await self.memory.retrieve_memory(memory_id)
                 if memory:
+                    # `update_memory(memory_id, updates)` -- this passed `metadata=` as a
+                    # keyword the method does not take, so every call raised
+                    # TypeError into the handler below and no contradicting memory
+                    # was ever flagged.
                     await self.memory.update_memory(
                         memory_id,
-                        metadata={**memory.metadata, 'contradicts_schema': schema.schema_id, 'needs_review': True}
+                        {"metadata": {**memory.metadata, 'contradicts_schema': schema.schema_id,
+                                      'needs_review': True}},
                     )
             except Exception as e:
                 logger.error(f"Error flagging memory {memory_id}: {e}")

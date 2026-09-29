@@ -1,0 +1,166 @@
+{
+  "experiment": "SYSTEM-INTENT-01",
+  "claim": "Intent has one authority: a pursuit is formed once per actor and key, a return refreshes it, reconciliation records the outcome, an unknown id is None, and forgetting an actor removes that actor's pursuits.",
+  "hypothesis": "A second authority, a duplicate intent for one key, a fabricated intent for an unknown id, or a dead public method would each fail here.",
+  "started_at": "2026-09-26T17:06:20.176260+00:00",
+  "duration_seconds": 87.487,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/TorinAI/venv_torin/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/TorinAI",
+    "shadow_mode": null,
+    "git_commit": "20deb447498593391eca0286916b8f986c560a26",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "torinai_db",
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "dotenv:.env.postgres",
+        "database": "dotenv:.env.postgres",
+        "user": "dotenv:.env.postgres",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres"
+      }
+    },
+    "git_uncommitted_changes": 1079,
+    "database_verified": null,
+    "database_verified_reason": "no initialized connection in this process"
+  },
+  "summary": {
+    "checks": 15,
+    "passed": 15,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [
+    {
+      "name": "intent_construction_sites",
+      "value": 1,
+      "unit": "count",
+      "note": "core/reasoning/intent_authority.py:639"
+    },
+    {
+      "name": "intent_public_methods",
+      "value": 7,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "intent_dead_public_methods",
+      "value": 0,
+      "unit": "count",
+      "note": "used nowhere in core, not even in their own file: "
+    },
+    {
+      "name": "intent_internal_only_public_methods",
+      "value": 1,
+      "unit": "count",
+      "note": "used only inside their own file: forget_actor"
+    },
+    {
+      "name": "intent_stub_public_methods",
+      "value": 0,
+      "unit": "count",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "intent: the coordinator holds the instance the accessor returns",
+      "passed": true,
+      "detail": "held=IntentAuthority same=True",
+      "at": "2026-09-26T17:07:44.280781+00:00"
+    },
+    {
+      "label": "intent: IntentAuthority is constructed in one place",
+      "passed": true,
+      "detail": "in its module: ['core/reasoning/intent_authority.py:639']; elsewhere: []",
+      "at": "2026-09-26T17:07:46.370100+00:00"
+    },
+    {
+      "label": "intent: no public method of IntentAuthority is dead (used nowhere in core)",
+      "passed": true,
+      "detail": "0/7 dead: []",
+      "at": "2026-09-26T17:07:47.284623+00:00"
+    },
+    {
+      "label": "intent: no public method of IntentAuthority is a stub body",
+      "passed": true,
+      "detail": "stubs: []",
+      "at": "2026-09-26T17:07:47.284681+00:00"
+    },
+    {
+      "label": "a pursuit is formed",
+      "passed": true,
+      "detail": "id=5af0a3d84ea142cd980271b463c710f6 status=forming v1",
+      "at": "2026-09-26T17:07:47.302463+00:00"
+    },
+    {
+      "label": "a return on the same key refreshes the same pursuit",
+      "passed": true,
+      "detail": "same_id=True v1->v2",
+      "at": "2026-09-26T17:07:47.308836+00:00"
+    },
+    {
+      "label": "it is found by actor and key",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-26T17:07:47.312735+00:00"
+    },
+    {
+      "label": "and by id",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-26T17:07:47.314479+00:00"
+    },
+    {
+      "label": "reconciliation records the outcome and concludes the pursuit",
+      "passed": true,
+      "detail": "status=fulfilled outcome={'source': 'SYSTEM-INTENT-01', 'success': True, 'matched_aim': True}",
+      "at": "2026-09-26T17:07:47.317533+00:00"
+    },
+    {
+      "label": "the outcome is durable",
+      "passed": true,
+      "detail": "row={'status': 'fulfilled', 'outcome': '{\"source\": \"SYSTEM-INTENT-01\", \"success\": true, \"matched_aim\": true}'}",
+      "at": "2026-09-26T17:07:47.318785+00:00"
+    },
+    {
+      "label": "an unknown id is None",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-26T17:07:47.319877+00:00"
+    },
+    {
+      "label": "an unknown key is None",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-26T17:07:47.320512+00:00"
+    },
+    {
+      "label": "forgetting the actor removes that actor's pursuits",
+      "passed": true,
+      "detail": "forgotten=2",
+      "at": "2026-09-26T17:07:47.332775+00:00"
+    },
+    {
+      "label": "standing is the substrate-wide account (a dict)",
+      "passed": true,
+      "detail": "keys=['by_status', 'concludable', 'concludable_concluded', 'concludable_live', 'concluded', 'concluded_reconciled', 'live', 'live_proved']",
+      "at": "2026-09-26T17:07:47.339154+00:00"
+    },
+    {
+      "label": "everything this run wrote is removed",
+      "passed": true,
+      "detail": "left=0",
+      "at": "2026-09-26T17:07:47.348256+00:00"
+    }
+  ],
+  "notes": [
+    "intent: 1 public method(s) are used only inside their own file (public in name only, not dead): forget_actor"
+  ]
+}

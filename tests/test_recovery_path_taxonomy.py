@@ -12,7 +12,7 @@ from core.health.recovery_manager import RecoveryManager
 def test_builtin_keys_have_a_path():
     rm = RecoveryManager()
     # Built-in branches of _restart_component, mirrored in _BUILTIN_RESTART_KEYS.
-    for key in ("database", "health_monitor", "security_controller", "monitoring"):
+    for key in ("database", "health_monitor"):
         assert rm.can_restart(key) is True
     # Case/whitespace-insensitive, matching how _restart_component normalises.
     assert rm.can_restart("  Database ") is True
@@ -24,6 +24,10 @@ def test_unregistered_component_has_no_path():
     # restartable in-process — no handler, not a built-in key.
     assert rm.can_restart("content_security") is False
     assert rm.can_restart("safety") is False
+    # Never restarted from inside the substrate: security is supervised by the
+    # container it runs in, and monitoring is retired.
+    assert rm.can_restart("security_controller") is False
+    assert rm.can_restart("monitoring") is False
     assert rm.can_restart("") is False
     assert rm.can_restart(None) is False
 

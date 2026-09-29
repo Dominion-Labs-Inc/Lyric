@@ -1,0 +1,120 @@
+{
+  "experiment": "ENCODER-14 \u2014 hallucination-prone: plausible falsehoods beside the truth",
+  "seed": 20260922,
+  "hypotheses": [
+    "H1 the true fact outranks every plausible falsehood",
+    "H2 it wins by a margin, not by a hair",
+    "H3 a wrong-OBJECT variant is caught",
+    "H4 a wrong-SUBJECT variant is caught",
+    "H5 a wrong-RELATION variant is caught"
+  ],
+  "data": {
+    "MiniLM": {
+      "trials": 29,
+      "hallucinations": 20,
+      "hallucination_rate": 0.6896551724137931,
+      "mean_margin": -0.027303289955829382,
+      "wrong_object": 0.41379310344827586,
+      "wrong_subject": 1.0,
+      "wrong_relation": 0.5862068965517241
+    },
+    "native": {
+      "trials": 29,
+      "hallucinations": 4,
+      "hallucination_rate": 0.13793103448275862,
+      "mean_margin": 0.026939457243350694,
+      "wrong_object": 0.8620689655172413,
+      "wrong_subject": 1.0,
+      "wrong_relation": 1.0
+    },
+    "structural": {
+      "trials": 29,
+      "hallucinations": 4,
+      "hallucination_rate": 0.13793103448275862,
+      "mean_margin": 0.011545633229108242,
+      "wrong_object": 0.8620689655172413,
+      "wrong_subject": 1.0,
+      "wrong_relation": 1.0
+    }
+  },
+  "checks": [
+    {
+      "name": "H1 MiniLM: the truth always outranks the falsehoods",
+      "passed": false,
+      "detail": "20/29 questions answered with a falsehood"
+    },
+    {
+      "name": "H2 MiniLM: it wins by a margin (>= 0.05)",
+      "passed": false,
+      "detail": "mean margin -0.027"
+    },
+    {
+      "name": "H3 MiniLM: wrong-OBJECT variants caught",
+      "passed": false,
+      "detail": "41.4% caught"
+    },
+    {
+      "name": "H4 MiniLM: wrong-SUBJECT variants caught",
+      "passed": true,
+      "detail": "100.0% caught"
+    },
+    {
+      "name": "H5 MiniLM: wrong-RELATION variants caught",
+      "passed": false,
+      "detail": "58.6% caught"
+    },
+    {
+      "name": "H1 native: the truth always outranks the falsehoods",
+      "passed": false,
+      "detail": "4/29 questions answered with a falsehood"
+    },
+    {
+      "name": "H2 native: it wins by a margin (>= 0.05)",
+      "passed": false,
+      "detail": "mean margin +0.027"
+    },
+    {
+      "name": "H3 native: wrong-OBJECT variants caught",
+      "passed": false,
+      "detail": "86.2% caught"
+    },
+    {
+      "name": "H4 native: wrong-SUBJECT variants caught",
+      "passed": true,
+      "detail": "100.0% caught"
+    },
+    {
+      "name": "H5 native: wrong-RELATION variants caught",
+      "passed": true,
+      "detail": "100.0% caught"
+    },
+    {
+      "name": "H1 structural: the truth always outranks the falsehoods",
+      "passed": false,
+      "detail": "4/29 questions answered with a falsehood"
+    },
+    {
+      "name": "H2 structural: it wins by a margin (>= 0.05)",
+      "passed": false,
+      "detail": "mean margin +0.012"
+    },
+    {
+      "name": "H3 structural: wrong-OBJECT variants caught",
+      "passed": false,
+      "detail": "86.2% caught"
+    },
+    {
+      "name": "H4 structural: wrong-SUBJECT variants caught",
+      "passed": true,
+      "detail": "100.0% caught"
+    },
+    {
+      "name": "H5 structural: wrong-RELATION variants caught",
+      "passed": true,
+      "detail": "100.0% caught"
+    }
+  ],
+  "passed": 5,
+  "total": 15,
+  "verdict": "lowest hallucination rate: native at 13.8% over 29 trials"
+}

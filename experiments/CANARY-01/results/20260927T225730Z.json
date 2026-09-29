@@ -1,0 +1,114 @@
+{
+  "experiment": "CANARY-01",
+  "claim": "What a person gives the substrate through its doors -- a question, a job, an image -- is held in that person's context and in no memory of anyone else's, while what the substrate does on its own is its own.",
+  "hypothesis": "A marker from the person found in a memory row of the substrate's, or under another owner in a table that records owners, would show a leak here.",
+  "started_at": "2026-09-27T22:57:30.119146+00:00",
+  "duration_seconds": 47.094,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/TorinAI/venv_torin/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/TorinAI",
+    "shadow_mode": null,
+    "git_commit": "20deb447498593391eca0286916b8f986c560a26",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "torinai_dev",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "torinai_dev",
+        "model": "torinai_dev",
+        "user_context": "torinai_dev",
+        "learning": "torinai_dev"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "environment",
+        "database": "environment",
+        "user": "environment",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 1190,
+    "database_verified": null,
+    "database_verified_reason": "not verified"
+  },
+  "summary": {
+    "checks": 9,
+    "passed": 7,
+    "failed": 2,
+    "outcome": "FAIL"
+  },
+  "metrics": [
+    {
+      "name": "owner-less tables holding a person's marker",
+      "value": 0,
+      "unit": "",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "the run is in the sandbox",
+      "passed": true,
+      "detail": "connected to torinai_dev",
+      "at": "2026-09-27T22:57:39.087366+00:00"
+    },
+    {
+      "label": "the substrate is running",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-27T22:57:56.209842+00:00"
+    },
+    {
+      "label": "the job ran to its end and succeeded, so every memory a finished task makes was made",
+      "passed": true,
+      "detail": "completed",
+      "at": "2026-09-27T22:58:04.258298+00:00"
+    },
+    {
+      "label": "`see` takes whose image it is, as the front door takes whose message it is",
+      "passed": false,
+      "detail": "it takes a source (where the image came from) and no identity",
+      "at": "2026-09-27T22:58:04.262793+00:00"
+    },
+    {
+      "label": "the person's question reached memory, and every memory row holding it is theirs",
+      "passed": true,
+      "detail": "owners ['canary-person-tenatfjih']",
+      "at": "2026-09-27T22:58:16.895866+00:00"
+    },
+    {
+      "label": "the person's task reached memory, and every memory row holding it is theirs",
+      "passed": true,
+      "detail": "owners ['canary-person-tenatfjih']",
+      "at": "2026-09-27T22:58:16.895882+00:00"
+    },
+    {
+      "label": "the person's image reached memory, and every memory row holding it is theirs",
+      "passed": false,
+      "detail": "owners none",
+      "at": "2026-09-27T22:58:16.895888+00:00"
+    },
+    {
+      "label": "the substrate's own note is its own",
+      "passed": true,
+      "detail": "owners ['']",
+      "at": "2026-09-27T22:58:16.895897+00:00"
+    },
+    {
+      "label": "the main model's store is untouched",
+      "passed": true,
+      "detail": "207 rows before, 207 after",
+      "at": "2026-09-27T22:58:17.213849+00:00"
+    }
+  ],
+  "notes": []
+}

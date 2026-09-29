@@ -17,22 +17,18 @@ from core.learning.rule_induction import (
     CandidateRule, Fact, RuleEffects, TrainingExample, get_rule_inducer,
 )
 from core.learning.rule_store import EpistemicStatus, StoredRule, from_json, to_json
-from core.model_policy import (
-    ModelPolicy, assert_model_free, reset_model_telemetry, set_model_policy,
-)
+# THE MODEL-FREE GUARD IS GONE, AND SO IS WHAT IT GUARDED AGAINST.
+# These tests wrapped themselves in an autouse fixture that set
+# `ModelPolicy.STRICT_MODEL_FREE` and asserted afterwards that no model had been
+# called. `core.model_policy` was REMOVED when the substrate became model-free by
+# CONSTRUCTION -- there is no longer a policy to set, because there is nothing to
+# set it against. The guard's subject is gone; the subject of these tests is not,
+# and they had been uncollectable ever since.
 from core.reasoning.temporal_reasoning import PlanningStatus, TemporalReasoningSystem
 
 F = Fact.parse
 
 
-@pytest.fixture(autouse=True)
-def strict():
-    previous = set_model_policy(ModelPolicy.STRICT_MODEL_FREE)
-    reset_model_telemetry()
-    yield
-    assert_model_free("rule grounding")
-    set_model_policy(previous)
-    reset_model_telemetry()
 
 
 def move_example(who, a, b, evidence_id, opened=True, path=True, acted=True, at=True):

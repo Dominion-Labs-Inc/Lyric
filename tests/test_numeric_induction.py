@@ -14,7 +14,7 @@ enters as background RELATIONS, and a learned rule is still a Horn clause.
 
 import pytest
 
-from core.learning.learning_authority import get_learning_authority
+from core.learning.unified_learning_system import get_learning_authority
 from core.learning.rule_induction import (Fact, InductionStatus, canonical_term,
                                           arithmetic_background, is_number)
 from core.learning.rule_identity import semantic_fingerprint
@@ -299,7 +299,7 @@ def test_alpha_variant_supersets_do_not_survive_as_hypotheses():
 def test_genuinely_distinct_hypotheses_still_report_ambiguity():
     """The pruning must remove RENAMINGS, never real alternatives. If this ever
     fails, subsumption has started manufacturing certainty."""
-    from core.learning.learning_authority import get_learning_authority
+    from core.learning.unified_learning_system import get_learning_authority
 
     # 3,9,27,81 fits both "add a varying amount" and "multiply by three"; only
     # the discriminating negatives collapse it. Without them it must stay open.

@@ -57,11 +57,12 @@ def check(name, ok, detail=""):
 
 
 async def main() -> int:
+    from core.memory import Origin
     from core.database import get_unified_db
     from core.memory import get_memory_agent
     from core.memory.utils.interfaces import MemoryType
     from core.memory.utils.memory_injector import _percept_suffix
-    from core.perception.vision_faculty import VisionFaculty
+    from core.perception.perception_faculty import PerceptionFaculty
     from core.agents.autonomous.perception_manager import (
         PerceptionManager, get_acting_percept, set_acting_percept,
         reset_acting_percept)
@@ -76,10 +77,12 @@ async def main() -> int:
     print("\n== A. The percept is bound by whoever owns the scope ==")
     pm = PerceptionManager()
     await pm.initialize()
-    eyes = VisionFaculty()
+    eyes = PerceptionFaculty()
     modality, content = await eyes.sense("test_data/vision_test.png",
                                          source="mp01_photo")
-    percept = await pm.process_input("mp01_photo", modality, content)
+    from core.memory import Origin
+    percept = await pm.process_input("mp01_photo", modality, content,
+                                     origin=Origin.own("MEMORY-PERCEPT-01"))
     check("the image was really perceived", percept is not None, modality)
     check("perceiving leaves NOTHING bound — the hub does not own the scope",
           get_acting_percept() is None,
@@ -96,7 +99,7 @@ async def main() -> int:
     try:
         ok, seen_id = await agent.store_memory(
             content=f"observed the test card [{TAG}]",
-            memory_type=MemoryType.EPISODIC, importance_score=0.8)
+            memory_type=MemoryType.EPISODIC, importance_score=0.8, origin=Origin.own("MEMORY-PERCEPT-01"))
     finally:
         reset_acting_percept(token)
     row = await db.execute_query(
@@ -113,7 +116,7 @@ async def main() -> int:
     print("\n== C. A memory formed outside a seeing links to nothing ==")
     ok2, unseen_id = await agent.store_memory(
         content=f"an unrelated thought [{TAG}]",
-        memory_type=MemoryType.EPISODIC, importance_score=0.5)
+        memory_type=MemoryType.EPISODIC, importance_score=0.5, origin=Origin.own("MEMORY-PERCEPT-01"))
     row2 = await db.execute_query(
         "SELECT percept_id, percept_digest FROM memory_hot.memory_hot "
         "WHERE memory_id = $1", (str(unseen_id),), fetch_one=True)
@@ -191,7 +194,7 @@ async def main() -> int:
     try:
         ok3, audio_id = await agent.store_memory(
             content=f"heard the doorbell [{TAG}]",
-            memory_type=MemoryType.EPISODIC, importance_score=0.5)
+            memory_type=MemoryType.EPISODIC, importance_score=0.5, origin=Origin.own("MEMORY-PERCEPT-01"))
     finally:
         reset_acting_percept(heard)
     row3 = await db.execute_query(

@@ -163,8 +163,9 @@ async def main() -> int:
             return result
 
         async def ask(subject, cat):
+            from core.memory import Origin
             t0 = time.perf_counter()
-            res = await coord.reason_about(f"is {subject} a {cat}?")
+            res = await coord.reason_about(f"is {subject} a {cat}?", origin=Origin.own("PERCEIVE-EVAL2"))
             timings["name_ms"].append((time.perf_counter() - t0) * 1000)
             md = dict(getattr(res, "metadata", {}) or {})
             return yes_no(getattr(res, "answer", "")), int(md.get("model_calls") or 0)

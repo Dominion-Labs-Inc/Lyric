@@ -78,7 +78,8 @@ def quality_from_resolution(resolution: float,
 
 
 async def _ingest_and_learn(service: Any, envelope: "EvidenceEnvelope", *,
-                            domain: str, quality: float) -> "IngestionResult":
+                            domain: str, quality: float,
+                            memory_id: Optional[str] = None) -> "IngestionResult":
     """Ingest through the ONE write path, then fan the admitted relations out to
     the lexicon and beliefs via the learning authority.
 
@@ -93,17 +94,114 @@ async def _ingest_and_learn(service: Any, envelope: "EvidenceEnvelope", *,
     `quality` is how good the producer says its own evidence is, and every
     producer states it. It was omitted here, so the fan-out's default stood and
     a detector's confidence -- the one number on this path that was actually
-    measured -- was discarded on the way to the belief."""
+    measured -- was discarded on the way to the belief.
+
+    `memory_id` is the memory of HAVING MET what this evidence is about, for the
+    producers that met something: a belief names the memory it is about or it is
+    not stored. A producer with nothing met (a tool signature read off a
+    registry) passes None and its beliefs are honestly refused."""
     result = await service.ingest(envelope)
+    # A PERCEPTION IS SOMETHING THE SUBSTRATE MET, so if the caller did not
+    # already remember it, it is remembered here — in the producer's OWN
+    # rendering of the observation, which is the only faithful account of it
+    # available and is already computed for the envelope.
+    #
+    # Scoped to PERCEPTION provenance deliberately. A tool signature read off a
+    # registry is not something met, and letting it mint a memory would reopen
+    # exactly what the grounding rule closed: ~1,800 of them per boot written as
+    # things the substrate believed. `coord.see` supplies its own richer memory
+    # (with the picture retained), so an image never reaches this.
+    if memory_id is None and _is_perception(envelope):
+        from core.memory import Origin
+        memory_id = await _remember_percept(envelope, Origin.own("perception"))
     try:
         from core.learning.unified_learning_system import \
             get_unified_learning_system
         await get_unified_learning_system().fan_out_ingested(
             result, domain=domain, surface=getattr(envelope, "content", "") or "",
-            quality=quality)
+            quality=quality, memory_id=memory_id)
     except Exception as error:
         logger.debug("evidence fan-out skipped (%s): %s", domain, error)
     return result
+
+
+
+def _is_perception(envelope: "EvidenceEnvelope") -> bool:
+    """Is this envelope an observation of something the substrate MET?"""
+    from .concept_ingestion import EvidenceSourceType
+    return getattr(envelope, "source_type", None) is EvidenceSourceType.PERCEPTION
+
+
+async def _remember_percept(envelope: "EvidenceEnvelope", origin: "Origin") -> Optional[str]:
+    """Remember having perceived this, as whose it was, and return the memory's id.
+
+    The text is the envelope's own `content` — the producer's rendering of what
+    it observed ("boiler_temp_sensor reads 94.5 celsius of temperature"), so
+    nothing is invented here to get a memory written. Isolated: a perception is
+    never failed by its memory, but the failure is reported, because a percept
+    with no memory is a percept nothing can be believed about."""
+    account = str(getattr(envelope, "content", "") or "").strip()
+    if not account:
+        return None
+    try:
+        from core.memory import get_memory_agent
+        from core.memory.utils.interfaces import MemoryType
+        agent = await get_memory_agent()
+        ok, memory_id = await agent.store_memory(
+            origin=origin,
+            content=account, memory_type=MemoryType.EPISODIC,
+            importance_score=0.5,
+            tags=["percept", str(getattr(envelope, "producer", "") or "")],
+            source_context={"source_system": "perception",
+                            "evidence_id": getattr(envelope, "evidence_id", None),
+                            "source_id": getattr(envelope, "source_id", None)})
+        return memory_id if ok else None
+    except Exception as error:
+        logger.error("perceived %r but formed no memory of it: %s",
+                     account[:80], error)
+        return None
+
+
+async def _admit_perceived(service: Any, envelope: "EvidenceEnvelope", *, origin: "Origin",
+                           domain: str, quality: float,
+                           memory_id: Optional[str] = None) -> Optional["IngestionResult"]:
+    """A perception, admitted where its owner's words go.
+
+    The substrate's own takes the one write path and the learning fan-out, as
+    it always has. A PERSON'S -- their image, what was seen in it -- is theirs:
+    each edge of the observation goes through the learning authority's router
+    to their context, as what they tell does, and nothing of it enters the shared
+    graph, its beliefs or the vocabulary. It enters the substrate's own
+    knowledge only as an experience, through the lift and the gate. Returns the
+    ingestion for the substrate's own, and None for a person's: the shared
+    graph took nothing."""
+    if origin.person is None:
+        return await _ingest_and_learn(service, envelope, domain=domain,
+                                       quality=quality, memory_id=memory_id)
+    from core.capability import raise_if_structural
+    from core.learning.unified_learning_system import get_unified_learning_system
+    from core.semantics.cognitive_ingress import Provenance
+    if memory_id is None:
+        await _remember_percept(envelope, origin)
+    learning = get_unified_learning_system()
+    provenance = Provenance(producer=str(envelope.producer),
+                            source_id=str(envelope.source_id),
+                            source_type=EvidenceSourceType.PERCEPTION.name)
+    for concept in (envelope.structured_data or {}).get("concepts") or []:
+        for edge in concept.get("relationships") or []:
+            relation, obj = str(edge[0]), edge[1]
+            positive = len(edge) < 3 or str(edge[2]) != "negative"
+            support = edge[3] if len(edge) > 3 and edge[3] is not None else quality
+            try:
+                await learning.learn_fact(
+                    str(concept["label"]), relation, str(obj), positive=positive,
+                    surface=envelope.content, provenance=provenance, domain=domain,
+                    quality=float(support), actor=origin.person)
+            except Exception as error:
+                raise_if_structural(error, "evidence_producers._admit_perceived")
+                logger.warning("a person's perception could not be held in their context "
+                               "(%s %s %s): %s", concept.get("label"), relation, obj, error)
+    return None
 
 
 def _stable_id(prefix: str, *parts: str) -> str:
@@ -627,8 +725,11 @@ async def submit_perception(
     content: Dict[str, Any],
     *,
     domain: str = "substrate",
+    memory_id: Optional[str] = None,
+    origin: "Origin",
 ) -> Optional["IngestionResult"]:
-    """Record a perceived state of something the substrate can name.
+    """Record a perceived state of something the substrate can name, where its
+    owner's words go (`_admit_perceived`).
 
     PERCEPTION's live producer is health monitoring: a named component observed
     in a named condition. That is already a subject and a state -- the typed
@@ -656,17 +757,17 @@ async def submit_perception(
 
     service = get_concept_ingestion_service()
     await service._ready()
-    return await _ingest_and_learn(service, EvidenceEnvelope(
+    return await _admit_perceived(service, EvidenceEnvelope(
         evidence_id=_stable_id("percept", source, data_type, subject, state),
         source_type=EvidenceSourceType.PERCEPTION,
         source_id=f"{source}:{data_type}",
         producer=str(source),
         content=f"{subject} observed as {state or 'unspecified'} via {source}",
         structured_data={"concepts": concepts},
-    ), domain=domain, quality=PRODUCED_EVIDENCE_QUALITY)
+    ), origin=origin, domain=domain, quality=PRODUCED_EVIDENCE_QUALITY, memory_id=memory_id)
 
 
-# --- richer perception modalities: sensor, image, video ------------------
+# --- richer perception modalities: sensor, image, video, audio -----------
 #
 # THESE ADMIT SUPPLIED DESCRIPTORS, THEY DO NOT PERCEIVE. The substrate is
 # model-free, so nothing here runs a detector over pixels or a waveform: a
@@ -749,8 +850,11 @@ async def submit_sensor_reading(
     content: Dict[str, Any],
     *,
     domain: str = "sensor",
+    memory_id: Optional[str] = None,
+    origin: "Origin",
 ) -> Optional["IngestionResult"]:
-    """Record one sensor reading as a typed observation.
+    """Record one sensor reading as a typed observation, where its owner's words
+    go (`_admit_perceived`).
 
     A reading is: a named sensor, a numeric value (a QUANTITY literal), and
     optionally the quantity it measures, a unit, and a time. The value is
@@ -812,7 +916,7 @@ async def submit_sensor_reading(
 
     service = get_concept_ingestion_service()
     await service._ready()
-    return await _ingest_and_learn(service, EvidenceEnvelope(
+    return await _admit_perceived(service, EvidenceEnvelope(
         evidence_id=_stable_id("sensor", source, sensor, quantity, value_surface,
                                str(when or "")),
         source_type=EvidenceSourceType.PERCEPTION,
@@ -820,18 +924,23 @@ async def submit_sensor_reading(
         producer=str(source),
         content=rendered,
         structured_data={"concepts": concepts},
-    ), domain=domain, quality=PRODUCED_EVIDENCE_QUALITY)
+    ), origin=origin, domain=domain, quality=PRODUCED_EVIDENCE_QUALITY, memory_id=memory_id)
 
 
-async def _submit_seen(
+async def _submit_perceived(
     source: str,
     content: Dict[str, Any],
     *,
     data_type: str,
     domain: str,
     extra_edges: Optional[List[Tuple[str, str, List[Dict[str, Any]]]]] = None,
+    memory_id: Optional[str] = None,
+    origin: "Origin",
 ) -> Optional["IngestionResult"]:
-    """Shared body for image/video: an observer that saw some recognised things.
+    """Shared body for image, video and audio: an observer that perceived some
+    individuals and recognised some things, admitted where its owner's words go
+    (`_admit_perceived`). One body, because a sound heard and a thing seen are
+    stated on one contract and must reach belief the same way.
 
     `extra_edges` is a list of (relation, surface, concept_dicts) the caller adds
     on top of the recognised-label edges (e.g. a video's duration). Returns None
@@ -858,7 +967,13 @@ async def _submit_seen(
     blobs = [b for b in (payload.get("blobs") or [])
              if isinstance(b, dict) and str(b.get("name") or "").strip()]
     extra = list(extra_edges or [])
-    if not observer or (not detections and not properties and not extra and not blobs):
+    # What was heard said, sung or played is something recognised too, and a
+    # hearing named only by that -- a song taught now, said of a recording
+    # heard before -- is a real observation of it.
+    heard = any(payload.get(k) for k in ("said", "spoken_by", "in_key", "tempo", "plays",
+                                         "heard_before"))
+    if not observer or (not detections and not properties and not extra and not blobs
+                        and not heard):
         return None
 
     rels: List[List[str]] = []
@@ -936,17 +1051,92 @@ async def _submit_seen(
              else quality_from_resolution(_support[f])]
             for f in features]
         blob_rels.extend(blob_links.get(name, ()))
+        # A PROPERTY CAN CARRY ITS OWN SUPPORT TOO, and `sits` was the last
+        # reading the faculty made that went out with none: it travels as a
+        # property rather than as an `isa`, so it never passed through the
+        # channel the rest use. Measured, the position word survived 0% of a 28%
+        # translation while the substrate judged the percept ACT in 62% of those
+        # sightings -- the worst remaining gap in the band once colour was
+        # compensated. Properties with nothing to say still say nothing, and the
+        # envelope's own quality stands for them.
+        _prop_support = blob.get("property_support") or {}
         for relation, value in (blob.get("properties") or {}).items():
             prop_concept, surface = _property_concept(value, domain)
             if not surface:
                 continue
-            blob_rels.append([str(relation), surface])
+            support = _prop_support.get(str(relation))
+            blob_rels.append(
+                [str(relation), surface] if support is None
+                else [str(relation), surface, "positive",
+                      quality_from_resolution(float(support))])
             concepts.append(prop_concept)
         concepts.append({
             "label": name, "kind": "entity", "domains": [domain],
             "description": " ".join(features),
             "relationships": blob_rels,
         })
+
+    # WHAT WAS SAID, heard as the words taught, and WHOSE VOICE said it. Each
+    # carries the support its naming earned, as a recognition's confidence
+    # belongs to the recognition. A word said twice is one claim, at its best.
+    said: Dict[str, Optional[float]] = {}
+    for spoken in (payload.get("said") or []):
+        word = _term_like(spoken.get("word") or "") if isinstance(spoken, dict) else ""
+        if not word:
+            continue
+        sup = spoken.get("support")
+        if word not in said or (sup is not None and (said[word] or 0.0) < float(sup)):
+            said[word] = None if sup is None else float(sup)
+    for word, sup in said.items():
+        rels.append(["said", word] if sup is None
+                    else ["said", word, "positive", quality_from_resolution(sup)])
+        concepts.append({"label": word, "kind": "entity", "domains": [domain]})
+    voice = payload.get("spoken_by") or {}
+    person = _term_like(voice.get("person") or "") if isinstance(voice, dict) else ""
+    if person:
+        sup = voice.get("support")
+        rels.append(["spoken_by", person] if sup is None
+                    else ["spoken_by", person, "positive", quality_from_resolution(float(sup))])
+        concepts.append({"label": person, "kind": "entity", "domains": [domain], "is_name": True})
+
+    # WHAT THE MUSIC IS: the key it is in, its tempo (beats a minute, a typed
+    # quantity), and the songs taught that it plays. Each carries the support
+    # its measurement earned; a melody's notes stay in the percept and its
+    # memory, not in edges. A key, a song and a person are NAMES, and keep
+    # their words ("A major" is not the word `major`).
+    keyed = payload.get("in_key") or {}
+    key_label = _term_like(keyed.get("key") or "") if isinstance(keyed, dict) else ""
+    if key_label:
+        sup = keyed.get("support")
+        rels.append(["in_key", key_label] if sup is None
+                    else ["in_key", key_label, "positive", quality_from_resolution(float(sup))])
+        concepts.append({"label": key_label, "kind": "entity", "domains": [domain], "is_name": True})
+    paced = payload.get("tempo") or {}
+    if isinstance(paced, dict) and paced.get("bpm") is not None:
+        bpm_concept, bpm_surface = _literal_concept(paced["bpm"], domain)
+        if bpm_concept is not None and bpm_concept["kind"] == "quantity":
+            sup = paced.get("support")
+            rels.append(["has_tempo", bpm_surface] if sup is None
+                        else ["has_tempo", bpm_surface, "positive",
+                              quality_from_resolution(float(sup))])
+            concepts.append(bpm_concept)
+    for played in (payload.get("plays") or []):
+        title = _term_like(played.get("song") or "") if isinstance(played, dict) else ""
+        if not title:
+            continue
+        sup = played.get("support")
+        rels.append(["plays", title] if sup is None
+                    else ["plays", title, "positive", quality_from_resolution(float(sup))])
+        concepts.append({"label": title, "kind": "entity", "domains": [domain], "is_name": True})
+    # HEARD BEFORE: the same sound as a hearing memory already holds, found by
+    # the sound itself, with the support its agreement earned.
+    for earlier in (payload.get("heard_before") or []):
+        other = _term_like(earlier.get("subject") or "") if isinstance(earlier, dict) else ""
+        if not other or other == _term_like(observer):
+            continue
+        sup = earlier.get("support")
+        rels.append(["same_sound_as", other] if sup is None
+                    else ["same_sound_as", other, "positive", quality_from_resolution(float(sup))])
 
     for relation, surface, concept_dicts in extra:
         rels.append([relation, surface])
@@ -966,7 +1156,7 @@ async def _submit_seen(
 
     service = get_concept_ingestion_service()
     await service._ready()
-    return await _ingest_and_learn(service, EvidenceEnvelope(
+    return await _admit_perceived(service, EvidenceEnvelope(
         evidence_id=_stable_id(data_type, source, observer,
                                ",".join(sorted([l for l, _ in detections]
                                                + [str(b["name"]) for b in blobs])),
@@ -983,7 +1173,7 @@ async def _submit_seen(
     # was written, and no longer: per-edge quality landed, the blob `isa` edges
     # already use it, and a detection stating its own confidence is strictly
     # more precise than dragging every measured property to meet it.
-    ), domain=domain, quality=PRODUCED_EVIDENCE_QUALITY)
+    ), origin=origin, domain=domain, quality=PRODUCED_EVIDENCE_QUALITY, memory_id=memory_id)
 
 
 async def submit_image(
@@ -991,8 +1181,10 @@ async def submit_image(
     content: Dict[str, Any],
     *,
     domain: str = "vision",
+    memory_id: Optional[str] = None,
+    origin: "Origin",
 ) -> Optional["IngestionResult"]:
-    """Record what is known about one image.
+    """Record what is known about one image, where its owner's words go.
 
     `content` carries STRUCTURE produced upstream, of two honest kinds:
       - `properties`: facts MEASURED off the real file with no model -- format,
@@ -1005,7 +1197,8 @@ async def submit_image(
     date. Either kind alone is enough; returns None when neither is present. This
     producer reads no pixels itself -- the deterministic extractor or the detector
     upstream does, and this admits their output with perception provenance."""
-    return await _submit_seen(source, content, data_type="image", domain=domain)
+    return await _submit_perceived(source, content, data_type="image", domain=domain,
+                                   memory_id=memory_id, origin=origin)
 
 
 async def submit_video(
@@ -1013,8 +1206,11 @@ async def submit_video(
     content: Dict[str, Any],
     *,
     domain: str = "vision",
+    memory_id: Optional[str] = None,
+    origin: "Origin",
 ) -> Optional["IngestionResult"]:
-    """Record what a detector/annotator recognised in one video clip.
+    """Record what a detector/annotator recognised in one video clip, where its
+    owner's words go.
 
     Like `submit_image`, plus temporal structure: `events` (recognised happenings,
     each a label optionally with a `confidence`) become `observer observed
@@ -1036,5 +1232,37 @@ async def submit_video(
         if dur_concept is not None and dur_concept["kind"] == "quantity":
             extra.append(("lasts", dur_surface, [dur_concept]))
 
-    return await _submit_seen(source, content, data_type="video", domain=domain,
-                              extra_edges=extra)
+    return await _submit_perceived(source, content, data_type="video", domain=domain,
+                                   extra_edges=extra, memory_id=memory_id, origin=origin)
+
+
+async def submit_audio(
+    source: str,
+    content: Dict[str, Any],
+    *,
+    domain: str = "hearing",
+    memory_id: Optional[str] = None,
+    origin: "Origin",
+) -> Optional["IngestionResult"]:
+    """Record what was heard in one recording, where its owner's words go.
+
+    The same contract as an image: `properties` measured off the file (format,
+    codec, rate, channels, how good the hearing was, what it rests on), each
+    sound as a perceived individual under `blobs` with its own `isa` features
+    and supports (a sound heard as a voice carries `isa voice`), how the sounds
+    stand to one another under `blob_relations`, known sounds recognised under
+    `detections`, the taught words heard under `said` and whose voice said
+    them under `spoken_by`, and the music: the key it is in (`in_key`), its
+    tempo (`has_tempo`, beats a minute) and the taught songs it plays
+    (`plays`). A numeric `duration` is held as a typed quantity, as a video's
+    is. Returns None when nothing was heard and nothing measured. No samples
+    are decoded here."""
+    payload = content or {}
+    extra: List[Tuple[str, str, List[Dict[str, Any]]]] = []
+    duration = payload.get("duration")
+    if duration is not None and "lasts" not in (payload.get("properties") or {}):
+        dur_concept, dur_surface = _literal_concept(duration, domain)
+        if dur_concept is not None and dur_concept["kind"] == "quantity":
+            extra.append(("lasts", dur_surface, [dur_concept]))
+    return await _submit_perceived(source, content, data_type="audio", domain=domain,
+                                   extra_edges=extra, memory_id=memory_id, origin=origin)

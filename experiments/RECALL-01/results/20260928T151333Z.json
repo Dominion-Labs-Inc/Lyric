@@ -1,0 +1,164 @@
+{
+  "experiment": "RECALL-01",
+  "claim": "The substrate remembers what it heard and saw as traces, not copies, and rebuilds them in the mind: a rebuilt sound is heard as the same sounds and a rebuilt picture is seen as the same things.",
+  "hypothesis": "From the scratch measurements: firmly read pitchedness, register and onset survive the rebuild in at least 90% of sounds; a clean picture's things all come back; on real footage at least half of a picture's things and its dominant hue come back.",
+  "started_at": "2026-09-28T15:13:33.676008+00:00",
+  "duration_seconds": 34.497,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/TorinAI/venv_torin/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/TorinAI",
+    "shadow_mode": null,
+    "git_commit": "20deb447498593391eca0286916b8f986c560a26",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "torinai_dev",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "torinai_dev",
+        "model": "torinai_dev",
+        "user_context": "torinai_dev",
+        "learning": "torinai_dev"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "dotenv:.env.postgres",
+        "database": "environment",
+        "user": "dotenv:.env.postgres",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 1514,
+    "database_verified": "torinai_dev",
+    "database_verified_reason": "asked the server"
+  },
+  "summary": {
+    "checks": 11,
+    "passed": 11,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [
+    {
+      "name": "sound_count_same",
+      "value": "8/8",
+      "unit": "recordings",
+      "note": ""
+    },
+    {
+      "name": "sound_firm_kept",
+      "value": "24/25",
+      "unit": "readings",
+      "note": ""
+    },
+    {
+      "name": "sound_pitch_kept",
+      "value": "12/12",
+      "unit": "readings",
+      "note": ""
+    },
+    {
+      "name": "sound_level_kept",
+      "value": "13/13",
+      "unit": "readings",
+      "note": ""
+    },
+    {
+      "name": "card_things_beyond_original",
+      "value": "gray/rectangle",
+      "unit": "things",
+      "note": "the card's own frame, remembered soft"
+    },
+    {
+      "name": "real_things_found_again",
+      "value": "5/6",
+      "unit": "things",
+      "note": ""
+    },
+    {
+      "name": "real_dominant_hue_kept",
+      "value": "4/4",
+      "unit": "pictures",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "hearing formed a memory",
+      "passed": true,
+      "detail": "mem_ac9e622b442a47cabc3efc1da0fdcf4e",
+      "at": "2026-09-28T15:13:52.250067+00:00"
+    },
+    {
+      "label": "A: the memory holds a trace and no recording",
+      "passed": true,
+      "detail": "['application/x-npz'], 22620 bytes of 352078",
+      "at": "2026-09-28T15:13:52.250953+00:00"
+    },
+    {
+      "label": "B: with the file gone, the sound still comes back \u2014 from memory",
+      "passed": true,
+      "detail": "11.00 s rebuilt",
+      "at": "2026-09-28T15:13:52.418838+00:00"
+    },
+    {
+      "label": "C: firmly read pitchedness, register and onset are heard the same",
+      "passed": true,
+      "detail": "24/25",
+      "at": "2026-09-28T15:13:56.169608+00:00"
+    },
+    {
+      "label": "C: pitch comes back within 5%",
+      "passed": true,
+      "detail": "12/12",
+      "at": "2026-09-28T15:13:56.169648+00:00"
+    },
+    {
+      "label": "C: loudness comes back within 3 dB",
+      "passed": true,
+      "detail": "13/13",
+      "at": "2026-09-28T15:13:56.169653+00:00"
+    },
+    {
+      "label": "B: with the picture gone, it still comes back \u2014 from memory",
+      "passed": true,
+      "detail": "(400, 800, 3)",
+      "at": "2026-09-28T15:13:57.123104+00:00"
+    },
+    {
+      "label": "D: a clean picture's things all come back",
+      "passed": true,
+      "detail": "['green/rectangle', 'red/circle'] -> ['gray/rectangle', 'green/rectangle', 'red/circle']",
+      "at": "2026-09-28T15:13:58.702005+00:00"
+    },
+    {
+      "label": "D: on real footage, at least half of a picture's things come back",
+      "passed": true,
+      "detail": "5/6 over 4 real frames",
+      "at": "2026-09-28T15:14:08.111443+00:00"
+    },
+    {
+      "label": "D: and its dominant hue",
+      "passed": true,
+      "detail": "4/4",
+      "at": "2026-09-28T15:14:08.111456+00:00"
+    },
+    {
+      "label": "E: nothing is rebuilt from it",
+      "passed": true,
+      "detail": "mem_78e052e065b542a8a22cab4d4728c0e5",
+      "at": "2026-09-28T15:14:08.153043+00:00"
+    }
+  ],
+  "notes": [
+    "Cleanup by nonce 80f7dd: 320 tagged row(s) written, 0 left; 14 memories removed by id."
+  ]
+}

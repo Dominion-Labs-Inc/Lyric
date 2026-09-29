@@ -1,0 +1,27 @@
+{
+  "experiment": "NLU-12 \u2014 Where in sentence LENGTH does understanding fail?",
+  "writes_to_store": false,
+  "notes": [
+    "04-08 words: 18/85 read (21%)",
+    "09-12 words: 9/60 read (15%)",
+    "13-18 words: 5/69 read (7%)",
+    "19-25 words: 0/39 read (0%)",
+    "26-40 words: 0/47 read (0%)"
+  ],
+  "data": {},
+  "checks": [
+    {
+      "name": "short sentences read more often than long ones",
+      "passed": true,
+      "detail": "short 18/85 vs long 0/47"
+    },
+    {
+      "name": "every bucket was populated",
+      "passed": true,
+      "detail": "buckets: ['04-08', '09-12', '13-18', '19-25', '26-40']"
+    }
+  ],
+  "passed": 2,
+  "total": 2,
+  "seconds": 2.27
+}

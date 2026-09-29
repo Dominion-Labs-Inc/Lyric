@@ -31,6 +31,7 @@ def draw(path, shape, colour, radius=58):
 
 
 async def main() -> int:
+    from core.memory import Origin
     lines = []
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
@@ -46,7 +47,7 @@ async def main() -> int:
             name = f"pic_{RUN}_{tag}"
             path = HERE / f"{name}.png"
             draw(path, shape, colour)
-            await coord.see(str(path), source=name, domain=f"vis{RUN}")
+            await coord.see(str(path), source=name, domain=f"vis{RUN}", actor_identity=None)
             rows = await db.execute_query(
                 "SELECT cr.target_surface FROM unified.concept_relations cr "
                 "JOIN unified.concepts c ON cr.source_concept_id = c.concept_id "
@@ -69,7 +70,7 @@ async def main() -> int:
         res = await coord.learning.induce_category(
             cat, positives=[b1, b2], negatives=[n1, n2], domain=f"vis{RUN}")
         lines.append(f"induced from blobs: {res.status.value} rule={res.rule}")
-        ans = await coord.reason_about(f"is {held} a {cat}?")
+        ans = await coord.reason_about(f"is {held} a {cat}?", origin=Origin.own("TOLD-SEEN-01"))
         lines.append(f"named the held-out blob: {(ans.answer or '')[:40]!r} "
                      f"({dict(getattr(ans, 'metadata', {}) or {}).get('rule_status')})")
 
@@ -78,7 +79,7 @@ async def main() -> int:
         told = await coord.conversation("toldseen").teach(
             f"if something is a circle and it is vivid red then it is a {told_cat}")
         lines.append(f"told: {[ (a.stored, a.detail) for a in told ]}")
-        ans2 = await coord.reason_about(f"is {held} a {told_cat}?")
+        ans2 = await coord.reason_about(f"is {held} a {told_cat}?", origin=Origin.own("TOLD-SEEN-01"))
         lines.append(f"named from words: {(ans2.answer or '')[:40]!r}")
     print("\n".join(lines))
     return 0

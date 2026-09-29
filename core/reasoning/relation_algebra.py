@@ -91,10 +91,24 @@ def inverse(r: SemanticRelation) -> Optional[SemanticRelation]:
 
 @dataclass(frozen=True)
 class Edge:
-    """A typed relation between two concepts."""
+    """A typed relation between two concepts, AND WHAT ASSERTED IT.
+
+    `evidence` holds the ids of the evidence envelopes that asserted this edge
+    (`unified.concept_relations.evidence_id`, which joins to the producer, the
+    source and what was actually observed). The graph walk is the route that
+    answers most questions, and its derivation path IS what the answer rested
+    on -- but the loader selected only names, so a chain like
+    `zorb -> glomph -> fizzly` could be shown and never traced to the facts
+    that licensed each hop.
+
+    NOT PART OF EQUALITY OR HASH. The algebra indexes, dedups and compares
+    edges as triples throughout; an edge asserted by two sources is still one
+    edge, and letting provenance change identity would split it in two.
+    """
     subject: str
     relation: SemanticRelation
     obj: str
+    evidence: Tuple[str, ...] = field(default=(), compare=False, hash=False)
 
 
 @dataclass(frozen=True)
@@ -126,7 +140,10 @@ def inverse_edges(edges: Sequence[Edge]) -> List[Derivation]:
         inv = get_spec(e.relation).inverse
         if inv is None:
             continue
-        out.append(Derivation(Edge(e.obj, inv, e.subject), (e,), (INVERSE,)))
+        # AN INVERSE CARRIES THE EVIDENCE OF THE EDGE IT WAS DERIVED FROM: it
+        # says nothing that edge did not, so it rests on exactly the same.
+        out.append(Derivation(Edge(e.obj, inv, e.subject, e.evidence),
+                              (e,), (INVERSE,)))
     return out
 
 

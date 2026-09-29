@@ -14,10 +14,10 @@ Three kinds of job, one authority:
                    backlog grows so the substrate cannot invent work faster than
                    it can metabolise it.
   2. AWAIT jobs  — submit a coroutine and await THIS result (a future), or come
-                   back and collect it later. What the agent factory needs.
-  3. SCHEDULED   — recurring interval jobs (e.g. periodic maintenance/learning)
-     jobs           and one-shot timed jobs. Nothing schedules timed work on its
-                   own; it registers here.
+                   back and collect it later. What the agent factory needs. A
+                   one-shot TIMED job is an await job with a delay.
+  3. SCHEDULED   — recurring interval jobs (e.g. periodic maintenance/learning).
+     jobs           Nothing schedules timed work on its own; it registers here.
 
 GOVERNANCE IS NOT HERE. Governance is a blanket authority over the whole self —
 internal affairs over the sheriff's office — not a call reached up into from
@@ -65,6 +65,15 @@ _SEVERITY_FACTOR: Dict[str, float] = {
     "critical": 1.5, "high": 1.25, "medium": 1.0, "low": 0.75,
 }
 _DEFAULT_SEVERITY_FACTOR = 1.0
+
+#: Work still owed — queued, in flight, or waiting on something. The ONE
+#: definition of "active": `active_tasks()` reads it, and the durable store
+#: derives from it which rows boot restores (these) and which are history it
+#: may prune (everything else).
+ACTIVE_STATUSES = frozenset({
+    TaskStatus.PLANNED, TaskStatus.PENDING, TaskStatus.IN_PROGRESS,
+    TaskStatus.AWAITING_VERIFICATION, TaskStatus.BLOCKED,
+})
 
 
 class TaskPriority(Enum):
@@ -122,14 +131,13 @@ class _PoolStats:
 
 @dataclass
 class _ScheduledJob:
-    """A recurring or one-shot job the authority owns the cadence of."""
+    """A recurring job the authority owns the cadence of."""
     name: str
     call: Callable[[], Awaitable[Any]]
-    #: Recurring: seconds between runs. One-shot: None.
-    interval_s: Optional[float]
+    #: Seconds between runs.
+    interval_s: float
     #: Next monotonic time this is due.
     next_due: float
-    recurring: bool
     priority: str = "medium"
     last_run: Optional[float] = None
     runs: int = 0
@@ -158,6 +166,7 @@ class QueueAuthority:
         self.metrics: Dict[str, int] = {
             'tasks_completed': 0, 'tasks_failed': 0,
             'tasks_requeued': 0, 'tasks_deferred': 0,
+            'tasks_already_queued': 0,
         }
 
         # Admission control (the queue's own metabolism — NOT governance).
@@ -214,7 +223,7 @@ class QueueAuthority:
         #: Real counters — a fire is counted when the loop actually dispatches a
         #: due job; an error is counted when that job's coroutine raised. Never
         #: incremented optimistically, so the health monitor reads the truth.
-        self._scheduler_metrics = {"fired": 0, "errors": 0}
+        self._scheduler_metrics = {"fired": 0, "errors": 0, "cancelled": 0}
 
         # ── PERSISTENCE ─────────────────────────────────────────────────────
         # Accepted-but-unfinished work must survive a restart. Every lifecycle
@@ -265,45 +274,84 @@ class QueueAuthority:
         return True, "hard: obligation admitted"
 
     async def add_task(self, task: Task, priority: Priority = Priority.MEDIUM) -> bool:
-        """Push a work job. Returns False if admission (backpressure) refused it
-        or the queue is at capacity. No governance here — that is a blanket
-        authority applied where the substrate DECIDES to create work."""
-        admitted, why = self.admits(task, priority)
-        if not admitted:
-            self.metrics['tasks_deferred'] += 1
-            logger.info("[BACKPRESSURE] refused %s (%s/%s): %s", task.id,
-                        getattr(task.type, 'value', '?'),
-                        getattr(task.source, 'value', '?'), why)
-            return False
-        if self.queue.qsize() >= self.config['max_queue_size']:
-            logger.warning("queue at capacity; refusing %s", task.id)
-            return False
+        """Push a work job. Returns True when the job is queued, False if
+        admission (backpressure) refused it or the queue is at capacity. No
+        governance here — that is a blanket authority applied where the
+        substrate DECIDES to create work.
 
-        tp = self._priority_to_task_priority(priority)
-        queued = QueuedTask(task=task, priority=tp, added_at=datetime.now())
+        ONE COPY PER ID. A job whose id is already owed — queued or in flight
+        here, or held by another living instance of the model — is not queued
+        again: that returns True (the work IS queued, once) and counts
+        `tasks_already_queued`. It is not a refusal, so a caller does not end
+        the pursuit the first copy is serving. A FINISHED id may be queued again
+        as new work. Before this, a second add put a second copy on the heap:
+        the job ran twice, and its completed record flipped back to in_progress."""
+        async with self.lock:
+            held = self.tasks_by_id.get(task.id)
+            if held is not None and held.status in ACTIVE_STATUSES:
+                return self._already_queued(task.id, f"{held.status.value} here")
+            admitted, why = self.admits(task, priority)
+            if not admitted:
+                self.metrics['tasks_deferred'] += 1
+                logger.info("[BACKPRESSURE] refused %s (%s/%s): %s", task.id,
+                            getattr(task.type, 'value', '?'),
+                            getattr(task.source, 'value', '?'), why)
+                return False
+            if self.queue.qsize() >= self.config['max_queue_size']:
+                logger.warning("queue at capacity; refusing %s", task.id)
+                return False
+            tp = self._priority_to_task_priority(priority)
+            queued = QueuedTask(task=task, priority=tp, added_at=datetime.now())
+            # Held here from this moment, so a second add of the same id while
+            # the durable write below is in flight finds it.
+            self.tasks_by_id[task.id] = queued
+
+        if not await self._persist_new(queued):
+            async with self.lock:
+                if self.tasks_by_id.get(task.id) is queued:
+                    if held is not None:
+                        self.tasks_by_id[task.id] = held      # its finished record
+                    else:
+                        del self.tasks_by_id[task.id]
+            return self._already_queued(task.id, "held by another instance")
+
         async with self.lock:
             self._sequence += 1
             await self.queue.put((-tp.value, self._sequence, queued))
-            self.tasks_by_id[task.id] = queued
             self.total_tasks_added += 1
-        await self._persist_queued(queued)
         logger.info("queued %s (priority=%s, depth=%d)", task.id, tp.value, self.queue.qsize())
         return True
 
-    def try_get_task(self) -> Optional[QueuedTask]:
-        """Non-blocking pull; None if empty."""
+    def _already_queued(self, task_id: str, where: str) -> bool:
+        self.metrics['tasks_already_queued'] += 1
+        logger.info("%s is already queued (%s); not queued twice", task_id, where)
+        return True
+
+    async def _take_first(self, timeout: Optional[float]):
+        """The first ready heap entry, or None. `timeout=None` waits for work, a
+        positive timeout waits that long, `timeout <= 0` does not wait at all.
+
+        Zero is handled by `get_nowait`, not `wait_for(get(), 0)`: wait_for with
+        a zero timeout cancels the get before it ever runs, so a queue holding
+        work read as empty."""
+        if timeout is None:
+            return await self.queue.get()
+        if timeout <= 0:
+            try:
+                return self.queue.get_nowait()
+            except asyncio.QueueEmpty:
+                return None
         try:
-            _, _, queued = self.queue.get_nowait()
-        except asyncio.QueueEmpty:
+            return await asyncio.wait_for(self.queue.get(), timeout=timeout)
+        except asyncio.TimeoutError:
             return None
-        self._mark_started(queued)
-        return queued
 
     async def get_next_task(self, timeout: float = None,
                             skip_actors: "Optional[frozenset]" = None
                             ) -> Optional[QueuedTask]:
         """Pull the highest-priority work job; None on timeout/empty. This is how
-        the WORKER (the coordinator) draws from the authority.
+        the WORKER (the coordinator) draws from the authority — the ONE pull.
+        `timeout=0` is the non-blocking form: take what is ready now, never wait.
 
         `skip_actors` are actors already at their per-user concurrency cap: the
         highest-priority job whose actor is NOT one of them is returned, so one
@@ -312,28 +360,18 @@ class QueueAuthority:
         autonomous work is bounded only by the global ceiling, not the per-user cap).
         When every ready job belongs to a capped actor, returns None — those jobs
         stay queued, in priority order, for a later cycle."""
+        first = await self._take_first(timeout)
+        if first is None:
+            return None
         if not skip_actors:
-            # fast path: a single blocking pop (behaviour unchanged)
-            try:
-                if timeout is not None:
-                    _, _, queued = await asyncio.wait_for(self.queue.get(), timeout=timeout)
-                else:
-                    _, _, queued = await self.queue.get()
-            except asyncio.TimeoutError:
-                return None
+            # fast path: the one job popped is the one returned
+            queued = first[2]
             self._mark_started(queued)
             await self._persist_queued(queued)
             return queued
 
         # actor-aware: take what is ready (priority order), pick the first job whose
         # actor is not capped, and put the rest back unchanged (priority preserved).
-        try:
-            if timeout is not None:
-                first = await asyncio.wait_for(self.queue.get(), timeout=timeout)
-            else:
-                first = await self.queue.get()
-        except asyncio.TimeoutError:
-            return None
         items = [first]
         while True:
             try:
@@ -407,42 +445,43 @@ class QueueAuthority:
         await self._persist_queued(queued)
         return True
 
-    _ACTIVE_STATUSES = frozenset({
-        TaskStatus.PLANNED, TaskStatus.PENDING, TaskStatus.IN_PROGRESS,
-        TaskStatus.AWAITING_VERIFICATION, TaskStatus.BLOCKED,
-    })
-
-    def has_active_task(self, task_id: str) -> bool:
-        """Already queued or in flight? Recurring producers re-derive the same
-        deterministic id for a still-present condition; only ACTIVE states block
-        re-queue (a FAILED/COMPLETED id may re-enter as genuinely new work)."""
-        queued = self.tasks_by_id.get(task_id)
-        return queued is not None and queued.status in self._ACTIVE_STATUSES
+    def active_tasks(self) -> List[Task]:
+        """The work still owed: every job queued, in flight, or waiting
+        (ACTIVE_STATUSES). The one answer to "what is active?" — whether a given
+        task is still owed, how many are, which explorations are running — so no
+        caller keeps its own list or its own idea of which statuses count. A
+        FAILED/COMPLETED job is history, not active."""
+        return [q.task for q in self.tasks_by_id.values()
+                if q.task is not None and q.status in ACTIVE_STATUSES]
 
     def get_queue_length(self) -> int:
         return self.queue.qsize()
 
-    async def get_task_status(self, task_id: str, include_details: bool = False,
-                              include_result: bool = False) -> Dict[str, Any]:
-        queued = self.tasks_by_id.get(task_id)
-        if queued is None:
-            return {"task_id": task_id, "status": "not_found",
-                    "error": "Task not found"}
-        out = {"task_id": task_id, "status": queued.status.value,
-               "priority": queued.priority.value, "added_at": queued.added_at.isoformat()}
-        if include_result:
-            out["result"] = queued.task.result if queued.status == TaskStatus.COMPLETED else None
-        return out
-
     async def result_for(self, task_id: str, *, actor: str) -> Dict[str, Any]:
-        """The outcome of `task_id` — but ONLY for the actor it belongs to.
+        """The status and outcome of `task_id` — the ONE read of a job's status,
+        and ONLY for the actor it belongs to (the substrate reads its own work
+        with SUBSTRATE_ACTOR).
 
         A user may read the result of THEIR OWN job, never another's. A task owned
         by a different actor (or absent) reads as `not_found` — identical to a real
         miss, so result-polling cannot enumerate other actors' work. Returns
         status, plus `result` when COMPLETED or `error` when FAILED."""
         queued = self.tasks_by_id.get(task_id)
-        if queued is None or queued.task is None or getattr(queued.task, "actor", None) != actor:
+        if queued is None:
+            # Not held here: with several instances of the model the job may be
+            # held -- or have been finished -- by another. The stored row is
+            # the one record of it, scoped by the same actor rule.
+            p = self._persistence_or_none()
+            stored = await p.load_one(task_id) if p is not None else None
+            if stored is None or getattr(stored["task"], "actor", None) != actor:
+                return {"task_id": task_id, "status": "not_found"}
+            out = {"task_id": task_id, "status": stored["status"]}
+            if stored["status"] == TaskStatus.COMPLETED.value:
+                out["result"] = stored["result"]
+            elif stored["status"] == TaskStatus.FAILED.value:
+                out["error"] = stored["error"]
+            return out
+        if queued.task is None or getattr(queued.task, "actor", None) != actor:
             return {"task_id": task_id, "status": "not_found"}
         out = {"task_id": task_id, "status": queued.status.value}
         if queued.status == TaskStatus.COMPLETED:
@@ -494,6 +533,18 @@ class QueueAuthority:
             self._persistence = QueuePersistence()
         return self._persistence
 
+    #: How long an instance may go without a heartbeat before the work it owns
+    #: may be claimed by another (config `instance_lease_s`).
+    INSTANCE_LEASE_S = 120.0
+    #: How often this instance says it is alive (config `heartbeat_interval_s`).
+    HEARTBEAT_INTERVAL_S = 30.0
+
+    async def heartbeat(self) -> None:
+        """Scheduled: renew this instance's lease on the work it owns."""
+        p = self._persistence_or_none()
+        if p is not None:
+            await p.heartbeat()
+
     @staticmethod
     def _queued_meta(queued: "QueuedTask") -> Dict[str, Any]:
         """The QueuedTask timing/lifecycle fields, as a JSON-native dict, so a
@@ -532,6 +583,37 @@ class QueueAuthority:
             logger.error("queue persist failed for %s (%s): %s",
                          queued.task.id, queued.status.value, e)
 
+    async def _persist_new(self, queued: "QueuedTask") -> bool:
+        """Write a NEW job's durable row and take it for this instance — unless
+        another living instance already owes the same id, in which case nothing
+        is written and False is returned (the job is queued there). A plain
+        upsert here took the row over and both instances ran the job.
+
+        A store error keeps the non-fatal contract: logged with the task id,
+        counted in `persist_errors`, and the job is queued here anyway — whether
+        another instance holds it could not be read, and that is visible in the
+        counter, not hidden."""
+        p = self._persistence_or_none()
+        if p is None or self._restoring:
+            return True
+        try:
+            written = await p.claim_new(
+                task=queued.task,
+                status=queued.status.value,
+                priority=queued.priority.value,
+                result=queued.task.result,
+                error=queued.error_message,
+                queued_meta=self._queued_meta(queued),
+                lease_s=float(self.config.get('instance_lease_s', self.INSTANCE_LEASE_S)),
+            )
+        except Exception as e:
+            self._persist_metrics["errors"] += 1
+            logger.error("queue persist failed for new job %s: %s", queued.task.id, e)
+            return True
+        if written:
+            self._persist_metrics["writes"] += 1
+        return written
+
     async def restore_pending(self) -> Dict[str, int]:
         """Rehydrate accepted-but-unfinished work from the durable store on boot.
 
@@ -541,16 +623,27 @@ class QueueAuthority:
         and their durable row is corrected to PENDING so a second crash can't
         double-count them. Terminal jobs stay as history and are not restored.
         Idempotent: re-running finds nothing new because restored rows are no
-        longer IN_PROGRESS."""
+        longer IN_PROGRESS.
+
+        MANY INSTANCES, ONE QUEUE TABLE. Only work no living instance holds is
+        restored, and it is CLAIMED atomically (`claim_restorable`): this read
+        every owed row, so each instance that booted re-queued the others' work
+        and reset their running jobs to PENDING -- a task could run twice. An
+        IN_PROGRESS job is restarted only when its owner has stopped."""
         p = self._persistence_or_none()
         if p is None:
             return {"restored": 0, "restarted": 0}
         self._restoring = True
         restored = restarted = 0
         try:
-            rows = await p.load_restorable()
+            await p.heartbeat()     # alive before claiming, so no one claims ours
+            rows = await p.claim_restorable(
+                float(self.config.get('instance_lease_s', self.INSTANCE_LEASE_S)))
             for r in rows:
                 task = r["task"]
+                held = self.tasks_by_id.get(task.id)
+                if held is not None and held.status in ACTIVE_STATUSES:
+                    continue    # already owed here; not restored a second time
                 interrupted = (r["status"] == TaskStatus.IN_PROGRESS.value)
                 if interrupted:
                     task.status = TaskStatus.PENDING
@@ -575,16 +668,23 @@ class QueueAuthority:
             self._restoring = False
         return {"restored": restored, "restarted": restarted}
 
-    async def prune_history(self, keep_last: int = 500) -> int:
-        """Bound the durable history (terminal rows). Delegates to the store."""
+    async def prune_history(self, keep_last: Optional[int] = None) -> int:
+        """Bound the durable history: keep the newest `keep_last` finished rows
+        (config `history_keep_last`, default 500), delete the rest. Returns how
+        many were deleted; 0 when there is no durable store. Scheduled by
+        `start()` as the recurring `queue_history_prune` job. A store error
+        raises, so the scheduler records it against the job by name — it is not
+        reported as "nothing to prune"."""
         p = self._persistence_or_none()
         if p is None:
             return 0
-        try:
-            return await p.prune_terminal(keep_last=keep_last)
-        except Exception as e:
-            logger.error("queue history prune failed: %s", e)
-            return 0
+        keep = int(keep_last if keep_last is not None
+                   else self.config.get('history_keep_last', 500))
+        deleted = await p.prune_terminal(keep_last=keep)
+        if deleted:
+            logger.info("queue history pruned: %d finished row(s) beyond the newest %d",
+                        deleted, keep)
+        return deleted
 
     # ══════════════════════════════════════════════════════════════════════
     # EXECUTION POOL (folded in) — concurrency-limited running
@@ -678,19 +778,6 @@ class QueueAuthority:
                     self._pool_stats.active -= 1
                 raise
 
-    async def execute_batch(
-        self, jobs: List[tuple]
-    ) -> List[tuple]:
-        """Run many (job_id, func, args, kwargs) concurrently on this loop,
-        bounded by the semaphore. Returns (job_id, ok, result_or_exc) in order."""
-        async def _one(job_id, func, args, kwargs):
-            try:
-                return (job_id, True, await self.execute(job_id, func, *args, **kwargs))
-            except Exception as exc:
-                return (job_id, False, exc)
-        return list(await asyncio.gather(*[
-            _one(jid, f, a, k) for jid, f, a, k in jobs]))
-
     def pool_stats(self) -> Dict[str, Any]:
         s = self._pool_stats
         return {
@@ -710,9 +797,14 @@ class QueueAuthority:
 
     def submit(self, coro_factory: Callable[[], Awaitable[Any]], *,
                name: str = "", job_id: Optional[str] = None,
-               on_complete: Optional[Callable[[Dict[str, Any]], Any]] = None) -> str:
-        """Submit a coroutine to run (through the pool, on the BACKGROUND budget)
-        and return a job_id.
+               on_complete: Optional[Callable[[Dict[str, Any]], Any]] = None,
+               delay_s: float = 0.0) -> str:
+        """Submit a coroutine to run once (through the pool, on the BACKGROUND
+        budget) and return a job_id.
+
+        `delay_s` makes it a one-shot TIMED job: it runs once after that many
+        seconds. The wait holds no pool slot, and `cancel(job_id)` before it
+        runs means it never does. Its result comes back like any other.
 
         TWO ways the result gets back to whoever wanted it — pick one:
           * PULL — no `on_complete`: the owner `await_result(id)`s it, or
@@ -729,13 +821,18 @@ class QueueAuthority:
         jid = job_id or f"job_{uuid.uuid4().hex[:12]}"
         self._await_metrics["submitted"] += 1
 
+        async def _run():
+            if delay_s > 0:
+                await asyncio.sleep(delay_s)   # outside the pool: no slot held
+            return await self.execute(jid, coro_factory, background=True)
+
         if on_complete is None:
-            task = asyncio.ensure_future(self.execute(jid, coro_factory, background=True))
+            task = asyncio.ensure_future(_run())
         else:
             async def _deliver():
                 outcome = {"job_id": jid, "name": name, "result": None, "error": None}
                 try:
-                    outcome["result"] = await self.execute(jid, coro_factory, background=True)
+                    outcome["result"] = await _run()
                     self._await_metrics["completed"] += 1
                 except Exception as e:
                     outcome["error"] = str(e)
@@ -757,7 +854,8 @@ class QueueAuthority:
 
         self._await_jobs[jid] = task
         self._await_meta[jid] = {"name": name, "submitted_at": datetime.now(),
-                                 "push": on_complete is not None}
+                                 "push": on_complete is not None,
+                                 "delay_s": delay_s}
         return jid
 
     async def await_result(self, job_id: str) -> Dict[str, Any]:
@@ -805,59 +903,52 @@ class QueueAuthority:
         return [j for j, t in self._await_jobs.items() if not t.done()]
 
     def cancel(self, job_id: str) -> bool:
-        """Cancel an await-job and retire it. Returns False for an unknown id
-        (never faked). A job already finished is retired without a cancel; one
-        still running is cancelled."""
+        """Stop a job by its id — the ONE way to stop any job. An await-job is
+        retired (cancelled if still running or still waiting out its delay; a
+        finished one is retired without a cancel). A recurring scheduled job is
+        removed and never fires again. False for an id that names neither
+        (never faked)."""
+        found = False
         task = self._await_jobs.pop(job_id, None)
         self._await_meta.pop(job_id, None)
-        if task is None:
-            return False
-        if not task.done():
-            task.cancel()
-        self._await_metrics["cancelled"] += 1
-        logger.info("await-job %s cancelled", job_id)
-        return True
+        if task is not None:
+            if not task.done():
+                task.cancel()
+            self._await_metrics["cancelled"] += 1
+            logger.info("await-job %s cancelled", job_id)
+            found = True
+        if self._scheduled.pop(job_id, None) is not None:
+            self._scheduler_metrics["cancelled"] += 1
+            logger.info("scheduled job %s cancelled", job_id)
+            found = True
+        return found
 
     # ══════════════════════════════════════════════════════════════════════
-    # SCHEDULER — recurring interval jobs + one-shot timed jobs
+    # SCHEDULER — recurring interval jobs (a one-shot timed job is
+    # `submit(..., delay_s=)`; stopping any job is `cancel`)
     # ══════════════════════════════════════════════════════════════════════
 
     def schedule_recurring(self, name: str, call: Callable[[], Awaitable[Any]],
                            interval_s: float, priority: str = "medium") -> None:
         """Register a recurring job the authority fires every `interval_s`. This
         is where the substrate's periodic work lives — nothing runs its own
-        interval loop. Idempotent by name (re-registering updates the cadence)."""
-        now = time.monotonic()
+        interval loop.
+
+        Registering a name that is already scheduled RETUNES it — new call,
+        cadence and priority, next run one new interval from now — and keeps
+        the job's run/error record. This is how a cadence is changed."""
+        interval_s = float(interval_s)
+        next_due = time.monotonic() + interval_s
+        job = self._scheduled.get(name)
+        if job is not None:
+            job.call, job.interval_s = call, interval_s
+            job.priority, job.next_due = priority, next_due
+            logger.info("retuned recurring job %s to every %.0fs", name, interval_s)
+            return
         self._scheduled[name] = _ScheduledJob(
             name=name, call=call, interval_s=interval_s,
-            next_due=now + interval_s, recurring=True, priority=priority)
+            next_due=next_due, priority=priority)
         logger.info("scheduled recurring job %s every %.0fs", name, interval_s)
-
-    def schedule_after(self, call: Callable[[], Awaitable[Any]], delay_s: float,
-                       name: str = "") -> str:
-        """Register a one-shot job to run once after `delay_s`."""
-        import uuid
-        jid = name or f"once_{uuid.uuid4().hex[:8]}"
-        self._scheduled[jid] = _ScheduledJob(
-            name=jid, call=call, interval_s=None,
-            next_due=time.monotonic() + delay_s, recurring=False)
-        return jid
-
-    def unschedule(self, name: str) -> bool:
-        """Remove a scheduled job. False for an unknown name (never faked)."""
-        return self._scheduled.pop(name, None) is not None
-
-    def reschedule(self, name: str, interval_s: float) -> bool:
-        """Change a RECURRING job's cadence. The substrate can retune how often
-        its periodic work runs without unregistering it. False if the name is
-        unknown or the job is a one-shot (nothing to re-time)."""
-        job = self._scheduled.get(name)
-        if job is None or not job.recurring:
-            return False
-        job.interval_s = float(interval_s)
-        job.next_due = time.monotonic() + float(interval_s)
-        logger.info("rescheduled %s to every %.0fs", name, interval_s)
-        return True
 
     def run_now(self, name: str) -> bool:
         """Make a scheduled job due on the NEXT tick — the substrate pulling its
@@ -876,7 +967,22 @@ class QueueAuthority:
 
     def start(self) -> None:
         """Start the scheduler loop (idempotent). The authority now fires due
-        jobs itself; no other component ticks a schedule."""
+        jobs itself; no other component ticks a schedule.
+
+        The authority's own maintenance is registered here: with a durable
+        store, `queue_history_prune` bounds its finished rows (every
+        `history_prune_interval_s`, default 3600)."""
+        if self._persist_enabled and "queue_history_prune" not in self._scheduled:
+            self.schedule_recurring(
+                "queue_history_prune", self.prune_history,
+                float(self.config.get('history_prune_interval_s', 3600.0)),
+                priority="low")
+        if self._persist_enabled and "queue_heartbeat" not in self._scheduled:
+            # This instance's lease on the work it owns; lapsing means stopped.
+            self.schedule_recurring(
+                "queue_heartbeat", self.heartbeat,
+                float(self.config.get('heartbeat_interval_s', self.HEARTBEAT_INTERVAL_S)),
+                priority="high")
         self._running = True
         if self._scheduler_task is None or self._scheduler_task.done():
             self._scheduler_task = asyncio.ensure_future(self._scheduler_loop())
@@ -913,10 +1019,7 @@ class QueueAuthority:
                     asyncio.ensure_future(self._fire_scheduled(job))
                     self._scheduler_metrics["fired"] += 1
                     job.last_run = now
-                    if job.recurring and job.interval_s:
-                        job.next_due = now + job.interval_s
-                    else:
-                        self._scheduled.pop(job.name, None)  # one-shot done
+                    job.next_due = now + job.interval_s
             except asyncio.CancelledError:
                 break
             except Exception as e:
@@ -924,6 +1027,14 @@ class QueueAuthority:
 
     async def stop(self) -> None:
         self._running = False
+        # Stopping: drop this instance's lease so the work it still owes can be
+        # claimed at once by an instance that is running.
+        p = self._persistence if self._persist_enabled else None
+        if p is not None:
+            try:
+                await p.release()
+            except Exception as e:
+                logger.error("queue: could not release this instance's lease: %s", e)
         if self._scheduler_task:
             self._scheduler_task.cancel()
             try:
@@ -953,6 +1064,7 @@ class QueueAuthority:
             "tasks_failed": self.metrics["tasks_failed"],
             "tasks_requeued": self.metrics["tasks_requeued"],
             "tasks_deferred": self.metrics["tasks_deferred"],
+            "tasks_already_queued": self.metrics["tasks_already_queued"],
             # execution pool (two budgets)
             "work_max_parallel": self.max_parallel,
             "bg_max_parallel": self.bg_max_parallel,
@@ -975,6 +1087,7 @@ class QueueAuthority:
             "scheduler_running": self._running,
             "scheduler_fired": self._scheduler_metrics["fired"],
             "scheduler_errors": self._scheduler_metrics["errors"],
+            "scheduler_cancelled": self._scheduler_metrics["cancelled"],
             # persistence (durability of the backlog)
             "persist_enabled": self._persist_enabled,
             "persist_writes": self._persist_metrics["writes"],
@@ -991,7 +1104,6 @@ class QueueAuthority:
         for job in self._scheduled.values():
             out.append({
                 "name": job.name,
-                "recurring": job.recurring,
                 "interval_s": job.interval_s,
                 "runs": job.runs,
                 "errors": job.errors,

@@ -1,0 +1,310 @@
+{
+  "experiment": "SYSTEM-CONVERSATION-01",
+  "claim": "A conversation is a speaker's: what they tell is held in their context in the door's terms, answered back to them from it and to no one else, a conditional asserts neither side, and what is reasoned for them is remembered as theirs.",
+  "hypothesis": "A told name the speaker cannot ask back, a reply calling it unknown, another speaker answered from it, a conditional's clause held as fact, a refused promotion flagged promoted, or an unowned memory of it would each fail here.",
+  "started_at": "2026-09-26T16:47:01.899513+00:00",
+  "duration_seconds": 102.019,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/TorinAI/venv_torin/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/TorinAI",
+    "shadow_mode": null,
+    "git_commit": "20deb447498593391eca0286916b8f986c560a26",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "torinai_db",
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "dotenv:.env.postgres",
+        "database": "dotenv:.env.postgres",
+        "user": "dotenv:.env.postgres",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres"
+      }
+    },
+    "git_uncommitted_changes": 1079,
+    "database_verified": null,
+    "database_verified_reason": "no initialized connection in this process"
+  },
+  "summary": {
+    "checks": 38,
+    "passed": 37,
+    "failed": 1,
+    "outcome": "FAIL"
+  },
+  "metrics": [
+    {
+      "name": "nonce",
+      "value": "ibsaa",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "conversation_public_methods",
+      "value": 15,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "conversation_dead_public_methods",
+      "value": 1,
+      "unit": "count",
+      "note": "beliefs_about_user"
+    },
+    {
+      "name": "conversation_internal_only_public_methods",
+      "value": 5,
+      "unit": "count",
+      "note": "subject_of, about_this_conversation, look_up, is_question, feedback_of"
+    },
+    {
+      "name": "memories_written_about_the_nonce",
+      "value": 9,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "rows_removed",
+      "value": 24,
+      "unit": "count",
+      "note": "{\"concepts\": 2, \"beliefs\": 1, \"knowledge_updates\": 2, \"evidence_envelopes\": 1, \"held_conditionals\": 0, \"memory_hot\": 9, \"scoped_beliefs\": 5, \"scoped_concept_relations\": 4}"
+    }
+  ],
+  "checks": [
+    {
+      "label": "the same session is the same held conversation",
+      "passed": true,
+      "detail": "Conversation",
+      "at": "2026-09-26T16:48:25.183658+00:00"
+    },
+    {
+      "label": "a different session is a different one",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-26T16:48:25.183672+00:00"
+    },
+    {
+      "label": "a session is a user actor, not the substrate",
+      "passed": true,
+      "detail": "['SYSTEM-CONVERSATION-01-ibsaa-a', 'SYSTEM-CONVERSATION-01-ibsaa-b']",
+      "at": "2026-09-26T16:48:25.183687+00:00"
+    },
+    {
+      "label": "no public method of Conversation is dead (used nowhere in core)",
+      "passed": false,
+      "detail": "1/15 dead: ['beliefs_about_user']",
+      "at": "2026-09-26T16:48:27.089673+00:00"
+    },
+    {
+      "label": "the one-word telling is a scoped edge in canonical terms",
+      "passed": true,
+      "detail": "[('vexibsaa', 'isa', 'mammal', 'positive'), ('glintibsaa_heron', 'isa', 'glintibsaa_bird', 'positive')]",
+      "at": "2026-09-26T16:48:28.242256+00:00"
+    },
+    {
+      "label": "the two-word telling is a scoped edge in canonical terms",
+      "passed": true,
+      "detail": "[('vexibsaa', 'isa', 'mammal', 'positive'), ('glintibsaa_heron', 'isa', 'glintibsaa_bird', 'positive')]",
+      "at": "2026-09-26T16:48:28.242274+00:00"
+    },
+    {
+      "label": "nothing told reached the shared graph or beliefs",
+      "passed": true,
+      "detail": "shared rows=0",
+      "at": "2026-09-26T16:48:28.373515+00:00"
+    },
+    {
+      "label": "'is a vexibsaa a mammal' is affirmed",
+      "passed": true,
+      "detail": "Yes, a vexibsaa is a mammal.",
+      "at": "2026-09-26T16:48:30.835162+00:00"
+    },
+    {
+      "label": "'is a vexibsaa a mammal': the reply does not call what it answered unknown",
+      "passed": true,
+      "detail": "Yes, a vexibsaa is a mammal.",
+      "at": "2026-09-26T16:48:30.835187+00:00"
+    },
+    {
+      "label": "'is a vexibsaa an animal' is affirmed",
+      "passed": true,
+      "detail": "Yes, a vexibsaa is an animal.",
+      "at": "2026-09-26T16:48:32.921727+00:00"
+    },
+    {
+      "label": "'is a vexibsaa an animal': the reply does not call what it answered unknown",
+      "passed": true,
+      "detail": "Yes, a vexibsaa is an animal.",
+      "at": "2026-09-26T16:48:32.921751+00:00"
+    },
+    {
+      "label": "'is a glintibsaa heron a glintibsaa bird' is affirmed",
+      "passed": true,
+      "detail": "Yes, a glintibsaa heron is a glintibsaa bird.",
+      "at": "2026-09-26T16:48:34.380043+00:00"
+    },
+    {
+      "label": "'is a glintibsaa heron a glintibsaa bird': the reply does not call what it answered unknown",
+      "passed": true,
+      "detail": "Yes, a glintibsaa heron is a glintibsaa bird.",
+      "at": "2026-09-26T16:48:34.380065+00:00"
+    },
+    {
+      "label": "the two-word told name resolves whole, from the speaker's context",
+      "passed": true,
+      "detail": "[('glintibsaa heron', True, True), ('glintibsaa bird', True, False)]",
+      "at": "2026-09-26T16:48:34.446909+00:00"
+    },
+    {
+      "label": "another speaker is not answered from the first one's context",
+      "passed": true,
+      "detail": "I remember: A mammal is a vertebrate.\nI hold nothing for vexibsaa. Tell me what it is and I will kee",
+      "at": "2026-09-26T16:48:36.089275+00:00"
+    },
+    {
+      "label": "another speaker resolves nothing the first one told",
+      "passed": true,
+      "detail": "[('heron', True, False), ('bird', True, False), ('glintibsaa', False, False), ('glintibsaa', False, False)]",
+      "at": "2026-09-26T16:48:36.187327+00:00"
+    },
+    {
+      "label": "the conditional is held",
+      "passed": true,
+      "detail": "[('if the vexibsaa is hot then the valve is hot', True, 'held as a conditional rule')]",
+      "at": "2026-09-26T16:48:36.194477+00:00"
+    },
+    {
+      "label": "neither clause is a scoped edge",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-09-26T16:48:36.195090+00:00"
+    },
+    {
+      "label": "the implication is the speaker's one belief about it",
+      "passed": true,
+      "detail": "['if vexibsaa is hot then valve is hot']",
+      "at": "2026-09-26T16:48:36.195700+00:00"
+    },
+    {
+      "label": "asked whether the antecedent holds, it is not affirmed",
+      "passed": true,
+      "detail": "I remember: A mammal is a vertebrate.\nThe vexibsaa is a mammal.\nHot is a knot. It is an ornamental k",
+      "at": "2026-09-26T16:48:38.158206+00:00"
+    },
+    {
+      "label": "a subject that names nothing is refused for the speaker",
+      "passed": true,
+      "detail": "[\"subject 'you' not admitted: 'you' is made only of words that never name a thing\"]",
+      "at": "2026-09-26T16:48:38.158278+00:00"
+    },
+    {
+      "label": "an empty subject is refused for the speaker",
+      "passed": true,
+      "detail": "['subject is empty: a proposition about nothing is not admitted']",
+      "at": "2026-09-26T16:48:38.158305+00:00"
+    },
+    {
+      "label": "a telling below the support floor is refused for the speaker",
+      "passed": true,
+      "detail": "['insufficient support: quality 0.200 < floor 0.5']",
+      "at": "2026-09-26T16:48:38.158319+00:00"
+    },
+    {
+      "label": "nothing refused was written to the speaker's context",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-09-26T16:48:38.158855+00:00"
+    },
+    {
+      "label": "(setup) the shared mind holds pa isa pb",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-09-26T16:48:38.586166+00:00"
+    },
+    {
+      "label": "both speakers hold the corroborated claim",
+      "passed": true,
+      "detail": "[{'scope_actor': 'SYSTEM-CONVERSATION-01-ibsaa-a', 'promoted': False}, {'scope_actor': 'SYSTEM-CONVERSATION-01-ibsaa-b', 'promoted': False}]",
+      "at": "2026-09-26T16:48:38.603339+00:00"
+    },
+    {
+      "label": "a claim the shared door refused is not flagged promoted",
+      "passed": true,
+      "detail": "[{'scope_actor': 'SYSTEM-CONVERSATION-01-ibsaa-a', 'promoted': False}, {'scope_actor': 'SYSTEM-CONVERSATION-01-ibsaa-b', 'promoted': False}]",
+      "at": "2026-09-26T16:48:38.603364+00:00"
+    },
+    {
+      "label": "and the shared graph does not hold it",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-26T16:48:38.604319+00:00"
+    },
+    {
+      "label": "a relation never told is not affirmed",
+      "passed": true,
+      "detail": "I remember: A fish is a food.\nA glintibsaa heron is a glintibsaa bird.\nFish can mean an aquatic vert",
+      "at": "2026-09-26T16:48:40.549153+00:00"
+    },
+    {
+      "label": "a question about nothing held is not answered yes",
+      "passed": true,
+      "detail": "I remember: 'iberis' is used as a noun.",
+      "at": "2026-09-26T16:48:41.824968+00:00"
+    },
+    {
+      "label": "the record of this exchange answers a question about it",
+      "passed": true,
+      "detail": "You told me: \"if the vexibsaa is hot then the valve is hot\"",
+      "at": "2026-09-26T16:48:41.825021+00:00"
+    },
+    {
+      "label": "the conversation remembered something about what it was told",
+      "passed": true,
+      "detail": "9 rows",
+      "at": "2026-09-26T16:48:42.039312+00:00"
+    },
+    {
+      "label": "every such memory belongs to a speaker, none to the shared mind",
+      "passed": true,
+      "detail": "0 unowned: []",
+      "at": "2026-09-26T16:48:42.039337+00:00"
+    },
+    {
+      "label": "nothing the second speaker holds affirms the first one's telling",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-09-26T16:48:42.039359+00:00"
+    },
+    {
+      "label": "the speaker recalls their own",
+      "passed": true,
+      "detail": "2 of 10",
+      "at": "2026-09-26T16:48:42.578737+00:00"
+    },
+    {
+      "label": "another speaker's recall does not reach it, by meaning or by wording",
+      "passed": true,
+      "detail": "[('SYSTEM-CONVERSATION-01-ibsaa-b', 'Query: vexibsaa is a mammal\\n\\nReasoning s')]",
+      "at": "2026-09-26T16:48:42.578781+00:00"
+    },
+    {
+      "label": "the substrate's own recall does not reach it",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-09-26T16:48:42.578796+00:00"
+    },
+    {
+      "label": "everything this run wrote is removed",
+      "passed": true,
+      "detail": "{'concepts': 0, 'beliefs': 0, 'knowledge_updates': 0, 'evidence_envelopes': 0, 'held_conditionals': 0, 'memory_hot': 0, 'scoped_beliefs': 0, 'scoped_concept_relations': 0}",
+      "at": "2026-09-26T16:48:43.786118+00:00"
+    }
+  ],
+  "notes": [
+    "residue snapshot: data/snapshots/system_conversation_01_ibsaa_20260926T164843Z.json"
+  ]
+}

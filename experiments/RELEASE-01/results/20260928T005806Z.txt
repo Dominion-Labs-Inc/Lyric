@@ -1,0 +1,62 @@
+torinai_dev_model_registry: dropped (cut by an earlier sandbox run)
+torinai_dev_model_v1: dropped (cut by an earlier sandbox run)
+torinai_dev: 337 tables, 11587 rows before, 0 after
+torinai_dev_staging_runtime: 150 tables, 400 rows before, 0 after
+torinai_dev_staging_user_context: 10 tables, 6 rows before, 0 after
+torinai_dev_staging_learning: 6 tables, 1 rows before, 0 after
+torinai_dev_production_runtime: 151 tables, 0 rows before, 0 after
+torinai_dev_production_user_context: 10 tables, 0 rows before, 0 after
+torinai_dev_production_learning: 6 tables, 0 rows before, 0 after
+    taught in development: patterns {'learned': 9, 'linked': 0, 'already': 0, 'understood': 0, 'refused': 0, 'total': 9, 'repair_holophrase': 9}, facts {'admitted': 5, 'already': 0, 'refused': 0, 'total': 5}
+
+== A. Cut ==
+    release 1: 10694 rows, content f926eaac691d, code 6223a30de60a (263 files, commit 20deb44749, 130 uncommitted)
+  [PASS] release 1 is registered as a candidate
+  [PASS] it is read-only in the database itself — default_transaction_read_only=on; a direct write: ReadOnlySQLTransactionError
+  [PASS] its content, schema and code are recorded — 263 files
+  [PASS] it holds no person's memory — 0
+
+== B. Staged ==
+  [PASS] a candidate cannot be promoted — release 1 is candidate; a release is promoted from staging
+  [PASS] staging will not serve a candidate — staging will not serve release 1: release 1 is candidate, not the release staging serves (it must be registered as staging)
+  [PASS] staging serves the staged release — {'started': True, 'environment': 'staging', 'release': 1, 'databases': {'runtime': 'torinai_dev_staging_runtime', 'model': 'torinai_dev_model_v1', 'user_context': 'torinai_dev_staging_user_context', 'learning': 'torinai_dev_staging_learning'}}
+
+== C. Tamper ==
+  [PASS] a changed release is found out — ['its content no longer matches the checksum it was cut with']
+  [PASS] staging will not serve it — staging will not serve release 1: its content no longer matches the checksum it was cut with
+  [PASS] put back, it is intact and served again — []
+
+== D. Code ==
+  [PASS] a release cut with other code is not served — staging will not serve release 1: release 1 was cut with other code (commit 20deb447498593391eca0286916b8f986c560a26); the release and the code must match
+
+== E. Served ==
+    production served release 1 (60s idle): {"environment": "production", "release": 1, "routing_refusals": [], "frozen_refusals": [], "schema_checks": 59, "alice_told": true, "alice_memory": "mem_27eed5e8aca84effb6445ae1a4b1b5f9", "own_memory": "mem_f6652284974c44a594511dc7ba90a64f", "recalled": ["mem_db5ef62f7d7742fb849270cff23b64c8"], "alice_answer": "true", "decay_ran": true, "cleaned": 0, "own_learning_admitted": false, "own_learning_refusals": ["the model is release 1, frozen: production never changes it (development teaches the model and cuts the next release). Refused: learn_fact florpane isa gizmo"], "belief_refused": "the mode
+  [PASS] production served, with nothing refused: no statement, and no change to the release — routing []; frozen []
+  [PASS] creation statements were checked against the release, not run — 59 checked
+  [PASS] the person's fact and memory are in user context, and her context answers her — 1 fact, 1 memory, answer true
+  [PASS] its own memory is in the learning store, not the release
+  [PASS] recalling the release's memory is counted in runtime — {'mem_db5ef62f7d7742fb849270cff23b64c8': 1}
+  [PASS] its own learning is refused, with the reason — the model is release 1, frozen: production never changes it (development teaches the model and cuts the next release). R
+  [PASS] a belief it would form or move is refused, and no belief moved — 240 beliefs held; refusals counted 3
+  [PASS] maintenance ran on people's memory only — cleaned 0
+
+== F. Frozen ==
+  [PASS] after serving, release 1 is exactly what was cut — []
+
+== G. Take ==
+    production kept 1 memory; taken: {'memories': 1, 'already': 0, 'images': 0, 'usage': 1, 'usage_unmatched': 0, 'questions': 0}
+  [PASS] development takes every memory production kept, through the memory agent — {'memories': 1, 'already': 0, 'images': 0, 'usage': 1, 'usage_unmatched': 0, 'questions': 0}
+  [PASS] and its recalls, as access counts — {'mem_db5ef62f7d7742fb849270cff23b64c8': 0} -> {'mem_db5ef62f7d7742fb849270cff23b64c8': 2}
+  [PASS] taking again takes nothing — {'memories': 0, 'already': 1, 'images': 0, 'usage': 0, 'usage_unmatched': 0, 'questions': 0}
+
+== H. Next ==
+  [PASS] release 2 carries what production kept — 1
+  [PASS] promoted, release 2 retires release 1 — {1: 'retired', 2: 'production'}
+  [PASS] production serves release 2, and no longer release 1 — production will not serve release 1: release 1 is retired, not the release production serves (it must be registered as p
+
+== I. Rollback ==
+  [PASS] production goes back to release 1 and serves it — {1: 'production', 2: 'retired'}
+  [PASS] both releases are intact — [] []
+
+== J. Main ==
+  [PASS] the main line is untouched — (207, []) before, (207, []) after (rows, releases)

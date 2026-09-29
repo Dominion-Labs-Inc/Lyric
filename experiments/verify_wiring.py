@@ -40,10 +40,12 @@ async def check_perception():
     from core.agents.autonomous.perception_manager import PerceptionManager
     pm = PerceptionManager({})
     assert await pm.initialize()
+    from core.memory import Origin
     p = await pm.process_input(
         source="health_monitoring", data_type="component_degraded",
         content={"component": "learning_system", "severity": "degraded",
-                 "message": "learning subsystem reported degraded health"})
+                 "message": "learning subsystem reported degraded health"},
+        origin=Origin.own("health monitoring"))
     found = await pm.search_perceptions({"source": "health_monitoring", "limit": 3})
     return {
         "perceived": bool(p),

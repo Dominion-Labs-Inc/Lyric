@@ -1,0 +1,153 @@
+{
+  "experiment": "ENCODER-12 \u2014 corrupt teaching: poisoned propositions",
+  "seed": 20260922,
+  "hypotheses": [
+    "H1 retrieval on CLEAN facts survives 10% poison",
+    "H2 separation on CLEAN facts survives 10% poison",
+    "H3 damage is sub-linear in the poison rate",
+    "H4 poison creates no false matches among clean facts",
+    "H5 CONTROL: MiniLM is unaffected (teaching cannot reach it)"
+  ],
+  "data": {
+    "native": {
+      "0.0": {
+        "mrr": 0.75,
+        "p_at_1": 0.5,
+        "separation": 0.27706504076544625,
+        "false_matches": 30,
+        "n_pairs": 60
+      },
+      "0.1": {
+        "mrr": 0.75,
+        "p_at_1": 0.5,
+        "separation": 0.28733250100814756,
+        "false_matches": 30,
+        "n_pairs": 60
+      },
+      "0.25": {
+        "mrr": 0.75,
+        "p_at_1": 0.5,
+        "separation": 0.27471522756812095,
+        "false_matches": 30,
+        "n_pairs": 60
+      },
+      "0.5": {
+        "mrr": 0.75,
+        "p_at_1": 0.5,
+        "separation": 0.2828128597674524,
+        "false_matches": 30,
+        "n_pairs": 60
+      }
+    },
+    "structural": {
+      "0.0": {
+        "mrr": 0.75,
+        "p_at_1": 0.5,
+        "separation": 0.6994116426943608,
+        "false_matches": 0,
+        "n_pairs": 60
+      },
+      "0.1": {
+        "mrr": 0.75,
+        "p_at_1": 0.5,
+        "separation": 0.7005579464222988,
+        "false_matches": 0,
+        "n_pairs": 60
+      },
+      "0.25": {
+        "mrr": 0.75,
+        "p_at_1": 0.5,
+        "separation": 0.6958697120596922,
+        "false_matches": 0,
+        "n_pairs": 60
+      },
+      "0.5": {
+        "mrr": 0.75,
+        "p_at_1": 0.5,
+        "separation": 0.6945737170244846,
+        "false_matches": 0,
+        "n_pairs": 60
+      }
+    },
+    "MiniLM": {
+      "0.0": {
+        "mrr": 0.75,
+        "p_at_1": 0.5,
+        "separation": 0.36711101008502467,
+        "false_matches": 9,
+        "n_pairs": 60
+      },
+      "0.1": {
+        "mrr": 0.75,
+        "p_at_1": 0.5,
+        "separation": 0.36711101008502467,
+        "false_matches": 9,
+        "n_pairs": 60
+      },
+      "0.25": {
+        "mrr": 0.75,
+        "p_at_1": 0.5,
+        "separation": 0.36711101008502467,
+        "false_matches": 9,
+        "n_pairs": 60
+      },
+      "0.5": {
+        "mrr": 0.75,
+        "p_at_1": 0.5,
+        "separation": 0.36711101008502467,
+        "false_matches": 9,
+        "n_pairs": 60
+      }
+    }
+  },
+  "checks": [
+    {
+      "name": "H1 native: retrieval survives 10% poison",
+      "passed": true,
+      "detail": "0.750 -> 0.750"
+    },
+    {
+      "name": "H2 native: separation survives 10% poison",
+      "passed": true,
+      "detail": "+0.277 -> +0.287"
+    },
+    {
+      "name": "H3 native: damage is sub-linear",
+      "passed": true,
+      "detail": "10% costs -0.010, 50% costs -0.006"
+    },
+    {
+      "name": "H4 native: poison creates no false matches among clean facts",
+      "passed": true,
+      "detail": "30 -> 30 of 60 at 50% poison"
+    },
+    {
+      "name": "H1 structural: retrieval survives 10% poison",
+      "passed": true,
+      "detail": "0.750 -> 0.750"
+    },
+    {
+      "name": "H2 structural: separation survives 10% poison",
+      "passed": true,
+      "detail": "+0.699 -> +0.701"
+    },
+    {
+      "name": "H3 structural: damage is sub-linear",
+      "passed": false,
+      "detail": "10% costs -0.001, 50% costs +0.005"
+    },
+    {
+      "name": "H4 structural: poison creates no false matches among clean facts",
+      "passed": true,
+      "detail": "0 -> 0 of 60 at 50% poison"
+    },
+    {
+      "name": "H5 CONTROL: MiniLM is identical at every poison rate",
+      "passed": true,
+      "detail": "unchanged \u2014 teaching cannot reach a pretrained encoder"
+    }
+  ],
+  "passed": 8,
+  "total": 9,
+  "verdict": "structural separation under poison: +0.699 clean -> +0.695 at 50%"
+}

@@ -1,0 +1,312 @@
+{
+  "experiment": "SHAPES-LEARN-02",
+  "claim": "Taught one sentence with its meaning at a time, the substrate finds constructions between them by the Leuven method -- slots, fillers and the links between them -- holds them in memory scored by beliefs, and reads and says sentences it was never taught, made of parts it has seen, while refusing what it has not.",
+  "hypothesis": "A repair that does not run where it applies, or runs out of order; a construction or link not held in memory, or not scored by a grounded belief; a taught sentence that does not read; a new combination not read or said; a pairing or shape never seen that reads; word kinds mixing things and colours; a re-teach that learns or moves anything; a second source not moving the chosen constructions, or not moving a competing holophrase down; a warm that reads differently; or any write to the main store would each show here.",
+  "started_at": "2026-09-27T22:31:43.158169+00:00",
+  "duration_seconds": 138.211,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/TorinAI/venv_torin/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/TorinAI",
+    "shadow_mode": null,
+    "git_commit": "20deb447498593391eca0286916b8f986c560a26",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "torinai_dev",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "torinai_dev",
+        "model": "torinai_dev",
+        "user_context": "torinai_dev",
+        "learning": "torinai_dev"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "environment",
+        "database": "environment",
+        "user": "environment",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 1189,
+    "database_verified": null,
+    "database_verified_reason": "not verified"
+  },
+  "summary": {
+    "checks": 32,
+    "passed": 32,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [
+    {
+      "name": "taught: learned constructions read",
+      "value": "25/25",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "taught: written reader gives a reading",
+      "value": "11/25",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "never taught: learned constructions read",
+      "value": "5/5",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "never taught: written reader gives a reading",
+      "value": "5/5",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "constructions: holophrase",
+      "value": 7,
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "constructions: item_based",
+      "value": 8,
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "constructions: lexical",
+      "value": 16,
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "constructions: link",
+      "value": 30,
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "communicative success, first hearing",
+      "value": "5/25",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "communicative success, second source",
+      "value": "25/25",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "constructions revived",
+      "value": 0,
+      "unit": "",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "the run is in the sandbox",
+      "passed": true,
+      "detail": "connected to torinai_dev",
+      "at": "2026-09-27T22:31:45.102137+00:00"
+    },
+    {
+      "label": "the substrate is running",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-27T22:32:02.203663+00:00"
+    },
+    {
+      "label": "every pair is read or repaired, none refused",
+      "passed": true,
+      "detail": "{'learned': 31, 'linked': 30, 'already': 0, 'understood': 5, 'refused': 0, 'total': 25, 'repair_holophrase': 6, 'repair_substitution': 4, 'repair_item_based_lexical': 6, 'repair_lexical_item_based': 2, 'repair_add_links': 5, 'repair_addition': 1, 'repair_deletion': 1}",
+      "at": "2026-09-27T22:32:04.153599+00:00"
+    },
+    {
+      "label": "each of the seven repairs runs, as often as the paper's order says it applies",
+      "passed": true,
+      "detail": "ran {'holophrase': 6, 'substitution': 4, 'item_based_lexical': 6, 'lexical_item_based': 2, 'add_links': 5, 'addition': 1, 'deletion': 1}; expected {'holophrase': 6, 'substitution': 4, 'item_based_lexical': 6, 'lexical_item_based': 2, 'add_links': 5, 'addition': 1, 'deletion': 1}",
+      "at": "2026-09-27T22:32:04.153617+00:00"
+    },
+    {
+      "label": "communicative success on first hearing: the pairs understood by adding links only",
+      "passed": true,
+      "detail": "5/25",
+      "at": "2026-09-27T22:32:04.153623+00:00"
+    },
+    {
+      "label": "one memory per construction and per link, none merged, each keyed exactly",
+      "passed": true,
+      "detail": "61 memories, 61 keys",
+      "at": "2026-09-27T22:32:04.156274+00:00"
+    },
+    {
+      "label": "memory and the view agree, kind by kind",
+      "passed": true,
+      "detail": "{'item_based': 8, 'lexical': 16, 'holophrase': 7, 'link': 30} / {'holophrase': 7, 'item_based': 8, 'lexical': 16, 'link': 30}",
+      "at": "2026-09-27T22:32:04.156299+00:00"
+    },
+    {
+      "label": "what was learned is what the report says",
+      "passed": true,
+      "detail": "learned 31, linked 30",
+      "at": "2026-09-27T22:32:04.156306+00:00"
+    },
+    {
+      "label": "one belief per construction and per link",
+      "passed": true,
+      "detail": "61/61",
+      "at": "2026-09-27T22:32:04.156697+00:00"
+    },
+    {
+      "label": "each belief is grounded in its own memory",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-27T22:32:04.156890+00:00"
+    },
+    {
+      "label": "each is in the English domain",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-27T22:32:04.156898+00:00"
+    },
+    {
+      "label": "every taught sentence reads to its meaning",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-09-27T22:32:04.161295+00:00"
+    },
+    {
+      "label": "sentences never taught, made of held parts, read to their meaning",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-27T22:32:04.164129+00:00"
+    },
+    {
+      "label": "and their meanings are said as those sentences",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-27T22:32:04.165240+00:00"
+    },
+    {
+      "label": "a filler never seen in a slot, and a shape never seen, read to nothing",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-27T22:32:04.165759+00:00"
+    },
+    {
+      "label": "the things are one kind and the colours another",
+      "passed": true,
+      "detail": "6 kinds",
+      "at": "2026-09-27T22:32:04.165910+00:00"
+    },
+    {
+      "label": "no kind mixes them",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-27T22:32:04.165917+00:00"
+    },
+    {
+      "label": "the view rebuilt from memory holds the same",
+      "passed": true,
+      "detail": "{'holophrase': 7, 'item_based': 8, 'lexical': 16, 'link': 30}",
+      "at": "2026-09-27T22:32:04.187848+00:00"
+    },
+    {
+      "label": "and reads and says the same",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-27T22:32:04.189870+00:00"
+    },
+    {
+      "label": "every pair understood, nothing learned",
+      "passed": true,
+      "detail": "{'learned': 0, 'linked': 0, 'already': 25, 'understood': 25, 'refused': 0, 'total': 25}",
+      "at": "2026-09-27T22:32:04.333132+00:00"
+    },
+    {
+      "label": "no construction or link counts the same pair from the same source twice",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-27T22:32:04.333405+00:00"
+    },
+    {
+      "label": "what moved is a generalization reading a pair a holophrase read first; no holophrase moved",
+      "passed": true,
+      "detail": "15 moved",
+      "at": "2026-09-27T22:32:04.333936+00:00"
+    },
+    {
+      "label": "communicative success rises with a second source, and nothing new is needed",
+      "passed": true,
+      "detail": "25/25 understood as they came (first hearing 5/25); {'learned': 0, 'linked': 0, 'already': 25, 'understood': 25, 'refused': 0, 'total': 25}",
+      "at": "2026-09-27T22:32:04.824421+00:00"
+    },
+    {
+      "label": "every pair not understood as it came was a construction below belief, revived by that pair",
+      "passed": true,
+      "detail": "0 revived",
+      "at": "2026-09-27T22:32:04.825603+00:00"
+    },
+    {
+      "label": "after it, every taught sentence still reads to its meaning",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-27T22:32:04.830484+00:00"
+    },
+    {
+      "label": "the constructions that read it are observed once more",
+      "passed": true,
+      "detail": "56 moved up",
+      "at": "2026-09-27T22:32:04.831191+00:00"
+    },
+    {
+      "label": "the holophrase that competed with a generalization is observed against and loses ground",
+      "passed": true,
+      "detail": "0.9926 -> 0.9000, 1 against",
+      "at": "2026-09-27T22:32:04.831206+00:00"
+    },
+    {
+      "label": "the generalization now reads the sentence first",
+      "passed": true,
+      "detail": "'This is my ?slot0.' + ['shoe']",
+      "at": "2026-09-27T22:32:04.831397+00:00"
+    },
+    {
+      "label": "every construction and link is recorded as new",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-27T22:32:04.832367+00:00"
+    },
+    {
+      "label": "each with the repair that made it",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-27T22:32:04.833203+00:00"
+    },
+    {
+      "label": "English is judged by its constructions and links",
+      "passed": true,
+      "detail": "maturity 0.7024 (expected 0.7024)",
+      "at": "2026-09-27T22:34:01.190039+00:00"
+    },
+    {
+      "label": "the main model's store is untouched",
+      "passed": true,
+      "detail": "207 rows before, 207 after",
+      "at": "2026-09-27T22:34:01.367028+00:00"
+    }
+  ],
+  "notes": []
+}

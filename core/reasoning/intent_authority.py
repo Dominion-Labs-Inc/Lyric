@@ -36,7 +36,7 @@ import logging
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import asyncpg
 
@@ -79,7 +79,12 @@ def _blob(value: Any) -> Any:
 #:
 #: The underscores are deliberate: `actor_for` refuses a user id equal to it, so
 #: the substrate's identity cannot be claimed by someone signing in.
-from core.agents.autonomous.shared_types import SUBSTRATE_ACTOR  # noqa: E402
+from core.agents.autonomous.shared_types import SUBSTRATE_ACTOR, store_for_owner  # noqa: E402
+
+#: Where the SHAPE rows are kept: the substrate's running record of what it is
+#: pursuing (postgres_config: `unified.intents` is runtime). An actor's CONTENT
+#: rows are kept with their owner (`IntentStore._content_store`).
+SHAPE_STORE = "runtime"
 
 
 def continuity_thread(thread_id: str) -> str:
@@ -104,6 +109,28 @@ def continuity_question(query: str) -> str:
     return f"question:{digest}"
 
 
+#: THE LIFECYCLE, NAMED BY ITS OWNER. A pursuit is either still being pursued
+#: or it is over. `standing` spelled both sets out inline, and the task gate now
+#: asks the same question of a single intent — may work on this pursuit still
+#: begin — so the answer lives here, beside the status it describes, rather than
+#: being re-spelled by every reader that needs it.
+#:
+#: THREE OF THE LIVE STATES ARE THE CONSTITUTION'S. A halt is "not now", a
+#: REPLAN is "not by this route", a REDIRECT is "not in this form" — none of them
+#: says the aim was met, and none says it was given up. Every one of them used to
+#: be reconciled as `abandoned`, so the substrate's own record said it had QUIT
+#: pursuits its law had only sent back, and could not tell, later, why the work
+#: had stopped. A BLOCK — "this may not happen" — is the one refusal that ends a
+#: pursuit, and it has its own status, `refused`.
+LIVE = ("forming", "active", "halted", "replanned", "redirected")
+CONCLUDED = ("fulfilled", "abandoned", "refused")
+#: Sent back by the constitution: still pursued, but NOT by the act or route that
+#: was stopped. Work that IS that act or route must not start again as it was; the
+#: pursuit resumes when planning returns to it, with a new route or the permitted
+#: form — which is a return, and reopens it.
+SENT_BACK = ("replanned", "redirected")
+
+
 @dataclass
 class Intent:
     """The substrate's held intent. `shape` is substrate-wide; `content` is the
@@ -117,7 +144,7 @@ class Intent:
     content: Dict[str, Any] = field(default_factory=dict)
     history: List[Dict[str, Any]] = field(default_factory=list)
     outcome: Optional[Dict[str, Any]] = None
-    status: str = "forming"                # forming | active | fulfilled | abandoned | refused
+    status: str = "forming"                # see LIVE / CONCLUDED above
     version: int = 1
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
@@ -154,6 +181,18 @@ class Intent:
         """The learned rule licensing this route's first operator."""
         ids = self.shape.get("rule_ids") or []
         return str(ids[0]) if ids else str(self.shape.get("rule_id") or "")
+
+    @property
+    def concluded(self) -> bool:
+        """The pursuit is over — realized, given up, or refused. Work that is a
+        step of it is no longer anyone's to begin."""
+        return self.status in CONCLUDED
+
+    @property
+    def sent_back(self) -> bool:
+        """The constitution replanned or redirected it: still pursued, but not by
+        the act or route that was stopped."""
+        return self.status in SENT_BACK
 
     def predicate(self) -> str:
         """The operator's predicate — `MOVE_FILE` of `MOVE_FILE(?X0, A, B)`."""
@@ -225,22 +264,37 @@ class IntentStore:
             "CREATE INDEX IF NOT EXISTS intents_parent_idx "
             "ON unified.intents (parent_intent_id)",
             commit=True)
-        await self.db.execute_query(
-            """
-            CREATE TABLE IF NOT EXISTS unified.scoped_intents (
-                scope_actor    TEXT NOT NULL,
-                intent_id      TEXT NOT NULL,
-                continuity_key TEXT NOT NULL,
-                content        JSONB NOT NULL DEFAULT '{}'::jsonb,
-                history        JSONB NOT NULL DEFAULT '[]'::jsonb,
-                created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
-                updated_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
-                PRIMARY KEY (scope_actor, intent_id),
-                UNIQUE (scope_actor, continuity_key)
-            )
-            """,
-            commit=True)
+        # Content rows are kept with their owner (`_content_store`): the substrate's
+        # beside the shape rows, a person's in their context. The table exists in both.
+        for store in self.db.schema_stores(SHAPE_STORE):
+            await self.db.execute_query(
+                """
+                CREATE TABLE IF NOT EXISTS unified.scoped_intents (
+                    scope_actor    TEXT NOT NULL,
+                    intent_id      TEXT NOT NULL,
+                    continuity_key TEXT NOT NULL,
+                    content        JSONB NOT NULL DEFAULT '{}'::jsonb,
+                    history        JSONB NOT NULL DEFAULT '[]'::jsonb,
+                    created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+                    updated_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+                    PRIMARY KEY (scope_actor, intent_id),
+                    UNIQUE (scope_actor, continuity_key)
+                )
+                """,
+                commit=True, store=store)
         self._schema_ready = True
+
+    @staticmethod
+    def _content_store(actor: str) -> str:
+        """Where an actor's content rows are kept: the substrate's own beside the
+        shape rows (runtime), a person's in their context."""
+        return store_for_owner(actor, SHAPE_STORE)
+
+    def _one_database(self, actor: str) -> bool:
+        """Whether this actor's content row is in the same database as the shape
+        rows, so both can be written in one transaction."""
+        return (self.db.config.database_for(SHAPE_STORE)
+                == self.db.config.database_for(self._content_store(actor)))
 
     async def resolve(self, actor: str, continuity_key: str) -> Optional[str]:
         """The intent_id this actor already holds for this key, or None."""
@@ -248,55 +302,97 @@ class IntentStore:
         row = await self.db.execute_query(
             "SELECT intent_id FROM unified.scoped_intents "
             "WHERE scope_actor = $1 AND continuity_key = $2",
-            (actor, continuity_key), fetch_one=True)
+            (actor, continuity_key), fetch_one=True, store=self._content_store(actor))
         return row["intent_id"] if row else None
 
+    _INSERT_SHAPE = ("INSERT INTO unified.intents "
+                     "(intent_id, parent_intent_id, origin_kind, shape, outcome, "
+                     " status, version) "
+                     "VALUES ($1, $2, $3, $4::jsonb, $5::jsonb, $6, $7)")
+    _INSERT_CONTENT = ("INSERT INTO unified.scoped_intents "
+                       "(scope_actor, intent_id, continuity_key, content, history) "
+                       "VALUES ($1, $2, $3, $4::jsonb, $5::jsonb)")
+
     async def create(self, intent: Intent) -> Intent:
-        """Write both rows atomically. The shape row is substrate-wide, the
-        content row is the actor's."""
+        """Write both rows, or neither. The shape row is substrate-wide, the
+        content row is the actor's.
+
+        One transaction when both rows are in one database (development, or the
+        substrate's own intent). A person's content row in staging or production
+        is in another database, so the shape row is written first and removed
+        again if the content row cannot be; the content row's failure is raised
+        as it was (a concurrent former winning the key stays a UniqueViolation)."""
         await self._ready()
-        async with self.db.get_connection() as conn:
-            async with conn.transaction():
-                await conn.execute(
-                    "INSERT INTO unified.intents "
-                    "(intent_id, parent_intent_id, origin_kind, shape, outcome, "
-                    " status, version) "
-                    "VALUES ($1, $2, $3, $4::jsonb, $5::jsonb, $6, $7)",
-                    intent.intent_id, intent.parent_intent_id, intent.origin_kind,
-                    json.dumps(intent.shape),
-                    json.dumps(intent.outcome) if intent.outcome is not None else None,
-                    intent.status, intent.version)
-                await conn.execute(
-                    "INSERT INTO unified.scoped_intents "
-                    "(scope_actor, intent_id, continuity_key, content, history) "
-                    "VALUES ($1, $2, $3, $4::jsonb, $5::jsonb)",
-                    intent.actor, intent.intent_id, intent.continuity_key,
-                    json.dumps(intent.content), json.dumps(intent.history))
+        shape = (intent.intent_id, intent.parent_intent_id, intent.origin_kind,
+                 json.dumps(intent.shape),
+                 json.dumps(intent.outcome) if intent.outcome is not None else None,
+                 intent.status, intent.version)
+        content = (intent.actor, intent.intent_id, intent.continuity_key,
+                   json.dumps(intent.content), json.dumps(intent.history))
+        if self._one_database(intent.actor):
+            async with self.db.get_connection(store=SHAPE_STORE) as conn:
+                async with conn.transaction():
+                    await conn.execute(self._INSERT_SHAPE, *shape)
+                    await conn.execute(self._INSERT_CONTENT, *content)
+        else:
+            await self.db.execute_query(self._INSERT_SHAPE, shape, commit=True)
+            try:
+                await self.db.execute_query(self._INSERT_CONTENT, content, commit=True,
+                                            store=self._content_store(intent.actor))
+            except BaseException:
+                await self.db.execute_query(
+                    "DELETE FROM unified.intents WHERE intent_id = $1",
+                    (intent.intent_id,), commit=True)
+                raise
         loaded = await self.load_full(intent.intent_id, intent.actor)
         if loaded is None:                       # never silently lose a write
             raise RuntimeError(
                 f"intent {intent.intent_id} vanished immediately after create")
         return loaded
 
+    _UPDATE_SHAPE = ("UPDATE unified.intents SET shape = $2::jsonb, "
+                     "outcome = $3::jsonb, status = $4, version = $5, "
+                     "updated_at = now() WHERE intent_id = $1")
+    _UPDATE_CONTENT = ("UPDATE unified.scoped_intents SET content = $3::jsonb, "
+                       "history = $4::jsonb, updated_at = now() "
+                       "WHERE scope_actor = $1 AND intent_id = $2")
+
     async def update(self, intent: Intent) -> Intent:
-        """Rewrite the live node across both tables, atomically. Version and
-        timestamps are advanced by the caller (the authority)."""
+        """Rewrite the live node across both tables, both or neither. Version and
+        timestamps are advanced by the caller (the authority).
+
+        One transaction when both rows are in one database. Otherwise the shape
+        row as it stood is read first, the shape is rewritten, and if the content
+        row cannot be, the shape is put back as it was before the failure is raised."""
         await self._ready()
-        async with self.db.get_connection() as conn:
-            async with conn.transaction():
-                await conn.execute(
-                    "UPDATE unified.intents SET shape = $2::jsonb, "
-                    "outcome = $3::jsonb, status = $4, version = $5, "
-                    "updated_at = now() WHERE intent_id = $1",
-                    intent.intent_id, json.dumps(intent.shape),
-                    json.dumps(intent.outcome) if intent.outcome is not None else None,
-                    intent.status, intent.version)
-                await conn.execute(
-                    "UPDATE unified.scoped_intents SET content = $3::jsonb, "
-                    "history = $4::jsonb, updated_at = now() "
-                    "WHERE scope_actor = $1 AND intent_id = $2",
-                    intent.actor, intent.intent_id, json.dumps(intent.content),
-                    json.dumps(intent.history))
+        shape = (intent.intent_id, json.dumps(intent.shape),
+                 json.dumps(intent.outcome) if intent.outcome is not None else None,
+                 intent.status, intent.version)
+        content = (intent.actor, intent.intent_id, json.dumps(intent.content),
+                   json.dumps(intent.history))
+        if self._one_database(intent.actor):
+            async with self.db.get_connection(store=SHAPE_STORE) as conn:
+                async with conn.transaction():
+                    await conn.execute(self._UPDATE_SHAPE, *shape)
+                    await conn.execute(self._UPDATE_CONTENT, *content)
+        else:
+            before = await self.db.execute_query(
+                "SELECT shape, outcome, status, version, updated_at FROM unified.intents "
+                "WHERE intent_id = $1", (intent.intent_id,), fetch_one=True)
+            await self.db.execute_query(self._UPDATE_SHAPE, shape, commit=True)
+            try:
+                await self.db.execute_query(self._UPDATE_CONTENT, content, commit=True,
+                                            store=self._content_store(intent.actor))
+            except BaseException:
+                if before is not None:
+                    await self.db.execute_query(
+                        "UPDATE unified.intents SET shape = $2::jsonb, outcome = $3::jsonb, "
+                        "status = $4, version = $5, updated_at = $6 WHERE intent_id = $1",
+                        (intent.intent_id, json.dumps(_blob(before["shape"]) or {}),
+                         json.dumps(_blob(before["outcome"])) if before["outcome"] is not None else None,
+                         before["status"], before["version"], before["updated_at"]),
+                        commit=True)
+                raise
         loaded = await self.load_full(intent.intent_id, intent.actor)
         if loaded is None:
             raise RuntimeError(
@@ -315,17 +411,22 @@ class IntentStore:
     async def load_full(self, intent_id: str, actor: str) -> Optional[Intent]:
         """Shape + this actor's content. None if the actor does not own it."""
         await self._ready()
-        row = await self.db.execute_query(
-            "SELECT i.intent_id, i.parent_intent_id, i.origin_kind, i.shape, "
-            "       i.outcome, i.status, i.version, i.created_at, i.updated_at, "
-            "       s.continuity_key, s.content, s.history "
-            "FROM unified.intents i "
-            "JOIN unified.scoped_intents s "
-            "  ON s.intent_id = i.intent_id AND s.scope_actor = $2 "
-            "WHERE i.intent_id = $1",
-            (intent_id, actor), fetch_one=True)
-        if not row:
+        # Two reads, not a join: the actor's content row may be in another database
+        # than the shape row. Both must exist, as the join required.
+        shape = await self.db.execute_query(
+            "SELECT intent_id, parent_intent_id, origin_kind, shape, "
+            "       outcome, status, version, created_at, updated_at "
+            "FROM unified.intents WHERE intent_id = $1",
+            (intent_id,), fetch_one=True)
+        if not shape:
             return None
+        content = await self.db.execute_query(
+            "SELECT continuity_key, content, history FROM unified.scoped_intents "
+            "WHERE intent_id = $1 AND scope_actor = $2",
+            (intent_id, actor), fetch_one=True, store=self._content_store(actor))
+        if not content:
+            return None
+        row = {**shape, **content}
         return Intent(
             intent_id=row["intent_id"], origin_kind=row["origin_kind"], actor=actor,
             continuity_key=row["continuity_key"],
@@ -400,9 +501,8 @@ class IntentStore:
                 "reconciled": int(row["reconciled"]), "child": int(row["child"]),
                 "stale": int(row["stale"]),
                 "concludable": int(row["concludable"])}
-        live = {s: b for s, b in by_status.items() if s in ("forming", "active")}
-        concluded = {s: b for s, b in by_status.items()
-                     if s in ("fulfilled", "abandoned", "refused")}
+        live = {s: b for s, b in by_status.items() if s in LIVE}
+        concluded = {s: b for s, b in by_status.items() if s in CONCLUDED}
         return {
             "by_status": by_status,
             "live": sum(b["count"] for b in live.values()),
@@ -428,14 +528,26 @@ class IntentStore:
         that still points at something. Returns rows removed.
         """
         await self._ready()
+        store = self._content_store(actor)
+        rows = await self.db.execute_query(
+            "SELECT intent_id FROM unified.scoped_intents "
+            "WHERE scope_actor = $1 AND continuity_key = $2",
+            (actor, continuity_key), fetch_all=True, store=store) or []
+        ids = [r["intent_id"] for r in rows]
+        if not ids:
+            return 0
+        present = {r["intent_id"] for r in await self.db.execute_query(
+            "SELECT intent_id FROM unified.intents WHERE intent_id = ANY($1::text[])",
+            (ids,), fetch_all=True) or []}
+        gone = [i for i in ids if i not in present]
+        if not gone:
+            return 0
         row = await self.db.execute_query(
             "WITH gone AS ("
-            "  DELETE FROM unified.scoped_intents s"
-            "   WHERE s.scope_actor = $1 AND s.continuity_key = $2"
-            "     AND NOT EXISTS (SELECT 1 FROM unified.intents i"
-            "                      WHERE i.intent_id = s.intent_id)"
+            "  DELETE FROM unified.scoped_intents"
+            "   WHERE scope_actor = $1 AND continuity_key = $2 AND intent_id = ANY($3::text[])"
             "  RETURNING 1) SELECT count(*) AS n FROM gone",
-            (actor, continuity_key), fetch_one=True)
+            (actor, continuity_key, gone), fetch_one=True, store=store)
         return int(row["n"]) if row else 0
 
     async def forget_actor(self, actor: str) -> int:
@@ -445,7 +557,7 @@ class IntentStore:
         row = await self.db.execute_query(
             "WITH gone AS (DELETE FROM unified.scoped_intents "
             "WHERE scope_actor = $1 RETURNING 1) SELECT count(*) AS n FROM gone",
-            (actor,), fetch_one=True)
+            (actor,), fetch_one=True, store=self._content_store(actor))
         return int(row["n"]) if row else 0
 
 
@@ -470,7 +582,7 @@ class IntentAuthority:
         if existing_id is not None:
             try:
                 return await self.refresh(existing_id, actor, shape=shape,
-                                          content=content)
+                                          content=content, returning=True)
             except KeyError:
                 # A CONTINUITY ROW POINTING AT A SHAPE THAT IS GONE.
                 #
@@ -504,22 +616,53 @@ class IntentAuthority:
             if existing_id is None:
                 raise
             return await self.refresh(existing_id, actor, shape=shape,
-                                      content=content)
+                                      content=content, returning=True)
 
     async def refresh(self, intent_id: str, actor: str, *,
                       shape: Optional[Dict[str, Any]] = None,
-                      content: Optional[Dict[str, Any]] = None) -> Intent:
+                      content: Optional[Dict[str, Any]] = None,
+                      returning: bool = False) -> Intent:
         """Update the live node with firmer understanding, keeping identity and
-        appending the previous state to history. Refresh is not rebuild."""
+        appending the previous state to history. Refresh is not rebuild.
+
+        `returning` is `form` finding a pursuit it already holds — the substrate
+        ENGAGING with it again, which is different from reasoning settling what
+        it just did. A return to a pursuit whose last attempt ENDED reopens it:
+        concluded, or stopped by the constitution (halted, replanned,
+        redirected) — a new route after a REPLAN is exactly such a return.
+
+        MEASURED BEFORE THIS: a goal whose first route stopped was reconciled
+        `abandoned`; the planner then proved a second route and recorded it
+        through `form` — same intent, version advanced, the new rule on its
+        shape — and the status stayed `abandoned` with the FIRST route's outcome.
+        The substrate was pursuing a goal its own record said it had given up.
+        Nothing minded while no reader asked whether a pursuit was still live;
+        the task gate now asks exactly that, and any step of the second route
+        reaching it would have been refused for the first route's end.
+
+        The earlier conclusion is not discarded. It is kept on the SHAPE, which
+        is substrate-wide, so the lesson of the attempt that ended survives the
+        actor's deletion exactly as a reconciled outcome does; and the history
+        entry records the full previous state, status and outcome included.
+        """
         current = await self.store.load_full(intent_id, actor)
         if current is None:
             raise KeyError(f"no intent {intent_id} for actor {actor!r} to refresh")
         current.history.append({
             "at": datetime.now().isoformat(),
             "version": current.version,
+            "status": current.status,
+            "outcome": current.outcome,
             "shape": dict(current.shape),
             "content": dict(current.content),
         })
+        if returning and current.status not in ("forming", "active"):
+            earlier = list(current.shape.get("earlier_attempts") or [])
+            earlier.append({"status": current.status, "outcome": current.outcome,
+                            "version": current.version})
+            current.shape["earlier_attempts"] = earlier
+            current.status = "active"
+            current.outcome = None
         if shape:
             current.shape.update(shape)
         if content:
@@ -543,6 +686,19 @@ class IntentAuthority:
         if actor is not None:
             return await self.store.load_full(intent_id, actor)
         return await self.store.load_shape(intent_id)
+
+    async def root_of(self, intent_id: str) -> str:
+        """The pursuit an intent is part of: the intent walked up through what
+        raised it, to the one nothing raised."""
+        current, seen = str(intent_id), set()
+        while current not in seen:
+            seen.add(current)
+            held = await self.get_by_id(current)
+            parent = getattr(held, "parent_intent_id", None) if held is not None else None
+            if not parent:
+                return current
+            current = str(parent)
+        return current
 
     async def reconcile(self, intent_id: str, outcome: Dict[str, Any], *,
                         status: str = "fulfilled") -> None:
@@ -585,10 +741,9 @@ def get_intent_authority() -> IntentAuthority:
 # id -- and threading one through every tool signature would put the claim back
 # in the caller's hands anyway.
 #
-# So the acting intent is bound to the async CONTEXT, exactly as an action
-# contract is (`core.safety.action_contract`), and for the same reason: the
-# coordinator runs tasks concurrently, and a module global would let one task's
-# intent authorise another task's act. A ContextVar gives every asyncio task its
+# So the acting intent is bound to the async CONTEXT: the coordinator runs tasks
+# concurrently, and a module global would let one task's intent authorise
+# another task's act. A ContextVar gives every asyncio task its
 # own copy automatically.
 #
 # What travels is only the ID. The constitution still reads the intent from this
@@ -633,6 +788,31 @@ def get_acting_actor() -> Optional[str]:
 def reset_acting_actor(token) -> None:
     """Release the binding set by `set_acting_actor`."""
     _acting_actor.reset(token)
+
+
+
+#: WHICH TASK the current act is a step of, as `(task id, description)`. Bound
+#: beside the intent and the actor, and for the same reason: the tool registry is
+#: where every tool run passes, whoever calls it, and a run is recorded there
+#: once -- attributed to the task it served, or to none when the caller had no
+#: task (a conversation looking something up).
+_acting_task: "contextvars.ContextVar[Optional[Tuple[str, str]]]" = contextvars.ContextVar(
+    "torin_acting_task", default=None)
+
+
+def set_acting_task(task_id: Optional[str], description: str = ""):
+    """Bind the task the current act serves. Returns the reset token."""
+    return _acting_task.set((str(task_id), str(description or "")) if task_id else None)
+
+
+def get_acting_task() -> Optional[Tuple[str, str]]:
+    """`(task id, description)` of the task the current act serves, or None."""
+    return _acting_task.get()
+
+
+def reset_acting_task(token) -> None:
+    """Release the binding set by `set_acting_task`."""
+    _acting_task.reset(token)
 
 
 def get_acting_intent() -> Optional[str]:

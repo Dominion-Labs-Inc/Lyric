@@ -1,0 +1,224 @@
+{
+  "experiment": "RECOGNISE-02",
+  "claim": "The substrate carries two independent recognition paths over one teaching: induced rules, exact and few-shot; and a Tsetlin clause population, which represents what a single conjunction cannot. Both name blobs through one gate and one judgement, and either can be removed with the other still naming.",
+  "hypothesis": "If the two paths were really one capability wearing two coats, a category that defeats anti-unification would defeat the population too. A disjunctive category is the discriminating case: one conjunction cannot express it, a clause population can, and that is the whole reason for keeping both.",
+  "started_at": "2026-09-19T20:32:56.156909+00:00",
+  "duration_seconds": 48.493,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/TorinAI/venv_torin/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/TorinAI",
+    "shadow_mode": "1",
+    "git_commit": "20deb447498593391eca0286916b8f986c560a26",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "torinai_db",
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "environment",
+        "database": "environment",
+        "user": "environment",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres"
+      }
+    },
+    "git_uncommitted_changes": 119,
+    "database_verified": null,
+    "database_verified_reason": "not verified"
+  },
+  "summary": {
+    "checks": 24,
+    "passed": 24,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [
+    {
+      "name": "examples",
+      "value": 14,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "induction_status_on_disjunction",
+      "value": "no_rule",
+      "unit": "status",
+      "note": ""
+    },
+    {
+      "name": "clause_training_accuracy",
+      "value": 1.0,
+      "unit": "ratio",
+      "note": ""
+    },
+    {
+      "name": "vocabulary",
+      "value": 7,
+      "unit": "features",
+      "note": ""
+    },
+    {
+      "name": "checks_passed",
+      "value": 24,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "checks_total",
+      "value": 24,
+      "unit": "count",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "every example entered through sight",
+      "passed": true,
+      "detail": "4 red circle(s), 4 blue square(s), 6 other(s)",
+      "at": "2026-09-19T20:33:41.632606+00:00"
+    },
+    {
+      "label": "anti-unification cannot represent 'red circle OR blue square'",
+      "passed": true,
+      "detail": "status=no_rule, rule=None",
+      "at": "2026-09-19T20:33:41.638091+00:00"
+    },
+    {
+      "label": "the clause population learns the same category",
+      "passed": true,
+      "detail": "accuracy 1.0 over 14 example(s), 7 feature(s)",
+      "at": "2026-09-19T20:33:41.830384+00:00"
+    },
+    {
+      "label": "with an explicit class for 'none of these'",
+      "passed": true,
+      "detail": "classes: ['token439712', 'none_of_these']",
+      "at": "2026-09-19T20:33:41.830408+00:00"
+    },
+    {
+      "label": "the clause population named a held-out red circle, unasked",
+      "passed": true,
+      "detail": "recog2_439712_15xd9db29a23f_redcircle isa token439712",
+      "at": "2026-09-19T20:33:43.111311+00:00"
+    },
+    {
+      "label": "and a held-out blue square \u2014 the other disjunct",
+      "passed": true,
+      "detail": "recog2_439712_16x0cea6aceaf_bluesquare isa token439712",
+      "at": "2026-09-19T20:33:43.111320+00:00"
+    },
+    {
+      "label": "naming it did not make the name a feature of it",
+      "passed": true,
+      "detail": "observed: ['circle', 'vivid_red']",
+      "at": "2026-09-19T20:33:43.112185+00:00"
+    },
+    {
+      "label": "a thing of no taught category is not named one",
+      "passed": true,
+      "detail": "held ['triangle', 'vivid_green']",
+      "at": "2026-09-19T20:33:43.224948+00:00"
+    },
+    {
+      "label": "the machine returns nothing rather than a wrong name",
+      "passed": true,
+      "detail": "declined",
+      "at": "2026-09-19T20:33:43.227100+00:00"
+    },
+    {
+      "label": "it entered as a derivation",
+      "passed": true,
+      "detail": "induced_rule from clause_classifier:blobs_439712",
+      "at": "2026-09-19T20:33:43.227809+00:00"
+    },
+    {
+      "label": "declaring the observations it read",
+      "passed": true,
+      "detail": "1 root(s)",
+      "at": "2026-09-19T20:33:43.227815+00:00"
+    },
+    {
+      "label": "it states the clauses that argue for the class",
+      "passed": true,
+      "detail": "6 shown",
+      "at": "2026-09-19T20:33:43.227818+00:00"
+    },
+    {
+      "label": "in the terms the faculty measured, not opaque indices",
+      "passed": true,
+      "detail": "circle & square & vivid_blue & vivid_red & NOT square & NOT triangle & NOT vivid_green & NOT vivid_yellow; square & vivid_blue & vivid_red & NOT triangle & NOT vivid_blue & NOT vivid_green & NOT vivid_yellow",
+      "at": "2026-09-19T20:33:43.227829+00:00"
+    },
+    {
+      "label": "and the vocabulary IS what sight measures",
+      "passed": true,
+      "detail": "['circle', 'square', 'triangle', 'vivid_blue', 'vivid_green', 'vivid_red', 'vivid_yellow']",
+      "at": "2026-09-19T20:33:43.227836+00:00"
+    },
+    {
+      "label": "a non-disjunctive category is still learned by the rules",
+      "passed": true,
+      "detail": "2 hypothesis/es (multiple_hypotheses): square(?X0) \u2192 solo439712(?X0); vivid_blue(?X0) \u2192 solo439712(?X0)",
+      "at": "2026-09-19T20:33:43.364775+00:00"
+    },
+    {
+      "label": "with NO classifier attached, the rules still name",
+      "passed": true,
+      "detail": "recog2_439712_18xebd68eefa2_bluesquare isa solo439712",
+      "at": "2026-09-19T20:33:43.537040+00:00"
+    },
+    {
+      "label": "with every rule deleted, the clause population still names",
+      "passed": true,
+      "detail": "recog2_439712_19xc9e9e3639f_redcircle isa token439712",
+      "at": "2026-09-19T20:33:44.644415+00:00"
+    },
+    {
+      "label": "and the rule path is genuinely gone, not merely quiet",
+      "passed": true,
+      "detail": "solo439712 absent \u2014 its rule was deleted",
+      "at": "2026-09-19T20:33:44.644424+00:00"
+    },
+    {
+      "label": "the mechanism persists",
+      "passed": true,
+      "detail": "2 classifier(s)",
+      "at": "2026-09-19T20:33:44.647859+00:00"
+    },
+    {
+      "label": "a fresh authority restores it",
+      "passed": true,
+      "detail": "2 classifier(s)",
+      "at": "2026-09-19T20:33:44.649656+00:00"
+    },
+    {
+      "label": "with its feature vocabulary intact",
+      "passed": true,
+      "detail": "7 feature(s)",
+      "at": "2026-09-19T20:33:44.649663+00:00"
+    },
+    {
+      "label": "and a REBUILT encoder, not None \u2014 it can read an instance",
+      "passed": true,
+      "detail": "FeatureEncoder",
+      "at": "2026-09-19T20:33:44.649666+00:00"
+    },
+    {
+      "label": "its rejection class survived too",
+      "passed": true,
+      "detail": "none_of_these",
+      "at": "2026-09-19T20:33:44.649668+00:00"
+    },
+    {
+      "label": "and it encodes the same instance the same way",
+      "passed": true,
+      "detail": "2 bit(s) set",
+      "at": "2026-09-19T20:33:44.649686+00:00"
+    }
+  ],
+  "notes": []
+}

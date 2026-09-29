@@ -1,0 +1,40 @@
+{
+  "experiment": "NLU-01 \u2014 What share of REAL prose does the substrate read?",
+  "writes_to_store": false,
+  "notes": [
+    "corpus: 300 human-written sentences from the repo's docs (median 13 words)",
+    "READ 23 (7.7%) \u00b7 DECLINED 277 (92.3%) \u00b7 RAISED 0",
+    "which reader answered: segmented=16, derived:subject_relation_object_polarity=4, extractor=3",
+    "read  \u201cThe canonical architecture document.\u201d -> canonical_architecture_document [derived:subject_relation_object_polarity]",
+    "read  \u201cTorinAI is a persistent cognitive substrate: a system that maintains and\u201d -> torinai_persistent_cognitive_substrate [segmented]",
+    "read  \u201cCognition is one body \u2014 not a bus between independent services.\u201d -> cognition_one_body [segmented]",
+    "read  \u201cThe belief circulation (feeders \u2192 hub \u2192 consumers) Beliefs are the blood\u201d -> belief_circulation_beliefs_blood [segmented]"
+  ],
+  "data": {
+    "sentences": 300,
+    "read": 23,
+    "declined": 277,
+    "raised": 0,
+    "yield_pct": 7.67,
+    "by_reader": {
+      "derived:subject_relation_object_polarity": 4,
+      "segmented": 16,
+      "extractor": 3
+    }
+  },
+  "checks": [
+    {
+      "name": "no sentence made the reader raise",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "every reading names at least one atom",
+      "passed": true,
+      "detail": ""
+    }
+  ],
+  "passed": 2,
+  "total": 2,
+  "seconds": 2.22
+}

@@ -1,0 +1,180 @@
+{
+  "experiment": "SHAPES-LEARN-08",
+  "claim": "Taught WordNet's nouns through its one teaching path, the substrate says each fact through the frames it was taught, in WordNet's words, and learns from what it said: every noun taught reads in a question it was never taught, the facts are held, and what it says of them reads back to them.",
+  "hypothesis": "A pair refused; a noun taught that a question never taught does not read to its sense; a fact taught that is not held, or a pair WordNet does not relate answered yes; a fact said that reads back to another meaning; a lesson sentence that no longer reads; or a write to the main store would each show here.",
+  "started_at": "2026-09-29T15:46:31.051247+00:00",
+  "duration_seconds": 3434.934,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/TorinAI/venv_torin/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/TorinAI",
+    "shadow_mode": null,
+    "git_commit": "20deb447498593391eca0286916b8f986c560a26",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "torinai_dev",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "torinai_dev",
+        "model": "torinai_dev",
+        "user_context": "torinai_dev",
+        "learning": "torinai_dev"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "environment",
+        "database": "environment",
+        "user": "environment",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 1793,
+    "database_verified": null,
+    "database_verified_reason": "not verified"
+  },
+  "summary": {
+    "checks": 15,
+    "passed": 15,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [
+    {
+      "name": "nouns said",
+      "value": "1275/1319",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "nouns taught that read in a question never taught",
+      "value": "1275/1275",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "facts held",
+      "value": "200/200",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "unrelated pairs answered yes",
+      "value": "0/200",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "seconds per WordNet record",
+      "value": 1.1205,
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "hours for all of WordNet's records, at this rate",
+      "value": 50.18,
+      "unit": "",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "the run is in the sandbox",
+      "passed": true,
+      "detail": "connected to torinai_dev",
+      "at": "2026-09-29T15:46:32.652618+00:00"
+    },
+    {
+      "label": "the substrate is running",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-29T15:46:52.090242+00:00"
+    },
+    {
+      "label": "english_01.json is learned, none refused",
+      "passed": true,
+      "detail": "{'learned': 236, 'linked': 325, 'already': 1, 'understood': 61, 'refused': 0, 'total': 228, 'repair_holophrase': 19, 'repair_substitution': 26, 'repair_lexical_item_based': 56, 'repair_item_based_lexical': 66, 'repair_add_links': 60}",
+      "at": "2026-09-29T15:47:02.062290+00:00"
+    },
+    {
+      "label": "english_02.json is learned, none refused",
+      "passed": true,
+      "detail": "{'learned': 22, 'linked': 65, 'already': 0, 'understood': 8, 'refused': 0, 'total': 29, 'repair_lexical_item_based': 11, 'repair_add_links': 8, 'repair_item_based_lexical': 10}",
+      "at": "2026-09-29T15:47:05.354009+00:00"
+    },
+    {
+      "label": "english_03.json is learned, none refused",
+      "passed": true,
+      "detail": "{'learned': 15, 'linked': 47, 'already': 0, 'understood': 4, 'refused': 0, 'total': 21, 'repair_item_based_lexical': 5, 'repair_add_links': 4, 'repair_phrase_in_slot': 11, 'repair_addition': 1}",
+      "at": "2026-09-29T15:47:06.573676+00:00"
+    },
+    {
+      "label": "english_04.json is learned, none refused",
+      "passed": true,
+      "detail": "{'learned': 101, 'linked': 109, 'already': 0, 'understood': 4, 'refused': 0, 'total': 70, 'repair_item_based_lexical': 26, 'repair_holophrase': 4, 'repair_substitution': 1, 'repair_lexical_item_based': 35, 'repair_add_links': 4}",
+      "at": "2026-09-29T15:47:15.831376+00:00"
+    },
+    {
+      "label": "english_05.json is learned, none refused",
+      "passed": true,
+      "detail": "{'learned': 43, 'linked': 72, 'already': 0, 'understood': 10, 'refused': 0, 'total': 52, 'repair_lexical_item_based': 11, 'repair_item_based_lexical': 28, 'repair_phrase_in_slot': 3, 'repair_add_links': 10}",
+      "at": "2026-09-29T15:47:18.985209+00:00"
+    },
+    {
+      "label": "the nouns' facts are said through the frames taught, in WordNet's words",
+      "passed": true,
+      "detail": "said 1275 of 1319; {'bound': 1319, 'speaker_context': 0, 'no_speaker': 0, 'open': 0, 'not_told': 0, 'rule': 0, 'rule_not_held': 0, 'alternative': 0, 'example': 0, 'said': 1275, 'not_said': 44}",
+      "at": "2026-09-29T16:43:31.501399+00:00"
+    },
+    {
+      "label": "no pair said is refused",
+      "passed": true,
+      "detail": "{'learned': 2344, 'linked': 2400, 'already': 0, 'understood': 1, 'refused': 0, 'total': 1275, 'repair_item_based_lexical': 1274, 'repair_add_links': 1}",
+      "at": "2026-09-29T16:43:31.501457+00:00"
+    },
+    {
+      "label": "every noun taught reads in a question never taught, to the sense taught",
+      "passed": true,
+      "detail": "1275/1275",
+      "at": "2026-09-29T16:43:38.392529+00:00"
+    },
+    {
+      "label": "the reasoning authority answers yes to the facts taught",
+      "passed": true,
+      "detail": "200/200",
+      "at": "2026-09-29T16:43:39.268408+00:00"
+    },
+    {
+      "label": "for pairs WordNet does not relate it does not answer yes",
+      "passed": true,
+      "detail": "0/200 answered yes",
+      "at": "2026-09-29T16:43:39.503665+00:00"
+    },
+    {
+      "label": "each fact taught is said, and what is said reads back to it",
+      "passed": true,
+      "detail": "200/200",
+      "at": "2026-09-29T16:43:40.535496+00:00"
+    },
+    {
+      "label": "every taught sentence of the five lessons reads to its meaning",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-09-29T16:43:41.036031+00:00"
+    },
+    {
+      "label": "the main model's store is untouched",
+      "passed": true,
+      "detail": "192294 rows before, 192294 after",
+      "at": "2026-09-29T16:43:46.128333+00:00"
+    }
+  ],
+  "notes": []
+}

@@ -16,7 +16,7 @@ from collections import defaultdict, deque
 from dataclasses import dataclass
 
 from .domain_types import (
-    Domain, DomainType, DomainConcept, ConceptType, DomainRelation, DomainKnowledge,
+    Domain, DomainType, DomainConcept, ConceptType,
     CrossDomainMapping, KnowledgeTransfer
 )
 from core.capability import raise_if_structural
@@ -133,6 +133,21 @@ class DomainRegistry:
         async with self._lock:
             await self._db().initialize()
             self.generation += 1
+            # A LOAD BUILDS THE VIEW; IT NEVER OVERLAYS ONE. Everything below is
+            # derived from the store (domains, their concepts, mappings) or from
+            # the ontology (the categories, the universal level), so a second load
+            # starts from nothing, as the first did. Overlaying kept the first
+            # load's universal projection in `domain_abstract`, which the
+            # projection's own guard then read as persisted concepts -- every
+            # reload raised (measured 2026-09-27) -- and it kept any concept or
+            # mapping the store had since dropped. Versions restart under the new
+            # generation, which every version comparison already includes.
+            self.domains.clear()
+            self.cross_domain_mappings.clear()
+            self._concept_home.clear()
+            self._concept_versions.clear()
+            self._concept_changes.clear()
+            self.unpopulated_domain_ids = []
             await self._load_domains()
             await self._load_concepts()
             self._repair_category_links()
@@ -391,8 +406,78 @@ class DomainRegistry:
 
     _CONCEPT_COLUMNS = "concept_id, name, domain, description, attributes, relationships"
 
+    def domain_for_field(self, field: str) -> Optional[Domain]:
+        """The ONE domain a concepts field belongs to, under whichever spelling
+        registered it; None when neither has.
+
+        A field has two spellings. A learned domain is registered under its bare
+        name (`shapes_learn_01`, `english`, `vision`); a field first met through
+        its concepts was made under `domain_<field>`. Looking up only the second
+        is how every learned domain came to have a TWIN -- the learned domain
+        holding the judgments and none of the concepts, the twin holding the
+        concepts and none of the judgments (measured 2026-09-27: `shapes_learn_01`
+        0 concepts beside `domain_shapes_learn_01` 7, and the same for the boot
+        scan's domain). A learned domain is preferred when both exist.
+        """
+        key = self._domain_key(field)
+        bare, prefixed = self.domains.get(key), self.domains.get(f"domain_{key}")
+        for candidate in (bare, prefixed):
+            if candidate is not None and (candidate.boundaries or {}).get("origin") == "learned":
+                return candidate
+        return bare or prefixed
+
+    def _absorb_field_twin(self, domain: Domain) -> int:
+        """Move a field twin's concepts into `domain`, and drop the twin.
+
+        The twin is the Domain `_field_domain` made when this field's concepts
+        arrived before the domain was registered -- which is the order teaching
+        has: a batch's facts are admitted first and its domain is ensured after.
+        Only a twin made from concepts is absorbed. Two learned domains are never
+        merged here, and a DomainType category (`domain_abstract`, ...) is never
+        taken as a twin. Returns how many concepts moved.
+        """
+        key = self._domain_key(domain.domain_id)
+        categories = {f"domain_{t.value}" for t in DomainType}
+        moved = 0
+        for twin_id in (key, f"domain_{key}"):
+            twin = self.domains.get(twin_id)
+            if (twin is None or twin is domain or twin_id == domain.domain_id
+                    or twin_id in categories
+                    or (twin.boundaries or {}).get("origin") == "learned"):
+                continue
+            ids = set(twin.concepts)
+            for cid, concept in twin.concepts.items():
+                concept.domain_id = domain.domain_id
+                domain.concepts[cid] = concept
+                self._concept_home[cid] = domain.domain_id
+                names = self.concept_index.get(concept.name.lower())
+                if names is not None:
+                    names.discard(twin_id)
+                    names.add(domain.domain_id)
+            for parent_id in twin.parent_domains:
+                parent = self.domains.get(parent_id)
+                if parent is not None:
+                    parent.child_domains.discard(twin_id)
+            del self.domains[twin_id]
+            self._concept_versions.pop(twin_id, None)
+            self._concept_changes.pop(twin_id, None)
+            self.unpopulated_domain_ids = [d for d in self.unpopulated_domain_ids
+                                           if d != twin_id]
+            if ids:
+                self._concept_versions[domain.domain_id] += 1
+                self._concept_changes[domain.domain_id].append(
+                    (self._concept_versions[domain.domain_id], frozenset(ids)))
+            moved += len(ids)
+            logger.info("domain %s absorbed %d concept(s) from its field twin %s",
+                        domain.domain_id, len(ids), twin_id)
+        return moved
+
     def _field_domain(self, field: str, unclassified: Optional[Set[str]] = None) -> Domain:
-        """The Domain for a unified.concepts field, created on first sight."""
+        """The Domain for a unified.concepts field: the one already registered for
+        it under either spelling (`domain_for_field`), or one made on first sight."""
+        existing = self.domain_for_field(field)
+        if existing is not None:
+            return existing
         domain_id = f"domain_{field}"
         if domain_id not in self.domains:
             dtype = self._classify_field(field)
@@ -624,10 +709,10 @@ class DomainRegistry:
 
         raw = str(reference).strip()
         key = self._domain_key(raw)
-        canonical = f"domain_{key}"
 
-        # 1. Exact identity: id, canonical id, or name.
-        match = self.domains.get(raw) or self.domains.get(canonical)
+        # 1. Exact identity: id, either spelling of a field, or name. A learned
+        # domain is registered bare, so `domain_<field>` must reach it too.
+        match = self.domains.get(raw) or self.domain_for_field(raw)
         if match is None:
             for d in self.domains.values():
                 if d.name.strip().lower() == raw.lower():
@@ -878,6 +963,9 @@ class DomainRegistry:
         try:
             async with self._lock:
                 self.domains[domain.domain_id] = domain
+                # THE FIELD'S CONCEPTS MAY HAVE ARRIVED FIRST, under a twin; they
+                # are this domain's, so this domain takes them over.
+                self._absorb_field_twin(domain)
                 self._repair_category_links()
                 await self._persist_domain(domain)
                 await self._update_indexes_for_domain(domain)
@@ -1069,19 +1157,14 @@ class DomainRegistry:
                 mapping = self.cross_domain_mappings.get(mapping_id)
                 if mapping is None:
                     continue
-                status = await self._db().execute_query(
-                    """INSERT INTO unified.mapping_usage_events
-                           (usage_id, mapping_id, transfer_id, task_id,
-                            application_stage, source_domain, target_domain,
-                            provenance)
-                       VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb)
-                       ON CONFLICT (usage_id) DO NOTHING""",
-                    (self._usage_id(mapping_id, task_id, application_stage),
-                     mapping_id, transfer_id, task_id, application_stage,
-                     self._domain_key(mapping.source_domain_id),
-                     self._domain_key(mapping.target_domain_id),
-                     json.dumps(provenance or {})),
-                    commit=True)
+                from core.agents.memory_agent import memory_agent
+                status = await memory_agent().record_mapping_use(
+                    usage_id=self._usage_id(mapping_id, task_id, application_stage),
+                    mapping_id=mapping_id, transfer_id=transfer_id, task_id=task_id,
+                    application_stage=application_stage,
+                    source_domain=self._domain_key(mapping.source_domain_id),
+                    target_domain=self._domain_key(mapping.target_domain_id),
+                    provenance=json.dumps(provenance or {}))
                 if self._rows_affected(status) == 0:
                     continue  # same application seen again; not a second use
                 recorded += 1
@@ -1151,17 +1234,11 @@ class DomainRegistry:
         and can be revised when more outcomes arrive, rather than being an
         opaque boolean.
         """
-        status = await self._db().execute_query(
-            """UPDATE unified.knowledge_transfers
-               SET success      = $2,
-                   completed_at = NOW(),
-                   metadata     = COALESCE(metadata, '{}'::jsonb) || $3::jsonb
-               WHERE transfer_id = $1""",
-            (transfer_id, helped,
-             json.dumps({"effectiveness_score": effectiveness,
-                         "outcome_evidence": evidence})),
-            commit=True,
-        )
+        from core.agents.memory_agent import memory_agent
+        status = await memory_agent().resolve_knowledge_transfer(
+            transfer_id=transfer_id, helped=helped,
+            metadata=json.dumps({"effectiveness_score": effectiveness,
+                                 "outcome_evidence": evidence}))
 
         # Credit the mappings the transfer was carried by. A transfer that
         # helped is evidence about the correspondences it used.
@@ -1264,28 +1341,22 @@ class DomainRegistry:
             self.relation_index[relation.relation_type].add(domain.domain_id)
     
     async def _persist_domain(self, domain: Domain):
-        """Persist a domain to unified.domains.
+        """Persist a domain to unified.domains: what the domain IS, never what it holds.
 
-        The full Domain (concepts, relations, vocabulary, metrics) goes into the
-        `metadata` jsonb column; the scalar columns stay queryable.
+        The record carries the domain's identity, its place among other domains
+        and its own judgments (`_serialize_domain`). What the domain holds -- its
+        concepts and their relations -- is memory's: the concept graph, read into
+        this registry at load (`_load_concepts`) and at every write
+        (`refresh_concepts`). It used to be copied into this record as well, and
+        the copy was written once when the domain was made and never again, so
+        every learned domain's record said it held nothing (measured 2026-09-27:
+        `concepts {}`, `relations {}`, `knowledge {}`, `vocabulary {}` in every
+        record, beside the concepts filed under it).
         """
-        await self._db().execute_query(
-            """INSERT INTO unified.domains
-                   (domain_id, domain_name, description, metadata, last_accessed)
-               VALUES ($1, $2, $3, $4::jsonb, NOW())
-               ON CONFLICT (domain_id) DO UPDATE SET
-                   domain_name   = EXCLUDED.domain_name,
-                   description   = EXCLUDED.description,
-                   metadata      = EXCLUDED.metadata,
-                   last_accessed = NOW()""",
-            (
-                domain.domain_id,
-                domain.name,
-                domain.description,
-                json.dumps(self._serialize_domain(domain)),
-            ),
-            commit=True,
-        )
+        from core.agents.memory_agent import memory_agent
+        await memory_agent().hold_domain(
+            domain_id=domain.domain_id, name=domain.name, description=domain.description,
+            metadata=json.dumps(self._serialize_domain(domain)))
 
     async def _stored_mapping_id(self, mapping: CrossDomainMapping) -> Optional[str]:
         rows = await self._db().execute_query(
@@ -1312,31 +1383,18 @@ class DomainRegistry:
         ACCEPTED was stored as rejected and became permanently unreadable,
         including by this registry's own loader on restart.
         """
-        await self._db().execute_query(
-            """INSERT INTO unified.domain_mappings
-                   (mapping_id, source_domain, target_domain, source_concept,
-                    target_concept, similarity_score, reasoning_strategy,
-                    verified, confidence, metadata, created_at)
-               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, NOW())
-               ON CONFLICT (mapping_id) DO UPDATE SET
-                   similarity_score = EXCLUDED.similarity_score,
-                   verified         = EXCLUDED.verified,
-                   confidence       = EXCLUDED.confidence,
-                   metadata         = EXCLUDED.metadata""",
-            (
-                mapping.mapping_id,
-                self._domain_key(mapping.source_domain_id),
-                self._domain_key(mapping.target_domain_id),
-                mapping.source_concept_id,
-                mapping.target_concept_id,
-                mapping.strength,
-                str(mapping.mapping_type),
-                mapping.validated,  # None | True | False, passed through as-is
-                mapping.confidence,
-                json.dumps(self._serialize_mapping(mapping)),
-            ),
-            commit=True,
-        )
+        from core.agents.memory_agent import memory_agent
+        await memory_agent().hold_domain_mapping(
+            mapping_id=mapping.mapping_id,
+            source_domain=self._domain_key(mapping.source_domain_id),
+            target_domain=self._domain_key(mapping.target_domain_id),
+            source_concept=mapping.source_concept_id,
+            target_concept=mapping.target_concept_id,
+            similarity_score=mapping.strength,
+            reasoning_strategy=str(mapping.mapping_type),
+            verified=mapping.validated,  # None | True | False, passed through as-is
+            confidence=mapping.confidence,
+            metadata=json.dumps(self._serialize_mapping(mapping)))
 
     async def _persist_transfer(self, transfer: KnowledgeTransfer):
         """Persist a knowledge transfer to unified.knowledge_transfers.
@@ -1370,47 +1428,23 @@ class DomainRegistry:
                     f"KnowledgeTransfer {transfer.transfer_id} names target concept "
                     f"{concept_id!r}, which is not in domain "
                     f"{transfer.target_domain_id!r}")
-            await self._db().execute_query(
-                """INSERT INTO unified.knowledge_transfers
-                       (transfer_id, source_domain, target_domain, concept,
-                        concept_type, transfer_method, success, metadata,
-                        created_at, completed_at)
-                   VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10)
-                   -- Deriving a transfer again states no outcome. It must not
-                   -- erase the outcome resolve_knowledge_transfer recorded, or
-                   -- the measured effectiveness and its evidence.
-                   ON CONFLICT (transfer_id) DO UPDATE SET
-                       success      = COALESCE(EXCLUDED.success,
-                                               unified.knowledge_transfers.success),
-                       metadata     = CASE
-                           WHEN unified.knowledge_transfers.success IS NULL
-                           THEN EXCLUDED.metadata
-                           ELSE EXCLUDED.metadata || jsonb_build_object(
-                               'effectiveness_score',
-                               unified.knowledge_transfers.metadata->'effectiveness_score',
-                               'outcome_evidence',
-                               unified.knowledge_transfers.metadata->'outcome_evidence')
-                           END,
-                       completed_at = COALESCE(EXCLUDED.completed_at,
-                                               unified.knowledge_transfers.completed_at)""",
-                (
-                    f"{transfer.transfer_id}:{concept_id}",
-                    self._domain_key(transfer.source_domain_id),
-                    self._domain_key(transfer.target_domain_id),
-                    concept.name,
-                    concept.concept_type.value,
-                    str(transfer.transfer_type),
-                    # No outcome yet is NOT a failed transfer. NULL means unresolved.
-                    getattr(transfer, "success", None),
-                    payload,
-                    transfer.initiated_at,
-                    transfer.completed_at,
-                ),
-                commit=True,
-            )
+            from core.agents.memory_agent import memory_agent
+            await memory_agent().hold_knowledge_transfer(
+                transfer_id=f"{transfer.transfer_id}:{concept_id}",
+                source_domain=self._domain_key(transfer.source_domain_id),
+                target_domain=self._domain_key(transfer.target_domain_id),
+                concept=concept.name, concept_type=concept.concept_type.value,
+                transfer_method=str(transfer.transfer_type),
+                # No outcome yet is NOT a failed transfer. NULL means unresolved.
+                success=getattr(transfer, "success", None),
+                metadata=payload, created_at=transfer.initiated_at,
+                completed_at=transfer.completed_at)
     
     def _serialize_domain(self, domain: Domain) -> Dict[str, Any]:
-        """Serialize domain to dict for storage"""
+        """What a domain record stores: identity, structure among domains, and the
+        domain's own judgments. No concepts, relations, knowledge or vocabulary --
+        those are memory's, and a copy here is a second record of them that can
+        only fall behind (see `_persist_domain`)."""
         return {
             "domain_id": domain.domain_id,
             "name": domain.name,
@@ -1418,79 +1452,16 @@ class DomainRegistry:
             "description": domain.description,
             "scope": domain.scope,
             "boundaries": domain.boundaries,
-            "concepts": {cid: self._serialize_concept(c) for cid, c in domain.concepts.items()},
-            "relations": {rid: self._serialize_relation(r) for rid, r in domain.relations.items()},
-            "knowledge": {kid: self._serialize_knowledge(k) for kid, k in domain.knowledge.items()},
             "parent_domains": list(domain.parent_domains),
             "child_domains": list(domain.child_domains),
             "related_domains": domain.related_domains,
             "core_principles": domain.core_principles,
             "methodologies": domain.methodologies,
-            "vocabulary": domain.vocabulary,
             "complexity_score": domain.complexity_score,
             "formalization_level": domain.formalization_level,
             "maturity_score": domain.maturity_score,
             "created_at": domain.created_at.isoformat(),
             "updated_at": domain.updated_at.isoformat() if domain.updated_at else None
-        }
-    
-    def _serialize_concept(self, concept: DomainConcept) -> Dict[str, Any]:
-        """Serialize concept to dict"""
-        return {
-            "concept_id": concept.concept_id,
-            "name": concept.name,
-            "domain_id": concept.domain_id,
-            "concept_type": concept.concept_type.value,
-            "description": concept.description,
-            "properties": concept.properties,
-            "attributes": concept.attributes,
-            "parent_concepts": list(concept.parent_concepts),
-            "child_concepts": list(concept.child_concepts),
-            "related_concepts": list(concept.related_concepts),
-            "analogous_concepts": concept.analogous_concepts,
-            "semantic_weight": concept.semantic_weight,
-            "abstraction_level": concept.abstraction_level,
-            "complexity_score": concept.complexity_score,
-            "created_at": concept.created_at.isoformat(),
-            "updated_at": concept.updated_at.isoformat() if concept.updated_at else None,
-            "usage_count": concept.usage_count,
-            "relevance_score": concept.relevance_score
-        }
-    
-    def _serialize_relation(self, relation: DomainRelation) -> Dict[str, Any]:
-        """Serialize relation to dict"""
-        return {
-            "relation_id": relation.relation_id,
-            "source_concept_id": relation.source_concept_id,
-            "target_concept_id": relation.target_concept_id,
-            "relation_type": relation.relation_type,
-            "strength": relation.strength,
-            "directionality": relation.directionality,
-            "confidence": relation.confidence,
-            "context": relation.context,
-            "domain_id": relation.domain_id,
-            "created_at": relation.created_at.isoformat()
-        }
-    
-    def _serialize_knowledge(self, knowledge: DomainKnowledge) -> Dict[str, Any]:
-        """Serialize knowledge to dict"""
-        return {
-            "knowledge_id": knowledge.knowledge_id,
-            "domain_id": knowledge.domain_id,
-            "knowledge_type": knowledge.knowledge_type,
-            "title": knowledge.title,
-            "content": knowledge.content,
-            "summary": knowledge.summary,
-            "concepts": knowledge.concepts,
-            "relations": knowledge.relations,
-            "tags": list(knowledge.tags),
-            "source": knowledge.source,
-            "confidence": knowledge.confidence,
-            "importance": knowledge.importance,
-            "transferable_patterns": knowledge.transferable_patterns,
-            "applicable_domains": list(knowledge.applicable_domains),
-            "created_at": knowledge.created_at.isoformat(),
-            "last_accessed": knowledge.last_accessed.isoformat() if knowledge.last_accessed else None
         }
     
     def _serialize_mapping(self, mapping: CrossDomainMapping) -> Dict[str, Any]:
@@ -1558,7 +1529,6 @@ class DomainRegistry:
             related_domains=data.get("related_domains", {}),
             core_principles=data.get("core_principles", []),
             methodologies=data.get("methodologies", []),
-            vocabulary=data.get("vocabulary", {}),
             complexity_score=data.get("complexity_score", 0.5),
             formalization_level=data.get("formalization_level", 0.5),
             maturity_score=data.get("maturity_score", 0.5),
@@ -1566,83 +1536,11 @@ class DomainRegistry:
             updated_at=datetime.fromisoformat(data["updated_at"]) if data.get("updated_at") else None
         )
         
-        # Deserialize concepts, relations, and knowledge
-        for cid, cdata in data.get("concepts", {}).items():
-            domain.concepts[cid] = self._deserialize_concept(cdata)
-        
-        for rid, rdata in data.get("relations", {}).items():
-            domain.relations[rid] = self._deserialize_relation(rdata)
-            
-        for kid, kdata in data.get("knowledge", {}).items():
-            domain.knowledge[kid] = self._deserialize_knowledge(kdata)
-        
+        # WHAT THE DOMAIN HOLDS IS NOT READ FROM ITS RECORD. Its concepts come
+        # from the concept graph (`_load_concepts`, `refresh_concepts`); a record
+        # written before 2026-09-27 may still carry a copy, and that copy is
+        # ignored rather than trusted over memory.
         return domain
-    
-    def _deserialize_concept(self, data: Dict[str, Any]) -> DomainConcept:
-        """Deserialize concept from dict"""
-        from datetime import datetime
-        from .domain_types import ConceptType
-        
-        return DomainConcept(
-            concept_id=data["concept_id"],
-            name=data["name"],
-            domain_id=data["domain_id"],
-            concept_type=ConceptType(data["concept_type"]),
-            description=data["description"],
-            properties=data.get("properties", {}),
-            attributes=data.get("attributes", {}),
-            parent_concepts=set(data.get("parent_concepts", [])),
-            child_concepts=set(data.get("child_concepts", [])),
-            related_concepts=set(data.get("related_concepts", [])),
-            analogous_concepts=data.get("analogous_concepts", {}),
-            semantic_weight=data.get("semantic_weight", 1.0),
-            abstraction_level=data.get("abstraction_level", 0.5),
-            complexity_score=data.get("complexity_score", 0.5),
-            created_at=datetime.fromisoformat(data["created_at"]),
-            updated_at=datetime.fromisoformat(data["updated_at"]) if data.get("updated_at") else None,
-            usage_count=data.get("usage_count", 0),
-            relevance_score=data.get("relevance_score", 1.0)
-        )
-    
-    def _deserialize_relation(self, data: Dict[str, Any]) -> DomainRelation:
-        """Deserialize relation from dict"""
-        from datetime import datetime
-        
-        return DomainRelation(
-            relation_id=data["relation_id"],
-            source_concept_id=data["source_concept_id"],
-            target_concept_id=data["target_concept_id"],
-            relation_type=data["relation_type"],
-            strength=data.get("strength", 1.0),
-            directionality=data.get("directionality", "bidirectional"),
-            confidence=data.get("confidence", 1.0),
-            context=data.get("context", {}),
-            domain_id=data.get("domain_id", ""),
-            created_at=datetime.fromisoformat(data["created_at"])
-        )
-    
-    def _deserialize_knowledge(self, data: Dict[str, Any]) -> DomainKnowledge:
-        """Deserialize knowledge from dict"""
-        from datetime import datetime
-        
-        return DomainKnowledge(
-            knowledge_id=data["knowledge_id"],
-            domain_id=data["domain_id"],
-            knowledge_type=data["knowledge_type"],
-            title=data["title"],
-            content=data["content"],
-            summary=data.get("summary", ""),
-            concepts=data.get("concepts", []),
-            relations=data.get("relations", []),
-            tags=set(data.get("tags", [])),
-            source=data.get("source", ""),
-            confidence=data.get("confidence", 1.0),
-            importance=data.get("importance", 1.0),
-            transferable_patterns=data.get("transferable_patterns", []),
-            applicable_domains=set(data.get("applicable_domains", [])),
-            created_at=datetime.fromisoformat(data["created_at"]),
-            last_accessed=datetime.fromisoformat(data["last_accessed"]) if data.get("last_accessed") else None
-        )
     
     def _mapping_from_row(self, row) -> CrossDomainMapping:
         """Build a mapping from the table's structured columns, for rows the

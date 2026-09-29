@@ -109,19 +109,31 @@ This is the fact that causes the most confusion, so it goes first.
 | `memory_hot` / `memory_cold` | **episodes** — what happened | 880 / 150 | memory search |
 | `unified.concepts` + `concept_relations` | **things and how they relate** | 1,178 / 3,128 | grounding, `conversation.resolve` |
 | `unified.learned_rules` (+ evidence) | **laws** — if this, then that | 12 / 69 | `rule_grounding` → planner |
-| `data/lexicon.json` | **what a word is** | 47 (46 confirmed, 1 refuted) | the reader |
+| ~~`data/lexicon.json`~~ | **what a word is** | *deleted 2026-09-22* | — |
+| `memory_hot`, tagged `word_class` | **what a word is** | one memory per (word, CLASS) | the reader, via `warm_word_classes` |
 
-`memory_agent.py` contains **zero references** to concepts, rules, or the
-lexicon. Nothing joins an episode to a concept in either direction.
+`memory_agent.py` contains **zero references** to concepts or rules. Nothing
+joins an episode to a concept in either direction.
 
-    memory   = "I remember doing this before"
+    memory   = "I remember doing this before" AND "I know what this word is"
     concepts = "I know what this is"
     rules    = "I know how this behaves"
-    lexicon  = "I know what this word means"
 
-Teaching the substrate English changes the **lexicon**, and will not appear in
-memory search or change anything the model sees. That is the point of the
-model-optional direction, not a gap.
+**CORRECTED 2026-09-22.** This section used to end: *"Teaching the substrate
+English changes the lexicon, and will not appear in memory search."* That is no
+longer true, and the change is the point rather than a detail.
+
+There is no lexicon. A word class is an ordinary semantic memory — told through
+`learn_word_classes`, or derived by `warm_word_classes` from the surface of a
+taught proposition — so teaching the substrate English is recallable by meaning
+like everything else it knows, and a wipe takes the vocabulary with it.
+
+What the file cost while it existed: a class could only be derived from a
+proposition's subject/relation/object, so only NOUN, VERB and ADJECTIVE were
+learnable at all. Every other class in English lived in frozensets compiled into
+the reader — a second authority beside memory that no teaching could grow and no
+wipe could clear. WordNet's 3,630 adverbs were dropped at the door for want of
+anywhere to put them.
 
 ---
 
@@ -228,9 +240,9 @@ hold, and turns what it holds back into English. Each file owns one step.
 
 | file | lines | job |
 |---|---|---|
-| `sentence_machine.py` | 177 | the machine a reading runs on: cursor, registers, comparator. Not a parser — a small computer. |
-| `derived_reader.py` | 316 | **derives** the reading procedure from sentence/meaning pairs. EDU-13: 7/7 held-out sentences, every content word new, **0 model calls**. |
-| `reading_registry.py` | 97 | holds derived procedures for reuse |
+| `sentence_machine.py` | 233 | `form_of`: the pieces of written text, nothing lost (capitals, digits, apostrophes, marks). The cursor machine that stood here is archived (2026-09-27); the fixed word lists and the old `tokenize` remain until step 3 of `docs/research/SHAPES_CHANGE_MAP.md`. |
+| `derived_reader.py` | 359 | **the pattern reader** (2026-09-27): a sentence TAUGHT with its meaning is a pattern — held in memory, scored by beliefs, meaning in the domain system's link kinds — and is read back to its meaning and said back from it. Replaced the procedure derived from 13 pairs written in the file (EDU-13, archived). |
+| ~~`reading_registry.py`~~ | — | held derived procedures. **Archived 2026-09-27**: memory's pattern view replaced it. |
 | `claim_shape.py` | 169 | separates *what is claimed* from *how it is worded* |
 
 `claim_shape` exists because of a measurement, not a preference:
@@ -247,11 +259,11 @@ when the memory is *written* and stored beside it.
 
 | file | lines | job |
 |---|---|---|
-| `lexicon.py` | 147 | what class a word is, and where that claim came from. **Empty.** |
-| `class_induction.py` | 210 | induces a *rule* for a class from confirmed words |
+| ~~`lexicon.py`~~ | — | what class a word is. **Deleted 2026-09-22**; a word class is a memory now |
+| ~~`class_induction.py`~~ | — | induced a *rule* for a class from the spelling of confirmed words. **Backed up to `archive/superseded_language_2026-09-27/` on 2026-09-27**: switched off since it called plural nouns verbs; superseded by learned word shapes (`docs/research/SHAPES_CHANGE_MAP.md`) |
 | `lexical_normalization.py` | 275 | one canonical form per surface word, every path |
 
-`class_induction` answers a real failure: *EDU-16 taught nine words, confirmed
+`class_induction` (now archived) answered a real failure: *EDU-16 taught nine words, confirmed
 all nine against the world, and classified none of nine held-out words —
 because nothing could be applied to a word never seen.* A rule is kept only if
 it is right about every confirmed example of its class and wrong about none of
@@ -527,7 +539,7 @@ the store.
 Caveat: reading works the same with or without the lexicon today. `a kestrel is
 a bird` reads correctly with `kestrel` unknown, because the derived reader works
 over classes from the sentence machine's own closed set. The lexicon matters
-where classes disambiguate, which is what `class_induction` exists to extend.
+where classes disambiguate, which is what `class_induction` existed to extend (archived 2026-09-27; learned word shapes take that job).
 This is a prerequisite met, not yet a visible capability gain.
 
 **5. RESOLVED 2026-08-24 — answering now uses what was just stored.**

@@ -237,7 +237,9 @@ class CrossDomainReasoner:
                 }
 
                 # Store with full rich metadata
+                from core.memory import Origin
                 await memory_agent.store_memory(
+                    origin=Origin.own("cross-domain reasoning"),
                     memory_type=MemoryType.SEMANTIC,
                     content=f"Cross-domain reasoning: {len(result.new_insights)} insights, {len(result.generated_mappings)} mappings",
                     importance_score=result.confidence,

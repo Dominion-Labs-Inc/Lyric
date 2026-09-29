@@ -67,7 +67,11 @@ class QuantumLearningBridge:
             
             # Connect to learning system
             if UnifiedLearningSystem:
-                self.learning_system = UnifiedLearningSystem()
+                # THE ONE LEARNING AUTHORITY, never a second instance of its
+                # class: a bridge holding its own `UnifiedLearningSystem()` would
+                # learn into a store nothing else reads (SYSTEM-LEARNING-01).
+                from core.learning import get_learning_authority
+                self.learning_system = get_learning_authority()
                 # The result of start() was discarded, and so was the state
                 # of the quantum processor built above -- which has no backend
                 # whenever there is no valid API token. So this reported

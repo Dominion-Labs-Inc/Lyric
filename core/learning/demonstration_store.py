@@ -146,19 +146,12 @@ class DemonstrationStore:
         predicate, arity = (
             example.action.signature if example.action is not None
             else self.CONTRASTIVE)
-        rows = await self.db().execute_query(
-            "INSERT INTO unified.operator_demonstrations"
-            " (evidence_id, domain_id, predicate, arity, before_facts, action,"
-            "  after_facts, positive)"
-            " VALUES ($1, $2, $3, $4, $5, $6, $7, $8)"
-            " ON CONFLICT (evidence_id) DO NOTHING"
-            " RETURNING evidence_id",
-            (example.evidence_id, domain_id, predicate, arity,
-             _facts_json(example.before),
-             str(example.action) if example.action is not None else None,
-             _facts_json(example.after), bool(example.positive)),
-            fetch_all=True,
-        )
+        from core.agents.memory_agent import memory_agent
+        rows = await memory_agent().hold_demonstration(
+            evidence_id=example.evidence_id, domain_id=domain_id, predicate=predicate,
+            arity=arity, before_facts=_facts_json(example.before),
+            action=str(example.action) if example.action is not None else None,
+            after_facts=_facts_json(example.after), positive=bool(example.positive))
         written = bool(rows)
         if written:
             # Enqueue the signature for off-band induction. Cheap (one upsert),
@@ -182,11 +175,9 @@ class DemonstrationStore:
         return written
 
     async def _mark_pending(self, domain_id: str, predicate: str, arity: int) -> None:
-        await self.db().execute_query(
-            "INSERT INTO unified.operator_induction_pending (domain_id, predicate, arity)"
-            " VALUES ($1, $2, $3)"
-            " ON CONFLICT (domain_id, predicate, arity) DO UPDATE SET enqueued_at = NOW()",
-            (domain_id, predicate, arity), commit=True)
+        from core.agents.memory_agent import memory_agent
+        await memory_agent().mark_induction_pending(
+            domain_id=domain_id, predicate=predicate, arity=arity)
 
     async def pending_signatures(self, *, limit: Optional[int] = None) -> List[tuple]:
         """Signatures awaiting re-induction, oldest enqueue first."""
@@ -199,10 +190,9 @@ class DemonstrationStore:
         return [(r["domain_id"], r["predicate"], r["arity"]) for r in rows]
 
     async def clear_pending(self, *, domain_id: str, predicate: str, arity: int) -> None:
-        await self.db().execute_query(
-            "DELETE FROM unified.operator_induction_pending"
-            " WHERE domain_id = $1 AND predicate = $2 AND arity = $3",
-            (domain_id, predicate, arity), commit=True)
+        from core.agents.memory_agent import memory_agent
+        await memory_agent().clear_induction_pending(
+            domain_id=domain_id, predicate=predicate, arity=arity)
 
     async def load(self, *, domain_id: str, predicate: str,
                    arity: int) -> List[TrainingExample]:

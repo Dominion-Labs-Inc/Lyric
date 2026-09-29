@@ -132,18 +132,14 @@ async def record_authority_change(db, event: RuleAuthorityChanged) -> RuleAuthor
         occurred_at=event.occurred_at,
     )
 
+    from core.agents.memory_agent import memory_agent
     await ensure_schema(db)
-    await db.execute_query(
-        "INSERT INTO unified.rule_authority_events"
-        " (event_id, rule_id, old_status, new_status, lost_authority, cause,"
-        "  observation_id, task_id, plan_id, goal_id, detail)"
-        " VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)",
-        (stamped.event_id, stamped.rule_id, stamped.old_status.value,
-         stamped.new_status.value, stamped.lost_authority, stamped.cause.value,
-         stamped.observation_id, stamped.task_id, stamped.plan_id,
-         stamped.goal_id, stamped.detail),
-        commit=True,
-    )
+    await memory_agent().record_rule_authority_change(
+        event_id=stamped.event_id, rule_id=stamped.rule_id,
+        old_status=stamped.old_status.value, new_status=stamped.new_status.value,
+        lost_authority=stamped.lost_authority, cause=stamped.cause.value,
+        observation_id=stamped.observation_id, task_id=stamped.task_id,
+        plan_id=stamped.plan_id, goal_id=stamped.goal_id, detail=stamped.detail)
     logger.info(
         "rule authority changed: %s %s -> %s (%s)%s",
         stamped.rule_id, stamped.old_status.value, stamped.new_status.value,
@@ -193,6 +189,33 @@ async def record_authority_change(db, event: RuleAuthorityChanged) -> RuleAuthor
             logger.error("Rule authority recovery not recorded for %s: %s",
                          stamped.rule_id, error)
 
+    # A RULE CHANGING EXECUTION AUTHORITY IS A KNOWLEDGE UPDATE THAT CHANGED
+    # BEHAVIOUR, and it is the one place where that is KNOWN rather than
+    # inferred: `lost_authority` and `gained_authority` are computed from the
+    # status transition itself, so "did this change what the substrate can do"
+    # has a real answer here instead of a guess. Everywhere else the column
+    # stays NULL, which reads as "nobody has asked" -- the honest state.
+    try:
+        from core.memory import knowledge_ledger as ledger
+
+        changed = stamped.lost_authority or stamped.gained_authority
+        recorded = await ledger.record(db, ledger.KnowledgeUpdate(
+            subject_kind="rule", subject_id=stamped.rule_id,
+            disposition=(ledger.Disposition.REJECTED if stamped.lost_authority
+                         else ledger.Disposition.UPDATED),
+            detail=(f"{stamped.old_status.value} -> {stamped.new_status.value} "
+                    f"({stamped.cause.value})"),
+            cause=f"rule_authority.{stamped.cause.value}",
+            evidence_id=stamped.observation_id or None))
+        await ledger.mark_behaviour_change(
+            db, batch_id=recorded.batch_id, changed=bool(changed),
+            detail=("gained execution authority" if stamped.gained_authority
+                    else "lost execution authority" if stamped.lost_authority
+                    else "status changed without crossing the execution boundary"))
+    except Exception as error:
+        logger.error("Rule authority knowledge update not recorded for %s: %s",
+                     stamped.rule_id, error)
+
     return stamped
 
 
@@ -232,7 +255,7 @@ async def pending_authority_changes(
     ]
 
 
-async def mark_consumed(db, event_ids: Sequence[str], consumer: str) -> int:
+async def mark_consumed(event_ids: Sequence[str], consumer: str) -> int:
     """Drain. Returns how many rows this call actually claimed.
 
     Already-consumed rows are left alone, so a second drainer cannot re-report
@@ -241,12 +264,9 @@ async def mark_consumed(db, event_ids: Sequence[str], consumer: str) -> int:
     ids = [e for e in event_ids if e]
     if not ids:
         return 0
-    rows = await db.execute_query(
-        "UPDATE unified.rule_authority_events SET consumed_at = NOW(), consumed_by = $1"
-        " WHERE event_id = ANY($2::varchar[]) AND consumed_at IS NULL"
-        " RETURNING event_id",
-        (consumer, list(ids)), fetch_all=True,
-    ) or []
+    from core.agents.memory_agent import memory_agent
+    rows = await memory_agent().mark_rule_authority_changes_consumed(
+        event_ids=list(ids), consumer=consumer) or []
     return len(rows)
 
 

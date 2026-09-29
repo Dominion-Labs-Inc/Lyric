@@ -1,0 +1,471 @@
+{
+  "experiment": "HEAR-01",
+  "claim": "Hearing is a sense of the substrate on the same path as sight: a real recording is sensed into sounds with what each is and how they stand to one another, admitted once, believed, remembered with the sound kept, judged, handed over as an experience, and learned to be named by the substrate's own induction \u2014 with no model anywhere.",
+  "hypothesis": "H1 pitch behaves like hue: the register survives gain, padding and codec, so it may be claimed with `isa`. H2 loudness behaves like the size band: it follows the gain, so it is a fact about the recording and the invariant form is `louder_than`. H4 a known sound can be recognised heard again, by landmark agreement, only when it carries enough landmarks. And because hearing states its sounds on sight's contract, the naming reflex, induction and describing a kind need no code of their own.",
+  "started_at": "2026-09-28T13:54:23.580309+00:00",
+  "duration_seconds": 38.207,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/TorinAI/venv_torin/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/TorinAI",
+    "shadow_mode": null,
+    "git_commit": "20deb447498593391eca0286916b8f986c560a26",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "torinai_dev",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "torinai_dev",
+        "model": "torinai_dev",
+        "user_context": "torinai_dev",
+        "learning": "torinai_dev"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "dotenv:.env.postgres",
+        "database": "environment",
+        "user": "dotenv:.env.postgres",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 1377,
+    "database_verified": "torinai_dev",
+    "database_verified_reason": "asked the server"
+  },
+  "summary": {
+    "checks": 42,
+    "passed": 40,
+    "failed": 2,
+    "outcome": "FAIL"
+  },
+  "metrics": [
+    {
+      "name": "sounds_in_jfk",
+      "value": 6,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "beliefs_from_one_hearing",
+      "value": 60,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "level_within_1dB under gain+6dB",
+      "value": "0/36",
+      "unit": "survived",
+      "note": ""
+    },
+    {
+      "name": "level_within_1dB under gain-12dB",
+      "value": "0/36",
+      "unit": "survived",
+      "note": ""
+    },
+    {
+      "name": "level_within_1dB under mp3_64k",
+      "value": "36/36",
+      "unit": "survived",
+      "note": ""
+    },
+    {
+      "name": "level_within_1dB under pad0.5s",
+      "value": "36/36",
+      "unit": "survived",
+      "note": ""
+    },
+    {
+      "name": "onset under gain+6dB",
+      "value": "36/36",
+      "unit": "survived",
+      "note": ""
+    },
+    {
+      "name": "onset under gain-12dB",
+      "value": "35/36",
+      "unit": "survived",
+      "note": ""
+    },
+    {
+      "name": "onset under mp3_64k",
+      "value": "36/36",
+      "unit": "survived",
+      "note": ""
+    },
+    {
+      "name": "onset under pad0.5s",
+      "value": "35/36",
+      "unit": "survived",
+      "note": ""
+    },
+    {
+      "name": "register under gain+6dB",
+      "value": "24/24",
+      "unit": "survived",
+      "note": ""
+    },
+    {
+      "name": "register under gain-12dB",
+      "value": "24/24",
+      "unit": "survived",
+      "note": ""
+    },
+    {
+      "name": "register under mp3_64k",
+      "value": "24/24",
+      "unit": "survived",
+      "note": ""
+    },
+    {
+      "name": "register under pad0.5s",
+      "value": "24/24",
+      "unit": "survived",
+      "note": ""
+    },
+    {
+      "name": "relations under gain+6dB",
+      "value": "21/21",
+      "unit": "survived",
+      "note": ""
+    },
+    {
+      "name": "relations under gain-12dB",
+      "value": "16/16",
+      "unit": "survived",
+      "note": ""
+    },
+    {
+      "name": "relations under mp3_64k",
+      "value": "21/21",
+      "unit": "survived",
+      "note": ""
+    },
+    {
+      "name": "relations under pad0.5s",
+      "value": "21/21",
+      "unit": "survived",
+      "note": ""
+    },
+    {
+      "name": "sound_count under gain+6dB",
+      "value": "19/19",
+      "unit": "survived",
+      "note": ""
+    },
+    {
+      "name": "sound_count under gain-12dB",
+      "value": "18/19",
+      "unit": "survived",
+      "note": ""
+    },
+    {
+      "name": "sound_count under mp3_64k",
+      "value": "19/19",
+      "unit": "survived",
+      "note": ""
+    },
+    {
+      "name": "sound_count under pad0.5s",
+      "value": "19/19",
+      "unit": "survived",
+      "note": ""
+    },
+    {
+      "name": "tonality under gain+6dB",
+      "value": "36/36",
+      "unit": "survived",
+      "note": ""
+    },
+    {
+      "name": "tonality under gain-12dB",
+      "value": "36/36",
+      "unit": "survived",
+      "note": ""
+    },
+    {
+      "name": "tonality under mp3_64k",
+      "value": "36/36",
+      "unit": "survived",
+      "note": ""
+    },
+    {
+      "name": "tonality under pad0.5s",
+      "value": "35/36",
+      "unit": "survived",
+      "note": ""
+    },
+    {
+      "name": "induced_hypotheses",
+      "value": "abrupt(?X0) \u2227 mid_pitched(?X0) \u2192 ring535191(?X0) | abrupt(?X0) \u2227 pitched(?X0) \u2192 ring535191(?X0)",
+      "unit": "formulas",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "a real recording was heard through the one door",
+      "passed": true,
+      "detail": "audio: h535191jfkx59dfb9a4ac",
+      "at": "2026-09-28T13:54:40.867393+00:00"
+    },
+    {
+      "label": "the percept is named from what was heard, not from who listened",
+      "passed": true,
+      "detail": "h535191jfkx59dfb9a4ac",
+      "at": "2026-09-28T13:54:40.867412+00:00"
+    },
+    {
+      "label": "its sounds were perceived, with how good the hearing was",
+      "passed": true,
+      "detail": "6 sound(s), hearing clear",
+      "at": "2026-09-28T13:54:40.867418+00:00"
+    },
+    {
+      "label": "the recording CONTAINS its sounds, each its own concept",
+      "passed": true,
+      "detail": "h535191jfkx59dfb9a4ac_lowgradual, h535191jfkx59dfb9a4ac_lowgradual2, h535191jfkx59dfb9a4ac_midgradual, h535191jfkx59dfb9a4ac_midgradual2, h535191jfkx59dfb9a4ac_",
+      "at": "2026-09-28T13:54:40.868163+00:00"
+    },
+    {
+      "label": "a sound IS what belongs to it: pitched-ness, register, onset",
+      "passed": true,
+      "detail": "h535191jfkx59dfb9a4ac_midgradual2 isa ['gradual', 'mid_pitched', 'pitched']",
+      "at": "2026-09-28T13:54:40.869067+00:00"
+    },
+    {
+      "label": "and what the RECORDING made of it is stated apart, never as `isa`",
+      "passed": true,
+      "detail": "relations held: ['before', 'isa', 'lasts', 'level', 'pitch_hz', 'starts_at']",
+      "at": "2026-09-28T13:54:40.869084+00:00"
+    },
+    {
+      "label": "how the sounds stand to one another is admitted between them",
+      "passed": true,
+      "detail": "before midgradual2; before midgradual3; before lowgradual; higher_than lowgradual; before lowgradual2",
+      "at": "2026-09-28T13:54:40.872330+00:00"
+    },
+    {
+      "label": "what was heard is held as beliefs",
+      "passed": true,
+      "detail": "60 belief(s)",
+      "at": "2026-09-28T13:54:40.872856+00:00"
+    },
+    {
+      "label": "hearing formed a memory",
+      "passed": true,
+      "detail": "mem_f8bd17922e474d679d502a8a7907f2f4",
+      "at": "2026-09-28T13:54:40.872865+00:00"
+    },
+    {
+      "label": "the memory keeps the recording itself, byte for byte",
+      "passed": true,
+      "detail": "352078 bytes",
+      "at": "2026-09-28T13:54:40.874386+00:00"
+    },
+    {
+      "label": "and it is kept as what it is: a sound",
+      "passed": true,
+      "detail": "audio/wav",
+      "at": "2026-09-28T13:54:40.874390+00:00"
+    },
+    {
+      "label": "the memory is found by what was heard in it",
+      "passed": true,
+      "detail": "\"11.0s wav recording, 6 sound(s): a gradual mid-pitched sound, a gradual mid-pitched sound, a gradual mid-pitc",
+      "at": "2026-09-28T13:54:40.876171+00:00"
+    },
+    {
+      "label": "the judgement reached the reaction system as an event",
+      "passed": true,
+      "detail": "1 event(s)",
+      "at": "2026-09-28T13:54:40.876179+00:00"
+    },
+    {
+      "label": "per claim, each with its own verdict",
+      "passed": true,
+      "detail": "percept VERIFY: 24 ACT, 6 VERIFY, 0 ABSTAIN",
+      "at": "2026-09-28T13:54:40.876191+00:00"
+    },
+    {
+      "label": "an experience of the hearing waits in the pool",
+      "passed": true,
+      "detail": "perception through hear",
+      "at": "2026-09-28T13:54:40.876702+00:00"
+    },
+    {
+      "label": "met as a sound, and sensed by hearing",
+      "passed": true,
+      "detail": "role sound, sensed_by hearing",
+      "at": "2026-09-28T13:54:40.876708+00:00"
+    },
+    {
+      "label": "`see` refuses a recording, naming the door that opens it",
+      "passed": true,
+      "detail": "see opens image or video or document; /Users/stefan/Dominion Labs/TorinAI/third_party/whisper.cpp/samples/jfk.wav is audio \u2014 use hear",
+      "at": "2026-09-28T13:54:40.876766+00:00"
+    },
+    {
+      "label": "`hear` refuses a picture",
+      "passed": true,
+      "detail": "hear opens audio or video; /Users/stefan/Dominion Labs/TorinAI/test_data/vision_test.png is image \u2014 use see",
+      "at": "2026-09-28T13:54:40.876770+00:00"
+    },
+    {
+      "label": "H1: the register survives gain, padding and codec",
+      "passed": true,
+      "detail": "96/96",
+      "at": "2026-09-28T13:54:52.729463+00:00"
+    },
+    {
+      "label": "pitched or unpitched survives them",
+      "passed": true,
+      "detail": "143/144",
+      "at": "2026-09-28T13:54:52.729502+00:00"
+    },
+    {
+      "label": "how a sound starts survives them",
+      "passed": true,
+      "detail": "142/144",
+      "at": "2026-09-28T13:54:52.729507+00:00"
+    },
+    {
+      "label": "H2: the level follows the gain, so it is the recording's, not the sound's",
+      "passed": true,
+      "detail": "level unchanged in 0/72 under gain",
+      "at": "2026-09-28T13:54:52.729512+00:00"
+    },
+    {
+      "label": "while how the sounds stand to one another survives",
+      "passed": true,
+      "detail": "79/79",
+      "at": "2026-09-28T13:54:52.729518+00:00"
+    },
+    {
+      "label": "silence padded around a recording does not change what is in it",
+      "passed": true,
+      "detail": "19/19 recordings",
+      "at": "2026-09-28T13:54:52.729523+00:00"
+    },
+    {
+      "label": "every example entered by being heard",
+      "passed": true,
+      "detail": "['h535191pos1xc401532c8f_midabrupt', 'h535191pos2xcbb01d8c80_midabrupt'] vs ['h535191neg1xb337d8e010_midgradual', 'h535191neg2xc41b33729b_unpitchedabrupt']",
+      "at": "2026-09-28T13:54:53.710753+00:00"
+    },
+    {
+      "label": "naming hypotheses were induced from what was heard",
+      "passed": true,
+      "detail": "MULTIPLE_HYPOTHESES: abrupt(?X0) \u2227 mid_pitched(?X0) \u2192 ring535191(?X0) | abrupt(?X0) \u2227 pitched(?X0) \u2192 ring535191(?X0)",
+      "at": "2026-09-28T13:54:53.858113+00:00"
+    },
+    {
+      "label": "a fresh sound is NAMED by the act of hearing it, with nobody asking",
+      "passed": true,
+      "detail": "h535191freshx3770ff805c_midabrupt isa ring535191",
+      "at": "2026-09-28T13:54:54.325232+00:00"
+    },
+    {
+      "label": "and the wrong kind of sound is not",
+      "passed": true,
+      "detail": "h535191wrongxe80aff72e5_lowgradual: ['gradual', 'low_pitched', 'pitched']",
+      "at": "2026-09-28T13:54:54.564677+00:00"
+    },
+    {
+      "label": "asking gives the same answer \u2014 one authority, two doors",
+      "passed": true,
+      "detail": "Yes: h535191freshx3770ff805c_midabrupt isa a ring535191",
+      "at": "2026-09-28T13:54:54.670020+00:00"
+    },
+    {
+      "label": "seven different sounds heard are seven memories, never merged into one",
+      "passed": false,
+      "detail": "6 distinct of 7: pos1=bd5e93, pos2=f564e6, neg1=c61f9e, neg2=3878cb, fresh=ac6f24, wrong=6279cb, second=None",
+      "at": "2026-09-28T13:54:54.670790+00:00"
+    },
+    {
+      "label": "each memory knows WHAT was met, by the digest of its recording",
+      "passed": false,
+      "detail": "6 distinct digests",
+      "at": "2026-09-28T13:54:54.670799+00:00"
+    },
+    {
+      "label": "a second instance is named too",
+      "passed": true,
+      "detail": "h535191secondxb634e9c03b_midabrupt: ['abrupt', 'mid_pitched', 'pitched', 'ring535191']",
+      "at": "2026-09-28T13:54:54.967279+00:00"
+    },
+    {
+      "label": "the kind now says what it sounds like, from what was heard of it",
+      "passed": true,
+      "detail": "ring535191 has_property ['abrupt', 'mid_pitched', 'pitched']",
+      "at": "2026-09-28T13:54:54.968085+00:00"
+    },
+    {
+      "label": "and none of it is how loud, when or how long \u2014 the recording's facts",
+      "passed": true,
+      "detail": "relations on the kind: ['has_property']",
+      "at": "2026-09-28T13:54:54.968094+00:00"
+    },
+    {
+      "label": "the reference is kept by its landmarks",
+      "passed": true,
+      "detail": "320 landmark(s)",
+      "at": "2026-09-28T13:54:55.014476+00:00"
+    },
+    {
+      "label": "a reference too featureless to recognise is refused, not kept",
+      "passed": true,
+      "detail": "0 landmark(s)",
+      "at": "2026-09-28T13:54:55.058346+00:00"
+    },
+    {
+      "label": "heard again inside speech at equal level, it is recognised",
+      "passed": true,
+      "detail": "glass535191 (0.9)",
+      "at": "2026-09-28T13:54:55.562520+00:00"
+    },
+    {
+      "label": "and the recognition is admitted as what was observed in it",
+      "passed": true,
+      "detail": "h535191mixx2a2d48fe2a observed ['glass535191']",
+      "at": "2026-09-28T13:54:55.563432+00:00"
+    },
+    {
+      "label": "and it is not heard where it is not",
+      "passed": true,
+      "detail": "speech alone: nothing; others: nothing",
+      "at": "2026-09-28T13:54:57.205396+00:00"
+    },
+    {
+      "label": "what was seen in it and what was heard in it are one percept",
+      "passed": true,
+      "detail": "6 seen, 5 heard",
+      "at": "2026-09-28T13:54:59.612576+00:00"
+    },
+    {
+      "label": "with how good its hearing was stated on the clip",
+      "passed": true,
+      "detail": "clear",
+      "at": "2026-09-28T13:54:59.612590+00:00"
+    },
+    {
+      "label": "a clip with no sound track says so, rather than looking silent",
+      "passed": true,
+      "detail": "no_soundtrack",
+      "at": "2026-09-28T13:55:01.756526+00:00"
+    }
+  ],
+  "notes": [
+    "Induction's own request for a deciding case: an instance that is abrupt and mid_pitched but not pitched is accepted by one hypothesis and refused by the other",
+    "Cleanup by nonce 535191: 0 tagged row(s) left."
+  ]
+}

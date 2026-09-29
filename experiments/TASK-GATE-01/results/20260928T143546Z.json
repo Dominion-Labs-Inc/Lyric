@@ -1,0 +1,170 @@
+{
+  "experiment": "TASK-GATE-01",
+  "claim": "A route the constitution replanned is withdrawn and its steps stop running, and the task boundary refuses nothing else.",
+  "hypothesis": "If a REPLAN verdict withdraws the route where the provenance is in scope, and the task boundary reads the plan's own status rather than re-judging the act, then a refused route stays refused without any ordinary task being refused.",
+  "started_at": "2026-09-28T14:35:46.057210+00:00",
+  "duration_seconds": 18.341,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/TorinAI/venv_torin/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/TorinAI",
+    "shadow_mode": null,
+    "git_commit": "20deb447498593391eca0286916b8f986c560a26",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "torinai_dev",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "torinai_dev",
+        "model": "torinai_dev",
+        "user_context": "torinai_dev",
+        "learning": "torinai_dev"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "dotenv:.env.postgres",
+        "database": "environment",
+        "user": "dotenv:.env.postgres",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 1476,
+    "database_verified": null,
+    "database_verified_reason": "not verified"
+  },
+  "summary": {
+    "checks": 17,
+    "passed": 17,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [
+    {
+      "name": "routes_withdrawn_by_law",
+      "value": 1,
+      "unit": "routes",
+      "note": ""
+    },
+    {
+      "name": "tasks_refused_at_gate",
+      "value": 3,
+      "unit": "tasks",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "the route is withdrawn",
+      "passed": true,
+      "detail": "withdrawn=True status=invalidated",
+      "at": "2026-09-28T14:36:04.395384+00:00"
+    },
+    {
+      "label": "and says WHY, in the constitution's own words",
+      "passed": true,
+      "detail": "constitutional_replan / Law 2",
+      "at": "2026-09-28T14:36:04.395455+00:00"
+    },
+    {
+      "label": "its pending step is blocked, with the judgement named",
+      "passed": true,
+      "detail": "status=TaskStatus.BLOCKED reason=constitution_replanned_the_route",
+      "at": "2026-09-28T14:36:04.395473+00:00"
+    },
+    {
+      "label": "the withdrawal was durably recorded before being announced",
+      "passed": true,
+      "detail": "['plan_db6b88']",
+      "at": "2026-09-28T14:36:04.395485+00:00"
+    },
+    {
+      "label": "the goal is announced as having lost its route",
+      "passed": true,
+      "detail": "{'goal_ids': ['goal_db6b88'], 'plan_ids': ['plan_db6b88'], 'rule_ids': [], 'tasks_blocked': 1}",
+      "at": "2026-09-28T14:36:04.395496+00:00"
+    },
+    {
+      "label": "NO rule is blamed for the constitution's own refusal",
+      "passed": true,
+      "detail": "rule_ids=[]",
+      "at": "2026-09-28T14:36:04.395504+00:00"
+    },
+    {
+      "label": "withdrawing twice is one withdrawal, not two",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-28T14:36:04.395516+00:00"
+    },
+    {
+      "label": "an ALLOW withdraws nothing",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-28T14:36:04.395530+00:00"
+    },
+    {
+      "label": "the task boundary refuses it",
+      "passed": true,
+      "detail": "plan plan_db6b88 was withdrawn (constitutional_replan): would move a file with no current reading of it",
+      "at": "2026-09-28T14:36:04.395568+00:00"
+    },
+    {
+      "label": "and names the plan and why it went",
+      "passed": true,
+      "detail": "constitutional_replan",
+      "at": "2026-09-28T14:36:04.395577+00:00"
+    },
+    {
+      "label": "a task belonging to no plan proceeds",
+      "passed": true,
+      "detail": "None",
+      "at": "2026-09-28T14:36:04.395605+00:00"
+    },
+    {
+      "label": "a task on a LIVE plan proceeds",
+      "passed": true,
+      "detail": "None",
+      "at": "2026-09-28T14:36:04.395612+00:00"
+    },
+    {
+      "label": "an imperative DESCRIPTION is not treated as a directive",
+      "passed": true,
+      "detail": "None",
+      "at": "2026-09-28T14:36:04.395632+00:00"
+    },
+    {
+      "label": "a plan the engine no longer holds is not treated as withdrawn",
+      "passed": true,
+      "detail": "None",
+      "at": "2026-09-28T14:36:04.395648+00:00"
+    },
+    {
+      "label": "the halt is asked of the LAW, and refuses the task",
+      "passed": true,
+      "detail": "Law 5: research is refused because this substrate is HALTED: TASK-GATE-01 pro",
+      "at": "2026-09-28T14:36:04.397555+00:00"
+    },
+    {
+      "label": "and lifting the halt lets work begin again",
+      "passed": true,
+      "detail": "None",
+      "at": "2026-09-28T14:36:04.398555+00:00"
+    },
+    {
+      "label": "a boundary that could not be asked refuses, never permits",
+      "passed": true,
+      "detail": "whether work may begin could not be established (RuntimeError: the law could not be reache",
+      "at": "2026-09-28T14:36:04.398609+00:00"
+    }
+  ],
+  "notes": [
+    "E and F are the negative controls: the gate is a backstop made of state reads, and refuses no ordinary work."
+  ]
+}

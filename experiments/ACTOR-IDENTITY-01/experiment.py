@@ -4,7 +4,9 @@
 the one owner, `actor_for`), not the ephemeral session string. This proves:
 
   1. `Conversation._actor` returns the bound identity (via actor_for) when a person is
-     authenticated, and falls back to the session when no identity is bound.
+     authenticated, and falls back to the session when no identity is bound — NEVER the
+     substrate. Talking is not teaching: the one shared mind is reachable only through the
+     learning door, and a thread that IS the substrate's own work says so with its SOURCE.
   2. A user may not masquerade as the substrate: binding the substrate's actor id raises.
   3. END-TO-END: teaching through a conversation bound to a World Auth identity lands the fact
      in THAT identity's scoped context — and NOT under the session string. So the same person
@@ -29,7 +31,8 @@ def check(n, ok, d=""):
 async def main() -> int:
     from core.database import get_database_manager
     from core.agents.autonomous.autonomous_coordinator import Conversation, get_conversation
-    from core.agents.autonomous.shared_types import actor_for, TaskSource, SUBSTRATE_ACTOR
+    from core.agents.autonomous.shared_types import (
+        actor_for, TaskSource, SUBSTRATE_ACTOR, is_substrate_actor)
     from core.learning.unified_learning_system import get_unified_learning_system
     from core.learning.scoped_context_store import get_scoped_context_store, scoped_claim_key
 
@@ -50,8 +53,14 @@ async def main() -> int:
           bound._actor == actor_for(TaskSource.MANUAL, user_id) == user_id,
           f"_actor={bound._actor}")
     anon = Conversation(session=session)
-    check("an unbound (in-process curriculum) conversation is the SUBSTRATE → shared mind",
-          anon._actor == SUBSTRATE_ACTOR, f"_actor={anon._actor}")
+    check("an UNBOUND conversation scopes to its SESSION — never the substrate",
+          anon._actor == session and anon._actor != SUBSTRATE_ACTOR,
+          f"_actor={anon._actor}")
+    check("NO conversation can be the substrate: every MANUAL thread is a user actor",
+          not is_substrate_actor(anon._actor) and not is_substrate_actor(bound._actor))
+    own = Conversation(session="knowledge:t1", source=TaskSource.AUTONOMOUS)
+    check("the substrate's OWN work (AUTONOMOUS source) is the shared mind",
+          own._actor == SUBSTRATE_ACTOR, f"_actor={own._actor}")
 
     print("\n== 2. a user may not masquerade as the substrate ==")
     raised = False

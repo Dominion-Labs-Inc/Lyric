@@ -18,22 +18,18 @@ from core.learning.rule_store import (
     EpistemicStatus, EvidenceRole, INDUCTION_ROLES, ProvenanceViolation,
     RuleStore, SCHEMA_VERSION, from_json, to_json,
 )
-from core.model_policy import (
-    ModelPolicy, assert_model_free, reset_model_telemetry, set_model_policy,
-)
+# THE MODEL-FREE GUARD IS GONE, AND SO IS WHAT IT GUARDED AGAINST.
+# These tests wrapped themselves in an autouse fixture that set
+# `ModelPolicy.STRICT_MODEL_FREE` and asserted afterwards that no model had been
+# called. `core.model_policy` was REMOVED when the substrate became model-free by
+# CONSTRUCTION -- there is no longer a policy to set, because there is nothing to
+# set it against. The guard's subject is gone; the subject of these tests is not,
+# and they had been uncollectable ever since.
 
 F = Fact.parse
 DOMAIN = "test_rule_store"
 
 
-@pytest.fixture(autouse=True)
-def strict():
-    previous = set_model_policy(ModelPolicy.STRICT_MODEL_FREE)
-    reset_model_telemetry()
-    yield
-    assert_model_free("rule store")
-    set_model_policy(previous)
-    reset_model_telemetry()
 
 
 def positive(x, y, evidence_id):

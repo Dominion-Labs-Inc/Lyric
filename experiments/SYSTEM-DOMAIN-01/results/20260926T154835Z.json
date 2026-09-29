@@ -1,0 +1,152 @@
+{
+  "experiment": "SYSTEM-DOMAIN-01",
+  "claim": "Domains have one authority: a domain comes into existence once and idempotently, competence evidence moves its learning progress, a knowledge gap is detected against what it holds, and every public method is reached.",
+  "hypothesis": "Two domain masters, a domain created twice, progress that did not move, or a dead public method would each fail here.",
+  "started_at": "2026-09-26T15:48:35.687800+00:00",
+  "duration_seconds": 95.304,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/TorinAI/venv_torin/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/TorinAI",
+    "shadow_mode": null,
+    "git_commit": "20deb447498593391eca0286916b8f986c560a26",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "torinai_db",
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "dotenv:.env.postgres",
+        "database": "dotenv:.env.postgres",
+        "user": "dotenv:.env.postgres",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres"
+      }
+    },
+    "git_uncommitted_changes": 1073,
+    "database_verified": null,
+    "database_verified_reason": "no initialized connection in this process"
+  },
+  "summary": {
+    "checks": 14,
+    "passed": 11,
+    "failed": 3,
+    "outcome": "FAIL"
+  },
+  "metrics": [
+    {
+      "name": "domain_construction_sites",
+      "value": 1,
+      "unit": "count",
+      "note": "core/integration/universal_domain_master.py:3936"
+    },
+    {
+      "name": "domain_public_methods",
+      "value": 41,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "domain_unreached_public_methods",
+      "value": 6,
+      "unit": "count",
+      "note": "is_learned_domain, embed_pending_concepts, is_crystallized, provisional_domains, crystallize_taxonomic_domains, knowledge_sparsity_map"
+    },
+    {
+      "name": "domain_stub_public_methods",
+      "value": 0,
+      "unit": "count",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "domain: the coordinator holds the instance the accessor returns",
+      "passed": true,
+      "detail": "held=UniversalDomainMaster same=True",
+      "at": "2026-09-26T15:50:04.134807+00:00"
+    },
+    {
+      "label": "domain: UniversalDomainMaster is constructed in one place",
+      "passed": true,
+      "detail": "in its module: ['core/integration/universal_domain_master.py:3936']; elsewhere: []",
+      "at": "2026-09-26T15:50:06.565358+00:00"
+    },
+    {
+      "label": "domain: every public method of UniversalDomainMaster is reached by something in core",
+      "passed": false,
+      "detail": "6/41 unreached: ['is_learned_domain', 'embed_pending_concepts', 'is_crystallized', 'provisional_domains', 'crystallize_taxonomic_domains', 'knowledge_sparsity_map']",
+      "at": "2026-09-26T15:50:09.196611+00:00"
+    },
+    {
+      "label": "domain: no public method of UniversalDomainMaster is a stub body",
+      "passed": true,
+      "detail": "stubs: []",
+      "at": "2026-09-26T15:50:09.196629+00:00"
+    },
+    {
+      "label": "ensure_domain returns the domain",
+      "passed": true,
+      "detail": "Domain id=isolation_probe_domain",
+      "at": "2026-09-26T15:50:09.307125+00:00"
+    },
+    {
+      "label": "a second call returns the same domain, not a second one",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-26T15:50:09.307142+00:00"
+    },
+    {
+      "label": "exactly one durable row",
+      "passed": true,
+      "detail": "rows=1",
+      "at": "2026-09-26T15:50:09.308989+00:00"
+    },
+    {
+      "label": "it is a learned domain, and the others are untouched",
+      "passed": true,
+      "detail": "learned=426 (was 425)",
+      "at": "2026-09-26T15:50:09.309278+00:00"
+    },
+    {
+      "label": "three learned outcomes raise learning progress",
+      "passed": false,
+      "detail": "1.0 -> 0.18349034273221043",
+      "at": "2026-09-26T15:50:09.422603+00:00"
+    },
+    {
+      "label": "three failed outcomes lower it",
+      "passed": true,
+      "detail": "0.18349034273221043 -> -0.2109497127383944",
+      "at": "2026-09-26T15:50:09.509786+00:00"
+    },
+    {
+      "label": "a question about nothing it holds is reported as a gap, not answered",
+      "passed": false,
+      "detail": "gap=None",
+      "at": "2026-09-26T15:50:09.509818+00:00"
+    },
+    {
+      "label": "similar_domains is a list (empty for a domain with nothing in it)",
+      "passed": true,
+      "detail": "502 similar",
+      "at": "2026-09-26T15:50:10.553702+00:00"
+    },
+    {
+      "label": "statistics are a dict",
+      "passed": true,
+      "detail": "keys=['cached_mappings', 'domains_loaded', 'failed_queries', 'successful_queries', 'total_mappings', 'total_queries']",
+      "at": "2026-09-26T15:50:10.553723+00:00"
+    },
+    {
+      "label": "everything this run wrote is removed",
+      "passed": true,
+      "detail": "left=0",
+      "at": "2026-09-26T15:50:10.678345+00:00"
+    }
+  ],
+  "notes": []
+}

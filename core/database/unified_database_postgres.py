@@ -4,22 +4,33 @@ TorinAI Unified PostgreSQL Database
 ====================================
 Production PostgreSQL database implementation with schema-based tier architecture.
 
-Architecture:
-- Single PostgreSQL database (torinai_db) with 3 logical schemas
+Environments and stores:
+- DEVELOPMENT keeps everything in one database (`POSTGRES_DATABASE`: torinai_db
+  for the main line, torinai_dev for its sandbox). The model is taught there.
+- STAGING and PRODUCTION serve a numbered RELEASE of the model, frozen
+  (`<database>_model_v<N>`, read-only), and keep their runtime, each person's
+  context and what the substrate remembers of its own while serving (learning)
+  in `<database>_<environment>_<store>`. `TORINAI_ENVIRONMENT` and
+  `TORINAI_RELEASE` say which a process is.
+
+Every component holds this one manager. Outside development it sends each
+statement to the database its tables live in (postgres_config.STORE_TABLES);
+a caller names the store only where the tables cannot decide (a person's rows
+in a per-owner table, a statement with no table, a raw connection). Against a
+frozen release it answers reads, checks table creation against what the release
+has, and refuses every other write. In development there is one database and
+nothing to route.
+
+Architecture within a database:
 - Hot Tier: memory_hot schema for last 60 days
 - Unified: unified schema with directives, governance, metrics
 - Cold Tier: memory_cold schema for 60+ day old memories
 
 Connection Pooling:
 - Uses asyncpg for async PostgreSQL operations
-- Single connection pool with schema routing via search_path
+- One connection pool per database, with schema routing via search_path
 - pgvector integration for 100x faster semantic search
-- Configuration from .env.postgres environment variables
-
-Schemas:
-- unified: Main schema (directives, governance, metrics, alerts, etc.)
-- memory_hot: Hot tier for recent memories (last 60 days) with pgvector
-- memory_cold: Cold tier for archived memories (60+ days old) with pgvector
+- Configuration resolved by postgres_config (explicit > environment > .env > default)
 """
 
 import logging
@@ -44,9 +55,63 @@ except ImportError:
 
 from dotenv import load_dotenv
 
-from core.database.postgres_config import DatabaseIdentityError, PostgresConfig
+from core.database.postgres_config import (
+    PER_OWNER_TABLES, STORES, DatabaseIdentityError, ModelFrozenError, PostgresConfig,
+    ReleaseMismatchError, StoreRoutingError, schema_requirements, statement_kind,
+    store_for_statement, tables_in)
 
 logger = logging.getLogger(__name__)
+
+
+def _tier_schema(use_hot_tier: bool, use_cold_tier: bool) -> str:
+    """The schema a connection's search path starts with (priority: cold > hot > unified)."""
+    if use_cold_tier:
+        return 'memory_cold'
+    if use_hot_tier:
+        return 'memory_hot'
+    return 'unified'
+
+
+class _DatabasePool:
+    """One database's connection pool, and the event loop it belongs to.
+
+    Development has one; staging and production have one per store.
+    """
+
+    def __init__(self, database: str, index: int):
+        self.database = database
+        #: Position among this process's pools, part of every pool tag.
+        self.index = index
+        self.pool = None
+        #: The event loop self.pool was created on. asyncpg pools are not
+        #: portable across loops; see matches_running_loop.
+        self.loop = None
+        #: Identifies each pool generation server-side, so backends stranded by
+        #: a dead loop can be found and closed. See _reap_stale_pools.
+        self.generation = 0
+        self.tag: Optional[str] = None
+        self.stale_tags: set = set()
+        #: `ensure_schema` keys already run against this database by this process.
+        self.schemas_ready: set = set()
+
+    def matches_running_loop(self) -> bool:
+        """True when self.pool can actually be used from the current loop.
+
+        asyncpg binds a pool and every connection in it to the loop that
+        created them. Using one from another loop does not raise a clear error
+        — it fails inside the protocol with "another operation is in progress",
+        naming a query that is entirely valid, which reads as a database fault
+        rather than a lifecycle one.
+        """
+        if self.pool is None:
+            return False
+        try:
+            running = asyncio.get_running_loop()
+        except RuntimeError:
+            return False
+        if self.loop is None:
+            return True          # created before this tracking existed
+        return self.loop is running and not self.loop.is_closed()
 
 
 class TorinUnifiedDatabasePostgres:
@@ -54,7 +119,7 @@ class TorinUnifiedDatabasePostgres:
     Unified PostgreSQL Database for TorinAI (Singleton)
 
     All instantiations return the same shared instance with shared connection
-    pool, preventing connection exhaustion from multiple components each
+    pools, preventing connection exhaustion from multiple components each
     creating their own pools.
 
     Provides async connection pooling and database operations for:
@@ -76,18 +141,19 @@ class TorinUnifiedDatabasePostgres:
             fetch_all=True
         )
 
-        # Use hot tier schema
+        # Use hot tier schema; a per-owner table names whose rows these are
         memories = await db.execute_query(
             "SELECT * FROM memory_hot WHERE timestamp > $1",
             (cutoff_time,),
             use_hot_tier=True,
-            fetch_all=True
+            fetch_all=True,
+            store="model",
         )
 
         await db.close()
     """
 
-    # Singleton: all instantiations share the same object and connection pool
+    # Singleton: all instantiations share the same object and connection pools
     _instance = None
 
     def __new__(cls, *args, **kwargs):
@@ -113,7 +179,8 @@ class TorinUnifiedDatabasePostgres:
             port: PostgreSQL port (from env if None)
             user: PostgreSQL user (from env if None)
             password: PostgreSQL password (from env if None)
-            database: Database name (from env if None)
+            database: The development database (from env if None); every
+                other database of its line is named from it
             pool_min_size: Min pool size (from env if None, default 5)
             pool_max_size: Max pool size (from env if None, default 20)
         """
@@ -126,15 +193,11 @@ class TorinUnifiedDatabasePostgres:
         # This ensures the singleton is always in a usable (non-crashing) state even
         # if initialization fails partway through.
         self.initialized = False
-        self.pool = None
-        #: The event loop self.pool was created on. asyncpg pools are not
-        #: portable across loops; see _pool_matches_running_loop.
-        self._pool_loop = None
-        #: Identifies each pool generation server-side, so backends stranded by
-        #: a dead loop can be found and closed. See _reap_stale_pools.
-        self._pool_generation = 0
-        self._pool_tag: Optional[str] = None
-        self._stale_pool_tags: set = set()
+        #: Whether initialize() has ever succeeded. After close() the next use builds the pools
+        #: again; before the first initialize() it is a caller error.
+        self._ever_initialized = False
+        #: database name -> its pool. One in development, one per store in staging and production.
+        self._pools: Dict[str, _DatabasePool] = {}
         self.host = 'localhost'
         # 5433 is TorinAI's own instance; 5432 is the shared one holding
         # agentso's tenant databases. See postgres_config.DEFAULT_PORT.
@@ -142,6 +205,14 @@ class TorinUnifiedDatabasePostgres:
         self.user = 'postgres'
         self.password = ''
         self.database = 'torinai_db'
+        self.environment = 'development'
+        self.release: Optional[int] = None
+        #: Whether this process serves a frozen release (staging, production).
+        self.frozen = False
+        #: The release this process serves, as its start-up check found it (releases.verify_serving).
+        self.release_verified: Optional[Dict[str, Any]] = None
+        #: Every write refused because the model is a frozen release: "caller-visible statement head".
+        self.frozen_refusals: List[str] = []
         self.pool_min_size = 5
         self.pool_max_size = 20
         self._boot_time = time.time()
@@ -155,7 +226,9 @@ class TorinUnifiedDatabasePostgres:
             'pool_errors': 0,
             'hot_tier_queries': 0,
             'cold_tier_queries': 0,
-            'unified_queries': 0
+            'unified_queries': 0,
+            'frozen_refusals': 0,
+            'release_schema_checks': 0,
         }
 
         if not ASYNCPG_AVAILABLE:
@@ -178,26 +251,194 @@ class TorinUnifiedDatabasePostgres:
         self.user = self.config.user
         self.password = self.config.password
         self.database = self.config.database
+        self.environment = self.config.environment
+        self.release = self.config.release
+        self.frozen = self.config.frozen
         self.pool_min_size = self.config.pool_min_size
         self.pool_max_size = self.config.pool_max_size
         self._error_grace_seconds = int(os.getenv("DB_ERROR_GRACE_SECONDS", "60"))
         self._error_retry_threshold = int(os.getenv("DB_ERROR_MAX_INITIAL_RETRIES", "3"))
+        for index, name in enumerate(dict.fromkeys(self.config.databases().values())):
+            self._pools[name] = _DatabasePool(name, index)
 
         logger.info(
             f"TorinUnifiedDatabasePostgres singleton configured "
-            f"(host: {self.host}:{self.port}, database: {self.database}, "
+            f"(host: {self.host}:{self.port}, {self.environment}"
+            f"{f' serving release {self.release}' if self.release else ''}, "
+            f"databases: {', '.join(self._pools)}, "
             f"pool: {self.pool_min_size}-{self.pool_max_size}, "
-            f"database_source: {self.config.provenance.get('database')})"
+            f"database_source: {self.config.provenance.get('database')}, "
+            f"environment_source: {self.config.provenance.get('environment')})"
         )
 
+    # ── Which database ────────────────────────────────────────────────────
+
+    def _pool_for(self, store: Optional[str]) -> _DatabasePool:
+        """The pool a store's statements run in. Development has one pool, so an
+        unnamed store is that one; staging and production refuse to guess."""
+        if store is None:
+            if len(self._pools) == 1:
+                return next(iter(self._pools.values()))
+            raise StoreRoutingError(
+                f"{self.environment} keeps its stores in separate databases; name the store "
+                f"({', '.join(STORES)})")
+        return self._pools[self.config.database_for(store)]
+
+    def _route(self, statement: str, use_hot_tier: bool, use_cold_tier: bool,
+               store: Optional[str]) -> Optional[str]:
+        """The store a statement runs in.
+
+        Staging and production decide it from the statement's tables
+        (postgres_config.store_for_statement), and against their frozen release
+        refuse every write (`ModelFrozenError`); table creation there is checked,
+        not run (`_run_or_check`). Development has one database, so nothing is
+        routed and a named store is only checked to be one."""
+        if not self.frozen:
+            if store is not None and store not in STORES:
+                raise StoreRoutingError(f"{store!r} is not a store; the stores are {', '.join(STORES)}")
+            return store
+        store = store_for_statement(statement, search_schema=_tier_schema(use_hot_tier, use_cold_tier),
+                                    store=store)
+        if store == "model" and statement_kind(statement) == "write":
+            raise self.frozen_refusal(" ".join(str(statement).split())[:160])
+        return store
+
+    def frozen_refusal(self, what: str) -> ModelFrozenError:
+        """Count one change to the frozen model refused -- here, or by a component
+        that holds part of the model in the process (the belief store, the
+        learning authority) -- and return the error to raise. Every refusal is
+        counted in one place, so a run can say how many there were."""
+        self.frozen_refusals.append(what)
+        self.metrics['frozen_refusals'] += 1
+        return ModelFrozenError(
+            f"the model is release {self.release}, frozen: {self.environment} never changes it "
+            f"(development teaches the model and cuts the next release). Refused: {what}")
+
+    def refuse_if_frozen(self, statement: str, *, store: Optional[str],
+                         use_hot_tier: bool = False, use_cold_tier: bool = False) -> None:
+        """Raise `ModelFrozenError` (counted) when `statement` would write the frozen
+        release. For a caller about to make a change of several statements, so the
+        refusal comes before the first of them rather than halfway through."""
+        self._route(statement, use_hot_tier, use_cold_tier, store)
+
+    def _checks_against_release(self, statement: str, store: Optional[str]) -> bool:
+        """Whether this statement creates something in the frozen release, and so
+        is checked against what the release already has rather than run."""
+        return self.frozen and store == "model" and statement_kind(statement) == "schema"
+
+    async def _check_against_release(self, statement: str, schema: str) -> str:
+        """Check a creation statement against the release: what it would create
+        must already be there (and what it would drop, gone). A release is cut
+        complete, so a mismatch means the release and the code do not match, and
+        the statement is refused (`ReleaseMismatchError`). Only reads the release's
+        catalogue."""
+        needs = schema_requirements(statement, schema)
+        head = " ".join(str(statement).split())[:160]
+        if needs is None:
+            raise ReleaseMismatchError(
+                f"release {self.release} is frozen, and this is not a creation that can be checked "
+                f"against it: {head}")
+        pool = self._pool_for("model")
+        async with self._acquire(pool, 'unified') as conn:
+            for need in needs:
+                if need.kind == "table":
+                    found = await conn.fetchval(
+                        "SELECT 1 FROM information_schema.tables "
+                        "WHERE table_schema = $1 AND table_name = $2", need.schema, need.table)
+                elif need.kind == "index":
+                    found = await conn.fetchval(
+                        "SELECT 1 FROM pg_indexes WHERE schemaname = $1 AND indexname = $2",
+                        need.schema, need.name)
+                elif need.kind == "column":
+                    found = await conn.fetchval(
+                        "SELECT 1 FROM information_schema.columns "
+                        "WHERE table_schema = $1 AND table_name = $2 AND column_name = $3",
+                        need.schema, need.table, need.name)
+                else:
+                    found = await conn.fetchval(
+                        "SELECT 1 FROM information_schema.table_constraints "
+                        "WHERE table_schema = $1 AND table_name = $2 AND constraint_name = $3",
+                        need.schema, need.table, need.name)
+                if bool(found) != need.present:
+                    raise ReleaseMismatchError(
+                        f"release {self.release} {'lacks' if need.present else 'still has'} the {need.kind} "
+                        f"{need.schema}.{need.table + '.' if need.kind in ('column', 'constraint') else ''}"
+                        f"{need.name} that this code {'creates' if need.present else 'removes'}: the "
+                        f"release and the code running it do not match. Statement: {head}")
+        self.metrics['release_schema_checks'] += 1
+        return "CHECKED"
+
+    def _unique_stores(self, stores) -> List[str]:
+        """`stores`, once per database, in order."""
+        seen, out = set(), []
+        for store in stores:
+            database = self.config.database_for(store)
+            if database not in seen:
+                seen.add(database)
+                out.append(store)
+        return out
+
+    def owner_stores(self, substrate_store: str = "model") -> List[str]:
+        """The stores a per-owner table (postgres_config.PER_OWNER_TABLES) is READ
+        from, once per database: where the substrate's own rows are
+        (`substrate_store`, the table's entry there) and user context. Development
+        keeps them in its one database, so one; staging and production keep them
+        apart, so two. What the substrate remembers while serving (the learning
+        store) is never read back while serving."""
+        return self._unique_stores((substrate_store, "user_context"))
+
+    def write_store(self, owner: Optional[str], substrate_store: str = "model") -> str:
+        """The store a new row of a per-owner table is WRITTEN to: a person's to
+        user context; the substrate's to `substrate_store` in development, and,
+        where the model is a frozen release, to the learning store beside it."""
+        from core.agents.autonomous.shared_types import store_for_owner
+        store = store_for_owner(owner, substrate_store)
+        if store == "model" and self.frozen:
+            return "learning"
+        return store
+
+    def schema_stores(self, substrate_store: str = "model") -> List[str]:
+        """Every store a per-owner table must exist in: where its rows are read
+        from and written to."""
+        stores = [substrate_store] + (["learning"] if self.frozen and substrate_store == "model" else [])
+        return self._unique_stores(stores + ["user_context"])
+
+    def maintained_stores(self, substrate_store: str = "model") -> List[str]:
+        """The stores whose rows of a per-owner table maintenance may change
+        (decay, clean-up, moving to the cold tier, refreshing what is derived).
+        A frozen release is not maintained, and neither is what waits in the
+        learning store for development: only people's context is."""
+        if self.frozen:
+            return ["user_context"]
+        return self._unique_stores((substrate_store, "user_context"))
+
+    def is_frozen_store(self, store: Optional[str]) -> bool:
+        """Whether rows in this store may not be changed here: the release, and
+        (for maintenance) the learning store's lessons waiting for development."""
+        return self.frozen and store in ("model", "learning")
+
+    @property
+    def pool(self):
+        """The connection pool of development, which has one. Staging and
+        production have one per store: `pool_for(store)`."""
+        return self._pool_for(None).pool
+
+    def pool_for(self, store: str):
+        """The connection pool a store's statements run in."""
+        return self._pool_for(store).pool
+
     async def assert_database_identity(self, expected: str) -> str:
-        """Verify against the live connection which database this actually is.
+        """Verify against the live connections which databases these actually are.
 
         Asks the server rather than trusting configuration, so a mismatch is
         caught whether it came from resolution, a pooled connection or a
         singleton constructed earlier by something else. Required before any
         mutation-capable experiment: a process that believes it is operating on
         a clone while writing to production is not merely misconfigured.
+
+        `expected` is the development database this process is configured from;
+        in staging and production every store's database, named from it, is
+        checked.
         """
         if not self.initialized:
             # The result is CHECKED. Discarding it meant a failed initialize was
@@ -208,19 +449,26 @@ class TorinUnifiedDatabasePostgres:
                     type(self).__name__ + ' could not initialize; refusing to '
                     'continue as though it had')
 
-        actual = await self.execute_query("SELECT current_database()")
-        if isinstance(actual, list) and actual:
-            actual = actual[0]
-        if hasattr(actual, "values"):
-            actual = list(actual.values())[0]
-        actual = str(actual)
-
-        if actual != expected:
+        if expected != self.database:
             raise DatabaseIdentityError(
-                f"connected to {actual!r} while operating as {expected!r} "
-                f"(configured from {self.config.provenance.get('database')})"
-            )
-        return actual
+                f"operating from {self.database!r} "
+                f"(configured from {self.config.provenance.get('database')}), not {expected!r}")
+        for store in STORES:
+            wanted = self.config.database_for(store)
+            actual = await self.execute_query("SELECT current_database()", store=store)
+            if isinstance(actual, list) and actual:
+                actual = actual[0]
+            if hasattr(actual, "values"):
+                actual = list(actual.values())[0]
+            actual = str(actual)
+
+            if actual != wanted:
+                raise DatabaseIdentityError(
+                    f"{store} connected to {actual!r} while operating as {wanted!r} "
+                    f"(configured from {self.config.provenance.get('database')}, "
+                    f"{self.environment} from {self.config.provenance.get('environment')})"
+                )
+        return expected
 
     def _should_notify_error(self, operation: str) -> bool:
         """Decide whether to send a database error notification.
@@ -247,7 +495,9 @@ class TorinUnifiedDatabasePostgres:
         # Outside grace window or beyond retry threshold: notify
         return True
 
-    async def _ensure_pool_for_running_loop(self) -> None:
+    # ── Pools and the event loop ──────────────────────────────────────────
+
+    async def _ensure_pool_for_running_loop(self, pool: _DatabasePool) -> None:
         """Guarantee a usable pool before any query.
 
         Replaces a bare `if not self.initialized: raise`. That guard checked a
@@ -255,36 +505,17 @@ class TorinUnifiedDatabasePostgres:
         a manager initialized on one loop passed it and then failed inside
         asyncpg with a message about the query rather than the lifecycle.
 
-        Re-initializing here is safe: initialize() is idempotent when the pool
+        Re-initializing here is safe: initialize() is idempotent when every pool
         already matches the running loop.
         """
-        if self.initialized and self._pool_matches_running_loop():
+        if self.initialized and pool.matches_running_loop():
             return
-        if not self.initialized and self.pool is None and self._pool_loop is None:
+        if not self._ever_initialized:
             # Never initialized at all — that is a caller error, not a loop one.
             raise RuntimeError(
                 "Database not initialized. Call await db.initialize() at startup before using."
             )
         await self.initialize()
-
-    def _pool_matches_running_loop(self) -> bool:
-        """True when self.pool can actually be used from the current loop.
-
-        asyncpg binds a pool and every connection in it to the loop that
-        created them. Using one from another loop does not raise a clear error
-        — it fails inside the protocol with "another operation is in progress",
-        naming a query that is entirely valid, which reads as a database fault
-        rather than a lifecycle one.
-        """
-        if self.pool is None:
-            return False
-        try:
-            running = asyncio.get_running_loop()
-        except RuntimeError:
-            return False
-        if self._pool_loop is None:
-            return True          # created before this tracking existed
-        return self._pool_loop is running and not self._pool_loop.is_closed()
 
     async def _register_connection_codecs(self, conn) -> None:
         """Give one pooled connection the pgvector codec.
@@ -300,7 +531,7 @@ class TorinUnifiedDatabasePostgres:
         except Exception as e:
             logger.debug("pgvector codec unavailable on this connection: %s", e)
 
-    async def _discard_pool(self) -> None:
+    async def _discard_pool(self, pool: _DatabasePool) -> None:
         """Drop a pool that belongs to a dead or foreign loop, releasing its
         sockets rather than abandoning them.
 
@@ -321,16 +552,16 @@ class TorinUnifiedDatabasePostgres:
         are already lost — the loop running them is dead — so there is nothing
         graceful left to preserve.
         """
-        # Asked BEFORE the fields are cleared. _pool_matches_running_loop reads
-        # self.pool, so consulting it afterwards always answered False and the
+        # Asked BEFORE the fields are cleared. matches_running_loop reads
+        # pool.pool, so consulting it afterwards always answered False and the
         # graceful branch below could never be reached — every discard, even one
         # on the pool's own live loop, fell through to abandonment.
-        owns_loop = self._pool_matches_running_loop()
-        stale_tag = self._pool_tag
+        owns_loop = pool.matches_running_loop()
+        stale_tag = pool.tag
 
-        old = self.pool
-        self.pool = None
-        self._pool_loop = None
+        old = pool.pool
+        pool.pool = None
+        pool.loop = None
         self.initialized = False
         if old is None:
             return
@@ -353,9 +584,9 @@ class TorinUnifiedDatabasePostgres:
             logger.debug("Cannot terminate a pool from a dead loop (%s)", e)
 
         if stale_tag:
-            self._stale_pool_tags.add(stale_tag)
+            pool.stale_tags.add(stale_tag)
 
-    async def _reap_stale_pools(self) -> int:
+    async def _reap_stale_pools(self, pool: _DatabasePool) -> int:
         """Close the server-side backends left by pools this process abandoned.
 
         Terminates by `application_name`, which is stamped per pool generation,
@@ -369,15 +600,15 @@ class TorinUnifiedDatabasePostgres:
         failure then surfaces as "cannot create pool" in whichever component
         asked next, which is never the one that caused it.
         """
-        if not self._stale_pool_tags or self.pool is None:
+        if not pool.stale_tags or pool.pool is None:
             return 0
 
-        tags = sorted(self._stale_pool_tags - {self._pool_tag})
+        tags = sorted(pool.stale_tags - {pool.tag})
         if not tags:
             return 0
 
         try:
-            rows = await self.pool.fetch(
+            rows = await pool.pool.fetch(
                 "SELECT pg_terminate_backend(pid) FROM pg_stat_activity"
                 " WHERE application_name = ANY($1::text[])"
                 "   AND pid <> pg_backend_pid()",
@@ -389,7 +620,7 @@ class TorinUnifiedDatabasePostgres:
             logger.warning("Could not reap abandoned database backends: %s", e)
             return 0
 
-        self._stale_pool_tags -= set(tags)
+        pool.stale_tags -= set(tags)
         if rows:
             logger.info(
                 "Reaped %d abandoned database backend(s) from %d dead pool(s)",
@@ -397,104 +628,123 @@ class TorinUnifiedDatabasePostgres:
             )
         return len(rows)
 
+    async def _create_pool(self, pool: _DatabasePool) -> None:
+        """Build one database's connection pool on the running loop."""
+        # Every pool generation is tagged so its server-side backends can be
+        # identified later BY NAME. A pool abandoned with its dead loop
+        # cannot be closed from Python -- asyncpg needs the owning loop to
+        # abort the transports -- but the backends it left behind can be
+        # reaped through ordinary SQL from the new one.
+        pool.generation += 1
+        pool.tag = f"torinai_{os.getpid()}_{pool.index}_{pool.generation}"
+
+        pool.pool = await asyncpg.create_pool(
+            host=self.host,
+            port=self.port,
+            user=self.user,
+            password=self.password,
+            database=pool.database,
+            min_size=self.pool_min_size,
+            max_size=self.pool_max_size,
+            command_timeout=60,
+            server_settings={'application_name': pool.tag},
+            # EVERY pooled connection gets the pgvector codec, via asyncpg's
+            # init hook. This function existed and was never passed anywhere;
+            # registration was done once on a single acquired connection
+            # instead, so exactly one connection in the pool could adapt a
+            # Python list to `vector`. A lone query happened to get that
+            # connection and worked, which is why this looked fine -- but
+            # concurrent embedding queries fan out across the pool and the
+            # rest failed with "expected str, got list".
+            init=self._register_connection_codecs,
+        )
+        pool.loop = asyncio.get_running_loop()
+
+        # The new pool is the first thing able to reach the server since
+        # the old one died, so this is the earliest point the backends it
+        # stranded can be closed.
+        await self._reap_stale_pools(pool)
+
+        logger.info(
+            f"PostgreSQL database pool created "
+            f"(database: {pool.database}, pool: {self.pool_min_size}-{self.pool_max_size})"
+        )
+
+        # Verify schemas exist
+        try:
+            async with pool.pool.acquire() as conn:
+                schemas = await conn.fetch(
+                    "SELECT schema_name FROM information_schema.schemata WHERE schema_name IN ('unified', 'memory_hot', 'memory_cold')"
+                )
+                schema_names = [row['schema_name'] for row in schemas]
+
+                if 'unified' in schema_names:
+                    logger.info("✓ unified schema available (%s)", pool.database)
+                if 'memory_hot' in schema_names:
+                    logger.info("✓ memory_hot schema available (%s)", pool.database)
+                if 'memory_cold' in schema_names:
+                    logger.info("✓ memory_cold schema available (%s)", pool.database)
+
+                if len(schema_names) == 0:
+                    logger.warning(
+                        "No schemas found in %s! Run postgres_schemas.sql to create database structure.",
+                        pool.database,
+                    )
+        except Exception as e:
+            logger.warning(f"Schema verification warning ({pool.database}): {e}")
+
     async def initialize(self) -> bool:
         """
-        Initialize database connection pool
+        Initialize the connection pools
 
-        Creates single connection pool for all schemas:
+        One pool per database of this environment (one in development, one per
+        store in staging and production), each serving every schema:
         - unified (main tables - directives, governance, logs)
         - memory_hot (hot tier with pgvector)
         - memory_cold (cold tier with pgvector)
 
+        Staging and production then check, once per process, that they serve an
+        intact release of the code they are running (releases.verify_serving). A
+        failed check raises `ReleaseError` and the process does not start.
+
         Returns:
             True if successful
         """
-        if self.initialized and self._pool_matches_running_loop():
+        if self.initialized and all(p.matches_running_loop() for p in self._pools.values()):
             logger.debug("Database already initialized")
             return True
 
-        if self.initialized:
-            # The pool belongs to a different event loop. asyncpg binds a pool
-            # and its connections to the loop that created them, so reusing it
-            # here fails deep inside the protocol with
-            #   InterfaceError: cannot perform operation: another operation is
-            #   in progress
-            # naming a query that is perfectly valid. This manager is a process
-            # singleton, so any caller that runs asyncio.run() twice, starts a
-            # worker thread with its own loop, or restarts the loop after a
-            # crash inherits a pool from a dead one. Rebuild instead.
-            logger.warning(
-                "Connection pool belongs to a different event loop; rebuilding "
-                "for the running loop"
-            )
-            await self._discard_pool()
+        if self.frozen and self.release_verified is None:
+            from core.database.releases import verify_serving
+            # Before any pool is used: a process that cannot show it serves an
+            # intact release, cut with the code it runs, must not start.
+            self.release_verified = await verify_serving(self.config)
 
         try:
-            # Every pool generation is tagged so its server-side backends can be
-            # identified later BY NAME. A pool abandoned with its dead loop
-            # cannot be closed from Python -- asyncpg needs the owning loop to
-            # abort the transports -- but the backends it left behind can be
-            # reaped through ordinary SQL from the new one.
-            self._pool_generation += 1
-            self._pool_tag = f"torinai_{os.getpid()}_{self._pool_generation}"
-
-            # Create single PostgreSQL connection pool
-            self.pool = await asyncpg.create_pool(
-                host=self.host,
-                port=self.port,
-                user=self.user,
-                password=self.password,
-                database=self.database,
-                min_size=self.pool_min_size,
-                max_size=self.pool_max_size,
-                command_timeout=60,
-                server_settings={'application_name': self._pool_tag},
-                # EVERY pooled connection gets the pgvector codec, via asyncpg's
-                # init hook. This function existed and was never passed anywhere;
-                # registration was done once on a single acquired connection
-                # instead, so exactly one connection in the pool could adapt a
-                # Python list to `vector`. A lone query happened to get that
-                # connection and worked, which is why this looked fine -- but
-                # concurrent embedding queries fan out across the pool and the
-                # rest failed with "expected str, got list".
-                init=self._register_connection_codecs,
-            )
-
-            # The new pool is the first thing able to reach the server since
-            # the old one died, so this is the earliest point the backends it
-            # stranded can be closed.
-            await self._reap_stale_pools()
-
-            logger.info(
-                f"PostgreSQL database pool created "
-                f"(database: {self.database}, pool: {self.pool_min_size}-{self.pool_max_size})"
-            )
-
-            # Verify schemas exist
-            try:
-                async with self.pool.acquire() as conn:
-                    schemas = await conn.fetch(
-                        "SELECT schema_name FROM information_schema.schemata WHERE schema_name IN ('unified', 'memory_hot', 'memory_cold')"
+            for pool in self._pools.values():
+                if pool.matches_running_loop():
+                    continue
+                if pool.pool is not None:
+                    # The pool belongs to a different event loop. asyncpg binds a pool
+                    # and its connections to the loop that created them, so reusing it
+                    # here fails deep inside the protocol with
+                    #   InterfaceError: cannot perform operation: another operation is
+                    #   in progress
+                    # naming a query that is perfectly valid. This manager is a process
+                    # singleton, so any caller that runs asyncio.run() twice, starts a
+                    # worker thread with its own loop, or restarts the loop after a
+                    # crash inherits a pool from a dead one. Rebuild instead.
+                    logger.warning(
+                        "Connection pool for %s belongs to a different event loop; "
+                        "rebuilding for the running loop", pool.database
                     )
-                    schema_names = [row['schema_name'] for row in schemas]
-
-                    if 'unified' in schema_names:
-                        logger.info("✓ unified schema available")
-                    if 'memory_hot' in schema_names:
-                        logger.info("✓ memory_hot schema available")
-                    if 'memory_cold' in schema_names:
-                        logger.info("✓ memory_cold schema available")
-
-                    if len(schema_names) == 0:
-                        logger.warning(
-                            "No schemas found! Run postgres_schemas.sql to create database structure."
-                        )
-            except Exception as e:
-                logger.warning(f"Schema verification warning: {e}")
+                    await self._discard_pool(pool)
+                await self._create_pool(pool)
 
             self.initialized = True
-            self._pool_loop = asyncio.get_running_loop()
-            logger.info("PostgreSQL database initialization complete")
+            self._ever_initialized = True
+            logger.info("PostgreSQL database initialization complete (%s%s: %s)", self.environment,
+                        f" serving release {self.release}" if self.release else "", ", ".join(self._pools))
             return True
 
         except Exception as e:
@@ -509,52 +759,25 @@ class TorinUnifiedDatabasePostgres:
                         operation="initialization",
                         error=e,
                         database="PostgreSQL Unified Database",
-                        context={"host": self.host, "database": self.database}
+                        context={"host": self.host, "databases": list(self._pools)}
                     ))
                 except Exception as notify_error:
                     logger.warning(f"Failed to send database error notification: {notify_error}")
 
             return False
 
+    # ── Connections and statements ────────────────────────────────────────
+
     @asynccontextmanager
-    async def get_connection(self, use_hot_tier: bool = False, use_cold_tier: bool = False):
-        """
-        Get database connection from pool with schema routing (context manager)
+    async def _acquire(self, pool: _DatabasePool, schema: str):
+        """A connection from one pool, its search path starting at `schema`."""
+        await self._ensure_pool_for_running_loop(pool)
 
-        Args:
-            use_hot_tier: Set search_path to memory_hot schema
-            use_cold_tier: Set search_path to memory_cold schema
-
-        Usage:
-            # Unified schema (default)
-            async with db.get_connection() as conn:
-                result = await conn.fetch("SELECT * FROM internal_directives")
-
-            # Hot tier schema
-            async with db.get_connection(use_hot_tier=True) as conn:
-                result = await conn.fetch("SELECT * FROM memory_hot")
-
-        Yields:
-            asyncpg.Connection with search_path set to appropriate schema
-        """
-        await self._ensure_pool_for_running_loop()
-
-        if not self.pool:
+        if not pool.pool:
             raise RuntimeError("Database pool not available")
 
-        # Determine schema based on tier flags (priority: cold > hot > unified)
-        if use_cold_tier:
-            schema = 'memory_cold'
-            tier_name = 'cold tier'
-        elif use_hot_tier:
-            schema = 'memory_hot'
-            tier_name = 'hot tier'
-        else:
-            schema = 'unified'
-            tier_name = 'unified'
-
         # Acquire connection from pool
-        async with self.pool.acquire() as conn:
+        async with pool.pool.acquire() as conn:
             self.metrics['total_connections'] += 1
 
             # Set search_path to route queries to appropriate schema
@@ -567,6 +790,31 @@ class TorinUnifiedDatabasePostgres:
                 # Reset search_path to default after use
                 await conn.execute("SET search_path TO public")
 
+    @asynccontextmanager
+    async def get_connection(self, use_hot_tier: bool = False, use_cold_tier: bool = False,
+                             *, store: Optional[str] = None):
+        """
+        Get database connection from pool with schema routing (context manager)
+
+        Args:
+            use_hot_tier: Set search_path to memory_hot schema
+            use_cold_tier: Set search_path to memory_cold schema
+            store: which store the connection's statements belong to. Staging
+                and production require it: the statements on a raw connection
+                are not known in advance, so nothing else can place them. A raw
+                connection to a frozen release is read-only in the database.
+
+        Usage:
+            # Unified schema (default)
+            async with db.get_connection(store="runtime") as conn:
+                result = await conn.fetch("SELECT * FROM internal_directives")
+
+        Yields:
+            asyncpg.Connection with search_path set to appropriate schema
+        """
+        async with self._acquire(self._pool_for(store), _tier_schema(use_hot_tier, use_cold_tier)) as conn:
+            yield conn
+
     async def execute_query(
         self,
         query: str,
@@ -575,7 +823,9 @@ class TorinUnifiedDatabasePostgres:
         use_cold_tier: bool = False,
         fetch_one: bool = False,
         fetch_all: bool = False,
-        commit: bool = False
+        commit: bool = False,
+        *,
+        store: Optional[str] = None,
     ) -> Optional[Any]:
         """
         Execute SQL query with optional fetch/commit
@@ -588,15 +838,23 @@ class TorinUnifiedDatabasePostgres:
             fetch_one: Fetch single row
             fetch_all: Fetch all rows
             commit: Commit transaction (asyncpg auto-commits by default)
+            store: the store the statement belongs to, where its tables cannot
+                say: rows of a per-owner table, or a statement touching no table.
+                Staging and production route everything else by its tables.
 
         Returns:
-            Query results if fetch_one/fetch_all, None otherwise
+            Query results if fetch_one/fetch_all, None otherwise. A creation
+            statement checked against a frozen release returns "CHECKED".
 
         Note:
             PostgreSQL uses $1, $2, $3 placeholders instead of MySQL's %s.
             asyncpg returns asyncpg.Record objects which behave like dicts.
         """
-        await self._ensure_pool_for_running_loop()
+        store = self._route(query, use_hot_tier, use_cold_tier, store)
+        pool = self._pool_for(store)
+        await self._ensure_pool_for_running_loop(pool)
+        if self._checks_against_release(query, store):
+            return await self._check_against_release(query, _tier_schema(use_hot_tier, use_cold_tier))
 
         # Safety/ergonomics: if a caller issues a SELECT-like query without
         # fetch_one/fetch_all, automatically fetch_all to avoid returning None.
@@ -611,7 +869,7 @@ class TorinUnifiedDatabasePostgres:
             pass
 
         try:
-            async with self.get_connection(use_hot_tier=use_hot_tier, use_cold_tier=use_cold_tier) as conn:
+            async with self._acquire(pool, _tier_schema(use_hot_tier, use_cold_tier)) as conn:
                 # Execute query with asyncpg
                 # asyncpg uses positional parameters: $1, $2, $3
                 if params:
@@ -671,7 +929,8 @@ class TorinUnifiedDatabasePostgres:
                         database="PostgreSQL",
                         context={
                             "query": query[:200] if len(query) > 200 else query,
-                            "tier": "cold" if use_cold_tier else ("hot" if use_hot_tier else "unified")
+                            "tier": "cold" if use_cold_tier else ("hot" if use_hot_tier else "unified"),
+                            "database": pool.database,
                         }
                     ))
                 except Exception as notify_error:
@@ -683,7 +942,9 @@ class TorinUnifiedDatabasePostgres:
         self,
         query: str,
         params: Optional[Tuple] = None,
-        use_hot_tier: bool = False
+        use_hot_tier: bool = False,
+        *,
+        store: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """
         Execute SQL query and return all results as list of dicts
@@ -695,12 +956,69 @@ class TorinUnifiedDatabasePostgres:
             query: SQL query to execute (use $1, $2, $3 placeholders)
             params: Query parameters (tuple)
             use_hot_tier: Use memory_hot schema
+            store: as for execute_query
 
         Returns:
             List of result rows as dictionaries
         """
-        result = await self.execute_query(query, params, use_hot_tier=use_hot_tier, fetch_all=True)
+        result = await self.execute_query(query, params, use_hot_tier=use_hot_tier, fetch_all=True,
+                                          store=store)
         return result if result is not None else []
+
+    async def ensure_schema(self, key: str, statements: List[str], *,
+                            store: Optional[str] = None) -> None:
+        """Create what a store needs, once per process, safely when many do it at once.
+
+        `CREATE TABLE IF NOT EXISTS` is not safe CONCURRENTLY: two sessions that
+        both find the table missing both create it, and the second fails on
+        Postgres's catalog (`duplicate key ... pg_type_typname_nsp_index`).
+        Measured: two processes counting one client's first requests at once. So
+        the statements run in one transaction holding an advisory lock named for
+        `key`, which makes every other creator of the same schema wait and then
+        find it there.
+
+        Outside development each statement runs in the database its tables live
+        in. A per-owner table lives in every store its rows are read from or
+        written to (`schema_stores`), so unless `store` names one, its statements
+        run in each. Against a frozen release a statement is checked, not run
+        (`_check_against_release`).
+        """
+        by_pool: Dict[str, List[str]] = {}
+        checks: List[str] = []
+        for statement in statements:
+            if not self.frozen:
+                stores = [store]
+            elif store is None and any(t in PER_OWNER_TABLES for t in tables_in(statement)):
+                # The table must exist wherever its rows can be read or written.
+                stores = []
+                for table in sorted(t for t in tables_in(statement) if t in PER_OWNER_TABLES):
+                    stores += [s for s in self.schema_stores(PER_OWNER_TABLES[table]) if s not in stores]
+                for each in stores:
+                    store_for_statement(statement, store=each)
+            else:
+                stores = [store_for_statement(statement, store=store)]
+            for each in stores:
+                if self._checks_against_release(statement, each):
+                    checks.append(statement)
+                else:
+                    by_pool.setdefault(self._pool_for(each).database, []).append(statement)
+
+        release_key = ("release", key)
+        if checks and release_key not in self._pool_for("model").schemas_ready:
+            for statement in checks:
+                await self._check_against_release(statement, 'unified')
+            self._pool_for("model").schemas_ready.add(release_key)
+        for database, group in by_pool.items():
+            pool = self._pools[database]
+            if key in pool.schemas_ready:
+                continue
+            async with self._acquire(pool, 'unified') as conn:
+                async with conn.transaction():
+                    await conn.execute("SELECT pg_advisory_xact_lock(hashtext($1))",
+                                       f"schema:{key}")
+                    for statement in group:
+                        await conn.execute(statement)
+            pool.schemas_ready.add(key)
 
     async def execute_many(
         self,
@@ -708,7 +1026,9 @@ class TorinUnifiedDatabasePostgres:
         params_list: List[Tuple],
         use_hot_tier: bool = False,
         use_cold_tier: bool = False,
-        commit: bool = True
+        commit: bool = True,
+        *,
+        store: Optional[str] = None,
     ) -> int:
         """
         Execute query with multiple parameter sets
@@ -719,14 +1039,20 @@ class TorinUnifiedDatabasePostgres:
             use_hot_tier: Use memory_hot schema
             use_cold_tier: Use memory_cold schema
             commit: Commit transaction (kept for API compatibility)
+            store: as for execute_query
 
         Returns:
             Number of rows affected
         """
-        await self._ensure_pool_for_running_loop()
+        store = self._route(query, use_hot_tier, use_cold_tier, store)
+        pool = self._pool_for(store)
+        await self._ensure_pool_for_running_loop(pool)
+        if self._checks_against_release(query, store):
+            await self._check_against_release(query, _tier_schema(use_hot_tier, use_cold_tier))
+            return 0
 
         try:
-            async with self.get_connection(use_hot_tier=use_hot_tier, use_cold_tier=use_cold_tier) as conn:
+            async with self._acquire(pool, _tier_schema(use_hot_tier, use_cold_tier)) as conn:
                 # asyncpg executemany
                 result = await conn.executemany(query, params_list)
 
@@ -757,7 +1083,8 @@ class TorinUnifiedDatabasePostgres:
                         context={
                             "query": query[:200] if len(query) > 200 else query,
                             "batch_size": len(params_list),
-                            "tier": "cold" if use_cold_tier else ("hot" if use_hot_tier else "unified")
+                            "tier": "cold" if use_cold_tier else ("hot" if use_hot_tier else "unified"),
+                            "database": pool.database,
                         }
                     ))
                 except Exception as notify_error:
@@ -765,7 +1092,8 @@ class TorinUnifiedDatabasePostgres:
 
             raise
 
-    async def table_exists(self, table_name: str, use_hot_tier: bool = False, use_cold_tier: bool = False) -> bool:
+    async def table_exists(self, table_name: str, use_hot_tier: bool = False, use_cold_tier: bool = False,
+                           *, store: Optional[str] = None) -> bool:
         """
         Check if table exists in schema
 
@@ -773,17 +1101,14 @@ class TorinUnifiedDatabasePostgres:
             table_name: Table name to check
             use_hot_tier: Check in memory_hot schema
             use_cold_tier: Check in memory_cold schema
+            store: for a per-owner table, whose database to look in
 
         Returns:
             True if table exists
         """
-        # Determine schema name
-        if use_cold_tier:
-            schema = 'memory_cold'
-        elif use_hot_tier:
-            schema = 'memory_hot'
-        else:
-            schema = 'unified'
+        schema = _tier_schema(use_hot_tier, use_cold_tier)
+        # The table asked about decides the database, as it would for a statement on it.
+        store = self._route(f"SELECT FROM {schema}.{table_name}", use_hot_tier, use_cold_tier, store)
 
         result = await self.execute_query(
             """
@@ -792,7 +1117,8 @@ class TorinUnifiedDatabasePostgres:
             WHERE table_schema = $1 AND table_name = $2
             """,
             params=(schema, table_name),
-            fetch_one=True
+            fetch_one=True,
+            store=store,
         )
 
         return result['count'] > 0 if result else False
@@ -846,7 +1172,9 @@ class TorinUnifiedDatabasePostgres:
     async def execute_schema_file(
         self,
         schema_file: Path,
-        use_hot_tier: bool = False
+        use_hot_tier: bool = False,
+        *,
+        store: Optional[str] = None,
     ) -> bool:
         """
         Execute SQL schema file
@@ -854,6 +1182,7 @@ class TorinUnifiedDatabasePostgres:
         Args:
             schema_file: Path to SQL schema file
             use_hot_tier: Execute on memory_hot schema (kept for API compatibility)
+            store: which store's database the file builds; required outside development
 
         Returns:
             True if successful
@@ -862,16 +1191,18 @@ class TorinUnifiedDatabasePostgres:
             logger.error(f"Schema file not found: {schema_file}")
             return False
 
+        pool = self._pool_for(store)
         try:
             # Read schema file
             with open(schema_file, 'r', encoding='utf-8') as f:
                 schema_sql = f.read()
 
             # Execute entire schema (PostgreSQL handles multi-statement execution)
-            async with self.pool.acquire() as conn:
+            await self._ensure_pool_for_running_loop(pool)
+            async with pool.pool.acquire() as conn:
                 await conn.execute(schema_sql)
 
-            logger.info(f"Schema file executed: {schema_file.name}")
+            logger.info(f"Schema file executed: {schema_file.name} ({pool.database})")
             return True
 
         except Exception as e:
@@ -883,88 +1214,88 @@ class TorinUnifiedDatabasePostgres:
         Get database metrics
 
         Returns:
-            Dict with database metrics
+            Dict with database metrics, the pool figures per database
         """
         pool_metrics = {}
 
-        if self.pool:
-            pool_metrics['unified'] = {
-                'size': self.pool.get_size(),
-                'min_size': self.pool.get_min_size(),
-                'max_size': self.pool.get_max_size()
-            }
+        for pool in self._pools.values():
+            if pool.pool:
+                pool_metrics[pool.database] = {
+                    'size': pool.pool.get_size(),
+                    'min_size': pool.pool.get_min_size(),
+                    'max_size': pool.pool.get_max_size()
+                }
 
         return {
             'initialized': self.initialized,
             'host': self.host,
             'port': self.port,
             'database': self.database,
+            'environment': self.environment,
+            'release': self.release,
+            'databases': self.config.databases(),
             'pool_metrics': pool_metrics,
             'query_metrics': self.metrics.copy()
         }
 
     async def health_check(self) -> Dict[str, Any]:
         """
-        Check database health
+        Check database health, in every database of this environment
 
         Returns:
-            Dict with health status
+            Dict with health status; `databases` holds each database's own
         """
         health = {
             'initialized': self.initialized,
-            'pool_available': self.pool is not None,
-            'unified_connection_ok': False,
-            'hot_connection_ok': False,
-            'cold_connection_ok': False,
-            'pgvector_available': False,
+            'pool_available': all(p.pool is not None for p in self._pools.values()),
+            'unified_connection_ok': True,
+            'hot_connection_ok': True,
+            'cold_connection_ok': True,
+            'pgvector_available': True,
+            'databases': {},
             'errors': []
         }
 
-        # Test unified schema connection
-        if self.pool:
-            try:
-                result = await self.execute_query(
-                    "SELECT 1 as test",
-                    fetch_one=True
-                )
-                health['unified_connection_ok'] = result is not None
-            except Exception as e:
-                health['errors'].append(f"Unified connection test failed: {e}")
-
-        # Test hot tier schema connection
-        if self.pool:
-            try:
-                result = await self.execute_query(
-                    "SELECT 1 as test",
-                    use_hot_tier=True,
-                    fetch_one=True
-                )
-                health['hot_connection_ok'] = result is not None
-            except Exception as e:
-                health['errors'].append(f"Hot tier connection test failed: {e}")
-
-        # Test cold tier schema connection
-        if self.pool:
-            try:
-                result = await self.execute_query(
-                    "SELECT 1 as test",
-                    use_cold_tier=True,
-                    fetch_one=True
-                )
-                health['cold_connection_ok'] = result is not None
-            except Exception as e:
-                health['errors'].append(f"Cold tier connection test failed: {e}")
-
-        # Test pgvector extension
-        if self.pool:
-            try:
-                async with self.pool.acquire() as conn:
-                    result = await conn.fetchval(
-                        "SELECT 1 FROM pg_extension WHERE extname = 'vector'"
-                    )
-                    health['pgvector_available'] = result is not None
-            except Exception as e:
-                health['errors'].append(f"pgvector test failed: {e}")
+        # One check per database: in development every store is the same one.
+        checked = {}
+        for store in STORES:
+            database = self.config.database_for(store)
+            if database in checked:
+                continue
+            pool = self._pools[database]
+            own = {
+                'stores': [s for s in STORES if self.config.database_for(s) == database],
+                'unified_connection_ok': False,
+                'hot_connection_ok': False,
+                'cold_connection_ok': False,
+                'pgvector_available': False,
+            }
+            checked[database] = own
+            if pool.pool is None:
+                health['errors'].append(f"{database}: no connection pool")
+            else:
+                for key, hot, cold in (('unified_connection_ok', False, False),
+                                       ('hot_connection_ok', True, False),
+                                       ('cold_connection_ok', False, True)):
+                    try:
+                        result = await self.execute_query(
+                            "SELECT 1 as test", use_hot_tier=hot, use_cold_tier=cold,
+                            fetch_one=True, store=store)
+                        own[key] = result is not None
+                    except Exception as e:
+                        health['errors'].append(f"{database}: {key.replace('_ok', '')} test failed: {e}")
+                try:
+                    async with self._acquire(pool, 'unified') as conn:
+                        result = await conn.fetchval(
+                            "SELECT 1 FROM pg_extension WHERE extname = 'vector'"
+                        )
+                        own['pgvector_available'] = result is not None
+                except Exception as e:
+                    health['errors'].append(f"{database}: pgvector test failed: {e}")
+            for key in ('unified_connection_ok', 'hot_connection_ok', 'cold_connection_ok',
+                        'pgvector_available'):
+                health[key] = health[key] and own[key]
+        health['databases'] = checked
 
         health['healthy'] = (
             health['unified_connection_ok'] and
@@ -978,20 +1309,24 @@ class TorinUnifiedDatabasePostgres:
 
     async def close(self) -> None:
         """
-        Close database connection pool
+        Close the connection pools
 
-        Closes the single connection pool and releases all connections.
+        Closes every pool of this environment and releases all connections.
         """
-        if self.pool:
-            await self.pool.close()
-            logger.info("PostgreSQL database pool closed")
+        for pool in self._pools.values():
+            if pool.pool:
+                await pool.pool.close()
+                logger.info("PostgreSQL database pool closed (%s)", pool.database)
+            pool.pool = None
+            pool.loop = None
 
         self.initialized = False
         logger.info("Database connections closed")
 
     async def __aenter__(self):
         """Async context manager entry"""
-        await self._ensure_pool_for_running_loop()
+        for pool in self._pools.values():
+            await self._ensure_pool_for_running_loop(pool)
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):

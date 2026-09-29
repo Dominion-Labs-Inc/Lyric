@@ -124,7 +124,26 @@ class BeliefRelationship:
 
 @dataclass
 class BayesianBelief:
-    """Bayesian belief with prior, likelihood, and posterior"""
+    """How strongly the substrate believes a MEMORY to be true.
+
+    WHAT A BELIEF IS ABOUT IS A MEMORY, NOT A SENTENCE. `claim` was the subject,
+    and mirrored into `belief_text`, so the store held its own copy of the
+    proposition with no reference to the memory of having been told it. It then
+    became a second knowledge store: measured on the live store, the taxonomy
+    was being WALKED through it --
+    `SELECT belief_text ... WHERE lower(belief_text) LIKE 'term isa %'` -- with a
+    dedicated index built to make that fast, and a reasoner answering yes/no from
+    `WHERE lower(claim) = 'x isa y'`. 581,443 rows, none of them linked to a
+    memory, 61% of them perception recognitions filed as things it had been told.
+
+    The Bayesian machinery below is right and unchanged: prior, likelihood,
+    posterior, evidence for and against, entropy, temporal decay. What changes is
+    the subject. A belief points AT a memory and says how much the substrate
+    credits it; the memory holds what was actually said or seen.
+
+    `claim` is kept as a human-readable label for logs and nothing reads it as
+    knowledge.
+    """
     belief_id: str
     claim: str
     domain: str
@@ -133,6 +152,13 @@ class BayesianBelief:
     prior_probability: float  # P(H) - belief before evidence
     likelihood: float  # P(E|H) - probability of evidence given hypothesis
     posterior_probability: float  # P(H|E) - belief after evidence
+
+    #: The memory this belief is about. Without it there is nothing to believe —
+    #: see `_persist`, which refuses to store a belief that names no memory.
+    #: Defaulted (and so declared after the required fields) so that every
+    #: existing construction site still builds; the refusal is at persistence,
+    #: where it is visible, rather than as a TypeError at import.
+    memory_id: Optional[str] = None
 
     # Evidence tracking
     evidence_for: List[Dict[str, Any]] = field(default_factory=list)
@@ -153,6 +179,16 @@ class BayesianBelief:
     last_updated: datetime = field(default_factory=datetime.now)
     update_count: int = 0
     confidence_history: List[float] = field(default_factory=list)
+
+    # ── Bookkeeping for writing to the ONE store many instances share ──────
+    #: The `update_count` of the stored row as this instance last read or wrote
+    #: it (None: never stored). A write only replaces the row if it is still at
+    #: this version; otherwise another instance has updated it.
+    stored_count: Optional[int] = field(default=None, repr=False, compare=False)
+    #: Evidence applied here since the last successful write, as
+    #: (evidence, supports, effective weight) -- re-applied on top of the stored
+    #: belief when another instance got there first, so neither update is lost.
+    unsaved_evidence: List[Any] = field(default_factory=list, repr=False, compare=False)
 
 
 @dataclass
@@ -180,6 +216,48 @@ class KnownUnknown:
     discovered_at: datetime = field(default_factory=datetime.now)
     resolution_attempts: int = 0
 
+    #: WHAT WOULD SATISFY IT, structured, so learning can be checked against it
+    #: rather than against the wording of `question`:
+    #:   {"kind": "operator", "predicate": P | None}   -- an operator gap in `domain`
+    #:   {"kind": "relation", "subject": S, "relation": R}  -- a declarative gap
+    #:   {"kind": "settled",  "about": X}              -- a doubt about X
+    target: Dict[str, Any] = field(default_factory=dict)
+
+    # How it was resolved -- kept, because a resolved unknown is a record of
+    # what became known and on what grounds, not a row to forget.
+    resolved_at: Optional[datetime] = None
+    resolution: Optional[str] = None
+    resolution_belief_id: Optional[str] = None
+
+    #: WHOSE QUESTION IT IS. None: the substrate's own. A question raised by a
+    #: person's words is that person's context, kept in their store and never in
+    #: the substrate's own research.
+    owner: Optional[str] = None
+
+
+
+@dataclass
+class ResolutionGrounds:
+    """Why a known unknown may be marked resolved -- the learning authority's
+    verdict on the three things that must all be learned: the KNOWLEDGE the
+    unknown asks for is held, the BELIEF in it is settled and grounded in what
+    was met, and the DOMAIN holds it. Each is (satisfied, what was found).
+    The belief store records a resolution only from satisfied grounds."""
+    unknown_id: str
+    knowledge: Tuple[bool, str]
+    belief: Tuple[bool, str]
+    domain: Tuple[bool, str]
+    answer: Optional[str] = None
+    belief_id: Optional[str] = None
+
+    @property
+    def satisfied(self) -> bool:
+        return all(ok for ok, _ in (self.knowledge, self.belief, self.domain))
+
+    def summary(self) -> str:
+        return "; ".join(f"{name}: {'yes' if ok else 'no'} ({why})" for name, (ok, why) in
+                         (("knowledge", self.knowledge), ("belief", self.belief),
+                          ("domain", self.domain)))
 
 @dataclass
 class ConfidenceCalibration:
@@ -212,6 +290,13 @@ class BayesianUncertaintySystem:
     4. Estimating information value
     """
     
+    #: THE ONE BOUNDARY BETWEEN AN UNSETTLED BELIEF AND A SETTLED ONE. Above it
+    #: a belief is an unstable region exploration targets (the epistemic
+    #: engine); at or below it the substrate has settled it one way or the
+    #: other, which is what "learned enough" means when a known unknown is
+    #: resolved. 0.7 bits ~ a posterior outside (0.28, 0.72).
+    UNSTABLE_ENTROPY: float = 0.7
+
     def __init__(self, db_path: Optional[str] = None):
         # All persistence goes through the unified PostgreSQL database.
         self.unified_db = TorinUnifiedDatabase()
@@ -246,9 +331,17 @@ class BayesianUncertaintySystem:
         #: awaits this set; the done-callback keeps it self-pruning.
         self._write_tasks: set = set()
 
-        # Known unknowns
+        # Known unknowns -- the OPEN ones. Restored from unified.known_unknowns at
+        # startup (`load_from_db`), so what the substrate knows it does not know
+        # survives a restart; curiosity and the epistemic engine read this set.
         self.known_unknowns: Dict[str, KnownUnknown] = {}
-        
+        #: Known-unknown writes not yet persisted, by id (latest state wins),
+        #: replayed by `flush_pending_writes` -- the guarantee beliefs have.
+        self._pending_unknown_writes: Dict[str, KnownUnknown] = {}
+        #: Attempts counted here and not yet added to the stored count, by id.
+        self._pending_unknown_attempts: Dict[str, int] = {}
+        self._known_unknowns_schema_ready = False
+
         # Confidence calibration by domain
         self.calibrations: Dict[str, ConfidenceCalibration] = {}
 
@@ -289,6 +382,15 @@ class BayesianUncertaintySystem:
     # BAYESIAN BELIEF UPDATING
     # ==================================================================================
     
+    def _refuse_if_frozen(self, what: str) -> None:
+        """Where the model is a frozen release (staging, production), beliefs do
+        not move: a belief is part of the model, and production answers only from
+        its release. Refused before anything in this process changes, so what it
+        answers from stays the release."""
+        db = self.unified_db
+        if getattr(db, "frozen", False):
+            raise db.frozen_refusal(what)
+
     def create_belief(
         self,
         claim: str,
@@ -305,6 +407,7 @@ class BayesianUncertaintySystem:
             prior: Initial belief (default 0.5 = maximum uncertainty)
             evidence: Optional initial evidence
         """
+        self._refuse_if_frozen(f"a new belief: {str(claim)[:120]}")
         belief_id = f"belief_{uuid.uuid4().hex[:12]}"
         
         belief = BayesianBelief(
@@ -369,7 +472,9 @@ class BayesianUncertaintySystem:
 
     def observe_claim(self, claim: str, domain: str = "language", *,
                       supports: bool = True, quality: float = 0.9,
-                      source: str = "taught") -> BayesianBelief:
+                      source: str = "taught",
+                      observation: Optional[str] = None,
+                      memory_id: Optional[str] = None) -> BayesianBelief:
         """Find-or-create the belief for a claim and record one observation of it.
 
         `update_belief` needs an existing belief and `create_belief` mints a new
@@ -378,17 +483,83 @@ class BayesianUncertaintySystem:
         move a belief: the first telling creates the belief (its prior reflects
         the telling), each later telling reinforces or contradicts the SAME
         belief, so a taught fact moves a posterior instead of spawning parallel
-        beliefs about the same claim."""
+        beliefs about the same claim.
+
+        `observation` IDENTIFIES WHAT VOUCHES FOR THE CLAIM, and re-presenting
+        the same witness is not new evidence.
+
+        This was idempotent about the BELIEF and not about the OBSERVATION, and
+        the difference is the whole of the following. Evidence carried only
+        `{quality, source}` — nothing said WHICH observation it was — so a
+        standing fact re-read at every boot appended an entry and moved the
+        posterior every time. Measured on the live store before this: 3,395
+        beliefs observed more than ten times, 2,588 more than a hundred, and
+        `misp_get_event provides get_system_info` at **674 observations,
+        posterior 0.999999** — the substrate near-certain of a tool's declared
+        signature because it had rebooted 674 times. One witness, counted 674
+        times.
+
+        That is epoch intuition applied where it is invalid. Showing a network
+        the same data again is training; showing a Bayesian belief the same
+        evidence again fabricates a second witness.
+
+        The identity already existed and was dropped at the seam:
+        `submit_tool_capability` stamps `evidence_id=_stable_id("toolcap", name)`
+        — identical on every boot — and the comment beside it says "the envelope
+        id already collapses them in the store". It does, for the concept layer;
+        it never reached this one.
+
+        With `observation` supplied, a repeat is recognised and the belief is
+        returned UNTOUCHED: no appended evidence, no posterior move, no
+        `update_count`. Without it the old behaviour stands — a caller that
+        cannot identify its observation may genuinely be reporting a new event,
+        and inventing an identity for it would be the opposite error.
+        """
         key = self._claim_key(claim)
         existing_id = self._claim_belief_id(key)
         if existing_id is not None and existing_id not in self.beliefs:
             existing_id = None  # stale index entry -> treat as new
         evidence = {"quality": quality, "source": source}
+        if observation:
+            evidence["observation"] = str(observation)
+        # THE MEMORY THAT VOUCHES FOR THIS, recorded as EVIDENCE — which is
+        # where this system already tracks what a belief rests on, and where it
+        # belongs. A belief is not an annotation on one memory: it outlives the
+        # episode that formed it (you believe Paris is in France and recall no
+        # lesson), it can rest on many memories at once, and one memory supports
+        # several beliefs. `evidence_for` / `evidence_against` are already
+        # many-per-belief and are already what `update_belief` weighs, decays
+        # and reverses on.
+        if memory_id:
+            evidence["memory_id"] = str(memory_id)
+
+        if existing_id is not None and observation:
+            held = self.beliefs[existing_id]
+            already = any(
+                str(entry.get("observation") or "") == str(observation)
+                for entry in (*held.evidence_for, *held.evidence_against)
+                if isinstance(entry, dict))
+            if already:
+                logger.debug(
+                    "observation %r already recorded for %r; belief left at "
+                    "%.6f (re-presenting a witness is not new evidence)",
+                    observation, claim, held.posterior_probability)
+                return held
+
         if existing_id is None:
             prior = quality if supports else (1.0 - quality)
-            return self.create_belief(claim=claim, domain=domain, prior=prior,
-                                      evidence=evidence)
-        return self.update_belief(existing_id, evidence, evidence_supports=supports)
+            belief = self.create_belief(claim=claim, domain=domain, prior=prior,
+                                        evidence=evidence)
+        else:
+            belief = self.update_belief(existing_id, evidence,
+                                        evidence_supports=supports)
+        # The most recent memory to vouch for it is mirrored onto the belief so
+        # a reader can find one without walking the evidence list. It is a
+        # POINTER, not the subject: the evidence list above is the real record,
+        # and a belief resting on five memories has five entries there.
+        if belief is not None and memory_id:
+            belief.memory_id = str(memory_id)
+        return belief
 
     def update_belief(
         self,
@@ -412,6 +583,7 @@ class BayesianUncertaintySystem:
         """
         if belief_id not in self.beliefs:
             raise ValueError(f"Belief not found: {belief_id}")
+        self._refuse_if_frozen(f"a belief moved: {str(self.beliefs[belief_id].claim)[:120]}")
 
         belief = self.beliefs[belief_id]
 
@@ -443,6 +615,8 @@ class BayesianUncertaintySystem:
         # → no move; quality=1 → ≈20x/0.05x; symmetric, bounded, no singularities.
         posterior, likelihood = posterior_from_evidence(
             prior, evidence_weight, evidence_supports)
+        belief.unsaved_evidence.append((evidence, bool(evidence_supports),
+                                        float(evidence_weight)))
 
         # STEP 3: Detect regime shift (belief reversal across 0.5 threshold)
         is_reversal = False
@@ -934,22 +1108,41 @@ class BayesianUncertaintySystem:
         question: str,
         domain: str,
         blocking_factors: Optional[List[str]] = None,
-        required_info: Optional[List[str]] = None
+        required_info: Optional[List[str]] = None,
+        *,
+        target: Dict[str, Any],
+        owner: Optional[str] = None,
     ) -> KnownUnknown:
         """
         Explicitly register something we know we don't know.
-        
+
         This is epistemic humility in action - acknowledging ignorance.
+
+        `target` is WHAT WOULD SATISFY IT (see `KnownUnknown.target`). It is
+        required: an unknown that does not say what would answer it can only be
+        checked against its wording, never against what has been learned.
+
+        `owner` is whose question it is. A person's (raised by their words) is
+        their context: it is kept in their store and does NOT join the
+        substrate's own open questions, which its research and resolution work
+        on -- researching it would send their context out.
         """
+        if not (isinstance(target, dict) and target.get("kind") in
+                ("operator", "relation", "settled")):
+            raise ValueError(f"a known unknown must say what would satisfy it; "
+                             f"target={target!r}")
+        from core.agents.autonomous.shared_types import is_substrate_actor
         unknown_id = f"unknown_{uuid.uuid4().hex[:12]}"
-        
+
         unknown = KnownUnknown(
             unknown_id=unknown_id,
             question=question,
             domain=domain,
             knowledge_state=KnowledgeState.KNOWN_UNKNOWN,
             blocking_factors=blocking_factors or [],
-            required_information=required_info or []
+            required_information=required_info or [],
+            target=dict(target),
+            owner=None if is_substrate_actor(owner) else owner,
         )
         
         # Calculate information value (how valuable is knowing this?)
@@ -958,13 +1151,18 @@ class BayesianUncertaintySystem:
         # Determine resolution strategy
         unknown.resolution_strategy = self._suggest_resolution_strategy(unknown)
         
-        self.known_unknowns[unknown_id] = unknown
-        self.stats['known_unknowns_discovered'] += 1
-        
+        if unknown.owner is None:
+            self.known_unknowns[unknown_id] = unknown
+            self.stats['known_unknowns_discovered'] += 1
+        else:
+            self.stats['people_questions_kept'] = self.stats.get('people_questions_kept', 0) + 1
+
         # Persist to database
         self._save_known_unknown(unknown)
-        
-        logger.info(f"Registered known unknown: {question} (value={unknown.information_value:.3f})")
+
+        logger.info("Registered known unknown%s: %s (value=%.3f)",
+                    "" if unknown.owner is None else " (a person's, kept in their context)",
+                    question, unknown.information_value)
         return unknown
     
     def _estimate_information_value(self, unknown: KnownUnknown) -> float:
@@ -1016,40 +1214,92 @@ class BayesianUncertaintySystem:
             if unknown.information_value >= min_value and unknown.can_be_resolved
         ]
     
-    def resolve_known_unknown(
-        self,
-        unknown_id: str,
-        resolution: Dict[str, Any]
-    ) -> bool:
-        """Mark a known unknown as resolved with the answer"""
-        if unknown_id not in self.known_unknowns:
+    @staticmethod
+    def is_grounded(belief: "BayesianBelief") -> bool:
+        """Whether a belief rests on something the substrate MET: it names a
+        memory, or some evidence for or against it does. The rule a belief must
+        meet to be stored, and to count toward resolving a known unknown."""
+        return bool(getattr(belief, "memory_id", None)) or any(
+            isinstance(e, dict) and e.get("memory_id")
+            for e in (*belief.evidence_for, *belief.evidence_against))
+
+    def note_resolution_attempt(self, unknown_id: str) -> None:
+        """Count one attempt to resolve an open unknown that was not yet
+        learned enough, durably -- as an atomic increment of the stored count,
+        so attempts made by several instances all count."""
+        import asyncio
+        unknown = self.known_unknowns.get(unknown_id)
+        if unknown is None:
+            return
+        unknown.resolution_attempts += 1
+        self._pending_unknown_attempts[unknown_id] = (
+            self._pending_unknown_attempts.get(unknown_id, 0) + 1)
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            return   # kept; the next durable flush writes it
+        task = loop.create_task(self._write_unknown_attempts(unknown_id))
+        self._write_tasks.add(task)
+        task.add_done_callback(self._write_tasks.discard)
+
+    async def _write_unknown_attempts(self, unknown_id: str) -> bool:
+        """Add this instance's unwritten attempts to the stored count."""
+        n = self._pending_unknown_attempts.pop(unknown_id, 0)
+        if not n:
+            return True
+        try:
+            if not self.unified_db.initialized:
+                raise RuntimeError("database not initialized")
+            from core.agents.memory_agent import memory_agent
+            await memory_agent().add_unknown_attempts(unknown_id=unknown_id, n=n)
+            return True
+        except Exception as error:
+            from core.capability import raise_if_structural
+            raise_if_structural(error, "bayesian_uncertainty._write_unknown_attempts")
+            self._pending_unknown_attempts[unknown_id] = (
+                self._pending_unknown_attempts.get(unknown_id, 0) + n)
+            logger.warning("attempts on %s not persisted (kept): %s", unknown_id, error)
             return False
-        
-        unknown = self.known_unknowns[unknown_id]
+
+    def set_target(self, unknown_id: str, target: Dict[str, Any]) -> None:
+        """Record what would satisfy an open unknown, durably -- for unknowns
+        registered before targets existed."""
+        unknown = self.known_unknowns.get(unknown_id)
+        if unknown is not None:
+            unknown.target = dict(target)
+            self._save_known_unknown(unknown)
+
+    def resolve_known_unknown(self, unknown_id: str,
+                              grounds: "ResolutionGrounds") -> bool:
+        """Record that an open known unknown is resolved -- ONLY on satisfied
+        grounds from the learning authority (`UnifiedLearningSystem.
+        resolve_known_unknown`), which checks that the knowledge, the belief
+        and the domain are all learned enough. The resolution is WRITTEN: it
+        used to be dropped from memory only, so the row stayed open forever and
+        nothing reloaded it; and it minted a fresh belief at 0.7 grounded in
+        nothing. The answer is now the belief the grounds found, by id.
+
+        Returns False when the unknown is not open; raises when the grounds do
+        not satisfy it or belong to another unknown."""
+        if not isinstance(grounds, ResolutionGrounds) or grounds.unknown_id != unknown_id:
+            raise ValueError("a known unknown is resolved only on its own grounds")
+        if not grounds.satisfied:
+            raise ValueError(f"not learned enough to resolve {unknown_id}: "
+                             f"{grounds.summary()}")
+        unknown = self.known_unknowns.get(unknown_id)
+        if unknown is None:
+            return False
         unknown.knowledge_state = KnowledgeState.KNOWN_KNOWN
-        
-        # Create belief with the new knowledge (without evidence - just create)
-        belief_id = f"belief_{uuid.uuid4().hex[:12]}"
-        belief = BayesianBelief(
-            belief_id=belief_id,
-            claim=resolution.get('answer', 'Resolved'),
-            domain=unknown.domain,
-            prior_probability=0.7,
-            likelihood=1.0,
-            posterior_probability=0.7,
-            entropy=self._calculate_entropy(0.7)
-        )
-        self._register_belief(belief)
-        self.stats['beliefs_tracked'] += 1
-        self._save_belief(belief)
-        
-        # Remove from unknowns (now it's known!)
+        unknown.resolved_at = datetime.now()
+        unknown.resolution = grounds.answer or grounds.summary()
+        unknown.resolution_belief_id = grounds.belief_id
+        self._save_known_unknown(unknown)
         del self.known_unknowns[unknown_id]
         self.stats['known_unknowns_resolved'] += 1
-        
-        logger.info(f"Resolved unknown: {unknown.question}")
+        logger.info("Resolved unknown %s (%s): %s", unknown_id, unknown.question,
+                    grounds.summary())
         return True
-    
+
     # ==================================================================================
     # CONFIDENCE CALIBRATION
     # ==================================================================================
@@ -1064,6 +1314,7 @@ class BayesianUncertaintySystem:
         Record a prediction with confidence and actual outcome.
         Used to calibrate future confidence estimates.
         """
+        self._refuse_if_frozen(f"confidence calibration moved: {domain}")
         # Get or create calibration for domain
         if domain not in self.calibrations:
             self.calibrations[domain] = ConfidenceCalibration(
@@ -1216,6 +1467,39 @@ class BayesianUncertaintySystem:
     # PERSISTENCE — PostgreSQL via unified_db
     # ==================================================================================
 
+    async def _merge_stored_belief(self, belief: BayesianBelief) -> bool:
+        """Another instance moved this belief since this one last stored it.
+        Take the STORED belief and re-apply this instance's own new evidence on
+        top of it, with the kernel `update_belief` uses. Returns whether there is
+        anything of this instance's to write (False: adopt the stored belief)."""
+        import json as _json
+        row = await self.unified_db.execute_query(
+            "SELECT posterior_probability, update_count, evidence_for, evidence_against, "
+            "last_updated FROM unified.beliefs WHERE belief_id = $1",
+            (belief.belief_id,), fetch_one=True)
+        if row is None:
+            belief.stored_count = None     # gone from the store: write it anew
+            return True
+
+        def _list(value):
+            return _json.loads(value) if isinstance(value, str) else list(value or [])
+
+        posterior = float(row["posterior_probability"])
+        evidence_for = _list(row["evidence_for"])
+        evidence_against = _list(row["evidence_against"])
+        for evidence, supports, weight in belief.unsaved_evidence:
+            posterior, _ = posterior_from_evidence(posterior, weight, supports)
+            (evidence_for if supports else evidence_against).append(evidence)
+        belief.posterior_probability = clamp_posterior(posterior)
+        belief.entropy = self._calculate_entropy(belief.posterior_probability)
+        belief.evidence_for, belief.evidence_against = evidence_for, evidence_against
+        belief.stored_count = int(row["update_count"])
+        belief.update_count = belief.stored_count + len(belief.unsaved_evidence)
+        if not belief.unsaved_evidence:
+            belief.last_updated = row["last_updated"] or belief.last_updated
+            return False
+        return True
+
     async def _write_belief_row(self, belief: BayesianBelief, *, commit: bool = True) -> bool:
         """Write one belief to unified.beliefs. Returns whether it was written.
 
@@ -1237,52 +1521,63 @@ class BayesianUncertaintySystem:
                     f"for replay; {len(self._pending_writes)} belief(s) pending."
                 )
             return False
+        # A BELIEF NAMES THE MEMORY IT IS ABOUT, OR IT IS NOT A BELIEF.
+        #
+        # Refused here rather than stored with a null subject, because a row
+        # whose only content is a proposition IS the second knowledge store this
+        # change exists to remove. Measured before it: 581,443 rows, none linked
+        # to a memory; the taxonomy was being walked through `belief_text`, and
+        # on every boot ~1,800 tool signatures ("move_file requires
+        # source_path") were written as things the substrate believed.
+        #
+        # Loud, not silent: a caller that has something to say about a memory
+        # should say which memory, and one that has no memory in hand is
+        # recording knowledge in the wrong place — which is a defect to see, not
+        # to absorb.
+        grounded = self.is_grounded(belief)
+        if not grounded:
+            self._unsubjected_beliefs = getattr(self, "_unsubjected_beliefs", 0) + 1
+            if self._unsubjected_beliefs == 1 or self._unsubjected_beliefs % 100 == 0:
+                logger.warning(
+                    "belief %r rests on no remembered evidence and was NOT "
+                    "stored (%d so far): a belief is a stance on something the "
+                    "substrate has met, not a place to keep a claim",
+                    str(getattr(belief, "claim", ""))[:60], self._unsubjected_beliefs)
+            return False
+
         try:
-            # unified.beliefs carries two generations of schema: the current
-            # epistemic columns (claim / prior_ / posterior_probability) and the
-            # legacy pair (belief_text / confidence), which are still NOT NULL
-            # with no default. They hold the same facts, so they are written
-            # from the same values rather than relaxing the constraint.
-            await self.unified_db.execute_query(
-                """
-                INSERT INTO unified.beliefs
-                    (belief_id, claim, belief_text, confidence, domain,
-                     prior_probability, posterior_probability,
-                     uncertainty_type, entropy, evidence_for, evidence_against,
-                     update_count, last_updated)
-                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
-                ON CONFLICT (belief_id) DO UPDATE SET
-                    claim               = EXCLUDED.claim,
-                    belief_text         = EXCLUDED.belief_text,
-                    confidence          = EXCLUDED.confidence,
-                    domain              = EXCLUDED.domain,
-                    prior_probability   = EXCLUDED.prior_probability,
-                    posterior_probability = EXCLUDED.posterior_probability,
-                    uncertainty_type    = EXCLUDED.uncertainty_type,
-                    entropy             = EXCLUDED.entropy,
-                    evidence_for        = EXCLUDED.evidence_for,
-                    evidence_against    = EXCLUDED.evidence_against,
-                    update_count        = EXCLUDED.update_count,
-                    last_updated        = EXCLUDED.last_updated
-                """,
-                (
-                    belief.belief_id,
-                    belief.claim,
-                    belief.claim,                    # belief_text (legacy mirror)
-                    belief.posterior_probability,    # confidence  (legacy mirror)
-                    belief.domain,
-                    belief.prior_probability,
-                    belief.posterior_probability,
-                    belief.uncertainty_type.value,
-                    belief.entropy,
-                    _json.dumps(belief.evidence_for),
-                    _json.dumps(belief.evidence_against),
-                    belief.update_count,
-                    belief.last_updated,
-                ),
-                commit=commit,
-            )
-            return True
+            # `claim` and `belief_text` are a human-readable LABEL for logs and
+            # nothing reads them as knowledge; the subject is `memory_id`.
+            #
+            # ONE STORE, MANY INSTANCES. The row is replaced only if it is still
+            # at the version this instance last saw; otherwise another instance
+            # has moved the belief since, and a plain upsert (what this was)
+            # would overwrite its update -- last writer wins. On a conflict this
+            # instance's own new evidence is re-applied on top of the stored
+            # belief with the same kernel, and that is written instead.
+            from core.agents.memory_agent import memory_agent
+            for _ in range(5):
+                row = await memory_agent().hold_belief(
+                    belief_id=belief.belief_id, memory_id=belief.memory_id,
+                    claim=belief.claim, domain=belief.domain,
+                    prior_probability=belief.prior_probability,
+                    posterior_probability=belief.posterior_probability,
+                    uncertainty_type=belief.uncertainty_type.value,
+                    entropy=belief.entropy,
+                    evidence_for=_json.dumps(belief.evidence_for),
+                    evidence_against=_json.dumps(belief.evidence_against),
+                    update_count=belief.update_count, last_updated=belief.last_updated,
+                    expected_update_count=(-1 if belief.stored_count is None
+                                           else belief.stored_count))
+                if row is not None:
+                    belief.stored_count = int(row["update_count"])
+                    belief.unsaved_evidence.clear()
+                    return True
+                if not await self._merge_stored_belief(belief):
+                    return True      # nothing of ours to add: the stored belief stands
+            logger.warning("belief %s: still conflicting after 5 merges; kept for the "
+                           "next write", belief.belief_id)
+            return False
         except Exception as e:
             # Was logger.debug -- a total persistence failure of the belief
             # graph is not a debug-level event.
@@ -1335,12 +1630,21 @@ class BayesianUncertaintySystem:
         (startup load, and every durable flush). Writes the latest buffered state
         per belief and keeps any that still fail, so a persistent failure never
         drops silently. Returns the number persisted."""
-        if not self._pending_writes or not self.unified_db.initialized:
+        if not self.unified_db.initialized:
             return 0
         written = 0
         for belief in list(self._pending_writes.values()):
             if await self._write_belief_row(belief, commit=True):
                 self._pending_writes.pop(belief.belief_id, None)
+                written += 1
+        # Known unknowns are replayed by the same guarantee -- their state, then
+        # the attempts counted since.
+        for unknown_id in list(self._pending_unknown_attempts):
+            await self._write_unknown_attempts(unknown_id)
+        for unknown in list(self._pending_unknown_writes.values()):
+            if await self._write_known_unknown(unknown):
+                if self._pending_unknown_writes.get(unknown.unknown_id) is unknown:
+                    self._pending_unknown_writes.pop(unknown.unknown_id, None)
                 written += 1
         if written:
             logger.info(
@@ -1371,9 +1675,8 @@ class BayesianUncertaintySystem:
             self.persistence_drops += 1
             return False
         try:
-            await self.unified_db.execute_query(
-                "DELETE FROM unified.beliefs WHERE belief_id = $1",
-                (belief_id,), commit=True)
+            from core.agents.memory_agent import memory_agent
+            await memory_agent().drop_belief(belief_id)
             return True
         except Exception as e:
             logger.warning("_delete_belief_row failed for %s: %s", belief_id, e)
@@ -1403,13 +1706,9 @@ class BayesianUncertaintySystem:
         try:
             await self._ensure_volatility_table()
             written = 0
+            from core.agents.memory_agent import memory_agent
             for domain, lam in list(self.domain_volatility.items()):
-                await self.unified_db.execute_query(
-                    "INSERT INTO unified.domain_volatility (domain, lambda, updated_at)"
-                    " VALUES ($1, $2, NOW())"
-                    " ON CONFLICT (domain) DO UPDATE SET lambda = EXCLUDED.lambda,"
-                    "   updated_at = NOW()",
-                    (domain, float(lam)), commit=True)
+                await memory_agent().hold_domain_volatility(domain=domain, lam=float(lam))
                 written += 1
             return written
         except Exception as e:
@@ -1469,58 +1768,156 @@ class BayesianUncertaintySystem:
             await self.flush_belief(belief_id)
         return belief
 
+    #: The table's shape, owned here. It had ten columns, none for what blocks
+    #: an unknown, what would resolve it, or how it WAS resolved -- so even a
+    #: reader could not have rebuilt one, and nothing read it (write-only state).
+    _KNOWN_UNKNOWNS_DDL = (
+        """CREATE TABLE IF NOT EXISTS unified.known_unknowns (
+               unknown_id          VARCHAR PRIMARY KEY,
+               question            TEXT NOT NULL,
+               domain              VARCHAR,
+               knowledge_state     VARCHAR NOT NULL,
+               information_value   DOUBLE PRECISION,
+               urgency             DOUBLE PRECISION,
+               can_be_resolved     BOOLEAN,
+               resolution_strategy TEXT,
+               discovered_at       TIMESTAMP,
+               resolution_attempts INTEGER)""",
+        "ALTER TABLE unified.known_unknowns ADD COLUMN IF NOT EXISTS "
+        "blocking_factors JSONB NOT NULL DEFAULT '[]'::jsonb",
+        "ALTER TABLE unified.known_unknowns ADD COLUMN IF NOT EXISTS "
+        "required_information JSONB NOT NULL DEFAULT '[]'::jsonb",
+        "ALTER TABLE unified.known_unknowns ADD COLUMN IF NOT EXISTS "
+        "resolution_cost DOUBLE PRECISION NOT NULL DEFAULT 0",
+        "ALTER TABLE unified.known_unknowns ADD COLUMN IF NOT EXISTS resolved_at TIMESTAMP",
+        "ALTER TABLE unified.known_unknowns ADD COLUMN IF NOT EXISTS resolution TEXT",
+        "ALTER TABLE unified.known_unknowns ADD COLUMN IF NOT EXISTS resolution_belief_id TEXT",
+        "ALTER TABLE unified.known_unknowns ADD COLUMN IF NOT EXISTS "
+        "target JSONB NOT NULL DEFAULT '{}'::jsonb",
+        # WHOSE QUESTION IT IS: NULL is the substrate's own; a person's id is
+        # theirs, and the row is kept in their context.
+        "ALTER TABLE unified.known_unknowns ADD COLUMN IF NOT EXISTS owner TEXT",
+    )
+
+    #: WHERE THE SUBSTRATE'S OWN QUESTIONS ARE READ FROM: the model. A new one is
+    #: written through the manager's `write_store` (the learning store, where the
+    #: model is a frozen release); a person's goes to their context.
+    KNOWN_UNKNOWNS_STORE = "model"
+
+    async def _ensure_known_unknowns_schema(self) -> None:
+        if self._known_unknowns_schema_ready:
+            return
+        for store in self.unified_db.schema_stores():
+            for statement in self._KNOWN_UNKNOWNS_DDL:
+                await self.unified_db.execute_query(statement, commit=True, store=store)
+        self._known_unknowns_schema_ready = True
+
+    async def _write_known_unknown(self, unknown: KnownUnknown) -> bool:
+        """Upsert one known unknown's WHOLE state, committed. True when written;
+        False (and it stays buffered) when persistence is not up or the write
+        failed -- never a silent drop."""
+        import json as _json
+        if not self.unified_db.initialized:
+            self.persistence_drops += 1
+            return False
+        try:
+            await self._ensure_known_unknowns_schema()
+            from core.agents.memory_agent import memory_agent
+            await memory_agent().hold_known_unknown(
+                unknown_id=unknown.unknown_id, question=unknown.question,
+                domain=unknown.domain, knowledge_state=unknown.knowledge_state.value,
+                information_value=unknown.information_value, urgency=unknown.urgency,
+                can_be_resolved=unknown.can_be_resolved,
+                resolution_strategy=unknown.resolution_strategy,
+                discovered_at=unknown.discovered_at,
+                resolution_attempts=unknown.resolution_attempts,
+                blocking_factors=_json.dumps(list(unknown.blocking_factors)),
+                required_information=_json.dumps(list(unknown.required_information)),
+                resolution_cost=unknown.resolution_cost, resolved_at=unknown.resolved_at,
+                resolution=unknown.resolution,
+                resolution_belief_id=unknown.resolution_belief_id,
+                target=_json.dumps(dict(unknown.target or {})), owner=unknown.owner)
+            return True
+        except Exception as error:
+            from core.capability import raise_if_structural
+            raise_if_structural(error, "bayesian_uncertainty._write_known_unknown")
+            logger.warning("known unknown %s not persisted (kept for replay): %s",
+                           unknown.unknown_id, error)
+            return False
+
     def _save_known_unknown(self, unknown: KnownUnknown):
-        """Persist known-unknown to PostgreSQL. Fire-and-forget."""
+        """Persist a known unknown from a sync caller: buffered, then written by a
+        TRACKED task, so `drain_writes` awaits it at shutdown and
+        `flush_pending_writes` replays it if the database was not up. It was an
+        untracked `create_task` that could lose the write on exit, and a
+        resolution was never written at all."""
         import asyncio
-        async def _write():
-            try:
-                if not self.unified_db.initialized:
-                    # A silent return made a dropped write indistinguishable from
-                    # a successful one: epistemic state was computed, assumed
-                    # persisted, and lost. Count and surface it so missing
-                    # persistence is observable rather than inferred.
-                    self.persistence_drops += 1
-                    if self.persistence_drops == 1 or self.persistence_drops % 50 == 0:
-                        logger.warning(
-                            f"Epistemic persistence unavailable (database not "
-                            f"initialized): {self.persistence_drops} write(s) dropped. "
-                            f"This state will not survive a restart."
-                        )
-                    return
-                await self.unified_db.execute_query(
-                    """
-                    INSERT INTO unified.known_unknowns
-                        (unknown_id, question, domain, knowledge_state, information_value,
-                         urgency, can_be_resolved, resolution_strategy, discovered_at,
-                         resolution_attempts)
-                    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
-                    ON CONFLICT (unknown_id) DO UPDATE SET
-                        knowledge_state      = EXCLUDED.knowledge_state,
-                        information_value    = EXCLUDED.information_value,
-                        urgency              = EXCLUDED.urgency,
-                        resolution_strategy  = EXCLUDED.resolution_strategy,
-                        resolution_attempts  = EXCLUDED.resolution_attempts
-                    """,
-                    (
-                        unknown.unknown_id,
-                        unknown.question,
-                        unknown.domain,
-                        unknown.knowledge_state.value,
-                        unknown.information_value,
-                        unknown.urgency,
-                        unknown.can_be_resolved,
-                        unknown.resolution_strategy,
-                        unknown.discovered_at,
-                        unknown.resolution_attempts,
-                    ),
-                )
-            except Exception as e:
-                logger.debug(f"_save_known_unknown non-fatal: {e}")
+        self._pending_unknown_writes[unknown.unknown_id] = unknown
         try:
             loop = asyncio.get_running_loop()
-            loop.create_task(_write())
         except RuntimeError:
-            pass
+            return   # buffered; the next durable flush / startup load writes it
+        task = loop.create_task(self._write_known_unknown(unknown))
+        self._write_tasks.add(task)
+        task.add_done_callback(lambda t: (
+            self._write_tasks.discard(t),
+            self._pending_unknown_writes.pop(unknown.unknown_id, None)
+            if not t.cancelled() and not t.exception() and t.result()
+            and self._pending_unknown_writes.get(unknown.unknown_id) is unknown else None))
+
+    async def refresh_known_unknowns(self) -> Dict[str, int]:
+        """Bring this instance's open set in line with the ONE store: add the
+        open unknowns other instances registered, and drop the ones resolved
+        elsewhere (never one this instance has not written yet)."""
+        before = set(self.known_unknowns)
+        stored_open = await self._load_known_unknowns()
+        dropped = [uid for uid in before
+                   if uid not in stored_open and uid not in self._pending_unknown_writes]
+        for uid in dropped:
+            self.known_unknowns.pop(uid, None)
+        return {"open": len(self.known_unknowns),
+                "added": len(set(self.known_unknowns) - before), "dropped": len(dropped)}
+
+    async def _load_known_unknowns(self) -> set:
+        """Restore every OPEN known unknown (not yet resolved) into memory.
+        Returns the ids the store holds open."""
+        import json as _json
+        await self._ensure_known_unknowns_schema()
+        # The substrate's own open questions only: a person's are their context,
+        # never worked on by its research.
+        rows = await self.unified_db.execute_query(
+            "SELECT * FROM unified.known_unknowns "
+            "WHERE resolved_at IS NULL AND knowledge_state <> $1 AND owner IS NULL",
+            (KnowledgeState.KNOWN_KNOWN.value,), fetch_all=True,
+            store=self.KNOWN_UNKNOWNS_STORE) or []
+        loaded = 0
+        for row in rows:
+            def _list(value):
+                if isinstance(value, str):
+                    value = _json.loads(value)
+                return list(value or [])
+            unknown = KnownUnknown(
+                unknown_id=row["unknown_id"],
+                question=row["question"],
+                domain=row["domain"] or "general",
+                knowledge_state=KnowledgeState(row["knowledge_state"]),
+                blocking_factors=_list(row["blocking_factors"]),
+                required_information=_list(row["required_information"]),
+                information_value=float(row["information_value"] or 0.0),
+                urgency=float(row["urgency"] or 0.0),
+                can_be_resolved=bool(row["can_be_resolved"]),
+                resolution_cost=float(row["resolution_cost"] or 0.0),
+                resolution_strategy=row["resolution_strategy"],
+                discovered_at=row["discovered_at"] or datetime.now(),
+                resolution_attempts=int(row["resolution_attempts"] or 0),
+                target=(_json.loads(row["target"]) if isinstance(row["target"], str)
+                        else dict(row["target"] or {})),
+            )
+            if unknown.unknown_id not in self.known_unknowns:
+                self.known_unknowns[unknown.unknown_id] = unknown
+                loaded += 1
+        logger.info("Bayesian uncertainty: restored %d open known unknown(s)", loaded)
+        return {row["unknown_id"] for row in rows}
 
     def _save_calibration_data(self, domain: str, predicted_confidence: float, actual_outcome: float):
         """Persist calibration data point to PostgreSQL. Fire-and-forget."""
@@ -1540,20 +1937,11 @@ class BayesianUncertaintySystem:
                             f"This state will not survive a restart."
                         )
                     return
-                await self.unified_db.execute_query(
-                    """
-                    INSERT INTO unified.calibration_data
-                        (domain, prediction, confidence, outcome, timestamp)
-                    VALUES ($1,$2,$3,$4,$5)
-                    """,
-                    (
-                        domain,
-                        f"{domain} confidence calibration",
-                        predicted_confidence,
-                        actual_outcome,
-                        datetime.now(),
-                    ),
-                )
+                from core.agents.memory_agent import memory_agent
+                await memory_agent().hold_calibration(
+                    domain=domain, prediction=f"{domain} confidence calibration",
+                    confidence=predicted_confidence, outcome=actual_outcome,
+                    timestamp=datetime.now())
             except Exception as e:
                 logger.debug(f"_save_calibration_data non-fatal: {e}")
         try:
@@ -1575,9 +1963,7 @@ class BayesianUncertaintySystem:
                 "uncertainty_type, entropy, evidence_for, evidence_against, update_count, last_updated "
                 "FROM unified.beliefs",
                 fetch_all=True,
-            )
-            if not rows:
-                return
+            ) or []
             loaded = 0
             for row in rows:
                 try:
@@ -1595,12 +1981,18 @@ class BayesianUncertaintySystem:
                         update_count=int(row["update_count"] or 0),
                         last_updated=row["last_updated"] if row["last_updated"] else datetime.now(),
                     )
+                    b.stored_count = b.update_count
                     self._register_belief(b)
                     self.stats["beliefs_tracked"] += 1
                     loaded += 1
                 except Exception as row_err:
                     logger.debug(f"load_from_db: skipping malformed row: {row_err}")
             logger.info(f"Bayesian uncertainty: loaded {loaded} belief(s) from PostgreSQL")
+            # What it knows it does not know survives a restart too. Nothing read
+            # this table before: every restart began with no known unknowns, and
+            # curiosity and the epistemic engine, which read this set, lost every
+            # open question the substrate had found.
+            await self._load_known_unknowns()
             # Restore adaptive decay rates too, so reflection's volatility work
             # survives a restart rather than resetting to the 0.01 default.
             await self._load_domain_volatility()

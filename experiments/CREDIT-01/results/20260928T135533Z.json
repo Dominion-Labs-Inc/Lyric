@@ -1,0 +1,258 @@
+{
+  "experiment": "CREDIT-01",
+  "claim": "The substrate's operating credit is read from what it MEANT against what the world DID \u2014 and where nothing was operated, nothing is credited.",
+  "hypothesis": "If meant-vs-happened supplies operating correctness, then a reached aim credits a win from the reconciled intent, an unrealized aim credits a loss even when every step confirmed, and a goal that never planned moves the posterior not at all.",
+  "started_at": "2026-09-28T13:55:33.426667+00:00",
+  "duration_seconds": 9.689,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/TorinAI/venv_torin/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/TorinAI",
+    "shadow_mode": "1",
+    "git_commit": "20deb447498593391eca0286916b8f986c560a26",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "torinai_dev",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "torinai_dev",
+        "model": "torinai_dev",
+        "user_context": "torinai_dev",
+        "learning": "torinai_dev"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "dotenv:.env.postgres",
+        "database": "environment",
+        "user": "dotenv:.env.postgres",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 1378,
+    "database_verified": "torinai_dev",
+    "database_verified_reason": "asked the server"
+  },
+  "summary": {
+    "checks": 26,
+    "passed": 26,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [
+    {
+      "name": "reached_runs_accepted_as_complete",
+      "value": 5,
+      "unit": "count",
+      "note": "the substrate's own belief that the goal holds; 0/5 before the driven-plan path had a world grounding"
+    },
+    {
+      "name": "operating_attempts_credited",
+      "value": 6,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "operating_wins_credited",
+      "value": 5,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "earned_reliability",
+      "value": 0.4869,
+      "unit": "fraction",
+      "note": ""
+    },
+    {
+      "name": "earned_if_never_operated_counted",
+      "value": 0.3542,
+      "unit": "fraction",
+      "note": "the same record with the two unplannable goals credited as losses, which is what happened before this change"
+    },
+    {
+      "name": "know_do_bar",
+      "value": 0.8039,
+      "unit": "fraction",
+      "note": ""
+    },
+    {
+      "name": "denied_outcome_classes",
+      "value": [
+        "insufficient_evidence",
+        "indeterminate",
+        "infrastructure_failure",
+        "external_failure",
+        "invalid_task"
+      ],
+      "unit": "",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "outcomes that establish nothing about operating are DENIED credit",
+      "passed": true,
+      "detail": "insufficient_evidence=False, indeterminate=False, infrastructure_failure=False, external_failure=False, invalid_task=False",
+      "at": "2026-09-28T13:55:39.749435+00:00"
+    },
+    {
+      "label": "a denied outcome does not even enter the DENOMINATOR",
+      "passed": true,
+      "detail": "attempts=0 wins=0 after 5 denied outcome(s) \u2014 counting them as attempts would dilute earned reliability",
+      "at": "2026-09-28T13:55:39.749449+00:00"
+    },
+    {
+      "label": "an UNCLASSIFIED outcome is denied (a caller that forgets loses the data point loudly rather than teaching a false one)",
+      "passed": true,
+      "detail": "returned False, attempts=0",
+      "at": "2026-09-28T13:55:39.750031+00:00"
+    },
+    {
+      "label": "eligible outcomes DO move the posterior (the invariant is not a wall)",
+      "passed": true,
+      "detail": "attempts=2 wins=1",
+      "at": "2026-09-28T13:55:39.960418+00:00"
+    },
+    {
+      "label": "the MOVE_FILE operator is held, or taught",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-28T13:55:39.964968+00:00"
+    },
+    {
+      "label": "the planner declined honestly and the deficit was diagnosed",
+      "passed": true,
+      "detail": "unreachable/concept_gap, unreachable/concept_gap",
+      "at": "2026-09-28T13:55:41.876471+00:00"
+    },
+    {
+      "label": "NO operating outcome recorded for work that was never operated",
+      "passed": true,
+      "detail": "attempts 1\u21921, wins 1\u21921 \u2014 a knowledge deficit is not an operating failure",
+      "at": "2026-09-28T13:55:41.876485+00:00"
+    },
+    {
+      "label": "the verdict names WHY it is not evidence about operating",
+      "passed": true,
+      "detail": "read_from=no operation was performed class=insufficient_evidence",
+      "at": "2026-09-28T13:55:41.876498+00:00"
+    },
+    {
+      "label": "every drive really moved the file (the filesystem is the oracle)",
+      "passed": true,
+      "detail": "file_in_archive=True realized=5/5",
+      "at": "2026-09-28T13:55:42.926893+00:00"
+    },
+    {
+      "label": "each realized aim credited exactly one operating WIN",
+      "passed": true,
+      "detail": "attempts \u03945, wins \u03945",
+      "at": "2026-09-28T13:55:42.926905+00:00"
+    },
+    {
+      "label": "the win is read from the BELIEF, grounded in the reconciled intent",
+      "passed": true,
+      "detail": "read_from=completion belief, grounded in the reconciled intent",
+      "at": "2026-09-28T13:55:42.926916+00:00"
+    },
+    {
+      "label": "the substrate BELIEVES it did what it meant \u2014 the completion belief reaches done for a multi-step plan (measured 0/5 before the plan path had a world grounding)",
+      "passed": true,
+      "detail": "5/5 accepted",
+      "at": "2026-09-28T13:55:42.926923+00:00"
+    },
+    {
+      "label": "the belief was moved by a FRESH re-observation of what the plan MEANT (its goal conditions), independent of the act's own report",
+      "passed": true,
+      "detail": "world:KIND(F_2fprivate_2fvar_2ffolders_2f0y_2f66ltqc9s0xs5h7yhj_5fvv5ct80000gn_2fT_2fcredit01_2d3_5fmomysg_2farchive_2freport_2etxt, Ffile)\u2192True, world:KIND(F_2fprivate_2fvar_2ffolders_2f0y_2f66ltqc9s0xs5h7yhj_5fvv5ct80000gn_2fT_2fcredit01_2d3_5fmomysg_2finbox_2freport_2etxt, Ffile)\u2192True",
+      "at": "2026-09-28T13:55:42.926933+00:00"
+    },
+    {
+      "label": "every step's own runtime evidence CONFIRMED",
+      "passed": true,
+      "detail": "runtime_confirmation",
+      "at": "2026-09-28T13:55:43.069647+00:00"
+    },
+    {
+      "label": "the AIM was still not realized, and only meant-vs-happened says so",
+      "passed": true,
+      "detail": "matched_aim=False met=[]",
+      "at": "2026-09-28T13:55:43.069660+00:00"
+    },
+    {
+      "label": "the miss credited an operating LOSS (attempt counted, no win)",
+      "passed": true,
+      "detail": "attempts \u03941, wins \u03940",
+      "at": "2026-09-28T13:55:43.069664+00:00"
+    },
+    {
+      "label": "the loss is read from the BELIEF, grounded in the reconciled intent",
+      "passed": true,
+      "detail": "read_from=completion belief, grounded in the reconciled intent success=False",
+      "at": "2026-09-28T13:55:43.069675+00:00"
+    },
+    {
+      "label": "the substrate does NOT believe it did what it meant \u2014 the fresh world grounding is evidence AGAINST the goal",
+      "passed": true,
+      "detail": "world:KIND(F_2fprivate_2fvar_2ffolders_2f0y_2f66ltqc9s0xs5h7yhj_5fvv5ct80000gn_2fT_2fcredit01_2d3_5fmomysg_2farchive_2freport_2etxt, Ffile)\u2192False, world:KIND(F_2fprivate_2fvar_2ffolders_2f0y_2f66ltqc9s0xs5h7yhj_5fvv5ct80000gn_2fT_2fcredit01_2d3_5fmomysg_2finbox_2freport_2etxt, Ffile)\u2192False",
+      "at": "2026-09-28T13:55:43.069683+00:00"
+    },
+    {
+      "label": "no operator was taught anything by this miss (statuses unchanged)",
+      "passed": true,
+      "detail": "2 rule(s) before, 2 after \u2014 identical",
+      "at": "2026-09-28T13:55:43.075322+00:00"
+    },
+    {
+      "label": "a HIGH completion posterior does NOT turn an unrealized aim into a win \u2014 the conflict is denied, not resolved in favour of either",
+      "passed": true,
+      "detail": "read_from=belief and the reconciled intent disagree class=indeterminate",
+      "at": "2026-09-28T13:55:43.075402+00:00"
+    },
+    {
+      "label": "and the mirror: a LOW posterior does not turn a realized aim into a loss",
+      "passed": true,
+      "detail": "read_from=belief and the reconciled intent disagree",
+      "at": "2026-09-28T13:55:43.075432+00:00"
+    },
+    {
+      "label": "the guard is not swallowing the real runs \u2014 belief and world AGREED on every drive this experiment made",
+      "passed": true,
+      "detail": "5/5 realized aims believed done, miss believed done: False",
+      "at": "2026-09-28T13:55:43.075440+00:00"
+    },
+    {
+      "label": "earned reliability is computed from the credited outcomes only",
+      "passed": true,
+      "detail": "attempts=7 wins=6 earned=0.4869 win_rate=0.8571",
+      "at": "2026-09-28T13:55:43.077753+00:00"
+    },
+    {
+      "label": "crediting the never-operated goals would have LOWERED earned reliability on work the substrate never did",
+      "passed": true,
+      "detail": "earned=0.4869 vs 0.3542 had the two unplannable goals counted as operating failures",
+      "at": "2026-09-28T13:55:43.077766+00:00"
+    },
+    {
+      "label": "the KNOW\u2192DO bar moved with it, by the bar's own rule",
+      "passed": true,
+      "detail": "bar=0.8039 stakes=0.8 earned=0.4869",
+      "at": "2026-09-28T13:55:43.092904+00:00"
+    },
+    {
+      "label": "the planner's DECLARED input carries the corrected number, from the domain authority",
+      "passed": true,
+      "detail": "source=domain authority earned=0.4869",
+      "at": "2026-09-28T13:55:43.101068+00:00"
+    }
+  ],
+  "notes": []
+}

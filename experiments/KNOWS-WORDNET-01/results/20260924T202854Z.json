@@ -1,0 +1,21 @@
+{
+  "experiment": "KNOWS-WORDNET-01",
+  "run_at": "2026-09-24T20:28:54.997779+00:00",
+  "seed": 20260924,
+  "sample": 120,
+  "offered": {
+    "facts": 83104,
+    "word_classes": 55047
+  },
+  "asked": {
+    "facts": 120,
+    "word_classes": 120,
+    "sayable": 25,
+    "controls": 120
+  },
+  "admitted": 44,
+  "derivable": 44,
+  "classed": 120,
+  "sayable": 2,
+  "invented": 1
+}

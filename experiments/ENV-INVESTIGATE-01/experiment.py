@@ -51,12 +51,16 @@ async def main() -> int:
         _ENV_CONTENT_MAX_FACTS = C._ENV_CONTENT_MAX_FACTS
         _ENV_TEXT_EXTS = C._ENV_TEXT_EXTS
         _ENV_IMAGE_EXTS = C._ENV_IMAGE_EXTS
+        _ENV_SOUND_EXTS = C._ENV_SOUND_EXTS
         _scan_environment = C._scan_environment
         _read_text_bounded = C._read_text_bounded
         _ingest_environment_entry = C._ingest_environment_entry
         saw = []
-        async def see(self, path, *, source=None):
+        heard = []
+        async def see(self, path, *, source=None, actor_identity=None):
             self.saw.append(path)
+        async def hear(self, path, *, source=None, actor_identity=None):
+            self.heard.append(path)
     me = _Env(); me.learning = _Rec()
     # A REAL reading ledger. `_read_text_bounded` records what it read and of
     # which version — reading a file IS a reading, and Law 2 consults the ledger

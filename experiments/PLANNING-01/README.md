@@ -27,6 +27,8 @@ Real coordinator, real rule store, real learned operators, real Postgres. Nothin
 **Results.** Every run is saved in `results/` (JSON + `.md`). Latest: 2026-09-16, **20/20**
 (`results/20260916T192850Z.md`).
 
+**2026-09-28: 39/39.** The hand-written filesystem domain was deleted. This now plans over an operator the substrate learned from its own acts in `tools:path` (taught by `experiments/fs_move_teach.py` if the store has none), and states its goal in perception's words: `KIND(<path>, Ffile)`, and `¬KIND(...)` for "no longer there".
+
 ## What this experiment found, and what was fixed after it ran
 
 The first run (`20260916T192420Z`, 14/16) was the gate doing its job. It found three real defects, fixed

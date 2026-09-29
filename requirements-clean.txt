@@ -45,6 +45,7 @@ qwen-vl-utils>=0.0.14
 # ============================================================================
 soundfile>=0.12.0
 librosa>=0.10.0
+praat-parselmouth>=0.4.7
 pydub>=0.25.0
 pyaudio>=0.2.13
 SpeechRecognition>=3.10.0

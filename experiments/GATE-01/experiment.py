@@ -113,40 +113,26 @@ async def main():
           "would depend on which copy you asked)",
           get_constitution() is con, "get_constitution() is a singleton")
 
-    # TRIPWIRES on every security system that is being retired, not substitutes:
-    # the real accessors are kept and called through, and this only records that
-    # they were reached. If ANY of them still gates the acting path, these acts
-    # trip it. The constitution is the gate; these are on their way out.
+    # THE RETIRED SECURITY SYSTEMS ARE GONE, not tripwired. They were deleted in
+    # the consolidation (2026-09-26): a module that cannot be imported cannot
+    # gate the acting path, and one that still imports is one something could
+    # start consulting again — so this asserts they do not import at all.
     (root / "workspace" / "seed.txt").write_text("seed\n")
-    retired = [
-        ("core.security.safety_framework", "get_safety_framework"),
-        ("core.security.input_validation", "get_input_validator"),
-        ("core.security.security_controller", "get_security_controller"),
-        ("core.security.asi_safety", "get_asi_safety"),
-    ]
-    consulted = []
-    restored = []
-    for module_name, accessor in retired:
+    retired = ("core.security.safety_framework", "core.security.input_validation",
+               "core.governance.governance_triggers",
+               "core.agents.autonomous.runtime_governance",
+               "core.agents.autonomous.singleton_constitution", "core.safety")
+    still_there = []
+    for module_name in retired:
         try:
-            module = __import__(module_name, fromlist=[accessor])
-            real = getattr(module, accessor)
-        except (ImportError, AttributeError):
-            continue
-
-        def _tripwire(*a, _n=accessor, _r=real, **k):
-            consulted.append(_n)
-            return _r(*a, **k)
-        setattr(module, accessor, _tripwire)
-        restored.append((module, accessor, real))
-    try:
-        probe = await run("list_directory", {"directory_path": str(root)})
-        probe2 = await run("read_file", {"file_path": str(root / "workspace" / "seed.txt")})
-    finally:
-        for module, accessor, real in restored:
-            setattr(module, accessor, real)
-    check("NO retired security system is consulted during a real tool call",
-          len(consulted) == 0,
-          f"tripwires on {len(restored)} system(s); consulted: {consulted or 'none'}")
+            __import__(module_name)
+            still_there.append(module_name)
+        except ModuleNotFoundError:
+            pass
+    check("NO retired security system can be imported, so none can gate a tool call",
+          not still_there, f"{len(retired)} checked; still importable: {still_there or 'none'}")
+    probe = await run("list_directory", {"directory_path": str(root)})
+    probe2 = await run("read_file", {"file_path": str(root / "workspace" / "seed.txt")})
     check("and the acts still ran (the gate was not simply removed)",
           probe.success and probe2.success,
           f"list_directory={probe.success} read_file={probe2.success}")
@@ -426,9 +412,18 @@ async def main():
     print("\n[F] the real drive path names its intent at the gate")
     from core.agents.autonomous.autonomous_coordinator import AutonomousCoordinator
     from core.agents.autonomous.shared_types import Task, TaskType, TaskSource
-    from core.execution.filesystem_domain import install_filesystem_domain, _encode
+    from core.execution.tool_domain import sensed_fact, take_up_workspace
 
-    DOMAIN = "fs_g2_real1"
+    # THE PRECONDITION IS DECLARED, NOT ASSUMED. This plans over a MOVE_FILE
+    # operator the substrate LEARNED from its own acts. That was ambient state:
+    # when the store was wiped, this failed with a signature that reads like
+    # broken code rather than a missing prerequisite. `ensure_taught` teaches it
+    # from real executions if it is not there, and costs a store read if it is.
+    from experiments.fs_move_teach import DOMAIN, ensure_taught
+    if not await ensure_taught():
+        print("  [precondition] FAILED: no executable MOVE_FILE operator in "
+              f"{DOMAIN}; nothing below can plan", flush=True)
+        return 1
     fsroot = Path(tempfile.mkdtemp(prefix="gate01-fs-"))
     for d in ("inbox", "archive", "review"):
         (fsroot / d).mkdir()
@@ -436,7 +431,7 @@ async def main():
 
     coord = AutonomousCoordinator()
     await coord.initialize(start_loop=False)
-    install_filesystem_domain(DOMAIN, fsroot)
+    take_up_workspace(DOMAIN, str(fsroot))
     check("the coordinator holds the SAME constitution the gate uses",
           coord.constitution is con and coord.reading is con.reading,
           "constitution and reading ledger are shared, not copied")
@@ -447,10 +442,12 @@ async def main():
     coord.task_queue.mark_failed = _noop
 
     before_judgments = len(con.judgments)
-    goal = f"FILE_IN({_encode('report.txt')}, {_encode('archive')})"
+    # "Put report.txt in archive", in perception's words.
+    goal = [sensed_fact("kind", "path", str(fsroot / "archive" / "report.txt"), "file").to_formula(),
+            "¬" + sensed_fact("kind", "path", str(fsroot / "inbox" / "report.txt"), "file").to_formula()]
     task = Task(id=f"gate01_{uuid.uuid4().hex[:8]}", type=TaskType.EXECUTION,
                 description="put report.txt in archive", source=TaskSource.AUTONOMOUS,
-                provenance={"goal_conditions": [goal], "domain_id": DOMAIN})
+                provenance={"goal_conditions": goal, "domain_id": DOMAIN})
     await coord._execute_and_validate_task(task)
     moved = (fsroot / "archive" / "report.txt").exists()
     drive_judgments = con.judgments[before_judgments:]
@@ -490,9 +487,8 @@ async def main():
                    "because reading is how an account is established")
     EV.metric("gate_latency_ms", round(per_judgement_ms, 4), "ms")
     EV.metric("input_screen", con.input.status())
-    EV.metric("retired_system_consultations", len(consulted), "count",
-              note=f"tripwires on {len(restored)} retired security system(s) "
-                   f"during real tool execution; must be 0")
+    EV.metric("retired_systems_still_importable", len(still_there), "count",
+              note=f"{len(retired)} retired security module(s) checked; must be 0")
 
     # clean up the intents this run recorded
     store = get_intent_authority().store

@@ -1,0 +1,172 @@
+{
+  "experiment": "TEACH-AND-DO-01",
+  "claim": "A small lesson taught through the one teaching path is held in the substrate's memory and used: asked back, extended from the web, applied to a document, and written down \u2014 and every learning path the work should touch moves.",
+  "hypothesis": "A taught fact that cannot be asked back, a gap never looked up, a declared tool that does not run, a planned artefact never written, or a learning store that never moves would each show here.",
+  "started_at": "2026-09-26T21:07:05.858929+00:00",
+  "duration_seconds": 484.648,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/TorinAI/venv_torin/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/TorinAI",
+    "shadow_mode": null,
+    "git_commit": "20deb447498593391eca0286916b8f986c560a26",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "torinai_db",
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "dotenv:.env.postgres",
+        "database": "dotenv:.env.postgres",
+        "user": "dotenv:.env.postgres",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres"
+      }
+    },
+    "git_uncommitted_changes": 1137,
+    "database_verified": null,
+    "database_verified_reason": "no initialized connection in this process"
+  },
+  "summary": {
+    "checks": 16,
+    "passed": 14,
+    "failed": 2,
+    "outcome": "FAIL"
+  },
+  "metrics": [
+    {
+      "name": "user",
+      "value": "teach-and-do-keiaf",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "store_deltas",
+      "value": {
+        "memories": 8,
+        "concepts": 0,
+        "graph_edges": 51,
+        "beliefs": 0,
+        "knowledge_updates": 6,
+        "held_rules": 0,
+        "tool_runs": 42,
+        "demonstrations": 1
+      },
+      "unit": "",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "the lesson is read and taught",
+      "passed": true,
+      "detail": "read=6 taught={'admitted': 0, 'already': 6, 'refused': 0, 'total': 6}",
+      "at": "2026-09-26T21:09:55.294271+00:00"
+    },
+    {
+      "label": "the conditional is held",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-09-26T21:09:55.298299+00:00"
+    },
+    {
+      "label": "re-teaching the held lesson moved nothing: graph_edges",
+      "passed": true,
+      "detail": "174352 -> 174352",
+      "at": "2026-09-26T21:09:56.563974+00:00"
+    },
+    {
+      "label": "re-teaching the held lesson moved nothing: beliefs",
+      "passed": true,
+      "detail": "161038 -> 161038",
+      "at": "2026-09-26T21:09:56.564006+00:00"
+    },
+    {
+      "label": "and the ledger records it as unchanged, not new",
+      "passed": true,
+      "detail": "6 unchanged",
+      "at": "2026-09-26T21:09:56.572950+00:00"
+    },
+    {
+      "label": "the conditional was already held, and is not held twice",
+      "passed": true,
+      "detail": "190 -> 190",
+      "at": "2026-09-26T21:09:56.572992+00:00"
+    },
+    {
+      "label": "every admission was announced to the substrate",
+      "passed": true,
+      "detail": "unannounced 0 -> 0",
+      "at": "2026-09-26T21:09:56.573006+00:00"
+    },
+    {
+      "label": "a chain through taught facts is affirmed (centrifugal pump -> pump -> machine)",
+      "passed": true,
+      "detail": "Yes, a centrifugal pump is a machine.",
+      "at": "2026-09-26T21:10:01.111805+00:00"
+    },
+    {
+      "label": "the gap was looked up on the web",
+      "passed": true,
+      "detail": "tool runs since start: [('[\"web_search\"]', True)]",
+      "at": "2026-09-26T21:10:07.746749+00:00"
+    },
+    {
+      "label": "and answered",
+      "passed": false,
+      "detail": "I remember: A water pump is a pump.\nI hold nothing for peristaltic pump. Tell me what it is and I will keep it.\nI don't hold peristaltic pump yet \u2014 looking it u",
+      "at": "2026-09-26T21:10:07.746808+00:00"
+    },
+    {
+      "label": "with read_file declared, the note is read",
+      "passed": true,
+      "detail": "{'success': True, 'model_free': True, 'verification_state': 'verified', 'task_id': 'user_0bbf9f817428', 'task_type': 'ANALYSIS', 'method': 'declared_tools', 'to",
+      "at": "2026-09-26T21:10:15.786776+00:00"
+    },
+    {
+      "label": "the planned goal wrote a summary at the path it named",
+      "passed": true,
+      "detail": "41 bytes",
+      "at": "2026-09-26T21:14:44.638296+00:00"
+    },
+    {
+      "label": "and the summary is what it was taught",
+      "passed": true,
+      "detail": "I remember: A centrifugal pump is a pump.",
+      "at": "2026-09-26T21:14:44.638315+00:00"
+    },
+    {
+      "label": "with run_python declared, the code runs and returns 6.0",
+      "passed": false,
+      "detail": "Validation failed: the constitution replanned the pursuit it is a step of (Law 2: run_python would execute with no account of why: no proved route to a goal sta",
+      "at": "2026-09-26T21:14:56.662545+00:00"
+    },
+    {
+      "label": "tool runs were metered to learning",
+      "passed": true,
+      "detail": "+42",
+      "at": "2026-09-26T21:15:10.121402+00:00"
+    },
+    {
+      "label": "the taught domain is a domain the substrate holds",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-26T21:15:10.122771+00:00"
+    }
+  ],
+  "notes": [
+    "OBSERVED \u2014 what the look-up left in this user's context: [] (tool runs 310 -> 311)",
+    "OBSERVED \u2014 plain words: read a note and say what is wrong: Validation failed: no substrate handler for a ANALYSIS task yet; the substrate declined all model-free paths and the model is not a fallback, completion belief 0.01 < acceptance 0.95 \u2014 goal not yet grounded-confident (needs corroboration)",
+    "OBSERVED \u2014 the planned goal's steps: [('RESEARCH', 'Information gathering for: Create a writ'), ('ANALYSIS', 'Analyze research findings for: Create a '), ('EXECUTION', 'Create: Create a written summary of what'), ('VALIDATION', 'Validate creation: Create a written summ')]",
+    "OBSERVED \u2014 the plan's steps as run: [('RESEARCH', True, 'conversation.understand'), ('ANALYSIS', True, 'conversation.understand'), ('EXECUTION', True, 'artefact_creation'), ('VALIDATION', True, 'artefact_validation')]",
+    "OBSERVED \u2014 plain words: compute with Python: Validation failed: no substrate handler for a ANALYSIS task yet; the substrate declined all model-free paths and the model is not a fallback, completion belief 0.01 < acceptance 0.95 \u2014 goal not yet grounded-confident (needs corroboration)",
+    "OBSERVED \u2014 knowledge ledger since start, by cause: [('learning.bulk_teach.teaching', 'unchanged', 6)]",
+    "OBSERVED \u2014 tool runs since start: [('[\"scan_secrets\"]', 2, 1), ('[\"find_dead_code\"]', 2, 1), ('[\"search_secrets_pii\"]', 2, 1), ('[\"security_scan\"]', 2, 1), ('[\"parse_csv\"]', 2, 1), ('[\"find_todos\"]', 2, 1), ('[\"find_performance_issues\"]', 2, 0), ('[\"check_code_style_consistency\"]', 2, 1), ('[\"calculate_checksum\"]', 2, 1), ('[\"extract_call_graph\"]', 2, 1), ('[\"detect_code_smells\"]', 2, 0), ('[\"count_lines\"]', 2, 1), ('[\"validate_path\"]', 2, 0), ('[\"find_duplicate_files\"]', 2, 0), ('[\"read_file\"]', 4, 3), ('[\"write_file\"]', 1, 1), ('[\"trace_dependencies\"]', 2, 1), ('[\"list_directory\"]', 2, 0), ('[\"get_file_info\"]', 2, 1), ('[\"web_search\"]', 1, 1), ('[\"find_circular_imports\"]', 2, 1)]",
+    "OBSERVED \u2014 this user's scoped context (beliefs): 0",
+    "OBSERVED \u2014 competence in the taught domain: 0.5",
+    "OBSERVED \u2014 consolidation: {'refreshed': {'known_unknowns': {'open': 239, 'added': 0, 'dropped': 0}, 'strategy_arms': 44}, 'known_unknowns': {'open': 239, 'resolved': 0, 'not_yet': 202, 'no_target': 37}, 'abandoned_decisions_closed': 0, 'classifiers_saved': 0}"
+  ]
+}

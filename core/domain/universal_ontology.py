@@ -300,7 +300,11 @@ class UniversalOntology:
             ConceptType.PRINCIPLE: ["epistemic", "practical"],
             ConceptType.CONSTRAINT: ["practical", "structural"],
             ConceptType.GOAL: ["teleological", "practical"],
-            ConceptType.METHOD: ["practical", "agential"]
+            ConceptType.METHOD: ["practical", "agential"],
+            # A number is how much of an attribute something has, and what a
+            # comparison is made on; a date is a point on the temporal dimension.
+            ConceptType.QUANTITY: ["attribute", "comparative"],
+            ConceptType.TEMPORAL: ["temporal"],
         }
         
         compatible_categories = compatibility_map.get(concept_type, [])

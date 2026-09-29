@@ -1,0 +1,10 @@
+{
+  "experiment": "CHAT-CONCURRENCY-01",
+  "run": "2026-09-20T20:27:25.754907+00:00",
+  "outcome": "MEASUREMENT",
+  "exit_code": 0,
+  "checks_passed": 0,
+  "checks_total": 0,
+  "checks": [],
+  "note": "asserts no checks; reports concurrency latency. This run surfaced a live defect: pgvector semantic memory search fails on a memory_hot/memory_cold column-count mismatch (27 vs 25 \u2014 percept_digest, percept_id)."
+}

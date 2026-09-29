@@ -1,0 +1,203 @@
+{
+  "experiment": "PATHS-01",
+  "claim": "Knowledge enters the substrate by exactly one path \u2014 the learning authority \u2014 and conversation is not it. Each shared store has one writer, the ingress is reachable only through the learning authority, no conversation can resolve to the substrate actor, and the decisions a write depends on (what a relation IS, whether a kind edge is admissible) are made by the authority that owns them rather than re-derived at the call site.",
+  "hypothesis": "If a second path existed, either some module would reach the ingress or a shared table directly, or a conversation would resolve to the substrate and its telling would land in the shared graph. If the authorities were bypassed, the same sentence taught through the two doors would render to different atoms.",
+  "started_at": "2026-09-25T17:22:03.867659+00:00",
+  "duration_seconds": 45.877,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/TorinAI/venv_torin/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/TorinAI",
+    "shadow_mode": null,
+    "git_commit": "20deb447498593391eca0286916b8f986c560a26",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "torinai_db",
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "dotenv:.env.postgres",
+        "database": "dotenv:.env.postgres",
+        "user": "dotenv:.env.postgres",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres"
+      }
+    },
+    "git_uncommitted_changes": 844,
+    "database_verified": null,
+    "database_verified_reason": "not verified"
+  },
+  "summary": {
+    "checks": 24,
+    "passed": 24,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [
+    {
+      "name": "stores_with_one_writer",
+      "value": 3,
+      "unit": "count",
+      "note": "concept_relations, beliefs, learned_rules"
+    },
+    {
+      "name": "ingress_callers_outside_the_authority",
+      "value": 0,
+      "unit": "count",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "the reasoning graph's EDGES have exactly one writer",
+      "passed": true,
+      "detail": "['core/domain/concept_ingestion.py']",
+      "at": "2026-09-25T17:22:09.559223+00:00"
+    },
+    {
+      "label": "BELIEFS have exactly one writer",
+      "passed": true,
+      "detail": "['core/reasoning/bayesian_uncertainty.py']",
+      "at": "2026-09-25T17:22:09.742644+00:00"
+    },
+    {
+      "label": "LEARNED RULES have exactly one writer",
+      "passed": true,
+      "detail": "['core/learning/rule_store.py']",
+      "at": "2026-09-25T17:22:09.902902+00:00"
+    },
+    {
+      "label": "the concept table is written only by ingestion and the domain authority",
+      "passed": true,
+      "detail": "['core/domain/concept_ingestion.py', 'core/integration/universal_domain_master.py']",
+      "at": "2026-09-25T17:22:10.083029+00:00"
+    },
+    {
+      "label": "the INGRESS is reachable only through the learning authority",
+      "passed": true,
+      "detail": "['core/learning/unified_learning_system.py']",
+      "at": "2026-09-25T17:22:10.180709+00:00"
+    },
+    {
+      "label": "one call on the learning authority ADMITS to the graph",
+      "passed": true,
+      "detail": "refusals=[]",
+      "at": "2026-09-25T17:22:16.330209+00:00"
+    },
+    {
+      "label": "...and the concept is in the shared graph",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-25T17:22:16.330982+00:00"
+    },
+    {
+      "label": "...and it was REMEMBERED as well as admitted",
+      "passed": true,
+      "detail": "memory_id=mem_a353776aa9ec4f728a486e693bceae30",
+      "at": "2026-09-25T17:22:16.330995+00:00"
+    },
+    {
+      "label": "...and it moved a BELIEF",
+      "passed": true,
+      "detail": "['plaxdc27e7f4 isa plaxkinddc27e7f4']",
+      "at": "2026-09-25T17:22:16.331012+00:00"
+    },
+    {
+      "label": "...and the DOMAIN it was taught into exists",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-25T17:22:16.331946+00:00"
+    },
+    {
+      "label": "there is ONE Conversation class; the semantics module re-exports it",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-25T17:22:16.332520+00:00"
+    },
+    {
+      "label": "an UNBOUND conversation is a user scope, never the substrate",
+      "passed": true,
+      "detail": "_actor=paths01-dc27e7f4",
+      "at": "2026-09-25T17:22:16.332556+00:00"
+    },
+    {
+      "label": "a BOUND conversation is that person",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-25T17:22:16.332563+00:00"
+    },
+    {
+      "label": "and a speaker may not claim the substrate's identity",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-25T17:22:16.332573+00:00"
+    },
+    {
+      "label": "only the substrate's OWN work resolves to the shared mind, by SOURCE",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-25T17:22:16.332581+00:00"
+    },
+    {
+      "label": "what a conversation is told reaches the SPEAKER'S context",
+      "passed": true,
+      "detail": "scoped rows=1",
+      "at": "2026-09-25T17:22:16.386480+00:00"
+    },
+    {
+      "label": "and NOTHING of it reaches the shared concept graph",
+      "passed": true,
+      "detail": "shared rows=0",
+      "at": "2026-09-25T17:22:16.386501+00:00"
+    },
+    {
+      "label": "no module decides the COPULA for itself any more",
+      "passed": true,
+      "detail": "none",
+      "at": "2026-09-25T17:22:16.518005+00:00"
+    },
+    {
+      "label": "an ADJECTIVAL complement is a PROPERTY, not a kind",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-25T17:22:49.424431+00:00"
+    },
+    {
+      "label": "a complement opened by a DETERMINER is a KIND",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-25T17:22:49.424511+00:00"
+    },
+    {
+      "label": "an unobserved complement keeps the copula's default reading",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-25T17:22:49.424521+00:00"
+    },
+    {
+      "label": "BOTH doors type the same sentence the same way",
+      "passed": true,
+      "detail": "conversation=has_property teaching=has_property",
+      "at": "2026-09-25T17:22:49.429053+00:00"
+    },
+    {
+      "label": "a kind edge that would CLOSE A CYCLE is refused at admission",
+      "passed": true,
+      "detail": "[\"'pkdc27e7f4c' isa 'pkdc27e7f4a' would close a kind cycle (pkdc27e7f4a -> ... -> pkdc27e7f4c in 2 step(s)); a thing cannot be a kind of something that is already a kind of it\"]",
+      "at": "2026-09-25T17:22:49.669611+00:00"
+    },
+    {
+      "label": "...while a non-cyclic shortcut through the same nodes is admitted",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-25T17:22:49.669639+00:00"
+    }
+  ],
+  "notes": [
+    "The writer and caller checks are STATIC by necessity: a live probe can show one path works, never that a second does not exist.",
+    "Comment lines are excluded from the scans \u2014 this tree records removed bypasses in comments, and a removed bypass is not one."
+  ]
+}

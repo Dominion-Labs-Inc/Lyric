@@ -1,0 +1,41 @@
+{
+  "experiment": "NLU-05 \u2014 Is polarity ever silently wrong?",
+  "writes_to_store": false,
+  "notes": [],
+  "data": {},
+  "checks": [
+    {
+      "name": "polarity of 'A robin is a bird.'",
+      "passed": true,
+      "detail": "got 'robin_bird', expected affirmative"
+    },
+    {
+      "name": "polarity of 'A robin is not a mammal.'",
+      "passed": true,
+      "detail": "got '~robin_mammal', expected negative"
+    },
+    {
+      "name": "polarity of 'The engine is not cold.'",
+      "passed": true,
+      "detail": "got '~engine_cold', expected negative"
+    },
+    {
+      "name": "polarity of 'The vault is locked.'",
+      "passed": true,
+      "detail": "got 'vault_locked', expected affirmative"
+    },
+    {
+      "name": "polarity of 'The turbine is not silent.'",
+      "passed": true,
+      "detail": "got '~turbine_silent', expected negative"
+    },
+    {
+      "name": "polarity of 'The reactor is stable.'",
+      "passed": true,
+      "detail": "got 'reactor_stable', expected affirmative"
+    }
+  ],
+  "passed": 6,
+  "total": 6,
+  "seconds": 0.02
+}

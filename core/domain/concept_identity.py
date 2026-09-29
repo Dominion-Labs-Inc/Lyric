@@ -128,21 +128,19 @@ class ConceptIdentityService:
         rows = await self.db.execute_query(
             "SELECT concept_id, domain FROM unified.concepts", fetch_all=True) or []
         n = 0
+        from core.agents.memory_agent import memory_agent
         for r in rows:
-            await self.db.execute_query(
-                """INSERT INTO unified.concept_domains (concept_id, domain, source)
-                   VALUES ($1,$2,'extracted') ON CONFLICT DO NOTHING""",
-                (r["concept_id"], r["domain"]), commit=True)
+            await memory_agent().hold_extracted_membership(
+                concept_id=r["concept_id"], domain=r["domain"])
             n += 1
         return n
 
     async def add_membership(self, concept_id: str, domain: str, source: str,
                              evidence_id: Optional[str] = None) -> None:
-        await self.db.execute_query(
-            """INSERT INTO unified.concept_domains
-                   (concept_id, domain, source, evidence_id)
-               VALUES ($1,$2,$3,$4) ON CONFLICT DO NOTHING""",
-            (concept_id, domain.strip().lower(), source, evidence_id), commit=True)
+        from core.agents.memory_agent import memory_agent
+        await memory_agent().hold_domain_membership(
+            concept_id=concept_id, domain=domain.strip().lower(), source=source,
+            evidence_id=evidence_id)
 
     async def domains_of(self, concept_id: str) -> List[str]:
         rows = await self.db.execute_query(
@@ -155,17 +153,58 @@ class ConceptIdentityService:
     async def record(self, subject: str, relation: IdentityRelation,
                      object_surface: str, basis: str,
                      object_concept_id: Optional[str] = None) -> None:
-        await self.db.execute_query(
-            """INSERT INTO unified.concept_identity_relations
-                   (subject_concept_id, relation_kind, object_concept_id,
-                    object_surface, basis)
-               VALUES ($1,$2,$3,$4,$5)
-               ON CONFLICT (subject_concept_id, relation_kind, object_surface)
-               DO UPDATE SET object_concept_id =
-                   COALESCE(EXCLUDED.object_concept_id,
-                            unified.concept_identity_relations.object_concept_id)""",
-            (subject, relation.value, object_concept_id, object_surface, basis),
-            commit=True)
+        from core.agents.memory_agent import memory_agent
+        await memory_agent().hold_identity_relation(
+            subject_concept_id=subject, relation_kind=relation.value,
+            object_concept_id=object_concept_id, object_surface=object_surface,
+            basis=basis)
+
+    async def relate_qualified_name(self, concept_id: str, name: str,
+                                    domain: str) -> int:
+        """Relate ONE concept's qualified name to every head it narrows.
+
+        The batch twin (`derive_qualified_name_relations`) walks the whole table
+        and had NO caller, which is why `unified.concept_identity_relations` was
+        empty while `resolve_query` was already reading it: a query for a bare
+        word could reach its qualified forms in principle and never did in fact.
+
+        This is the write-time half, so a concept relates to its head the moment
+        it exists. It matters most for SENSE-QUALIFIED names: WordNet's contested
+        names are taught as `causal_agent person` / `grammatical_category person`
+        so that no sense inherits another's parents, and this is what still lets
+        someone asking about `person` reach both.
+
+        Every proper suffix is a candidate head (`flow_restriction` narrows
+        `restriction`), and `classify_qualified_name` decides which relation each
+        one is -- SAME_AS when the qualifier is just the concept's own domain,
+        SPECIALIZATION_OF when it genuinely narrows. Returns how many were
+        recorded.
+        """
+        parts = (name or "").split("_")
+        if len(parts) < 2:
+            return 0
+        recorded = 0
+        for i in range(1, len(parts)):
+            head = "_".join(parts[i:])
+            if len(head) < 3:
+                continue
+            relation, basis = classify_qualified_name(name, domain, head)
+            if relation is IdentityRelation.UNKNOWN:
+                continue
+            # NO HEAD LOOKUP HERE, DELIBERATELY. `object_concept_id` is WRITTEN
+            # by this table and read by nothing: `resolve_query` matches on
+            # `object_surface`, which is the head's name and is already in hand.
+            # Resolving the id cost one SELECT per suffix per concept on the hot
+            # write path — measured, that plus the insert roughly HALVED teaching
+            # throughput (11.6 -> 5.2 facts/s), which at 2M facts is days.
+            #
+            # The batch twin still fills the column cheaply (it builds one
+            # name->id map in a single scan), and `record`'s COALESCE means a
+            # later batch run fills it without clobbering what is here. So the
+            # id is not lost, it is just not bought at the worst possible moment.
+            await self.record(concept_id, relation, head, basis)
+            recorded += 1
+        return recorded
 
     async def derive_qualified_name_relations(self) -> Dict[str, int]:
         """Relate every qualified concept name to its head.
@@ -212,6 +251,18 @@ class ConceptIdentityService:
 
         exact = await self.db.execute_query(
             "SELECT concept_id FROM unified.concepts WHERE name=$1", (s,), fetch_all=True) or []
+        # READ AS IT WAS WRITTEN. Every name reaches the store through the
+        # ingress's `normalize_term` -- underscored, singular -- so a query for
+        # "centrifugal pumps" matched nothing while `centrifugal_pump` sat there:
+        # the question fell through to a web look-up and the page's first
+        # sentence was admitted as a new fact about the concept it had missed.
+        if not exact:
+            from core.semantics.cognitive_ingress import normalize_term
+            normal = normalize_term(s)
+            if normal and normal != s:
+                exact = await self.db.execute_query(
+                    "SELECT concept_id FROM unified.concepts WHERE name=$1",
+                    (normal,), fetch_all=True) or []
         out += [(r["concept_id"], "exact") for r in exact]
 
         al = await self.db.execute_query(

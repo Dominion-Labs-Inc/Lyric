@@ -1,0 +1,97 @@
+{
+  "experiment": "DOC-01 \u2014 What share of REAL documents can it perceive, and read?",
+  "writes_to_store": false,
+  "notes": [
+    "corpus: 4,403 real document(s) across 10 format(s) (every one found)",
+    "bound: the first 12 sentence(s) of each document are read, and that bound is stated rather than silent",
+    "PERCEIVED 4,395/4,403 (99.8%) \u00b7 refused 0 \u00b7 raised 8 \u00b7 in 713s",
+    "DOCUMENT  (written by a person): 1,727 file(s) \u00b7 1,766,766 word(s) \u00b7 15,984 claim(s) from 11,575 sentence(s) (1.381 per sentence) \u00b7 1,695 yielded a claim",
+    "MACHINE   (emitted by a machine): 2,668 file(s) \u00b7 618,446,223 word(s) \u00b7 5,253 claim(s) from 8,797 sentence(s) (0.597 per sentence) \u00b7 2,494 yielded a claim",
+    "34 document(s) opened but carried NO text \u2014 a scanned page has no text layer, and that is this number"
+  ],
+  "data": {
+    "corpus": {
+      "documents": 4403,
+      "seconds": 712.7
+    },
+    "perceive": {
+      "perceived": 4395,
+      "refused": 0,
+      "raised": 8,
+      "pct": 99.8
+    },
+    "by_format": {
+      ".json": 2178,
+      ".md": 1251,
+      ".log": 382,
+      ".txt": 359,
+      ".yml": 100,
+      ".pdf": 73,
+      ".docx": 27,
+      ".csv": 15,
+      ".yaml": 8,
+      ".xlsx": 2
+    },
+    "could_not_open": {
+      ".pdf": 8
+    },
+    "reasons": {
+      "PdfStreamError: Stream has ended unexpectedly": 8
+    },
+    "text": {
+      "words": 620212989,
+      "documents_with_no_text": 34
+    },
+    "read": {
+      "sentences": 20372,
+      "claims": 21237,
+      "claims_per_sentence": 1.042
+    },
+    "by_kind": {
+      "document": {
+        "perceived": 1727,
+        "words": 1766766,
+        "sentences": 11575,
+        "claims": 15984,
+        "with_claims": 1695
+      },
+      "machine": {
+        "perceived": 2668,
+        "words": 618446223,
+        "sentences": 8797,
+        "claims": 5253,
+        "with_claims": 2494
+      }
+    }
+  },
+  "checks": [
+    {
+      "name": "no document made the reader raise",
+      "passed": false,
+      "detail": "8 raised: {'PdfStreamError: Stream has ended unexpectedly': 8}"
+    },
+    {
+      "name": "every perceived document reported its format",
+      "passed": true,
+      "detail": "4395 of 4395 carried a format"
+    },
+    {
+      "name": "PDFs are perceived",
+      "passed": true,
+      "detail": "73 PDF(s) opened"
+    },
+    {
+      "name": "text is actually extracted, not just opened",
+      "passed": true,
+      "detail": "1,766,766 word(s) from documents"
+    },
+    {
+      "name": "a document written by a person yields a claim",
+      "passed": true,
+      "detail": "1,695 of 1,727 document(s)"
+    }
+  ],
+  "passed": 4,
+  "total": 5,
+  "seconds": 0.0
+}

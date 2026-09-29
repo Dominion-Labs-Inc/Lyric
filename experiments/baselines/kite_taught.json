@@ -2,13 +2,13 @@
   "domain": "kite17",
   "rules": [
     {
-      "rule_id": "rule_dcd916b30f7f",
+      "rule_id": "rule_108b0165edc8",
       "rule_kind": "zor",
       "status": "validated",
       "formula": "KEM(?X0, ?X1) \u2227 NAL(?X0) \u2227 TOR(?X1) \u2227 VEX(?X0, ?X1) \u2192 ZOR(?X0, ?X1)",
-      "canonical_json_sha256": "53cd685468dcbdbb0a16d88fdaef9b8dd5594a58983f6edf95d6a67389789030",
+      "canonical_json_sha256": "b8bb2deba56aba3e959bc43bbbdc1e06aeeb42336a6bed829bb7bfc3dbad0e38",
       "canonical_json": {
-        "schema_version": 1,
+        "schema_version": 3,
         "body": [
           {
             "predicate": "KEM",
@@ -46,7 +46,15 @@
             ]
           }
         ],
-        "delete_effects": []
+        "delete_effects": [],
+        "action": {
+          "predicate": "KEM",
+          "args": [
+            "?X0",
+            "?X1"
+          ]
+        },
+        "outputs": []
       },
       "induction_roots": [
         "zor_d1",
@@ -62,14 +70,21 @@
       ]
     },
     {
-      "rule_id": "rule_d3244fd036c3",
+      "rule_id": "rule_bf50cdfc129c",
       "rule_kind": "move",
       "status": "validated",
-      "formula": "MOVE(?X0, ?X2, ?X1) \u2227 OPEN(?X1) \u2227 PATH(?X2, ?X1) \u2192 AT(?X0, ?X1) \u2296 AT(?X0, ?X2)",
-      "canonical_json_sha256": "a181893860ccc41f22961a1285a1a229a608672572003e07643408885939cf79",
+      "formula": "AT(?X0, ?X2) \u2227 MOVE(?X0, ?X2, ?X1) \u2227 OPEN(?X1) \u2227 PATH(?X2, ?X1) \u2192 AT(?X0, ?X1) \u2296 AT(?X0, ?X2)",
+      "canonical_json_sha256": "1c79ece82fc946a59f846a341be33f35739f06a7e9762c19eb259fdbcf72540b",
       "canonical_json": {
-        "schema_version": 1,
+        "schema_version": 3,
         "body": [
+          {
+            "predicate": "AT",
+            "args": [
+              "?X0",
+              "?X2"
+            ]
+          },
           {
             "predicate": "MOVE",
             "args": [
@@ -109,12 +124,22 @@
               "?X2"
             ]
           }
-        ]
+        ],
+        "action": {
+          "predicate": "MOVE",
+          "args": [
+            "?X0",
+            "?X2",
+            "?X1"
+          ]
+        },
+        "outputs": []
       },
       "induction_roots": [
         "mv_d1",
         "mv_d2",
         "mv_no_ACTION",
+        "mv_no_AT_SOURCE",
         "mv_no_OPEN",
         "mv_no_PATH"
       ],

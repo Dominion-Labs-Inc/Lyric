@@ -1,0 +1,128 @@
+{
+  "experiment": "DOMAIN-DISCOVERY-01",
+  "claim": "The substrate DECIDES which domains exist, from what it has learned and been taught, rather than filing whatever string a caller passed.",
+  "hypothesis": "If `provisional` means not-yet-DECIDED rather than not-yet-REGISTERED, if the declarative sweep reads the channels that actually hold concepts, and if a concept is placed under its nearest subject rather than its alphabetically last root, then discovery produces a subject map instead of nothing and instead of one mega-bucket.",
+  "started_at": "2026-09-25T17:24:00.837048+00:00",
+  "duration_seconds": 118.066,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/TorinAI/venv_torin/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/TorinAI",
+    "shadow_mode": null,
+    "git_commit": "20deb447498593391eca0286916b8f986c560a26",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "torinai_db",
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "dotenv:.env.postgres",
+        "database": "dotenv:.env.postgres",
+        "user": "dotenv:.env.postgres",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres"
+      }
+    },
+    "git_uncommitted_changes": 844,
+    "database_verified": "torinai_db",
+    "database_verified_reason": "asked the server"
+  },
+  "summary": {
+    "checks": 11,
+    "passed": 11,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [
+    {
+      "name": "provisional_domains",
+      "value": 1,
+      "unit": "domains",
+      "note": "was 0 on every wake before the predicate was corrected"
+    },
+    {
+      "name": "channel_concepts",
+      "value": {
+        "general": 82676,
+        "conversation": 0
+      },
+      "unit": "concepts",
+      "note": "the sweep used to read only `conversation`"
+    }
+  ],
+  "checks": [
+    {
+      "label": "a registered-but-undecided domain is still a candidate",
+      "passed": true,
+      "detail": "provisional=['kite17'] of which already registered=['kite17']",
+      "at": "2026-09-25T17:25:48.292466+00:00"
+    },
+    {
+      "label": "a candidate set is not merely 'every domain with a rule'",
+      "passed": true,
+      "detail": "decided domains still offered as candidates=[]",
+      "at": "2026-09-25T17:25:48.292492+00:00"
+    },
+    {
+      "label": "no domain in the store is merged into itself",
+      "passed": true,
+      "detail": "this run=[] stored=[]",
+      "at": "2026-09-25T17:25:48.394761+00:00"
+    },
+    {
+      "label": "a decided domain is not decided again",
+      "passed": true,
+      "detail": "already decided=3 re-decided=[]",
+      "at": "2026-09-25T17:25:48.411495+00:00"
+    },
+    {
+      "label": "the decision survives the round trip through the store",
+      "passed": true,
+      "detail": "warehouse -> boundaries={'origin': 'learned', 'crystallized': '2026-09-25T12:21:32.568872'}",
+      "at": "2026-09-25T17:25:48.412603+00:00"
+    },
+    {
+      "label": "the declarative sweep names more than one channel",
+      "passed": true,
+      "detail": "{'general': 82676, 'conversation': 0}",
+      "at": "2026-09-25T17:25:48.423406+00:00"
+    },
+    {
+      "label": "a concept lands under its NEAREST subject, not the last by name",
+      "passed": true,
+      "detail": "subjects={'aanear4024da': 4, 'zzzfar4024da': 3} (near=aanear4024da, far=zzzfar4024da)",
+      "at": "2026-09-25T17:25:52.107012+00:00"
+    },
+    {
+      "label": "a root reached through ONE child is rejected as a funnel",
+      "passed": true,
+      "detail": "funnels=['funnel4024da']",
+      "at": "2026-09-25T17:25:53.677515+00:00"
+    },
+    {
+      "label": "a root with several kinds under it is still a subject",
+      "passed": true,
+      "detail": "subjects=['aanear4024da', 'good4024da', 'zzzfar4024da']",
+      "at": "2026-09-25T17:25:53.677550+00:00"
+    },
+    {
+      "label": "the taxonomic splitter has a caller",
+      "passed": true,
+      "detail": "reached 2 time(s) from discover_taught_domains() for ['ddchan4024da', 'ddchan4024da']",
+      "at": "2026-09-25T17:25:58.833553+00:00"
+    },
+    {
+      "label": "the sweep surveys without applying while the taxonomy is unsound",
+      "passed": true,
+      "detail": "DECLARATIVE_APPLY=False surveyed=1",
+      "at": "2026-09-25T17:25:58.833580+00:00"
+    }
+  ],
+  "notes": [
+    "B exists because making dead code live exposed a defect the dead code hid: a candidate is registered, so it appeared in its own comparison set and merged into itself.",
+    "F is the defect that produced the mega-bucket; the funnel guard in G only limits the damage when the taxonomy itself is wrong."
+  ]
+}

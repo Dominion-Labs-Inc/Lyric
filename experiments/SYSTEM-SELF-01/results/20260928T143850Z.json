@@ -1,0 +1,318 @@
+{
+  "experiment": "SYSTEM-SELF-01",
+  "claim": "The self's faculties are each one authority: appraisal builds a disposition from measured signals and can say what it is made of, the arbiter decides from it and real capacity, and motivation reports a mood, a valence and a state.",
+  "hypothesis": "A second appraisal or arbiter, a disposition that ignores its signals, an arbiter that ignores capacity, or a dead public method would each fail here.",
+  "started_at": "2026-09-28T14:38:50.624867+00:00",
+  "duration_seconds": 37.168,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/TorinAI/venv_torin/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/TorinAI",
+    "shadow_mode": null,
+    "git_commit": "20deb447498593391eca0286916b8f986c560a26",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "torinai_dev",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "torinai_dev",
+        "model": "torinai_dev",
+        "user_context": "torinai_dev",
+        "learning": "torinai_dev"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "dotenv:.env.postgres",
+        "database": "environment",
+        "user": "dotenv:.env.postgres",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 1483,
+    "database_verified": null,
+    "database_verified_reason": "no initialized connection in this process"
+  },
+  "summary": {
+    "checks": 17,
+    "passed": 17,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [
+    {
+      "name": "appraisal_construction_sites",
+      "value": 1,
+      "unit": "count",
+      "note": "core/agents/autonomous/appraisal.py:928"
+    },
+    {
+      "name": "appraisal_public_methods",
+      "value": 2,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "appraisal_internal_only_public_methods",
+      "value": 0,
+      "unit": "count",
+      "note": "used only inside their own file: "
+    },
+    {
+      "name": "appraisal_experiments_only",
+      "value": 0,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "appraisal_uncalled",
+      "value": 0,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "appraisal_not_implemented",
+      "value": 0,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "appraisal_constant",
+      "value": 0,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "appraisal_empty",
+      "value": 0,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "arbiter_construction_sites",
+      "value": 1,
+      "unit": "count",
+      "note": "core/agents/autonomous/behavior_arbiter.py:266"
+    },
+    {
+      "name": "arbiter_public_methods",
+      "value": 1,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "arbiter_internal_only_public_methods",
+      "value": 0,
+      "unit": "count",
+      "note": "used only inside their own file: "
+    },
+    {
+      "name": "arbiter_experiments_only",
+      "value": 0,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "arbiter_uncalled",
+      "value": 0,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "arbiter_not_implemented",
+      "value": 0,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "arbiter_constant",
+      "value": 0,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "arbiter_empty",
+      "value": 0,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "motivation_construction_sites",
+      "value": 1,
+      "unit": "count",
+      "note": "core/agents/autonomous/intrinsic_motivation.py:3846"
+    },
+    {
+      "name": "motivation_public_methods",
+      "value": 23,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "motivation_internal_only_public_methods",
+      "value": 4,
+      "unit": "count",
+      "note": "used only inside their own file: log_intrinsic_reward, save_profile, load_profile, sense_fitness"
+    },
+    {
+      "name": "motivation_experiments_only",
+      "value": 0,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "motivation_uncalled",
+      "value": 1,
+      "unit": "count",
+      "note": "get_skill_recommendations"
+    },
+    {
+      "name": "motivation_not_implemented",
+      "value": 0,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "motivation_constant",
+      "value": 0,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "motivation_empty",
+      "value": 0,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "behaviour_checks_passed",
+      "value": 17,
+      "unit": "count",
+      "note": "of 17"
+    },
+    {
+      "name": "wiring_findings",
+      "value": 1,
+      "unit": "count",
+      "note": "0 exercised only by experiments/tests, 1 called by nothing"
+    },
+    {
+      "name": "completeness_findings",
+      "value": 0,
+      "unit": "count",
+      "note": "0 NotImplementedError, 0 return a literal, 0 empty"
+    }
+  ],
+  "checks": [
+    {
+      "label": "appraisal: the coordinator holds the instance the accessor returns",
+      "passed": true,
+      "detail": "held=AppraisalSystem same=True",
+      "at": "2026-09-28T14:39:37.184152+00:00"
+    },
+    {
+      "label": "appraisal: AppraisalSystem is constructed in one place",
+      "passed": true,
+      "detail": "in its module: ['core/agents/autonomous/appraisal.py:928']; elsewhere: []",
+      "at": "2026-09-28T14:39:40.336366+00:00"
+    },
+    {
+      "label": "arbiter: the coordinator holds the instance the accessor returns",
+      "passed": true,
+      "detail": "held=BehaviorArbiter same=True",
+      "at": "2026-09-28T14:39:40.914646+00:00"
+    },
+    {
+      "label": "arbiter: BehaviorArbiter is constructed in one place",
+      "passed": true,
+      "detail": "in its module: ['core/agents/autonomous/behavior_arbiter.py:266']; elsewhere: []",
+      "at": "2026-09-28T14:39:44.983181+00:00"
+    },
+    {
+      "label": "motivation: the coordinator holds the instance the accessor returns",
+      "passed": true,
+      "detail": "held=IntrinsicMotivationSystem same=True",
+      "at": "2026-09-28T14:39:45.378677+00:00"
+    },
+    {
+      "label": "motivation: IntrinsicMotivationSystem is constructed in one place",
+      "passed": true,
+      "detail": "in its module: ['core/agents/autonomous/intrinsic_motivation.py:3846']; elsewhere: []",
+      "at": "2026-09-28T14:39:48.281669+00:00"
+    },
+    {
+      "label": "a worse world raises caution",
+      "passed": true,
+      "detail": "caution 0.2 -> 0.6499999999999999",
+      "at": "2026-09-28T14:39:51.223912+00:00"
+    },
+    {
+      "label": "standing names every dimension and where it came from",
+      "passed": true,
+      "detail": "keys=['appraised', 'attribution', 'derived', 'dimensions', 'pressures', 'unmeasured', 'updated_at', 'updates'] dims=12",
+      "at": "2026-09-28T14:39:51.223939+00:00"
+    },
+    {
+      "label": "an unmeasured dimension says so rather than reading as zero",
+      "passed": true,
+      "detail": "{'appraised': True, 'dimensions': {'valence': {'measured': True, 'value': -0.039999999999999925, 'answers': 'was this ex",
+      "at": "2026-09-28T14:39:51.224046+00:00"
+    },
+    {
+      "label": "a directive is returned with a mode",
+      "passed": true,
+      "detail": "free=persist full=persist",
+      "at": "2026-09-28T14:39:51.224070+00:00"
+    },
+    {
+      "label": "no free slot and a hard backlog take away permission to explore",
+      "passed": true,
+      "detail": "should_explore=False max_goals=0 codes=['dominant:persist:0.48', 'queue_pressure:hard', 'mood_explore:-0.00', 'elevated_verification:0.82']",
+      "at": "2026-09-28T14:39:51.224076+00:00"
+    },
+    {
+      "label": "unknown capacity is not permission",
+      "passed": true,
+      "detail": "['dominant:persist:0.48', 'capacity_unknown', 'mood_explore:-0.00', 'elevated_verification:0.82']",
+      "at": "2026-09-28T14:39:51.224083+00:00"
+    },
+    {
+      "label": "no appraisal at all still yields a directive, not a crash",
+      "passed": true,
+      "detail": "proceed",
+      "at": "2026-09-28T14:39:51.224087+00:00"
+    },
+    {
+      "label": "motivation state is a dict with dimensions",
+      "passed": true,
+      "detail": "keys=['active', 'dimensions', 'influence_percentage', 'last_updated', 'total_reward']",
+      "at": "2026-09-28T14:39:51.224095+00:00"
+    },
+    {
+      "label": "mood, valence and affect are readable now, without a loop",
+      "passed": true,
+      "detail": "mood=Mood(valence=-0.0002, arousal=0.0, baseline=-0.0011, event_count=29, loaded=True) valence=-0.000 affect=AffectState",
+      "at": "2026-09-28T14:39:51.224115+00:00"
+    },
+    {
+      "label": "motivation is calculated from a context",
+      "passed": true,
+      "detail": "keys=['dimensions', 'drive_readings', 'drives_unmeasured', 'event_reward_count', 'influence_percentage', 'mean_event_reward', 'timestamp', 'total_reward']",
+      "at": "2026-09-28T14:40:01.871728+00:00"
+    },
+    {
+      "label": "the coordinator's disposition is the appraisal's, not a second one",
+      "passed": true,
+      "detail": "BehavioralDirective",
+      "at": "2026-09-28T14:40:01.871750+00:00"
+    }
+  ],
+  "notes": []
+}

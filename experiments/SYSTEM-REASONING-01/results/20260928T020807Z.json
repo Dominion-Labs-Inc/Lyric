@@ -1,0 +1,174 @@
+{
+  "experiment": "SYSTEM-REASONING-01",
+  "claim": "The reasoning faculty is one authority, answers from what the substrate holds without a model, refuses what it cannot ground, and every public method of it is reached by something in core.",
+  "hypothesis": "If a second bridge existed, or a question about nothing it holds came back with an answer, or a public method had no caller, this would show it.",
+  "started_at": "2026-09-28T02:08:07.070119+00:00",
+  "duration_seconds": 22.265,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/TorinAI/venv_torin/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/TorinAI",
+    "shadow_mode": null,
+    "git_commit": "20deb447498593391eca0286916b8f986c560a26",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "torinai_dev",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "torinai_dev",
+        "model": "torinai_dev",
+        "user_context": "torinai_dev",
+        "learning": "torinai_dev"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "dotenv:.env.postgres",
+        "database": "environment",
+        "user": "dotenv:.env.postgres",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 1313,
+    "database_verified": null,
+    "database_verified_reason": "no initialized connection in this process"
+  },
+  "summary": {
+    "checks": 8,
+    "passed": 8,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [
+    {
+      "name": "reasoning_construction_sites",
+      "value": 1,
+      "unit": "count",
+      "note": "core/reasoning/neural_bridge.py:4332"
+    },
+    {
+      "name": "reasoning_public_methods",
+      "value": 18,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "reasoning_internal_only_public_methods",
+      "value": 6,
+      "unit": "count",
+      "note": "used only inside their own file: record_reasoning, record_reasoning_outcome, load_telemetry, flush_telemetry, flush_statistics, load_statistics"
+    },
+    {
+      "name": "reasoning_experiments_only",
+      "value": 0,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "reasoning_uncalled",
+      "value": 0,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "reasoning_not_implemented",
+      "value": 0,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "reasoning_constant",
+      "value": 0,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "reasoning_empty",
+      "value": 0,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "held_question_confidence",
+      "value": 0.95,
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "behaviour_checks_passed",
+      "value": 8,
+      "unit": "count",
+      "note": "of 8"
+    },
+    {
+      "name": "wiring_findings",
+      "value": 0,
+      "unit": "count",
+      "note": "0 exercised only by experiments/tests, 0 called by nothing"
+    },
+    {
+      "name": "completeness_findings",
+      "value": 0,
+      "unit": "count",
+      "note": "0 NotImplementedError, 0 return a literal, 0 empty"
+    }
+  ],
+  "checks": [
+    {
+      "label": "reasoning: the coordinator holds the instance the accessor returns",
+      "passed": true,
+      "detail": "held=NeuralSymbolicBridge same=True",
+      "at": "2026-09-28T02:08:24.719957+00:00"
+    },
+    {
+      "label": "reasoning: NeuralSymbolicBridge is constructed in one place",
+      "passed": true,
+      "detail": "in its module: ['core/reasoning/neural_bridge.py:4332']; elsewhere: []",
+      "at": "2026-09-28T02:08:26.636072+00:00"
+    },
+    {
+      "label": "a held isa question is answered in the affirmative",
+      "passed": true,
+      "detail": "answer='Yes: robin isa a bird' confidence=0.95 mode=ReasoningMode.CROSS_DOMAIN",
+      "at": "2026-09-28T02:08:28.987524+00:00"
+    },
+    {
+      "label": "the answer came from the substrate, not a model",
+      "passed": true,
+      "detail": "model_calls=0 route=['reason_about', 'neural_bridge', 'ReasoningMode.CROSS_DOMAIN', 'derived_by_kind']",
+      "at": "2026-09-28T02:08:28.987536+00:00"
+    },
+    {
+      "label": "a false isa is not affirmed",
+      "passed": true,
+      "detail": "answer='' reason=unsupported_input",
+      "at": "2026-09-28T02:08:29.120539+00:00"
+    },
+    {
+      "label": "a question about nothing it holds is refused, not invented",
+      "passed": true,
+      "detail": "answer='' reason=unsupported_input confidence=0.0",
+      "at": "2026-09-28T02:08:29.192768+00:00"
+    },
+    {
+      "label": "statistics are a dict with counts",
+      "passed": true,
+      "detail": "keys=['abstract_requests', 'average_confidence', 'avg_reasoning_quality', 'cross_domain_requests', 'hybrid_requests', 'kinds_measured_difficulty', 'kinds_measured_quality', 'neural_requests']",
+      "at": "2026-09-28T02:08:29.192790+00:00"
+    },
+    {
+      "label": "a reasoning kind has a difficulty, declared or measured",
+      "passed": true,
+      "detail": "deductive=1.0",
+      "at": "2026-09-28T02:08:29.192806+00:00"
+    }
+  ],
+  "notes": []
+}

@@ -12,7 +12,7 @@ from collections import deque
 import pytest
 
 from core.agents.autonomous.autonomous_coordinator import (
-    AutonomousCoordinator, SelfEvent, SelfEventType,
+    AutonomousCoordinator, SelfEvent, SelfEventType, TaskCompleted,
 )
 
 
@@ -29,6 +29,12 @@ def _bare_coord() -> AutonomousCoordinator:
     return c
 
 
+def _completed(task_id: str = "t") -> SelfEvent:
+    """A TASK_COMPLETED event with the payload that event kind declares."""
+    return SelfEvent(SelfEventType.TASK_COMPLETED, TaskCompleted(
+        task=None, task_id=task_id, result=None, is_complete=True, confidence=1.0))
+
+
 @pytest.mark.asyncio
 async def test_sync_reactions_run_in_priority_order():
     c = _bare_coord()
@@ -43,7 +49,7 @@ async def test_sync_reactions_run_in_priority_order():
     # register low first, then high — priority (not registration order) decides
     c.on(SelfEventType.TASK_COMPLETED, lo, name="low", mode="sync", priority=1)
     c.on(SelfEventType.TASK_COMPLETED, hi, name="high", mode="sync", priority=90)
-    await c.emit(SelfEvent(SelfEventType.TASK_COMPLETED))
+    await c.emit(_completed())
     assert order == ["high", "low"], order
 
 
@@ -61,7 +67,7 @@ async def test_failing_reaction_is_isolated():
     c.on(SelfEventType.TASK_COMPLETED, boom, name="boom", mode="sync", priority=90)
     c.on(SelfEventType.TASK_COMPLETED, ok, name="ok", mode="sync", priority=1)
     # emit must not raise; the good reaction must still run
-    await c.emit(SelfEvent(SelfEventType.TASK_COMPLETED))
+    await c.emit(_completed())
     assert ran == ["ok"], ran
 
 
@@ -71,19 +77,19 @@ async def test_deferred_reaction_drains_when_woken():
     drained = []
 
     async def slow(e):
-        drained.append(e.payload.get("n"))
+        drained.append(e.payload.task_id)
 
     c.on(SelfEventType.TASK_COMPLETED, slow, name="slow", mode="deferred")
     worker = asyncio.create_task(c._reactive_drain_worker())
     try:
-        await c.emit(SelfEvent(SelfEventType.TASK_COMPLETED, {"n": 1}))
-        await c.emit(SelfEvent(SelfEventType.TASK_COMPLETED, {"n": 2}))
+        await c.emit(_completed("1"))
+        await c.emit(_completed("2"))
         # give the worker a couple of loop turns to drain
         for _ in range(50):
-            if drained == [1, 2]:
+            if drained == ["1", "2"]:
                 break
             await asyncio.sleep(0.01)
-        assert drained == [1, 2], drained
+        assert drained == ["1", "2"], drained
     finally:
         c.active = False
         worker.cancel()
@@ -128,7 +134,7 @@ async def test_depth_guard_demotes_sync_to_deferred():
     # simulate being already at max emit depth: the sync reaction must be
     # enqueued (deferred) rather than run inline, and nothing dropped.
     c._emit_depth = c._max_emit_depth
-    await c.emit(SelfEvent(SelfEventType.TASK_COMPLETED))
+    await c.emit(_completed())
     assert ran_inline == [], "sync reaction should have been demoted, not run inline"
     assert len(c._reactive_queue) == 1, "demoted reaction must be enqueued, not dropped"
     assert c._work_ready.is_set()

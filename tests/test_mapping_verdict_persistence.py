@@ -231,16 +231,18 @@ async def test_writers_supply_every_mandatory_column():
     NotNullViolation, which `create_knowledge_transfer` caught and returned as
     False. The table stayed empty while callers were told the transfer worked.
     This checks the contract structurally rather than waiting for the exception
-    to be swallowed again.
+    to be swallowed again. The memory agent writes both tables, so its writers
+    are the ones checked.
     """
     _load_env()
     import inspect
     import re
-    from core.domain import domain_registry as dr
+    from core.agents.memory_agent import MemoryAgent
 
     db = await _db()
-    for table, writer in (("domain_mappings", dr.DomainRegistry._persist_mapping),
-                          ("knowledge_transfers", dr.DomainRegistry._persist_transfer)):
+    for table, writer in (("domain_mappings", MemoryAgent.hold_domain_mapping),
+                          ("domain_mappings", MemoryAgent.hold_domain_correspondence),
+                          ("knowledge_transfers", MemoryAgent.hold_knowledge_transfer)):
         required = await db.execute_query(
             """SELECT column_name FROM information_schema.columns
                WHERE table_schema = 'unified' AND table_name = $1

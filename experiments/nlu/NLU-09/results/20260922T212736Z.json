@@ -1,0 +1,101 @@
+{
+  "experiment": "NLU-09 \u2014 When it cannot represent a sentence, does it SAY so?",
+  "writes_to_store": false,
+  "notes": [
+    "the false-positive rate is the safety number here: a reading becomes a premise the solver cannot doubt, so a confident wrong reading is worse than no reading at all",
+    "false-positive rate on structures it cannot represent: 25.0% (3/12)"
+  ],
+  "data": {
+    "structures": 12,
+    "guessed": 3,
+    "false_positive_rate_pct": 25.0,
+    "guesses": [
+      {
+        "class": "relative clause",
+        "atom": [
+          "pump_failed"
+        ],
+        "reader": "segmented"
+      },
+      {
+        "class": "subordination",
+        "atom": [
+          "valve_stuck_tank_overflowed"
+        ],
+        "reader": "segmented"
+      },
+      {
+        "class": "bare fragment",
+        "atom": [
+          "why"
+        ],
+        "reader": "passthrough"
+      }
+    ]
+  },
+  "checks": [
+    {
+      "name": "refuses relative clause",
+      "passed": false,
+      "detail": "guessed ('pump_failed',) [segmented]"
+    },
+    {
+      "name": "refuses NP coordination",
+      "passed": true,
+      "detail": "guessed None []"
+    },
+    {
+      "name": "refuses object coordination",
+      "passed": true,
+      "detail": "guessed None []"
+    },
+    {
+      "name": "refuses VP coordination",
+      "passed": true,
+      "detail": "guessed None []"
+    },
+    {
+      "name": "refuses subordination",
+      "passed": false,
+      "detail": "guessed ('valve_stuck_tank_overflowed',) [segmented]"
+    },
+    {
+      "name": "refuses complement clause",
+      "passed": true,
+      "detail": "guessed None []"
+    },
+    {
+      "name": "refuses ditransitive",
+      "passed": true,
+      "detail": "guessed None []"
+    },
+    {
+      "name": "refuses apposition",
+      "passed": true,
+      "detail": "guessed None []"
+    },
+    {
+      "name": "refuses comparative",
+      "passed": true,
+      "detail": "guessed None []"
+    },
+    {
+      "name": "refuses quantified",
+      "passed": true,
+      "detail": "guessed None []"
+    },
+    {
+      "name": "refuses multi-clause definition",
+      "passed": true,
+      "detail": "guessed None []"
+    },
+    {
+      "name": "refuses bare fragment",
+      "passed": false,
+      "detail": "guessed ('why',) [passthrough]"
+    }
+  ],
+  "passed": 9,
+  "total": 12,
+  "seconds": 0.03
+}

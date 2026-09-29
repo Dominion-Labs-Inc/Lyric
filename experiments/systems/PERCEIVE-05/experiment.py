@@ -70,6 +70,7 @@ def _image_features(path: str, F: int) -> np.ndarray:
 
 
 async def main() -> int:
+    from core.memory import Origin
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
         from core.main import get_system
@@ -116,8 +117,10 @@ async def main() -> int:
     out.append("== 2. perceive is the recognition primitive (no longer orphaned) ==")
     coord.learning.register_clause_classifier(
         "toy_shapes", model, labels=["dark", "bright"], encode=None)
+    from core.memory import Origin
     d = await coord.perceive("toy_shapes", np.ones(F, dtype=np.int8),
-                             "sample_bright", domain="toy_percepts")
+                             "sample_bright", domain="toy_percepts",
+                             origin=Origin.own("PERCEIVE-05"))
     posterior = d.claims[0].posterior if d.claims else None
     out.append(f"  decision={d.decision} posterior={posterior} accept={d.accept}")
     check("perceive returned a governed decision (ACT/VERIFY/ABSTAIN)",
@@ -133,20 +136,27 @@ async def main() -> int:
         "toy_vision", model, labels=["dark", "bright"],
         encode=lambda p: _image_features(p, F))
     coord.attach_recognizer("vision", "toy_vision")
-    pd = await coord.see(IMAGE, source="vision_test", domain="vision")
+    pd = await coord.see(IMAGE, source="vision_test", domain="vision", actor_identity=None)
     await asyncio.sleep(0.2)
     check("see returned PerceptionData (the hub was the admitter)", pd is not None)
+    # THE PERCEPT IS NAMED FROM THE IMAGE'S CONTENT, not from the caller's
+    # label: `source="vision_test"` becomes `vision_testx<digest>`, because the
+    # caller's label is not an identity (an environment scan passes
+    # `source="environment"` for every image it walks past, which made every
+    # picture in the world the same individual). These two checks still looked
+    # for the bare label and so could not pass. Ask the percept its name.
+    percept_name = getattr(pd, "source", None) or "vision_test"
     check("the percept was admitted as evidence (edges for the subject exist)",
-          len(await edges_for("vision_test")) > 0)
+          len(await edges_for(percept_name)) > 0)
     recent = await coord.perception.get_recent_perceptions(limit=20)
     check("the percept is in the substrate's perceptual awareness",
-          any(getattr(p, "source", None) == "vision_test" for p in recent))
+          any(getattr(p, "source", None) == percept_name for p in recent))
 
     out.append("== 5. perception is stamped WITHIN a memory (the whole point) ==")
     stored, mid = await agent.store_memory(
         content="Observed the vision test card on the workbench.",
         memory_type=MemoryType.EPISODIC, importance_score=0.85,
-        confidence_score=0.9, tags=["perceive05", "episode"])
+        confidence_score=0.9, tags=["perceive05", "episode"], origin=Origin.own("PERCEIVE-05"))
     check("a memory was stored to hang perception on", stored and bool(mid))
     ts = {}
     if stored and mid:

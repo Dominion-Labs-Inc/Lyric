@@ -16,3 +16,10 @@ PYTHONPATH="$PWD" POSTGRES_PORT=5433 POSTGRES_USER=stefan TORIN_NO_WATCHDOG=1 ./
 ```
 
 **Results.** `last_run.txt` holds the output of a run on 2026-09-09: PASS. It is not a structured record.
+
+**2026-09-28: run again, 5/5 PASS** (sandbox). Two premises had gone stale since 09-09:
+- `perceive` returns a `PerceptJudged`, not a dict, so the claim is read from its one claim (`d.claims[0].claim`);
+- the boot now primes the drift baseline (`core/main.py`), so the first drain in a process reports what moved since
+  boot. Step 0 checks that the boot primed it, then drains to move the baseline to now, before this run's teaching.
+
+The perception here is the substrate's own (`origin=Origin.own(...)`), as `perceive` now requires whose it is.

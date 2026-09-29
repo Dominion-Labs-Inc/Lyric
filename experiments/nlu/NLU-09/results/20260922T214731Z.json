@@ -1,0 +1,89 @@
+{
+  "experiment": "NLU-09 \u2014 Is everything it says about a hard sentence TRUE?",
+  "writes_to_store": false,
+  "notes": [
+    "a reading becomes a premise the solver cannot doubt, so the safety number is not how much it says but whether any of it is false",
+    "it produced a reading for 2/14 of them; 0 carried a claim the sentence does not make (0.0%)"
+  ],
+  "data": {
+    "sentences": 14,
+    "spoke_at_all": 2,
+    "unsound": 0,
+    "false_claim_rate_pct": 0.0
+  },
+  "checks": [
+    {
+      "name": "nothing false from 'The pump that failed was replaced.'",
+      "passed": true,
+      "detail": "produced [] which the sentence does not state (entailed: ['pump_fail']) []"
+    },
+    {
+      "name": "nothing false from 'The valve which leaked is closed.'",
+      "passed": true,
+      "detail": "produced [] which the sentence does not state (entailed: ['valve_closed', 'valve_leak']) [segmented]"
+    },
+    {
+      "name": "nothing false from 'The engineer who arrived is waiting.'",
+      "passed": true,
+      "detail": "produced [] which the sentence does not state (entailed: ['engineer_arrive', 'engineer_waiting']) [segmented]"
+    },
+    {
+      "name": "nothing false from 'Dogs and cats are mammals.'",
+      "passed": true,
+      "detail": "produced [] which the sentence does not state (entailed: ['cat_mammal', 'dog_mammal']) []"
+    },
+    {
+      "name": "nothing false from 'The vault holds gold and silver.'",
+      "passed": true,
+      "detail": "produced [] which the sentence does not state (entailed: ['vault_hold_gold', 'vault_hold_silver']) []"
+    },
+    {
+      "name": "nothing false from 'The valve opens and closes.'",
+      "passed": true,
+      "detail": "produced [] which the sentence does not state (entailed: ['valve_close', 'valve_open']) []"
+    },
+    {
+      "name": "nothing false from 'Because the valve stuck the tank overflowed.'",
+      "passed": true,
+      "detail": "produced [] which the sentence does not state (entailed: ['tank_overflow', 'valve_stick']) []"
+    },
+    {
+      "name": "nothing false from 'Scientists believe the universe is expanding'",
+      "passed": true,
+      "detail": "produced [] which the sentence does not state (entailed: ['universe_expanding']) []"
+    },
+    {
+      "name": "nothing false from 'Alice gave Bob a book.'",
+      "passed": true,
+      "detail": "produced [] which the sentence does not state (entailed: nothing) []"
+    },
+    {
+      "name": "nothing false from 'Paris the capital of France is on the Seine.'",
+      "passed": true,
+      "detail": "produced [] which the sentence does not state (entailed: ['paris_capital', 'paris_on_seine']) []"
+    },
+    {
+      "name": "nothing false from 'Iron is heavier than aluminium.'",
+      "passed": true,
+      "detail": "produced [] which the sentence does not state (entailed: nothing) []"
+    },
+    {
+      "name": "nothing false from 'Most birds can fly.'",
+      "passed": true,
+      "detail": "produced [] which the sentence does not state (entailed: nothing) []"
+    },
+    {
+      "name": "nothing false from 'A function is a reusable block of code that '",
+      "passed": true,
+      "detail": "produced [] which the sentence does not state (entailed: ['block_encapsulate_logic', 'function_block', 'function_reusable_block']) []"
+    },
+    {
+      "name": "nothing false from 'why'",
+      "passed": true,
+      "detail": "produced [] which the sentence does not state (entailed: nothing) []"
+    }
+  ],
+  "passed": 14,
+  "total": 14,
+  "seconds": 0.04
+}

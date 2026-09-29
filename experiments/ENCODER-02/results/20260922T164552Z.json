@@ -1,0 +1,86 @@
+{
+  "experiment": "ENCODER-02 \u2014 scale: does teaching make the native encoder better?",
+  "seed": 20260922,
+  "hypotheses": [
+    "H1 native retrieval improves with taught propositions",
+    "H2 native separation improves with taught propositions",
+    "H3 native crosses MiniLM on retrieval within this range"
+  ],
+  "data": {
+    "curve": {
+      "5": {
+        "props": 10,
+        "facts": 10,
+        "native_mrr": 0.75,
+        "minilm_mrr": 0.75,
+        "native_sep": 0.20263556161358054,
+        "minilm_sep": 0.3769619083061687
+      },
+      "10": {
+        "props": 20,
+        "facts": 20,
+        "native_mrr": 0.75,
+        "minilm_mrr": 0.75,
+        "native_sep": 0.19384256704031788,
+        "minilm_sep": 0.3704935204737003
+      },
+      "20": {
+        "props": 40,
+        "facts": 40,
+        "native_mrr": 0.75,
+        "minilm_mrr": 0.75,
+        "native_sep": 0.24575020548126703,
+        "minilm_sep": 0.3658360423007857
+      },
+      "30": {
+        "props": 60,
+        "facts": 60,
+        "native_mrr": 0.75,
+        "minilm_mrr": 0.75,
+        "native_sep": 0.27706504076544625,
+        "minilm_sep": 0.36711101008502467
+      },
+      "40": {
+        "props": 80,
+        "facts": 80,
+        "native_mrr": 0.75,
+        "minilm_mrr": 0.75,
+        "native_sep": 0.2990313098396259,
+        "minilm_sep": 0.36721821673706745
+      },
+      "50": {
+        "props": 100,
+        "facts": 100,
+        "native_mrr": 0.75,
+        "minilm_mrr": 0.75,
+        "native_sep": 0.31579822609620356,
+        "minilm_sep": 0.36592108378906374
+      }
+    }
+  },
+  "checks": [
+    {
+      "name": "H1 native retrieval improves with scale",
+      "passed": false,
+      "detail": "0.750 at 5 subjects -> 0.750 at 50"
+    },
+    {
+      "name": "H1b and does not collapse at the largest size",
+      "passed": true,
+      "detail": "largest 0.750 vs best 0.750"
+    },
+    {
+      "name": "H2 native separation improves with scale",
+      "passed": true,
+      "detail": "+0.203 -> +0.316"
+    },
+    {
+      "name": "H3 native crosses MiniLM on retrieval",
+      "passed": false,
+      "detail": "never crossed in range"
+    }
+  ],
+  "passed": 2,
+  "total": 4,
+  "verdict": "native retrieval is flat with scale; it does not overtake MiniLM in this range"
+}

@@ -1,0 +1,144 @@
+{
+  "experiment": "CANARY-01",
+  "claim": "What a person gives the substrate through its doors -- a question, a job, an image -- is held in that person's context and in no memory of anyone else's, while what the substrate does on its own is its own.",
+  "hypothesis": "A marker from the person found in a memory row of the substrate's, or under another owner in a table that records owners, would show a leak here.",
+  "started_at": "2026-09-27T23:34:33.527161+00:00",
+  "duration_seconds": 39.474,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/TorinAI/venv_torin/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/TorinAI",
+    "shadow_mode": null,
+    "git_commit": "20deb447498593391eca0286916b8f986c560a26",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "torinai_dev",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "torinai_dev",
+        "model": "torinai_dev",
+        "user_context": "torinai_dev",
+        "learning": "torinai_dev"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "environment",
+        "database": "environment",
+        "user": "environment",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 1220,
+    "database_verified": null,
+    "database_verified_reason": "not verified"
+  },
+  "summary": {
+    "checks": 12,
+    "passed": 12,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [
+    {
+      "name": "reasoning memories of the person's question",
+      "value": 1,
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "task-end records of the person's job",
+      "value": 0,
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "owner-less tables holding a person's marker",
+      "value": 2,
+      "unit": "",
+      "note": "unified.reasoning_arg_claims: fact and question; unified.reasoning_arguments: fact and question"
+    }
+  ],
+  "checks": [
+    {
+      "label": "the run is in the sandbox",
+      "passed": true,
+      "detail": "connected to torinai_dev",
+      "at": "2026-09-27T23:34:41.080200+00:00"
+    },
+    {
+      "label": "the substrate is running",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-27T23:34:58.215887+00:00"
+    },
+    {
+      "label": "the question was answered by reasoning over their fact and the lesson",
+      "passed": true,
+      "detail": "Yes, a zqblignmrmj is an animal.",
+      "at": "2026-09-27T23:34:59.080497+00:00"
+    },
+    {
+      "label": "the job ran to its end and succeeded",
+      "passed": true,
+      "detail": "completed",
+      "at": "2026-09-27T23:35:03.088385+00:00"
+    },
+    {
+      "label": "`see` takes whose image it is, as the front door takes whose message it is",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-27T23:35:03.093524+00:00"
+    },
+    {
+      "label": "the person's fact and question reached memory, and every memory row holding it is theirs",
+      "passed": true,
+      "detail": "owners ['canary-person-rhbbqmgql']",
+      "at": "2026-09-27T23:35:12.615044+00:00"
+    },
+    {
+      "label": "the person's job reached memory, and every memory row holding it is theirs",
+      "passed": true,
+      "detail": "owners ['canary-person-rhbbqmgql']",
+      "at": "2026-09-27T23:35:12.615058+00:00"
+    },
+    {
+      "label": "the memory `see` made of the person's image is theirs",
+      "passed": true,
+      "detail": "1 memory(ies), owners ['canary-person-rhbbqmgql']",
+      "at": "2026-09-27T23:35:12.616017+00:00"
+    },
+    {
+      "label": "the substrate's own note is its own",
+      "passed": true,
+      "detail": "owners ['']",
+      "at": "2026-09-27T23:35:12.616029+00:00"
+    },
+    {
+      "label": "unified.scoped_beliefs holds the person's fact and question only under them",
+      "passed": true,
+      "detail": "owners ['canary-person-rhbbqmgql']",
+      "at": "2026-09-27T23:35:12.617822+00:00"
+    },
+    {
+      "label": "unified.scoped_concept_relations holds the person's fact and question only under them",
+      "passed": true,
+      "detail": "owners ['canary-person-rhbbqmgql']",
+      "at": "2026-09-27T23:35:12.617829+00:00"
+    },
+    {
+      "label": "the main model's store is untouched",
+      "passed": true,
+      "detail": "207 rows before, 207 after",
+      "at": "2026-09-27T23:35:13.001125+00:00"
+    }
+  ],
+  "notes": []
+}

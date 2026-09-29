@@ -852,6 +852,11 @@ class UniversalDomainMaster:
         Columns are added only when missing: ADD COLUMN takes an exclusive lock
         even when IF NOT EXISTS makes it a no-op. Vectors written by any other
         model are cleared, because they are not comparable with this model's.
+
+        A frozen release is not maintained: what it lacks is refused as a
+        mismatch by the manager, and its vectors are left as they were cut. Any
+        written by another model are reported; development re-encodes them and
+        cuts the next release.
         """
         from core.memory.utils.embedding_service import (
             EMBEDDING_DIMENSIONS, EMBEDDING_MODEL_ID)
@@ -860,7 +865,8 @@ class UniversalDomainMaster:
             """SELECT column_name FROM information_schema.columns
                WHERE table_schema = 'unified' AND table_name = 'concepts'
                  AND column_name IN ('name_embedding', 'description_embedding',
-                                     'embedding_model')""", fetch_all=True) or []}
+                                     'embedding_model')""", fetch_all=True,
+            store="model") or []}
         wanted = [("name_embedding", f"vector({EMBEDDING_DIMENSIONS})"),
                   ("description_embedding", f"vector({EMBEDDING_DIMENSIONS})"),
                   ("embedding_model", "TEXT")]
@@ -871,20 +877,26 @@ class UniversalDomainMaster:
             logger.info("unified.concepts: added %s", ", ".join(missing))
         indexed = await db.execute_query(
             """SELECT 1 FROM pg_indexes WHERE schemaname = 'unified'
-               AND indexname = 'idx_concepts_embedding_pending'""", fetch_all=True)
+               AND indexname = 'idx_concepts_embedding_pending'""", fetch_all=True,
+            store="model")
         if not indexed:
             await db.execute_query(
                 """CREATE INDEX idx_concepts_embedding_pending ON unified.concepts
                    (concept_id) WHERE embedding_model IS NULL""", commit=True)
-        cleared = (await db.execute_query(
-            """WITH cleared AS (
-                   UPDATE unified.concepts
-                      SET name_embedding = NULL, description_embedding = NULL,
-                          embedding_model = NULL
-                    WHERE embedding_model IS NOT NULL AND embedding_model <> $1
-                RETURNING 1)
-               SELECT count(*) AS n FROM cleared""",
-            (EMBEDDING_MODEL_ID,), fetch_all=True))[0]["n"]
+        if getattr(db, "frozen", False):
+            foreign = (await db.execute_query(
+                """SELECT count(*) AS n FROM unified.concepts
+                   WHERE embedding_model IS NOT NULL AND embedding_model <> $1""",
+                (EMBEDDING_MODEL_ID,), fetch_all=True))[0]["n"]
+            if foreign:
+                logger.warning(
+                    "release %s: %d concept vector(s) were written by a model other than %s; "
+                    "a frozen release is not re-encoded (development re-encodes, then cuts)",
+                    db.release, foreign, EMBEDDING_MODEL_ID)
+            return
+        from core.agents.memory_agent import memory_agent
+        cleared = (await memory_agent().clear_foreign_vectors(
+            model_id=EMBEDDING_MODEL_ID))[0]["n"]
         if cleared:
             logger.warning(
                 "unified.concepts: cleared %d vector(s) written by a model other "
@@ -989,14 +1001,11 @@ class UniversalDomainMaster:
             (DomainType.PRACTICAL, "Practical Domain", "Practical applications")
         ]
 
+        from core.agents.memory_agent import memory_agent
         for domain_type, name, description in default_domains:
-            await self.db.execute_query(
-                """INSERT INTO unified.domains (domain_id, domain_name, description)
-                   VALUES ($1, $2, $3)
-                   ON CONFLICT (domain_id) DO NOTHING""",
-                (f"domain_{domain_type.value}", name, description),
-                commit=True
-            )
+            await memory_agent().hold_default_domain(
+                domain_id=f"domain_{domain_type.value}", name=name,
+                description=description)
 
     # ==================================================================
     # DOMAIN CREATION & DISCOVERY — the single authority
@@ -1124,17 +1133,80 @@ class UniversalDomainMaster:
         from core.reasoning.bayesian_uncertainty import get_uncertainty_system
         return get_uncertainty_system()
 
+    async def _remember_domain(self, domain_id: str) -> Optional[str]:
+        """Remember that the substrate HAS this domain, and return the memory id.
+
+        A competence belief is a stance on something the substrate has MET, and
+        the belief authority enforces exactly that: a belief naming no memory is
+        refused ("a belief is a stance on something the substrate has met, not a
+        place to keep a claim"). Encountering a domain IS such an event — it is
+        the moment the substrate first had real capability or knowledge here —
+        so it is remembered, and the competence belief is about that memory.
+
+        Without this the whole competence spine was dead: measured on the live
+        store, 415 domains and ZERO competence beliefs, every one silently
+        refused (the guard logs only the 1st and every 100th). Nothing surfaced
+        for exploration, learning progress had no history, and the drive that
+        reads competence had nothing to read.
+        """
+        try:
+            from core.memory import get_memory_agent
+            from core.memory.utils.interfaces import MemoryType
+            agent = await get_memory_agent()
+            from core.memory import Origin
+            stored, memory_id = await agent.store_memory(
+                origin=Origin.own("domains"),
+                content=(f"The substrate has a domain it can learn and act in: "
+                         f"{domain_id}."),
+                memory_type=MemoryType.SEMANTIC,
+                importance_score=0.7,
+                confidence_score=1.0,
+                tags=["domain", self.DOMAIN_MEMORY_TAG],
+                source_context={"producer": "domain_authority",
+                                "source_id": domain_id, "domain_id": domain_id})
+            return memory_id
+        except Exception as error:
+            logger.warning("could not remember domain %s (%s); its competence "
+                           "belief will be refused as ungrounded",
+                           domain_id, error)
+            return None
+
+    #: Tag on the memory that a domain exists, so the record of meeting a domain
+    #: is findable as the kind of thing it is rather than only by its wording.
+    DOMAIN_MEMORY_TAG = "domain_existence"
+
     async def ensure_competence_belief(self, domain_id: str):
         """The belief tracking whether the substrate has learned a domain's
-        operators, created at maximum uncertainty if absent."""
+        operators, created at maximum uncertainty if absent.
+
+        GROUNDED IN THE MEMORY OF MEETING THE DOMAIN. It used to be created with
+        no subject at all, which the belief authority refuses — so this method
+        returned a belief object that never reached the store, and every caller
+        downstream (exploration surfacing, learning progress, the competence
+        drive) read an empty set and behaved as if the substrate had no domains.
+        """
         unc = self._uncertainty()
         claim = self._competence_claim(domain_id)
         existing = next((b for b in unc.beliefs.values()
                          if b.claim == claim and b.domain == domain_id), None)
         if existing is None:
             from core.learning.unified_learning_system import get_unified_learning_system
+            memory_id = await self._remember_domain(domain_id)
+            # NO `evidence=` HERE, DELIBERATELY. `create_belief` applies any
+            # non-empty evidence dict as a SUPPORTING observation, and its own
+            # docstring warns that a source-only dict "would silently nudge every
+            # no-evidence belief up from its prior". Measured when this was first
+            # written that way: the belief landed at 0.818 instead of 0.5, which
+            # defeats the entire point — a domain at that posterior has low
+            # entropy and never appears in the unstable regions intrinsic
+            # motivation reads to choose what to explore.
+            #
+            # The memory is the belief's SUBJECT, not evidence for it. Knowing a
+            # domain exists is not evidence that its operators have been learned.
             existing = get_unified_learning_system().create_belief(
                 claim, domain=domain_id, prior=0.5)
+            if memory_id:
+                existing.memory_id = memory_id
             # Durable, not fire-and-forget: competence decides what the substrate
             # explores after a restart, so it must actually reach the store.
             await unc.flush_belief(existing.belief_id)
@@ -1211,6 +1283,11 @@ class UniversalDomainMaster:
     #: it is judged.
     OPTIMISTIC_PROGRESS: float = 1.0
 
+    def competence_belief(self, domain_id: str):
+        """This domain's operator-competence belief, or None if it has none --
+        what the substrate believes about whether it has learned to act here."""
+        return self._competence_belief_of(domain_id)
+
     def _competence_belief_of(self, domain_id: str):
         unc = self._uncertainty()
         claim = self._competence_claim(domain_id)
@@ -1284,20 +1361,12 @@ class UniversalDomainMaster:
         if not self.db:
             return
         await self._ensure_controllability_table()
-        await self.db.execute_query(
-            """INSERT INTO unified.domain_controllability
-                   (domain_id, action_attempts, action_effects,
-                    still_observations, ambient_changes)
-               VALUES ($1,$2,$3,$4,$5)
-               ON CONFLICT (domain_id) DO UPDATE SET
-                   action_attempts    = domain_controllability.action_attempts + EXCLUDED.action_attempts,
-                   action_effects     = domain_controllability.action_effects + EXCLUDED.action_effects,
-                   still_observations = domain_controllability.still_observations + EXCLUDED.still_observations,
-                   ambient_changes    = domain_controllability.ambient_changes + EXCLUDED.ambient_changes,
-                   updated_at         = NOW()""",
-            (domain_id, int(action_attempts), int(action_effects),
-             int(still_observations), int(ambient_changes)),
-            commit=True)
+        from core.agents.memory_agent import memory_agent
+        await memory_agent().record_controllability(
+            domain_id=domain_id, action_attempts=int(action_attempts),
+            action_effects=int(action_effects),
+            still_observations=int(still_observations),
+            ambient_changes=int(ambient_changes))
 
     async def controllability(self, domain_id: str) -> float:
         """How much the substrate's actions move a domain, in [0,1].
@@ -1386,15 +1455,9 @@ class UniversalDomainMaster:
         if not self.db:
             return False
         await self._ensure_controllability_table()
-        await self.db.execute_query(
-            """INSERT INTO unified.domain_controllability
-                   (domain_id, operating_attempts, operating_wins)
-               VALUES ($1, 1, $2)
-               ON CONFLICT (domain_id) DO UPDATE SET
-                   operating_attempts = domain_controllability.operating_attempts + 1,
-                   operating_wins     = domain_controllability.operating_wins + EXCLUDED.operating_wins,
-                   updated_at         = NOW()""",
-            (domain_id, 1 if success else 0), commit=True)
+        from core.agents.memory_agent import memory_agent
+        await memory_agent().record_operating_outcome(
+            domain_id=domain_id, win=1 if success else 0)
         return True
 
     async def operating_reliability(self, domain_id: str) -> Dict[str, Any]:
@@ -2094,10 +2157,15 @@ class UniversalDomainMaster:
 
         Encoding runs in a worker thread. A row whose description changed after
         it was read is not written and is read again next round.
+
+        A frozen release is not maintained: it is cut with every concept encoded
+        (releases.cut refuses otherwise), so here nothing is encoded or written.
         """
         from pgvector import Vector
         from core.memory.utils.embedding_service import EMBEDDING_MODEL_ID
         db = await self._database()
+        if getattr(db, "frozen", False):
+            return 0
         scope = sorted({str(c) for c in concept_ids if c}) if concept_ids is not None else None
         if scope is not None and not scope:
             return 0
@@ -2120,23 +2188,14 @@ class UniversalDomainMaster:
             name_vecs, desc_vecs = await asyncio.to_thread(
                 _encode_concept_texts, [r["name"] for r in rows],
                 [r["description"] for r in rows])
-            stored = await db.execute_query(
-                """UPDATE unified.concepts AS c
-                      SET name_embedding = v.name_embedding,
-                          description_embedding = v.description_embedding,
-                          embedding_model = $5
-                     FROM unnest($1::text[], $2::vector[], $3::vector[], $4::text[])
-                          AS v(concept_id, name_embedding, description_embedding, description)
-                    WHERE c.concept_id = v.concept_id
-                      AND c.embedding_model IS NULL
-                      AND c.description IS NOT DISTINCT FROM v.description
-                RETURNING c.concept_id""",
-                ([r["concept_id"] for r in rows],
-                 [Vector(v) if v is not None else None for v in name_vecs],
-                 [Vector(v) if v is not None else None for v in desc_vecs],
-                 [r["description"] for r in rows],
-                 EMBEDDING_MODEL_ID),
-                fetch_all=True) or []
+            from core.agents.memory_agent import memory_agent
+            stored = await memory_agent().hold_concept_vectors(
+                concept_ids=[r["concept_id"] for r in rows],
+                name_vectors=[Vector(v) if v is not None else None for v in name_vecs],
+                description_vectors=[Vector(v) if v is not None else None
+                                     for v in desc_vecs],
+                descriptions=[r["description"] for r in rows],
+                model_id=EMBEDDING_MODEL_ID) or []
             self._vectors.discard([r["concept_id"] for r in stored])
             written += len(stored)
             unwritten_rounds = 0 if stored else unwritten_rounds + 1
@@ -2166,6 +2225,10 @@ class UniversalDomainMaster:
                 fetch_all=True))[0]["n"]
             if not pending:
                 logger.info("Concept embeddings: every concept has stored vectors")
+                return 0
+            if getattr(db, "frozen", False):
+                logger.warning("Concept embeddings: release %s holds %d concept(s) without "
+                               "vectors; a frozen release is not encoded", db.release, pending)
                 return 0
             logger.info("Concept embeddings: %d concept(s) have no stored vectors; "
                         "encoding them in the background", pending)
@@ -2419,19 +2482,49 @@ class UniversalDomainMaster:
                 aligned.append(rule)
         return mapping, aligned
 
+    #: Marker written into a domain's `boundaries` once discovery has DECIDED
+    #: about it. Its ABSENCE is what makes a domain provisional.
+    CRYSTALLIZED_MARK: str = "crystallized"
+
+    def is_crystallized(self, domain) -> bool:
+        """Has discovery already decided about this domain?
+
+        REGISTERED IS NOT DECIDED. `ensure_domain` FILES a bucket so beliefs,
+        concepts and exploration have one identity to refer to; it happens on the
+        first fact taught. `crystallize` DECIDES whether that bucket is a subject
+        of its own or an existing subject re-learned under another name. Those are
+        two different acts and conflating them is what made discovery dead code.
+        """
+        return bool((getattr(domain, "boundaries", None) or {}).get(
+            self.CRYSTALLIZED_MARK))
+
     async def provisional_domains(self) -> List[str]:
-        """Operational domains that have validated operators but are not yet
-        registered as first-class Domains -- the candidates for crystallization.
+        """Operational domains that have validated operators and that discovery
+        has not yet DECIDED about -- the candidates for crystallization.
 
         A provisional domain is a bucket where learning has been accumulating
-        under a string domain_id. It becomes a real domain only once discovery
-        decides it has earned one.
+        under a string domain_id. It becomes a decided domain only once discovery
+        rules it a subject of its own or a merge into one.
+
+        THIS PREDICATE USED TO BE `d not in registry.domains` -- "not yet
+        registered". That made the whole discovery path unreachable by
+        construction, because the learning fan-out calls `ensure_domain(domain)`
+        on the FIRST FACT taught, long before any operator is induced in that
+        domain. Measured on the live store: every one of the four domains holding
+        executable operators was registered BEFORE its first rule existed, so
+        `provisional_domains()` returned [] on every wake and `crystallize()` --
+        which is what decides new-vs-merge and records cross-domain analogies --
+        had never run on a real domain in the substrate's life. Registration is
+        not the decision; the absence of the decision is.
         """
         from core.learning.rule_store import get_rule_store
         registry = await self._registry()
         rules = await get_rule_store().executable_rules()
         domain_ids = {r.domain_id for r in rules if getattr(r, "domain_id", None)}
-        return sorted(d for d in domain_ids if d not in registry.domains)
+        return sorted(
+            d for d in domain_ids
+            if not (registry.domains.get(d) is not None
+                    and self.is_crystallized(registry.domains[d])))
 
     async def discover_domains(self, *, limit: int = 8) -> Dict[str, Any]:
         """Crystallize provisional operational domains -- the discovery step,
@@ -2441,19 +2534,358 @@ class UniversalDomainMaster:
         merged into an existing one, decided by operator structure. This is the
         substrate's map of subjects growing from what it has actually learned.
         """
+        from core.memory import knowledge_ledger as ledger
         outcomes = []
-        for domain_id in (await self.provisional_domains())[:max(0, int(limit))]:
-            try:
-                outcomes.append(await self.crystallize(domain_id))
-            except Exception as e:
-                from core.capability import raise_if_structural
-                raise_if_structural(e, "universal_domain_master.discover_domains")
-                logger.error("crystallize(%s) failed: %s", domain_id, e)
+        token = ledger.begin_batch("domain_discovery.operational_sweep")
+        try:
+            for domain_id in (await self.provisional_domains())[:max(0, int(limit))]:
+                try:
+                    outcome = await self.crystallize(domain_id)
+                except Exception as e:
+                    from core.capability import raise_if_structural
+                    raise_if_structural(e, "universal_domain_master.discover_domains")
+                    logger.error("crystallize(%s) failed: %s", domain_id, e)
+                    continue
+                outcomes.append(outcome)
+                # ONLY A DECISION THAT CHANGED SOMETHING IS AN UPDATE, which is
+                # the rule `rule_authority.record_authority_change` already
+                # states: "a no-op transition is not an event". `incoherent` and
+                # `empty` leave the domain exactly as provisional as it was, so
+                # recording them writes a row per sweep about nothing changing --
+                # measured, 549 identical `rejected` rows for one domain that
+                # simply had not earned a decision yet. The decline is logged;
+                # it is not a knowledge update.
+                disposition = {
+                    "crystallized": ledger.Disposition.NEW,
+                    "merged": ledger.Disposition.MERGED,
+                }.get(outcome.get("status"))
+                if disposition is None:
+                    continue
+                try:
+                    await ledger.record(self.db, ledger.KnowledgeUpdate(
+                        subject_kind="domain", subject_id=domain_id,
+                        disposition=disposition, domain=domain_id,
+                        from_domain=outcome.get("into"),
+                        detail=(f"{outcome.get('status')}; "
+                                f"operators={outcome.get('operators')} "
+                                f"analogies={outcome.get('analogies')}")))
+                except Exception as e:
+                    from core.capability import raise_if_structural
+                    raise_if_structural(
+                        e, "universal_domain_master.discover_domains.ledger")
+                    logger.warning("decision on %s not recorded: %s", domain_id, e)
+        finally:
+            ledger.end_batch(token)
         return {
             "examined": len(outcomes),
             "crystallized": sum(1 for o in outcomes if o.get("status") == "crystallized"),
             "merged": sum(1 for o in outcomes if o.get("status") == "merged"),
             "outcomes": outcomes,
+        }
+
+    #: The buckets knowledge arrives in when the producer named no subject.
+    #: `general` is the default domain across the learning path; `conversation`
+    #: is the channel the conversational path teaches into. NEITHER IS A
+    #: SUBJECT -- they are holding areas that declarative discovery must split
+    #: into subjects, which is precisely what never happened: the idle sweep was
+    #: pointed at `conversation` alone (0 concepts on the live store) while
+    #: `general` held 82,676 and no scheduled caller ever touched it.
+    UNDIFFERENTIATED_CHANNELS: tuple = ("general", "conversation")
+
+    #: Written into a channel domain's `boundaries`: the concept count at the
+    #: last taxonomic pass. The walk is over the whole isa graph, so it is run
+    #: when the channel has grown enough to possibly yield a new subject, not on
+    #: every admitted fact.
+    #:
+    #: TWO MARKS, NOT ONE, because a survey and a split are not the same event.
+    #: Recording a survey under the split's mark would mean that the day
+    #: DECLARATIVE_APPLY is turned on, the split is skipped until the channel
+    #: grows by another whole floor -- the survey would have silently spent the
+    #: budget of the apply that never happened.
+    SPLIT_WATERMARK: str = "taxonomic_split_at_count"
+    SURVEY_WATERMARK: str = "taxonomic_survey_at_count"
+
+    #: A subject must have more than one kind under it. Below this a root is a
+    #: funnel produced by an inverted hypernym, not a field of knowledge.
+    SUBJECT_MIN_DIRECT_CHILDREN: int = 2
+
+    #: A taxonomic root needs this many descendants before it is a subject.
+    #: Below it, a root is a stray edge rather than a field of knowledge, and
+    #: minting a domain for it is how one topic acquired 21.
+    TAXONOMIC_DOMAIN_MIN_SIZE: int = 40
+
+    #: How far up an `isa` chain to walk before giving up. Bounded because taught
+    #: taxonomy contains cycles (`apple isa car` is well attested in crowd data)
+    #: and an unbounded walk would not return.
+    TAXONOMIC_WALK_CAP: int = 24
+
+    async def crystallize_taxonomic_domains(
+        self, *, from_field: str = "general", min_size: Optional[int] = None,
+        limit: int = 0, apply: bool = False,
+    ) -> Dict[str, Any]:
+        """Split an undifferentiated bucket into subjects USING THE TAXONOMY.
+
+        WHY NOT `discover_concept_domains`. That one groups by CONNECTED
+        COMPONENT, which is right for a web of `part_of`/`made_of` edges and
+        wrong for a taxonomy: an `isa` hierarchy is connected by construction,
+        so every concept reaches every other through a shared ancestor and the
+        whole bucket comes back as one cluster. Pointed at the real blob it
+        would rename `general` and change nothing.
+
+        Measured on the live store: 174,277 concepts sat in `general` — 57% of
+        everything the substrate has been taught — while the idle loop
+        crystallized from `conversation`, a bucket of 86. The analogy engine
+        reads `unified.concepts` grouped by domain, so more than half the
+        knowledge was outside the system that is supposed to carry it between
+        subjects, and the boot warning "15/181 domains hold no concepts" was
+        literally true while the concepts were all in one heap.
+
+        WHAT A CONCEPT'S DOMAIN IS. The thing it is a kind of. Walking `isa`
+        upward to a bounded depth gives 2,156 roots over 352,974 edges, and the
+        large ones are real fields — person, activity, physical_tool, clothing,
+        measure, group. Nothing is invented and nothing is imported: the subject
+        map comes out of the taxonomy the substrate was already taught.
+
+        A root with fewer than `min_size` descendants is left where it is. It is
+        a stray edge, not a field, and the honest answer for a concept the
+        taxonomy cannot place is that it stays unplaced.
+
+        Reports by default; pass `apply=True` to re-file and register. The
+        default is a dry run because this rewrites the domain of every taught
+        concept, and a survey is cheap where a mistake is not.
+        """
+        from collections import defaultdict
+
+        floor = self.TAXONOMIC_DOMAIN_MIN_SIZE if min_size is None else int(min_size)
+        if not self.db:
+            from core.database import get_database_manager
+            self.db = get_database_manager()
+            if not self.db.initialized:
+                await self.db.initialize()
+
+        import json as _json
+
+        def _norm(value: Any) -> str:
+            return "_".join(str(value or "").strip().lower().split())
+
+        from collections import defaultdict as _dd
+        parents: Dict[str, set] = _dd(set)
+
+        def _link(child: str, up: str) -> None:
+            # EVERY HYPERNYM IS KEPT, because a word has more than one sense and
+            # keeping only the first files it under whichever sense happened to
+            # be ingested first. Measured: `path` is taught as a kind of way,
+            # trail, route, line, continuous_function, string, address AND name
+            # — all real senses — and first-parent-wins put it under `name`,
+            # whose root is `person`. Not a bad edge; an arbitrary choice
+            # between good ones.
+            if child and up and child != up:
+                parents[child].add(up)
+
+        # TAUGHT TAXONOMY LIVES IN TWO PLACES, and reading one of them finds a
+        # fifth of it. Relations promoted to the graph are rows in
+        # `concept_relations`; everything else is still on the concept as a
+        # `relationships` list — `[["isa", "picture", "positive"]]`. Measured:
+        # of 174,277 concepts in `general`, only 24,716 have a row, so reading
+        # rows alone left 152,088 unplaced and the split moved almost nothing.
+        edges = await self.db.execute_query(
+            "SELECT source_concept_id, target_surface FROM unified.concept_relations "
+            "WHERE relation = 'isa'", fetch_all=True) or []
+        for edge in edges:
+            _link(str(edge["source_concept_id"] or "").split(":", 1)[-1],
+                  _norm(edge["target_surface"]))
+
+        held = await self.db.execute_query(
+            "SELECT name, relationships FROM unified.concepts "
+            "WHERE relationships IS NOT NULL", fetch_all=True) or []
+        # THIS WALK IS CPU-BOUND AND LONG -- 82,676 concepts over 108,736 isa
+        # edges takes minutes. It runs from a coalesced REACTION task, so without
+        # yielding it would hold the event loop for the whole sweep and freeze
+        # the reactive drain, the coordination loop and every other await in the
+        # substrate. Yielding costs nothing and keeps the substrate alive while
+        # it thinks about its own subject map.
+        for _n, row in enumerate(held):
+            if _n % 2000 == 0:
+                await asyncio.sleep(0)
+            raw = row["relationships"]
+            try:
+                links = _json.loads(raw) if isinstance(raw, str) else (raw or [])
+            except Exception:
+                continue
+            for link in links or []:
+                if not isinstance(link, (list, tuple)) or len(link) < 2:
+                    continue
+                relation, target = link[0], link[1]
+                polarity = link[2] if len(link) > 2 else "positive"
+                # A NEGATED HYPERNYM IS NOT A PARENT. "x is not a y" places
+                # nothing, and treating it as placement would file a concept
+                # under the one subject it was taught it does not belong to.
+                if _norm(relation) == "isa" and str(polarity).lower() != "negative":
+                    _link(_norm(row["name"]), _norm(target))
+
+        def roots_of(name: str) -> List[str]:
+            """Every subject this concept's hypernym chains reach.
+
+            A taxonomy with several senses per word is a DAG, not a tree, so
+            this walks all of it, bounded: taught taxonomy contains cycles
+            (`apple isa car` is well attested) and an unbounded walk over a DAG
+            with cycles does not return.
+            """
+            seen = {name}
+            found: Dict[str, int] = {}
+            frontier, depth = [name], 0
+            while frontier and depth < self.TAXONOMIC_WALK_CAP:
+                nxt = []
+                for node in frontier:
+                    up = parents.get(node)
+                    if not up:
+                        if node != name and node not in found:
+                            found[node] = depth
+                        continue
+                    for parent_name in up:
+                        if parent_name not in seen:
+                            seen.add(parent_name)
+                            nxt.append(parent_name)
+                frontier, depth = nxt, depth + 1
+            # A chain that hit the cap without terminating still names where it
+            # got to; dropping it would lose the concept entirely.
+            if found:
+                return found
+            return {n: depth for n in frontier if n != name}
+
+        rows = await self.db.execute_query(
+            "SELECT concept_id, name FROM unified.concepts WHERE domain = $1",
+            (from_field,), fetch_all=True) or []
+
+        placed: Dict[str, List[str]] = defaultdict(list)
+        spans: Dict[str, List[str]] = defaultdict(list)   # concept -> its subjects
+        unplaced = 0
+        for _n, row in enumerate(rows):
+            if _n % 500 == 0:
+                await asyncio.sleep(0)     # see the note on the parents build
+            key = _norm(row["name"]) or str(row["concept_id"] or "").split(":", 1)[-1]
+            found = roots_of(key) if key in parents else {}
+            found = {r: d for r, d in found.items() if r and r != key}
+            if not found:
+                unplaced += 1
+                continue
+            # THE HOME IS THE NEAREST SUBJECT -- the closest genus this concept
+            # is a kind of. The others are not discarded; they are recorded as
+            # MEMBERSHIP, which is what `unified.concept_domains` exists for.
+            #
+            # IT USED TO BE `max(Counter(found))`, described as "the subject the
+            # most of this concept's hypernym chains arrive at". THE COUNTS WERE
+            # ALL 1. The walk shares one `seen` set, so each root is appended
+            # exactly once no matter how many chains reach it -- which collapses
+            # `max(tally, key=lambda r: (tally[r], r))` to `max` over the NAME:
+            # the alphabetically last root won every time. Measured: 65,056 of
+            # 82,676 concepts filed under `x_linked_recessive` because `x` sorts
+            # last; delete that edge and 65,048 moved to `written`, because `w`
+            # sorts next. Two different mega-buckets, one arbitrary tie-break.
+            # Distance is real evidence and is already in hand from the walk.
+            spans[row["concept_id"]] = sorted(found)
+            home = min(found, key=lambda r: (found[r], r))
+            placed[home].append(row["concept_id"])
+
+        # A root that IS the channel is not a split -- it would re-file the
+        # bucket onto itself and register the channel as its own subject. The
+        # component-based twin has always had this guard; the taxonomic one
+        # did not.
+        #
+        # AND A FIELD HAS SEVERAL KINDS UNDER IT. A root that the whole bucket
+        # reaches through ONE direct child is not a subject, it is a funnel
+        # created by a single inverted hypernym -- a genus taught as a kind of
+        # its own species. Measured on the live store: `inheritance isa
+        # x_linked_recessive` (one row; x_linked_recessive has no parents, so
+        # the walk terminates there) made that leaf term the root of 65,056 of
+        # 82,676 concepts -- 79% of everything taught -- while every legitimate
+        # subject had 9 to 478 direct children. Requiring more than one is what
+        # distinguishes a field from a funnel, and it is structural: a field
+        # with exactly one kind under it IS that one kind.
+        direct_children: Dict[str, set] = _dd(set)
+        for _child, _ups in parents.items():
+            for _up in _ups:
+                direct_children[_up].add(_child)
+        subjects = {}
+        funnels: List[Dict[str, Any]] = []
+        for r, ids in placed.items():
+            if len(ids) < floor or r == from_field:
+                continue
+            if len(direct_children.get(r, ())) < self.SUBJECT_MIN_DIRECT_CHILDREN:
+                funnels.append({"root": r, "would_have_taken": len(ids),
+                                "direct_children": len(direct_children.get(r, ()))})
+                logger.warning(
+                    "taxonomic split: %r reached by %d concepts through only %d "
+                    "direct child(ren) -- a funnel from an inverted hypernym, "
+                    "not a subject; left in %s",
+                    r, len(ids), len(direct_children.get(r, ())), from_field)
+                continue
+            subjects[r] = ids
+        ordered = sorted(subjects.items(), key=lambda kv: -len(kv[1]))
+        if limit:
+            ordered = ordered[:limit]
+
+        outcomes: List[Dict[str, Any]] = []
+        for root, concept_ids in ordered:
+            outcome = {"domain": root, "concepts": len(concept_ids),
+                       "status": "would_crystallize"}
+            if apply:
+                try:
+                    await self.ensure_domain(
+                        root, name=root.replace("_", " "),
+                        description=(f"Taught concepts that are a kind of "
+                                     f"{root.replace('_', ' ')}."))
+                    from core.agents.memory_agent import memory_agent
+                    await memory_agent().file_concepts(domain=root, concept_ids=concept_ids)
+                    # Membership records every sense, through the existing
+                    # writer, so a polysemous concept is findable from each
+                    # subject it genuinely belongs to rather than only its home.
+                    from core.domain.concept_identity import ConceptIdentityService
+                    identity = ConceptIdentityService(self.db)
+                    for concept_id in concept_ids:
+                        for subject in spans.get(concept_id, ()):
+                            if len(placed.get(subject, ())) >= floor:
+                                try:
+                                    await identity.add_membership(
+                                        concept_id, subject, source="taxonomy")
+                                except Exception:
+                                    pass   # never fatal; the home is recorded
+                    outcome["status"] = "crystallized"
+                    from core.memory import knowledge_ledger as _ledger
+                    try:
+                        await _ledger.record(self.db, _ledger.KnowledgeUpdate(
+                            subject_kind="domain", subject_id=root,
+                            disposition=_ledger.Disposition.NEW, domain=root,
+                            from_domain=from_field,
+                            cause="domain_discovery.taxonomic_split",
+                            detail=(f"{len(concept_ids)} concept(s) split out of "
+                                    f"{from_field} by isa root")))
+                    except Exception as _e:
+                        from core.capability import raise_if_structural
+                        raise_if_structural(
+                            _e, "universal_domain_master.taxonomic_split.ledger")
+                        logger.warning("taxonomic subject %s not recorded: %s",
+                                       root, _e)
+                except Exception as e:
+                    from core.capability import raise_if_structural
+                    raise_if_structural(e,
+                        "universal_domain_master.crystallize_taxonomic_domains")
+                    logger.error("could not crystallize %s: %s", root, e)
+                    outcome["status"] = f"failed: {type(e).__name__}"
+            outcomes.append(outcome)
+
+        return {
+            "from_field": from_field, "applied": bool(apply),
+            "examined": len(rows),
+            "isa_edges": len(edges),
+            "roots_found": len(placed),
+            "subjects": len(subjects),
+            "would_move": sum(len(ids) for _r, ids in ordered),
+            "left_unplaced": unplaced,
+            "below_floor": sum(len(ids) for r, ids in placed.items()
+                               if len(ids) < floor),
+            "funnels": funnels,
+            "outcomes": outcomes[:20],
         }
 
     async def discover_concept_domains(self, *, from_field: str = "conversation",
@@ -2640,11 +3072,213 @@ class UniversalDomainMaster:
         return {"examined": len(components), "crystallized": len(outcomes),
                 "outcomes": outcomes}
 
+    async def _channel_concept_count(self, channel: str) -> int:
+        if not self.db:
+            from core.database import get_database_manager
+            self.db = get_database_manager()
+        rows = await self.db.execute_query(
+            "SELECT count(*) n FROM unified.concepts WHERE domain = $1",
+            (channel,))
+        return int(rows[0]["n"]) if rows else 0
+
+    def _watermark_key(self, applied: bool) -> str:
+        return self.SPLIT_WATERMARK if applied else self.SURVEY_WATERMARK
+
+    async def _split_watermark(self, channel: str,
+                               applied: Optional[bool] = None) -> Optional[int]:
+        registry = await self._registry()
+        domain = registry.domains.get(channel)
+        if domain is None:
+            return None
+        key = self._watermark_key(self.DECLARATIVE_APPLY if applied is None else applied)
+        mark = (getattr(domain, "boundaries", None) or {}).get(key)
+        return int(mark) if isinstance(mark, (int, float)) else None
+
+    async def _record_split_watermark(self, channel: str, count: int,
+                                      applied: Optional[bool] = None) -> None:
+        registry = await self._registry()
+        domain = registry.domains.get(channel)
+        if domain is None:
+            return
+        key = self._watermark_key(self.DECLARATIVE_APPLY if applied is None else applied)
+        boundaries = dict(getattr(domain, "boundaries", None) or {})
+        boundaries[key] = int(count)
+        domain.boundaries = boundaries
+        await registry.register_domain(domain)
+
+    #: Whether the automatic sweep may APPLY a declarative split -- either
+    #: splitter -- which rewrites the `domain` of every concept it places.
+    #:
+    #: OFF, and the reason is measured twice over, not cautious.
+    #:
+    #: THE TAXONOMIC SPLITTER. With placement corrected it produces 74 subjects
+    #: over 10,277 concepts -- but a large share of those subjects are adjectives
+    #: and past participles taught as genera: `cooked`, `assessed`, `emitted`,
+    #: `written`, `artificial`, `added`. That is an UPSTREAM reading defect (a
+    #: premodifier taken as the hypernym, the same family as a postmodified
+    #: subject read as the head), and the substrate's own word classes cannot
+    #: separate them -- asked directly, `cooked` comes back NOUN 4 / ADJECTIVE 1
+    #: and `written` NOUN 6 / ADJECTIVE 1.
+    #:
+    #: THE COMPONENT SPLITTER IS WORSE HERE, and this was measured the hard way:
+    #: pointed at `general` it moved 78,978 of 82,676 concepts into a single
+    #: "subject" named `city` -- its highest-degree hub -- and minted `also`,
+    #: `his`, `so`, `later`, `capable`, `supreme` and `extensively` as domains
+    #: from other hubs. `crystallize_taxonomic_domains`' own docstring predicts
+    #: exactly this: connected-component grouping is right for a web of
+    #: part_of/made_of edges and WRONG for an `isa` hierarchy, which is connected
+    #: by construction, so the whole bucket comes back as one cluster and the
+    #: "split" is a rename. That run was reverted.
+    #:
+    #: So the sweep SURVEYS and logs the subject map on every wake, and writes
+    #: nothing, until the taught taxonomy is sound. A direct caller with a small,
+    #: genuinely relational channel (DOM-KG-01's `conversation`) still applies --
+    #: this gate is on the automatic sweep over the undifferentiated channels,
+    #: which is where the damage was done.
+    DECLARATIVE_APPLY: bool = False
+
+    async def discover_taught_domains(self) -> Dict[str, Any]:
+        """Split every undifferentiated CHANNEL into the subjects it holds.
+
+        The declarative half of discovery, over the buckets knowledge actually
+        arrives in rather than one hardcoded channel name. Two splitters, each
+        on the structure it is right for and both already owned by this
+        authority:
+
+          * `crystallize_taxonomic_domains` -- groups by `isa` root. Right for a
+            taught taxonomy, which is connected by construction and which the
+            component splitter would return as one cluster.
+          * `discover_concept_domains` -- groups by connected component over
+            `part_of`/`made_of`/etc. Right for a relational web.
+
+        THE TAXONOMIC SPLITTER HAD NO CALLER ANYWHERE IN THE CODEBASE. It was
+        written against a measurement of this exact defect and then never
+        scheduled, so the only subjects it ever produced were from a hand run.
+        This is its caller.
+
+        The taxonomic walk covers the whole `isa` graph, so it runs when a
+        channel has grown by at least one subject-floor since its last split --
+        not on every admitted fact. Below the floor a channel cannot yield a
+        subject at all, so there is nothing to do.
+        """
+        from core.memory import knowledge_ledger as ledger
+        token = ledger.begin_batch("domain_discovery.declarative_sweep")
+        try:
+            return await self._discover_taught_domains()
+        finally:
+            ledger.end_batch(token)
+
+    async def _discover_taught_domains(self) -> Dict[str, Any]:
+        results: Dict[str, Any] = {"channels": {}}
+        for channel in self.UNDIFFERENTIATED_CHANNELS:
+            count = await self._channel_concept_count(channel)
+            entry: Dict[str, Any] = {"concepts": count}
+            if count >= self.TAXONOMIC_DOMAIN_MIN_SIZE:
+                last = await self._split_watermark(channel)
+                due = last is None or (count - last) >= self.TAXONOMIC_DOMAIN_MIN_SIZE
+                entry["taxonomic_due"] = due
+                if due:
+                    taxonomic = await self.crystallize_taxonomic_domains(
+                        from_field=channel, apply=self.DECLARATIVE_APPLY)
+                    entry["taxonomic"] = {
+                        "applied": self.DECLARATIVE_APPLY,
+                        "subjects": taxonomic.get("subjects"),
+                        "moved": taxonomic.get("would_move"),
+                        "unplaced": taxonomic.get("left_unplaced"),
+                        "funnels_rejected": len(taxonomic.get("funnels") or []),
+                    }
+                    if not self.DECLARATIVE_APPLY:
+                        logger.info(
+                            "taxonomic survey of %s: %d subject(s) over %d "
+                            "concept(s), %d funnel(s) rejected -- NOT applied "
+                            "(DECLARATIVE_APPLY is off; see its note)",
+                            channel, taxonomic.get("subjects") or 0,
+                            taxonomic.get("would_move") or 0,
+                            len(taxonomic.get("funnels") or []))
+                    await self._record_split_watermark(
+                        channel, await self._channel_concept_count(channel))
+            # THE COMPONENT SPLITTER HAS NO SURVEY MODE -- it re-files as it
+            # goes -- so while the gate is shut it is not called at all here.
+            # Calling it "to see what it would do" IS doing it; that is how
+            # 78,978 concepts were renamed to `city`.
+            if self.DECLARATIVE_APPLY:
+                try:
+                    component = await self.discover_concept_domains(from_field=channel)
+                    entry["component"] = {
+                        "examined": component.get("examined"),
+                        "crystallized": component.get("crystallized"),
+                    }
+                except Exception as e:
+                    from core.capability import raise_if_structural
+                    raise_if_structural(e,
+                        "universal_domain_master.discover_taught_domains")
+                    logger.error("component split of %s failed: %s", channel, e)
+            else:
+                entry["component"] = {"applied": False,
+                                      "reason": "DECLARATIVE_APPLY is off"}
+            results["channels"][channel] = entry
+        results["crystallized"] = sum(
+            (int((c.get("taxonomic") or {}).get("subjects") or 0)
+             if (c.get("taxonomic") or {}).get("applied") else 0)
+            + int((c.get("component") or {}).get("crystallized") or 0)
+            for c in results["channels"].values())
+        results["surveyed_subjects"] = sum(
+            int((c.get("taxonomic") or {}).get("subjects") or 0)
+            for c in results["channels"].values())
+        return results
+
     async def _refile_concepts(self, concept_ids: List[str], field: str) -> None:
-        await self.db.execute_query(
-            """UPDATE unified.concepts SET domain = $1, updated_at = NOW()
-               WHERE concept_id = ANY($2::text[])""",
-            (field, list(concept_ids)), commit=True)
+        """Move concepts into a subject, AND SAY SO.
+
+        THIS WAS A BARE UPDATE, and it is the reason a sweep that moved 78,978
+        concepts out of `general` into an invented subject could not be
+        attributed afterwards. There was no envelope, no membership row and no
+        disposition -- the only trace was `unified.concepts.updated_at`, so
+        establishing who had done what meant grouping bulk UPDATEs by microsecond
+        and reading concept names to guess. Two records are written now, neither
+        a new account of provenance:
+
+          * MEMBERSHIP, through `ConceptIdentityService`, which owns
+            `unified.concept_domains`. Writing the `domain` column here while
+            that table went untouched was two writers for one fact.
+          * A `moved` KNOWLEDGE UPDATE per concept, carrying the domain it left,
+            under the batch its caller opened -- so the burst has one
+            originating cause instead of N unattributed rows.
+        """
+        ids = list(concept_ids)
+        if not ids:
+            return
+        # WHERE IT CAME FROM, read before the move. Afterwards it is unknowable,
+        # which is exactly the position today's incident left the store in.
+        before = {r["concept_id"]: r["domain"] for r in await self.db.execute_query(
+            "SELECT concept_id, domain FROM unified.concepts "
+            "WHERE concept_id = ANY($1::text[])", (ids,), fetch_all=True) or []}
+        from core.agents.memory_agent import memory_agent
+        await memory_agent().refile_concepts(domain=field, concept_ids=ids)
+        from core.memory import knowledge_ledger as ledger
+        try:
+            from core.domain.concept_identity import ConceptIdentityService
+            identity = ConceptIdentityService(self.db)
+            for concept_id in ids:
+                await identity.add_membership(concept_id, field, source="refile")
+        except Exception as error:
+            from core.capability import raise_if_structural
+            raise_if_structural(error, "universal_domain_master._refile_concepts")
+            logger.warning("membership for the refile into %s not recorded: %s",
+                           field, error)
+        try:
+            await ledger.record_many(self.db, [
+                ledger.KnowledgeUpdate(
+                    subject_kind="concept", subject_id=cid,
+                    disposition=ledger.Disposition.MOVED,
+                    domain=field, from_domain=before.get(cid),
+                    detail="refiled by declarative domain discovery")
+                for cid in ids])
+        except Exception as error:
+            from core.capability import raise_if_structural
+            raise_if_structural(error, "universal_domain_master._refile_concepts.ledger")
+            logger.warning("knowledge updates for the refile into %s not "
+                           "recorded: %s", field, error)
 
     async def update_knowledge_coverage(self, domain_id: str) -> float:
         """Set a domain's `maturity_score` from the DEVELOPMENT of its concept
@@ -2661,17 +3295,97 @@ class UniversalDomainMaster:
         it -- so a taught domain can be knowledge-rich and operator-empty, and
         the two never contaminate each other (the credit invariant holds).
         """
-        from core.domain.domain_types import structural_complexity
+        from core.domain.domain_types import coverage_from_counts
         registry = await self._registry()
         domain = registry.domains.get(domain_id)
         if domain is None:
             return 0.0
-        domain.maturity_score = structural_complexity(domain)
+
+        # MEASURED FROM THE STORE, which is what actually holds a taught domain.
+        # This read `structural_complexity(domain)`, which counts the registry
+        # object's in-memory `concepts` dict -- and teaching never fills it: a
+        # taught fact goes to `unified.concepts` with a `domain` column. So every
+        # taught domain measured 0.0 however much it held. Measured directly:
+        # six facts taught into a fresh domain, and remeasuring moved its
+        # maturity from 0.1 DOWN to 0.0.
+        if not self.db:
+            from core.database import get_database_manager
+            self.db = get_database_manager()
+        # BY EVERY SPELLING OF THE DOMAIN, because a domain has two and this
+        # query used only one. A declarative domain is registered as
+        # `domain_<field>` while its concepts are re-filed under the bare
+        # `<field>` -- which `DomainRegistry._domain_key` documents as "the
+        # spelling unified.* columns use". So counting `WHERE domain =
+        # 'domain_glindar'` found ZERO of the concepts that had just been filed
+        # under `glindar`, and every crystallized declarative domain measured 0.0
+        # coverage however much it held. An operational domain (`warehouse`,
+        # `kite17`) has no prefix, so both spellings are the same string and the
+        # set collapses to one.
+        keys = sorted({domain_id, registry._domain_key(domain_id)})
+        rows = await self.db.execute_query(
+            """SELECT
+                   (SELECT count(*) FROM unified.concepts
+                     WHERE domain = ANY($1::text[])) AS concepts,
+                   (SELECT count(*) FROM unified.concept_relations r
+                      JOIN unified.concepts c ON c.concept_id = r.source_concept_id
+                     WHERE c.domain = ANY($1::text[])) AS edges,
+                   (SELECT count(DISTINCT r.relation) FROM unified.concept_relations r
+                      JOIN unified.concepts c ON c.concept_id = r.source_concept_id
+                     WHERE c.domain = ANY($1::text[])) AS kinds""",
+            (keys,))
+        if not rows:
+            return domain.maturity_score
+        row = rows[0]
+        held = int(row["concepts"] or 0)
+        links = int(row["edges"] or 0)
+        kinds = int(row["kinds"] or 0)
+
+        # THE LANGUAGE DOMAIN'S KNOWLEDGE IS ITS CONSTRUCTIONS. How English says
+        # things is held in memory as taught constructions, not as concepts
+        # filed under `english`, so counting concepts alone measured English at
+        # zero however much of it had been taught (measured 2026-09-27: nine
+        # taught patterns, a domain record reading nothing). Memory is asked the
+        # same way the language view is warmed (`taught_patterns`): each
+        # construction is a unit of what is known; each fact a meaning states,
+        # and each link between a slot and its filler, is a link; the link kinds
+        # the facts use are its relational variety.
+        from core.semantics.derived_reader import ENGLISH_DOMAIN, Link, Pattern
+        if domain_id == ENGLISH_DOMAIN:
+            from core.memory import get_memory_agent
+            items = await (await get_memory_agent()).taught_patterns()
+            patterns = [i for i in items if isinstance(i, Pattern)]
+            held += sum(1 for i in items if not isinstance(i, Link))
+            links += (sum(len(p.meaning.facts) for p in patterns)
+                      + sum(1 for i in items if isinstance(i, Link)))
+            kinds += len({f.relation for p in patterns for f in p.meaning.facts})
+
+        domain.maturity_score = coverage_from_counts(held, links, kinds)
         await registry._persist_domain(domain)
+
+        # THIS FACULTY JUST CONSUMED THAT DOMAIN'S KNOWLEDGE. It read the
+        # concepts admitted there and turned them into a coverage score, which
+        # is a real downstream use, not the admission repeating itself -- it
+        # runs from the EVIDENCE_ADMITTED reaction, after the fact is already in.
+        # Drained only after the score is durably persisted, for the same reason
+        # the planning engine drains authority events last: marking first would
+        # let a crash lose the event while the work looks done.
+        try:
+            from core.memory import knowledge_ledger as ledger
+            pending = await ledger.pending_updates(
+                self.db, consumer="domain_coverage", domain=domain_id,
+                subject_kind="proposition")
+            if pending:
+                await ledger.mark_consumed(
+                    self.db, [p["update_id"] for p in pending], "domain_coverage")
+        except Exception as error:
+            from core.capability import raise_if_structural
+            raise_if_structural(
+                error, "universal_domain_master.update_knowledge_coverage.ledger")
+            logger.debug("knowledge updates for %s not drained: %s", domain_id, error)
         return domain.maturity_score
 
     async def detect_knowledge_gap(self, domain_id: str, subject: str,
-                                   relation: str):
+                                   relation: str, *, owner: Optional[str] = None):
         """Localize a DECLARATIVE knowledge gap in a domain and register it as a
         known-unknown -- the declarative twin of a CONCEPT_GAP.
 
@@ -2691,18 +3405,14 @@ class UniversalDomainMaster:
         Returns the KnownUnknown, or None when there is no localized gap here: the
         subject is not a concept of this domain (a different question entirely), or
         the relation is already present (no gap to register).
+
+        `owner` is whose question raised it: a person's is kept in their context,
+        not among the substrate's own open questions (bayesian_uncertainty, S3).
         """
-        registry = await self._registry()
-        domain = registry.domains.get(domain_id)
-        if domain is None:
-            return None
-        concept = next((c for c in domain.concepts.values() if c.name == subject),
-                       None)
-        if concept is None:
-            return None                     # not an in-domain subject
-        relationships = (concept.properties or {}).get("relationships") or []
-        if any(isinstance(r, (list, tuple)) and r and str(r[0]) == relation
-               for r in relationships):
+        held = await self.holds_relation(domain_id, subject, relation)
+        if held is None:
+            return None                     # no such domain, or not an in-domain subject
+        if held:
             return None                     # the relation is present -- not a gap
 
         # A localized declarative gap. Register it; competence is untouched.
@@ -2714,7 +3424,39 @@ class UniversalDomainMaster:
             blocking_factors=[
                 f"the relation {relation!r} is unrepresented for {subject!r} "
                 f"in {domain_id} (a knowledge gap, not an operator gap)"],
-            required_info=[f"{subject} {relation} <?>"])
+            required_info=[f"{subject} {relation} <?>"],
+            target={"kind": "relation", "subject": subject, "relation": relation},
+            owner=owner)
+
+    async def holds_relation(self, domain_id: str, subject: str,
+                             relation: str) -> Optional[bool]:
+        """Whether this domain's concept `subject` carries `relation` -- the one
+        test a declarative gap is detected by (False) and closed by (True).
+        None when the domain does not exist or `subject` is not one of its
+        concepts: not a question this domain can answer either way."""
+        registry = await self._registry()
+        domain = registry.domains.get(domain_id)
+        if domain is None:
+            return None
+        concept = next((c for c in domain.concepts.values() if c.name == subject),
+                       None)
+        if concept is None:
+            return None
+        relationships = (concept.properties or {}).get("relationships") or []
+        return any(isinstance(r, (list, tuple)) and r and str(r[0]) == relation
+                   for r in relationships)
+
+    async def has_domain(self, domain_id: str) -> bool:
+        """Whether the substrate holds `domain_id` as a domain."""
+        registry = await self._registry()
+        return registry.domains.get(domain_id) is not None
+
+    async def concept_names(self, domain_id: str) -> List[str]:
+        """The names of this domain's concepts (empty when there is no such
+        domain)."""
+        registry = await self._registry()
+        domain = registry.domains.get(domain_id)
+        return [c.name for c in domain.concepts.values()] if domain else []
 
     async def knowledge_sparsity_map(self, domain_id: str) -> Dict[str, Any]:
         """WHICH regions of a domain are thin — the localized complement of the
@@ -2778,8 +3520,13 @@ class UniversalDomainMaster:
         yet form one domain), or 'empty'/'already_registered'.
         """
         registry = await self._registry()
-        if registry.domains.get(provisional_domain_id) is not None:
-            return {"status": "already_registered", "domain_id": provisional_domain_id}
+        # ALREADY DECIDED, not merely already filed. A registered-but-undecided
+        # domain is exactly what this function exists to rule on, so registration
+        # can no longer short-circuit it.
+        existing = registry.domains.get(provisional_domain_id)
+        if existing is not None and self.is_crystallized(existing):
+            return {"status": "already_crystallized",
+                    "domain_id": provisional_domain_id}
 
         rules = await self._domain_operators(provisional_domain_id)
         if not rules:
@@ -2803,6 +3550,15 @@ class UniversalDomainMaster:
         # transfer bridges on a domain that still crystallizes as its own.
         analogies: List[tuple] = []
         for other in await self.learned_domains():
+            # NEVER AGAINST ITSELF. A candidate is registered (that is what
+            # `ensure_domain` does on the first fact taught) and so appears in
+            # `learned_domains()`; its correspondence with itself is trivially
+            # the identity, which reads as "the same subject re-learned" and
+            # merged the domain into itself. Invisible while `provisional` meant
+            # "unregistered", because then the candidate could not be in this
+            # list at all.
+            if other.domain_id == provisional_domain_id:
+                continue
             target = await self._domain_operators(other.domain_id)
             if not target:
                 continue
@@ -2814,6 +3570,8 @@ class UniversalDomainMaster:
                     provisional_domain_id, other.domain_id, correspondence)
                 logger.info("crystallize: %s is %s (same vocabulary) -- merged",
                             provisional_domain_id, other.domain_id)
+                await self._mark_crystallized(provisional_domain_id,
+                                              merged_into=other.domain_id)
                 return {"status": "merged", "domain_id": provisional_domain_id,
                         "into": other.domain_id, "correspondence": correspondence}
             analogies.append((other.domain_id, correspondence))
@@ -2827,9 +3585,32 @@ class UniversalDomainMaster:
         if analogies:
             logger.info("crystallize: %s is new, analogous to %s",
                         provisional_domain_id, [o for o, _ in analogies])
+        await self._mark_crystallized(provisional_domain_id)
         return {"status": "crystallized", "domain_id": provisional_domain_id,
                 "domain_type": domain.domain_type.value, "operators": len(rules),
                 "analogies": [o for o, _ in analogies]}
+
+    async def _mark_crystallized(self, domain_id: str, *,
+                                 merged_into: Optional[str] = None) -> None:
+        """Record that discovery has DECIDED about this domain.
+
+        Without this the decision is not durable and every sweep re-decides the
+        same domains forever -- re-recording correspondences and re-logging. The
+        mark lives in `boundaries`, which the registry serialises into
+        `unified.domains.metadata` and rebuilds on load, so the decision survives
+        a restart. Written through `register_domain`, the one persistence
+        authority, never a second UPDATE of the same row.
+        """
+        registry = await self._registry()
+        domain = registry.domains.get(domain_id)
+        if domain is None:
+            return
+        boundaries = dict(getattr(domain, "boundaries", None) or {})
+        boundaries[self.CRYSTALLIZED_MARK] = datetime.now().isoformat()
+        if merged_into:
+            boundaries["merged_into"] = merged_into
+        domain.boundaries = boundaries
+        await registry.register_domain(domain)
 
     async def _record_domain_correspondence(
         self, source_domain: str, target_domain: str, mapping: Dict[str, str]) -> None:
@@ -2837,19 +3618,14 @@ class UniversalDomainMaster:
         renaming -- the transfer bridge a merge produces."""
         if not self.db:
             return
-        await self.db.execute_query(
-            """INSERT INTO unified.domain_mappings
-                   (mapping_id, source_domain, target_domain, source_concept,
-                    target_concept, similarity_score, reasoning_strategy,
-                    verified, confidence, metadata)
-               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb)
-               ON CONFLICT DO NOTHING""",
-            (f"opcorr_{source_domain}_{target_domain}", source_domain,
-             target_domain, source_domain, target_domain, 1.0,
-             ReasoningStrategy.ANALOGICAL.value, True, 1.0,
-             json.dumps({"kind": "operator_correspondence", "mapping": mapping})),
-            commit=True,
-        )
+        from core.agents.memory_agent import memory_agent
+        await memory_agent().hold_domain_correspondence(
+            mapping_id=f"opcorr_{source_domain}_{target_domain}",
+            source_domain=source_domain, target_domain=target_domain,
+            source_concept=source_domain, target_concept=target_domain,
+            similarity_score=1.0, reasoning_strategy=ReasoningStrategy.ANALOGICAL.value,
+            verified=True, confidence=1.0,
+            metadata=json.dumps({"kind": "operator_correspondence", "mapping": mapping}))
 
     async def execute_cross_domain_query(
         self,

@@ -144,6 +144,28 @@ _ASPECT_RESOLUTION = _SQUARE_ASPECT[1] - _SQUARE_ASPECT[0]
 _ACHROMATIC_NAMES = frozenset(
     ("black", "charcoal", "dim_gray", "gray", "light_gray", "white"))
 
+#: The prefixes `_color_name` puts in front of a hue. These say how the thing
+#: LOOKED -- how bright, how washed out -- and not what colour it is. `vivid_red`
+#: is a hue welded to a viewing condition, the same fusion that put a size band
+#: in `isa`, and it broke the same way: measured, 41% of all colour changes under
+#: the nuisance battery were the MODIFIER moving while the hue underneath held.
+_VIEW_MODIFIERS = ("dark_", "pale_", "vivid_")
+
+
+def split_colour(name: str) -> Tuple[str, str]:
+    """A colour name split into the hue and the viewing modifier in front of it.
+
+    The hue is a property of the OBJECT and belongs in what the thing is; the
+    modifier is a property of the LOOK and belongs beside the exposure and the
+    focus. Achromatic names have no hue to separate -- `white` is not a modified
+    anything -- so they come back whole, with no modifier."""
+    if name in _ACHROMATIC_NAMES:
+        return name, ""
+    for modifier in _VIEW_MODIFIERS:
+        if name.startswith(modifier):
+            return name[len(modifier):], modifier.rstrip("_")
+    return name, ""
+
 
 def _margin(value: float, cut: float, scale: float) -> float:
     """How far a reading sits from a cut, as a fraction of the scale at which
@@ -256,6 +278,58 @@ def _palette_temperature(img) -> str:
     return "neutral"
 
 
+def illuminant(img) -> Tuple[float, float, float]:
+    """The light this picture was taken under, per channel, in BGR.
+
+    GREY-WORLD: the average reflectance of a scene is assumed achromatic, so
+    whatever tint the average has is the light's, not the objects'. It is the
+    oldest colour-constancy estimator there is (Buchsbaum 1980), it is
+    deterministic, and it assumes nothing that has to be learned.
+
+    Chosen by measurement over 450 comparisons on real photographs against the
+    rest of the Shades-of-Grey family (Finlayson & Trezzi) -- the Minkowski
+    p-norm at p=1 (this), p=6, and p=inf (max-RGB). Grey-world won."""
+    x = img.reshape(-1, 3).astype(np.float64)
+    e = x.mean(axis=0)
+    return tuple(float(max(c, 1e-6)) for c in e)
+
+
+def _discount_illuminant(img, est: Tuple[float, float, float]):
+    """Take the light back out of the pixels: a diagonal (von Kries) transform,
+    scaling each channel by how far the light pushed it.
+
+    THE OVERALL LEVEL IS DELIBERATELY LEFT ALONE, and that was measured rather
+    than assumed. Normalising exposure as well as balance -- mapping the estimate
+    to the brightest channel instead of to the mean -- scored WORSE on real
+    photographs (55% against 64%), because a dimmer bulb genuinely is less light
+    and stretching it back amplifies whatever noise came with it. Dimming is
+    reported honestly by the `dark_` modifier instead, which is a fact about the
+    view and now travels as one.
+
+    What this DOES fix is the colour cast, which is the failure a margin could
+    never catch: a hue rotation lands in the middle of the wrong band, where the
+    reading is well resolved and simply wrong. Measured on photographs, the
+    colour name survives an illuminant shift 20% of the time without this and
+    **90%** with it."""
+    grey = sum(est) / 3.0
+    gain = np.array([grey / c for c in est], dtype=np.float64)
+    return np.clip(img.astype(np.float64) * gain[None, None, :],
+                   0, 255).astype(np.uint8)
+
+
+def illuminant_cast(est: Tuple[float, float, float]) -> float:
+    """How far from neutral the estimated light is, in [0,1].
+
+    THIS IS THE ESTIMATE'S OWN DOUBT, and it has to be reported because
+    grey-world can be wrong in a way it cannot detect. A strong cast means
+    EITHER a strongly coloured light OR a scene made mostly of one colour -- a
+    close-up of grass, a red wall -- and nothing in the pixels distinguishes
+    them. So the further the estimate sits from neutral, the less the correction
+    should be trusted, and the colour claims that rest on it say so."""
+    lo, hi = min(est), max(est)
+    return round(float((hi - lo) / hi) if hi > 0 else 0.0, 3)
+
+
 def _region_color(img, mask) -> Tuple[str, float, float]:
     """Dominant colour WITHIN a region (k-means on its masked pixels), which is
     truer than the mean when a region is textured or multi-toned -- with the
@@ -352,12 +426,41 @@ def _size_category(area_fraction: float) -> Tuple[str, float]:
     return _SIZE_NAMES[-1], 0.0
 
 
-def _position(cx: float, cy: float, w: int, h: int) -> str:
+def _position(cx: float, cy: float, w: int, h: int) -> Tuple[str, float]:
+    """Where in the frame a thing sat, on a 3x3 grid -- and how far that reading
+    sits from naming a different cell.
+
+    THE LAST LABEL IN THIS MODULE TO CARRY NO SUPPORT AT ALL. Every other reading
+    now says how well founded it is, and this one went out bare because it
+    travels as a PROPERTY rather than as an `isa`, so it never passed through the
+    per-feature channel that carries the rest. Measured: under a 28% translation
+    the position word survives 0% of the time and the substrate still judged the
+    percept ACT in 62% of those sightings -- by some distance the worst remaining
+    gap in the acceptance band once colour was compensated.
+
+    WHAT THE MARGIN DOES AND DOES NOT DO, because this is the same honest limit
+    the colour margin has. It catches a centroid sitting close to a third-line,
+    where the cell it lands in is nearly arbitrary. It CANNOT catch a camera that
+    moved, which carries the centroid into the middle of a different cell where
+    the reading is well resolved and the word has simply changed. Nothing about
+    the pixels distinguishes those, and the invariant answer is not a better word
+    but a different KIND of claim -- `left_of` and `above` between blobs, which
+    survive a translation 100% of the time and are already admitted.
+
+    A position word is not wrong when the camera moves: `sits center` was true of
+    that view and `sits middle_right` is true of this one. What was wrong was
+    stating it with the same standing whether the thing sat squarely in a cell or
+    balanced on the line between two."""
     col = "left" if cx < w / 3 else ("right" if cx > 2 * w / 3 else "center")
     row = "upper" if cy < h / 3 else ("lower" if cy > 2 * h / 3 else "middle")
+    # Distance to the nearest line that would rename this cell, in each axis,
+    # against the half-cell that is the most room a reading can have.
+    near = min(min(abs(cx - w / 3), abs(cx - 2 * w / 3)) / (w / 6.0),
+               min(abs(cy - h / 3), abs(cy - 2 * h / 3)) / (h / 6.0))
+    margin = round(min(1.0, max(0.0, float(near))), 3)
     if row == "middle" and col == "center":
-        return "center"
-    return f"{row}-{col}" if col != "center" else row
+        return "center", margin
+    return (f"{row}-{col}" if col != "center" else row), margin
 
 
 def _shape_of(contour, area: float) -> Tuple[str, Optional[float]]:
@@ -615,8 +718,13 @@ def _scaled(im, maxside: int = 900):
                       interpolation=cv2.INTER_AREA)
 
 
-def _describe_contour(c, img, gray, W: int, H: int,
-                      ) -> Dict[str, Any]:
+def _describe_contour(c, img, gray, W: int, H: int, lit=None,
+                      cast: float = 0.0) -> Dict[str, Any]:
+    """`img` is the picture as taken; `lit` is the same picture with the light
+    discounted. COLOUR is read from `lit` and everything else from `img`, because
+    the illuminant is a fact about the colour and not about the geometry --
+    correcting the pixels the segmenter and the contours run on would change what
+    counts as a region in order to fix what it is called."""
     area = cv2.contourArea(c)
     x, y, ww, hh = cv2.boundingRect(c)
     hull_area = cv2.contourArea(cv2.convexHull(c)) or area or 1.0
@@ -628,7 +736,11 @@ def _describe_contour(c, img, gray, W: int, H: int,
     area_frac = area / float(W * H)
     shape_label, shape_fit, shape_margin = _shape_of(c, area)
     size_label, size_margin = _size_category(area_frac)
-    color_label, color_margin, chroma = _region_color(img, mask)
+    color_label, color_margin, chroma = _region_color(
+        img if lit is None else lit, mask)
+    raw_label, _rm, _rc = _region_color(img, mask)
+    hue_label, view_modifier = split_colour(color_label)
+    position_label, position_margin = _position(cx, cy, W, H)
     edge = _contour_fidelity(gray, c, area)
 
     # EACH LABEL'S SUPPORT = HOW ROBUST THE READING IS x HOW MUCH THE LOOK LETS
@@ -654,7 +766,10 @@ def _describe_contour(c, img, gray, W: int, H: int,
         #: and they cannot be computed by a consumer that was handed the labels
         #: and denied the geometry they come from.
         "center": [round(cx / W, 3), round(cy / H, 3)],
-        "position": _position(cx, cy, W, H),
+        "position": position_label,
+        #: How far the centroid sits from the grid line that would put it in a
+        #: different cell. The last reading here to carry one.
+        "position_support": position_margin,
         "size": size_label,
         #: How far the area fraction sits from the next band, geometrically. This
         #: is support for the READING and never for the band being a property of
@@ -670,11 +785,32 @@ def _describe_contour(c, img, gray, W: int, H: int,
         "shape_margin": round(float(shape_margin), 3),
         "edge_fidelity": edge,
         "color": color_label,
+        #: THE HUE ALONE, with the viewing modifier taken off it. This is the
+        #: half that is about the object: measured, 41% of every colour change
+        #: under the nuisance battery was the modifier moving while the hue
+        #: underneath held, and on photographs the hue survives 71% where the
+        #: full name survives 64%.
+        "hue": hue_label,
+        #: How it LOOKED -- dark, pale, vivid -- or empty where the name carries
+        #: no modifier. A fact about the light, reported beside the exposure and
+        #: the focus rather than fused into what the thing is.
+        "view_modifier": view_modifier,
+        #: The name the raw pixels give, before the light was discounted. The
+        #: measurement is never destroyed by the correction applied to it.
+        "color_as_lit": raw_label,
         #: Margin x the region's own chroma fidelity. This is the number that was
         #: missing: it is what falls when the bulb dims or the colour washes out,
         #: and it is what the acceptance band needs in order to tell a bad look
         #: from a confident one.
-        "color_support": round(float(color_margin * chroma), 3),
+        #: Margin x the region's own chroma fidelity x HOW FAR THE CORRECTION
+        #: CAN BE TRUSTED. The third term is the illuminant estimate's own doubt:
+        #: grey-world cannot tell a coloured light from a scene made mostly of
+        #: one colour, so the further from neutral its estimate sits the more of
+        #: this name rests on an assumption. Measured across real footage the
+        #: term separates cleanly -- a neutral studio card 0.02, a night sky
+        #: 0.005, blue water 0.28, an orange sunrise 0.75.
+        "color_support": round(float(color_margin * chroma
+                                     * max(0.0, 1.0 - float(cast))), 3),
         "color_margin": round(float(color_margin), 3),
         "chroma_fidelity": chroma,
         "aspect_ratio": round(ww / hh, 2) if hh else 0.0,
@@ -685,6 +821,9 @@ def _describe_contour(c, img, gray, W: int, H: int,
         #: property a region either has or does not -- measurable here, where the
         #: mask is, and not guessable downstream from an area fraction.
         "border_share": _border_share(gray, mask),
+        #: Its outline, as at most 32 points in the frame's own proportions: the
+        #: shape a remembered picture puts this thing back in.
+        "outline": _outline(c, W, H),
     }
     if len(c) >= 5:
         (_c, (MA, ma), angle) = cv2.fitEllipse(c)
@@ -693,7 +832,18 @@ def _describe_contour(c, img, gray, W: int, H: int,
     return desc
 
 
-def _regions(img, gray, *, max_regions: int = 10,
+def _outline(c, W: int, H: int, most: int = 32) -> List[List[float]]:
+    """A contour simplified to at most `most` points, each as a share of the
+    frame's width and height."""
+    tolerance = max(1.0, 0.005 * cv2.arcLength(c, True))
+    poly = cv2.approxPolyDP(c, tolerance, True)
+    while len(poly) > most:
+        tolerance *= 1.5
+        poly = cv2.approxPolyDP(c, tolerance, True)
+    return [[round(float(x) / W, 4), round(float(y) / H, 4)] for x, y in poly[:, 0, :]]
+
+
+def _regions(img, gray, *, lit=None, cast: float = 0.0, max_regions: int = 10,
              min_area_frac: float = _MIN_REGION_FRAC) -> List[Dict[str, Any]]:
     """Object-like blobs, each DESCRIBED (never named): size, position, shape,
     dominant colour, aspect, solidity, extent, orientation. Two detectors are
@@ -720,7 +870,8 @@ def _regions(img, gray, *, max_regions: int = 10,
         pass
 
     usable = [c for c in candidates if cv2.contourArea(c) >= min_area]
-    described = [_describe_contour(c, img, gray, W, H) for c in usable]
+    described = [_describe_contour(c, img, gray, W, H, lit, cast)
+                 for c in usable]
     order = sorted(range(len(described)),
                    key=lambda i: -described[i]["area_fraction"])
 
@@ -996,7 +1147,12 @@ def describe_image(path: str) -> Dict[str, Any]:
     keypoints = len(cv2.ORB_create(1500).detect(gray, None) or [])
     colorfulness = _colorfulness(img)
 
-    regions = _regions(work_img, work_gray)
+    # THE LIGHT IS ESTIMATED AND TAKEN BACK OUT, for the purpose of naming
+    # colours and for nothing else. Geometry keeps reading the picture as taken.
+    light = illuminant(work_img)
+    cast = illuminant_cast(light)
+    regions = _regions(work_img, work_gray,
+                       lit=_discount_illuminant(work_img, light), cast=cast)
     # The look is summarised FROM the regions, because the fidelities that
     # condition each claim are measured where each reading was taken.
     view = _view_fidelity(regions)
@@ -1025,6 +1181,12 @@ def describe_image(path: str) -> Dict[str, Any]:
         #: whole observation, not only the per-region supports derived from it.
         "view_fidelity": view,
         "view_category": _view_category(view),
+        #: The light this was taken under, and how far from neutral it is. The
+        #: cast is the ESTIMATE'S OWN DOUBT: grey-world cannot tell a coloured
+        #: light from a scene made mostly of one colour, so a strong cast means
+        #: the correction rests on a shakier assumption.
+        "illuminant": [round(c, 1) for c in light],
+        "illuminant_cast": cast,
         "edge_density": round(float((edges > 0).mean()), 4),
         "keypoints": int(keypoints),
         "texture_energy": _texture_energy(gray),
@@ -1039,6 +1201,9 @@ def describe_image(path: str) -> Dict[str, Any]:
         "region_count": len(regions),
         "region_relations": region_relations,
         "codes": _decode_codes(img),
+        #: What is kept of the picture to see it again in the mind (`rebuild`):
+        #: the scene small, and the things most prominent in it in more detail.
+        "gist": gist(img, regions, width=int(width), height=int(height)),
     }
     result.update(_exif(pim))
     return result
@@ -1128,7 +1293,10 @@ def describe_video(path: str, *, sample: int = 24) -> Dict[str, Any]:
                 # good evidence as a still photograph, which is the exact false
                 # confidence the support numbers exist to remove.
                 kgray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-                kregions = _regions(frame, kgray)
+                klight = illuminant(frame)
+                kregions = _regions(frame, kgray,
+                                    lit=_discount_illuminant(frame, klight),
+                                    cast=illuminant_cast(klight))
                 kview = _view_fidelity(kregions)
                 keyframe = {"regions": kregions,
                             "view_fidelity": kview,
@@ -1148,3 +1316,182 @@ def describe_video(path: str, *, sample: int = 24) -> Dict[str, Any]:
     if keyframe:
         result["keyframe"] = keyframe
     return result
+
+
+# --- the gist: what is remembered of a picture, and seeing it again ----------
+#
+# A MEMORY OF A PICTURE IS NOT THE PHOTOGRAPH. What stays with a person is the
+# scene at low resolution -- where it was light and dark, its broad colours --
+# and the things they looked at in more detail. That is what is kept: the whole
+# picture small (`GIST_SIDE` on its long side), and each of the most prominent
+# things (`GIST_ATTENDED`) as its own small patch with the outline it had.
+# Rebuilding enlarges the scene and sets each thing back into its place,
+# feathered along its outline. What comes back is a GIST: the same things in
+# the same places, not the same pixels.
+#
+# CHOSEN BY MEASUREMENT on real footage (four 4K daylight/dusk/sunrise/night
+# scenes, a real underwater clip, two test cards), against how many of its own
+# objects the describer finds again when the SAME frame is merely re-encoded or
+# resized (20 of 24 -- the ceiling). Painting each region flat in its average
+# colour over a 32-pixel layout found 10 of 25 and invented more than it found:
+# on real footage a region is a fragment, and a flat patch is a new thing. The
+# scene at 128 pixels found 16 of 25; adding the three most prominent things in
+# detail, 17 of 25, inventing no more than the re-encoded frame did, at about
+# 4 kB a picture.
+#
+# THE TEST OF A GIST IS WHETHER THE REBUILT PICTURE IS SEEN AS THE SAME.
+
+GIST_SIDE = 128
+GIST_ATTENDED = 3
+_ATTENDED_SIDE = 96
+_GIST_QUALITY = 80
+
+
+def _small_jpeg(img, side: int) -> str:
+    """`img` shrunk to `side` on its long side, as base64 JPEG text."""
+    import base64
+    h, w = img.shape[:2]
+    scale = min(1.0, side / float(max(h, w)))
+    small = cv2.resize(img, (max(1, int(round(w * scale))), max(1, int(round(h * scale)))),
+                       interpolation=cv2.INTER_AREA)
+    ok, enc = cv2.imencode(".jpg", small, [cv2.IMWRITE_JPEG_QUALITY, _GIST_QUALITY])
+    return base64.b64encode(enc.tobytes()).decode("ascii")
+
+
+def gist(img, regions: List[Dict[str, Any]], *, width: int, height: int) -> Dict[str, Any]:
+    """What is kept of a picture: its size, the scene small, and the most
+    prominent things -- the object regions, largest first -- each as a small
+    patch with its box and outline. JSON-able, a few kilobytes. `regions` were
+    measured on `img` (the working copy); boxes and outlines are shares of it."""
+    H, W = img.shape[:2]
+    things = sorted((r for r in regions if r.get("outline")
+                     and float(r.get("border_share") or 0.0) <= 0.5),
+                    key=lambda r: -float(r.get("area_fraction") or 0.0))[:GIST_ATTENDED]
+    attended = []
+    for r in things:
+        x, y, w, h = r["bbox_norm"]
+        X, Y = int(x * W), int(y * H)
+        Ww, Hh = max(2, int(round(w * W))), max(2, int(round(h * H)))
+        attended.append({"box": [x, y, w, h], "outline": r["outline"],
+                         "patch": _small_jpeg(img[Y:Y + Hh, X:X + Ww], _ATTENDED_SIDE)})
+    return {"width": int(width), "height": int(height),
+            "scene": _small_jpeg(img, GIST_SIDE), "attended": attended}
+
+
+def rebuild(remembered: Dict[str, Any], *, longest: int = 800) -> np.ndarray:
+    """See a remembered picture again: BGR pixels rebuilt from its gist (or from
+    a perceived record that carries one under "gist"), at most `longest` pixels
+    on its long side.
+
+    The scene is enlarged smoothly to the picture's proportions, and each thing
+    that was attended to is set back into its box, feathered along its own
+    outline so it sits in the scene instead of on it."""
+    import base64
+    g = remembered.get("gist", remembered)
+    width, height = int(g.get("width") or 0), int(g.get("height") or 0)
+    if width <= 0 or height <= 0 or not g.get("scene"):
+        raise ValueError("a remembered picture needs its size and its scene to be seen again")
+    scale = min(1.0, longest / float(max(width, height)))
+    W, H = max(1, int(round(width * scale))), max(1, int(round(height * scale)))
+
+    def decode(text):
+        return cv2.imdecode(np.frombuffer(base64.b64decode(text), np.uint8), cv2.IMREAD_COLOR)
+
+    canvas = cv2.resize(decode(g["scene"]), (W, H), interpolation=cv2.INTER_CUBIC).astype(np.float32)
+    for thing in g.get("attended") or []:
+        x, y, w, h = thing["box"]
+        X, Y = int(x * W), int(y * H)
+        Ww, Hh = max(2, int(round(w * W))), max(2, int(round(h * H)))
+        Ww, Hh = min(Ww, W - X), min(Hh, H - Y)
+        if Ww < 2 or Hh < 2:
+            continue
+        patch = cv2.resize(decode(thing["patch"]), (Ww, Hh), interpolation=cv2.INTER_CUBIC)
+        mask = np.zeros((H, W), np.uint8)
+        pts = np.array([[px * W, py * H] for px, py in thing["outline"]], np.int32)
+        cv2.fillPoly(mask, [pts], 255)
+        soft = cv2.GaussianBlur(mask[Y:Y + Hh, X:X + Ww].astype(np.float32) / 255.0, (0, 0),
+                                max(1.0, 0.02 * max(Ww, Hh)))[..., None]
+        canvas[Y:Y + Hh, X:X + Ww] = canvas[Y:Y + Hh, X:X + Ww] * (1 - soft) + patch * soft
+    return np.clip(canvas, 0, 255).astype(np.uint8)
+
+
+# --- the sight trace: what a seeing keeps to be known again -------------------
+#
+# A picture is known again the way a known instance is recognised: by
+# distinctive local features that must AGREE with one another, not by
+# resemblance. The features are ORB keypoints (corners, with a 256-bit binary
+# descriptor each); agreement is a single geometry -- a homography -- that
+# many matched keypoints fit at once (RANSAC). One matching keypoint means
+# nothing; many that agree on one mapping of one picture onto the other do not
+# happen by chance. The same THING in another picture, from another angle, in
+# other light, agrees the same way. The picture as a whole is also given a
+# 64-bit difference hash, which the same picture resized or re-encoded keeps.
+#
+# What is kept is the features, never the photograph: with the gist, it is the
+# whole of what memory holds of a seeing.
+
+#: As many as a known instance's reference keeps (`senses._descriptors`), so a
+#: seeing and a reference are matched on the same footing.
+SIGHT_KEYPOINTS = 1500
+#: A descriptor is looked up by eight 16-bit stretches of its 256 bits: two
+#: descriptors of one corner seen again differ in a few bits, and share at
+#: least one stretch whole far more often than two corners of different things.
+_SIGHT_BANDS = 8
+#: A picture's lookup keys sit above every sound landmark hash (those are under
+#: 2^26), so the two can share one index and never be mistaken for each other.
+_SIGHT_KEYS = 1 << 28
+
+
+def _dhash(gray) -> int:
+    """The picture's difference hash: which of each pair of neighbouring cells
+    is brighter, over a 9x8 thumbnail, as 64 bits."""
+    small = cv2.resize(gray, (9, 8), interpolation=cv2.INTER_AREA).astype(np.int16)
+    bits = (small[:, 1:] > small[:, :-1]).flatten()
+    return int(sum(1 << i for i, b in enumerate(bits) if b))
+
+
+def sight_features(path: str) -> Dict[str, Any]:
+    """What a picture is known again by: its keypoints (as shares of its width
+    and height), their ORB descriptors, and its difference hash. Raises when
+    the file is not a readable picture."""
+    gray = cv2.imread(str(path), cv2.IMREAD_GRAYSCALE)
+    if gray is None:
+        raise ValueError(f"cannot read {path} as a picture")
+    h, w = gray.shape[:2]
+    keypoints, descriptors = cv2.ORB_create(SIGHT_KEYPOINTS).detectAndCompute(gray, None)
+    points = np.array([[k.pt[0] / w, k.pt[1] / h] for k in keypoints or []], np.float32).reshape(-1, 2)
+    return {"points": points,
+            "descriptors": (descriptors if descriptors is not None
+                            else np.zeros((0, 32), np.uint8)),
+            "dhash": _dhash(gray), "size": (int(w), int(h))}
+
+
+def sight_trace_bytes(features: Dict[str, Any]) -> bytes:
+    """A seeing's features as bytes, for keeping in its memory."""
+    buf = io.BytesIO()
+    np.savez_compressed(buf, points=np.asarray(features["points"], np.float32),
+                        descriptors=np.asarray(features["descriptors"], np.uint8),
+                        dhash=np.array([features["dhash"]], np.uint64),
+                        size=np.array(features["size"], np.int32))
+    return buf.getvalue()
+
+
+def sight_trace(data: bytes) -> Optional[Dict[str, Any]]:
+    """The features a seeing's memory kept, or None when it kept none."""
+    with np.load(io.BytesIO(data)) as z:
+        if "descriptors" not in z.files:
+            return None
+        return {"points": np.array(z["points"], np.float32),
+                "descriptors": np.array(z["descriptors"], np.uint8),
+                "dhash": int(z["dhash"][0]), "size": tuple(int(v) for v in z["size"])}
+
+
+def keypoint_hashes(descriptors) -> np.ndarray:
+    """A picture's distinct lookup keys: each descriptor's eight 16-bit
+    stretches, numbered by stretch, above the sound hashes."""
+    d = np.asarray(descriptors, np.uint8).reshape(-1, 32)
+    if not len(d):
+        return np.zeros(0, np.int32)
+    words = d.view(">u2").astype(np.int64)                    # 16 stretches of 16 bits
+    keys = [(_SIGHT_KEYS | (b << 16)) + words[:, b] for b in range(_SIGHT_BANDS)]
+    return np.unique(np.concatenate(keys)).astype(np.int32)

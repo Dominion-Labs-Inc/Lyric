@@ -8,9 +8,9 @@ reason_about() is the method every autonomous path uses to reason. It must:
   - record provenance route [reason_about, neural_bridge, ...].
 
 This drives the REAL `AutonomousCoordinator.reason_about` code, bound to a
-minimal object carrying a real, initialised neural bridge (store_memory is
-stubbed — this verifies reasoning, not memory). Run in the sandbox against the
-real DB + llama-server; the whole thing is model-free.
+minimal object carrying a real, initialised neural bridge and the REAL memory
+agent, so the conclusion it reaches is also shown to be remembered. Runs against
+the real DB; the whole thing is model-free.
 """
 
 import asyncio
@@ -19,8 +19,8 @@ import types
 
 
 async def run() -> int:
-    from core.model_policy import set_model_policy, ModelPolicy
-    set_model_policy(ModelPolicy.STRICT_MODEL_FREE)  # always substrate-first
+    # Always substrate-first, and model-free BY CONSTRUCTION: `core.model_policy`
+    # was REMOVED with the last model in core/, so there is no policy to set.
 
     from core.reasoning.neural_bridge import get_neural_bridge
     from core.agents.autonomous.autonomous_coordinator import AutonomousCoordinator
@@ -30,19 +30,19 @@ async def run() -> int:
     if hasattr(bridge, "initialize"):
         await bridge.initialize()
 
-    # Minimal stand-in: the real reason_about method, a real bridge, a memory
-    # stub that records that a store was attempted.
-    stored = []
+    # Minimal stand-in: the real reason_about method, a real bridge, and the
+    # REAL memory agent. This used to hang a `store_memory` stub off the object
+    # itself; reason_about writes through `self.memory.store_memory(...)`, so
+    # the stub was never reached and the test had been failing on a missing
+    # attribute. Memory is the one and only store, so the honest fixture is the
+    # store -- and it also proves the conclusion is actually remembered.
+    from core.agents.memory_agent import get_memory_agent
 
     class _Stub:
         pass
     obj = _Stub()
     obj.neural_bridge = bridge
-
-    async def _store(mem_type, payload, *a, **k):
-        stored.append((mem_type, payload))
-        return True, "stub"
-    obj.store_memory = _store
+    obj.memory = await get_memory_agent()
 
     reason_about = AutonomousCoordinator.reason_about.__get__(obj, _Stub)
 
@@ -58,6 +58,8 @@ async def run() -> int:
     ]
 
     results = []
+    remembered = 0
+    at_default = 0
     for kind_value, question, ctx, expect in cases:
         rt = next(t for t in ReasoningType if t.value == kind_value)
         result = await reason_about(question, ctx, rt)
@@ -71,6 +73,27 @@ async def run() -> int:
         results.append((kind_value, ok,
                         f"verified={md.get('verified')} kind={md.get('kind')} "
                         f"route={route} answer={answer[:50]!r}"))
+        # DID THE CONCLUSION LAND IN THE STORE? That is reason_about's memory
+        # obligation, so it is read from the store itself.
+        #
+        # search_memories returns (ok, items) -- NOT a bare list. Iterating the
+        # tuple compares against the repr of the item list, which contains the
+        # question text, so a naive loop reports a hit for a search that found
+        # nothing. Unpack it.
+        async def _found(threshold):
+            ok_search, items = await obj.memory.search_memories(
+                f"I was asked: {question}", min_similarity=threshold, limit=5)
+            return bool(ok_search and any(
+                question.lower() in str(getattr(m, "content", "")).lower()
+                for m in (items or [])))
+
+        if await _found(0.5):
+            remembered += 1
+        # Separately measured, NOT asserted: the same memory at the 0.7 default.
+        # The write always lands; the default floor is what hides it. Reported
+        # as a number so a change either way is visible.
+        if await _found(0.7):
+            at_default += 1
 
     print("\n===== coordinator.reason_about() THROUGH THE AUTHORITY =====")
     passed = 0
@@ -78,9 +101,11 @@ async def run() -> int:
         if ok:
             passed += 1
         print(f"  {'PASS' if ok else 'FAIL'}  {kind_value:12} {detail}")
-    print(f"  store_memory attempted: {len(stored)} time(s) (provenance recorded)")
+    print(f"  conclusions written to the real store: {remembered}/{len(cases)}")
+    print(f"  ...of those, surfaced by search at the 0.7 default: "
+          f"{at_default}/{len(cases)}  (retrieval floor, not a write failure)")
     print(f"\n  {passed}/{len(cases)} coordinator reasoning calls verified via the authority\n")
-    return 0 if passed == len(cases) else 1
+    return 0 if (passed == len(cases) and remembered == len(cases)) else 1
 
 
 def main() -> int:

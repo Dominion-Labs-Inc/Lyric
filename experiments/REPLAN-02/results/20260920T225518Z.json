@@ -1,0 +1,63 @@
+{
+  "experiment": "REPLAN-02",
+  "at": "20260920T225518Z",
+  "passed": 11,
+  "total": 11,
+  "checks": [
+    {
+      "name": "the registry names the LIVE substrate",
+      "passed": true,
+      "detail": "constructing an AutonomousCoordinator anywhere would displace it"
+    },
+    {
+      "name": "the substrate holds BOTH movers as executable knowledge",
+      "passed": true,
+      "detail": "{'SBMOVE': 'validated', 'SBHAUL': 'validated'}"
+    },
+    {
+      "name": "it planned a route on its own and acted",
+      "passed": true,
+      "detail": "path=substrate_plan steps=None"
+    },
+    {
+      "name": "the polluted world defeated the attempt \u2014 z did NOT reach LAB",
+      "passed": true,
+      "detail": "z is in ANNEX"
+    },
+    {
+      "name": "...and the substrate did not claim success",
+      "passed": true,
+      "detail": "success=False"
+    },
+    {
+      "name": "SBMOVE was REFUTED by the world",
+      "passed": true,
+      "detail": "status=refuted"
+    },
+    {
+      "name": "SBHAUL was NOT touched \u2014 one bad operator is not all of them",
+      "passed": true,
+      "detail": "status=validated"
+    },
+    {
+      "name": "THE SUBSTRATE GOT z TO LAB \u2014 it replanned and carried it out",
+      "passed": true,
+      "detail": "z is in LAB"
+    },
+    {
+      "name": "the new route is over SBHAUL, not the refuted operator",
+      "passed": true,
+      "detail": "route=['SBHAUL(z, ANNEX, LAB)']"
+    },
+    {
+      "name": "it replanned FROM WHERE z ACTUALLY WAS, not from the remembered world",
+      "passed": true,
+      "detail": "route=['SBHAUL(z, ANNEX, LAB)'] \u2014 a remembered world would start from HALL"
+    },
+    {
+      "name": "the replanned pursuit carries a reconciled outcome",
+      "passed": true,
+      "detail": "1 intent(s), 1 reconciled: [('abandoned', False)]"
+    }
+  ]
+}

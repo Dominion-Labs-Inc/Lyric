@@ -1,0 +1,109 @@
+{
+  "experiment": "REPLAN-02",
+  "claim": "Knocked off course by a world that no longer behaves as its learned rule says, the substrate refutes that rule, replans from where the file actually is over what is still validated, and gets it there anyway.",
+  "hypothesis": "If a contradicted operator loses execution authority and the route standing on it is withdrawn and replanned from a fresh observation, then one polluted operator does not strand the goal.",
+  "started_at": "2026-09-26T15:05:46.647959+00:00",
+  "duration_seconds": 93.506,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/TorinAI/venv_torin/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/TorinAI",
+    "shadow_mode": null,
+    "git_commit": "20deb447498593391eca0286916b8f986c560a26",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "torinai_db",
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "environment",
+        "database": "environment",
+        "user": "environment",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres"
+      }
+    },
+    "git_uncommitted_changes": 1041,
+    "database_verified": "torinai_db",
+    "database_verified_reason": "asked the server"
+  },
+  "summary": {
+    "checks": 11,
+    "passed": 11,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [],
+  "checks": [
+    {
+      "label": "the registry names the LIVE substrate",
+      "passed": true,
+      "detail": "constructing an AutonomousCoordinator anywhere would displace it",
+      "at": "2026-09-26T15:07:13.558272+00:00"
+    },
+    {
+      "label": "the substrate holds BOTH movers as executable knowledge",
+      "passed": true,
+      "detail": "{'SBMOVE': 'validated', 'SBHAUL': 'validated'}",
+      "at": "2026-09-26T15:07:13.747820+00:00"
+    },
+    {
+      "label": "it planned a route on its own and acted",
+      "passed": true,
+      "detail": "path=substrate_plan steps=None",
+      "at": "2026-09-26T15:07:14.624197+00:00"
+    },
+    {
+      "label": "the polluted world defeated the attempt \u2014 z did NOT reach LAB",
+      "passed": true,
+      "detail": "z is in ANNEX",
+      "at": "2026-09-26T15:07:14.624426+00:00"
+    },
+    {
+      "label": "...and the substrate did not claim success",
+      "passed": true,
+      "detail": "success=False",
+      "at": "2026-09-26T15:07:14.624434+00:00"
+    },
+    {
+      "label": "SBMOVE was REFUTED by the world",
+      "passed": true,
+      "detail": "status=refuted",
+      "at": "2026-09-26T15:07:14.629270+00:00"
+    },
+    {
+      "label": "SBHAUL was NOT touched \u2014 one bad operator is not all of them",
+      "passed": true,
+      "detail": "status=validated",
+      "at": "2026-09-26T15:07:14.629286+00:00"
+    },
+    {
+      "label": "THE SUBSTRATE GOT z TO LAB \u2014 it replanned and carried it out",
+      "passed": true,
+      "detail": "z is in LAB",
+      "at": "2026-09-26T15:07:19.994711+00:00"
+    },
+    {
+      "label": "the new route is over SBHAUL, not the refuted operator",
+      "passed": true,
+      "detail": "route=['SBHAUL(z, ANNEX, LAB)']",
+      "at": "2026-09-26T15:07:19.994761+00:00"
+    },
+    {
+      "label": "it replanned FROM WHERE z ACTUALLY WAS, not from the remembered world",
+      "passed": true,
+      "detail": "route=['SBHAUL(z, ANNEX, LAB)'] \u2014 a remembered world would start from HALL",
+      "at": "2026-09-26T15:07:19.994773+00:00"
+    },
+    {
+      "label": "the replanned pursuit carries a reconciled outcome",
+      "passed": true,
+      "detail": "1 intent(s), 1 reconciled: [('fulfilled', True)]",
+      "at": "2026-09-26T15:07:20.097606+00:00"
+    }
+  ],
+  "notes": []
+}

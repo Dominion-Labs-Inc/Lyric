@@ -158,42 +158,43 @@ REASONING_TYPE_MARKERS = {
 }
 
 
-def kinds_of_thinking_for(text: str) -> tuple:
-    """Which ReasoningTypes the text asks for, most-evidenced first.
+#: WHAT KIND OF THINKING A QUESTION ABOUT EACH LINK KIND ASKS FOR. A link kind is
+#: the domain system's own structure, so this reads no English: a question about
+#: what causes something asks for causal thinking in whatever words it came.
+THINKING_FOR_LINK_KIND = {
+    "causes": ReasoningType.CAUSAL, "caused_by": ReasoningType.CAUSAL,
+    "enables": ReasoningType.CAUSAL, "prevents": ReasoningType.CAUSAL,
+    "requires": ReasoningType.CAUSAL, "required_by": ReasoningType.CAUSAL,
+    "precedes": ReasoningType.TEMPORAL, "follows": ReasoningType.TEMPORAL,
+    "located_in": ReasoningType.SPATIAL, "located_at": ReasoningType.SPATIAL,
+    "contains": ReasoningType.SPATIAL, "adjacent_to": ReasoningType.SPATIAL,
+    "isa": ReasoningType.DEDUCTIVE, "instance_of": ReasoningType.DEDUCTIVE,
+}
 
-    RETURNS EMPTY WHEN NOTHING MATCHES, and that is deliberate. A default of
-    "deductive" would make an unrecognised request indistinguishable from one
-    that genuinely calls for deduction, and the caller could never tell that
-    classification had failed. An empty result means "this text carries no
-    marker of any kind of thinking" -- which is a fact the caller can act on,
-    by asking for a mode explicitly or by declining.
 
-    Several kinds can be asked for at once; "why did it fail before the
-    timeout?" is causal AND temporal, and returning one of them would silently
-    drop the other.
+def kinds_of_thinking_for(meaning) -> tuple:
+    """Which ReasoningTypes a question asks for, read from its MEANING (a
+    `derived_reader.Meaning`): the link kinds its facts are in, and a condition,
+    which asks what follows from it.
+
+    RETURNS EMPTY WHEN THERE IS NO MEANING OR IT NAMES NO KIND HERE, and that is
+    deliberate. A default would make an unread request indistinguishable from
+    one that genuinely calls for that kind, and the caller could never tell. An
+    empty result is a fact the caller acts on, by naming kinds or by trying the
+    classical ones.
+
+    Several kinds can be asked for at once, in the order the facts give them.
     """
-    if not text:
+    if meaning is None:
         return ()
-    lowered = f" {str(text).lower()} "
-    scored = []
-    for kind, markers in REASONING_TYPE_MARKERS.items():
-        hits = sum(1 for marker in markers if marker in lowered)
-        if hits:
-            scored.append((hits, kind.value, kind))
-    # Sorted by evidence, then by name so the order is stable across runs
-    # rather than dependent on dict insertion.
-    scored.sort(key=lambda row: (-row[0], row[1]))
-    return tuple(kind for _, _, kind in scored)
-
-
-def asks_for(text: str, kind: ReasoningType) -> bool:
-    """Whether the text carries a marker of one specific kind of thinking.
-
-    The convenience form for a caller that only cares about one -- what
-    `is_temporal = any(kw in query for kw in [...])` used to do inline, now
-    reading from the one marker table.
-    """
-    return kind in kinds_of_thinking_for(text)
+    kinds = []
+    for fact in meaning.facts:
+        kind = THINKING_FOR_LINK_KIND.get(fact.relation)
+        if kind is not None and kind not in kinds:
+            kinds.append(kind)
+    if meaning.condition and ReasoningType.DEDUCTIVE not in kinds:
+        kinds.append(ReasoningType.DEDUCTIVE)
+    return tuple(kinds)
 
 
 class InferenceStrategy(Enum):
@@ -357,6 +358,23 @@ class Formalization:
     #: The sentences this was built from, kept so a proof can be traced back to
     #: what was actually said rather than to the atoms it became.
     surface_text: List[str] = field(default_factory=list)
+
+    #: PARALLEL TO `premises`: for each formal atom, the sentence it came from
+    #: and that sentence's store identity, as `(surface, provenance)`.
+    #:
+    #: `surface_text` already keeps the sentences, but one sentence yields MANY
+    #: atoms, so the two lists sit at different granularity and neither says
+    #: which atom came from which sentence. A proof step names the ATOM
+    #: (`zorbax_glomph -> zorbax_fizzly`), so without this the only way back to
+    #: what was actually said -- or to the concept or memory the substrate read
+    #: it from -- is to match content words between the atom and every candidate
+    #: premise, which cites both of two premises that share their words when
+    #: only one was used.
+    #:
+    #: `provenance` is None where the premise had no stored origin (a caller's
+    #: literal sentence). Empty where a formalizer does not record origins yet,
+    #: which is different from "the atoms came from nowhere".
+    premise_origins: List[tuple] = field(default_factory=list)
 
     #: Per-sentence genericity, with the cue that produced it. QUANTIFICATIONAL
     #: INTERPRETATION IS COGNITION-BEARING STATE: whether "A robin is a bird"

@@ -1,0 +1,213 @@
+{
+  "experiment": "SENSES-TOGETHER-01",
+  "claim": "The running substrate hears, sees and reasons at the same time: each sense measures in its own process, so hearing, sight and reasoning run together in every combination, each result right and each memory its own.",
+  "hypothesis": "With each sense in its own process the substrate's loop is never held more than 100 ms (it was 1,400 ms), and a question asked while it hears and sees is answered within 3.0x its time alone and before the perceptions beside it finish.",
+  "started_at": "2026-09-29T01:46:24.132309+00:00",
+  "duration_seconds": 32.856,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/TorinAI/venv_torin/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/TorinAI",
+    "shadow_mode": null,
+    "git_commit": "20deb447498593391eca0286916b8f986c560a26",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "torinai_dev",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "torinai_dev",
+        "model": "torinai_dev",
+        "user_context": "torinai_dev",
+        "learning": "torinai_dev"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "dotenv:.env.postgres",
+        "database": "environment",
+        "user": "dotenv:.env.postgres",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 1777,
+    "database_verified": null,
+    "database_verified_reason": "no initialized connection in this process"
+  },
+  "summary": {
+    "checks": 16,
+    "passed": 12,
+    "failed": 4,
+    "outcome": "FAIL"
+  },
+  "metrics": [
+    {
+      "name": "hear_alone_s",
+      "value": 1.22,
+      "unit": "s",
+      "note": ""
+    },
+    {
+      "name": "see_alone_s",
+      "value": 2.23,
+      "unit": "s",
+      "note": ""
+    },
+    {
+      "name": "reason_alone_s",
+      "value": 0.25,
+      "unit": "s",
+      "note": ""
+    },
+    {
+      "name": "reason_beside_hear_reason_s",
+      "value": 0.17,
+      "unit": "s",
+      "note": ""
+    },
+    {
+      "name": "loop_held_ms_hear_reason",
+      "value": 30,
+      "unit": "ms",
+      "note": ""
+    },
+    {
+      "name": "reason_beside_see_reason_s",
+      "value": 0.18,
+      "unit": "s",
+      "note": ""
+    },
+    {
+      "name": "loop_held_ms_see_reason",
+      "value": 28,
+      "unit": "ms",
+      "note": ""
+    },
+    {
+      "name": "loop_held_ms_hear_see",
+      "value": 21,
+      "unit": "ms",
+      "note": ""
+    },
+    {
+      "name": "reason_beside_hear_see_reason_s",
+      "value": 0.17,
+      "unit": "s",
+      "note": ""
+    },
+    {
+      "name": "loop_held_ms_hear_see_reason",
+      "value": 31,
+      "unit": "ms",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "a recording is heard",
+      "passed": true,
+      "detail": "11.02s wav recording, 6 sound(s): a gradual mid-pitched sound, a gradu",
+      "at": "2026-09-29T01:46:46.319605+00:00"
+    },
+    {
+      "label": "a video frame is seen",
+      "passed": true,
+      "detail": "640x360 jpeg image, 8 region(s)",
+      "at": "2026-09-29T01:46:46.319620+00:00"
+    },
+    {
+      "label": "a question is answered by reasoning",
+      "passed": false,
+      "detail": "'I remember: a mammal is an animal.\\nI hold an animal but nothing said about it yet.\\nA vexfcjlpx is a mammal.'",
+      "at": "2026-09-29T01:46:46.319625+00:00"
+    },
+    {
+      "label": "hear + reason: every result is right, each memory its own",
+      "passed": false,
+      "detail": "1 of 2",
+      "at": "2026-09-29T01:46:47.058240+00:00"
+    },
+    {
+      "label": "hear + reason: reasoning is not queued behind the perceiving",
+      "passed": true,
+      "detail": "0.17s beside it, 0.25s alone (0.7x)",
+      "at": "2026-09-29T01:46:47.058255+00:00"
+    },
+    {
+      "label": "see + reason: every result is right, each memory its own",
+      "passed": false,
+      "detail": "1 of 2",
+      "at": "2026-09-29T01:46:48.909912+00:00"
+    },
+    {
+      "label": "see + reason: reasoning is not queued behind the perceiving",
+      "passed": true,
+      "detail": "0.18s beside it, 0.25s alone (0.7x)",
+      "at": "2026-09-29T01:46:48.909927+00:00"
+    },
+    {
+      "label": "hear + see: every result is right, each memory its own",
+      "passed": true,
+      "detail": "2 of 2",
+      "at": "2026-09-29T01:46:50.419414+00:00"
+    },
+    {
+      "label": "hear + see + reason: every result is right, each memory its own",
+      "passed": false,
+      "detail": "2 of 3",
+      "at": "2026-09-29T01:46:52.120228+00:00"
+    },
+    {
+      "label": "hear + see + reason: reasoning is not queued behind the perceiving",
+      "passed": true,
+      "detail": "0.17s beside it, 0.25s alone (0.7x)",
+      "at": "2026-09-29T01:46:52.120244+00:00"
+    },
+    {
+      "label": "the substrate's loop was never held more than 100 ms (was 1,400)",
+      "passed": true,
+      "detail": "at most 31 ms",
+      "at": "2026-09-29T01:46:52.120252+00:00"
+    },
+    {
+      "label": "sight and hearing each measure in a process of their own",
+      "passed": true,
+      "detail": "substrate 6116, sight 6305, hearing 6275",
+      "at": "2026-09-29T01:46:52.120260+00:00"
+    },
+    {
+      "label": "killed while perceiving, the sense is started again and the perception completes",
+      "passed": true,
+      "detail": "sight 6305 -> 6410: 10.01s h264 video, no sound track",
+      "at": "2026-09-29T01:46:56.202303+00:00"
+    },
+    {
+      "label": "and its death is reported, not passed over",
+      "passed": true,
+      "detail": "the sight process (pid 6305) had died (exit -9); started again for this perception",
+      "at": "2026-09-29T01:46:56.202330+00:00"
+    },
+    {
+      "label": "a sense that died while idle does not cost the next perception",
+      "passed": true,
+      "detail": "hearing 6275 -> 6412",
+      "at": "2026-09-29T01:46:56.586052+00:00"
+    },
+    {
+      "label": "the senses' processes stop with the substrate",
+      "passed": true,
+      "detail": "2 of 2 stopped",
+      "at": "2026-09-29T01:46:56.988259+00:00"
+    }
+  ],
+  "notes": [
+    "taught 'a mammal is an animal' (left in place, as SYSTEM-CONVERSATION-01 does)",
+    "Cleanup by nonce fcjlpx and exact memory id: 61 concepts, 8 envelopes, 16 memories; 0 left."
+  ]
+}

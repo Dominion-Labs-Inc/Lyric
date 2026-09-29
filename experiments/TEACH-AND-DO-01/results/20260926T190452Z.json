@@ -1,0 +1,178 @@
+{
+  "experiment": "TEACH-AND-DO-01",
+  "claim": "A small lesson taught through the one teaching path is held in the substrate's memory and used: asked back, extended from the web, applied to a document, and written down \u2014 and every learning path the work should touch moves.",
+  "hypothesis": "A taught fact that cannot be asked back, a gap never looked up, a declared tool that does not run, a planned artefact never written, or a learning store that never moves would each show here.",
+  "started_at": "2026-09-26T19:04:52.344415+00:00",
+  "duration_seconds": 186.947,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/TorinAI/venv_torin/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/TorinAI",
+    "shadow_mode": null,
+    "git_commit": "20deb447498593391eca0286916b8f986c560a26",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "torinai_db",
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "dotenv:.env.postgres",
+        "database": "dotenv:.env.postgres",
+        "user": "dotenv:.env.postgres",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres"
+      }
+    },
+    "git_uncommitted_changes": 1091,
+    "database_verified": null,
+    "database_verified_reason": "no initialized connection in this process"
+  },
+  "summary": {
+    "checks": 17,
+    "passed": 11,
+    "failed": 6,
+    "outcome": "FAIL"
+  },
+  "metrics": [
+    {
+      "name": "user",
+      "value": "teach-and-do-vxhzp",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "store_deltas",
+      "value": {
+        "memories": 24,
+        "concepts": 3,
+        "graph_edges": 6,
+        "beliefs": 5,
+        "knowledge_updates": 6,
+        "held_rules": 1,
+        "tool_runs": 1,
+        "demonstrations": 0
+      },
+      "unit": "",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "the lesson is read and taught",
+      "passed": true,
+      "detail": "read=6 taught={'admitted': 6, 'already': 0, 'refused': 0, 'total': 6}",
+      "at": "2026-09-26T19:07:31.456938+00:00"
+    },
+    {
+      "label": "the conditional is held",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-09-26T19:07:31.459584+00:00"
+    },
+    {
+      "label": "teaching wrote the substrate's memory: memories",
+      "passed": true,
+      "detail": "156219 -> 156229",
+      "at": "2026-09-26T19:07:31.565848+00:00"
+    },
+    {
+      "label": "teaching wrote the substrate's memory: graph_edges",
+      "passed": true,
+      "detail": "173564 -> 173570",
+      "at": "2026-09-26T19:07:31.565885+00:00"
+    },
+    {
+      "label": "teaching wrote the substrate's memory: beliefs",
+      "passed": true,
+      "detail": "160460 -> 160465",
+      "at": "2026-09-26T19:07:31.565905+00:00"
+    },
+    {
+      "label": "teaching wrote the substrate's memory: knowledge_updates",
+      "passed": true,
+      "detail": "300 -> 306",
+      "at": "2026-09-26T19:07:31.565913+00:00"
+    },
+    {
+      "label": "teaching held the conditional as a rule",
+      "passed": true,
+      "detail": "189 -> 190",
+      "at": "2026-09-26T19:07:31.565921+00:00"
+    },
+    {
+      "label": "every admission was announced to the substrate",
+      "passed": true,
+      "detail": "unannounced 0 -> 0",
+      "at": "2026-09-26T19:07:31.565934+00:00"
+    },
+    {
+      "label": "a chain through taught facts is affirmed (centrifugal pump -> pump -> machine)",
+      "passed": true,
+      "detail": "Yes, a centrifugal pump is a machine.",
+      "at": "2026-09-26T19:07:34.638107+00:00"
+    },
+    {
+      "label": "the gap was looked up on the web",
+      "passed": false,
+      "detail": "tool runs since start: []",
+      "at": "2026-09-26T19:07:39.247115+00:00"
+    },
+    {
+      "label": "and answered",
+      "passed": false,
+      "detail": "I remember: A water pump is a pump.\nPump can mean a machine or a shoe.\nWhich pump do you mean \u2014 the one in general, or in general?\nI hold nothing for peristalti",
+      "at": "2026-09-26T19:07:39.247154+00:00"
+    },
+    {
+      "label": "with read_file declared, the note is read",
+      "passed": false,
+      "detail": "I remember: A maintenance is a wrongdoing.\nRead is a publication.\nMaintenance can mean a support or a wrongdoing.\nNote can mean an air, a brief, a characteristi",
+      "at": "2026-09-26T19:07:40.409986+00:00"
+    },
+    {
+      "label": "the planned goal wrote a summary at the path it named",
+      "passed": false,
+      "detail": "0 bytes",
+      "at": "2026-09-26T19:07:40.759937+00:00"
+    },
+    {
+      "label": "and the summary is what it was taught",
+      "passed": false,
+      "detail": "",
+      "at": "2026-09-26T19:07:40.759952+00:00"
+    },
+    {
+      "label": "with run_python declared, the code runs and returns 6.0",
+      "passed": false,
+      "detail": "I remember: A mean is an average.\nRun can mean an act of running, a damage, a football play or an indefinite quantity.\nAverage can mean a ratio, a scale value o",
+      "at": "2026-09-26T19:07:45.417421+00:00"
+    },
+    {
+      "label": "tool runs were metered to learning",
+      "passed": true,
+      "detail": "+1",
+      "at": "2026-09-26T19:07:57.614412+00:00"
+    },
+    {
+      "label": "the taught domain is a domain the substrate holds",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-26T19:07:57.615589+00:00"
+    }
+  ],
+  "notes": [
+    "OBSERVED \u2014 what the look-up left in this user's context: [] (tool runs 133 -> 133)",
+    "OBSERVED \u2014 plain words: read a note and say what is wrong: Yes, the maintenance is a wrongdoing.\nI hold nothing for var folders y ltqc9s0xs5h7yhj_vv5ct80000gn t teach_and_do_vxhzp_q91nezaw maintenance_note txt, p.",
+    "OBSERVED \u2014 the planned goal's steps: [('PLANNING', 'Plan creation process for: Create a writ'), ('EXECUTION', 'Create: Create a written summary of what'), ('VALIDATION', 'Validate creation: Create a written summ')]",
+    "OBSERVED \u2014 the plan's steps as run: [('PLANNING', False, None), ('EXECUTION', False, None), ('VALIDATION', False, 'artefact_validation')]",
+    "OBSERVED \u2014 plain words: compute with Python: Validation failed: completion belief 0.01 < acceptance 0.96 \u2014 goal not yet grounded-confident (needs corroboration)",
+    "OBSERVED \u2014 knowledge ledger since start, by cause: [('learning.bulk_teach.teaching', 'new', 6)]",
+    "OBSERVED \u2014 tool runs since start: [('[\"read_file\"]', 1, 0)]",
+    "OBSERVED \u2014 this user's scoped context (beliefs): 0",
+    "OBSERVED \u2014 competence in the taught domain: 0.5",
+    "OBSERVED \u2014 consolidation: {'refreshed': {'known_unknowns': {'open': 236, 'added': 0, 'dropped': 0}, 'strategy_arms': 39}, 'known_unknowns': {'open': 236, 'resolved': 0, 'not_yet': 199, 'no_target': 37}, 'abandoned_decisions_closed': 0, 'classifiers_saved': 1}"
+  ]
+}

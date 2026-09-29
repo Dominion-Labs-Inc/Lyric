@@ -1,0 +1,46 @@
+{
+  "experiment": "AFFECT-WIRING-01",
+  "run": "2026-09-20T20:27:25.866280+00:00",
+  "outcome": "PASS",
+  "exit_code": 0,
+  "checks_passed": 9,
+  "checks_total": 9,
+  "checks": [
+    {
+      "kind": "PASS",
+      "text": "approach_pressure reaches the directive \u2014 approach=0.860"
+    },
+    {
+      "kind": "PASS",
+      "text": "should_approach set on a confident state \u2014 approach=0.860"
+    },
+    {
+      "kind": "PASS",
+      "text": "approach WIDENS breadth beyond epistemic pull alone \u2014 max_goals=3 vs explore-only=2"
+    },
+    {
+      "kind": "PASS",
+      "text": "exploration pressure WOULD otherwise admit \u2014 explore=0.986"
+    },
+    {
+      "kind": "PASS",
+      "text": "escalation is NOT firing (isolates avoidance) \u2014 escalation=0.080"
+    },
+    {
+      "kind": "PASS",
+      "text": "should_avoid set \u2014 avoidance=0.507"
+    },
+    {
+      "kind": "PASS",
+      "text": "self-initiated exploration SUPPRESSED by avoidance"
+    },
+    {
+      "kind": "PASS",
+      "text": "escalation still fires on an external, uncontrollable failure \u2014 escalation=0.665"
+    },
+    {
+      "kind": "PASS",
+      "text": "to_dict exposes should_avoid + should_approach"
+    }
+  ]
+}

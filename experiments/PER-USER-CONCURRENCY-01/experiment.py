@@ -37,7 +37,8 @@ async def main() -> int:
                     description="x", priority=Priority.HIGH, source=TaskSource.API, actor=actor)
 
     print("\n== 1. a capped user is skipped; other users are served; capped jobs stay queued ==")
-    q = QueueAuthority(config={"max_parallel": 6})
+    # Unpersisted: these probe jobs must never reach the durable queue a boot restores.
+    q = QueueAuthority(config={"max_parallel": 6, "persist": False})
     a_tasks = [mk(A, i) for i in range(4)]
     b_tasks = [mk(B, i) for i in range(2)]
     for t in a_tasks + b_tasks:

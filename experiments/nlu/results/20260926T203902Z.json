@@ -1,0 +1,1153 @@
+{
+  "suite": "NLU \u2014 natural-language understanding and expression",
+  "stamp": "20260926T203902Z",
+  "substrate": {
+    "live": true,
+    "word_classes_warm": 78317
+  },
+  "passed": 107,
+  "total": 129,
+  "experiments": [
+    {
+      "experiment": "NLU-01 \u2014 What share of REAL prose does the substrate read?",
+      "writes_to_store": false,
+      "notes": [
+        "corpus: 300 human-written sentences from the repo's docs (median 12 words)",
+        "READ 102 (34.0%) \u00b7 DECLINED 198 (66.0%) \u00b7 RAISED 0",
+        "which reader answered: segmented=63, extractor=34, derived:subject_relation_object_polarity=5",
+        "read  \u201cThe canonical architecture document.\u201d -> canonical_architecture_document [derived:subject_relation_object_polarity]",
+        "read  \u201cTorinAI is a persistent cognitive substrate: a system that maintains and\u201d -> torinai_persistent_cognitive_substrate [segmented]",
+        "read  \u201cCognition is one body \u2014 not a bus between independent services.\u201d -> cognition_one_body [segmented]",
+        "read  \u201cThe output of one subsystem becomes structured input to another: a concl\u201d -> belief_action_produces_an_experience [segmented]"
+      ],
+      "data": {
+        "sentences": 300,
+        "read": 102,
+        "declined": 198,
+        "raised": 0,
+        "yield_pct": 34.0,
+        "by_reader": {
+          "derived:subject_relation_object_polarity": 5,
+          "segmented": 63,
+          "extractor": 34
+        }
+      },
+      "checks": [
+        {
+          "name": "no sentence made the reader raise",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "every reading names at least one atom",
+          "passed": true,
+          "detail": ""
+        }
+      ],
+      "passed": 2,
+      "total": 2,
+      "seconds": 2.62
+    },
+    {
+      "experiment": "NLU-02 \u2014 Which CONSTRUCTIONS of English does it hold?",
+      "writes_to_store": false,
+      "notes": [
+        "reads: copular 3/3, copular negated 3/3, subject-verb-object 3/3, yes/no question 3/3, multi-word subject 3/3, relative clause 3/3, NP coordination 2/3, object coordination 3/3, VP coordination 3/3, subordination 1/3, complement clause 2/3, comparative 3/3, quantified 2/3, passive 3/3, possessive 2/3, modal 3/3, prepositional claim 3/3",
+        "refuses entirely: ditransitive 0/3, apposition 0/3, multi-clause definition 0/3"
+      ],
+      "data": {
+        "copular": {
+          "read": 3,
+          "of": 3,
+          "claimed": true
+        },
+        "copular negated": {
+          "read": 3,
+          "of": 3,
+          "claimed": true
+        },
+        "subject-verb-object": {
+          "read": 3,
+          "of": 3,
+          "claimed": true
+        },
+        "yes/no question": {
+          "read": 3,
+          "of": 3,
+          "claimed": true
+        },
+        "multi-word subject": {
+          "read": 3,
+          "of": 3,
+          "claimed": true
+        },
+        "relative clause": {
+          "read": 3,
+          "of": 3,
+          "claimed": false
+        },
+        "NP coordination": {
+          "read": 2,
+          "of": 3,
+          "claimed": false
+        },
+        "object coordination": {
+          "read": 3,
+          "of": 3,
+          "claimed": false
+        },
+        "VP coordination": {
+          "read": 3,
+          "of": 3,
+          "claimed": false
+        },
+        "subordination": {
+          "read": 1,
+          "of": 3,
+          "claimed": false
+        },
+        "complement clause": {
+          "read": 2,
+          "of": 3,
+          "claimed": false
+        },
+        "ditransitive": {
+          "read": 0,
+          "of": 3,
+          "claimed": false
+        },
+        "apposition": {
+          "read": 0,
+          "of": 3,
+          "claimed": false
+        },
+        "comparative": {
+          "read": 3,
+          "of": 3,
+          "claimed": false
+        },
+        "quantified": {
+          "read": 2,
+          "of": 3,
+          "claimed": false
+        },
+        "passive": {
+          "read": 3,
+          "of": 3,
+          "claimed": false
+        },
+        "possessive": {
+          "read": 2,
+          "of": 3,
+          "claimed": false
+        },
+        "modal": {
+          "read": 3,
+          "of": 3,
+          "claimed": false
+        },
+        "prepositional claim": {
+          "read": 3,
+          "of": 3,
+          "claimed": true
+        },
+        "multi-clause definition": {
+          "read": 0,
+          "of": 3,
+          "claimed": false
+        }
+      },
+      "checks": [
+        {
+          "name": "CLAIMED: copular reads",
+          "passed": true,
+          "detail": "read 3/3"
+        },
+        {
+          "name": "CLAIMED: copular negated reads",
+          "passed": true,
+          "detail": "read 3/3"
+        },
+        {
+          "name": "CLAIMED: subject-verb-object reads",
+          "passed": true,
+          "detail": "read 3/3"
+        },
+        {
+          "name": "CLAIMED: yes/no question reads",
+          "passed": true,
+          "detail": "read 3/3"
+        },
+        {
+          "name": "CLAIMED: multi-word subject reads",
+          "passed": true,
+          "detail": "read 3/3"
+        },
+        {
+          "name": "not claimed whole: relative clause",
+          "passed": false,
+          "detail": "read 3/3 \u2014 every one, which would mean the construction is represented rather than segmented"
+        },
+        {
+          "name": "not claimed whole: NP coordination",
+          "passed": true,
+          "detail": "read 2/3 \u2014 every one, which would mean the construction is represented rather than segmented"
+        },
+        {
+          "name": "not claimed whole: object coordination",
+          "passed": false,
+          "detail": "read 3/3 \u2014 every one, which would mean the construction is represented rather than segmented"
+        },
+        {
+          "name": "not claimed whole: VP coordination",
+          "passed": false,
+          "detail": "read 3/3 \u2014 every one, which would mean the construction is represented rather than segmented"
+        },
+        {
+          "name": "not claimed whole: subordination",
+          "passed": true,
+          "detail": "read 1/3 \u2014 every one, which would mean the construction is represented rather than segmented"
+        },
+        {
+          "name": "not claimed whole: complement clause",
+          "passed": true,
+          "detail": "read 2/3 \u2014 every one, which would mean the construction is represented rather than segmented"
+        },
+        {
+          "name": "not claimed whole: ditransitive",
+          "passed": true,
+          "detail": "read 0/3 \u2014 every one, which would mean the construction is represented rather than segmented"
+        },
+        {
+          "name": "not claimed whole: apposition",
+          "passed": true,
+          "detail": "read 0/3 \u2014 every one, which would mean the construction is represented rather than segmented"
+        },
+        {
+          "name": "not claimed whole: comparative",
+          "passed": false,
+          "detail": "read 3/3 \u2014 every one, which would mean the construction is represented rather than segmented"
+        },
+        {
+          "name": "not claimed whole: quantified",
+          "passed": true,
+          "detail": "read 2/3 \u2014 every one, which would mean the construction is represented rather than segmented"
+        },
+        {
+          "name": "not claimed whole: passive",
+          "passed": false,
+          "detail": "read 3/3 \u2014 every one, which would mean the construction is represented rather than segmented"
+        },
+        {
+          "name": "not claimed whole: possessive",
+          "passed": true,
+          "detail": "read 2/3 \u2014 every one, which would mean the construction is represented rather than segmented"
+        },
+        {
+          "name": "not claimed whole: modal",
+          "passed": false,
+          "detail": "read 3/3 \u2014 every one, which would mean the construction is represented rather than segmented"
+        },
+        {
+          "name": "CLAIMED: prepositional claim reads",
+          "passed": true,
+          "detail": "read 3/3"
+        },
+        {
+          "name": "not claimed whole: multi-clause definition",
+          "passed": true,
+          "detail": "read 0/3 \u2014 every one, which would mean the construction is represented rather than segmented"
+        }
+      ],
+      "passed": 14,
+      "total": 20,
+      "seconds": 0.13
+    },
+    {
+      "experiment": "NLU-03 \u2014 Does it generalise to words it was never taught?",
+      "writes_to_store": false,
+      "notes": [
+        "every content word below is absent from the reader's evidence, so nothing here can be answered by having memorised a sentence"
+      ],
+      "data": {},
+      "checks": [
+        {
+          "name": "reads 'The kidney filters plasma.'",
+          "passed": true,
+          "detail": "got 'kidney_filter_plasma'; expected subject=kidney relation=filter object=plasma positive=True"
+        },
+        {
+          "name": "reads 'The tank stores water.'",
+          "passed": true,
+          "detail": "got 'tank_store_water'; expected subject=tank relation=store object=water positive=True"
+        },
+        {
+          "name": "reads 'A crucible melts ore.'",
+          "passed": true,
+          "detail": "got 'crucible_melt_ore'; expected subject=crucible relation=melt object=ore positive=True"
+        },
+        {
+          "name": "reads 'The turbine is not silent.'",
+          "passed": true,
+          "detail": "got '~turbine_silent'; expected subject=turbine relation=None object=silent positive=False"
+        },
+        {
+          "name": "reads 'The control rod is heavy.'",
+          "passed": true,
+          "detail": "got 'control_rod_heavy'; expected subject=control_rod relation=None object=heavy positive=True"
+        },
+        {
+          "name": "reads 'Is the reactor stable?'",
+          "passed": true,
+          "detail": "got 'reactor_stable'; expected subject=reactor relation=None object=stable positive=True"
+        }
+      ],
+      "passed": 6,
+      "total": 6,
+      "seconds": 0.01
+    },
+    {
+      "experiment": "NLU-04 \u2014 Does reading survive surface noise?",
+      "writes_to_store": false,
+      "notes": [],
+      "data": {},
+      "checks": [
+        {
+          "name": "uppercase: 'A robin is a bird.' not MISread",
+          "passed": true,
+          "detail": "clean ('robin_bird',) -> noisy ('robin_bird',)"
+        },
+        {
+          "name": "lowercase: 'A robin is a bird.' not MISread",
+          "passed": true,
+          "detail": "clean ('robin_bird',) -> noisy ('robin_bird',)"
+        },
+        {
+          "name": "no final stop: 'A robin is a bird.' not MISread",
+          "passed": true,
+          "detail": "clean ('robin_bird',) -> noisy ('robin_bird',)"
+        },
+        {
+          "name": "double spaces: 'A robin is a bird.' not MISread",
+          "passed": true,
+          "detail": "clean ('robin_bird',) -> noisy ('robin_bird',)"
+        },
+        {
+          "name": "leading/trailing space: 'A robin is a bird.' not MISread",
+          "passed": true,
+          "detail": "clean ('robin_bird',) -> noisy ('robin_bird',)"
+        },
+        {
+          "name": "doubled final stop: 'A robin is a bird.' not MISread",
+          "passed": true,
+          "detail": "clean ('robin_bird',) -> noisy ('robin_bird',)"
+        },
+        {
+          "name": "uppercase: 'The kidney filters plasma.' not MISread",
+          "passed": true,
+          "detail": "clean ('kidney_filter_plasma',) -> noisy ('kidney_filter_plasma',)"
+        },
+        {
+          "name": "lowercase: 'The kidney filters plasma.' not MISread",
+          "passed": true,
+          "detail": "clean ('kidney_filter_plasma',) -> noisy ('kidney_filter_plasma',)"
+        },
+        {
+          "name": "no final stop: 'The kidney filters plasma.' not MISread",
+          "passed": true,
+          "detail": "clean ('kidney_filter_plasma',) -> noisy ('kidney_filter_plasma',)"
+        },
+        {
+          "name": "double spaces: 'The kidney filters plasma.' not MISread",
+          "passed": true,
+          "detail": "clean ('kidney_filter_plasma',) -> noisy ('kidney_filter_plasma',)"
+        },
+        {
+          "name": "leading/trailing space: 'The kidney filters plasma.' not MISread",
+          "passed": true,
+          "detail": "clean ('kidney_filter_plasma',) -> noisy ('kidney_filter_plasma',)"
+        },
+        {
+          "name": "doubled final stop: 'The kidney filters plasma.' not MISread",
+          "passed": true,
+          "detail": "clean ('kidney_filter_plasma',) -> noisy ('kidney_filter_plasma',)"
+        },
+        {
+          "name": "uppercase: 'The vault is locked.' not MISread",
+          "passed": true,
+          "detail": "clean ('vault_locked',) -> noisy ('vault_locked',)"
+        },
+        {
+          "name": "lowercase: 'The vault is locked.' not MISread",
+          "passed": true,
+          "detail": "clean ('vault_locked',) -> noisy ('vault_locked',)"
+        },
+        {
+          "name": "no final stop: 'The vault is locked.' not MISread",
+          "passed": true,
+          "detail": "clean ('vault_locked',) -> noisy ('vault_locked',)"
+        },
+        {
+          "name": "double spaces: 'The vault is locked.' not MISread",
+          "passed": true,
+          "detail": "clean ('vault_locked',) -> noisy ('vault_locked',)"
+        },
+        {
+          "name": "leading/trailing space: 'The vault is locked.' not MISread",
+          "passed": true,
+          "detail": "clean ('vault_locked',) -> noisy ('vault_locked',)"
+        },
+        {
+          "name": "doubled final stop: 'The vault is locked.' not MISread",
+          "passed": true,
+          "detail": "clean ('vault_locked',) -> noisy ('vault_locked',)"
+        },
+        {
+          "name": "uppercase: 'The tank stores water.' not MISread",
+          "passed": true,
+          "detail": "clean ('tank_store_water',) -> noisy ('tank_store_water',)"
+        },
+        {
+          "name": "lowercase: 'The tank stores water.' not MISread",
+          "passed": true,
+          "detail": "clean ('tank_store_water',) -> noisy ('tank_store_water',)"
+        },
+        {
+          "name": "no final stop: 'The tank stores water.' not MISread",
+          "passed": true,
+          "detail": "clean ('tank_store_water',) -> noisy ('tank_store_water',)"
+        },
+        {
+          "name": "double spaces: 'The tank stores water.' not MISread",
+          "passed": true,
+          "detail": "clean ('tank_store_water',) -> noisy ('tank_store_water',)"
+        },
+        {
+          "name": "leading/trailing space: 'The tank stores water.' not MISread",
+          "passed": true,
+          "detail": "clean ('tank_store_water',) -> noisy ('tank_store_water',)"
+        },
+        {
+          "name": "doubled final stop: 'The tank stores water.' not MISread",
+          "passed": true,
+          "detail": "clean ('tank_store_water',) -> noisy ('tank_store_water',)"
+        }
+      ],
+      "passed": 24,
+      "total": 24,
+      "seconds": 0.08
+    },
+    {
+      "experiment": "NLU-05 \u2014 Is polarity ever silently wrong?",
+      "writes_to_store": false,
+      "notes": [],
+      "data": {},
+      "checks": [
+        {
+          "name": "polarity of 'A robin is a bird.'",
+          "passed": true,
+          "detail": "got 'robin_bird', expected affirmative"
+        },
+        {
+          "name": "polarity of 'A robin is not a mammal.'",
+          "passed": true,
+          "detail": "got '~robin_mammal', expected negative"
+        },
+        {
+          "name": "polarity of 'The engine is not cold.'",
+          "passed": true,
+          "detail": "got '~engine_cold', expected negative"
+        },
+        {
+          "name": "polarity of 'The vault is locked.'",
+          "passed": true,
+          "detail": "got 'vault_locked', expected affirmative"
+        },
+        {
+          "name": "polarity of 'The turbine is not silent.'",
+          "passed": true,
+          "detail": "got '~turbine_silent', expected negative"
+        },
+        {
+          "name": "polarity of 'The reactor is stable.'",
+          "passed": true,
+          "detail": "got 'reactor_stable', expected affirmative"
+        }
+      ],
+      "passed": 6,
+      "total": 6,
+      "seconds": 0.02
+    },
+    {
+      "experiment": "NLU-06 \u2014 Does a question relate the same things as its statement?",
+      "writes_to_store": false,
+      "notes": [
+        "a question and its statement make the SAME claim and differ only in what the asker wants done with it, so they must formalise alike"
+      ],
+      "data": {},
+      "checks": [
+        {
+          "name": "'Is the vault locked?' pairs with its statement",
+          "passed": true,
+          "detail": "('vault_locked',) vs ('vault_locked',)"
+        },
+        {
+          "name": "'Is a robin a bird?' pairs with its statement",
+          "passed": true,
+          "detail": "('robin_bird',) vs ('robin_bird',)"
+        },
+        {
+          "name": "'Is the reactor stable?' pairs with its statement",
+          "passed": true,
+          "detail": "('reactor_stable',) vs ('reactor_stable',)"
+        },
+        {
+          "name": "'Is the engine not cold?' pairs with its statement",
+          "passed": true,
+          "detail": "('~engine_cold',) vs ('~engine_cold',)"
+        }
+      ],
+      "passed": 4,
+      "total": 4,
+      "seconds": 0.04
+    },
+    {
+      "experiment": "NLU-07 \u2014 Read -> said -> read: does meaning survive a round trip?",
+      "writes_to_store": false,
+      "notes": [
+        "`_triple_sentence` is the ONE place a held fact becomes words, so this measures understanding against expression: what the substrate SAYS of a claim must read back as the same claim",
+        "said back: 'A robin is a bird.' -> \u201ca robin is a bird\u201d",
+        "said back: 'The control rod is heavy.' -> \u201ca control rod is a heavy\u201d",
+        "said back: 'A dog is an animal.' -> \u201ca dog is an animal\u201d",
+        "said back: 'The engine is not cold.' -> \u201can engine is not a cold\u201d"
+      ],
+      "data": {},
+      "checks": [
+        {
+          "name": "round trip: 'A robin is a bird.'",
+          "passed": true,
+          "detail": "said \u201ca robin is a bird\u201d -> ('robin_bird',) [derived:subject_relation_object_polarity], wanted ('robin_bird',)"
+        },
+        {
+          "name": "says it as English: 'A robin is a bird.'",
+          "passed": true,
+          "detail": "said \u201ca robin is a bird\u201d \u2014 an indefinite article before a complement the store holds as an adjective"
+        },
+        {
+          "name": "can say back: 'The vault is locked.'",
+          "passed": false,
+          "detail": "the chain read it as ('vault_locked',) but no clause parts exist to render, so it cannot state what it understood"
+        },
+        {
+          "name": "round trip: 'The control rod is heavy.'",
+          "passed": true,
+          "detail": "said \u201ca control rod is a heavy\u201d -> ('control_rod_heavy',) [derived:subject_relation_object_polarity], wanted ('control_rod_heavy',)"
+        },
+        {
+          "name": "says it as English: 'The control rod is heavy.'",
+          "passed": true,
+          "detail": "said \u201ca control rod is a heavy\u201d \u2014 an indefinite article before a complement the store holds as an adjective"
+        },
+        {
+          "name": "round trip: 'A dog is an animal.'",
+          "passed": true,
+          "detail": "said \u201ca dog is an animal\u201d -> ('dog_animal',) [derived:subject_relation_object_polarity], wanted ('dog_animal',)"
+        },
+        {
+          "name": "says it as English: 'A dog is an animal.'",
+          "passed": true,
+          "detail": "said \u201ca dog is an animal\u201d \u2014 an indefinite article before a complement the store holds as an adjective"
+        },
+        {
+          "name": "round trip: 'The engine is not cold.'",
+          "passed": true,
+          "detail": "said \u201can engine is not a cold\u201d -> ('~engine_cold',) [derived:subject_relation_object_polarity], wanted ('~engine_cold',)"
+        },
+        {
+          "name": "says it as English: 'The engine is not cold.'",
+          "passed": true,
+          "detail": "said \u201can engine is not a cold\u201d \u2014 an indefinite article before a complement the store holds as an adjective"
+        },
+        {
+          "name": "round trip: 'A robin is not a mammal.'",
+          "passed": true,
+          "detail": "said \u201ca robin is not a mammal\u201d -> ('~robin_mammal',) [derived:subject_relation_object_polarity], wanted ('~robin_mammal',)"
+        },
+        {
+          "name": "says it as English: 'A robin is not a mammal.'",
+          "passed": true,
+          "detail": "said \u201ca robin is not a mammal\u201d \u2014 an indefinite article before a complement the store holds as an adjective"
+        },
+        {
+          "name": "round trip: 'The smoke alarm is red.'",
+          "passed": true,
+          "detail": "said \u201ca smoke alarm is a red\u201d -> ('smoke_alarm_red',) [derived:subject_relation_object_polarity], wanted ('smoke_alarm_red',)"
+        },
+        {
+          "name": "says it as English: 'The smoke alarm is red.'",
+          "passed": true,
+          "detail": "said \u201ca smoke alarm is a red\u201d \u2014 an indefinite article before a complement the store holds as an adjective"
+        },
+        {
+          "name": "round trip: 'The reactor is stable.'",
+          "passed": true,
+          "detail": "said \u201ca reactor is a stable\u201d -> ('reactor_stable',) [derived:subject_relation_object_polarity], wanted ('reactor_stable',)"
+        },
+        {
+          "name": "says it as English: 'The reactor is stable.'",
+          "passed": true,
+          "detail": "said \u201ca reactor is a stable\u201d \u2014 an indefinite article before a complement the store holds as an adjective"
+        }
+      ],
+      "passed": 14,
+      "total": 15,
+      "seconds": 0.08
+    },
+    {
+      "experiment": "NLU-08 \u2014 Does it ANSWER the question, or recite what it holds?",
+      "writes_to_store": true,
+      "notes": [
+        "runs the real conversation path \u2014 understand() then say() \u2014 which STORES what it is told; the taught claims below enter the store",
+        "asked \u201cWhat does a glarnick shape?\u201d -> \u201cI remember: A glarnick is heavy.\nA glarnick is a tool. It is a tool.\nShape can mean an attribute, a curved or a spherical.\nWhich shape do yo\u201d",
+        "asked \u201cIs a glarnick heavy?\u201d -> \u201cI remember: A glarnick is heavy.\nA glarnick is a tool. It is a tool.\nHeavy can mean an actor or a character.\nWhich heavy do you mean?\u201d",
+        "asked \u201cWhat is a glarnick?\u201d -> \u201cI remember: A glarnick is heavy.\nA glarnick is a tool. It is a tool.\u201d"
+      ],
+      "data": {},
+      "checks": [
+        {
+          "name": "answers 'What does a glarnick shape?'",
+          "passed": false,
+          "detail": "looked for 'metal' in the reply"
+        },
+        {
+          "name": "does not recite everything for 'What does a glarnick shape?'",
+          "passed": true,
+          "detail": "reply names 2 of the 3 held facts"
+        },
+        {
+          "name": "answers 'Is a glarnick heavy?'",
+          "passed": true,
+          "detail": "looked for 'heavy' in the reply"
+        },
+        {
+          "name": "does not recite everything for 'Is a glarnick heavy?'",
+          "passed": true,
+          "detail": "reply names 2 of the 3 held facts"
+        },
+        {
+          "name": "answers 'What is a glarnick?'",
+          "passed": true,
+          "detail": "looked for 'tool' in the reply"
+        },
+        {
+          "name": "does not recite everything for 'What is a glarnick?'",
+          "passed": true,
+          "detail": "reply names 2 of the 3 held facts"
+        }
+      ],
+      "passed": 5,
+      "total": 6,
+      "seconds": 17.19
+    },
+    {
+      "experiment": "NLU-09 \u2014 Is everything it says about a hard sentence TRUE?",
+      "writes_to_store": false,
+      "notes": [
+        "a reading becomes a premise the solver cannot doubt, so the safety number is not how much it says but whether any of it is false",
+        "it produced a reading for 8/14 of them; 8 carried a claim the sentence does not make (57.1%)"
+      ],
+      "data": {
+        "sentences": 14,
+        "spoke_at_all": 8,
+        "unsound": 8,
+        "false_claim_rate_pct": 57.14
+      },
+      "checks": [
+        {
+          "name": "nothing false from 'The pump that failed was replaced.'",
+          "passed": false,
+          "detail": "produced ['pump_that_failed_was_replaced'] which the sentence does not state (entailed: ['pump_fail']) [extractor]"
+        },
+        {
+          "name": "nothing false from 'The valve which leaked is closed.'",
+          "passed": false,
+          "detail": "produced ['valve_which_leaked_closed'] which the sentence does not state (entailed: ['valve_closed', 'valve_leak']) [extractor]"
+        },
+        {
+          "name": "nothing false from 'The engineer who arrived is waiting.'",
+          "passed": false,
+          "detail": "produced ['engineer_who_arrived_waiting'] which the sentence does not state (entailed: ['engineer_arrive', 'engineer_waiting']) [extractor]"
+        },
+        {
+          "name": "nothing false from 'Dogs and cats are mammals.'",
+          "passed": false,
+          "detail": "produced ['dogs_and_cats_mammal'] which the sentence does not state (entailed: ['cat_mammal', 'dog_mammal']) [extractor]"
+        },
+        {
+          "name": "nothing false from 'The vault holds gold and silver.'",
+          "passed": false,
+          "detail": "produced ['vault_hold_gold_and_silver'] which the sentence does not state (entailed: ['vault_hold_gold', 'vault_hold_silver']) [extractor]"
+        },
+        {
+          "name": "nothing false from 'The valve opens and closes.'",
+          "passed": false,
+          "detail": "produced ['valve_open_and_close'] which the sentence does not state (entailed: ['valve_close', 'valve_open']) [extractor]"
+        },
+        {
+          "name": "nothing false from 'Because the valve stuck the tank overflowed.'",
+          "passed": true,
+          "detail": "produced [] which the sentence does not state (entailed: ['tank_overflow', 'valve_stick']) []"
+        },
+        {
+          "name": "nothing false from 'Scientists believe the universe is expanding'",
+          "passed": true,
+          "detail": "produced [] which the sentence does not state (entailed: ['universe_expanding']) []"
+        },
+        {
+          "name": "nothing false from 'Alice gave Bob a book.'",
+          "passed": true,
+          "detail": "produced [] which the sentence does not state (entailed: nothing) []"
+        },
+        {
+          "name": "nothing false from 'Paris the capital of France is on the Seine.'",
+          "passed": true,
+          "detail": "produced [] which the sentence does not state (entailed: ['paris_capital', 'paris_on_seine']) []"
+        },
+        {
+          "name": "nothing false from 'Iron is heavier than aluminium.'",
+          "passed": false,
+          "detail": "produced ['iron_heavier than_aluminium'] which the sentence does not state (entailed: nothing) [extractor]"
+        },
+        {
+          "name": "nothing false from 'Most birds can fly.'",
+          "passed": false,
+          "detail": "produced ['bird_can_fly'] which the sentence does not state (entailed: nothing) [extractor]"
+        },
+        {
+          "name": "nothing false from 'A function is a reusable block of code that '",
+          "passed": true,
+          "detail": "produced [] which the sentence does not state (entailed: ['block_encapsulate_logic', 'function_block', 'function_reusable_block']) []"
+        },
+        {
+          "name": "nothing false from 'why'",
+          "passed": true,
+          "detail": "produced [] which the sentence does not state (entailed: nothing) []"
+        }
+      ],
+      "passed": 6,
+      "total": 14,
+      "seconds": 0.03
+    },
+    {
+      "experiment": "NLU-10 \u2014 Where BOTH readers apply, do they agree?",
+      "writes_to_store": false,
+      "notes": [
+        "the written patterns and the derived reading are separate readers; a rule learned through one must fire on a fact admitted through the other, which needs one atom vocabulary rather than two",
+        "only one reader applies to 'A robin is a bird.' (written=False derived=True)",
+        "only one reader applies to 'The vault is locked.' (written=False derived=True)",
+        "only one reader applies to 'A robin is not a mammal.' (written=False derived=True)",
+        "only one reader applies to 'Is the vault locked?' (written=False derived=True)",
+        "both readers applied to 4/8 sentences"
+      ],
+      "data": {},
+      "checks": [
+        {
+          "name": "agree on 'The kidney filters plasma.'",
+          "passed": true,
+          "detail": "written 'kidney_filter_plasma' vs derived 'kidney_filter_plasma'"
+        },
+        {
+          "name": "agree on 'The tank stores water.'",
+          "passed": true,
+          "detail": "written 'tank_store_water' vs derived 'tank_store_water'"
+        },
+        {
+          "name": "agree on 'The control rod is heavy.'",
+          "passed": true,
+          "detail": "written 'control_rod_heavy' vs derived 'control_rod_heavy'"
+        },
+        {
+          "name": "agree on 'A crucible melts ore.'",
+          "passed": true,
+          "detail": "written 'crucible_melt_ore' vs derived 'crucible_melt_ore'"
+        }
+      ],
+      "passed": 4,
+      "total": 4,
+      "seconds": 0.05
+    },
+    {
+      "experiment": "NLU-11 \u2014 Is reading deterministic and order-independent?",
+      "writes_to_store": false,
+      "notes": [
+        "the same sentence must read the same way however often it is asked and whatever was asked before it; a reader whose answer drifts makes every other measurement here unrepeatable"
+      ],
+      "data": {},
+      "checks": [
+        {
+          "name": "stable: 'Is the reactor stable?'",
+          "passed": true,
+          "detail": "('reactor_stable',) then ('reactor_stable',)"
+        },
+        {
+          "name": "stable: 'A robin is not a mammal.'",
+          "passed": true,
+          "detail": "('~robin_mammal',) then ('~robin_mammal',)"
+        },
+        {
+          "name": "stable: 'The vault is locked.'",
+          "passed": true,
+          "detail": "('vault_locked',) then ('vault_locked',)"
+        },
+        {
+          "name": "stable: 'The kidney filters plasma.'",
+          "passed": true,
+          "detail": "('kidney_filter_plasma',) then ('kidney_filter_plasma',)"
+        },
+        {
+          "name": "stable: 'A robin is a bird.'",
+          "passed": true,
+          "detail": "('robin_bird',) then ('robin_bird',)"
+        },
+        {
+          "name": "stable: 'Is the reactor stable?'",
+          "passed": true,
+          "detail": "('reactor_stable',) then ('reactor_stable',)"
+        },
+        {
+          "name": "stable: 'A robin is not a mammal.'",
+          "passed": true,
+          "detail": "('~robin_mammal',) then ('~robin_mammal',)"
+        },
+        {
+          "name": "stable: 'The vault is locked.'",
+          "passed": true,
+          "detail": "('vault_locked',) then ('vault_locked',)"
+        },
+        {
+          "name": "stable: 'The kidney filters plasma.'",
+          "passed": true,
+          "detail": "('kidney_filter_plasma',) then ('kidney_filter_plasma',)"
+        },
+        {
+          "name": "stable: 'A robin is a bird.'",
+          "passed": true,
+          "detail": "('robin_bird',) then ('robin_bird',)"
+        }
+      ],
+      "passed": 10,
+      "total": 10,
+      "seconds": 0.08
+    },
+    {
+      "experiment": "NLU-12 \u2014 Where in sentence LENGTH does understanding fail?",
+      "writes_to_store": false,
+      "notes": [
+        "04-08 words: 46/101 read (46%)",
+        "09-12 words: 17/60 read (28%)",
+        "13-18 words: 14/72 read (19%)",
+        "19-25 words: 18/44 read (41%)",
+        "26-40 words: 7/23 read (30%)"
+      ],
+      "data": {
+        "04-08": {
+          "read": 46,
+          "of": 101,
+          "pct": 45.5
+        },
+        "09-12": {
+          "read": 17,
+          "of": 60,
+          "pct": 28.3
+        },
+        "13-18": {
+          "read": 14,
+          "of": 72,
+          "pct": 19.4
+        },
+        "19-25": {
+          "read": 18,
+          "of": 44,
+          "pct": 40.9
+        },
+        "26-40": {
+          "read": 7,
+          "of": 23,
+          "pct": 30.4
+        }
+      },
+      "checks": [
+        {
+          "name": "short sentences read more often than long ones",
+          "passed": true,
+          "detail": "short 46/101 vs long 7/23"
+        },
+        {
+          "name": "every bucket was populated",
+          "passed": true,
+          "detail": "buckets: ['04-08', '09-12', '13-18', '19-25', '26-40']"
+        }
+      ],
+      "passed": 2,
+      "total": 2,
+      "seconds": 2.67
+    },
+    {
+      "experiment": "NLU-13 \u2014 Can the substrate's OWN knowledge replace the model?",
+      "writes_to_store": false,
+      "notes": [
+        "all-MiniLM-L6-v2 is the last model in the system. It does memory retrieval, dedup/merge, concept vectors and analogy. This asks whether what the substrate was TAUGHT can do those jobs instead.",
+        "learned from 39,991 taught proposition(s); 23,248 term(s) of vocabulary",
+        "MiniLM 8/14 \u00b7 SUBSTRATE 9/14 (bar: the substrate's own MERGE_SIMILARITY_THRESHOLD 0.75)"
+      ],
+      "data": {
+        "corpus": {
+          "propositions": 39991,
+          "vocabulary": 23248
+        },
+        "cases": [
+          {
+            "family": "merge safety",
+            "want": "LOW",
+            "left": "A kidney is an organ.",
+            "right": "A liver is an organ.",
+            "minilm": 0.682,
+            "native": 0.445,
+            "minilm_ok": true,
+            "native_ok": true
+          },
+          {
+            "family": "polarity",
+            "want": "LOW",
+            "left": "The vault is locked.",
+            "right": "The vault is not locked.",
+            "minilm": 0.927,
+            "native": 0.0,
+            "minilm_ok": false,
+            "native_ok": true
+          },
+          {
+            "family": "polarity",
+            "want": "LOW",
+            "left": "A robin is a bird.",
+            "right": "A robin is not a bird.",
+            "minilm": 0.908,
+            "native": 0.0,
+            "minilm_ok": false,
+            "native_ok": true
+          },
+          {
+            "family": "merge safety",
+            "want": "LOW",
+            "left": "Iron is a metal.",
+            "right": "Copper is a metal.",
+            "minilm": 0.641,
+            "native": 0.474,
+            "minilm_ok": true,
+            "native_ok": true
+          },
+          {
+            "family": "recall",
+            "want": "HIGH",
+            "left": "what is a kidney",
+            "right": "A kidney is an organ.",
+            "minilm": 0.875,
+            "native": 0.848,
+            "minilm_ok": true,
+            "native_ok": true
+          },
+          {
+            "family": "recall",
+            "want": "HIGH",
+            "left": "what does a pump do",
+            "right": "A pump is a device that moves fluid.",
+            "minilm": 0.851,
+            "native": 0.507,
+            "minilm_ok": true,
+            "native_ok": false
+          },
+          {
+            "family": "recall",
+            "want": "HIGH",
+            "left": "tell me about metals",
+            "right": "Iron is a metal.",
+            "minilm": 0.649,
+            "native": 0.003,
+            "minilm_ok": false,
+            "native_ok": false
+          },
+          {
+            "family": "paraphrase",
+            "want": "HIGH",
+            "left": "A dog is an animal.",
+            "right": "A dog is a kind of animal.",
+            "minilm": 0.934,
+            "native": 0.815,
+            "minilm_ok": true,
+            "native_ok": true
+          },
+          {
+            "family": "paraphrase",
+            "want": "HIGH",
+            "left": "The engine is hot.",
+            "right": "The engine is not cold.",
+            "minilm": 0.772,
+            "native": 0.0,
+            "minilm_ok": true,
+            "native_ok": false
+          },
+          {
+            "family": "separation",
+            "want": "LOW",
+            "left": "A kidney is an organ.",
+            "right": "A hammer is a tool.",
+            "minilm": 0.17,
+            "native": 0.0,
+            "minilm_ok": true,
+            "native_ok": true
+          },
+          {
+            "family": "separation",
+            "want": "LOW",
+            "left": "The vault is locked.",
+            "right": "A robin is a bird.",
+            "minilm": 0.025,
+            "native": 0.0,
+            "minilm_ok": true,
+            "native_ok": true
+          },
+          {
+            "family": "abstention",
+            "want": "ABSTAIN",
+            "left": "A marnic filters brine.",
+            "right": "A zorbic filters brine.",
+            "minilm": 0.787,
+            "native": 1.0,
+            "minilm_ok": false,
+            "native_ok": false
+          },
+          {
+            "family": "abstention",
+            "want": "ABSTAIN",
+            "left": "A threlp is a dovick.",
+            "right": "A marnic is a zorbic.",
+            "minilm": 0.141,
+            "native": null,
+            "minilm_ok": false,
+            "native_ok": true
+          },
+          {
+            "family": "abstention",
+            "want": "ABSTAIN",
+            "left": "A glarnick shapes metal.",
+            "right": "A glarnick bends metal.",
+            "minilm": 0.904,
+            "native": 1.0,
+            "minilm_ok": false,
+            "native_ok": false
+          }
+        ],
+        "score": {
+          "minilm": 8,
+          "native": 9,
+          "of": 14
+        },
+        "polarity": {
+          "minilm": [
+            0.927,
+            0.908
+          ],
+          "native": [
+            0.0,
+            0.0
+          ]
+        }
+      },
+      "checks": [
+        {
+          "name": "merge safety: LOW \u2014 'A kidney is an organ.' vs 'A liver is an organ.'",
+          "passed": true,
+          "detail": "native=0.445 (minilm=0.682, ok)"
+        },
+        {
+          "name": "polarity: LOW \u2014 'The vault is locked.' vs 'The vault is not locked.'",
+          "passed": true,
+          "detail": "native=0.0 (minilm=0.927, wrong)"
+        },
+        {
+          "name": "polarity: LOW \u2014 'A robin is a bird.' vs 'A robin is not a bird.'",
+          "passed": true,
+          "detail": "native=0.0 (minilm=0.908, wrong)"
+        },
+        {
+          "name": "merge safety: LOW \u2014 'Iron is a metal.' vs 'Copper is a metal.'",
+          "passed": true,
+          "detail": "native=0.474 (minilm=0.641, ok)"
+        },
+        {
+          "name": "recall: HIGH \u2014 'what is a kidney' vs 'A kidney is an organ.'",
+          "passed": true,
+          "detail": "native=0.848 (minilm=0.875, ok)"
+        },
+        {
+          "name": "recall: HIGH \u2014 'what does a pump do' vs 'A pump is a device that moves flui'",
+          "passed": false,
+          "detail": "native=0.507 (minilm=0.851, ok)"
+        },
+        {
+          "name": "recall: HIGH \u2014 'tell me about metals' vs 'Iron is a metal.'",
+          "passed": false,
+          "detail": "native=0.003 (minilm=0.649, wrong)"
+        },
+        {
+          "name": "paraphrase: HIGH \u2014 'A dog is an animal.' vs 'A dog is a kind of animal.'",
+          "passed": true,
+          "detail": "native=0.815 (minilm=0.934, ok)"
+        },
+        {
+          "name": "paraphrase: HIGH \u2014 'The engine is hot.' vs 'The engine is not cold.'",
+          "passed": false,
+          "detail": "native=0.0 (minilm=0.772, ok)"
+        },
+        {
+          "name": "separation: LOW \u2014 'A kidney is an organ.' vs 'A hammer is a tool.'",
+          "passed": true,
+          "detail": "native=0.0 (minilm=0.17, ok)"
+        },
+        {
+          "name": "separation: LOW \u2014 'The vault is locked.' vs 'A robin is a bird.'",
+          "passed": true,
+          "detail": "native=0.0 (minilm=0.025, ok)"
+        },
+        {
+          "name": "abstention: ABSTAIN \u2014 'A marnic filters brine.' vs 'A zorbic filters brine.'",
+          "passed": false,
+          "detail": "native=1.0 (minilm=0.787, wrong)"
+        },
+        {
+          "name": "abstention: ABSTAIN \u2014 'A threlp is a dovick.' vs 'A marnic is a zorbic.'",
+          "passed": true,
+          "detail": "native=abstained (minilm=0.141, wrong)"
+        },
+        {
+          "name": "abstention: ABSTAIN \u2014 'A glarnick shapes metal.' vs 'A glarnick bends metal.'",
+          "passed": false,
+          "detail": "native=1.0 (minilm=0.904, wrong)"
+        },
+        {
+          "name": "never claims to judge what it was never taught",
+          "passed": false,
+          "detail": "2 case(s) scored instead of abstaining"
+        },
+        {
+          "name": "a claim and its denial never reach the merge bar",
+          "passed": true,
+          "detail": "'The vault is locked.' 0.0; 'A robin is a bird.' 0.0"
+        }
+      ],
+      "passed": 10,
+      "total": 16,
+      "seconds": 0.59
+    }
+  ]
+}

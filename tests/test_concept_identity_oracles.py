@@ -305,10 +305,11 @@ def test_canonical_labels_merge_and_split_correctly():
     r = ConceptResolver()
     must_merge = [
         ("pcfc", "pcfcs"),
-        ("lithium_iron_phosphate", "lithium_iron_phosphate_batteries"),
+        # A RESTATEMENT merges: the trailing token is the acronym of what
+        # precedes it, and a structural prefix names the document's shape.
+        # Neither changes what is named.
         ("lifepo4", "introduction_of_lifepo4"),
         ("phosphoric_acid_fuel_cells", "phosphoric_acid_fuel_cells_pafc"),
-        ("cathode", "cathode_material"),
         ("safety_characteristics", "safety_characteristic"),
         ("gas", "gases"), ("analysis", "analyses"), ("matrix", "matrices"),
     ]
@@ -317,6 +318,20 @@ def test_canonical_labels_merge_and_split_correctly():
         ("cathode", "anode"),
         ("oxygen_vacancy", "oxygen_vacancy_formation"),
         ("proton_diffusion", "ionic_conductivity"),
+        # THESE TWO MERGE ONLY FOR A DOCUMENT, and are asserted both ways
+        # below. The category-tail collapsing that merges them (_battery,
+        # _material, _system, _device, _technology) used to run for EVERY
+        # label, which made it the global identity rule.
+        #
+        # Measured on WordNet -- a hand-built resource, and the source that
+        # feeds almost everything in the store -- that truncated 226 terms and
+        # 691 of 83,093 facts: `nervous system` -> `nervous`, `animal material`
+        # -> `animal`, `assault battery` -> `assault`. Not merely mis-linked,
+        # CREATED under the stub name; `nervous_system` did not exist in the
+        # store at all. `isa` is walked transitively, so everything under
+        # `animal material` became a kind of animal.
+        ("lithium_iron_phosphate", "lithium_iron_phosphate_batteries"),
+        ("cathode", "cathode_material"),
     ]
     for a, b in must_merge:
         assert r.canonical_label(a) == r.canonical_label(b), (
@@ -337,3 +352,44 @@ def test_canonical_labels_merge_and_split_correctly():
     # cannot tell these apart, which is why the mass nouns are an explicit set.
     assert r.canonical_label("characteristics") == r.canonical_label("characteristic")
     assert r.canonical_label("metrics") == r.canonical_label("metric")
+
+
+def test_category_tails_collapse_only_for_document_labels():
+    """The same label reads differently depending on where it came from.
+
+    A label scraped out of a paper carries the extractor's habits: it writes
+    `cathode_material` for the cathode and `lithium_iron_phosphate_batteries`
+    for the substance. Collapsing that tail is right THERE and nowhere else --
+    a lexicographer writing `nervous system` is naming a thing, not sticking a
+    category word onto `nervous`.
+
+    Asserted in both directions, because a one-sided check would pass if the
+    collapsing were simply deleted, and it has not been -- it has been scoped.
+    """
+    from core.domain.concept_ingestion import ConceptResolver
+
+    r = ConceptResolver()
+
+    # A DOCUMENT's tail collapses -- the behaviour the heuristic exists for.
+    for long_form, short_form in (("cathode_material", "cathode"),
+                                  ("lithium_iron_phosphate_batteries",
+                                   "lithium_iron_phosphate")):
+        assert r.canonical_label(long_form, document_derived=True) == short_form, (
+            f"{long_form!r} from a document should collapse to {short_form!r}")
+
+    # A CURATED term keeps its name. Each of these is a thing in its own right
+    # and the stub on the right is a DIFFERENT thing -- measured live, every
+    # one of them was being created under the stub.
+    for term, stub in (("nervous system", "nervous"),
+                       ("animal material", "animal"),
+                       ("assault battery", "assault"),
+                       ("acoustic device", "acoustic"),
+                       ("high technology", "high")):
+        got = r.canonical_label(term)
+        assert got != stub, f"{term!r} must not be truncated to {stub!r}"
+        assert got == term.replace(" ", "_"), f"{term!r} canonicalised to {got!r}"
+
+    # THE DEFAULT IS THE SAFE ONE. A caller that has not said where its label
+    # came from gets the reading that cannot destroy meaning: an unmerged pair
+    # is recoverable, a wrongly merged one is not.
+    assert r.canonical_label("cathode_material") == "cathode_material"

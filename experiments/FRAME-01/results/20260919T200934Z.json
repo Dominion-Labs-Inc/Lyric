@@ -1,0 +1,194 @@
+{
+  "experiment": "FRAME-01",
+  "claim": "A size band and a position word are properties of the framing, and were being admitted as properties of the object. The relations between blobs \u2014 larger_than, left_of, above \u2014 are properties of the arrangement, survive the transforms that destroy the absolutes, and were computed and discarded. The substrate now holds the invariant half and no longer claims category membership from the framing.",
+  "hypothesis": "If the size band really were about the object, moving the camera would not change it. If the relations really are about the arrangement, moving the camera would not change them either \u2014 except rotation, which reorients the plane that left_of and above are defined in, and so should visibly break those two while leaving larger_than untouched.",
+  "started_at": "2026-09-19T20:09:34.702343+00:00",
+  "duration_seconds": 48.967,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/TorinAI/venv_torin/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/TorinAI",
+    "shadow_mode": "1",
+    "git_commit": "20deb447498593391eca0286916b8f986c560a26",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "torinai_db",
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "environment",
+        "database": "environment",
+        "user": "environment",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres"
+      }
+    },
+    "git_uncommitted_changes": 57,
+    "database_verified": null,
+    "database_verified_reason": "not verified"
+  },
+  "summary": {
+    "checks": 14,
+    "passed": 14,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [
+    {
+      "name": "sightings",
+      "value": 56,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "sightings_with_an_object_missing",
+      "value": 8,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "survival_above",
+      "value": 1.0,
+      "unit": "ratio",
+      "note": ""
+    },
+    {
+      "name": "survival_above_(rotated)",
+      "value": 0.625,
+      "unit": "ratio",
+      "note": ""
+    },
+    {
+      "name": "survival_larger_than",
+      "value": 1.0,
+      "unit": "ratio",
+      "note": ""
+    },
+    {
+      "name": "survival_left_of",
+      "value": 1.0,
+      "unit": "ratio",
+      "note": ""
+    },
+    {
+      "name": "survival_left_of_(rotated)",
+      "value": 0.8125,
+      "unit": "ratio",
+      "note": ""
+    },
+    {
+      "name": "relations_involving_the_ground",
+      "value": 0,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "relations_admitted",
+      "value": 2,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "checks_passed",
+      "value": 14,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "checks_total",
+      "value": 14,
+      "unit": "count",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "larger_than survives every camera move, including rotation",
+      "passed": true,
+      "detail": "48/48",
+      "at": "2026-09-19T20:10:22.510239+00:00"
+    },
+    {
+      "label": "and the area fraction it replaces does not",
+      "passed": true,
+      "detail": "area fraction held within 25% in only 65/96 sightings",
+      "at": "2026-09-19T20:10:22.510249+00:00"
+    },
+    {
+      "label": "above survives a camera move that does not rotate",
+      "passed": true,
+      "detail": "17/17",
+      "at": "2026-09-19T20:10:22.510253+00:00"
+    },
+    {
+      "label": "left_of survives a camera move that does not rotate",
+      "passed": true,
+      "detail": "32/32",
+      "at": "2026-09-19T20:10:22.510255+00:00"
+    },
+    {
+      "label": "no relation between two THINGS becomes true merely by moving the camera",
+      "passed": true,
+      "detail": "0 invented across 56 sightings",
+      "at": "2026-09-19T20:10:22.510259+00:00"
+    },
+    {
+      "label": "a camera move no longer promotes the GROUND into a thing that relations attach to",
+      "passed": true,
+      "detail": "0 relation(s) to a region that was background before the crop (was 50 under the old rule)",
+      "at": "2026-09-19T20:10:22.510263+00:00"
+    },
+    {
+      "label": "an object that leaves the picture is reported as that, and not as a broken relation",
+      "passed": true,
+      "detail": "8/56 sightings lost an object \u2014 `zoom x0.5` shrinks the smaller one under the 0.01 minimum area and `translate 28%` pushes it off the edge",
+      "at": "2026-09-19T20:10:22.510270+00:00"
+    },
+    {
+      "label": "turning the picture DOES break left_of and above, and the run says so rather than averaging it away",
+      "passed": true,
+      "detail": "above (rotated): 5/8; left_of (rotated): 13/16",
+      "at": "2026-09-19T20:10:22.510278+00:00"
+    },
+    {
+      "label": "while larger_than is untouched by the same rotation",
+      "passed": true,
+      "detail": "48/48",
+      "at": "2026-09-19T20:10:22.510280+00:00"
+    },
+    {
+      "label": "the relations between blobs are admitted to the concept graph",
+      "passed": true,
+      "detail": "frame_eb262ex2a4fcd3591_redcircle larger_than frame_eb262ex2a4fcd3591_bluesquare; frame_eb262ex2a4fcd3591_redcircle left_of frame_eb262ex2a4fcd3591_bluesquare",
+      "at": "2026-09-19T20:10:23.550611+00:00"
+    },
+    {
+      "label": "and they move posteriors, like every other observation",
+      "passed": true,
+      "detail": "frame_eb262ex2a4fcd3591_redcircle left_of frame_eb262ex2a4fcd3591_bluesquare @0.9; frame_eb262ex2a4fcd3591_redcircle larger_than frame_eb262ex2a4fcd3591_bluesquare @0.9",
+      "at": "2026-09-19T20:10:23.586818+00:00"
+    },
+    {
+      "label": "the size band is not among a blob's categories",
+      "passed": true,
+      "detail": "isa: ['circle', 'square', 'vivid_blue', 'vivid_red']",
+      "at": "2026-09-19T20:10:23.624111+00:00"
+    },
+    {
+      "label": "while the exact measurement it came from is still stated",
+      "passed": true,
+      "detail": "case0x2a4fcd3591_redcircle occupies 0.064; case0x2a4fcd3591_bluesquare occupies 0.02",
+      "at": "2026-09-19T20:10:23.624126+00:00"
+    },
+    {
+      "label": "and the live substrate holds no size membership either",
+      "passed": true,
+      "detail": "isa in the graph: ['cat0f5a3f', 'cat148c79', 'cat4a751b', 'cat6ba5f2', 'catb0ae9e', 'circle', 'disc11b8a4', 'disc3473be', 'disc465cff', 'disc85b69e', 'disca89eb9', 'discd9e1d7', 'square', 'stopsignd885e3', 'vivid_blue', 'vivid_red']",
+      "at": "2026-09-19T20:10:23.669295+00:00"
+    }
+  ],
+  "notes": []
+}

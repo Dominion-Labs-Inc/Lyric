@@ -1,11 +1,5 @@
 #!/usr/bin/env python3
-"""Pytest smoke tests for upgraded code generation tools.
-
-These tests stub the LLM service to avoid network/model dependencies while
-exercising:
-- common knob plumbing (model/temperature/max_tokens/max_repairs)
-- syntax validation + auto-repair loop
-- metadata shape (valid_python/syntax_error/attempts)
+"""Pytest smoke tests for the code generation tools:
 - lint fixer dry-run + patch output
 - unified diff patch application tool
 """
@@ -21,53 +15,6 @@ import pytest
 # Add project root to path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
-
-
-class _StubLLM:
-    def __init__(self, responses: list[str]):
-        self._responses = responses
-        self.calls: list[tuple[str, dict]] = []
-
-    async def generate(self, prompt: str, **kwargs):
-        self.calls.append((prompt, kwargs))
-        idx = min(len(self.calls) - 1, len(self._responses) - 1)
-        return {"content": self._responses[idx]}
-
-
-@pytest.mark.asyncio
-async def test_llm_tools_repair_and_metadata(monkeypatch):
-    from core.services import unified_llm
-    from core.tools.code_generation_tools import ImplementAlgorithmTool
-
-    stub = _StubLLM(
-        responses=[
-            """```python\n# broken on purpose\ndef f(:\n    pass\n```""",
-            """```python\ndef add(a: int, b: int) -> int:\n    return a + b\n```""",
-        ]
-    )
-
-    monkeypatch.setattr(unified_llm, "get_llm_service", lambda: stub)
-
-    tool = ImplementAlgorithmTool()
-    result = await tool.execute(
-        algorithm="binary_search",
-        language="python",
-        optimize_for="readability",
-        max_repairs=2,
-        temperature=0.0,
-        max_tokens=256,
-        model="stub",
-        format_black=False,
-    )
-
-    assert result.success is True
-    assert isinstance(result.output, dict)
-    assert result.output.get("valid_python") is True
-    assert result.output.get("syntax_error") in (None, "")
-    assert isinstance(result.output.get("attempts"), list)
-    assert len(result.output.get("attempts")) >= 1
-    assert "def add" in result.output.get("code", "")
-    assert len(stub.calls) >= 2, "Expected at least one repair attempt"
 
 
 @pytest.mark.asyncio

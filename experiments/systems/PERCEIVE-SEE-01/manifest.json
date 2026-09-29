@@ -2,7 +2,7 @@
   "experiment": "PERCEIVE-SEE-01",
   "admission": [
     {
-      "image": "see_325339_1",
+      "image": "see_2065f7_1",
       "drawn": [
         "circle",
         "red"
@@ -12,15 +12,15 @@
         "circle",
         "small"
       ],
-      "blob": "see_325339_1_blob1",
+      "blob": "see_2065f7_1xe6d168c912_redcircle",
       "blob_holds": [
         "circle",
-        "small",
-        "vivid_red"
+        "discb77a0a",
+        "red"
       ]
     },
     {
-      "image": "see_325339_2",
+      "image": "see_2065f7_2",
       "drawn": [
         "circle",
         "red"
@@ -30,15 +30,15 @@
         "circle",
         "medium"
       ],
-      "blob": "see_325339_2_blob1",
+      "blob": "see_2065f7_2xca9df74f6c_redcircle",
       "blob_holds": [
         "circle",
-        "medium",
-        "vivid_red"
+        "discb77a0a",
+        "red"
       ]
     },
     {
-      "image": "see_325339_3",
+      "image": "see_2065f7_3",
       "drawn": [
         "circle",
         "blue"
@@ -48,15 +48,14 @@
         "circle",
         "medium"
       ],
-      "blob": "see_325339_3_blob1",
+      "blob": "see_2065f7_3x5f30b2492f_bluecircle",
       "blob_holds": [
-        "circle",
-        "medium",
-        "vivid_blue"
+        "blue",
+        "circle"
       ]
     },
     {
-      "image": "see_325339_4",
+      "image": "see_2065f7_4",
       "drawn": [
         "square",
         "red"
@@ -66,15 +65,14 @@
         "square",
         "medium"
       ],
-      "blob": "see_325339_4_blob1",
+      "blob": "see_2065f7_4x6c9c6faa0c_redsquare",
       "blob_holds": [
-        "medium",
-        "square",
-        "vivid_red"
+        "red",
+        "square"
       ]
     },
     {
-      "image": "see_325339_5",
+      "image": "see_2065f7_5",
       "drawn": [
         "circle",
         "red"
@@ -84,16 +82,16 @@
         "circle",
         "small"
       ],
-      "blob": "see_325339_5_blob1",
+      "blob": "see_2065f7_5xe6d168c912_redcircle",
       "blob_holds": [
-        "cat325339cire",
+        "cat2065f7cire",
         "circle",
-        "small",
-        "vivid_red"
+        "discb77a0a",
+        "red"
       ]
     },
     {
-      "image": "see_325339_6",
+      "image": "see_2065f7_6",
       "drawn": [
         "circle",
         "red"
@@ -103,16 +101,16 @@
         "circle",
         "medium"
       ],
-      "blob": "see_325339_6_blob1",
+      "blob": "see_2065f7_6xb7c758d2fa_redcircle",
       "blob_holds": [
-        "cat325339cire",
+        "cat2065f7cire",
         "circle",
-        "medium",
-        "vivid_red"
+        "discb77a0a",
+        "red"
       ]
     },
     {
-      "image": "see_325339_7",
+      "image": "see_2065f7_7",
       "drawn": [
         "circle",
         "red"
@@ -122,16 +120,16 @@
         "circle",
         "large"
       ],
-      "blob": "see_325339_7_blob1",
+      "blob": "see_2065f7_7x5cae0dc6f6_redcircle",
       "blob_holds": [
-        "cat325339cire",
+        "cat2065f7cire",
         "circle",
-        "large",
-        "vivid_red"
+        "discb77a0a",
+        "red"
       ]
     },
     {
-      "image": "see_325339_8",
+      "image": "see_2065f7_8",
       "drawn": [
         "square",
         "red"
@@ -141,15 +139,14 @@
         "square",
         "large"
       ],
-      "blob": "see_325339_8_blob1",
+      "blob": "see_2065f7_8xfa6adb7244_redsquare",
       "blob_holds": [
-        "large",
-        "square",
-        "vivid_red"
+        "red",
+        "square"
       ]
     },
     {
-      "image": "see_325339_9",
+      "image": "see_2065f7_9",
       "drawn": [
         "circle",
         "blue"
@@ -159,15 +156,14 @@
         "circle",
         "small"
       ],
-      "blob": "see_325339_9_blob1",
+      "blob": "see_2065f7_9x22d4e42def_bluecircle",
       "blob_holds": [
-        "circle",
-        "small",
-        "vivid_blue"
+        "blue",
+        "circle"
       ]
     },
     {
-      "image": "see_325339_10",
+      "image": "see_2065f7_10",
       "drawn": [
         "square",
         "blue"
@@ -177,15 +173,14 @@
         "square",
         "medium"
       ],
-      "blob": "see_325339_10_blob1",
+      "blob": "see_2065f7_10x6ad59c54e0_bluesquare",
       "blob_holds": [
-        "medium",
-        "square",
-        "vivid_blue"
+        "blue",
+        "square"
       ]
     },
     {
-      "image": "see_325339_11",
+      "image": "see_2065f7_11",
       "drawn": [
         "square",
         "blue"
@@ -195,15 +190,14 @@
         "square",
         "medium"
       ],
-      "blob": "see_325339_11_blob1",
+      "blob": "see_2065f7_11x1123e1683f_bluesquare",
       "blob_holds": [
-        "medium",
-        "square",
-        "vivid_blue"
+        "blue",
+        "square"
       ]
     },
     {
-      "image": "see_325339_12",
+      "image": "see_2065f7_12",
       "drawn": [
         "square",
         "blue"
@@ -213,15 +207,14 @@
         "square",
         "medium"
       ],
-      "blob": "see_325339_12_blob1",
+      "blob": "see_2065f7_12x6d6e368c68_bluesquare",
       "blob_holds": [
-        "medium",
-        "square",
-        "vivid_blue"
+        "blue",
+        "square"
       ]
     },
     {
-      "image": "see_325339_13",
+      "image": "see_2065f7_13",
       "drawn": [
         "square",
         "red"
@@ -231,15 +224,14 @@
         "square",
         "medium"
       ],
-      "blob": "see_325339_13_blob1",
+      "blob": "see_2065f7_13x5f6dafdacb_redsquare",
       "blob_holds": [
-        "medium",
-        "square",
-        "vivid_red"
+        "red",
+        "square"
       ]
     },
     {
-      "image": "see_325339_14",
+      "image": "see_2065f7_14",
       "drawn": [
         "circle",
         "blue"
@@ -249,15 +241,14 @@
         "circle",
         "medium"
       ],
-      "blob": "see_325339_14_blob1",
+      "blob": "see_2065f7_14xdac381543a_bluecircle",
       "blob_holds": [
-        "circle",
-        "medium",
-        "vivid_blue"
+        "blue",
+        "circle"
       ]
     },
     {
-      "image": "see_325339_15",
+      "image": "see_2065f7_15",
       "drawn": [
         "square",
         "blue"
@@ -267,16 +258,15 @@
         "square",
         "medium"
       ],
-      "blob": "see_325339_15_blob1",
+      "blob": "see_2065f7_15x1123e1683f_bluesquare",
       "blob_holds": [
-        "cat325339sqbl",
-        "medium",
-        "square",
-        "vivid_blue"
+        "blue",
+        "cat2065f7sqbl",
+        "square"
       ]
     },
     {
-      "image": "see_325339_16",
+      "image": "see_2065f7_16",
       "drawn": [
         "square",
         "blue"
@@ -286,16 +276,15 @@
         "square",
         "medium"
       ],
-      "blob": "see_325339_16_blob1",
+      "blob": "see_2065f7_16x6ad59c54e0_bluesquare",
       "blob_holds": [
-        "cat325339sqbl",
-        "medium",
-        "square",
-        "vivid_blue"
+        "blue",
+        "cat2065f7sqbl",
+        "square"
       ]
     },
     {
-      "image": "see_325339_17",
+      "image": "see_2065f7_17",
       "drawn": [
         "square",
         "blue"
@@ -305,16 +294,15 @@
         "square",
         "large"
       ],
-      "blob": "see_325339_17_blob1",
+      "blob": "see_2065f7_17x906a35e2b0_bluesquare",
       "blob_holds": [
-        "cat325339sqbl",
-        "large",
-        "square",
-        "vivid_blue"
+        "blue",
+        "cat2065f7sqbl",
+        "square"
       ]
     },
     {
-      "image": "see_325339_18",
+      "image": "see_2065f7_18",
       "drawn": [
         "circle",
         "blue"
@@ -324,15 +312,14 @@
         "circle",
         "large"
       ],
-      "blob": "see_325339_18_blob1",
+      "blob": "see_2065f7_18x04bd335b29_bluecircle",
       "blob_holds": [
-        "circle",
-        "large",
-        "vivid_blue"
+        "blue",
+        "circle"
       ]
     },
     {
-      "image": "see_325339_19",
+      "image": "see_2065f7_19",
       "drawn": [
         "square",
         "red"
@@ -342,15 +329,14 @@
         "square",
         "medium"
       ],
-      "blob": "see_325339_19_blob1",
+      "blob": "see_2065f7_19x663c82260e_redsquare",
       "blob_holds": [
-        "medium",
-        "square",
-        "vivid_red"
+        "red",
+        "square"
       ]
     },
     {
-      "image": "see_325339_20",
+      "image": "see_2065f7_20",
       "drawn": [
         "circle",
         "red"
@@ -360,16 +346,16 @@
         "circle",
         "medium"
       ],
-      "blob": "see_325339_20_blob1",
+      "blob": "see_2065f7_20xb7c758d2fa_redcircle",
       "blob_holds": [
-        "cat325339cire",
+        "cat2065f7cire",
         "circle",
-        "medium",
-        "vivid_red"
+        "discb77a0a",
+        "red"
       ]
     },
     {
-      "image": "see_325339_21",
+      "image": "see_2065f7_21",
       "drawn": [
         "triangle",
         "green"
@@ -379,15 +365,14 @@
         "triangle",
         "small"
       ],
-      "blob": "see_325339_21_blob1",
+      "blob": "see_2065f7_21x66bac965d6_greentriangle",
       "blob_holds": [
-        "small",
-        "triangle",
-        "vivid_green"
+        "green",
+        "triangle"
       ]
     },
     {
-      "image": "see_325339_22",
+      "image": "see_2065f7_22",
       "drawn": [
         "triangle",
         "green"
@@ -397,15 +382,14 @@
         "triangle",
         "small"
       ],
-      "blob": "see_325339_22_blob1",
+      "blob": "see_2065f7_22xd7f2bd0c2c_greentriangle",
       "blob_holds": [
-        "small",
-        "triangle",
-        "vivid_green"
+        "green",
+        "triangle"
       ]
     },
     {
-      "image": "see_325339_23",
+      "image": "see_2065f7_23",
       "drawn": [
         "triangle",
         "red"
@@ -415,15 +399,14 @@
         "triangle",
         "medium"
       ],
-      "blob": "see_325339_23_blob1",
+      "blob": "see_2065f7_23x9f82402b4d_redtriangle",
       "blob_holds": [
-        "medium",
-        "triangle",
-        "vivid_red"
+        "red",
+        "triangle"
       ]
     },
     {
-      "image": "see_325339_24",
+      "image": "see_2065f7_24",
       "drawn": [
         "circle",
         "green"
@@ -433,15 +416,14 @@
         "circle",
         "medium"
       ],
-      "blob": "see_325339_24_blob1",
+      "blob": "see_2065f7_24x30d5863b9a_greencircle",
       "blob_holds": [
         "circle",
-        "medium",
-        "vivid_green"
+        "green"
       ]
     },
     {
-      "image": "see_325339_25",
+      "image": "see_2065f7_25",
       "drawn": [
         "triangle",
         "green"
@@ -451,16 +433,15 @@
         "triangle",
         "small"
       ],
-      "blob": "see_325339_25_blob1",
+      "blob": "see_2065f7_25x66bac965d6_greentriangle",
       "blob_holds": [
-        "cat325339trgr",
-        "small",
-        "triangle",
-        "vivid_green"
+        "cat2065f7trgr",
+        "green",
+        "triangle"
       ]
     },
     {
-      "image": "see_325339_26",
+      "image": "see_2065f7_26",
       "drawn": [
         "triangle",
         "green"
@@ -470,15 +451,15 @@
         "triangle",
         "medium"
       ],
-      "blob": "see_325339_26_blob1",
+      "blob": "see_2065f7_26x261d733be2_greentriangle",
       "blob_holds": [
-        "medium",
-        "triangle",
-        "vivid_green"
+        "cat2065f7trgr",
+        "green",
+        "triangle"
       ]
     },
     {
-      "image": "see_325339_27",
+      "image": "see_2065f7_27",
       "drawn": [
         "triangle",
         "green"
@@ -488,33 +469,32 @@
         "triangle",
         "medium"
       ],
-      "blob": "see_325339_27_blob1",
+      "blob": "see_2065f7_27xddbefa9624_greentriangle",
       "blob_holds": [
-        "medium",
-        "triangle",
-        "vivid_green"
+        "cat2065f7trgr",
+        "green",
+        "triangle"
       ]
     },
     {
-      "image": "see_325339_28",
+      "image": "see_2065f7_28",
       "drawn": [
         "circle",
         "green"
       ],
       "measured": [
-        "vivid_green",
+        "green",
         "circle",
         "large"
       ],
-      "blob": "see_325339_28_blob1",
+      "blob": "see_2065f7_28xdf5494be28_greencircle",
       "blob_holds": [
         "circle",
-        "large",
-        "vivid_green"
+        "green"
       ]
     },
     {
-      "image": "see_325339_29",
+      "image": "see_2065f7_29",
       "drawn": [
         "triangle",
         "red"
@@ -524,15 +504,14 @@
         "triangle",
         "small"
       ],
-      "blob": "see_325339_29_blob1",
+      "blob": "see_2065f7_29xe66138ecd3_redtriangle",
       "blob_holds": [
-        "small",
-        "triangle",
-        "vivid_red"
+        "red",
+        "triangle"
       ]
     },
     {
-      "image": "see_325339_30",
+      "image": "see_2065f7_30",
       "drawn": [
         "circle",
         "red"
@@ -542,34 +521,34 @@
         "circle",
         "medium"
       ],
-      "blob": "see_325339_30_blob1",
+      "blob": "see_2065f7_30xb7c758d2fa_redcircle",
       "blob_holds": [
-        "cat325339cire",
+        "cat2065f7cire",
         "circle",
-        "medium",
-        "vivid_red"
+        "discb77a0a",
+        "red"
       ]
     }
   ],
   "categories": {
     "red circle": {
-      "rule": "circle(?X0) \u2227 vivid_red(?X0) \u2192 cat325339cire(?X0)",
+      "rule": "circle(?X0) \u2227 red(?X0) \u2192 cat2065f7cire(?X0)",
       "status": "rule_learned",
       "recall": 1.0,
       "abstention": 1.0,
       "false_namings": 0
     },
     "blue square": {
-      "rule": "square(?X0) \u2227 vivid_blue(?X0) \u2192 cat325339sqbl(?X0)",
+      "rule": "blue(?X0) \u2227 square(?X0) \u2192 cat2065f7sqbl(?X0)",
       "status": "rule_learned",
       "recall": 1.0,
       "abstention": 1.0,
       "false_namings": 0
     },
     "green triangle": {
-      "rule": null,
-      "status": "multiple_hypotheses",
-      "recall": 0.333,
+      "rule": "green(?X0) \u2227 triangle(?X0) \u2192 cat2065f7trgr(?X0)",
+      "status": "rule_learned",
+      "recall": 1.0,
       "abstention": 1.0,
       "false_namings": 0
     }
@@ -577,12 +556,12 @@
   "summary": {
     "images_seen": 30,
     "blobs_admitted": 30,
-    "blobs_holding_every_measured_feature": 30,
+    "blobs_holding_every_measured_feature": 0,
     "categories": 3,
-    "mean_recall": 0.778,
+    "mean_recall": 1.0,
     "mean_abstention": 1.0,
     "false_namings": 0,
-    "wall_clock_s": 56.9
+    "wall_clock_s": 23.2
   },
-  "run_at": "2026-09-19T15:27:41.015181+00:00"
+  "run_at": "2026-09-28T01:57:10.755543+00:00"
 }

@@ -18,6 +18,7 @@ import asyncio
 import shutil
 import tempfile
 from pathlib import Path
+from uuid import uuid4
 
 import pytest
 import pytest_asyncio
@@ -138,10 +139,44 @@ async def world_and_rule():
         "DELETE FROM unified.learned_rules WHERE domain_id = $1", (DOMAIN,))
 
 
-def task_for(rule_id, operator):
+async def task_for(rule_id, operator, domain=DOMAIN):
+    """One step of a proved plan, shaped the way the planner shapes one.
+
+    THE INTENT IS NOT DECORATION IN THE PROVENANCE. `state_plan_to_tasks` stamps
+    `intent_id` onto every step it makes, and the constitution reads it at the
+    gate: Law 2 replans an act nothing can explain, and Law 4 checks the act is
+    the one the proved route named. This fixture predates the constitution going
+    live and assembled a task the substrate never produces -- a grounded
+    operator with no account behind it -- so every test here was refused before
+    the executor ran, and the whole module reported `KeyError: 'runtime_outcome'`
+    for an act that never happened.
+
+    The account is RECORDED, not asserted: `judge` fetches the intent by id from
+    the authority and a name pointing at nothing is judged as no intent at all.
+    So this forms a real one, with the goal state the rule's effect reaches --
+    which is what makes the task legible to Law 4's operator check too.
+    """
+    from core.reasoning.intent_authority import (
+        SUBSTRATE_ACTOR, continuity_goal, get_intent_authority)
+
+    who, _origin, destination = [
+        arg.strip() for arg in operator.split("(", 1)[1].rstrip(")").split(",")]
+    intent = await get_intent_authority().form(
+        "goal", SUBSTRATE_ACTOR, continuity_goal(f"{domain}:{uuid4().hex}"),
+        shape={
+            # True for the same reason the planner records it: the route was
+            # found over an operator the rule store attests is executable.
+            "proved": True,
+            "operator": operator, "operators": [operator], "steps": 1,
+            # What the act is FOR. The proved destination, not wherever a
+            # misbehaving world actually puts the file -- a world that moves the
+            # wrong way contradicts the rule, which is the point of that test.
+            "goal_conditions": [f"SBAT({who}, {destination})"],
+            "rule_ids": [rule_id], "domain": domain,
+        })
     return Task(id=f"task_{operator}", type=TaskType.EXECUTION, description=operator,
                 provenance={"learned_rule_id": rule_id, "grounded_operator": operator,
-                            "domain_id": DOMAIN})
+                            "domain_id": domain, "intent_id": intent.intent_id})
 
 
 # ------------------------------------------------------------ non-circularity
@@ -150,7 +185,7 @@ def task_for(rule_id, operator):
 async def test_the_observation_comes_from_the_world_not_the_prediction(world_and_rule):
     world, _, stored = world_and_rule
     result = await AutonomousCoordinator().execute_task(
-        task_for(stored.rule_id, "SBMOVE(z, HALL, LAB)"))
+        await task_for(stored.rule_id, "SBMOVE(z, HALL, LAB)"))
 
     assert result["runtime_outcome"] == RuntimeOutcome.CONFIRMATION.value
     # The physical check, independent of anything the substrate believes.
@@ -168,7 +203,7 @@ async def test_a_world_that_moves_the_wrong_way_contradicts(world_and_rule):
     get_binding_registry().register(DOMAIN, world.binding(destination_override="VAULT"))
 
     result = await AutonomousCoordinator().execute_task(
-        task_for(stored.rule_id, "SBMOVE(z, HALL, LAB)"))
+        await task_for(stored.rule_id, "SBMOVE(z, HALL, LAB)"))
 
     assert result["runtime_outcome"] == RuntimeOutcome.CONTRADICTION.value
     assert result["success"] is False, "a clean tool call is not a confirmed model"
@@ -194,7 +229,7 @@ async def test_an_unobservable_world_is_indeterminate_not_confirmation(world_and
         DOMAIN, OperatorBinding(predicate="SBMOVE", tool_name="move_file",
                                 parameters=world.binding().parameters, observe=observe))
 
-    result = await executor.execute_task(task_for(stored.rule_id, "SBMOVE(z, HALL, LAB)"))
+    result = await executor.execute_task(await task_for(stored.rule_id, "SBMOVE(z, HALL, LAB)"))
     assert result["runtime_outcome"] == RuntimeOutcome.INDETERMINATE.value
     assert result["success"] is False
     assert all(e["verdict"] == EffectVerdict.UNKNOWN.value for e in result["effects"])
@@ -208,7 +243,7 @@ async def test_absent_preconditions_prevent_any_tool_call(world_and_rule):
     must not touch it."""
     world, _, stored = world_and_rule
     result = await AutonomousCoordinator().execute_task(
-        task_for(stored.rule_id, "SBMOVE(z, LAB, VAULT)"))  # z is in HALL
+        await task_for(stored.rule_id, "SBMOVE(z, LAB, VAULT)"))  # z is in HALL
 
     assert result["success"] is False
     # The refusal names the literal that failed rather than the set that did
@@ -230,7 +265,7 @@ async def test_a_rule_demoted_after_planning_does_not_execute(world_and_rule):
         (EpistemicStatus.SUPPORTED.value, stored.rule_id))
 
     result = await AutonomousCoordinator().execute_task(
-        task_for(stored.rule_id, "SBMOVE(z, HALL, LAB)"))
+        await task_for(stored.rule_id, "SBMOVE(z, HALL, LAB)"))
 
     # It fails CLOSED. Falling through to the model would let a step the
     # substrate refused be carried out by generation instead.
@@ -248,11 +283,11 @@ async def test_two_steps_compose_through_the_real_world(world_and_rule):
     world, _, stored = world_and_rule
     executor = AutonomousCoordinator()
 
-    first = await executor.execute_task(task_for(stored.rule_id, "SBMOVE(z, HALL, LAB)"))
+    first = await executor.execute_task(await task_for(stored.rule_id, "SBMOVE(z, HALL, LAB)"))
     assert first["runtime_outcome"] == RuntimeOutcome.CONFIRMATION.value
     assert Fact("SBAT", ("z", "LAB")) in world.observe()
 
-    second = await executor.execute_task(task_for(stored.rule_id, "SBMOVE(z, LAB, VAULT)"))
+    second = await executor.execute_task(await task_for(stored.rule_id, "SBMOVE(z, LAB, VAULT)"))
     assert second["runtime_outcome"] == RuntimeOutcome.CONFIRMATION.value
 
     final = world.observe()
@@ -269,7 +304,7 @@ async def test_the_second_step_survives_a_restart(world_and_rule):
     world, _, stored = world_and_rule
 
     first = await AutonomousCoordinator().execute_task(
-        task_for(stored.rule_id, "SBMOVE(z, HALL, LAB)"))
+        await task_for(stored.rule_id, "SBMOVE(z, HALL, LAB)"))
     assert first["runtime_outcome"] == RuntimeOutcome.CONFIRMATION.value
 
     reloaded = [r for r in await RuleStore().executable_rules(domain_id=DOMAIN)
@@ -277,7 +312,7 @@ async def test_the_second_step_survives_a_restart(world_and_rule):
     assert reloaded, "the rule did not survive to authorize the second step"
 
     second = await AutonomousCoordinator().execute_task(
-        task_for(stored.rule_id, "SBMOVE(z, LAB, VAULT)"))
+        await task_for(stored.rule_id, "SBMOVE(z, LAB, VAULT)"))
     assert second["runtime_outcome"] == RuntimeOutcome.CONFIRMATION.value
     assert (world.root / "VAULT" / "z").exists()
 
@@ -378,10 +413,7 @@ async def test_the_executor_itself_closes_the_loop(locked_world):
     from core.learning.rule_store import EvidenceRole
 
     world, store, stored = locked_world
-    task = Task(id="t", type=TaskType.EXECUTION, description="SBMOVE(z, HALL, LAB)",
-                provenance={"learned_rule_id": stored.rule_id,
-                            "grounded_operator": "SBMOVE(z, HALL, LAB)",
-                            "domain_id": DOMAIN})
+    task = await task_for(stored.rule_id, "SBMOVE(z, HALL, LAB)")
 
     result = await AutonomousCoordinator().execute_task(task)
 
@@ -406,10 +438,7 @@ async def test_a_refuted_rule_stops_being_operational_knowledge(locked_world):
     world, store, stored = locked_world
     state = world.observe()
     goal = [Fact("SBAT", ("z", "LAB"))]
-    task = Task(id="t", type=TaskType.EXECUTION, description="SBMOVE(z, HALL, LAB)",
-                provenance={"learned_rule_id": stored.rule_id,
-                            "grounded_operator": "SBMOVE(z, HALL, LAB)",
-                            "domain_id": DOMAIN})
+    task = await task_for(stored.rule_id, "SBMOVE(z, HALL, LAB)")
 
     before = ground_for_problem(
         await store.executable_rules(domain_id=DOMAIN), state, goal)
@@ -420,7 +449,12 @@ async def test_a_refuted_rule_stops_being_operational_knowledge(locked_world):
     after = ground_for_problem(
         await store.executable_rules(domain_id=DOMAIN), state, goal)
     assert after.operators == [], "planning still offers a refuted rule"
-    retry = await AutonomousCoordinator().execute_task(task)
+    # A FRESH attempt at the same act, under its own pursuit. Retrying the task
+    # that was contradicted stops earlier and rightly — its pursuit concluded —
+    # so it would never reach the question this test asks: does a refuted rule
+    # still execute for anyone?
+    retry = await AutonomousCoordinator().execute_task(
+        await task_for(stored.rule_id, "SBMOVE(z, HALL, LAB)"))
     assert retry["success"] is False
     assert "refuted" in retry["refused"]
 
@@ -434,10 +468,7 @@ async def test_torin_does_not_invent_the_condition_it_was_never_taught(locked_wo
     the whole attribution path exists to avoid.
     """
     world, store, stored = locked_world
-    task = Task(id="t", type=TaskType.EXECUTION, description="SBMOVE(z, HALL, LAB)",
-                provenance={"learned_rule_id": stored.rule_id,
-                            "grounded_operator": "SBMOVE(z, HALL, LAB)",
-                            "domain_id": DOMAIN})
+    task = await task_for(stored.rule_id, "SBMOVE(z, HALL, LAB)")
     await AutonomousCoordinator().execute_task(task)
 
     rules = await store.load(domain_id=DOMAIN)
@@ -474,15 +505,16 @@ def test_a_mismatch_is_not_charged_to_the_rule_unless_everything_held():
     assert attribute(evidence, interfered)[0] is Attribution.EXTERNAL_FAILURE
 
 
-def test_encounter_driven_domain_install_from_a_workspace_task():
-    """A task that declares a filesystem workspace INSTALLS its domain the first
-    time the substrate engages it (_derive_goal_spec), then the domain is
-    observable AND explorable — the wire that was missing entirely in production
-    (install_filesystem_domain had zero callers). Idempotent; declines a
-    non-existent root; a task with no workspace installs nothing.
+def test_a_workspace_task_has_the_substrate_take_it_up():
+    """A task that declares a workspace has the substrate LOOK at it the first
+    time it engages the task (_derive_goal_spec): what is there enters the
+    domain's world through the self's own perception, and the domain becomes
+    explorable with practice bounded to the directory. Taking it up again
+    changes nothing; a directory that is not there is declined; a task with no
+    workspace takes nothing up.
     """
     from types import SimpleNamespace
-    from core.execution.filesystem_domain import ensure_filesystem_domain
+    from core.execution.tool_domain import sensed_fact, take_up_workspace, world_of
     from core.learning.exploration import (
         explorable_domains, get_proposer, unregister_explorable_domain)
 
@@ -500,27 +532,35 @@ def test_encounter_driven_domain_install_from_a_workspace_task():
         (root / "alpha").mkdir()
         (root / "beta").mkdir()
         (root / "alpha" / "doc").write_text("x")
-        conds = ["FILE_IN(Fdoc, Fbeta)"]
+        conds = [sensed_fact("kind", "path", str(root / "beta" / "doc"), "file").to_formula()]
 
         assert domain not in explorable_domains()
 
-        # ENCOUNTER: engaging the task installs + observes.
+        # ENGAGING the task takes the workspace up: it is perceived and observed.
         spec = ex._derive_goal_spec(wtask(domain, root, conds))
         assert spec is not None and spec["domain_id"] == domain
+        assert (sensed_fact("kind", "path", str(root / "alpha" / "doc"), "file").to_formula()
+                in spec["world_state"]), "the world is what the self perceived there"
         assert domain in explorable_domains()      # now the drive handler can ACT
         proposer = get_proposer(domain)
         assert proposer is not None
 
-        # IDEMPOTENT: re-encounter is a no-op, same proposer.
-        assert ensure_filesystem_domain(domain, root) is None
+        # Taking it up again changes nothing: the same proposer.
+        take_up_workspace(domain, str(root))
         assert get_proposer(domain) is proposer
+
+        # Practice is bounded to the directory, and never acts on the directory itself.
+        world = world_of(domain)
+        assert world.practisable("path", str(root / "alpha" / "doc"))
+        assert not world.practisable("path", str(root))
+        assert not world.practisable("path", "/etc/hosts")
 
         unregister_explorable_domain(domain)
 
-    # A non-existent root is declined — no domain invented over nothing.
+    # A directory that is not there is declined — no practice invented over nothing.
     missing = "test_encounter_missing"
     unregister_explorable_domain(missing)
-    assert ensure_filesystem_domain(missing, "/no/such/dir/xyz_nope") is None
+    assert take_up_workspace(missing, "/no/such/dir/xyz_nope") == 0
     assert missing not in explorable_domains()
 
     # A task with no workspace installs nothing (backward-compatible).

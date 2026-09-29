@@ -20,6 +20,8 @@ reconciliation and downstream appraisal**, checked end to end on the real substr
 **Results.** Every run is saved in `results/` (JSON + `.md`). Latest: 2026-09-16, **15/15**
 (`results/20260917T004439Z.md`).
 
+**2026-09-28: 15/15.** The hand-written filesystem domain was deleted. This now plans over an operator the substrate learned from its own acts in `tools:path` (taught by `experiments/fs_move_teach.py` if the store has none), and states its goal in perception's words: `KIND(<path>, Ffile)`, and `¬KIND(...)` for "no longer there". The drive takes up the named workspace itself.
+
 ## Why the miss is produced the way it is
 
 An earlier version of section B forced a real failure by making a directory unwritable. `move_file`

@@ -102,6 +102,32 @@ class AppraisalState:
     # recklessness in security / infrastructure / device-control domains.
     risk: Optional[float] = None               # [0,1]
 
+    # ── THE MOOD THIS STATE IS FELT THROUGH ─────────────────────────────────
+    #
+    # The slow, object-less core affect the substrate carries between sessions
+    # (`IntrinsicMotivationSystem` owns it and persists it; see
+    # docs/design/AFFECT_ARCHITECTURE.md §3-§5). It lives HERE, on the state,
+    # because that is what a mood IS: not a value a decision looks up when it
+    # wants one, but the colour everything about the situation is seen in.
+    #
+    # A first pass had the coordinator READ `affect_state()` and hand it to
+    # `BehaviorArbiter.decide(mood=...)` as an argument. That is the wrong
+    # shape and it was caught: it makes the mood a parameter, like a config
+    # value, and gives behaviour a second path in that bypasses the felt state
+    # everything else is derived from. A substrate is not TOLD it is in a bad
+    # mood. It is in one, and its reading of everything shifts accordingly.
+    #
+    # Unmeasured until an affect has actually been established. A cold start has
+    # no mood, and a fabricated 0.0 would colour the work with a feeling nobody
+    # had.
+    mood_valence: Optional[float] = None       # [-1,1] slow carried valence
+    mood_arousal: Optional[float] = None       # [0,1]  slow carried activation
+    #: The trait level this substrate's valence varies AROUND (allostatic). A
+    #: mood is low when it is low FOR THIS SUBSTRATE, not when it is below zero
+    #: — the baseline is what "its usual" means, and without it a valence of
+    #: -0.0001 at a cold start reads as a bad mood and tilts every decision.
+    mood_baseline: Optional[float] = None      # [-1,1]
+
     # How much what the substrate is LOOKING AT bears on the interests its own
     # law protects — the constitution's definition of harm, asked of a percept
     # instead of an act (`Constitution.bearing`).
@@ -136,6 +162,32 @@ class AppraisalState:
     # differently.
     attribution: Optional[str] = None
     attribution_confidence: Optional[float] = None
+
+    # ── WHAT THIS STATE IS ABOUT — the object of the feeling ────────────────
+    #
+    # NOT `attribution`, and the difference is why this had to exist.
+    # `attribution` says WHY an outcome ended as it did ("strategy_failure"),
+    # it is fed ONLY by `outcome_class`, and `outcome_class` is a task-outcome
+    # label. So outside a task loop it is None, and the substrate could feel
+    # doubt while being unable to say what it doubted.
+    #
+    # A MOOD is object-less; that is the definition, and it is why the mood
+    # fields above carry no subject. An EMOTION is not: it is ABOUT something.
+    # Without the object only two kinds of relief are available — the feeling's
+    # constituents moving, or time passing — and the third kind, addressing
+    # what the feeling is about, is unreachable, because nothing downstream can
+    # be pointed at a cause that was never named.
+    #
+    # NAMED BY WHOEVER MET IT, never inferred here. The threat sense names the
+    # event currently dominating the level it feeds; an execution names the
+    # operator it ran. Unmeasured when nothing named it: guessing what a feeling
+    # is about is exactly the fabrication this module refuses everywhere else.
+    about: Optional[str] = None
+    #: Where that object lives, so a question left behind by a faded feeling is
+    #: registered in the domain it belongs to instead of a general heap. Carried
+    #: WITH `about` (not in `sources`, which a partial update replaces), because
+    #: an object that outlives its domain would be filed in the wrong place.
+    about_domain: Optional[str] = None
 
     # ── Derived behavioural pressures ───────────────────────────────────────
     approach_pressure: float = 0.0
@@ -217,8 +269,13 @@ class AppraisalState:
             "agency": self.agency,
             "integrity": self.integrity,
             "risk": self.risk,
+            "mood_valence": self.mood_valence,
+            "mood_arousal": self.mood_arousal,
+            "mood_baseline": self.mood_baseline,
             "stakes": self.stakes,
             "attribution": self.attribution,
+            "about": self.about,
+            "about_domain": self.about_domain,
             "approach_pressure": round(self.approach_pressure, 4),
             "avoidance_pressure": round(self.avoidance_pressure, 4),
             "exploration_pressure": round(self.exploration_pressure, 4),
@@ -261,6 +318,11 @@ def build_appraisal(
     goal_alignment_score: Optional[float] = None,
     risk_level: Optional[str] = None,
     outcome_class: Optional[Any] = None,
+    #: WHAT this situation is about, named by whoever met it — the threat event
+    #: currently dominating the felt level, the operator just executed. Never
+    #: inferred; omitted when nothing named it.
+    concerns: Optional[str] = None,
+    concerns_domain: Optional[str] = None,
     options_considered: Optional[int] = None,
     self_initiated: Optional[bool] = None,
     #: The reconciled intent: what the substrate MEANT and what came of it,
@@ -383,6 +445,28 @@ def build_appraisal(
     if goal_congruence is None:
         unmeasured.append("goal_congruence")
 
+    # ── MOOD: the carried core affect this whole state is felt through.
+    #
+    # ASKED OF ITS OWNER, not passed in. `IntrinsicMotivationSystem` holds the
+    # mood and persists it; appraisal does not compute it and must not invent
+    # it. Only a mood that has actually been established counts — `loaded` (it
+    # was restored from the store) or at least one transition. A cold start has
+    # no mood, and reading 0.0 as "neutral" would colour every judgement with a
+    # feeling nobody had.
+    mood_valence = mood_arousal = mood_baseline = None
+    try:
+        from core.agents.autonomous.intrinsic_motivation import (
+            get_intrinsic_motivation_system)
+        _felt = get_intrinsic_motivation_system().affect_state()
+        if _felt is not None and (_felt.loaded or _felt.version > 0):
+            mood_valence = _clamp(_felt.valence, -1.0, 1.0)
+            mood_arousal = _clamp(_felt.arousal)
+            mood_baseline = _clamp(_felt.baseline, -1.0, 1.0)
+    except Exception as _mood_error:
+        logger.debug("appraisal: mood unreadable: %s", _mood_error)
+    if mood_valence is None:
+        unmeasured.append("mood")
+
     # ── RISK: cost of being wrong. Governance/task criticality owns the level.
     _RISK = {"low": 0.2, "medium": 0.5, "high": 0.8, "critical": 0.95}
     risk = _RISK.get(str(risk_level).lower()) if risk_level is not None else None
@@ -435,6 +519,16 @@ def build_appraisal(
         attribution = getattr(outcome_class, "value", str(outcome_class))
     if attribution is None:
         unmeasured.append("attribution")
+
+    # ── THE OBJECT: what this state is about. Taken verbatim from the caller
+    # that met it — this module weighs, it does not name things.
+    about = str(concerns).strip() or None if concerns is not None else None
+    about_domain = (str(concerns_domain).strip() or None
+                    if concerns_domain is not None else None)
+    if about is None:
+        unmeasured.append("about")
+    else:
+        sources["about"] = {"object": about, "domain": about_domain}
 
     # ── INTEGRITY: coherence across identity → intention → action → outcome ─
     # Emergent, not a score: each link is read from a signal that was actually
@@ -498,8 +592,13 @@ def build_appraisal(
         agency=agency,
         integrity=integrity,
         risk=risk,
+        mood_valence=mood_valence,
+        mood_arousal=mood_arousal,
+        mood_baseline=mood_baseline,
         stakes=stakes,
         attribution=attribution,
+        about=about,
+        about_domain=about_domain,
         valence=valence,
         activation=activation,
         confidence=confidence,
@@ -676,9 +775,38 @@ def _blend(previous: AppraisalState, incoming: AppraisalState) -> AppraisalState
         agency=mix(previous.agency, incoming.agency),
         integrity=mix(previous.integrity, incoming.integrity),
         risk=mix(previous.risk, incoming.risk),
+        mood_valence=mix(previous.mood_valence, incoming.mood_valence),
+        mood_arousal=mix(previous.mood_arousal, incoming.mood_arousal),
+        mood_baseline=mix(previous.mood_baseline, incoming.mood_baseline),
         stakes=mix(previous.stakes, incoming.stakes),
-        # Attribution is a fact about the LAST outcome, never smoothed.
-        attribution=incoming.attribution,
+        # Attribution is a fact about the LAST outcome: never SMOOTHED (it is
+        # categorical — there is no average of "strategy_failure" and
+        # "infrastructure_failure"), but carried forward when the new update
+        # says nothing about it, exactly like every other field here.
+        #
+        # It used to be taken from `incoming` unconditionally, and `attribution`
+        # is set only when an update supplies an `outcome_class`. So every
+        # PARTIAL update erased it — a bearing refresh (`update(epistemic=...,
+        # world_bearing=...)`) silently discarded the attribution of the last
+        # real outcome, and with it the `_strategy` / `_external` branches that
+        # decide replan, escalation and whether exploration is damped. A None
+        # here means "this update has nothing to say about attribution", not
+        # "the last failure had no cause".
+        attribution=(incoming.attribution if incoming.attribution is not None
+                     else previous.attribution),
+        attribution_confidence=(incoming.attribution_confidence
+                                if incoming.attribution_confidence is not None
+                                else previous.attribution_confidence),
+        # The object is carried forward for the same reason the attribution is,
+        # and the two move together: a partial update that says nothing about
+        # what the situation concerns has not made the situation object-less.
+        # Dropping it here would re-open the gap this field closes — the feeling
+        # would survive the next bearing refresh while the thing it is about
+        # would not.
+        about=(incoming.about if incoming.about is not None
+               else previous.about),
+        about_domain=(incoming.about_domain if incoming.about_domain is not None
+                      else previous.about_domain),
         sources=incoming.sources,
         unmeasured=incoming.unmeasured,
     )

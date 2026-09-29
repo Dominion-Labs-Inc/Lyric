@@ -457,11 +457,13 @@ class CausalFeedbackAnalyzer:
             ]
             bridge = get_neural_bridge()
             await bridge.initialize()
+            from core.agents.autonomous.shared_types import SUBSTRATE_ACTOR
             result = await bridge.reason(ReasoningRequest(
                 query=f"What did this event cause? Event: {event.description}",
                 context=premises,
                 kinds=[ReasoningType.CAUSAL],
                 cached_memories=[],  # reasoning is over these premises, not memory
+                task_metadata={"actor": SUBSTRATE_ACTOR},
             ))
 
             # Admit a causal link ONLY when the substrate VERIFIED the derivation.

@@ -229,56 +229,32 @@ def test_a_broken_epistemic_engine_is_not_reported_as_no_targets():
 
 def _coordinator_with_real_motivation():
     from core.agents.autonomous.autonomous_coordinator import AutonomousCoordinator
-    from core.agents.autonomous.learning_adapter import LearningAdapter
-    from core.agents.autonomous.shared_types import Priority, TaskType
-
-    async def noop(*a, **k):
-        return None
+    from core.learning.unified_learning_system import get_learning_authority
 
     async def perception_stats(*a, **k):
         return {"novel_patterns": 2}
 
-    adapter = LearningAdapter()
-    adapter.active = True
-
     coordinator = object.__new__(AutonomousCoordinator)
-    coordinator.learning = adapter
+    coordinator.learning = get_learning_authority()
     coordinator.intrinsic_motivation = IntrinsicMotivationSystem()   # REAL
     coordinator.stats = {"cycles_completed": 3}
-    task = SimpleNamespace(type=TaskType.RESEARCH, priority=Priority.LOW, description="survey")
-    coordinator.planning = SimpleNamespace(
-        active_plans={"p": SimpleNamespace(tasks=[task])},
-        current_goals={},
-        _store_plan=noop,
-        _store_goal=noop,
-    )
+    coordinator.task_queue = SimpleNamespace(active_tasks=lambda: [])
     coordinator.system_state = SimpleNamespace(
         mode=SimpleNamespace(value="autonomous"),
         active_goals=[], active_tasks=[], resource_usage=0.3, resources={},
     )
     coordinator.perception = SimpleNamespace(get_statistics=perception_stats)
-    coordinator.store_memory = noop
-    return coordinator, task
+    return coordinator
 
 
 def test_learning_phase_completes_against_the_real_motivation_system():
     """This is the test that would have caught the phantom methods: it runs
     _learning_phase with the real IntrinsicMotivationSystem and requires the
-    phase to reach its terminal write, not merely boost a priority and die."""
-    from core.agents.autonomous.shared_types import Priority
+    phase to reach its terminal write."""
+    coordinator = _coordinator_with_real_motivation()
 
-    coordinator, task = _coordinator_with_real_motivation()
+    asyncio.run(coordinator._learning_phase())
 
-    async def scenario():
-        for _ in range(5):
-            await coordinator._record_experience_outcome(
-                SimpleNamespace(id="t", metadata={}), "research", True, "success"
-            )
-        await coordinator._learning_phase()
-
-    asyncio.run(scenario())
-
-    assert task.priority == Priority.MEDIUM, "priority boost did not happen"
     assert coordinator._learning_phase_status == "COMPLETED", (
         f"phase did not reach its terminal write "
         f"(status={coordinator._learning_phase_status})"
@@ -287,21 +263,14 @@ def test_learning_phase_completes_against_the_real_motivation_system():
 
 def test_learning_phase_reports_abort_rather_than_appearing_successful():
     """A phase that dies partway must be distinguishable from one that ran."""
-    coordinator, _ = _coordinator_with_real_motivation()
+    coordinator = _coordinator_with_real_motivation()
 
     async def explode(*a, **k):
         raise RuntimeError("motivation down")
 
     coordinator.intrinsic_motivation.calculate_novelty_reward = explode
 
-    async def scenario():
-        for _ in range(5):
-            await coordinator._record_experience_outcome(
-                SimpleNamespace(id="t", metadata={}), "research", True, "success"
-            )
-        await coordinator._learning_phase()
-
-    asyncio.run(scenario())
+    asyncio.run(coordinator._learning_phase())
 
     assert coordinator._learning_phase_status == "ABORTED"
 

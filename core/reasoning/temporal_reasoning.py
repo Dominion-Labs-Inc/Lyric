@@ -20,9 +20,11 @@ Based on:
 """
 
 import asyncio
+import functools
 import hashlib
 import logging
 import json
+import re
 import uuid
 from typing import Any, Dict, FrozenSet, List, Optional, Set, Tuple
 from dataclasses import dataclass, field
@@ -78,6 +80,9 @@ class TemporalProposition:
     
     # Context
     context: Dict[str, Any] = field(default_factory=dict)
+    #: Whose it is: a person's actor id when their reasoning made it, None for
+    #: the substrate's own.
+    owner: Optional[str] = None
 
 
 @dataclass
@@ -99,6 +104,8 @@ class CausalLink:
     
     # Context
     context: Dict[str, Any] = field(default_factory=dict)
+    #: Whose it is: whoever's the propositions it links are.
+    owner: Optional[str] = None
 
 
 @dataclass
@@ -287,16 +294,23 @@ class TemporalReasoningSystem:
         # fail with "Database not initialized".
         if not getattr(db, "initialized", False):
             await db.initialize()
-        await db.execute_query(
-            "CREATE TABLE IF NOT EXISTS unified.reasoning_temporal_propositions ("
-            "prop_id TEXT PRIMARY KEY, statement TEXT NOT NULL, time_point TEXT, "
-            "ts TIMESTAMPTZ, is_true BOOLEAN, confidence REAL, "
-            "created_at TIMESTAMPTZ DEFAULT NOW())", commit=True)
-        await db.execute_query(
-            "CREATE TABLE IF NOT EXISTS unified.reasoning_temporal_causal_links ("
-            "link_id TEXT PRIMARY KEY, cause_id TEXT, effect_id TEXT, "
-            "causal_strength REAL, necessary BOOLEAN, sufficient BOOLEAN, "
-            "observations INTEGER, created_at TIMESTAMPTZ DEFAULT NOW())", commit=True)
+        # Each row is whoever's reasoning made it (a per-owner table), so each
+        # table is kept in every store its rows can be kept in.
+        for store in db.schema_stores():
+            for statement in (
+                    "CREATE TABLE IF NOT EXISTS unified.reasoning_temporal_propositions ("
+                    "prop_id TEXT PRIMARY KEY, statement TEXT NOT NULL, time_point TEXT, "
+                    "ts TIMESTAMPTZ, is_true BOOLEAN, confidence REAL, "
+                    "created_at TIMESTAMPTZ DEFAULT NOW(), owner TEXT)",
+                    "ALTER TABLE unified.reasoning_temporal_propositions "
+                    "ADD COLUMN IF NOT EXISTS owner TEXT",
+                    "CREATE TABLE IF NOT EXISTS unified.reasoning_temporal_causal_links ("
+                    "link_id TEXT PRIMARY KEY, cause_id TEXT, effect_id TEXT, "
+                    "causal_strength REAL, necessary BOOLEAN, sufficient BOOLEAN, "
+                    "observations INTEGER, created_at TIMESTAMPTZ DEFAULT NOW(), owner TEXT)",
+                    "ALTER TABLE unified.reasoning_temporal_causal_links "
+                    "ADD COLUMN IF NOT EXISTS owner TEXT"):
+                await db.execute_query(statement, commit=True, store=store)
 
     async def persist(self):
         """Write temporal knowledge to the unified PostgreSQL DB.
@@ -305,47 +319,50 @@ class TemporalReasoningSystem:
         persistence failure must never break a derivation. This replaces the
         old per-add synchronous SQLite write that put a filesystem write inside
         the reasoning loop and killed the derivation when it failed.
+
+        Each record goes to its owner's store. A person's are then let go: they
+        are kept in their context, not in the substrate's working set.
         """
         try:
             await self._ensure_schema()
-            db = self._db()
+            from core.agents.memory_agent import memory_agent
+            from core.memory import Origin
+            memory = memory_agent()
             for prop in self.propositions.values():
-                await db.execute_query(
-                    "INSERT INTO unified.reasoning_temporal_propositions "
-                    "(prop_id, statement, time_point, ts, is_true, confidence) "
-                    "VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (prop_id) DO UPDATE SET "
-                    "statement=EXCLUDED.statement, is_true=EXCLUDED.is_true, "
-                    "confidence=EXCLUDED.confidence",
-                    (prop.prop_id, prop.statement,
-                     prop.time_point.value if prop.time_point else None,
-                     prop.timestamp, bool(prop.is_true), float(prop.confidence)),
-                    commit=True)
+                await memory.hold_temporal_proposition(
+                    prop_id=prop.prop_id, statement=prop.statement,
+                    time_point=prop.time_point.value if prop.time_point else None,
+                    ts=prop.timestamp, is_true=bool(prop.is_true),
+                    confidence=float(prop.confidence),
+                    origin=Origin.of(prop.owner, "temporal reasoning"))
             for link in self.causal_links.values():
-                await db.execute_query(
-                    "INSERT INTO unified.reasoning_temporal_causal_links "
-                    "(link_id, cause_id, effect_id, causal_strength, necessary, "
-                    "sufficient, observations) VALUES ($1,$2,$3,$4,$5,$6,$7) "
-                    "ON CONFLICT (link_id) DO UPDATE SET "
-                    "causal_strength=EXCLUDED.causal_strength, "
-                    "observations=EXCLUDED.observations",
-                    (link.link_id, link.cause_id, link.effect_id,
-                     float(link.causal_strength), bool(link.necessary),
-                     bool(link.sufficient), int(link.observations)), commit=True)
+                await memory.hold_causal_link(
+                    link_id=link.link_id, cause_id=link.cause_id, effect_id=link.effect_id,
+                    causal_strength=float(link.causal_strength),
+                    necessary=bool(link.necessary), sufficient=bool(link.sufficient),
+                    observations=int(link.observations),
+                    origin=Origin.of(link.owner, "temporal reasoning"))
+            for link_id in [i for i, link in self.causal_links.items() if link.owner]:
+                del self.causal_links[link_id]
+            for prop_id in [i for i, prop in self.propositions.items() if prop.owner]:
+                del self.propositions[prop_id]
         except Exception as error:
             logger.debug("temporal persist skipped (non-fatal): %s", error)
 
     async def load(self, limit: int = 1000):
-        """Bring prior temporal knowledge into memory so reasoning consults what
-        earlier sessions established -- the reader the SQLite version never had.
-        Non-fatal: absence of history is not an error.
+        """Bring the substrate's own prior temporal knowledge into memory so
+        reasoning consults what earlier sessions established -- the reader the
+        SQLite version never had. A person's stays in their context. Non-fatal:
+        absence of history is not an error.
         """
         try:
             await self._ensure_schema()
             db = self._db()
             rows = await db.execute_query(
                 "SELECT prop_id, statement, time_point, ts, is_true, confidence "
-                "FROM unified.reasoning_temporal_propositions ORDER BY created_at DESC LIMIT $1",
-                (int(limit),), fetch_all=True) or []
+                "FROM unified.reasoning_temporal_propositions WHERE owner IS NULL "
+                "ORDER BY created_at DESC LIMIT $1",
+                (int(limit),), fetch_all=True, store="model") or []
             for r in rows:
                 if r["prop_id"] not in self.propositions:
                     self.propositions[r["prop_id"]] = TemporalProposition(
@@ -357,7 +374,8 @@ class TemporalReasoningSystem:
             rows = await db.execute_query(
                 "SELECT link_id, cause_id, effect_id, causal_strength, necessary, "
                 "sufficient, observations FROM unified.reasoning_temporal_causal_links "
-                "ORDER BY created_at DESC LIMIT $1", (int(limit),), fetch_all=True) or []
+                "WHERE owner IS NULL ORDER BY created_at DESC LIMIT $1", (int(limit),),
+                fetch_all=True, store="model") or []
             for r in rows:
                 if r["link_id"] not in self.causal_links:
                     self.causal_links[r["link_id"]] = CausalLink(
@@ -380,9 +398,11 @@ class TemporalReasoningSystem:
         is_true: bool = True,
         confidence: float = 1.0,
         timestamp: Optional[datetime] = None,
-        temporal_operator: Optional[TemporalOperator] = None
+        temporal_operator: Optional[TemporalOperator] = None,
+        owner: Optional[str] = None
     ) -> TemporalProposition:
-        """Create a temporal proposition"""
+        """Create a temporal proposition. `owner` is whose it is: a person's
+        actor id, or None for the substrate's own."""
         prop_id = f"prop_{uuid.uuid4().hex[:12]}"
         
         prop = TemporalProposition(
@@ -392,7 +412,8 @@ class TemporalReasoningSystem:
             is_true=is_true,
             confidence=confidence,
             timestamp=timestamp or datetime.now(),
-            temporal_operator=temporal_operator
+            temporal_operator=temporal_operator,
+            owner=owner
         )
         
         self.propositions[prop_id] = prop
@@ -458,7 +479,8 @@ class TemporalReasoningSystem:
             necessary=necessary,
             sufficient=sufficient,
             evidence=evidence or [],
-            observations=1
+            observations=1,
+            owner=cause.owner
         )
         
         self.causal_links[link_id] = link
@@ -1026,17 +1048,20 @@ class TemporalReasoningSystem:
 
         parsed = [Fact.parse(c) for c in conditions]
         for condition in goal_conditions:
-            denied = TemporalReasoningSystem._negated(condition)
+            denied = TemporalReasoningSystem.denied(condition)
             if denied is not None:
                 # An absence cannot be reached "conditionally" by a value nobody
                 # knows yet: either the fact is there or it is not.
-                if denied in conditions:
+                if TemporalReasoningSystem.held_among(denied, conditions):
                     return False
                 continue
             goal = Fact.parse(condition)
+            # A goal's variable stands for any term; a value still pending might
+            # yet be the one wanted.
             if not any(
                 fact.predicate == goal.predicate and fact.arity == goal.arity
-                and all(a == b or b in pending for a, b in zip(goal.args, fact.args))
+                and all(a == b or b in pending or a.startswith("?")
+                        for a, b in zip(goal.args, fact.args))
                 for fact in parsed
             ):
                 return False
@@ -1073,13 +1098,56 @@ class TemporalReasoningSystem:
     _NEGATION_PREFIXES = ("¬", "not ", "NOT ", "⊖")
 
     @classmethod
-    def _negated(cls, condition: str) -> Optional[str]:
+    def denied(cls, condition: str) -> Optional[str]:
         """The fact a condition denies, or None if it asserts one."""
         text = str(condition).strip()
         for prefix in cls._NEGATION_PREFIXES:
             if text.startswith(prefix):
                 return text[len(prefix):].strip()
         return None
+
+    @classmethod
+    def condition_holds(cls, condition: str, held) -> bool:
+        """Whether one goal condition holds among these facts: an asserted fact
+        is there, a denied one is not. The one reading of a goal, for the
+        planner and for anything that checks the world against one.
+
+        A condition may name a VARIABLE where it does not care which term
+        stands: `¬IDENTITY(?where, F7)` says no path holds the thing F7 -- that
+        it is gone everywhere, not only from the path it was at."""
+        denied = cls.denied(condition)
+        present = cls.held_among(denied if denied is not None else condition, held)
+        return not present if denied is not None else present
+
+    @classmethod
+    def held_among(cls, fact: str, held) -> bool:
+        """Whether this fact is among `held` -- or, where it names a variable,
+        whether any held fact fits it, a variable standing for one term and the
+        same variable for the same term."""
+        if "?" not in fact:
+            return fact in held
+        pattern = cls._fact_pattern(fact)
+        return pattern is not None and any(pattern.fullmatch(str(h)) for h in held)
+
+    @staticmethod
+    @functools.lru_cache(maxsize=1024)
+    def _fact_pattern(fact: str):
+        """A formula with variables, as a pattern over formulas."""
+        match = re.fullmatch(r"\s*([A-Za-z_][\w]*)\((.*)\)\s*", fact)
+        if match is None:
+            return None
+        predicate, body = match.group(1), match.group(2).strip()
+        parts, seen = [], {}
+        for arg in ([a.strip() for a in body.split(",")] if body else []):
+            if arg.startswith("?"):
+                if arg in seen:
+                    parts.append(f"(?P={seen[arg]})")
+                else:
+                    seen[arg] = f"v{len(seen)}"
+                    parts.append(f"(?P<{seen[arg]}>[^,()\\s]+)")
+            else:
+                parts.append(re.escape(arg))
+        return re.compile(re.escape(predicate) + r"\(" + r",\s*".join(parts) + r"\)")
 
     def _goal_satisfied(self, conditions: List[str], state: Dict[str, Any]) -> bool:
         """Whether every goal condition holds in this state.
@@ -1092,14 +1160,7 @@ class TemporalReasoningSystem:
         to be ASKED for one.
         """
         held = state.get('conditions', [])
-        for condition in conditions:
-            denied = self._negated(condition)
-            if denied is not None:
-                if denied in held:
-                    return False
-            elif condition not in held:
-                return False
-        return True
+        return all(self.condition_holds(condition, held) for condition in conditions)
     
     def _action_applicable(self, action: Dict[str, Any], state: Dict[str, Any]) -> bool:
         """Check if action can be applied in current state"""
@@ -1107,25 +1168,28 @@ class TemporalReasoningSystem:
         return all(pre in state.get('conditions', []) for pre in preconditions)
     
     def _apply_action(self, action: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
-        """Apply action effects to state"""
+        """Apply action effects to state. Deletes resolve before adds, exactly as
+        the rule language applies them (`successor_state`): an act that retracts
+        and re-asserts the same fact leaves it holding. Adds first would let the
+        delete undo the add, and moving a file onto itself would read as removing
+        it."""
         if 'conditions' not in state:
             state['conditions'] = []
-        
-        # Add effects
-        for effect in action.get('effects', []):
-            if effect not in state['conditions']:
-                state['conditions'].append(effect)
-        
-        # Remove deleted conditions
+
         for delete in action.get('deletes', []):
             if delete in state['conditions']:
                 state['conditions'].remove(delete)
-        
+
+        for effect in action.get('effects', []):
+            if effect not in state['conditions']:
+                state['conditions'].append(effect)
+
         return state
     
     def _measure_progress(self, goal_conditions: List[str], state: Dict[str, Any]) -> float:
         """Measure progress toward goal"""
-        met = sum(1 for cond in goal_conditions if cond in state.get('conditions', []))
+        held = state.get('conditions', [])
+        met = sum(1 for cond in goal_conditions if self.condition_holds(cond, held))
         return met / max(len(goal_conditions), 1)
     
     # ==================================================================================

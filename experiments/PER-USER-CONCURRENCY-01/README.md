@@ -7,6 +7,10 @@ substrate's own work is exempt from the per-user cap.
 - The coordinator caps users, never the substrate.
 - A finished task frees that user's slot.
 
+The probe queue is built with `persist: False` (since 2026-09-26). Before that, every run wrote its
+jobs to `unified.task_queue`, and the ones left pending or in progress would have been restored and run
+at the next boot.
+
 **Run** (from the TorinAI folder):
 
 ```

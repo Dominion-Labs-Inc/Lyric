@@ -1,0 +1,34 @@
+{
+  "experiment": "ACTOR-IDENTITY-01",
+  "run": "2026-09-20T20:27:25.703035+00:00",
+  "outcome": "PASS",
+  "exit_code": 0,
+  "checks_passed": 6,
+  "checks_total": 6,
+  "checks": [
+    {
+      "kind": "PASS",
+      "text": "a bound conversation's actor IS the identity (via actor_for) \u2014 _actor=wa-user-0b576955"
+    },
+    {
+      "kind": "PASS",
+      "text": "an unbound (in-process curriculum) conversation is the SUBSTRATE \u2192 shared mind \u2014 _actor=__substrate__"
+    },
+    {
+      "kind": "PASS",
+      "text": "binding the substrate actor id raises (no user writes the shared mind)"
+    },
+    {
+      "kind": "PASS",
+      "text": "the sentence was taught"
+    },
+    {
+      "kind": "PASS",
+      "text": "the fact is in the IDENTITY's scoped context \u2014 identity beliefs=['florble0b576955 isa a gadget']"
+    },
+    {
+      "kind": "PASS",
+      "text": "NOTHING is scoped under the bare session string (actor is the identity) \u2014 session beliefs=[]"
+    }
+  ]
+}

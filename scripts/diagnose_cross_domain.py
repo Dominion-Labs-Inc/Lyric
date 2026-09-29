@@ -163,6 +163,7 @@ async def test_analogical_reasoning(reasoner, source_id, target_id):
 
 async def test_memory_storage(result, source_id, target_id):
     """Test 5: Memory Storage"""
+    from core.memory import Origin
     print("\n" + "="*80)
     print("TEST 5: Memory Storage")
     print("="*80)
@@ -209,7 +210,7 @@ async def test_memory_storage(result, source_id, target_id):
             importance_score=result.confidence,
             confidence_score=result.confidence,
             tags=["cross_domain_test", source_id, target_id],
-            thinking_state=thinking_state
+            thinking_state=thinking_state, origin=Origin.own("diagnose_cross_domain")
         )
 
         if success:

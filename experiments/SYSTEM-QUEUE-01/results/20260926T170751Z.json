@@ -1,0 +1,160 @@
+{
+  "experiment": "SYSTEM-QUEUE-01",
+  "claim": "The queue is one authority: work is admitted, drawn and completed; discretionary work is deferred under pressure and user-directed work never is; a failed job is an error, not a result; a scheduled job fires; and the durable queue is untouched.",
+  "hypothesis": "A second queue, a deferred user task, a failure returned as a result, or a dead public method would each fail here.",
+  "started_at": "2026-09-26T17:07:51.903111+00:00",
+  "duration_seconds": 94.459,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/TorinAI/venv_torin/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/TorinAI",
+    "shadow_mode": null,
+    "git_commit": "20deb447498593391eca0286916b8f986c560a26",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "torinai_db",
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "dotenv:.env.postgres",
+        "database": "dotenv:.env.postgres",
+        "user": "dotenv:.env.postgres",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres"
+      }
+    },
+    "git_uncommitted_changes": 1079,
+    "database_verified": null,
+    "database_verified_reason": "no initialized connection in this process"
+  },
+  "summary": {
+    "checks": 14,
+    "passed": 13,
+    "failed": 1,
+    "outcome": "FAIL"
+  },
+  "metrics": [
+    {
+      "name": "queue_construction_sites",
+      "value": 1,
+      "unit": "count",
+      "note": "core/agents/autonomous/queue_authority.py:1016"
+    },
+    {
+      "name": "queue_public_methods",
+      "value": 35,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "queue_dead_public_methods",
+      "value": 8,
+      "unit": "count",
+      "note": "used nowhere in core, not even in their own file: try_get_task, has_active_task, get_task_status, prune_history, execute_batch, schedule_after, unschedule, reschedule"
+    },
+    {
+      "name": "queue_internal_only_public_methods",
+      "value": 4,
+      "unit": "count",
+      "note": "used only inside their own file: timeout_for, await_result, await_pending, scheduled_jobs"
+    },
+    {
+      "name": "queue_stub_public_methods",
+      "value": 0,
+      "unit": "count",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "queue: the coordinator holds the instance the accessor returns",
+      "passed": true,
+      "detail": "held=QueueAuthority same=True",
+      "at": "2026-09-26T17:09:18.664954+00:00"
+    },
+    {
+      "label": "queue: QueueAuthority is constructed in one place",
+      "passed": true,
+      "detail": "in its module: ['core/agents/autonomous/queue_authority.py:1016']; elsewhere: []",
+      "at": "2026-09-26T17:09:20.896514+00:00"
+    },
+    {
+      "label": "queue: no public method of QueueAuthority is dead (used nowhere in core)",
+      "passed": false,
+      "detail": "8/35 dead: ['try_get_task', 'has_active_task', 'get_task_status', 'prune_history', 'execute_batch', 'schedule_after', 'unschedule', 'reschedule']",
+      "at": "2026-09-26T17:09:25.147475+00:00"
+    },
+    {
+      "label": "queue: no public method of QueueAuthority is a stub body",
+      "passed": true,
+      "detail": "stubs: []",
+      "at": "2026-09-26T17:09:25.147523+00:00"
+    },
+    {
+      "label": "the probe queue never reaches the durable store",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-26T17:09:25.148089+00:00"
+    },
+    {
+      "label": "work is admitted and drawn in order",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-26T17:09:25.148242+00:00"
+    },
+    {
+      "label": "completion is recorded with its result",
+      "passed": true,
+      "detail": "{'task_id': 'isoq_1', 'status': 'completed', 'priority': 2, 'added_at': '2026-09-26T13:09:25.148123', 'result': {'done': True}}",
+      "at": "2026-09-26T17:09:25.148264+00:00"
+    },
+    {
+      "label": "the backlog reads soft pressure at the soft limit",
+      "passed": true,
+      "detail": "soft",
+      "at": "2026-09-26T17:09:25.148428+00:00"
+    },
+    {
+      "label": "discretionary autonomous work is deferred, a user's and urgent work are not",
+      "passed": true,
+      "detail": "deferred=False user=True urgent=True metrics=1",
+      "at": "2026-09-26T17:09:25.148572+00:00"
+    },
+    {
+      "label": "a job's value comes back",
+      "passed": true,
+      "detail": "42",
+      "at": "2026-09-26T17:09:25.148920+00:00"
+    },
+    {
+      "label": "a failed job is returned as an error, never as a result",
+      "passed": true,
+      "detail": "{'job_id': 'job_7408c26a8251', 'name': 'isoprobe failing job', 'result': None, 'error': 'isoprobe: this job fails'}",
+      "at": "2026-09-26T17:09:25.149117+00:00"
+    },
+    {
+      "label": "a one-shot job fires",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-26T17:09:26.149519+00:00"
+    },
+    {
+      "label": "statistics are flat scalars",
+      "passed": true,
+      "detail": "keys=['await_cancelled', 'await_completed', 'await_delivered', 'await_delivery_failed', 'await_failed', 'await_pending', 'await_submitted', 'bg_max_parallel']",
+      "at": "2026-09-26T17:09:26.149609+00:00"
+    },
+    {
+      "label": "the durable queue is untouched",
+      "passed": true,
+      "detail": "pending 0 -> 0",
+      "at": "2026-09-26T17:09:26.150506+00:00"
+    }
+  ],
+  "notes": [
+    "queue: 4 public method(s) are used only inside their own file (public in name only, not dead): timeout_for, await_result, await_pending, scheduled_jobs"
+  ]
+}

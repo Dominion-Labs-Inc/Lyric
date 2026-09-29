@@ -85,13 +85,31 @@ STRUCTURAL_PREFIXES = ("introduction_of_", "overview_of_", "review_of_",
                        "summary_of_", "conclusion_of_", "study_of_",
                        "the_", "a_", "an_")
 
-#: Generic tails an extractor appends that name a CATEGORY of the concept
-#: rather than a different concept: lithium_iron_phosphate_batteries is the
-#: same substance as lithium_iron_phosphate.
+#: Generic tails a DOCUMENT extractor appends that name a CATEGORY of the
+#: concept rather than a different concept: in a paper about batteries,
+#: `lithium_iron_phosphate_batteries` is the same substance as
+#: `lithium_iron_phosphate`.
 #: SINGULAR forms only. Plurals are collapsed before this list is applied, so
 #: listing both spellings would strip `safety_characteristics` down to `safety`
 #: while leaving `safety_characteristic` intact -- splitting the pair this is
 #: meant to merge.
+#:
+#: APPLIED ONLY TO DOCUMENT-DERIVED LABELS, and that scoping is the whole point.
+#: This used to run for EVERY label, which made it the global identity rule, and
+#: outside a document corpus it MERGES THINGS THAT ARE NOT THE SAME. Measured on
+#: WordNet -- a hand-built lexical resource, and the source that feeds almost
+#: everything in the store: 226 distinct terms and 691 of 83,093 facts (0.83%)
+#: had their identity truncated. `nervous system` -> `nervous`, `animal
+#: material` -> `animal`, `assault battery` -> `assault`, `acoustic device` ->
+#: `acoustic`. Not merely mis-linked: the concept was CREATED under the stub
+#: name, so `nervous_system` did not exist in the store at all, and `isa` is
+#: walked transitively, so everything under `animal material` became a kind of
+#: animal.
+#:
+#: `canonical_term`'s docstring named this exact failure long before it was
+#: measured -- "correct for a label scraped out of a paper and destructive
+#: anywhere else: `nervous system` -> `nervous`". The tails are not wrong; they
+#: were being asked a question only a document can answer.
 QUALIFIER_TAILS = ("_battery", "_material", "_system", "_device", "_technology")
 
 
@@ -281,12 +299,26 @@ def deinflect_verb(word: str) -> set:
     return out
 
 
-def canonical_label(label: str) -> str:
+def canonical_label(label: str, *, document_derived: bool = False,
+                    name: bool = False) -> str:
     """The identity-bearing form of a DOCUMENT-DERIVED label.
 
     `canonical_term` plus the collapsing that only makes sense for text pulled
-    out of a document: structural prefixes, trailing acronym restatements and
-    generic category tails.
+    out of a document: structural prefixes and trailing acronym restatements.
+
+    Both of those RESTATE the same thing; neither changes WHAT is named, so they
+    are safe on any label. `QUALIFIER_TAILS` is different -- it renames -- and is
+    applied only when the caller says this label came out of a document.
+
+    `document_derived` DEFAULTS TO FALSE, deliberately: a caller that has not
+    thought about where its label came from gets the reading that cannot destroy
+    meaning. An unmerged pair is recoverable; a wrongly merged one is not.
+
+    A NAME KEEPS ITS WORDS (`name`). A determiner and a plural are grammar in a
+    noun phrase and part of the name in a title: stripping and singularising made
+    the key "A major" the word `major`, "A Day in the Life" `day_in_the_life`,
+    and "The Beatles" `beatle`. A producer that knows a label is a name says so,
+    and the name is only lowercased and joined; everything else is read as before.
     """
     from core.semantics.literals import classify_literal
     literal = classify_literal(label)
@@ -295,6 +327,8 @@ def canonical_label(label: str) -> str:
 
     s = normalise(label).replace("-", "_")
     s = re.sub(r"_+", "_", s).strip("_")
+    if name:
+        return s
 
     for prefix in STRUCTURAL_PREFIXES:
         if s.startswith(prefix) and len(s) > len(prefix) + 2:
@@ -317,9 +351,11 @@ def canonical_label(label: str) -> str:
         parts[-1] = singularise(parts[-1])
     s = "_".join(p for p in parts if p)
 
-    for tail in QUALIFIER_TAILS:
-        if s.endswith(tail) and len(s) > len(tail) + 2:
-            s = s[: -len(tail)]
-            break
+    # RENAMES, so only a document may ask for it. See QUALIFIER_TAILS.
+    if document_derived:
+        for tail in QUALIFIER_TAILS:
+            if s.endswith(tail) and len(s) > len(tail) + 2:
+                s = s[: -len(tail)]
+                break
 
     return s.strip("_")

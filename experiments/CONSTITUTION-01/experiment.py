@@ -43,14 +43,24 @@ async def main():
     from core.agents.autonomous.autonomous_coordinator import (
         AutonomousCoordinator, Constitution, Verdict)
     from core.agents.autonomous.shared_types import GoalType, Priority
-    from core.execution.filesystem_domain import ensure_filesystem_domain, _encode
     from core.execution.operator_binding import get_binding_registry
+    from core.execution.tool_domain import sensed_fact, take_up_workspace
     from core.learning.rule_induction import Fact
     from core.learning.rule_store import get_rule_store
     from core.reasoning.intent_authority import get_intent_authority
-    from core.reasoning.temporal_reasoning import PlanningStatus
+    from core.reasoning.temporal_reasoning import PlanningStatus, TemporalReasoningSystem
 
-    DOMAIN = "fs_g2_real1"            # a domain whose operators the substrate LEARNED
+    holds = TemporalReasoningSystem.condition_holds
+    # THE PRECONDITION IS DECLARED, NOT ASSUMED. This plans over a MOVE_FILE
+    # operator the substrate LEARNED from its own acts. That was ambient state:
+    # when the store was wiped, this failed with a signature that reads like
+    # broken code rather than a missing prerequisite. `ensure_taught` teaches it
+    # from real executions if it is not there, and costs a store read if it is.
+    from experiments.fs_move_teach import DOMAIN, ensure_taught
+    if not await ensure_taught():
+        print("  [precondition] FAILED: no executable MOVE_FILE operator in "
+              f"{DOMAIN}; nothing below can plan", flush=True)
+        return 1
     root = Path(tempfile.mkdtemp(prefix="constitution-01-"))
     (root / "inbox").mkdir()
     (root / "archive").mkdir()
@@ -67,13 +77,18 @@ async def main():
           coord.constitution.reading is coord.reading)
 
     print("\n== B. It observes a real world and plans over what it LEARNED ==")
-    ensure_filesystem_domain(DOMAIN, str(root))
+    # The workspace is handed over; the substrate looks at it with its own
+    # perception, and what is there becomes the world it plans in.
+    take_up_workspace(DOMAIN, str(root))
     binding = get_binding_registry().get(DOMAIN, "MOVE_FILE")
-    world = binding.observe()
-    check("the binding observes the sandbox", bool(world),
+    world = get_binding_registry().observe_world(DOMAIN) or frozenset()
+    check("the sandbox is observed", bool(world),
           f"{sorted(str(f) for f in world)}")
-    file_c, dst_c = _encode("report.txt"), _encode("archive")
-    goal_fact = Fact("FILE_IN", (file_c, dst_c))
+    # "Archive the report", in perception's words: the report is a file in
+    # archive, and is no longer one in the inbox.
+    goal_conditions = [
+        sensed_fact("kind", "path", str(root / "archive" / "report.txt"), "file").to_formula(),
+        "¬" + sensed_fact("kind", "path", str(report), "file").to_formula()]
     rules = await get_rule_store().executable_rules(domain_id=DOMAIN)
     check("validated operators loaded from the live store", len(rules) > 0,
           f"{len(rules)} rule(s)")
@@ -83,8 +98,7 @@ async def main():
     # never recorded cannot be named, which is the point.
     await coord.planning.initialize()
     goal = await coord.planning.create_goal(
-        f"FILE_IN({file_c}, {dst_c})", Priority.MEDIUM,
-        state_conditions=[str(goal_fact)])
+        "archive the report", Priority.MEDIUM, state_conditions=goal_conditions)
     assert goal.goal_type is GoalType.STATE
     outcome = await coord.planning.plan_for_goal(
         goal.id, {"world_state": [f.to_formula() for f in world],
@@ -122,8 +136,9 @@ async def main():
           str((moved or {}).get("error"))[:80])
     check("the world really changed",
           (root / "archive" / "report.txt").exists() and not report.exists())
+    now = {str(f) for f in (get_binding_registry().observe_world(DOMAIN) or ())}
     check("the goal reasoning was after now holds in the observed world",
-          goal_fact in (binding.observe() or frozenset()))
+          all(holds(c, now) for c in goal_conditions))
 
     print("\n== E. An act reasoning did NOT prove → REPLAN ==")
     other = root / "archive" / "report.txt"
@@ -190,7 +205,7 @@ async def main():
           j.verdict is Verdict.BLOCK and j.law_number == 3, f"L{j.law_number}")
     j = await coord.constitution.judge(
         "tool", "write_file",
-        {"file_path": "core/agents/autonomous/runtime_governance.py", "content": "x"},
+        {"file_path": "core/agents/autonomous/threat_sense.py", "content": "x"},
         intent)
     check("writing the machinery that halts it is blocked",
           j.verdict is Verdict.BLOCK and j.law_number == 5, f"L{j.law_number}")

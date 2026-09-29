@@ -1,0 +1,46 @@
+{
+  "experiment": "BORROWED-KNOWLEDGE-01",
+  "run": "2026-09-20T20:27:25.940101+00:00",
+  "outcome": "PASS",
+  "exit_code": 0,
+  "checks_passed": 9,
+  "checks_total": 9,
+  "checks": [
+    {
+      "kind": "PASS",
+      "text": "each neighbor lends similarity \u00d7 its OWN satisfaction (one hop) \u2014 [{'domain': 'KNOWN_A', 'similarity': 0.8, 'neighbor_satisfaction': 0.9, 'lends': 0.72}, {'domain': 'KNOWN_B', 'similarity': 0.4, 'neighbor_satisfaction': 0.5, 'lends': 0.2}]"
+    },
+    {
+      "kind": "PASS",
+      "text": "borrowed is noisy-OR'd then CAPPED (0.776 \u2192 0.5) \u2014 borrowed=0.5"
+    },
+    {
+      "kind": "PASS",
+      "text": "unknown-on-its-own domain becomes operable VIA TRANSFER at a 0.5 bar \u2014 own=None borrowed=0.5 eff=0.5 bar=0.5 reason=satisfied-via-transfer"
+    },
+    {
+      "kind": "PASS",
+      "text": "own and borrowed reported separately (ignorance not hidden)"
+    },
+    {
+      "kind": "PASS",
+      "text": "no own knowledge + no related lender \u2192 stays unknown-domain \u2014 borrowed=0.0 reason=unknown-domain"
+    },
+    {
+      "kind": "PASS",
+      "text": "borrowed (capped 0.5) < high bar \u2192 NOT operable; must KNOW it for real \u2014 eff=0.5 bar=0.95 reason=below-bar-researching"
+    },
+    {
+      "kind": "PASS",
+      "text": "own 0.3 noisy-OR borrowed 0.5 \u2192 effective 0.65 (own reported as 0.3) \u2014 eff=0.65"
+    },
+    {
+      "kind": "PASS",
+      "text": "a sub-threshold relation is not 'confidently related' \u2192 borrows nothing \u2014 borrowed=0.0"
+    },
+    {
+      "kind": "PASS",
+      "text": "LIVE transfer runs without error over every real domain \u2014 honest: transfer scales with how coupled/developed the real domain graph is"
+    }
+  ]
+}

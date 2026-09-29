@@ -1,63 +1,34 @@
 #!/usr/bin/env python3
-"""A cursor over words, so a reading can be derived instead of hand-written.
+"""Where a sentence's pieces begin and end.
 
-The deterministic formalizer is six regular expressions. Every sentence form
-beyond them is a person writing a seventh, which is not the substrate learning
-to read -- it is the substrate being read TO. `Formalization.requires_model`
-exists to measure "substrate-native vs model-formalized ... as the
-deterministic extractor grows", and it never grew.
+`form_of` splits written text into the pieces a sentence is made of -- words,
+numbers and marks -- and loses nothing: capitals stay capitals, `3pm` keeps its
+3, an apostrophe inside a word stays in the word, and every mark is a piece of
+its own. It knows the writing system, not English: a piece is a run of letters
+and digits, joined through an apostrophe, a full stop or a hyphen that sits
+between two of them, and any other character that is not a space. What the
+pieces MEAN, and which of them English treats as one unit (whether `Dr` `.` is
+an abbreviation), is learned, not decided here. `surface_of` puts the pieces
+back as they were written, with one space wherever there was space.
 
-A READING IS A PROGRAM OVER A SEQUENCE, which is the thing `list_machine`
-established the substrate can derive from input/output pairs alone. So the same
-shape: a cursor, registers, flags, four instructions.
+THE CURSOR MACHINE THAT STOOD HERE IS GONE. `SentenceMachine` (a cursor, three
+registers and eight instructions) existed so a reading procedure could be
+derived from sentence/meaning pairs written into `derived_reader`. Readings are
+learned from taught sentences held in memory now (`derived_reader`), so the
+machine had no user left; it is kept in
+`archive/superseded_language_2026-09-27/sentence_machine.py`.
 
-    BIND_SUBJECT   subject := the word here, advance
-    BIND_OBJECT    object  := the word here, advance
-    MARK_NEGATIVE  polarity := denies, advance
-    SKIP           advance, touching no register
-    EMIT           assert the reading, with its polarity
-
-WHAT IS SUPPLIED, STATED PLAINLY. The machine holds a LEXICON -- five words
-marked as copulas or determiners -- and publishes `COPULA` / `DETERMINER` /
-`CONTENT` for the word under the cursor. That is data the world holds, like
-`SMALLER` in a tower puzzle or `FACTOR` in an arithmetic one, and it is the
-honest boundary of this block: word CLASS is given, and everything about which
-class matters where, in what order, and what to do about it is derived.
-
-Learning the classes themselves from distribution is a different and much
-larger problem, and pretending otherwise here would hide the one place a person
-is still writing the grammar down.
+STILL HERE UNTIL THEIR CALLERS SWITCH (`docs/research/SHAPES_CHANGE_MAP.md`,
+step 3): the fixed closed-class word lists the written reader and `genericity`
+consult, `tokenize` (lowercased words, for the conversation's written paths),
+and the yes/no verdict reader. They are English written into the code, and they
+go when every reading goes through learned patterns.
 """
 
 from __future__ import annotations
 
 import re
-from typing import Any, Callable, Dict, FrozenSet, List, Optional, Sequence
-
-from core.execution.operator_binding import OperatorBinding, get_binding_registry
-from core.learning.rule_induction import Fact
-
-INSTRUCTIONS = ("BIND_SUBJECT", "BIND_OBJECT", "EXTEND_SUBJECT",
-                "EXTEND_OBJECT", "MARK_NEGATIVE", "SKIP", "EMIT")
-
-#: Zero-arity observations a derived reading may branch on.
-FLAGS = ("DONE", "SUBJECT_UNSET", "OBJECT_UNSET", "COPULA", "DETERMINER",
-         "NEGATOR", "CONTENT", "HAS_COPULA", "COPULA_SEEN",
-         "CONTENT_AHEAD",
-         # supplied closed-class function words (finite, given -- like COPULA)
-         "PREPOSITION",
-         # TAUGHT open-class content classes of the head word, from the lexicon.
-         # A content word the substrate has been taught the class of publishes
-         # it here so the reading can tell a noun-phrase word (extend) from the
-         # verb that ends it (skip). Absent when the word has not been taught.
-         "HEAD_NOUN", "HEAD_ADJECTIVE", "HEAD_VERB",
-         # a taught VERB has already been passed -- the subject noun phrase is
-         # closed and what follows the verb is the object side.
-         "VERB_SEEN",
-         # the head sits inside a trailing prepositional phrase (a preposition
-         # has been passed since the object was set) -- an adjunct to drop, not
-         # more of the object.
-         "IN_ADJUNCT")
+from typing import List, NamedTuple, Optional, Tuple
 
 #: The whole supplied FUNCTION lexicon: closed classes, finite, given -- the same
 #: honest boundary the module names (word CLASS of a function word is supplied;
@@ -65,37 +36,79 @@ FLAGS = ("DONE", "SUBJECT_UNSET", "OBJECT_UNSET", "COPULA", "DETERMINER",
 #: rather than left to be mistaken for content the way "on"/"by" were.
 COPULAS = frozenset({"is", "are"})
 DETERMINERS = frozenset({"a", "an", "the"})
-NEGATORS = frozenset({"not"})
+NEGATORS = frozenset({"not", "never", "n't", "nor"})
 #: Prepositions that head a phrase. A preposition is either the relation itself
 #: ("the vault is IN the room") or the marker of an adjunct to drop ("sells
 #: shells BY the sea"); which one is decided by position (before vs. after the
 #: object), not by the word.
-PREPOSITIONS = frozenset({"in", "on", "at", "by", "over", "under", "with",
-                          "into", "onto", "from", "to", "of", "near",
-                          "beside", "inside", "through", "across", "above",
-                          "below", "between", "around"})
+PREPOSITIONS = frozenset({
+    "about", "above", "across", "after", "against", "along", "alongside",
+    "amid", "among", "amongst", "around", "as", "at", "atop", "before",
+    "behind", "below", "beneath", "beside", "besides", "between", "beyond",
+    "by", "concerning", "despite", "down", "during", "except", "for", "from",
+    "in", "inside", "into", "like", "near", "notwithstanding", "of", "off",
+    "on", "onto", "opposite", "out", "outside", "over", "past", "per",
+    "regarding", "round", "since", "through", "throughout", "till", "to",
+    "toward", "towards", "under", "underneath", "unlike", "until", "up",
+    "upon", "versus", "via", "with", "within", "without"})
 #: Personal pronouns -- a closed class that stands where a noun phrase stands,
 #: so a sentence may open with one instead of "the NOUN".
-PRONOUNS = frozenset({"i", "you", "he", "she", "it", "we", "they",
-                      "me", "him", "her", "us", "them"})
+PRONOUNS = frozenset({
+    # personal, both cases
+    "i", "you", "he", "she", "it", "we", "they",
+    "me", "him", "her", "us", "them",
+    # possessive, standing alone
+    "mine", "yours", "his", "hers", "its", "ours", "theirs",
+    # reflexive
+    "myself", "yourself", "himself", "herself", "itself",
+    "ourselves", "yourselves", "themselves",
+    # demonstrative and indefinite, standing where a noun phrase stands
+    "this", "that", "these", "those",
+    "someone", "somebody", "something", "anyone", "anybody", "anything",
+    "everyone", "everybody", "everything", "no one", "nobody", "nothing",
+    "one", "none", "each", "either", "neither", "both", "all", "some", "any"})
+#: Relative pronouns. One opens a CLAUSE INSIDE a noun phrase -- "the valve
+#: WHICH leaked is closed" -- which no three-register reading can carry. Declared
+#: here with the other closed classes because the machine had no name for them,
+#: so `which` and `who` were content words free to be extended into a subject:
+#: measured, the derived reading returned `valve_which_leaked_closed`.
+RELATIVES = frozenset({"that", "which", "who", "whom", "whose"})
+#: Quantifiers that are NOT the universals the reader represents (all/every/no).
+#: "SOME metals rust" quantifies existentially and "MOST birds fly" proportionally;
+#: neither is a claim about a named subject, and reading them as one produced
+#: `some_metal_rust` -- a claim about a thing called "some metal".
+QUANTIFIERS = frozenset({"some", "most", "many", "few", "several", "much"})
+#: Modals. The reader carries no modality, so "a pump CAN fail" is not the claim
+#: that a pump fails, and `valve_may_stick` asserted a relation nobody stated.
+MODALS = frozenset({"can", "could", "may", "might", "must", "shall", "should",
+                    "will", "would", "ought", "need", "dare"})
+#: Past/passive auxiliaries. "the letter WAS WRITTEN BY alice" reverses subject
+#: and object, and the reader has no voice, so it read `letter_was_written_by_alice`.
+PASSIVE_AUXILIARIES = frozenset({"was", "were", "been", "being", "be"})
 #: Coordinators. A sentence joined by one makes more than one claim; the reader
 #: that handles that emits more than one reading (not yet -- see multi-emit).
-CONJUNCTIONS = frozenset({"and", "or", "but"})
+CONJUNCTIONS = frozenset({"and", "or", "but", "nor", "yet", "so"})
+#: Subordinators open a clause that DEPENDS on another ("the tank overflowed
+#: BECAUSE the valve stuck"). They were absent, so the only conjunctions the
+#: machine knew were the three coordinating ones and every subordinate clause
+#: was content words.
+SUBORDINATORS = frozenset({
+    "because", "although", "though", "unless", "while", "whereas", "since",
+    "if", "when", "whenever", "where", "wherever", "after", "before", "until",
+    "once", "whether", "lest", "provided", "as"})
 #: Auxiliary/do-support verbs that OPEN a question ("DOES a kestrel eat mice?")
 #: or carry tense without being the relation. They are function words: the
 #: relation is the main verb that follows, so the auxiliary is skipped.
-AUXILIARIES = frozenset({"do", "does", "did"})
+AUXILIARIES = frozenset({"do", "does", "did",
+                         # HAVE carries perfect tense and was missing, so "the
+                         # pump HAS failed" had no auxiliary and `has` stood
+                         # where the relation goes.
+                         "have", "has", "had", "having"})
 #: Wh-openers that ask for the OBJECT of a relation ("WHAT does a kestrel eat?").
 #: The reading yields (subject, relation, <unknown>) -- the object is what is
 #: being asked, which is exactly the fact a knowledge-gap check looks for.
 WH_OBJECT_OPENERS = frozenset({"what", "which", "who", "whom"})
 
-AFFIRMS, DENIES = "affirms", "denies"
-
-#: Stands in a register that holds nothing yet, so writing to a register is one
-#: kind of change rather than two -- the same reason `list_machine` keeps A
-#: present and carries a validity flag beside it.
-EMPTY = "nothing"
 
 _WORD = re.compile(r"[A-Za-z][A-Za-z0-9_']*")
 
@@ -103,6 +116,7 @@ _WORD = re.compile(r"[A-Za-z][A-Za-z0-9_']*")
 def tokenize(sentence: str) -> List[str]:
     """Words, lowercased. No parsing: this decides where words END, nothing more."""
     return [w.lower().replace("'", "_") for w in _WORD.findall(sentence)]
+
 
 
 #: A bare VERDICT on what was just said -- affirming or denying a PRIOR claim,
@@ -162,182 +176,65 @@ def evaluative_verdict(sentence: str) -> Optional[bool]:
     return None
 
 
-def _taught_class(word: str) -> Optional[str]:
-    """The lexicon's TAUGHT class for a word, or None if it has never been
-    taught one. Open-class content only -- the lexicon holds NOUN/ADJECTIVE/VERB;
-    function words are the supplied frozensets above, not this. A missing or
-    unreadable lexicon is None, never an error: an untaught word simply carries
-    no content-class flag and a reading that needs one does not fire on it."""
-    try:
-        from core.semantics.lexicon import get_lexicon
-        return get_lexicon().class_of(word)
-    except Exception:
-        return None
+# ---- the pieces of a sentence ------------------------------------------------
+
+class Piece(NamedTuple):
+    """One piece of written text, and whether a space followed it."""
+
+    text: str
+    space_after: bool
 
 
-class SentenceMachine:
-    """A cursor over the words of one sentence, and two registers."""
+#: Joins two letters or digits into one piece when it sits BETWEEN them:
+#: `U.S`, `four-group`, `3.5`. At the edge of a word it is a mark of its own.
+_JOINERS = frozenset(".-")
 
-    def __init__(self, sentence: str):
-        self.words: List[str] = tokenize(sentence)
-        self.cursor = 0
-        self.subject, self.subject_set = EMPTY, False
-        self.object, self.object_set = EMPTY, False
-        #: Cursor position when the object was first bound, so a preposition
-        #: standing AFTER it can be seen as opening an adjunct rather than the
-        #: relation (which stands before the object).
-        self.object_at: Optional[int] = None
-        self.polarity = AFFIRMS
-        self.reading: Optional[Fact] = None
-        self.performed: List[str] = []
+#: BETWEEN two letters, an apostrophe begins a piece of its own, glued to the
+#: one before: `teacher's` is `teacher` + `'s`, `it's` is `it` + `'s`, `don't`
+#: is `don` + `'t`. What those pieces mean is learned, like any other word's;
+#: the writing only says where they join. At the edge of a word it is a mark.
+_APOSTROPHES = frozenset("'\u2019")
 
-    @staticmethod
-    def position(index: int) -> str:
-        return f"w{index}"
 
-    @property
-    def head(self) -> Optional[str]:
-        return self.words[self.cursor] if self.cursor < len(self.words) else None
-
-    # ---- the world -------------------------------------------------------
-
-    def observe(self) -> Optional[FrozenSet[Fact]]:
-        facts = {
-            Fact("AT", (self.position(self.cursor),)),
-            Fact("SUBJECT", (self.subject,)),
-            Fact("OBJECT", (self.object,)),
-            Fact("POLARITY", (self.polarity,)),
-        }
-        head = self.head
-        if head is None:
-            facts.add(Fact("DONE", ()))
+def form_of(text: str) -> Tuple[Piece, ...]:
+    """The pieces of `text`, in order, with nothing lost or changed."""
+    pieces: List[Piece] = []
+    text = str(text or "")
+    i, n = 0, len(text)
+    while i < n:
+        ch = text[i]
+        if ch.isspace():
+            i += 1
+            continue
+        start = i
+        joined = (ch in _APOSTROPHES and i > 0 and text[i - 1].isalnum()
+                  and i + 1 < n and text[i + 1].isalnum())
+        if ch.isalnum() or joined:
+            i += 1
+            while i < n:
+                if text[i].isalnum():
+                    i += 1
+                elif (text[i] in _JOINERS and i + 1 < n and text[i + 1].isalnum()
+                      and text[i - 1].isalnum()):
+                    i += 1
+                else:
+                    break
         else:
-            facts.add(Fact("WORD", (head,)))
-            facts.add(Fact("SUCC", (self.position(self.cursor),
-                                    self.position(self.cursor + 1))))
-            facts.add(Fact("COPULA" if head in COPULAS else
-                           "DETERMINER" if head in DETERMINERS else
-                           "NEGATOR" if head in NEGATORS else "CONTENT", ()))
-            # ADDITIVE supplementary classes. A preposition is ALSO left as
-            # CONTENT above so every reading derived before these flags existed
-            # is unchanged; these only ADD guards a newer reading may branch on.
-            if head in PREPOSITIONS:
-                facts.add(Fact("PREPOSITION", ()))
-            taught = _taught_class(head)
-            if taught == "NOUN":
-                facts.add(Fact("HEAD_NOUN", ()))
-            elif taught == "ADJECTIVE":
-                facts.add(Fact("HEAD_ADJECTIVE", ()))
-            elif taught == "VERB":
-                facts.add(Fact("HEAD_VERB", ()))
-        # A taught VERB already passed closes the subject noun phrase.
-        if any(_taught_class(w) == "VERB" for w in self.words[:self.cursor]):
-            facts.add(Fact("VERB_SEEN", ()))
-        # A preposition standing after the object opens an adjunct to drop.
-        if self.object_at is not None and any(
-                w in PREPOSITIONS for w in self.words[self.object_at + 1:self.cursor + 1]):
-            facts.add(Fact("IN_ADJUNCT", ()))
-        if any(w in COPULAS for w in self.words):
-            facts.add(Fact("HAS_COPULA", ()))
-        if any(w in COPULAS for w in self.words[:self.cursor]):
-            facts.add(Fact("COPULA_SEEN", ()))
-        # A content word still ahead of the head separates a relation verb from
-        # the object in an S-V-O sentence with no copula to mark the boundary.
-        ahead = self.words[self.cursor + 1:] if self.cursor < len(self.words) else []
-        if any(w not in COPULAS and w not in DETERMINERS and w not in NEGATORS
-               for w in ahead):
-            facts.add(Fact("CONTENT_AHEAD", ()))
-        if not self.subject_set:
-            facts.add(Fact("SUBJECT_UNSET", ()))
-        if not self.object_set:
-            facts.add(Fact("OBJECT_UNSET", ()))
-        if self.reading is not None:
-            facts.add(self.reading)
-        return frozenset(facts)
-
-    # ---- the instructions ------------------------------------------------
-
-    def bind_subject(self) -> bool:
-        if self.head is None:
-            return False
-        self.subject, self.subject_set = self.head, True
-        self.cursor += 1
-        return True
-
-    def bind_object(self) -> bool:
-        if self.head is None:
-            return False
-        self.object, self.object_set = self.head, True
-        if self.object_at is None:
-            self.object_at = self.cursor
-        self.cursor += 1
-        return True
-
-    def extend_subject(self) -> bool:
-        if self.head is None or not self.subject_set:
-            return False
-        self.subject = f"{self.subject}_{self.head}"
-        self.cursor += 1
-        return True
-
-    def extend_object(self) -> bool:
-        if self.head is None or not self.object_set:
-            return False
-        self.object = f"{self.object}_{self.head}"
-        self.cursor += 1
-        return True
-
-    def mark_negative(self) -> bool:
-        if self.head is None:
-            return False
-        self.polarity = DENIES
-        self.cursor += 1
-        return True
-
-    def skip(self) -> bool:
-        if self.head is None:
-            return False
-        self.cursor += 1
-        return True
-
-    def emit(self) -> bool:
-        if not (self.subject_set and self.object_set):
-            return False
-        self.reading = Fact("READING", (self.subject, self.object, self.polarity))
-        return True
-
-    def operations(self) -> Dict[str, Callable[[], bool]]:
-        return {"BIND_SUBJECT": self.bind_subject, "BIND_OBJECT": self.bind_object,
-                "EXTEND_SUBJECT": self.extend_subject,
-                "EXTEND_OBJECT": self.extend_object,
-                "MARK_NEGATIVE": self.mark_negative, "SKIP": self.skip,
-                "EMIT": self.emit}
-
-    def perform(self, action: Fact) -> bool:
-        operation = self.operations().get(action.predicate)
-        if operation is None:
-            return False
-        ran = operation()
-        if ran:
-            self.performed.append(action.predicate)
-        return ran
-
-    # ---- binding ---------------------------------------------------------
-
-    def binding(self, predicate: str) -> OperatorBinding:
-        return OperatorBinding(
-            predicate=predicate, tool_name=f"sentence_machine.{predicate.lower()}",
-            parameters=lambda args: {}, observe=self.observe,
-            description="a cursor over the words of a sentence, and two registers")
-
-    def register(self, domain_id: str) -> "SentenceMachine":
-        for predicate in INSTRUCTIONS:
-            get_binding_registry().register(domain_id, self.binding(predicate))
-        return self
+            i += 1
+        pieces.append(Piece(text[start:i], i < n and text[i].isspace()))
+    return tuple(pieces)
 
 
-__all__ = ["SentenceMachine", "INSTRUCTIONS", "FLAGS", "tokenize", "EMPTY",
-           "AFFIRMS", "DENIES", "COPULAS", "DETERMINERS", "NEGATORS",
+def surface_of(pieces) -> str:
+    """The text the pieces were split from: every piece as written, and one
+    space wherever there was space between two pieces."""
+    return "".join(p.text + (" " if p.space_after else "") for p in pieces).rstrip()
+
+
+
+__all__ = ["Piece", "form_of", "surface_of", "tokenize",
+           "COPULAS", "DETERMINERS", "NEGATORS", "SUBORDINATORS",
            "PREPOSITIONS", "PRONOUNS", "CONJUNCTIONS", "AUXILIARIES",
-           "WH_OBJECT_OPENERS", "_taught_class",
-           "VERDICT_AFFIRMS", "VERDICT_DENIES", "DEICTIC", "evaluative_verdict"]
+           "RELATIVES", "QUANTIFIERS", "MODALS", "PASSIVE_AUXILIARIES",
+           "WH_OBJECT_OPENERS", "VERDICT_AFFIRMS", "VERDICT_DENIES", "DEICTIC",
+           "evaluative_verdict"]

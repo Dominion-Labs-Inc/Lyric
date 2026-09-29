@@ -119,6 +119,12 @@ class MemoryFilter:
         "mapping_verdict": "mapping verdict",
         "cross_domain_mapping": "mapping verdict",
         "critical_failure": "critical failure",
+        # A TAUGHT PATTERN IS HOW ENGLISH SAYS SOMETHING, not a candidate for
+        # novelty. The reader reads it back every time a sentence is read; a
+        # filter that judged "This is my shoe." too short or too ordinary to
+        # keep would leave the substrate unable to read what it was taught.
+        # The tag is `derived_reader.PATTERN_TAG` (a test holds them equal).
+        "language_pattern": "taught language",
     }
 
     def exemption_for(

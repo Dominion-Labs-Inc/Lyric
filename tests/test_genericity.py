@@ -220,7 +220,29 @@ def test_an_instance_goal_is_not_skolemised():
 @pytest.mark.asyncio
 async def test_a_generic_goal_the_premises_do_not_entail_is_still_refused():
     """The skolem must not make everything provable: it asserts membership of
-    the kind and nothing more."""
+    the kind and nothing more.
+
+    THE KINDS ARE UNKNOWN ON PURPOSE, and that is what this test needs. It used
+    robin/bird/animal and whale/mammal/shark, chosen when the substrate knew
+    nothing and every SYMBOLIC request therefore went to the solver with only
+    the supplied premises. It has since been taught 308k concepts, so the bridge
+    answers both from what it HOLDS long before it grounds anything: "Is a whale
+    a fish?" came back `No: whale isa a fish` off an observed false edge in the
+    concept graph (route `[substrate, concept_graph, false]`), and "Is a robin an
+    animal?" off a held belief at 0.993. Correct answers, both -- and neither one
+    touched the skolem this test exists to constrain.
+
+    Worse, it then FAILED, because `verified` does not mean "proved true"; it
+    means the verdict is backed. A verified `No` set it True, and the assertion
+    read that as an unentailed claim having been proved. The substrate was right
+    and the oracle was wrong.
+
+    Kinds nothing has been taught about cannot be answered from knowledge, so
+    the request falls through to the grounding and the claim is tested where it
+    actually lives. `reason` is asserted too: if teaching ever reaches these
+    words, this fails saying the concept graph answered instead of the solver,
+    rather than quietly stopping testing anything.
+    """
     from core.reasoning.neural_bridge import (ReasoningMode, ReasoningRequest,
                                               get_neural_bridge)
 
@@ -229,15 +251,19 @@ async def test_a_generic_goal_the_premises_do_not_entail_is_still_refused():
     bridge.llm_service = None
 
     proved = await bridge.reason(ReasoningRequest(
-        query="Is a robin an animal?",
-        context=["A robin is a bird", "A bird is an animal"],
+        query="Is a zorb a blim?",
+        context=["A zorb is a quon", "A quon is a blim"],
         mode=ReasoningMode.SYMBOLIC))
+    assert (proved.metadata or {}).get("reason") == "substrate_verified", (
+        f"the solver was expected to answer, not knowledge: {proved.metadata}")
     assert (proved.metadata or {}).get("verified") is True
 
     refused = await bridge.reason(ReasoningRequest(
-        query="Is a whale a fish?",
-        context=["A whale is a mammal", "A shark is a fish"],
+        query="Is a zorb a blim?",
+        context=["A zorb is a quon", "A drax is a blim"],
         mode=ReasoningMode.SYMBOLIC))
+    assert (refused.metadata or {}).get("reason") == "substrate_refuted", (
+        f"the solver was expected to answer, not knowledge: {refused.metadata}")
     assert not (refused.metadata or {}).get("verified"), (
         "an unentailed generic claim was proved -- the arbitrary member is "
         "carrying assumptions it should not have")

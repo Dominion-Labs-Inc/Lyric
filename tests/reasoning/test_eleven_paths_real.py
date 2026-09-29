@@ -100,8 +100,16 @@ NEGATIVES = [
 # while the 15 canonical domains hold 0 concepts, so it honestly abstains --
 # reachability is what is asserted there, not a fabricated grounding.
 # (mode value, query, sentences, task_metadata, expected mode_used, expected term)
+# The symbolic goal is a COMPOUND atom (`lawn_wet`), not the bare `q` this case
+# used to carry. `PassthroughFormalizer` now refuses a bare identifier, because
+# a lone word parses as a propositional variable and every English word was
+# therefore being accepted as an already-formal statement -- measured: "why" was
+# formalized as the proposition `why`, ahead of the whole chain. The guard is
+# right and stays; the fixture was written before it and is rebuilt here to
+# state the goal the way someone writing formally actually would.
 MODE_CASES = [
-    ("symbolic",       "q", ["p", "p -> q"], {}, "symbolic", "q"),
+    ("symbolic",       "lawn_wet", ["rained -> lawn_wet", "rained"], {},
+     "symbolic", "Proved: lawn_wet"),
     ("neural",         "are ravens black?", [], {}, "neural", "ravens"),
     ("hybrid",         "is socrates mortal?",
      ["human(socrates)", "human(?x) -> mortal(?x)"], {}, "hybrid", "mortal"),
@@ -118,13 +126,12 @@ MODE_CASES = [
 async def run() -> int:
     from core.reasoning.neural_bridge import get_neural_bridge, ReasoningRequest
     from core.reasoning.reasoning_interfaces import ReasoningType
-    from core.model_policy import set_model_policy, ModelPolicy
 
-    # ALWAYS SUBSTRATE-FIRST. The whole test runs model-free: the substrate
-    # reasons first and the model is never a factor in whether it does. If any
-    # path only settled because a model answered, it fails here instead of
-    # passing quietly. Substrate-first does not depend on a model existing.
-    set_model_policy(ModelPolicy.STRICT_MODEL_FREE)
+    # ALWAYS SUBSTRATE-FIRST, and now model-free BY CONSTRUCTION. This used to
+    # call `set_model_policy(ModelPolicy.STRICT_MODEL_FREE)`; `core.model_policy`
+    # was REMOVED when the last model left core/, so there is no policy left to
+    # set and nothing to set it against. The assertions below are unchanged:
+    # a path that does not derive its own answer still fails here.
 
     bridge = get_neural_bridge()
     if hasattr(bridge, "initialize"):

@@ -1,0 +1,80 @@
+{
+  "experiment": "DOC-01 \u2014 What share of REAL documents can it perceive, and read?",
+  "writes_to_store": false,
+  "notes": [
+    "corpus: 4,400 real document(s) across 10 format(s) (every one found)",
+    "bound: the first 12 sentence(s) of each document are read, and that bound is stated rather than silent",
+    "PERCEIVED 4,392/4,400 (99.8%) \u00b7 refused 0 \u00b7 raised 8 \u00b7 620,139,068 word(s) in 711s",
+    "READ 21,218 claim(s) from 20,347 sentence(s) (1.043 per sentence)",
+    "34 document(s) opened but carried NO text \u2014 a scanned page has no text layer, and that is this number"
+  ],
+  "data": {
+    "corpus": {
+      "documents": 4400,
+      "seconds": 710.6
+    },
+    "perceive": {
+      "perceived": 4392,
+      "refused": 0,
+      "raised": 8,
+      "pct": 99.8
+    },
+    "by_format": {
+      ".json": 2177,
+      ".md": 1251,
+      ".log": 382,
+      ".txt": 359,
+      ".yml": 100,
+      ".pdf": 72,
+      ".docx": 26,
+      ".csv": 15,
+      ".yaml": 8,
+      ".xlsx": 2
+    },
+    "could_not_open": {
+      ".pdf": 8
+    },
+    "reasons": {
+      "PdfStreamError: Stream has ended unexpectedly": 8
+    },
+    "text": {
+      "words": 620139068,
+      "documents_with_no_text": 34
+    },
+    "read": {
+      "sentences": 20347,
+      "claims": 21218,
+      "claims_per_sentence": 1.043
+    }
+  },
+  "checks": [
+    {
+      "name": "no document made the reader raise",
+      "passed": false,
+      "detail": "8 raised: {'PdfStreamError: Stream has ended unexpectedly': 8}"
+    },
+    {
+      "name": "every perceived document reported its format",
+      "passed": true,
+      "detail": "4392 of 4392 carried a format"
+    },
+    {
+      "name": "PDFs are perceived",
+      "passed": true,
+      "detail": "72 PDF(s) opened"
+    },
+    {
+      "name": "text is actually extracted, not just opened",
+      "passed": true,
+      "detail": "620,139,068 word(s)"
+    },
+    {
+      "name": "a perceived document yields at least one claim",
+      "passed": true,
+      "detail": "4,186 of 4,392 document(s) yielded a claim"
+    }
+  ],
+  "passed": 4,
+  "total": 5,
+  "seconds": 0.0
+}

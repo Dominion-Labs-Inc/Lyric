@@ -883,38 +883,18 @@ class AnalogyDiscovery:
             if not self.db:
                 return False
 
-            await self.db.execute_query(
-                """
-                INSERT INTO unified.analogies (
-                    analogy_id, analogy_type, source_domain, target_domain,
-                    coherence, novelty, utility, score, description, insights,
-                    mappings, primary_mapping, created_at
-                )
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW())
-                ON CONFLICT (analogy_id) DO UPDATE SET
-                    coherence = EXCLUDED.coherence,
-                    novelty = EXCLUDED.novelty,
-                    utility = EXCLUDED.utility,
-                    score = EXCLUDED.score,
-                    insights = EXCLUDED.insights,
-                    mappings = EXCLUDED.mappings
-                """,
-                params=(
-                    analogy.analogy_id,
-                    getattr(analogy.analogy_type, "value", str(analogy.analogy_type)),
-                    analogy.source_domain,
-                    analogy.target_domain,
-                    float(analogy.coherence),
-                    float(analogy.novelty),
-                    float(analogy.utility),
-                    float(analogy.score),
-                    analogy.description,
-                    _json.dumps(analogy.insights or []),
-                    _json.dumps([str(m) for m in (analogy.mappings or [])]),
-                    _json.dumps(str(analogy.primary_mapping)) if analogy.primary_mapping else None,
-                ),
-                commit=True,
-            )
+            from core.agents.memory_agent import memory_agent
+            await memory_agent().hold_analogy(
+                analogy_id=analogy.analogy_id,
+                analogy_type=getattr(analogy.analogy_type, "value", str(analogy.analogy_type)),
+                source_domain=analogy.source_domain, target_domain=analogy.target_domain,
+                coherence=float(analogy.coherence), novelty=float(analogy.novelty),
+                utility=float(analogy.utility), score=float(analogy.score),
+                description=analogy.description,
+                insights=_json.dumps(analogy.insights or []),
+                mappings=_json.dumps([str(m) for m in (analogy.mappings or [])]),
+                primary_mapping=(_json.dumps(str(analogy.primary_mapping))
+                                 if analogy.primary_mapping else None))
 
             # Persist each concept mapping to unified.concept_mappings too. The
             # analogy row keeps a JSON summary, but the mappings are first-class
@@ -954,27 +934,13 @@ class AnalogyDiscovery:
             tgt = getattr(mapping.target, "name", str(mapping.target))
             mapping_id = f"{src}:{tgt}"
             mtype = getattr(mapping.mapping_type, "value", str(mapping.mapping_type))
-            await self.db.execute_query(
-                """
-                INSERT INTO unified.concept_mappings (
-                    mapping_id, source_concept, target_concept, mapping_type,
-                    structural_similarity, functional_similarity, confidence,
-                    created_at
-                )
-                VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
-                ON CONFLICT (mapping_id) DO UPDATE SET
-                    confidence = EXCLUDED.confidence,
-                    structural_similarity = EXCLUDED.structural_similarity,
-                    functional_similarity = EXCLUDED.functional_similarity
-                """,
-                params=(
-                    mapping_id, src, tgt, mtype,
-                    float(mapping.structural_similarity),
-                    float(mapping.functional_similarity),
-                    float(mapping.confidence),
-                ),
-                commit=True,
-            )
+            from core.agents.memory_agent import memory_agent
+            await memory_agent().hold_concept_mapping(
+                mapping_id=mapping_id, source_concept=src, target_concept=tgt,
+                mapping_type=mtype,
+                structural_similarity=float(mapping.structural_similarity),
+                functional_similarity=float(mapping.functional_similarity),
+                confidence=float(mapping.confidence))
 
             return True
 

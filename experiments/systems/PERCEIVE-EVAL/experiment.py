@@ -152,8 +152,9 @@ async def main() -> int:
             tests[base_cat] = {"pos": test_pos, "neg": test_neg}
 
         async def ask(subject, base_cat):
+            from core.memory import Origin
             cat = f"{base_cat}{RUN}"
-            res = await coord.reason_about(f"is {subject} a {cat}?")
+            res = await coord.reason_about(f"is {subject} a {cat}?", origin=Origin.own("PERCEIVE-EVAL"))
             md = dict(getattr(res, "metadata", {}) or {})
             model_calls[0] += int(md.get("model_calls") or 0)
             return _yes_no(getattr(res, "answer", ""))

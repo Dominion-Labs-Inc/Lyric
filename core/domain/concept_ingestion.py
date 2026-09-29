@@ -68,6 +68,21 @@ class EvidenceSourceType(Enum):
     MEMORY_RETROSPECTIVE = "memory_retrospective"
 
 
+#: Sources whose labels were SCRAPED OUT OF A DOCUMENT, and so carry an
+#: extractor's habits rather than a term's own spelling: a trailing category
+#: word (`cathode_material` for the cathode), a structural prefix, an acronym
+#: restated after the phrase. `canonical_label` may collapse those only for
+#: these sources -- see QUALIFIER_TAILS in core.semantics.lexical_normalization
+#: for what applying it to everything cost.
+#:
+#: A curated lexical resource is NOT in here. WordNet and ConceptNet arrive as
+#: IMPORTED_KNOWLEDGE and their terms are spelled by lexicographers: `nervous
+#: system` is the name of a thing, not `nervous` with a category word stuck on.
+_DOCUMENT_SOURCES = frozenset({
+    EvidenceSourceType.RESEARCH_FINDING,
+})
+
+
 #: Sources that are fresh observations. Anything outside this set is derivative
 #: and cannot introduce root evidence of its own.
 _ROOT_SOURCES = frozenset({
@@ -180,6 +195,9 @@ class ConceptCandidate:
     #: claim in its own right and used to be unrepresentable -- a negated
     #: reading had nowhere to go but an episode.
     relationships: Tuple[Tuple[str, ...], ...] = ()
+    #: The label is a NAME -- a title, a key, a person -- and keeps its words
+    #: (`canonical_label(name=True)`). Said by the producer, which knows.
+    is_name: bool = False
 
 
 @dataclass(frozen=True)
@@ -336,6 +354,9 @@ class ConceptExtractor:
                 for r in (item.get("relationships") or [])
                 if isinstance(r, (list, tuple)) and len(r) >= 2
             )
+            # A NAME says so, and says so in the concept it becomes, so an edge
+            # that names it later finds it spelled as a name (`_resolve_target`).
+            is_name = item.get("is_name") is True
             out.append(ConceptCandidate(
                 label=label,
                 concept_kind=kind,
@@ -344,8 +365,10 @@ class ConceptExtractor:
                 extraction_confidence=float(item.get("confidence", 1.0)),
                 extractor=self.name,
                 description=str(item.get("description") or ""),
-                attributes=dict(item.get("attributes") or {}),
+                attributes={**dict(item.get("attributes") or {}),
+                            **({"is_name": True} if is_name else {})},
                 relationships=rels,
+                is_name=is_name,
             ))
         return out
 
@@ -416,14 +439,6 @@ class ConceptExtractor:
 
     # ---- form: statements -----------------------------------------------
 
-    #: Sentence shapes the substrate can read WITHOUT a model. Delegated to
-    #: DeterministicExtractor, which is the existing owner of "what does this
-    #: English sentence assert" -- it already shares core.semantics with concept
-    #: identity, so `men` and `man` cannot mean one thing to the logic and
-    #: another to the concept store. A second parser here would be a second
-    #: answer to the same question.
-    _STATEMENT_RELATIONS = {(False, "is_a"), (True, "is_not_a")}
-
     def _read_statements(self, raw, envelope: EvidenceEnvelope) -> List[ConceptCandidate]:
         """Assertions in prose, parsed deterministically or DECLINED.
 
@@ -436,17 +451,26 @@ class ConceptExtractor:
         This is the same bargain the formalizer chain makes: cover what can be
         covered deterministically, name the remainder, and let the covered share
         grow by adding patterns rather than by adding inference.
+
+        READ BY THE ONE READER. Each sentence is read through the constructions
+        the substrate was taught (`derived_reader`), the same reading the
+        teaching path and the conversation make, and its meaning is already in
+        the domain system's link kinds, so nothing types it again; a denial is
+        polarity. Only what a telling states outright between named things is an
+        edge: a fact still naming an unknown has nothing here to name it, and a
+        conditional is a rule, held by the rule path, not an edge between two
+        properties, so it is counted as declined here.
         """
-        from core.reasoning.neural_bridge import DeterministicExtractor
+        from core.semantics.derived_reader import stated
+        from core.semantics.relation_types import SemanticRelation
 
         domain = str((envelope.structured_data or {}).get("domain") or "").strip()
         if not domain:
             self.last_failure = "statements form carries no domain"
             return []
 
-        parser = DeterministicExtractor()
         proposals: Dict[str, ConceptType] = {}
-        edges: Dict[str, List[Tuple[str, str]]] = {}
+        edges: Dict[str, List[Tuple[str, str, str]]] = {}
         declined = 0
 
         def note(label: str, kind: ConceptType) -> Optional[str]:
@@ -457,37 +481,24 @@ class ConceptExtractor:
             return label
 
         for sentence in raw:
-            parsed = parser._parse_statement(str(sentence))
-            if not parsed:
+            claims = stated(str(sentence))
+            if not claims:
                 declined += 1
                 continue
-
-            if parsed["kind"] == "fact":
-                subject = note(parsed["subject"], ConceptType.ENTITY)
-                prop = note(parsed["prop"], ConceptType.PROPERTY)
-                relation = "is_not_a" if parsed["negated"] else "is_a"
-            elif parsed["kind"] == "universal":
-                subject = note(parsed["p"], ConceptType.ENTITY)
-                prop = note(parsed["q"], ConceptType.PROPERTY)
-                relation = "is_not_a" if parsed["negated"] else "is_a"
-            elif parsed["kind"] == "conditional":
-                # The IMPLICATION is between the properties, not the subject:
-                # "if x is p then x is q" says p entails q for anything, which
-                # is the part that transfers.
-                subject = note(parsed["antecedent"]["prop"], ConceptType.PROPERTY)
-                prop = note(parsed["consequent"]["prop"], ConceptType.PROPERTY)
-                relation = "implies"
-            else:
-                declined += 1
-                continue
-
-            if subject and prop:
-                edges.setdefault(subject, []).append((relation, prop))
+            for fact in claims:
+                kind = SemanticRelation(fact.relation)
+                subject = note(fact.subject, ConceptType.ENTITY)
+                target = note(fact.obj, ConceptType.PROPERTY
+                              if kind is SemanticRelation.HAS_PROPERTY
+                              else ConceptType.ENTITY)
+                if subject and target:
+                    edges.setdefault(subject, []).append(
+                        (kind.value, target, "positive" if fact.positive else "negative"))
 
         if not proposals:
             self.last_failure = (
-                f"none of {declined} statement(s) matched a shape the substrate "
-                f"can read without a model")
+                f"none of {declined} statement(s) read through what the substrate "
+                f"was taught")
             return []
         if declined:
             logger.info(
@@ -699,16 +710,6 @@ class ConceptResolver:
                             "summary_of_", "conclusion_of_", "study_of_",
                             "the_", "a_", "an_")
 
-    #: Generic tails an extractor appends that name a CATEGORY of the concept
-    #: rather than a different concept: lithium_iron_phosphate_batteries is the
-    #: same substance as lithium_iron_phosphate.
-    #: SINGULAR forms only. Plurals are collapsed before this list is applied,
-    #: so listing both spellings would strip `safety_characteristics` down to
-    #: `safety` while leaving `safety_characteristic` intact -- splitting the
-    #: pair this is meant to merge.
-    _QUALIFIER_TAILS = ("_battery", "_material", "_system", "_device",
-                        "_technology")
-
     #: Fields of study ending in -ics. These are MASS NOUNS, not plurals, so the
     #: general -s rule destroys them: `physics` became `physic`, and physics
     #: concepts attached to a domain that does not exist.
@@ -736,23 +737,33 @@ class ConceptResolver:
     def _singularise(self, word: str) -> str:
         return _lexical.singularise(word)
 
-    def canonical_label(self, label: str) -> str:
+    def canonical_label(self, label: str, *,
+                        document_derived: bool = False, name: bool = False) -> str:
         """The identity-bearing form of a label.
 
         Delegates to core.semantics.lexical_normalization so concept identity
         and the prose-to-logic formalizer cannot disagree about whether `men`
         and `man` are the same word.
-        """
-        return _lexical.canonical_label(label)
 
-    def reject_reason(self, candidate: ConceptCandidate) -> Optional[str]:
+        `document_derived` says the label was scraped out of a document, which
+        licenses collapsing an extractor's category tail (`cathode_material` ->
+        `cathode`). It defaults to False because that collapsing RENAMES, and a
+        caller that has not said where its label came from must not get it.
+        `name` says the label is a name, which keeps its words.
+        """
+        return _lexical.canonical_label(label, document_derived=document_derived, name=name)
+
+    def reject_reason(self, candidate: ConceptCandidate, *,
+                      document_derived: bool = False) -> Optional[str]:
         # A recognised number or date is a typed literal, not a mis-read word:
         # the "too short", "placeholder word" and "bare number" tests are about
         # words and do not apply to it. It still needs a domain, checked below.
         from core.semantics.literals import classify_literal
         is_literal = (candidate.concept_kind in (ConceptType.QUANTITY, ConceptType.TEMPORAL)
                       or classify_literal(candidate.label) is not None)
-        norm = self.canonical_label(candidate.label)
+        norm = self.canonical_label(candidate.label,
+                                    document_derived=document_derived,
+                                    name=candidate.is_name)
         if not is_literal:
             if len(norm) < self.MIN_LABEL_LEN:
                 return f"label {candidate.label!r} too short after normalisation"
@@ -766,10 +777,14 @@ class ConceptResolver:
             return f"{norm!r} has no domain; a concept must belong somewhere"
         return None
 
-    def resolve(self, candidate: ConceptCandidate) -> ConceptIdentity:
+    def resolve(self, candidate: ConceptCandidate, *,
+                document_derived: bool = False) -> ConceptIdentity:
         """Structural identity only — no store lookup. See resolve_identity."""
-        name = self.canonical_label(candidate.label)
-        domain = self.canonical_label(candidate.domain_candidates[0])
+        name = self.canonical_label(candidate.label,
+                                    document_derived=document_derived,
+                                    name=candidate.is_name)
+        domain = self.canonical_label(candidate.domain_candidates[0],
+                                      document_derived=document_derived)
         return ConceptIdentity(
             concept_id=f"{domain}:{name}",
             name=name,
@@ -836,10 +851,19 @@ class ConceptIngestionService:
         # The concept upsert maintains the vector columns the domain authority owns.
         from core.integration.universal_domain_master import get_universal_domain_master
         await get_universal_domain_master().ensure_concept_schema()
+        # WHICH EDGES A GIVEN PIECE OF EVIDENCE PUT IN THE GRAPH, looked up on every
+        # admission (the ingress's already-held test). The primary key leads with
+        # the source concept, so without this each lookup read the whole table.
+        if not getattr(ConceptIngestionService, "_evidence_index_ready", False):
+            await db.execute_query(
+                "CREATE INDEX IF NOT EXISTS ix_cr_evidence "
+                "ON unified.concept_relations (evidence_id)", (), commit=True)
+            ConceptIngestionService._evidence_index_ready = True
 
     # ---- identity -------------------------------------------------------
 
-    async def resolve_identity(self, candidate: ConceptCandidate) -> ConceptIdentity:
+    async def resolve_identity(self, candidate: ConceptCandidate, *,
+                               document_derived: bool = False) -> ConceptIdentity:
         """Resolve a candidate to a canonical identity, consulting the store.
 
         Structural normalisation alone cannot stop identity drift, because the
@@ -861,7 +885,8 @@ class ConceptIngestionService:
         electrolyte observed by two extractions, and merging them is what lets
         evidence accumulate on a single node instead of splitting.
         """
-        name = self.resolver.canonical_label(candidate.label)
+        name = self.resolver.canonical_label(
+            candidate.label, document_derived=document_derived, name=candidate.is_name)
 
         rows = await self.db().execute_query(
             "SELECT concept_id FROM unified.concept_aliases WHERE alias = $1",
@@ -892,7 +917,9 @@ class ConceptIngestionService:
         #    lithium_iron_phosphate) is NOT resolvable this way and is left
         #    split until an explicit alias source supplies it — an unmerged
         #    pair is recoverable, a wrongly merged one is not.
-        proposed = self.resolver.canonical_label(candidate.domain_candidates[0]) \
+        proposed = self.resolver.canonical_label(
+            candidate.domain_candidates[0],
+            document_derived=document_derived) \
             if candidate.domain_candidates else None
         acronym = await self._acronym_match(name, candidate.concept_kind, proposed)
         if acronym:
@@ -902,7 +929,8 @@ class ConceptIngestionService:
                 domain=acronym.split(":", 1)[0], concept_kind=candidate.concept_kind,
             )
 
-        domain = await self._resolve_domain(candidate)
+        domain = await self._resolve_domain(
+            candidate, document_derived=document_derived)
         identity = ConceptIdentity(
             concept_id=f"{domain}:{name}", name=name, domain=domain,
             concept_kind=candidate.concept_kind,
@@ -1060,18 +1088,13 @@ class ConceptIngestionService:
             # `name` is the expansion: is its acronym a concept?
             rows = await self.db().execute_query(
                 "SELECT concept_id FROM unified.concepts WHERE name = $1 "
-                "ORDER BY root_evidence_count DESC, created_at ASC LIMIT 1",
+                "ORDER BY root_evidence_count DESC, created_at ASC "
+                f"LIMIT {self.ACRONYM_CANDIDATES}",
                 (acr,), fetch_all=True)
-            if rows:
-                hit = rows[0]["concept_id"]
-                reason = await self._corroborates(name, hit, kind, proposed_domain)
-                if reason:
-                    logger.info("acronym identity %r -> %s (%s)", name, hit, reason)
-                    return hit
-                logger.info(
-                    "acronym %r matches %s on initials alone; REFUSED -- "
-                    "initials are a proposal, not evidence of sameness",
-                    name, hit)
+            hit = await self._only_corroborating(
+                name, [r["concept_id"] for r in rows or ()], kind, proposed_domain)
+            if hit:
+                return hit
 
         # `name` is the acronym: is there a concept whose initials spell it?
         # Computed in SQL so every row participates, not just the top slice.
@@ -1082,24 +1105,68 @@ class ConceptIngestionService:
                      AND (SELECT string_agg(left(part, 1), '' ORDER BY ord)
                           FROM unnest(string_to_array(name, '_'))
                                WITH ORDINALITY AS t(part, ord)) = $1
-                   ORDER BY root_evidence_count DESC, created_at ASC LIMIT 1""",
+                   ORDER BY root_evidence_count DESC, created_at ASC
+                   LIMIT """ + str(self.ACRONYM_CANDIDATES),
                 (name,), fetch_all=True)
-            if rows:
-                hit = rows[0]["concept_id"]
-                reason = await self._corroborates(name, hit, kind, proposed_domain)
-                if reason:
-                    logger.info("acronym identity %r -> %s (%s)", name, hit, reason)
-                    return hit
-                logger.info(
-                    "acronym %r matches %s on initials alone; REFUSED -- a "
-                    "missed match is UNKNOWN and recoverable, a false merge "
-                    "fuses two referents forever", name, hit)
+            hit = await self._only_corroborating(
+                name, [r["concept_id"] for r in rows or ()], kind, proposed_domain)
+            if hit:
+                return hit
 
         return None
 
-    async def _resolve_domain(self, candidate: ConceptCandidate) -> str:
+    #: Initials-matching concepts to weigh before deciding. It was 1 -- the
+    #: best-supported row -- and corroboration was tested against that row
+    #: alone, so a better-supported HOMOGRAPH IN ANOTHER DOMAIN masked a
+    #: correctly corroborating expansion and the acronym resolved to nothing.
+    #: Measured: `ysz` matched `general:yamaha_scorpio_z` (also y-s-z, learned
+    #: from the taught corpus) and never saw `yttria_stabilized_zirconia`
+    #: sitting in the proposed domain. Bounded rather than unbounded because a
+    #: long tail of initials collisions is ambiguity, not a longer search.
+    ACRONYM_CANDIDATES = 8
+
+    async def _only_corroborating(self, name: str, candidates: List[str],
+                                  kind: Optional[ConceptType],
+                                  proposed_domain: Optional[str]) -> Optional[str]:
+        """The one candidate corroboration supports, or None.
+
+        NOT the best-supported candidate that happens to corroborate: every
+        candidate is weighed, and if more than one corroborates the acronym is
+        AMBIGUOUS and nothing is returned. That keeps the original discipline
+        exactly -- "a missed match is UNKNOWN and recoverable, a false merge
+        fuses two referents forever" -- while no longer losing a real match to
+        a homograph that merely had more evidence behind it.
+        """
+        supported = []
+        for candidate_id in candidates:
+            reason = await self._corroborates(name, candidate_id, kind,
+                                              proposed_domain)
+            if reason:
+                supported.append((candidate_id, reason))
+
+        if len(supported) == 1:
+            candidate_id, reason = supported[0]
+            logger.info("acronym identity %r -> %s (%s)", name, candidate_id, reason)
+            return candidate_id
+        if len(supported) > 1:
+            logger.info(
+                "acronym %r corroborates with %d concepts (%s); REFUSED as "
+                "AMBIGUOUS -- more than one referent fits, and picking by "
+                "evidence count would record a coin toss as identity",
+                name, len(supported), ", ".join(c for c, _ in supported))
+        elif candidates:
+            logger.info(
+                "acronym %r matches %s on initials alone; REFUSED -- initials "
+                "are a proposal, not evidence of sameness",
+                name, ", ".join(candidates[:4]))
+        return None
+
+    async def _resolve_domain(self, candidate: ConceptCandidate, *,
+                              document_derived: bool = False) -> str:
         """Prefer a domain the registry already knows over an invented one."""
-        proposals = [self.resolver.canonical_label(d) for d in candidate.domain_candidates]
+        proposals = [self.resolver.canonical_label(
+                         d, document_derived=document_derived)
+                     for d in candidate.domain_candidates]
         proposals = [d for d in proposals if d]
         if not proposals:
             return "general"
@@ -1125,7 +1192,9 @@ class ConceptIngestionService:
         )
         return proposals[0]
 
-    async def _resolve_target(self, surface: str) -> Optional[str]:
+    async def _resolve_target(self, surface: str, *,
+                              document_derived: bool = False,
+                              name: bool = False) -> Optional[str]:
         """Resolve a relation target to a canonical concept_id, or None.
 
         Relation targets went into `unified.concepts.relationships` as raw prose
@@ -1141,8 +1210,36 @@ class ConceptIngestionService:
         do not share endpoints cannot correspond.
 
         None is a real answer — the target names something not yet learned.
+
+        A NAME IS LOOKED FOR FIRST, spelled as a name: an edge carries only its
+        target's surface, so `in_key a_major` would otherwise reach `major`. It
+        finds a concept that was admitted AS a name (`is_name` in its
+        attributes), never an ordinary word that happens to be spelled alike.
+        Only where the two spellings differ -- a leading determiner, a plural --
+        is there anything to look for; elsewhere the name is its canonical form.
+
+        A TARGET KNOWN TO BE A NAME (`name`, declared in the same evidence) is
+        that name or nothing yet: found as the name, or left waiting for its
+        concept, which attaches it when it is written. Falling back to the word
+        attached `in_key a_major` to `major` whenever the edge was recorded
+        before the key's own concept existed.
         """
-        name = self.resolver.canonical_label(surface)
+        as_name = self.resolver.canonical_label(surface, name=True)
+        if name:
+            rows = await self.db().execute_query(
+                "SELECT concept_id FROM unified.concepts WHERE name = $1 "
+                "AND attributes->>'is_name' = 'true' "
+                "ORDER BY root_evidence_count DESC LIMIT 1", (as_name,), fetch_all=True)
+            return rows[0]["concept_id"] if rows else None
+        name = self.resolver.canonical_label(
+            surface, document_derived=document_derived)
+        if as_name and as_name != name:
+            rows = await self.db().execute_query(
+                "SELECT concept_id FROM unified.concepts WHERE name = $1 "
+                "AND attributes->>'is_name' = 'true' "
+                "ORDER BY root_evidence_count DESC LIMIT 1", (as_name,), fetch_all=True)
+            if rows:
+                return rows[0]["concept_id"]
         if not name:
             return None
 
@@ -1165,10 +1262,12 @@ class ConceptIngestionService:
         identity: ConceptIdentity,
         candidate: ConceptCandidate,
         envelope: EvidenceEnvelope,
+        names: frozenset = frozenset(),
     ) -> List[Tuple[str, str, Optional[str], bool, Optional[float]]]:
         """Persist edges with canonical endpoints where they resolve, and return
         the (subject, relation, object, positive, quality) tuples admitted, so
-        the caller can fan them out to the lexicon and beliefs.
+        the caller can fan them out to the lexicon and beliefs. `names` are the
+        labels the evidence declares as names; an edge to one resolves as it.
 
         `quality` is the producer's support for THAT EDGE, or None where it
         stated none. It was not carried at all, so every edge from one
@@ -1178,6 +1277,7 @@ class ConceptIngestionService:
         forms every other producer emits are unchanged and yield None, which
         means "the producer stated no per-edge support", never "no support".
         """
+        from core.agents.memory_agent import memory_agent
         admitted: List[Tuple[str, str, Optional[str], bool, Optional[float]]] = []
         for edge in candidate.relationships:
             relation, surface = edge[0], edge[1]
@@ -1188,20 +1288,15 @@ class ConceptIngestionService:
                 logger.warning("edge %s--%s->%s has unknown polarity %r; refusing",
                                identity.concept_id, relation, surface, polarity)
                 continue
-            target = await self._resolve_target(surface)
-            await self.db().execute_query(
-                """INSERT INTO unified.concept_relations
-                       (source_concept_id, relation, target_concept_id,
-                        target_surface, evidence_id, extractor, polarity)
-                   VALUES ($1,$2,$3,$4,$5,$6,$7)
-                   ON CONFLICT (source_concept_id, relation, target_surface,
-                                evidence_id, polarity)
-                   DO UPDATE SET target_concept_id = COALESCE(
-                       EXCLUDED.target_concept_id, unified.concept_relations.target_concept_id)""",
-                (identity.concept_id, str(relation)[:128], target,
-                 str(surface), envelope.evidence_id, candidate.extractor, polarity),
-                commit=True,
-            )
+            target = await self._resolve_target(
+                surface,
+                document_derived=envelope.source_type in _DOCUMENT_SOURCES,
+                name=surface in names)
+            await memory_agent().link_concepts(
+                source_concept_id=identity.concept_id, relation=str(relation)[:128],
+                target_concept_id=target, target_surface=str(surface),
+                evidence_id=envelope.evidence_id, extractor=candidate.extractor,
+                polarity=polarity)
             quality: Optional[float] = None
             if len(edge) > 3 and edge[3] is not None:
                 try:
@@ -1276,13 +1371,12 @@ class ConceptIngestionService:
         backstop, where surfaces that differ from a concept's canonical name are
         reconciled.
         """
+        from core.agents.memory_agent import memory_agent
         if created is not None:
             linked = 0
             for identity in created:
-                res = await self.db().execute_query(
-                    "UPDATE unified.concept_relations SET target_concept_id = $1 "
-                    "WHERE target_surface = $2 AND target_concept_id IS NULL",
-                    (identity.concept_id, identity.name), commit=True)
+                res = await memory_agent().attach_waiting_links(
+                    target_concept_id=identity.concept_id, target_surface=identity.name)
                 linked += int(res) if isinstance(res, int) else 0
             return linked
 
@@ -1294,21 +1388,16 @@ class ConceptIngestionService:
             target = await self._resolve_target(row["target_surface"])
             if not target:
                 continue
-            await self.db().execute_query(
-                "UPDATE unified.concept_relations SET target_concept_id = $1 "
-                "WHERE target_surface = $2 AND target_concept_id IS NULL",
-                (target, row["target_surface"]), commit=True)
+            await memory_agent().attach_waiting_links(
+                target_concept_id=target, target_surface=row["target_surface"])
             linked += 1
         if linked:
             logger.info("Relinked %d previously dangling edge target(s)", linked)
         return linked
 
     async def _record_alias(self, alias: str, concept_id: str, kind: str) -> None:
-        await self.db().execute_query(
-            """INSERT INTO unified.concept_aliases (alias, concept_id, alias_kind)
-               VALUES ($1,$2,$3) ON CONFLICT (alias) DO NOTHING""",
-            (alias, concept_id, kind), commit=True,
-        )
+        from core.agents.memory_agent import memory_agent
+        await memory_agent().hold_alias(alias=alias, concept_id=concept_id, alias_kind=kind)
 
     # ---- provenance -----------------------------------------------------
 
@@ -1379,25 +1468,15 @@ class ConceptIngestionService:
     # ---- persistence ----------------------------------------------------
 
     async def record_evidence(self, envelope: EvidenceEnvelope) -> None:
+        from core.agents.memory_agent import memory_agent
         await self._ready()
-        await self.db().execute_query(
-            """INSERT INTO unified.evidence_envelopes
-                   (evidence_id, source_type, source_id, producer, content,
-                    structured_data, derived_from, observed_at)
-               VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7::jsonb,COALESCE($8, NOW()))
-               ON CONFLICT (evidence_id) DO NOTHING""",
-            (
-                envelope.evidence_id,
-                envelope.source_type.value,
-                envelope.source_id,
-                envelope.producer,
-                envelope.content,
-                json.dumps(envelope.structured_data or {}),
-                json.dumps(list(envelope.derived_from)),
-                envelope.observed_at,
-            ),
-            commit=True,
-        )
+        await memory_agent().hold_evidence_envelope(
+            evidence_id=envelope.evidence_id, source_type=envelope.source_type.value,
+            source_id=envelope.source_id, producer=envelope.producer,
+            content=envelope.content,
+            structured_data=json.dumps(envelope.structured_data or {}),
+            derived_from=json.dumps(list(envelope.derived_from)),
+            observed_at=envelope.observed_at)
 
     async def _status_for(self, root_count: int) -> ConceptExistence:
         if root_count >= WELL_SUPPORTED_MIN_ROOTS:
@@ -1423,17 +1502,13 @@ class ConceptIngestionService:
         before = existing[0]["epistemic_status"] if existing else None
 
         # Link evidence FIRST so the count reflects this observation.
+        from core.agents.memory_agent import memory_agent
         for root in roots:
-            await db.execute_query(
-                """INSERT INTO unified.concept_evidence
-                       (concept_id, evidence_id, root_evidence_id,
-                        extraction_confidence, extractor)
-                   VALUES ($1,$2,$3,$4,$5)
-                   ON CONFLICT (concept_id, root_evidence_id) DO NOTHING""",
-                (identity.concept_id, envelope.evidence_id, root,
-                 candidate.extraction_confidence, candidate.extractor),
-                commit=True,
-            )
+            await memory_agent().hold_concept_evidence(
+                concept_id=identity.concept_id, evidence_id=envelope.evidence_id,
+                root_evidence_id=root,
+                extraction_confidence=candidate.extraction_confidence,
+                extractor=candidate.extractor)
 
         n = (await db.execute_query(
             "SELECT count(DISTINCT root_evidence_id) n FROM unified.concept_evidence WHERE concept_id = $1",
@@ -1447,58 +1522,14 @@ class ConceptIngestionService:
             "extractor": candidate.extractor,
         }
 
-        await db.execute_query(
-            """INSERT INTO unified.concepts
-                   (concept_id, name, domain, description, attributes,
-                    relationships, functions, processes, context, examples,
-                    concept_kind, epistemic_status, provenance,
-                    root_evidence_count, created_at)
-               VALUES ($1,$2,$3,$4,$5::jsonb,$6::jsonb,'[]'::jsonb,'[]'::jsonb,
-                       '', '[]'::jsonb, $7,$8,$9::jsonb,$10, NOW())
-               ON CONFLICT (concept_id) DO UPDATE SET
-                   description         = COALESCE(NULLIF(EXCLUDED.description,''),
-                                                  unified.concepts.description),
-                   -- A changed description invalidates its stored vector; the
-                   -- Universal Domain Master re-encodes pending rows.
-                   description_embedding = CASE
-                       WHEN NULLIF(EXCLUDED.description,'') IS NULL
-                         OR EXCLUDED.description IS NOT DISTINCT FROM unified.concepts.description
-                       THEN unified.concepts.description_embedding END,
-                   embedding_model     = CASE
-                       WHEN NULLIF(EXCLUDED.description,'') IS NULL
-                         OR EXCLUDED.description IS NOT DISTINCT FROM unified.concepts.description
-                       THEN unified.concepts.embedding_model END,
-                   attributes          = unified.concepts.attributes || EXCLUDED.attributes,
-                   -- MERGED, NOT REPLACED. Learning one thing about a concept
-                   -- is not grounds for forgetting the rest: teaching
-                   -- `pressure loss is caused by valve throttling` erased
-                   -- `caused by pipe friction` and `caused by minor losses`,
-                   -- so a concept got narrower every time anything was added
-                   -- to it. Note the two lines either side of this one --
-                   -- description is preserved and attributes are merged --
-                   -- which is what makes the replacement an oversight rather
-                   -- than a policy.
-                   relationships       = (
-                       SELECT COALESCE(jsonb_agg(DISTINCT edge), '[]'::jsonb)
-                       FROM jsonb_array_elements(
-                           unified.concepts.relationships || EXCLUDED.relationships
-                       ) AS edge
-                   ),
-                   epistemic_status    = EXCLUDED.epistemic_status,
-                   root_evidence_count = EXCLUDED.root_evidence_count,
-                   updated_at          = NOW()""",
-            (
-                identity.concept_id, identity.name, identity.domain,
-                candidate.description,
-                json.dumps(candidate.attributes or {}),
-                json.dumps([list(r) for r in candidate.relationships]),
-                identity.concept_kind.value,
-                status.value,
-                json.dumps(provenance),
-                int(n),
-            ),
-            commit=True,
-        )
+        from core.agents.memory_agent import memory_agent
+        await memory_agent().hold_concept(
+            concept_id=identity.concept_id, name=identity.name, domain=identity.domain,
+            description=candidate.description,
+            attributes=json.dumps(candidate.attributes or {}),
+            relationships=json.dumps([list(r) for r in candidate.relationships]),
+            concept_kind=identity.concept_kind.value, epistemic_status=status.value,
+            provenance=json.dumps(provenance), root_evidence_count=int(n))
 
         # MEMBERSHIP. A concept is identified by NAME on purpose -- domain-
         # qualified ids once scattered one coherent corpus across many domains.
@@ -1515,6 +1546,17 @@ class ConceptIngestionService:
                 await identity_service.add_membership(
                     identity.concept_id, source_domain,
                     source=candidate.extractor, evidence_id=envelope.evidence_id)
+            # AND WHAT ITS NAME NARROWS. `unified.concept_identity_relations` is
+            # how a query for a bare word reaches the qualified concepts the
+            # substrate actually holds, and `resolve_query` has always read it --
+            # but the only thing that WROTE it was a whole-table batch with no
+            # caller, so the table was empty and the resolution was dead. This is
+            # its write-time writer. It carries the sense split: WordNet's
+            # contested names are taught qualified (`causal_agent person`,
+            # `grammatical_category person`) so no sense inherits another's
+            # parents, and this is what still lets `person` reach both.
+            await identity_service.relate_qualified_name(
+                identity.concept_id, identity.name, identity.domain)
         except Exception as e:
             from core.capability import raise_if_structural
             raise_if_structural(e, "concept_ingestion.add_membership")
@@ -1577,16 +1619,27 @@ class ConceptIngestionService:
 
         roots = await self._root_evidence_ids(envelope.evidence_id)
 
+        # WHERE THESE LABELS CAME FROM, decided once from the envelope and not
+        # guessed per call site. A document's labels carry an extractor's habits
+        # and may be collapsed; a curated resource's do not and must not be.
+        from_document = envelope.source_type in _DOCUMENT_SOURCES
+
+        # The NAMES this envelope declares: an edge to one is resolved as that
+        # name even when the edge is recorded before the name's own concept.
+        names = frozenset(c.label for c in candidates if c.is_name)
+
         created_identities: List[ConceptIdentity] = []
         for cand in candidates:
-            reason = self.resolver.reject_reason(cand)
+            reason = self.resolver.reject_reason(
+                cand, document_derived=from_document)
             if reason:
                 result.rejected.append((cand.label, reason))
                 continue
-            identity = await self.resolve_identity(cand)
+            identity = await self.resolve_identity(
+                cand, document_derived=from_document)
             created, promoted = await self._persist(identity, cand, envelope, roots)
             result.admitted_relations.extend(
-                await self._record_relations(identity, cand, envelope))
+                await self._record_relations(identity, cand, envelope, names=names))
             (result.created if created else result.reinforced).append(identity.concept_id)
             if created:
                 created_identities.append(identity)

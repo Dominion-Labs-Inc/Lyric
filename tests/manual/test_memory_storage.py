@@ -71,6 +71,7 @@ class MemoryStorageTests(TestBase):
 
     async def test_autonomous_memory_storage(self):
         """Test autonomous coordinator memory storage"""
+        from core.memory import Origin
         from core.memory import get_memory_agent
         from core.memory.utils.interfaces import MemoryType
 
@@ -109,7 +110,7 @@ class MemoryStorageTests(TestBase):
             thinking_state=thinking_state,
             decision_factors={"test_run": datetime.now().isoformat()},
             reasoning_trace=["Test autonomous memory storage"],
-            emotional_context={"test_confidence": 1.0}
+            emotional_context={"test_confidence": 1.0}, origin=Origin.own("test_memory_storage")
         )
 
         assert success, "Failed to store autonomous memory"

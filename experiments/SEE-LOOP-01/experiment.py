@@ -74,6 +74,7 @@ def check(name, ok, detail=""):
 
 
 async def main() -> int:
+    from core.memory import Origin
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
         from core.main import get_system
@@ -112,7 +113,7 @@ async def main() -> int:
     # ── A. SIGHT ────────────────────────────────────────────────────────────
     print("\n== A. The live substrate sees a real file ==")
     with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
-        percept = await coord.see(IMAGE, source=subject, domain=DOMAIN)
+        percept = await coord.see(IMAGE, source=subject, domain=DOMAIN, actor_identity=None)
         await get_uncertainty_system().drain_writes()
     # WHAT THE SUBSTRATE CALLED IT, which is no longer the label handed in: a
     # percept is named from the image's own content digest, so that two pictures
@@ -162,10 +163,19 @@ async def main() -> int:
     from core.semantics.cognitive_ingress import MIN_ADMIT_QUALITY
     weak = f"{subject}_weak"
     with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
+        # THE MEMORY IS SUPPLIED, so the QUALITY FLOOR is the only thing that
+        # can refuse this. Without one the belief is refused for naming no
+        # memory as well, and the check would pass with the floor removed --
+        # a check that cannot fail is not testing the floor.
+        ok_mem, weak_memory = await coord.memory.store_memory(
+            content=f"I was shown something I could barely make out: {weak}",
+            memory_type=MemoryType.EPISODIC, importance_score=0.3,
+            tags=["percept", DOMAIN], origin=Origin.own("SEE-LOOP-01"))
         await ep.submit_image(weak, {"subject": weak,
                                      "detections": [{"label": f"ghost_{tag}",
                                                      "confidence": 0.02}]},
-                              domain=DOMAIN)
+                              domain=DOMAIN, memory_id=weak_memory,
+                              origin=Origin.own("SEE-LOOP-01"))
         await get_uncertainty_system().drain_writes()
     ghost = await db.execute_query(
         "SELECT count(*) n FROM unified.beliefs WHERE belief_text LIKE $1",
@@ -173,7 +183,8 @@ async def main() -> int:
     check("a recognition below the floor is not held at all",
           int(ghost["n"]) == 0,
           f"quality 0.02 < floor {MIN_ADMIT_QUALITY}; {ghost['n']} belief(s) — "
-          f"absence, not a weak posterior")
+          f"absence, not a weak posterior (memory {weak_memory} supplied, so "
+          f"the floor is the only thing refusing it)")
 
     # ── D. JUDGEMENT ────────────────────────────────────────────────────────
     print("\n== D. Sensation is judged by the acceptance band, per claim ==")
@@ -223,7 +234,7 @@ async def main() -> int:
         with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
             ok, mem_id = await coord.memory.store_memory(
                 content=f"looked at the card [{subject}]",
-                memory_type=MemoryType.EPISODIC, importance_score=0.7)
+                memory_type=MemoryType.EPISODIC, importance_score=0.7, origin=Origin.own("SEE-LOOP-01"))
     finally:
         reset_acting_percept(token)
     recalled = await coord.memory.retrieve_memory(str(mem_id))
@@ -277,7 +288,7 @@ async def main() -> int:
     coord._acceptance_band = lambda: (1.0, coord.COMPLETION_ACCEPT_MAX)
     try:
         with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
-            u_percept = await coord.see(PENTAGON, source=unsure, domain=DOMAIN)
+            u_percept = await coord.see(PENTAGON, source=unsure, domain=DOMAIN, actor_identity=None)
             await get_uncertainty_system().drain_writes()
         unsure = u_percept.source if u_percept else unsure
     finally:

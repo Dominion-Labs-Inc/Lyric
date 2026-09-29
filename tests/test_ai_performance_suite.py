@@ -558,6 +558,7 @@ Question: Must all A be D? Explain your reasoning step by step."""
 
     async def test_memory_store_and_retrieve(self):
         """Test memory storage and retrieval performance"""
+        from core.memory import Origin
         from core.memory.utils.interfaces import MemoryType
 
         # Store memory with comprehensive context (to pass worthiness filter)
@@ -581,7 +582,7 @@ Question: Must all A be D? Explain your reasoning step by step."""
                 "Step 3: Tested abstract reasoning capabilities across multiple reasoning types",
                 "Step 4: Validated memory operations including storage and retrieval performance",
                 "Step 5: Measured intrinsic motivation system responsiveness and goal generation"
-            ]
+            ], origin=Origin.own("test_ai_performance_suite")
         )
         store_latency = time.time() - store_start
 
