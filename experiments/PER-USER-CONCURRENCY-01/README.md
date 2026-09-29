@@ -11,10 +11,10 @@ The probe queue is built with `persist: False` (since 2026-09-26). Before that, 
 jobs to `unified.task_queue`, and the ones left pending or in progress would have been restored and run
 at the next boot.
 
-**Run** (from the TorinAI folder):
+**Run** (from the Lyric folder):
 
 ```
-./venv_torin/bin/python3 experiments/PER-USER-CONCURRENCY-01/experiment.py
+./venv_lyric/bin/python3 experiments/PER-USER-CONCURRENCY-01/experiment.py
 ```
 
 **Results.** Printed to the terminal only; no run is saved.

@@ -11,10 +11,10 @@ discounted prior from it, and so clear the operability bar through transfer.
 - **(B) Live:** `similar_domains` runs over the real database and reports how much transfer is available
   now.
 
-**Run** (from the TorinAI folder):
+**Run** (from the Lyric folder):
 
 ```
-./venv_torin/bin/python3 experiments/BORROWED-KNOWLEDGE-01/experiment.py
+./venv_lyric/bin/python3 experiments/BORROWED-KNOWLEDGE-01/experiment.py
 ```
 
 The docstring's `scratchpad/bench_borrowed.py` is an old path.

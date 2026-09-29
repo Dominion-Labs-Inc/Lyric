@@ -10,7 +10,7 @@ Tools:
 - search_data: Government/statistical data search
 - search_news: News and current events search
 
-Author: Torin AI Team
+Author: Lyric AI Team
 """
 
 import json

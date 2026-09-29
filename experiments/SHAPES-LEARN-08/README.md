@@ -46,5 +46,5 @@ district.", "A mythical monster is a monster."
 - **The code at run time.** The run loaded its code before the learner rule `_names_within` was added (§11f). That
   rule only stops a new name holding a held name of the same concept.
 
-Run: `./venv_torin/bin/python3 experiments/SHAPES-LEARN-08/experiment.py` (empties the sandbox first; about an
+Run: `./venv_lyric/bin/python3 experiments/SHAPES-LEARN-08/experiment.py` (empties the sandbox first; about an
 hour, most of it the word-class notes).

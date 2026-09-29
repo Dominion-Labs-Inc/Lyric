@@ -20,7 +20,7 @@ Four hypotheses (see docs/TR-2026-09_domain_knowledge_gaps.md):
   H4  declarative gap detection    — an in-domain unanswerable registers a
                                      KNOWN_UNKNOWN, competence untouched, no false gaps.
 
-Run:  ./venv_torin/bin/python3 experiments/DOM-KG-01/experiment.py
+Run:  ./venv_lyric/bin/python3 experiments/DOM-KG-01/experiment.py
 Writes experiments/DOM-KG-01/result.json.
 """
 from __future__ import annotations

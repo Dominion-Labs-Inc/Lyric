@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-TorinAI Unified Learning System
+Lyric Unified Learning System
 Integrated learning system combining all learning components
 """
 
@@ -1052,7 +1052,7 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
                 # earned credit, and an example that does not state its outcome
                 # is INSUFFICIENT_EVIDENCE (:378-385) rather than a failure.
                 # Whether a strategy earned credit is a different question from
-                # whether Torin already holds a structure that applies here, and
+                # whether Lyric already holds a structure that applies here, and
                 # an attempt that went badly is if anything MORE reason to ask
                 # it. Gating on success meant the transfer path could not fire
                 # for any example lacking an explicit outcome.
@@ -1906,7 +1906,7 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
             # domain" is a statement about coverage; "populated domains exist
             # but none share a mapping" is a statement about correspondence, and
             # only the second says anything about this domain's relationship to
-            # what Torin knows.
+            # what Lyric knows.
             if probe_failures:
                 reason = (f"{len(probe_failures)} of {len(shortlist)} mapping probe(s) "
                           f"failed; the rest share no mapping")
@@ -2073,7 +2073,7 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
                         f"Knowledge transfer {transfer.transfer_id} could not be "
                         f"stored; refusing to report an unrecorded transfer")
                 # APPLIED, not merely discovered. usage_count is what separates a
-                # correspondence Torin keeps relying on from one it derived once,
+                # correspondence Lyric keeps relying on from one it derived once,
                 # and nothing had ever incremented it.
                 # ATTRIBUTABLE. A usage event names the task it was applied to,
                 # which is what lets transfer evaluation later ask "did the tasks
@@ -2193,7 +2193,7 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
             # the category look registered and populated-by-zero, so every
             # lookup through it returned a well-formed empty answer.
             #
-            # A domain is something Torin has learned, not something minted on
+            # A domain is something Lyric has learned, not something minted on
             # first mention. The registry already resolves a category to the
             # fields beneath it; the reference is answered, never invented.
             resolved = registry.resolve_domain_reference(domain, require_concepts=True)

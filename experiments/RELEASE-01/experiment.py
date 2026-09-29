@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """RELEASE-01 — the model is released, served frozen, and replaced only by a newer release.
 
-On the sandbox line (`torinai_dev`). This process is development; each staging or production process is started
+On the sandbox line (`lyric_dev`). This process is development; each staging or production process is started
 on its own (`serve.py`), because a process is one environment for its whole life.
 
   A  CUT       release 1 is cut from development's model: a candidate, read-only in the database, its content,
@@ -19,7 +19,7 @@ on its own (`serve.py`), because a process is one environment for its whole life
   I  ROLLBACK  production goes back to release 1 and serves it; release 2 is retired and intact
   J  MAIN      the main line is untouched
 
-Run: ./venv_torin/bin/python3 experiments/RELEASE-01/experiment.py
+Run: ./venv_lyric/bin/python3 experiments/RELEASE-01/experiment.py
 """
 from __future__ import annotations
 
@@ -30,10 +30,10 @@ import subprocess
 import sys
 from pathlib import Path
 
-os.environ.pop("TORINAI_RELEASE", None)
-os.environ["TORINAI_ENVIRONMENT"] = "development"
-os.environ["POSTGRES_DATABASE"] = "torinai_dev"
-for k, v in {"POSTGRES_PORT": "5433", "POSTGRES_USER": "stefan", "TORIN_NO_WATCHDOG": "1"}.items():
+os.environ.pop("LYRIC_RELEASE", None)
+os.environ["LYRIC_ENVIRONMENT"] = "development"
+os.environ["POSTGRES_DATABASE"] = "lyric_dev"
+for k, v in {"POSTGRES_PORT": "5433", "POSTGRES_USER": "stefan", "LYRIC_NO_WATCHDOG": "1"}.items():
     os.environ.setdefault(k, v)
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
@@ -41,7 +41,7 @@ sys.path.insert(0, str(ROOT))
 
 from experiments._evidence import RunRecord  # noqa: E402
 
-BASE = "torinai_dev"
+BASE = "lyric_dev"
 MARK = "quillmoss"          # a word in every memory this run writes
 IDLE = 60.0
 
@@ -83,10 +83,10 @@ async def fetch(database: str, sql: str, *args):
 
 def run(script: str, *args: str, environment: str = "development", release: int = 0) -> dict:
     """One process of the given environment; the JSON object that ends its output."""
-    env = {k: v for k, v in os.environ.items() if k not in ("TORINAI_ENVIRONMENT", "TORINAI_RELEASE")}
-    env["TORINAI_ENVIRONMENT"] = environment
+    env = {k: v for k, v in os.environ.items() if k not in ("LYRIC_ENVIRONMENT", "LYRIC_RELEASE")}
+    env["LYRIC_ENVIRONMENT"] = environment
     if release:
-        env["TORINAI_RELEASE"] = str(release)
+        env["LYRIC_RELEASE"] = str(release)
     done = subprocess.run([sys.executable, script, *args], capture_output=True, text=True, env=env)
     lines = done.stdout.strip().splitlines()
     starts = [i for i, line in enumerate(lines) if line.startswith("{")]
@@ -103,7 +103,7 @@ def serve(environment: str, release: int, *args: str) -> dict:
 
 
 async def main_line() -> tuple:
-    c = await connect("torinai_db")
+    c = await connect("lyric_db")
     try:
         rows = 0
         for t in await c.fetch("select table_schema s, table_name n from information_schema.tables "
@@ -115,7 +115,7 @@ async def main_line() -> tuple:
     c = await connect("postgres")
     try:
         lines = sorted(r["datname"] for r in await c.fetch(
-            "select datname from pg_database where datname ~ '^torinai_db_model_'"))
+            "select datname from pg_database where datname ~ '^lyric_db_model_'"))
     finally:
         await c.close()
     return rows, lines

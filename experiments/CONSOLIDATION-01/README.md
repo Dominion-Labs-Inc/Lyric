@@ -23,7 +23,7 @@ A10 (self-defense) is THREAT-SENSE-02.
 ## Run
 
 ```
-./venv_torin/bin/python3 experiments/CONSOLIDATION-01/experiment.py
+./venv_lyric/bin/python3 experiments/CONSOLIDATION-01/experiment.py
 ```
 
 Judges only. Containment rows it writes are removed by id. Each run writes `results/<timestamp>.json`

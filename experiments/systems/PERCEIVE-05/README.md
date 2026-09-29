@@ -8,10 +8,10 @@
 - A memory records the perceptual state at the moment it forms, so recalling the memory returns what
   was perceived then.
 
-**Run** (from the TorinAI folder):
+**Run** (from the Lyric folder):
 
 ```
-PYTHONPATH="$PWD" POSTGRES_PORT=5433 POSTGRES_USER=stefan TORIN_NO_WATCHDOG=1 ./venv_torin/bin/python3 experiments/systems/PERCEIVE-05/experiment.py
+PYTHONPATH="$PWD" POSTGRES_PORT=5433 POSTGRES_USER=stefan LYRIC_NO_WATCHDOG=1 ./venv_lyric/bin/python3 experiments/systems/PERCEIVE-05/experiment.py
 ```
 
 **Results.** `last_run.txt` holds the output of a run on 2026-09-09: PASS. It is not a structured record.

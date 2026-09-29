@@ -18,14 +18,14 @@ Not a minimum test. It covers:
 - **concurrency**: six reasoning passes on one thread at once collapse to exactly one intent (the
   unique-key race is handled — no duplicates);
 - **latency**: the cost is measured, not guessed;
-- **restart**: a fresh `./venv_torin/bin/python3` reloads the thread intent (settled) and the parented goal.
+- **restart**: a fresh `./venv_lyric/bin/python3` reloads the thread intent (settled) and the parented goal.
 
 Self-cleaning: unique actors per run, and it deletes its own rows (scoped + shape) at the end.
 
-**Run** (from the TorinAI folder):
+**Run** (from the Lyric folder):
 
 ```
-./venv_torin/bin/python3 experiments/INTENT-02/experiment.py
+./venv_lyric/bin/python3 experiments/INTENT-02/experiment.py
 ```
 
 **Results.** Every run is saved in `results/` (JSON + `.md`). Latest: 2026-09-16, **15/15**

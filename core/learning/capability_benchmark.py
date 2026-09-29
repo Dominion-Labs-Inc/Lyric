@@ -26,7 +26,7 @@ from typing import Dict, Any, List, Optional, Tuple
 from pathlib import Path
 from dotenv import load_dotenv
 
-from core.database import (TorinUnifiedDatabase, get_database_manager,
+from core.database import (LyricUnifiedDatabase, get_database_manager,
                            get_unified_db)
 
 # Load environment variables
@@ -118,7 +118,7 @@ class CapabilityBenchmarkSuite:
         #
         # `get_database_manager` is the synchronous accessor and returns the
         # same singleton object (verified identical).
-        self.db: TorinUnifiedDatabase = get_database_manager()
+        self.db: LyricUnifiedDatabase = get_database_manager()
 
         # Benchmark storage
         self.benchmarks: Dict[str, BenchmarkTestCase] = {}

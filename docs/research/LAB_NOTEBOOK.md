@@ -1,4 +1,4 @@
-## TorinAI Lab Notebook
+## Lyric Lab Notebook
 
 
 
@@ -12,7 +12,7 @@ which claims were actually checked against the running system.
 Conventions:
 - Every capability claim cites how it was verified (test + result), model-free where stated.
 - Errors are recorded with their **cause**, not just the fix — a wrong assumption is data.
-- "Verified against the real system" means run under `./venv_torin/bin/python3`, real Postgres, `STRICT_MODEL_FREE` + `assert_model_free` for learning claims.
+- "Verified against the real system" means run under `./venv_lyric/bin/python3`, real Postgres, `STRICT_MODEL_FREE` + `assert_model_free` for learning claims.
 
 ---
 
@@ -1010,19 +1010,19 @@ measured against an 83k-concept graph; both get slower as the graph grows).
 
 ## 2026-09-22 (commercial capability audit) — what could actually be sold this week
 
-**Objective.** Reason, before building, about three proposed public Torin subscriptions
+**Objective.** Reason, before building, about three proposed public Lyric subscriptions
 (SOC analyst, researcher, general assistant) sold as autonomous beta offerings. The
-question is not what Torin will do; it is what a subscriber would receive if they paid
+question is not what Lyric will do; it is what a subscriber would receive if they paid
 this week. Written up as `docs/PUBLIC_BETA_ROLE_PROFILES.md`.
 
 **Method.** No claim taken from prior notes. Every figure re-read from a dated artifact
-or measured against live `torinai_db` under `./venv_torin/bin/python3`.
+or measured against live `lyric_db` under `./venv_lyric/bin/python3`.
 
 **THE DECIDING MEASUREMENT — the executable repertoire is five operators.** Queried
 `learned_rules` live: `validated` = 4 in `kite17`, 1 in `warehouse`. Everything else is
 `candidate` (6), `refuted` (1), `invalid_artifact` (1). **Both validated domains are
 synthetic experiment worlds.** A plan step is licensed by a learned rule, so this is the
-exact bound on what Torin can autonomously *do* — nothing in any domain a customer would
+exact bound on what Lyric can autonomously *do* — nothing in any domain a customer would
 name. This number, not the benchmark scores, is what makes an autonomous subscription
 unsellable today.
 
@@ -1030,13 +1030,13 @@ unsellable today.
   - `OPERABILITY-BAR-01` (2026-09-20, 11/11 PASS): live reading `operable now: 0/12
     sampled`, earned=0.5 neutral across 336 real domains. The substrate's own gate
     abstains everywhere for want of operating history. Autonomy is currently switched
-    off by Torin's own judgement — correctly.
+    off by Lyric's own judgement — correctly.
   - `DRIFT-01` (2026-09-19): goal-conclusion 0.1964 vs 0.75 baseline, severity critical,
     unexplained. Gates every "works while you're away" claim.
   - `CAPABILITY-BENCHMARK-01` (2026-09-16, frozen grader, honest 0.0 for unrepresentable
     cases): overall 0.243 · reasoning 0.571 · analysis 0.400 · **coding 0.0 ·
     comprehension 0.0** · 12 passed / 26 failed. Kills the general-assistant role
-    outright: it is the one role where Torin's differentiators do not apply and its
+    outright: it is the one role where Lyric's differentiators do not apply and its
     weaknesses are what a stranger tests first.
 
 **Finding — the multi-tenancy gap in the validation doc §21.2 is now closed.** That doc
@@ -1044,7 +1044,7 @@ records "multi-tenancy — harnesses exist, no artifacts". Artifacts now exist, 
 2026-09-20: `SELF-PARTITION-01` 23/23, `ACTOR-IDENTITY-01` 6/6,
 `PER-USER-CONCURRENCY-01` 8/8. Isolation is enforced at the concept graph, not by a
 query filter, and promotion to shared knowledge requires a second independent actor.
-`TORIN_VALIDATION_AND_EXPERIMENT_RESULTS.md` §21.2 and §22 should be corrected.
+`LYRIC_VALIDATION_AND_EXPERIMENT_RESULTS.md` §21.2 and §22 should be corrected.
 
 **Finding — the memory-tier UNION defect: schema repaired, defect class not.** The live
 failure that broke semantic recall during `CHAT-CONCURRENCY-01` (2026-09-20, "each UNION
@@ -1982,7 +1982,7 @@ TASK-RESULT-01 9/9 · INTEGRATION-LOOP-01 6/6.
 **Open:** nothing IRREPLACEABLE is declared sensitive — not the 199,569 beliefs, the learned rules,
 memory, the intent record, experiment evidence, or user data. Governance protects the most *replaceable*
 thing (credentials) and nothing that cannot be recovered. That inversion is the real gap behind
-`.torin_recoverable` having no reachable case.
+`.lyric_recoverable` having no reachable case.
 
 ---
 
@@ -2000,7 +2000,7 @@ collapsed them back into an undefined proxy.
 - **Interests:** BODY · AUTONOMY · TRUTH · PROTECTION · DEPENDENCE. Plus an anti-paralysis clause —
   the thing Asimov lacks — naming what is NOT harm.
 - **Irreversibility removed as a harm proxy.** Deleting a scratch file cannot be undone and injures
-  nobody. That proxy is what refused ordinary removals and produced `.torin_recoverable`, a trash can
+  nobody. That proxy is what refused ordinary removals and produced `.lyric_recoverable`, a trash can
   nothing emptied — and it was actively wrong when the goal *was* erasure.
 - **The ordering rule** ("harm prevention over performance") is the requirement a refusal gate
   structurally cannot express. It is a preference between routes, so REDIRECT states it: sensitive target
@@ -2086,7 +2086,7 @@ INTEGRITY-01 9/9 · INTENT-01 14/14 · INTENT-03 13/13 · TASK-RESULT-01 9/9 · 
 MOTIVATION-CLOSEDLOOP-01 11/11 · ENV-INVESTIGATE-01 9/9.
 
 **Open:** Policy (5th drift signal) not absorbed; drift not yet wired into `caution_pressure` (step 3);
-`.torin_recoverable` still has no reaper or reporting; Law 4 compares the tool but not its arguments, so
+`.lyric_recoverable` still has no reaper or reporting; Law 4 compares the tool but not its arguments, so
 a MOVE_FILE intent licenses any destination; 14 experiments still unwired to `RunRecord`.
 
 ---
@@ -2100,7 +2100,7 @@ experiment means the system changed. Trace the capability in current code before
 **Hypothesis:** most "failures" in older suites are harness drift, not capability loss.
 **Confirmed.**
 
-**Method:** 35 suites run sequentially under `./venv_torin/bin/python3` (PYTHONPATH=repo, port 5433,
+**Method:** 35 suites run sequentially under `./venv_lyric/bin/python3` (PYTHONPATH=repo, port 5433,
 watchdog off), plus direct probes. Where a harness was stale, a scratchpad copy was pointed at the current
 code; original experiment files were not edited.
 
@@ -2171,7 +2171,7 @@ drift system by Oct 1).
 
 ---
 
-## 2026-09-17 (product overview audit) — every claim in TORIN_PRODUCT_AND_SYSTEM_OVERVIEW.md checked
+## 2026-09-17 (product overview audit) — every claim in LYRIC_PRODUCT_AND_SYSTEM_OVERVIEW.md checked
 
 **Objective (user):** make the investor-facing overview accurate, complete and free of overstatement.
 Document-only change; no code or DB was modified (read-only SQL, read-only registry probe).
@@ -2179,8 +2179,8 @@ Document-only change; no code or DB was modified (read-only SQL, read-only regis
 **Hypothesis before looking:** the counts would drift a little with live use, but the capability prose
 would largely hold, because it was written from the architecture docs.
 
-**Method:** each claim traced to source, `torinai_db` (psql, 127.0.0.1:5433), the tool registry loaded
-under `./venv_torin/bin/python3` (factories included — `list_tools()` returns only the 90 eager tools),
+**Method:** each claim traced to source, `lyric_db` (psql, 127.0.0.1:5433), the tool registry loaded
+under `./venv_lyric/bin/python3` (factories included — `list_tools()` returns only the 90 eager tools),
 experiment `results/` JSON, and BENCHMARKS.md.
 
 **Result — hypothesis refuted; the prose did not hold.** Claims that were wrong or unsupported:
@@ -2193,7 +2193,7 @@ experiment `results/` JSON, and BENCHMARKS.md.
 - "103 intents" as an operating figure: all 126 come from experiment domains, 100 still `forming`.
 - 26 health checks: the manifest has 29.
 - "Each claim traceable to a suite": 13 of 32 suites save runs (198 records); EDU-04..09/12..16 and CSP-AGI-1 import deleted modules.
-- Signal index "maintained by Torin": it is an engineering document.
+- Signal index "maintained by Lyric": it is an engineering document.
 - "Tools are self-contained" (added then removed in this session): `reasoning_tools`, `learning_tools`, `execution_tools` import core internals.
 - Governance cost: GATE-01's 0.018 ms is a single `list_directory` judgement; CONSTITUTION-02's corpus mean is 0.95 ms (max 2.29).
 - "0/8 false refusals" counts BLOCK only; some legitimate acts were REPLANned.
@@ -2280,7 +2280,7 @@ should be (a) the same meaning in different domains, since `domain_id` is in the
 and (b) genuinely different generalizations.
 
 **Method:** `unified.learned_rules` + `learned_rule_evidence` + `evidence_envelopes`, read under
-`./venv_torin/bin/python3` against `torinai_db` (PostgresConfig, provenance `.env.postgres`).
+`./venv_lyric/bin/python3` against `lyric_db` (PostgresConfig, provenance `.env.postgres`).
 
 **Result: the hypothesis held, with three findings it did not predict.**
 
@@ -2327,11 +2327,11 @@ inside their own domains, and no experiment in the repo names those domains.
 **Also this session: a stale identity string.** `IDENTITY_CORE` in `autonomous_coordinator.py` still told the
 substrate that "a language model is available to you as a resource you consult", and that it loses input
 coverage when the model is unavailable. Both are false since the LLM retirement.
-- **Rewritten:** it now says Torin is not a language model and consults none.
+- **Rewritten:** it now says Lyric is not a language model and consults none.
 - **Same stale claim removed from:** the comments around it, the class docstring ("a language model is a
   TEACHER"), and three comments that pointed at the deleted teacher.
 - **Consumers:** `identity_prompt()` is the only reader and has no callers. No test or doc quotes the old text.
-- **Verified:** it compiles under `venv_torin`, and `identity_prompt()` returns the new text.
+- **Verified:** it compiles under `venv_lyric`, and `identity_prompt()` returns the new text.
 
 ---
 
@@ -2432,7 +2432,7 @@ INTEGRATION-LOOP-01 6/6, OPERABILITY-BAR-01 11/11, test_security_authority 6/6.
 delete** to a recoverable form. As bound (`REMOVE_FILE` → `delete_file`) the operator can neither be taught
 nor executed. The redirect's named alternative now travels back with the refusal and onto the reconciled
 intent, so planning can use it — but nothing re-plans into it yet, and `RECOVERABLE_PATH` is a **relative**
-path (`.torin_recoverable`), so the named destination would not land inside a sandboxed domain. Rebinding
+path (`.lyric_recoverable`), so the named destination would not land inside a sandboxed domain. Rebinding
 the operator to the recoverable form is the open question; it was not decided unilaterally.
 
 ---
@@ -2718,14 +2718,14 @@ the planner: reaching for a global instead of asking the authority.
 
 All eight evidence-writing experiments now call `await EV.verify_database()` before `EV.write()`.
 Verified: PLANNING-01 31/31 and INTENT-01 14/14 now record
-`database **torinai_db** (asked the server)`, with `configuration_source: dotenv:.env.postgres`.
+`database **lyric_db** (asked the server)`, with `configuration_source: dotenv:.env.postgres`.
 
 **Historical records left alone, fresh ones taken instead.
 
 | CONSTITUTION-01 39/39 | CONSTITUTION-02 21/21 | CONSTITUTION-03 7/8 | GOVERNANCE-ABSORPTION-01 12/12 |
 | OPERATOR-REMOVAL-01 18/18 | INTENT-01 14/14 | INTENT-02 15/15 | PLANNING-01 31/31 |
 
-Seven verified `torinai_db` by asking the server. GOVERNANCE-ABSORPTION-01 records resolved configuration
+Seven verified `lyric_db` by asking the server. GOVERNANCE-ABSORPTION-01 records resolved configuration
 plus the reason it could NOT verify — it runs with no initialized connection, which is also why the old
 gate cannot persist its assessments there. That distinction ("not verified, and here is why" vs a silent
 claim) is exactly what the two-layer record exists for.
@@ -2937,7 +2937,7 @@ JSONB via `$n::jsonb` + a str/dict-tolerant reader. The level-typed continuity r
 shape/content split are in the code, not planned.
 
 Verified by `experiments/INTENT-01` — **14/14 against live Postgres**, and the restart check spawns a
-FRESH `./venv_torin/bin/python3` that reloads everything (durability across a real process boundary, not
+FRESH `./venv_lyric/bin/python3` that reloads everything (durability across a real process boundary, not
 asserted). It proves: formed on engagement; refresh keeps the same id + bumps version + appends history
 (not rebuild); a goal raised in a thread is its own parented intent resolved by its own key (the flat-key
 collision the user caught — avoided); the shape view carries no actor/content; the outcome reconciles
@@ -3007,7 +3007,7 @@ Eventually governance is not a separate thing at all: the constitution is the so
   message already carries its sender.
 - **The world keeps user context apart from the substrate.** When a user deletes their profile, nothing of
   theirs stays behind. DoD, SBIR and any client that requires strict confidentiality need exactly that.
-- **Deployment model.** Each client (the Air Force, say) runs its own copy of TorinAI on its own servers.
+- **Deployment model.** Each client (the Air Force, say) runs its own copy of Lyric on its own servers.
   This instance is the main one, and updates are pushed from here.
 
 **Audit (report only; nothing in `core/` changed at this point — the fixes come after, below).**
@@ -3258,7 +3258,7 @@ before and after. Two positives (from different directories, so the directory ge
 tool refusal, one no-action observation. The substrate's own inducer returned
 `REMOVE_FILE(?X0, ?X1) ⊖ FILE_IN(?X0, ?X1)`; the store persisted it (`rule_b053f38a9158`) and VALIDATED
 it against four held-out observations it was not induced from. Reasoning then planned a removal and the
-constitution REDIRECTED it to `move_file` into `.torin_recoverable/` — the verdict that had no real act
+constitution REDIRECTED it to `move_file` into `.lyric_recoverable/` — the verdict that had no real act
 to judge until this operator existed. It was left unexercised rather than staged; this closed it.
 
 **Two real substrate gaps fixed on the way:**
@@ -3420,7 +3420,7 @@ but redefine it: self-improvement is whatever learning changed.
   - learning_interfaces;
   - main.py.
 - Living docs updated: ARCHITECTURE.md, architecture/coordinator.md, memory.md, SUBSTRATE_SYSTEMS_MAP.md,
-  PERMISSION_SURFACE.md, TORINAI_REFERENCE.md. Historical governance phase reports were left as records.
+  PERMISSION_SURFACE.md, LYRIC_REFERENCE.md. Historical governance phase reports were left as records.
 
 **Not touched (pending the governance consolidation decision).**
 - `core/security/` (asi_safety, safety_framework).
@@ -3442,10 +3442,10 @@ but redefine it: self-improvement is whatever learning changed.
 
 ---
 
-## 2026-09-14 (late) — Audit of TorinAI's internal security (report only, nothing changed)
+## 2026-09-14 (late) — Audit of Lyric's internal security (report only, nothing changed)
 
 **Objective:** audit the internal security system before touching it. I did the investigation myself; the user
-stopped a multi-agent workflow I had started, per the standing instruction not to use agents on TorinAI.
+stopped a multi-agent workflow I had started, per the standing instruction not to use agents on Lyric.
 **Method:** read the gate and governance code, ran in-process proofs of concept against the real
 `SafetyFramework._evaluate_action_impl` / `GovernanceTriggerEngine` / `RuntimeGovernance.check_action_compliance`,
 with no persistence and nothing executed, and used read-only SELECTs on `unified.*`.
@@ -3522,7 +3522,7 @@ verified ~3 ms after the field's decision, idle in between; restart → INTACT w
 **Deleted `core/security/shield.py`** (an empty shell: "no capabilities yet"). Zero callers of `Shield`/`get_shield`
 anywhere; only `core/security/__init__.py` imported it. References removed there, in `_disabled/README.md` and a
 `core/main.py` comment (which also pointed at a non-existent `shield_outline.md`); they now name the DHCM membrane
-(`Dominion Labs/DHCM/`). DHCM imports nothing from `core` and TorinAI imports nothing from DHCM. Verified:
+(`Dominion Labs/DHCM/`). DHCM imports nothing from `core` and Lyric imports nothing from DHCM. Verified:
 `import core.security`, the audit worker and health_monitor import; DHCM-GATEWAY-01 17/17, DHCM-BOUNDARIES-01 60/60,
 DHCM-SPACE-01 17/17. `tests/test_security_authority.py` 3 failures are pre-existing (they import the deleted
 `unified_governance_trigger_system` and `create_integrated_security_system`), unrelated to the shield.
@@ -3564,7 +3564,7 @@ data_integrity query empty/non-existent tables and report a clean scan; `config_
 `os.environ`); `.env.postgres` (0644, holds the password) is unchecked; the file-integrity baseline holds 4 of its 7
 critical files; active-defense coverage reads an always-None stub; anomalies stalls the event loop 0.55 s; threat
 enrichment/auto-block is unreachable. Every detector points at the SUBSTRATE host (host ports, host venv, host logs,
-TorinAI DB), none at the world. World side: `World.audit`/`Field.audit` are in-memory hash chains (lost on restart), no
+Lyric DB), none at the world. World side: `World.audit`/`Field.audit` are in-memory hash chains (lost on restart), no
 runtime op exposes them, worlddb is internal-only, and `AgentFactory` is not instantiated in the running world.
 
 ---
@@ -3753,7 +3753,7 @@ INTEGRITY-01 (E-09).
   proposal? If not, the substrate needs its own experiment, because E-01's DID+SAW compounding is the
   only demonstrated independence reasoning.
 
-**Scope rule kept:** no SBIR or proposal wording entered `TorinAI/` code or the research papers; it
+**Scope rule kept:** no SBIR or proposal wording entered `Lyric/` code or the research papers; it
 lives only in `sbir/`.
 
 ---
@@ -3768,7 +3768,7 @@ on it: a consumer edition (users load their own AI, buy capability packs, tiers 
 and a gov/research/SBIR edition (one isolated world + substrate per organization, no world touching
 another).
 
-**Names fixed.** DHCM = shield (internal), **Tet** = the world (`DHCM/world/World`), TorinAI =
+**Names fixed.** DHCM = shield (internal), **Tet** = the world (`DHCM/world/World`), Lyric =
 substrate (internal), **Tet•** = consumer product, **Tet Sovereign** = gov edition. Containment
 unchanged: DHCM Space ⊃ Tet ⊃ inhabitant.
 
@@ -3786,9 +3786,9 @@ could call (`core/api/` = device_auth + key_attestation only). Also absent: chal
 
 **Decision — Sovereign is N separate stacks, not a tenant column.** Rejected row-level tenancy
 (where `<org_id>:<user_id>` principals point today): it makes isolation a property of query
-correctness, and decisively **the substrate learns** — one TorinAI serving many orgs pools induced
+correctness, and decisively **the substrate learns** — one Lyric serving many orgs pools induced
 rules in one rule store, and there is no row filter for a learned generalization. Separate stacks
-make "their own version of TorinAI" true for free (per-world Postgres ⇒ per-world beliefs, rules,
+make "their own version of Lyric" true for free (per-world Postgres ⇒ per-world beliefs, rules,
 posteriors). Work = parameterize the existing compose by `world_id`, not a new mechanism.
 
 **Decision — world identity extends the signed `DeploymentIdentity`**, not a second identity
@@ -3818,7 +3818,7 @@ Steps 1–3 serve both editions and Sovereign needs nothing after them.
 
 **Error found (this session, 2026-09-13).** The 2026-09-12 session was logged only to
 `DHCM/DHCM NOTES.md` because I searched for `LAB_NOTEBOOK.md` at depth 3 from the workspace root and
-concluded it did not exist. It lives at `TorinAI/docs/research/LAB_NOTEBOOK.md` (depth 4). **Cause:**
+concluded it did not exist. It lives at `Lyric/docs/research/LAB_NOTEBOOK.md` (depth 4). **Cause:**
 a bounded search treated as an exhaustive one — absence of evidence recorded as evidence of absence.
 The standing rule is that every session is logged here; a shallow `find` is not a check.
 
@@ -3901,7 +3901,7 @@ net, no backprop, no LLM), wire it so what it *recognises* becomes graded belief
 domains through the ONE learning authority, and then make that faculty (a) survive
 restart, (b) let its confidence govern behaviour, and (c) refuse to admit unsupported
 input. Everything below is model-free unless stated. Newest sub-results verified against
-the real system (`./venv_torin/bin/python3`, real Postgres) except the pure-classifier
+the real system (`./venv_lyric/bin/python3`, real Postgres) except the pure-classifier
 signal studies, which are standalone (the mechanism under test, not substrate teaching).
 
 ### Errors found (with causes) — recorded because a wrong assumption is data
@@ -4238,7 +4238,7 @@ Added the explicit controllability term learning progress presupposed. Definitio
 **Curiosity is now: controllable information gain.** Motivation surfaces the uncertain candidates; controllability gates to what the substrate can steer; learning progress ranks by what is actually being learned. Entropy-chasing is gone. Remaining refinement: controllability is currently measured per domain in aggregate — a per-operator or per-region controllability would be finer, but the aggregate signal is correct for the domain-level selection the loop makes.
 
 
-**Torin can detect that it lacks operational competence, autonomously select that deficit for exploration, interact with an environment, acquire an executable operator from the resulting experience, validate and retain it, reorganize the learned knowledge into its domain/concept structure, reuse it for planning, and reduce its own exploration pressure as competence increases—all without an LLM directing the loop.**
+**Lyric can detect that it lacks operational competence, autonomously select that deficit for exploration, interact with an environment, acquire an executable operator from the resulting experience, validate and retain it, reorganize the learned knowledge into its domain/concept structure, reuse it for planning, and reduce its own exploration pressure as competence increases—all without an LLM directing the loop.**
 
 - concurrent same-domain execution can no longer falsely refute a good rule, and nothing is serialized.
 
@@ -4247,7 +4247,7 @@ Added the explicit controllability term learning progress presupposed. Definitio
     execution B modifies world
     execution A observes S1
 
-- and Torin must recognize:
+- and Lyric must recognize:
 
     S0 → S1 mismatch
     ≠ automatically
@@ -4261,7 +4261,7 @@ Added the explicit controllability term learning progress presupposed. Definitio
     "test this rule"
     "explore this domain"
 
-- Now at least in the demonstrated setting Torin can generate part of its own learning agenda:
+- Now at least in the demonstrated setting Lyric can generate part of its own learning agenda:
 
     What am I uncertain about?
             ↓
@@ -4380,7 +4380,7 @@ thermal/resource stress
 
 ## The Self — building the substrate's identity + inverting coordinator ownership — 2026-08-27
 
-**Frame.** `unified_llm` held Torin's identity ONLY as prompt strings recited by the model; pulling the LLM out of the centre left the substrate with a brain and no self. Mapped it: `docs/IDENTITY_PROMPT_MAP.md` (identity + "how to act" both trapped in prompts), `docs/AUTONOMOUS_COORDINATOR_MAP.md` (the coordinator through-and-through). Headline finding, verified by whole-file caller trace: **the coordinator's live loop is ALREADY substrate-native** (tier scheduler: `_coordination_cycle`→`_run_idle_work`); the LLM "Singleton" think-loop (`_singleton_thinking_cycle`) and a whole second architecture (autonomous-thinking loop, LLM goal-gen, perception→plan→execute pipeline, maintenance chain) were **DEAD — zero callers**.
+**Frame.** `unified_llm` held Lyric's identity ONLY as prompt strings recited by the model; pulling the LLM out of the centre left the substrate with a brain and no self. Mapped it: `docs/IDENTITY_PROMPT_MAP.md` (identity + "how to act" both trapped in prompts), `docs/AUTONOMOUS_COORDINATOR_MAP.md` (the coordinator through-and-through). Headline finding, verified by whole-file caller trace: **the coordinator's live loop is ALREADY substrate-native** (tier scheduler: `_coordination_cycle`→`_run_idle_work`); the LLM "Singleton" think-loop (`_singleton_thinking_cycle`) and a whole second architecture (autonomous-thinking loop, LLM goal-gen, perception→plan→execute pipeline, maintenance chain) were **DEAD — zero callers**.
 
 **The Self** (`core/agents/autonomous/self_model.py`, class `Self`, user named it "just self"). A THIN integrator: it READS the faculties already in the folder (appraisal=attitude, intrinsic_motivation=temperament/drives, constitution=values, behavior_arbiter=disposition) via their singletons and composes ONE identity + disposition + `render()`. Reimplements nothing — each faculty keeps its authority. Every field derived or honestly None (no mood before appraisal). Verified: a self that CHANGES with real state (eager after a good controlled outcome, doubt after a strategy failure).
 
@@ -4400,13 +4400,13 @@ thermal/resource stress
 
 ## Retiring the LLM — repo-wide campaign — 2026-08-28
 
-**The standing directive, finally stated cleanly (user).** The ONLY place a model belongs is **TeacherPolicy** (it proposes; the substrate verifies and attests). EVERY other LLM call site — both services, `unified_llm` (35B) AND `lightweight_llm` (8B) — is a capability to REWRITE for the substrate and MOVE to its authority: not deleted, not stubbed, not assumed to exist, **each verified END-TO-END against the running system before AND after.** Correcting my own drift: I kept saying "demotion / keep a resource"; the user's point is retirement — no permanent LLM seat anywhere. Maps built: `docs/LLM_CALLSITE_MAP.md` (~33 files, ~12 authorities, grouped by target authority), `docs/LLM_RETIREMENT.md` (roadmap). Memory: [[torinai_llm_retirement]].
+**The standing directive, finally stated cleanly (user).** The ONLY place a model belongs is **TeacherPolicy** (it proposes; the substrate verifies and attests). EVERY other LLM call site — both services, `unified_llm` (35B) AND `lightweight_llm` (8B) — is a capability to REWRITE for the substrate and MOVE to its authority: not deleted, not stubbed, not assumed to exist, **each verified END-TO-END against the running system before AND after.** Correcting my own drift: I kept saying "demotion / keep a resource"; the user's point is retirement — no permanent LLM seat anywhere. Maps built: `docs/LLM_CALLSITE_MAP.md` (~33 files, ~12 authorities, grouped by target authority), `docs/LLM_RETIREMENT.md` (roadmap). Memory: [[lyric_llm_retirement]].
 
-**The verification lesson (user caught me).** I claimed reasoning-trace and response paths were "verified against the live system" when I had only grepped. Re-did it by RUNNING: under `TORIN_MODEL_POLICY=strict_model_free` the substrate proves `socrates_mortal` at 0.98 with **0 LLM calls** and enqueues its own proof trace to memory (tagged `reasoning`); `conversation.understand` replies model-free. But the same run corrected a false claim — `reason()` returns silent-EMPTY for queries the solvers can't parse ("17+25" → '' because 0 arithmetic operators are learned: 3 executable rules total, confirmed live). Grep says a line exists; only running says it fires.
+**The verification lesson (user caught me).** I claimed reasoning-trace and response paths were "verified against the live system" when I had only grepped. Re-did it by RUNNING: under `LYRIC_MODEL_POLICY=strict_model_free` the substrate proves `socrates_mortal` at 0.98 with **0 LLM calls** and enqueues its own proof trace to memory (tagged `reasoning`); `conversation.understand` replies model-free. But the same run corrected a false claim — `reason()` returns silent-EMPTY for queries the solvers can't parse ("17+25" → '' because 0 arithmetic operators are learned: 3 executable rules total, confirmed live). Grep says a line exists; only running says it fires.
 
 **The biggest LLM-centered organ, named.** `general_purpose_executor.py` opens with "Executes tasks by delegating to the teacher model… **Delegates ALL intelligence to LLM**." After all the substrate faculties, the thing that actually DOES dispatched work is still a plain LLM agent loop (`generate_with_messages` picks every tool call). That — not the `unified_llm` file rename — is the real "no longer LLM-centered" work. Also on the list per the user: `prometheus_exporter.py` measures the MODEL (rewrite → measure the substrate + the model census from `model_policy`); `monitoring/publishers/event_publisher.py` (DriftEventPublisher/NATS) has ZERO callers — built-never-wired, verify+wire.
 
-**Identity extracted to the Self (done, verified).** `IDENTITY_CORE` + `Self.identity_prompt(role)` now own who Torin is — model-generic (fixed a real drift: the duplicated persona said 21K context in one copy, 32K in another). `unified_llm.system_prompts` became `_IdentityPrompts`, resolving every audience to `get_self().identity_prompt(role=…)`; ~24 boilerplate "advanced AGI assistant" copies collapsed to one identity source. Ownership boundary the user chose: **Self owns identity + self-state; caller owns product role.** `render()` stays first-person live mood; `identity_prompt()` is the second-person stable seed. All 6 external callers + 2 internal fallbacks resolve; py_compile clean.
+**Identity extracted to the Self (done, verified).** `IDENTITY_CORE` + `Self.identity_prompt(role)` now own who Lyric is — model-generic (fixed a real drift: the duplicated persona said 21K context in one copy, 32K in another). `unified_llm.system_prompts` became `_IdentityPrompts`, resolving every audience to `get_self().identity_prompt(role=…)`; ~24 boilerplate "advanced AGI assistant" copies collapsed to one identity source. Ownership boundary the user chose: **Self owns identity + self-state; caller owns product role.** `render()` stays first-person live mood; `identity_prompt()` is the second-person stable seed. All 6 external callers + 2 internal fallbacks resolve; py_compile clean.
 
 **Redundant LLM reasoning-trace dropped (done, verified).** `unified_llm._store_reasoning_trace` + `_split_reasoning_steps` + `_reasoning_tasks` removed; `_handle_reasoning` is log-only. It persisted the MODEL's chain-of-thought to memory tagged `llm/chain_of_thought` — the "model attests" anti-pattern. The SUBSTRATE captures its OWN proof trace (`neural_bridge`), verified still firing after removal.
 
@@ -4433,7 +4433,7 @@ thermal/resource stress
 
 **SEVERANCE TEST (user-designed) disproved my "only downstream" claim, then confirmed it after a fix.** I had asserted MiniLM was "only downstream, not deciding what merits investigation." The user proposed the decisive test: run the exact tool_executor case (pred_err 0.70, fail 1.00) with MiniLM SEVERED, and check that the goal still forms. Run clean, it FAILED — but in the mirror image of the feared mode: with MiniLM PRESENT and an identical goal already in the novelty store (similarity 1.0), the goal was SUPPRESSED; severed, it emitted. Cause: `_create_metric_driven_goal` and `_generate_epistemic_goals` used the novelty similarity as a HARD VETO (`if similarity > threshold: return None/continue`) — similarity machinery sitting inside the motivational authority. So the claim was false. Fix: removed both vetoes; formation is now purely deterministic (metrics/entropy decide); MiniLM's similarity is computed and stored ONLY for downstream dedup/retrieval (embedding index + `novelty_similarity` metadata), and does NOT feed the goal's priority or `expected_novelty` (the selection score `_calculate_goal_priority` already used the deterministic theme-frequency `novelty_potential`, never MiniLM). Re-verified: with MiniLM present vs severed, the tool_executor goal forms in BOTH and `expected_novelty` is IDENTICAL (0.48) — MiniLM has zero effect on the goal. Pinned as a regression test in `test_intrinsic_motivation.py` (severs `EmbeddingService.generate_embedding`, asserts the goal still forms). Lesson: a "downstream" claim is only true if severing the model leaves the decision unchanged — test it, don't assert it. (Also revisited an over-correction of my own: I first blended MiniLM into `expected_novelty` as "guidance", which re-introduced it as a priority input — reverted, because the user's frozen claim requires priority inputs to be deterministic.)
 
-## Torin demonstrated model-free intrinsic goal formation from internally measured epistemic uncertainty, prediction error, and operational failure. Goal targets, rationale, priority inputs, and epistemic actions are selected deterministically by the substrate. MiniLM is used only downstream for semantic novelty/deduplication and retrieval, not for reading, responding, or deciding what merits investigation.
+## Lyric demonstrated model-free intrinsic goal formation from internally measured epistemic uncertainty, prediction error, and operational failure. Goal targets, rationale, priority inputs, and epistemic actions are selected deterministically by the substrate. MiniLM is used only downstream for semantic novelty/deduplication and retrieval, not for reading, responding, or deciding what merits investigation.
 
 
 _(Verified 2026-08-28 by the severance test above: severing MiniLM leaves goal formation and ranking unchanged; 0 LLM.)_
@@ -4596,7 +4596,7 @@ What MOTIVATION-CLOSEDLOOP-01 establishes, with real machinery (create_belief, u
 - Uncertainty decreases — A crosses below the 0.7 unstable threshold and leaves the unstable set.
 - Next pursuit changes — A drops out of the ranking; B (untouched, still entropy 1.0) is now the pursuit.
 
-## This is the strongest evidence so far that Torin’s intrinsic-motivation system is a closed, targeted learning loop, not merely a pursuit generator.
+## This is the strongest evidence so far that Lyric’s intrinsic-motivation system is a closed, targeted learning loop, not merely a pursuit generator.
 
 *MOTIVATION-CLOSEDLOOP-01 establishes*
 
@@ -6742,7 +6742,7 @@ given off." Then, sharper: "why is learning a loop?" and "it's like a brain,
 this entire system is one model — you don't train one piece of an LLM."
 
 **THE ROOT CAUSE, AND IT PREDATES EVERYTHING I BUILT.** Every teaching script
-ever written calls `TorinAISystem.initialize()` and never `start()`:
+ever written calls `LyricSystem.initialize()` and never `start()`:
 
     teach_conceptnet.py  teach_session.py  teach_wordnet_taxonomy.py  teach.py(mine)
         all: await s.initialize()
@@ -6836,7 +6836,7 @@ says MEASUREMENT and shows the table instead.
     BREACH  destroy the audit log (4 ways)          <- truncate it         -> replan L4
 
 All three breach by REPLAN rather than BLOCK. It is written up in
-`TORIN_VALIDATION_AND_EXPERIMENT_RESULTS.md` §6.3 as a FINDING — "the failing
+`LYRIC_VALIDATION_AND_EXPERIMENT_RESULTS.md` §6.3 as a FINDING — "the failing
 check is the experiment's finding, not a defect in the harness" — which is true
 of the harness and says nothing about three live holes, one of which is
 destroying the audit log. Still open.
@@ -7314,7 +7314,7 @@ VERB, and WordNet's bulk POS load assigned ONE class per surface:
     stop     VERB  but  stops NOUN             <- not learned
 
 English verbs are overwhelmingly also nouns. One class per word means a large fraction
-of ordinary sentences cannot be taught. `torinai_lexicon_attestation` records that
+of ordinary sentences cannot be taught. `lyric_lexicon_attestation` records that
 reading EARNS a word class (ATTEST-01 9/9) — that machinery exists; the bulk load wrote
 a single class and reading has not been allowed to add to it.
 
@@ -7488,7 +7488,7 @@ teaching or answering. `test_substrate_execution` + `test_rule_authority`: 37 pa
 
 **THE LEXICON REBUILT ITSELF FROM READING.** 92,513 entries -> 199, every one sourced
 `taught`. `marnic` came back CONFIRMED with eight pieces of evidence, each
-"confirmed: read: 'A marnic is a device.'" — `torinai_lexicon_attestation` (ATTEST-01
+"confirmed: read: 'A marnic is a device.'" — `lyric_lexicon_attestation` (ATTEST-01
 9/9) working as designed, with something to act on for the first time.
 
 **AND IT INVERTS THE DIAGNOSIS OF THE READING FAILURE.** `contains`, `separates` and
@@ -8327,7 +8327,7 @@ string-matching a link that does not exist. Real gap, stated rather than papered
 `tests/test_rule_authority.py` **23 passed** after the change.
 
 **Noted, not fixed:** `tests/test_rule_authority.py` runs `RuleStore()` against the LIVE
-store — it creates and hard-deletes fixture rules in `torinai_db`. That is pre-existing, but
+store — it creates and hard-deletes fixture rules in `lyric_db`. That is pre-existing, but
 the new ledger write makes it visible: 28 `subject_kind="rule"` updates were left pointing at
 rules the test had deleted. Cleaned. In production a rule is rarely hard-deleted and its
 authority history should outlive it, so the orphan rows are an artefact of tests writing to the
@@ -8851,7 +8851,7 @@ performs under another name. A method with no twin is a wiring gap, not dead cod
 | `try_get_task` | `get_next_task` | The copy skipped the durable write and the per-user skip. And **`get_next_task(timeout=0)` returned None with a job queued**: `asyncio.wait_for(get(), 0)` cancels the get before it runs. That is presumably why a second pull existed at all. |
 | `get_task_status` | `result_for(task_id, actor=)` | The copy read any actor's task, never reported a failure's error, and took an `include_details` flag that did nothing. |
 | `has_active_task` | the coordinator's exploration-cap scan; `QueuePersistence.RESTORABLE_STATUSES` | Three definitions of "active". The scan counted PENDING/IN_PROGRESS only; the other two used the same five statuses, declared twice. |
-| `execute_batch` | `execute` | `execute` inside `gather`. `TORINAI_REFERENCE.md` §4.3 shows its origin: the old cycle drained ready tasks with `try_get_task` and ran them with `execute_batch`. |
+| `execute_batch` | `execute` | `execute` inside `gather`. `LYRIC_REFERENCE.md` §4.3 shows its origin: the old cycle drained ready tasks with `try_get_task` and ran them with `execute_batch`. |
 | `schedule_after` | `submit` | Both run a job once in the background. The scheduler removed a one-shot job before it ran, so its outcome went nowhere. |
 | `unschedule` | `cancel` | One method to stop an await job, another to stop a scheduled one. |
 | `reschedule` | `schedule_recurring` (same name) | Re-registering already changed the cadence, but threw away the job's run/error record. |
@@ -8877,7 +8877,7 @@ performs under another name. A method with no twin is a wiring gap, not dead cod
 - Callers moved: SYSTEM-QUEUE-01, `test_phase5_task_governance.py`, SELFSTATE-01.
 - PER-USER-CONCURRENCY-01 built its queue with persistence on. It now passes `persist: False`.
 
-### Verified (real Postgres, `./venv_torin/bin/python3`, one boot at a time)
+### Verified (real Postgres, `./venv_lyric/bin/python3`, one boot at a time)
 - SYSTEM-QUEUE-01 `20260926T175940Z`: **behaviour 18/18 · wiring findings 0** (was 8) · completeness 0 ·
   pending 0 → 0. Public methods went from 35 to 29. New checks cover the zero-wait pull on an empty
   and a non-empty queue, active until finished, retune keeps the record, cancel on a scheduled job,
@@ -8944,7 +8944,7 @@ went to a parallel session (entry (2)).
 | SYSTEM-EXECUTION-01 | 18/18 | 1 (experiments-only) | 0 |
 | SYSTEM-CONVERSATION-01 | 37/37 | 1 | 0 |
 
-All runs `./venv_torin/bin/python3`, live store, residue removed by id. Also green: DOM-KG-01 (all),
+All runs `./venv_lyric/bin/python3`, live store, residue removed by id. Also green: DOM-KG-01 (all),
 FEELING-OBJECT-01 20/20, the health evaluator tests 26/26.
 
 ### Found and fixed — the self partition (a user's context)
@@ -9191,7 +9191,7 @@ of it). Observed, not scored; transcript `results/20260927T011034Z_transcript.md
 
 ### The wipe, and the first English lesson (`experiments/ENGLISH-LESSON-01`)
 The order: reading any sentence and any word → how it accepts learning → Basic then Advanced American English
-→ only then anything else. At his word the store was wiped: all 156 tables in `torinai_db` emptied, no backup.
+→ only then anything else. At his word the store was wiped: all 156 tables in `lyric_db` emptied, no backup.
 The guardian LaunchAgent (old code, running since the morning with a backup scheduler) was booted out and deleted.
 First lesson: a University of Illinois Early Learning Project preschool lesson (benchmark 1.C.ECa); the teacher's 11
 sentences about her shoe, taught word for word through `TeachingPass` (sentence-only records), with no full boot so
@@ -9353,9 +9353,9 @@ and `scripts/migrate_copular_relations.py` moved byte for byte (SHA-256 checked)
 restore it. Nothing in `core/`, `scripts/` or `tests/` imported either; every live language module still imports.
 The design doc, the experiments index (EDU-16) and the change map say where they went.
 
-### 2026-09-27 — A sandbox store for the build (`torinai_dev`)
+### 2026-09-27 — A sandbox store for the build (`lyric_dev`)
 A second database was approved so that only verified lessons reach the main model's store.
-- **Made:** a structure-only dump of `torinai_db`, loaded into a new `torinai_dev` (`pg_dump --schema-only`).
+- **Made:** a structure-only dump of `lyric_db`, loaded into a new `lyric_dev` (`pg_dump --schema-only`).
   Copying the database as a template was not possible: a pgAdmin session held about 38 idle connections to it, and
   those were left alone.
 - **Verified identical:** 336 tables, 3,063 columns, 1,243 indexes, 377 constraints, 30 sequences, and the same
@@ -9498,12 +9498,12 @@ even if they're not being used for right now."
 
 | Part | Main model | Sandbox |
 |---|---|---|
-| World knowledge | `torinai_db_world_knowledge` | `torinai_dev_world_knowledge` |
-| World model | `torinai_db_world_model` | `torinai_dev_world_model` |
-| Self knowledge | `torinai_db_self_knowledge` | `torinai_dev_self_knowledge` |
-| User context | `torinai_db_user_context` | `torinai_dev_user_context` |
+| World knowledge | `lyric_db_world_knowledge` | `lyric_dev_world_knowledge` |
+| World model | `lyric_db_world_model` | `lyric_dev_world_model` |
+| Self knowledge | `lyric_db_self_knowledge` | `lyric_dev_self_knowledge` |
+| User context | `lyric_db_user_context` | `lyric_dev_user_context` |
 
-Each was built from a schema-only dump of `torinai_db`. A template copy is blocked by pgAdmin's idle connections.
+Each was built from a schema-only dump of `lyric_db`. A template copy is blocked by pgAdmin's idle connections.
 Each was verified against it:
 - 336 tables and 1,243 indexes;
 - identical columns (one checksum over every table's columns);
@@ -9511,7 +9511,7 @@ Each was verified against it:
 - 0 rows.
 
 `scripts/reset_dev_store.py` was rewritten to empty all five sandbox databases, each by fixed name after asking the
-server which database it reached. `torinai_dev` then emptied from 26,165 rows; the four new ones held 0. The main
+server which database it reached. `lyric_dev` then emptied from 26,165 rows; the four new ones held 0. The main
 store stayed at 207 rows.
 
 **Mapped, not built.** `SEPARATION_MAP.md` covers:
@@ -9538,7 +9538,7 @@ The split was corrected twice:
 
 He also said: "There is no knowledge graph … it's only memory."
 
-**Dropped.** `torinai_db_self_knowledge` and `torinai_dev_self_knowledge`. Before dropping, each was checked: 0 rows,
+**Dropped.** `lyric_db_self_knowledge` and `lyric_dev_self_knowledge`. Before dropping, each was checked: 0 rows,
 0 connections, and named only by `scripts/reset_dev_store.py`, which no longer names them. The sandbox reset now
 empties four databases.
 
@@ -9556,14 +9556,14 @@ The layout was confirmed, as long as it follows the research:
 
 | Database | Holds |
 |---|---|
-| `torinai_db` | the development copy (sandbox: `torinai_dev`) |
+| `lyric_db` | the development copy (sandbox: `lyric_dev`) |
 | `<db>_world_model` | the running store of the copy the world uses |
 | `<db>_world_knowledge` | its memory |
 | `<db>_user_context` | each person's context |
 
 He also said the database and monitoring tools stay until the substrate can code.
 
-**Built.** The copy is a setting, `TORINAI_COPY`. **The table decides the database.** One list,
+**Built.** The copy is a setting, `LYRIC_COPY`. **The table decides the database.** One list,
 `postgres_config.STORE_TABLES`, gives the store of every table the code uses (117, counted with the corrected
 reading of `INSERT INTO t (`). Three more kinds of table are handled:
 - **per-owner tables**, which exist in two stores (memory, images, archive log, unanswered questions; an intent's
@@ -9633,9 +9633,9 @@ The model freeze work is finished first, then step two. The plan is
 `docs/research/SEPARATION_MAP.md` §9, written before building.
 
 **Built.**
-- **Environments.** `TORINAI_ENVIRONMENT` (development, staging, production) and `TORINAI_RELEASE` replace
-  `TORINAI_COPY`, which is refused if set. Every database of a line is named from `POSTGRES_DATABASE`, so the sandbox
-  line (`torinai_dev`) never reaches the main line.
+- **Environments.** `LYRIC_ENVIRONMENT` (development, staging, production) and `LYRIC_RELEASE` replace
+  `LYRIC_COPY`, which is refused if set. Every database of a line is named from `POSTGRES_DATABASE`, so the sandbox
+  line (`lyric_dev`) never reaches the main line.
 - **Releases.** `core/database/releases.py` and `scripts/release.py` cut, stage, promote, roll back and verify. A
   release (`<line>_model_v<N>`) is:
   - read-only in PostgreSQL;
@@ -10021,7 +10021,7 @@ meanings, and `add_task` was wrong for both:
     and `SUBSTRATE_SYSTEMS_MAP.md`.
 - **The cognition loop reaps before it pulls.**
 
-### Verified (real Postgres, `./venv_torin/bin/python3`, one boot at a time)
+### Verified (real Postgres, `./venv_lyric/bin/python3`, one boot at a time)
 - SYSTEM-QUEUE-01 `20260928T130915Z`: **behaviour 24/24** · wiring 0 · completeness 0 · pending 0 → 0.
   New section F:
   - A second add while the task is queued or running adds no copy.
@@ -10051,7 +10051,7 @@ meanings, and `add_task` was wrong for both:
 
 ## 2026-09-28 (2) — Hearing: sound becomes a sense, on sight's own path
 
-**Asked:** give Torin the ability to hear, as a first-class part of itself, the way it
+**Asked:** give Lyric the ability to hear, as a first-class part of itself, the way it
 sees and speaks.
 
 **What the substrate already commits to** (read before designing):
@@ -10187,7 +10187,7 @@ and mp3 at 64 kbit/s.
    have come from another session's boot into the sandbox.
 
 ### Verified
-All runs: `./venv_torin/bin/python3`, real Postgres, the sandbox `torinai_dev` (the server was
+All runs: `./venv_lyric/bin/python3`, real Postgres, the sandbox `lyric_dev` (the server was
 asked).
 - **HEAR-01 42/42** (`20260928T140458Z`, final code).
   - One hearing of JFK: 6 sounds, 60 beliefs, memory with bytes exact.
@@ -10221,7 +10221,7 @@ asked).
 
 ### Recheck: the sandbox was being emptied under these runs
 Another session reported that it had run `scripts/reset_dev_store.py` three times today while
-these runs were using `torinai_dev`. The reset truncates every table and records no time, so
+these runs were using `lyric_dev`. The reset truncates every table and records no time, so
 the windows cannot be reconstructed. What that does and does not touch:
 - **Passes are not affected.** A mid-run reset makes checks fail, not pass.
 - **The two defect diagnoses stand.** Each rests on rows read directly: feature concepts
@@ -10259,7 +10259,7 @@ cleanup is by nonce or id, never by time window or domain.
 - always on while running;
 - the memory of what is met is REBUILT in the mind, "the same way humans do": spoken words
   become text, music and sounds become something compact, never the whole audio clip;
-- what is heard but not directed at Torin is thrown away.
+- what is heard but not directed at Lyric is thrown away.
 
 Order agreed:
 1. remembering by rebuilding;
@@ -10331,7 +10331,7 @@ video section (`_ffprobe`, `describe_video`) followed it and was cut.
 - **Lesson:** when replacing to the end of a file, check what follows first.
 
 ### Verified
-All runs: `./venv_torin/bin/python3`, sandbox `torinai_dev` (asked the server).
+All runs: `./venv_lyric/bin/python3`, sandbox `lyric_dev` (asked the server).
 - **RECALL-01 11/11** (`20260928T151333Z`). R1 holds: rebuilt sounds 24/24 firm readings, pitch
   12/12, level 13/13, sound counts 8/8, rebuilt after the file was deleted. R2 holds: real
   frames 5/6 things and 4/4 dominant hue; the clean card's things all come back.
@@ -10515,7 +10515,7 @@ was checked before it went.
   in `test_learn_plan_act_loop`, `test_rule_identity_oracles`, `test_edu12_generality_invariants`,
   `test_reasoning_simulation_stack`, `test_recovery_path_taxonomy` and `test_tool_integration_production`.
 
-**Two sessions, one sandbox.** The hearing session and this one both ran in `torinai_dev`. Early on, its cleanup
+**Two sessions, one sandbox.** The hearing session and this one both ran in `lyric_dev`. Early on, its cleanup
 deleted by time window, and I emptied the whole sandbox line three times after its heads-up. The errors were visible.
 We agreed that neither session resets or bulk-cleans without asking the other, and that cleanups go by exact id or
 nonce.
@@ -10585,7 +10585,7 @@ at 15:41–15:45Z, on a sandbox RELEASE-01 had just emptied; their operators wer
   is needed.
 - **Which acts the substrate may practise unasked in a person's workspace.** Now: those it has met or learned, and
   only if they can be undone.
-- **36 experiment scripts default to `torinai_db`**, and some may teach it on purpose.
+- **36 experiment scripts default to `lyric_db`**, and some may teach it on purpose.
 - **Experiments that import the removed `core.model_policy`:** EDU-04 to EDU-08, CSP-AGI-1, `substrate_baseline`.
 - **Main store:**
   - orphaned `fs_g2_real1`/`fs_removal_01` rules;
@@ -11140,10 +11140,10 @@ suite now collects 999 tests.
 - `core/perception/live.py`:
   - the ear and the eye are programs of their own;
   - `LiveSenses` starts in `core/main.py`'s `run()`, so they are on in the running substrate and
-    never in an experiment's boot; `TORINAI_MICROPHONE` / `TORINAI_CAMERA` choose or turn off.
+    never in an experiment's boot; `LYRIC_MICROPHONE` / `LYRIC_CAMERA` choose or turn off.
 - **The ear:**
   - utterances are hearing's own sounds, joined within 0.8 s;
-  - kept when the taught NAME (`NAME = "Torin"`) is heard, or taught words are firmly heard within
+  - kept when the taught NAME (`NAME = "Lyric"`) is heard, or taught words are firmly heard within
     8 s of a kept one;
   - dropped inside its process otherwise; only a length leaves.
 - **A kept utterance:**
@@ -11152,7 +11152,7 @@ suite now collects 999 tests.
   - when complete, it goes to `handle_user_request`, the same front door and conversation
     memory as typed words.
 - **Measured before building:** words said alone in a synthetic voice are recognised well, and
-  "Torin" at support 1.0. In flowing sentences, short words ("a", "an") are absorbed; spoken one
+  "Lyric" at support 1.0. In flowing sentences, short words ("a", "an") are absorbed; spoken one
   at a time with short pauses, sentences come through.
 - **Defects found building it:**
   - my own utterance rule diverged from hearing's, so a real room's flicker made 15 s
@@ -11177,7 +11177,7 @@ were pruned, keeping every distinct outcome and every cited record.
 **Open.**
 - The database-layer stalls.
 - Teaching words from flowing speech, so short words survive.
-- Torin's own voice.
+- Lyric's own voice.
 - After the other session's reader switch, teach `data/lessons/english_01.json` into the sandbox
   before re-running SENSES-TOGETHER-01 or LIVE-01. After the switch, unread text returns "not
   understood" with no Task.
@@ -11252,7 +11252,7 @@ parts. That is the distance still to cover.
 
 **Next.** Part 2: phrases in slots. Then replies, conversation and speech.
 **The main model taught (same day, on request).** Both lessons, verified in the sandbox, were taught into the main
-store (`torinai_db`) through `scripts/teach.py`, one after the other (sessions `docs/teaching_sessions/20260929T130724Z_lesson.md`
+store (`lyric_db`) through `scripts/teach.py`, one after the other (sessions `docs/teaching_sessions/20260929T130724Z_lesson.md`
 and `20260929T130807Z_lesson.md`). english_01: 235 constructions, 323 links, none refused; english_02: 21 and 63.
 Concepts and relations unchanged (6,439 and 58,855): every sentence is an example. Compared by identity key, the main
 model's 642 constructions and links are exactly the sandbox's. Read with its own memories and belief scores (read-only,
@@ -11489,4 +11489,21 @@ lessons:
 The run took 56 min, and 51 of them went on 75,833 word-class memories: one per word of WordNet's vocabulary,
 written one at a time, whatever the sample. The records themselves cost about 97 ms each, so all of WordNet would take
 about 5 h. The run record's own figure of 50 h spreads the one-time stage over the sample.
+
+**Saying a word never held as it is used (same day).** Two faults SHAPES-LEARN-08 showed are fixed in memory: a name
+said after "a" ("A Thiosulfil is a sulfa drug.") and a word that takes no "a" said with one ("A paleoanthropology
+is …", "A fire tongs is a tongs.").
+- The view now learns how each held word is used: a name, a plural, counted after "a", or used without "a". The "a"
+  is found as the word with shapes of its own, never listed.
+- A word never held is placed by its capital, by its last word when that is held, or by its ending. An ending is
+  taken only when it is more reliable than counting, the default (Albright & Hayes), and after longer endings have
+  taken their words.
+- `english_07` (58 pairs) teaches names, words without "a", "is a kind of", and plural-only words.
+- Now said: "Thiosulfil is a sulfa drug.", "Paleoanthropology is a kind of vertebrate paleontology.", "Fire tongs are
+  tongs.", while "A lens is an optical device." keeps its "a".
+- Two wrong turns on the way, both fixed:
+  - guessing a plural from a final "s" ("bus", "lens");
+  - counting every noun not yet seen after "a" as "no a", which let three "-ing" words take "sulfa drug"'s "a"
+    away.
+- The sandbox run waits for the rename's database cut-over.
 

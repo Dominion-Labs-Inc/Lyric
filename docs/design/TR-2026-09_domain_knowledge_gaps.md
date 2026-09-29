@@ -1,4 +1,4 @@
-# TR-2026-09 — Knowledge Gaps vs. Procedural Competence in the TorinAI Domain System
+# TR-2026-09 — Knowledge Gaps vs. Procedural Competence in the Lyric Domain System
 
 **Status:** verified · **Experiment:** `experiments/DOM-KG-01/experiment.py` · **Result:** 15/15 checks pass
 
@@ -11,7 +11,7 @@ kinds of mastery over a subject: **declarative knowledge** (facts it holds) and
 **procedural competence** (operations it can execute). A system that conflates
 them mis-reads its own state — treating "I have not been told that fact yet" as
 "I am not competent here," or vice versa. We formalize the two as independent,
-separately-measured axes of the TorinAI domain system, state four falsifiable
+separately-measured axes of the Lyric domain system, state four falsifiable
 hypotheses about their discrimination and orthogonality, and test them against
 the running substrate. Three held at baseline; the fourth — **localized
 detection of a declarative knowledge gap inside an already-mature domain** —
@@ -35,7 +35,7 @@ internal variable that separates *"I hold little information about this"* from
 distribution over tokens. The failure mode we call "hallucination" is, in part,
 the absence of that boundary.
 
-TorinAI is a persistent, model-optional symbolic substrate: subjects it learns
+Lyric is a persistent, model-optional symbolic substrate: subjects it learns
 become **domains**, each carrying explicit, inspectable state. This report
 concerns one boundary within that state — the one an LLM lacks:
 
@@ -248,7 +248,7 @@ scenario — a well-covered subject with one missing fact — it cannot register
 `KNOWN_UNKNOWN`, because it has no register and no notion of *this domain's*
 coverage as distinct from *this operation's* feasibility. Its honest-abstention
 behavior, where it exists, is a trained surface behavior over token likelihood,
-not a read of an internal gap variable. TorinAI's abstention here is mechanical:
+not a read of an internal gap variable. Lyric's abstention here is mechanical:
 the fact is absent from the concept graph, so a typed, resolvable unknown is
 created, scoped to the subject, without perturbing the competence estimate.
 
@@ -285,7 +285,7 @@ created, scoped to the subject, without perturbing the competence estimate.
 
 ## 7. Conclusion
 
-Within a mature domain, the TorinAI substrate discriminates procedural gap types
+Within a mature domain, the Lyric substrate discriminates procedural gap types
 correctly (`CONCEPT_GAP` vs `OPERATOR_GAP`, H1/H2), keeps declarative coverage and
 operator competence orthogonal (H3), and — after the fix reported here — detects a
 localized declarative knowledge gap and registers it as a resolvable
@@ -299,7 +299,7 @@ system meets its knowledge-gap/competence discrimination requirement.**
 ## Appendix A — Reproduction
 
 ```
-./venv_torin/bin/python3 experiments/DOM-KG-01/experiment.py
+./venv_lyric/bin/python3 experiments/DOM-KG-01/experiment.py
 ```
 
 Prints per-hypothesis PASS/FAIL and writes `experiments/DOM-KG-01/result.json`.

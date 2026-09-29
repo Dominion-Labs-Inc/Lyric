@@ -4,7 +4,7 @@ knowledge (as observations), images perceived, binaries recorded by metadata onl
 Uses the REAL `_scan_environment` / `_read_text_bounded` / `_ingest_environment_entry` bound to a
 recording stand-in learning faculty (so we see exactly what is turned into knowledge, no DB writes).
 
-Run: ./venv_torin/bin/python3 scratchpad/bench_envscan.py
+Run: ./venv_lyric/bin/python3 scratchpad/bench_envscan.py
 """
 from __future__ import annotations
 import asyncio, os, sys, tempfile, shutil

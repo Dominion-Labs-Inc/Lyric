@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """EDU-10 — Active Learning Under Noise and Uncertainty.
 
-    Can Torin learn the correct causal structure when observations are noisy,
+    Can Lyric learn the correct causal structure when observations are noisy,
     actions sometimes fail despite a correct rule, and some outcomes are
     UNKNOWN -- without either refusing to learn or corrupting valid knowledge?
 

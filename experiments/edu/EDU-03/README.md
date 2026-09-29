@@ -19,7 +19,7 @@ NO_MATCH -- the operator had no representation in the graph being searched.
 Run from the repository root:
 
 ```
-TORIN_MODEL_POLICY=strict_model_free ./venv_torin/bin/python3 experiments/edu/EDU-03/experiment.py
+LYRIC_MODEL_POLICY=strict_model_free ./venv_lyric/bin/python3 experiments/edu/EDU-03/experiment.py
 ```
 
 `manifest.json` in this folder is the frozen result. Every run records

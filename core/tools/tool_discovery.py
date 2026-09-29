@@ -1,4 +1,4 @@
-"""Tool discovery ranker: BM25 + sentence embeddings + TorinAI's capability graph.
+"""Tool discovery ranker: BM25 + sentence embeddings + Lyric's capability graph.
 
 Three signals are fused per query:
 
@@ -99,7 +99,7 @@ def _usable_vectors(arr, rows: int) -> bool:
 # ============================================================== cache location
 
 def _cache_dir() -> str:
-    override = os.environ.get("TORIN_TOOL_DISCOVERY_CACHE")
+    override = os.environ.get("LYRIC_TOOL_DISCOVERY_CACHE")
     if override:
         return override
     root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -285,7 +285,7 @@ def _quiet_loader():
 
     transformers writes a 103-step 'Loading weights' progress bar and a weight
     LOAD REPORT table straight to stderr — ~29 KB of noise the first time
-    discover_tools() is called, in whatever terminal TorinAI happens to be
+    discover_tools() is called, in whatever terminal Lyric happens to be
     running in. Turning those two off at the source is enough; redirecting
     stderr wholesale would also swallow whatever other threads print during the
     half-second the load holds _MODEL_LOCK. Verbosity is restored afterwards so
@@ -691,7 +691,7 @@ def _cap_fn():
 
     The cheap lexical inference is preferred: it is ~0.07 ms/query against
     ~15 ms for the full regex table, which would dominate the whole ranker's
-    latency budget. Set TORIN_DISCOVERY_FULL_CAPS=1 to use the full table."""
+    latency budget. Set LYRIC_DISCOVERY_FULL_CAPS=1 to use the full table."""
     global _CAP_FN, _CAP_FN_RESOLVED
     if _CAP_FN_RESOLVED:
         return _CAP_FN
@@ -699,7 +699,7 @@ def _cap_fn():
         if _CAP_FN_RESOLVED:
             return _CAP_FN
         fn = None
-        want_full = os.environ.get("TORIN_DISCOVERY_FULL_CAPS") == "1"
+        want_full = os.environ.get("LYRIC_DISCOVERY_FULL_CAPS") == "1"
         for mod in ("core.tools.capabilities", "capabilities"):
             try:
                 m = __import__(mod, fromlist=["*"])
@@ -842,7 +842,7 @@ def _save_cache(sig: str, n: int, arr: np.ndarray, brands) -> None:
             probe = tempfile.NamedTemporaryFile(dir=d, delete=True)
             probe.close()
         except Exception:
-            d = os.path.join(tempfile.gettempdir(), "torin_tool_discovery")
+            d = os.path.join(tempfile.gettempdir(), "lyric_tool_discovery")
             os.makedirs(d, exist_ok=True)
             arr_path = os.path.join(d, os.path.basename(arr_path))
             meta_path = os.path.join(d, os.path.basename(meta_path))
@@ -1132,7 +1132,7 @@ def _rank(ix, query: str, k: int) -> List[Tuple[str, float]]:
         w_dense = W_DENSE
         w_lex = W_LEX
 
-    # ---- capability signal: what TorinAI knows that a text ranker does not
+    # ---- capability signal: what Lyric knows that a text ranker does not
     cap_direct = None
     if ix.n_caps:
         demand = _cap_demand(ix, _infer_caps(q))

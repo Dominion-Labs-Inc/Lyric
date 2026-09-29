@@ -1,6 +1,6 @@
 """One stream in, four streams out.
 
-Everything the system emitted went to one logger, so watching Torin reason meant
+Everything the system emitted went to one logger, so watching Lyric reason meant
 reading it interleaved with connection-pool churn and 371 tool registrations.
 The signal was there; it was 2% of the volume.
 
@@ -27,7 +27,7 @@ HEALTH = "health"
 # FOUR PANELS, ONE PER CONCERN. TASKS was folded into SUBSTRATE and HEALTH was
 # split out of SYSTEM on 2026-08-25.
 #
-# The substrate IS Torin thinking AND acting -- learning, reasoning, memory,
+# The substrate IS Lyric thinking AND acting -- learning, reasoning, memory,
 # then the agents, execution and tools that carry a decision out. Those are not
 # two things to a substrate-first system; a task is the substrate doing
 # something, so it belongs in the same panel, not a separate "tasks" lane that
@@ -102,13 +102,13 @@ class ChannelFilter(logging.Filter):
 
 
 def log_dir() -> Path:
-    return Path(os.getenv("TORIN_HOME", ".")) / "logs" / "channels"
+    return Path(os.getenv("LYRIC_HOME", ".")) / "logs" / "channels"
 
 
 def install(level: int = logging.INFO) -> Dict[str, Path]:
     """Attach one file handler per channel to the root logger.
 
-    ADDITIVE. The combined `logs/torin_main.log` and the stdout stream stay
+    ADDITIVE. The combined `logs/lyric_main.log` and the stdout stream stay
     exactly as they were: this is a second way to read the same records, not a
     replacement, so nothing that currently greps the main log breaks.
     """
@@ -125,15 +125,15 @@ def install(level: int = logging.INFO) -> Dict[str, Path]:
     for channel in ALL_CHANNELS:
         path = directory / f"{channel}.log"
         # Re-running install() must not stack duplicate handlers onto root.
-        tag = f"torin-channel:{channel}"
-        if any(getattr(h, "_torin_tag", None) == tag for h in root.handlers):
+        tag = f"lyric-channel:{channel}"
+        if any(getattr(h, "_lyric_tag", None) == tag for h in root.handlers):
             paths[channel] = path
             continue
         handler = logging.FileHandler(path)
         handler.setLevel(level)
         handler.setFormatter(formatter)
         handler.addFilter(ChannelFilter(channel))
-        handler._torin_tag = tag
+        handler._lyric_tag = tag
         root.addHandler(handler)
         paths[channel] = path
 

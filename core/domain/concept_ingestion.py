@@ -3,8 +3,8 @@
 
 The single edge across which experience becomes semantic structure.
 
-Torin's concept layer answers "what things, kinds of things, properties and
-relationships does Torin know how to represent?" -- distinct from memory (what
+Lyric's concept layer answers "what things, kinds of things, properties and
+relationships does Lyric know how to represent?" -- distinct from memory (what
 happened), beliefs (what is currently thought true) and induced schemas (what
 recurring rule was abstracted). Nothing may write a semantic concept except
 through this service, so that every concept in the store carries a chain back
@@ -23,7 +23,7 @@ Design constraints this enforces:
   * Concept identity is separate from claims about the concept. Knowing a thing
     called "atom" exists is cheap; asserting it relates to "molecule" is not.
   * Support counts DISTINCT ROOT evidence. A memory is a representation of prior
-    experience, so counting it as fresh evidence would let Torin re-read its own
+    experience, so counting it as fresh evidence would let Lyric re-read its own
     narrative and promote a weak statement by repetition.
 """
 
@@ -267,7 +267,7 @@ class ConceptExtractor:
     Structure the substrate produces is ALREADY semantic. An induced operator
     states which relations it requires, which it adds and which it retracts;
     that is a concept graph written in logic. Reading it through a prompt would
-    make Torin's knowledge of its own rules contingent on a model's paraphrase
+    make Lyric's knowledge of its own rules contingent on a model's paraphrase
     of them, and would put a sampling step between an induced rule and the
     graph the analogy matcher searches.
 

@@ -39,7 +39,7 @@ the semantic search passing proves nothing about the keyword search.
 ## Run
 
 ```
-./venv_torin/bin/python3 experiments/SYSTEM-MEMORY-01/experiment.py
+./venv_lyric/bin/python3 experiments/SYSTEM-MEMORY-01/experiment.py
 ```
 
 Every memory it writes is removed by id. Each run writes `results/<UTC timestamp>.json` with a `.md` beside it,

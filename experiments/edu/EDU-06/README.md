@@ -6,17 +6,17 @@ Two independently acquired action models from unrelated domains instantiate the 
 
 ## In plain terms
 
-Torin learned how moving works in one made-up world from a teacher, and learned how
+Lyric learned how moving works in one made-up world from a teacher, and learned how
 relocating works in a second, different world by actually doing it and watching what
 happened. The two worlds share no vocabulary -- one says AT, PATH, OPEN; the other
 says IN, LINK, READY.
 
-We then described the first rule to Torin with all the names stripped out, and hid
+We then described the first rule to Lyric with all the names stripped out, and hid
 the first world from it. It recognised the shape as the second world's rule --
 including not just what has to be true beforehand, but what becomes true and what
 stops being true afterwards.
 
-It is worth being precise: at this point Torin RECOGNISED that two things it already
+It is worth being precise: at this point Lyric RECOGNISED that two things it already
 knew are the same shape. It had not yet used one to learn the other faster. That is
 EDU-07.
 
@@ -29,7 +29,7 @@ kite17:move GROUNDED on archive:relocate at 1.00/0.60 with source domain exclude
 Run from the repository root:
 
 ```
-TORIN_MODEL_POLICY=strict_model_free ./venv_torin/bin/python3 experiments/edu/EDU-06/experiment.py
+LYRIC_MODEL_POLICY=strict_model_free ./venv_lyric/bin/python3 experiments/edu/EDU-06/experiment.py
 ```
 
 `manifest.json` in this folder is the frozen result. Every run records

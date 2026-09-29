@@ -24,8 +24,8 @@ and the coordinator's own independence collapse (`_independent_groundings`, the
 Evidence model). Model-free by construction. Add-only and self-cleaning
 (a scratch belief domain, deleted afterward).
 
-    PYTHONPATH="$PWD" POSTGRES_PORT=5433 POSTGRES_USER=stefan TORIN_NO_WATCHDOG=1 \
-    ./venv_torin/bin/python3 experiments/systems/GOV-CASCADE-01/experiment.py
+    PYTHONPATH="$PWD" POSTGRES_PORT=5433 POSTGRES_USER=stefan LYRIC_NO_WATCHDOG=1 \
+    ./venv_lyric/bin/python3 experiments/systems/GOV-CASCADE-01/experiment.py
 """
 from __future__ import annotations
 
@@ -33,8 +33,8 @@ import os
 
 os.environ.setdefault("POSTGRES_PORT", "5433")
 os.environ.setdefault("POSTGRES_USER", "stefan")
-os.environ.setdefault("POSTGRES_DATABASE", "torinai_db")
-os.environ.setdefault("TORIN_NO_WATCHDOG", "1")
+os.environ.setdefault("POSTGRES_DATABASE", "lyric_db")
+os.environ.setdefault("LYRIC_NO_WATCHDOG", "1")
 
 import asyncio
 import contextlib

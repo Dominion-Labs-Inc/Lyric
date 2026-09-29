@@ -9,7 +9,7 @@
 
 ## Executive Summary
 
-Phase 3 successfully integrated governance protection into TorinAI's memory system architecture and resource allocation operations. All 18 tests pass, validating that dangerous memory/resource changes now queue for approval while safe operations execute immediately.
+Phase 3 successfully integrated governance protection into Lyric's memory system architecture and resource allocation operations. All 18 tests pass, validating that dangerous memory/resource changes now queue for approval while safe operations execute immediately.
 
 **Key Achievement**: Prevented "shadow suppression" attacks where an adversary could manipulate memory ranking weights or query filters to effectively suppress memories without triggering individual memory deletion governance.
 
@@ -379,7 +379,7 @@ assert "resource_004" in result.approval_message
 
 **Implementation**:
 ```python
-class MockTorinBrain:
+class MockLyricBrain:
     async def generate(self, *args, **kwargs):
         return {"content": "mock response"}
 
@@ -389,9 +389,9 @@ class MockMemory:
 
 config = {
     "memory": mock_memory,
-    "torin_brain": mock_brain
+    "lyric_brain": mock_brain
 }
-coordinator = AutonomousCoordinator(config=config, torin_brain=mock_brain)
+coordinator = AutonomousCoordinator(config=config, lyric_brain=mock_brain)
 ```
 
 **Benefits**:
@@ -630,7 +630,7 @@ if evaluation.decision_tier.name == "CRITICAL":
 
 ## Conclusion
 
-Phase 3 successfully integrated governance protection into TorinAI's memory and resource operations, achieving 100% test success despite significant file corruption in the learning system. The implementation provides multi-layered defense against shadow suppression attacks, death-by-a-thousand-cuts resource allocation, and rapid oscillation patterns.
+Phase 3 successfully integrated governance protection into Lyric's memory and resource operations, achieving 100% test success despite significant file corruption in the learning system. The implementation provides multi-layered defense against shadow suppression attacks, death-by-a-thousand-cuts resource allocation, and rapid oscillation patterns.
 
 **Key Security Improvement**: An adversary can no longer manipulate memory system architecture or resource allocation without triggering governance approval, closing a significant attack surface that existed when only individual memory operations were protected by capability tokens.
 

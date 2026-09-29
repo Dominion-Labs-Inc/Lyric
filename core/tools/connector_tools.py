@@ -2,13 +2,13 @@
 """
 AgentSO Connector Tools
 =======================
-Wraps AgentSO connectors as TorinAI tools.
+Wraps AgentSO connectors as Lyric tools.
 
 Connectors are imported directly from services/agentso/connectors/.
 When users configure connectors in AgentSO (providing API keys, credentials),
 those connectors become immediately available to the VLM.
 
-Author: Torin AI Team
+Author: Lyric AI Team
 """
 
 import sys
@@ -37,7 +37,7 @@ def get_active_connector():
 
 
 class ConnectorTool(Tool):
-    """Wraps an AgentSO connector method as a TorinAI tool."""
+    """Wraps an AgentSO connector method as a Lyric tool."""
 
     def __init__(self, connector_name: str, method_name: str, description: str,
                  parameters: List[ToolParameter], category: ToolCategory = ToolCategory.SECURITY,
@@ -96,7 +96,7 @@ class ConnectorTool(Tool):
 
 
 def register_connector_tools(registry) -> int:
-    """Register all AgentSO connector tools in TorinAI."""
+    """Register all AgentSO connector tools in Lyric."""
     count = 0
 
     # VirusTotal Tools

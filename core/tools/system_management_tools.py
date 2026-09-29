@@ -13,7 +13,7 @@ Tools:
 - update_system: Update system packages
 - manage_docker: Manage Docker containers
 
-Author: Torin AI Team
+Author: Lyric AI Team
 """
 
 import logging
@@ -290,7 +290,7 @@ class ReloadConfigTool(Tool):
     def __init__(self):
         super().__init__()
         self.name = "reload_config"
-        self.description = "Reload TorinAI configuration from files"
+        self.description = "Reload Lyric configuration from files"
         self.category = ToolCategory.SYSTEM
         self.safety_level = ToolSafety.MODERATE
         self.parameters = []
@@ -313,25 +313,25 @@ class ReloadConfigTool(Tool):
 
             # Import and capture old values
             try:
-                from config import torin_config
-                old_system_config = dict(torin_config.SYSTEM_CONFIG) if hasattr(torin_config, 'SYSTEM_CONFIG') else {}
-                old_agent_config = dict(torin_config.AGENT_CONFIG) if hasattr(torin_config, 'AGENT_CONFIG') else {}
+                from config import lyric_config
+                old_system_config = dict(lyric_config.SYSTEM_CONFIG) if hasattr(lyric_config, 'SYSTEM_CONFIG') else {}
+                old_agent_config = dict(lyric_config.AGENT_CONFIG) if hasattr(lyric_config, 'AGENT_CONFIG') else {}
             except:
                 old_system_config = {}
                 old_agent_config = {}
 
             # Reload the config module
-            config_modules = [name for name in sys.modules.keys() if 'config.torin_config' in name or name == 'config']
+            config_modules = [name for name in sys.modules.keys() if 'config.lyric_config' in name or name == 'config']
             for module_name in config_modules:
                 if module_name in sys.modules:
                     importlib.reload(sys.modules[module_name])
 
             # Re-import to get new values
-            from config import torin_config
-            importlib.reload(torin_config)
+            from config import lyric_config
+            importlib.reload(lyric_config)
 
-            new_system_config = dict(torin_config.SYSTEM_CONFIG) if hasattr(torin_config, 'SYSTEM_CONFIG') else {}
-            new_agent_config = dict(torin_config.AGENT_CONFIG) if hasattr(torin_config, 'AGENT_CONFIG') else {}
+            new_system_config = dict(lyric_config.SYSTEM_CONFIG) if hasattr(lyric_config, 'SYSTEM_CONFIG') else {}
+            new_agent_config = dict(lyric_config.AGENT_CONFIG) if hasattr(lyric_config, 'AGENT_CONFIG') else {}
 
             return ToolResult(
                 success=True,

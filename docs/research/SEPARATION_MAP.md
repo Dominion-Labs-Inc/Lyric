@@ -25,7 +25,7 @@ Being replaced by the industry-standard terms (§8): development, staging, produ
 
 ## 2. The databases
 
-Created 2026-09-27. Each was built from a schema-only dump of `torinai_db` and verified against it:
+Created 2026-09-27. Each was built from a schema-only dump of `lyric_db` and verified against it:
 - the same 336 tables and 1,243 indexes;
 - identical columns (one checksum over every table's columns);
 - `vector` 0.8.1;
@@ -35,9 +35,9 @@ Nothing writes to them yet.
 
 | | Main | Sandbox |
 |---|---|---|
-| World knowledge | `torinai_db_world_knowledge` | `torinai_dev_world_knowledge` |
-| World model | `torinai_db_world_model` | `torinai_dev_world_model` |
-| User context | `torinai_db_user_context` | `torinai_dev_user_context` |
+| World knowledge | `lyric_db_world_knowledge` | `lyric_dev_world_knowledge` |
+| World model | `lyric_db_world_model` | `lyric_dev_world_model` |
+| User context | `lyric_db_user_context` | `lyric_dev_user_context` |
 
 A self-knowledge pair created earlier the same day was dropped on correction. It was empty, had no
 connections, and only the reset script named it. `scripts/reset_dev_store.py` empties the four sandbox databases,
@@ -47,13 +47,13 @@ each by fixed name.
 
 | Database | Holds |
 |---|---|
-| `torinai_db` | the development copy, whole |
-| `torinai_dev` | its sandbox |
-| `torinai_db_world_model` | the running store of the copy the world uses: its tasks, queue and own records |
-| `torinai_db_world_knowledge` | that copy's memory: what it knows, stored as the research found (patterns and memories in memory, scores in beliefs, meanings as linked facts) |
-| `torinai_db_user_context` | each person's context |
+| `lyric_db` | the development copy, whole |
+| `lyric_dev` | its sandbox |
+| `lyric_db_world_model` | the running store of the copy the world uses: its tasks, queue and own records |
+| `lyric_db_world_knowledge` | that copy's memory: what it knows, stored as the research found (patterns and memories in memory, scores in beliefs, meanings as linked facts) |
+| `lyric_db_user_context` | each person's context |
 
-The `torinai_dev_*` databases are the same three for the world copy's sandbox.
+The `lyric_dev_*` databases are the same three for the world copy's sandbox.
 
 **Each world database holds only its own tables.** Every database was created with the full schema, so a statement
 sent to the wrong one would succeed silently against its copy of the table. Trimming each to its own tables makes
@@ -90,7 +90,7 @@ tools' `security` concepts.
 
 ## 4. How a copy reaches its databases
 
-**Today.** `TorinUnifiedDatabasePostgres` (`core/database/unified_database_postgres.py`) is one object per process
+**Today.** `LyricUnifiedDatabasePostgres` (`core/database/unified_database_postgres.py`) is one object per process
 with one connection pool. A running copy can reach exactly one database. The code runs 518 SQL call sites, and
 obtains the database in 170 places.
 
@@ -125,7 +125,7 @@ through the search path the manager sets itself; 116 such references were found.
 The development copy runs by the same rules, with all three stores in one database, so a wrong route is caught in
 development before the world copy runs.
 
-**The copy.** A setting, `TORINAI_COPY` (`development` or `world`), resolved like every other connection setting.
+**The copy.** A setting, `LYRIC_COPY` (`development` or `world`), resolved like every other connection setting.
 The world copy's databases are `<POSTGRES_DATABASE>_<store>`.
 
 ## 5. What reads must never cross
@@ -148,7 +148,7 @@ Nothing is switched halfway: each step ends with every caller it touches switche
 
 | Step | Built | Verified by |
 |---|---|---|
-| S1 | **done 2026-09-27.** The copy is a setting (`TORINAI_COPY`). The one list of which store every table is in (`postgres_config.STORE_TABLES`, `PER_OWNER_TABLES`, `TOOL_TABLES`). The manager holds one pool per database of its copy and places each world-copy statement by its tables, refusing what it cannot place. `scripts/separation_map.py` reads every statement in `core/` and reports how the world copy would place it. `scripts/world_copy_databases.py` builds the world databases, each holding only its store's tables (partitions kept with their table) | manager checks: development 8/8 (unchanged behaviour), world 16/16; a statement forced onto the wrong database fails ("relation does not exist") |
+| S1 | **done 2026-09-27.** The copy is a setting (`LYRIC_COPY`). The one list of which store every table is in (`postgres_config.STORE_TABLES`, `PER_OWNER_TABLES`, `TOOL_TABLES`). The manager holds one pool per database of its copy and places each world-copy statement by its tables, refusing what it cannot place. `scripts/separation_map.py` reads every statement in `core/` and reports how the world copy would place it. `scripts/world_copy_databases.py` builds the world databases, each holding only its store's tables (partitions kept with their table) | manager checks: development 8/8 (unchanged behaviour), world 16/16; a statement forced onto the wrong database fails ("relation does not exist") |
 | S2 | **done 2026-09-27.** Every call site the tables cannot place names its store. Memory storage follows its owner rule across two databases: a person's rows in user context, the substrate's in world knowledge; each search reads the stores its actor may see, merged in the query's own order. Images follow their memory. Intent content follows its owner, and shape-and-content stay "both or neither" across two databases. Directives, the Constitution's ledger check, the health probe and the domain checks name their stores. The world copy leaves out the 12 registered tools that reach its own databases | scanner: 484 substrate call sites, none refused, 2 needing a store (both in code that already cannot run: the chaos memory adapter and the Slack handler). 300 of the tests touching these modules pass in the development copy; the 21 failures are all unrelated. **SEPARATION-01 28/28** (`20260927T144018Z`): 0 refusals raised in the whole run, counted inside the manager. Its hardened check found three more, now fixed: the ledger's schema (an index name places nothing; the ledger was failing silently on every write), the health monitor's pool, and the monthly partitions the first trim dropped |
 | S3 | **done 2026-09-27** (§9.6). A person's context routed in full: the memory of a task done for a person is theirs; unanswered questions carry their owner; facts a taught meaning binds from its situation go to the speaker's context | SHAPES-LEARN-01 re-run; SEPARATION-01 as staging |
 | S4 | **done 2026-09-27** (§9.7). The readers in §5, and development's own readers of the per-owner tables | SEPARATION-01 as staging |
@@ -164,29 +164,29 @@ terms replace "world copy", "world model" and "world knowledge" once built.
 
 | Was | Industry term | Meaning here |
 |---|---|---|
-| development copy | **development** | where the model is taught and learns: `torinai_db` (sandbox `torinai_dev`) |
+| development copy | **development** | where the model is taught and learns: `lyric_db` (sandbox `lyric_dev`) |
 | world copy | **production** | serves people from a released version of the model |
 | (none) | **staging** | runs a release candidate exactly as production would, before it is promoted |
 | world knowledge | **the model** | what the substrate knows (its memory, beliefs and the facts linked in it). In production it is a **release**: a numbered snapshot of development's model, frozen, never edited, replaced only by a newer release |
 | world model (the running store) | **runtime** | production's operational records: tasks, queue, its own records, usage |
 | user context | **user context** | unchanged: each person's own, kept apart |
-| `TORINAI_COPY` | `TORINAI_ENVIRONMENT` plus `TORINAI_RELEASE` | which environment a process is, and which release it serves |
+| `LYRIC_COPY` | `LYRIC_ENVIRONMENT` plus `LYRIC_RELEASE` | which environment a process is, and which release it serves |
 
 **The databases.**
 
 | Now | Becomes |
 |---|---|
-| `torinai_db`, `torinai_dev` | unchanged (development, and its sandbox) |
-| `torinai_db_world_knowledge` (empty) | replaced by releases: `torinai_model_v1`, `torinai_model_v2`, … Each is read-only at the database level, with its content checksum in the registry |
-| `torinai_db_world_model` | `torinai_prod_runtime` |
-| `torinai_db_user_context` | `torinai_prod_user_context` |
-| `torinai_dev_world_model`, `torinai_dev_user_context` | `torinai_staging_runtime`, `torinai_staging_user_context` |
-| `torinai_dev_world_knowledge` | the staging copy of a release candidate |
-| (new) | `torinai_model_registry`: every release with its version, when it was cut, from which database, the code commit it was cut with, its content checksum, and its status (candidate, staging, production, retired) |
+| `lyric_db`, `lyric_dev` | unchanged (development, and its sandbox) |
+| `lyric_db_world_knowledge` (empty) | replaced by releases: `lyric_model_v1`, `lyric_model_v2`, … Each is read-only at the database level, with its content checksum in the registry |
+| `lyric_db_world_model` | `lyric_prod_runtime` |
+| `lyric_db_user_context` | `lyric_prod_user_context` |
+| `lyric_dev_world_model`, `lyric_dev_user_context` | `lyric_staging_runtime`, `lyric_staging_user_context` |
+| `lyric_dev_world_knowledge` | the staging copy of a release candidate |
+| (new) | `lyric_model_registry`: every release with its version, when it was cut, from which database, the code commit it was cut with, its content checksum, and its status (candidate, staging, production, retired) |
 
 **The release lifecycle.**
 1. Cut a release from development's model. The tables of the model store (§4) are copied into
-   `torinai_model_v<N>`, which is set read-only, and the registry records it.
+   `lyric_model_v<N>`, which is set read-only, and the registry records it.
 2. Stage it: staging serves the candidate on sandbox databases, and SEPARATION-01 becomes the staging check.
 3. Promote it: production is pointed at `v<N>`. At start it checks that the release's checksum matches the
    registry and that the release was cut with the code production is running.
@@ -213,8 +213,8 @@ step two. §9 maps what is left, down to the code.
 ### 9.1 Environments and their databases
 
 Every database of a model's line is named from its development database, `POSTGRES_DATABASE` (the root). §8's names
-gain that root as a prefix: `torinai_model_v1` becomes `torinai_db_model_v1`. The reason is the sandbox. An
-experiment sets `POSTGRES_DATABASE=torinai_dev`, so everything it cuts, stages or serves is `torinai_dev_…`, and it
+gain that root as a prefix: `lyric_model_v1` becomes `lyric_db_model_v1`. The reason is the sandbox. An
+experiment sets `POSTGRES_DATABASE=lyric_dev`, so everything it cuts, stages or serves is `lyric_dev_…`, and it
 cannot touch the main line's releases or registry. Test runs writing into the main store (09-27) is the failure this
 guards against.
 
@@ -235,8 +235,8 @@ The six empty world-copy databases are renamed, not dropped:
 The staging databases are new.
 
 **Settings.**
-- `TORINAI_ENVIRONMENT` is development, staging or production. It replaces `TORINAI_COPY`.
-- `TORINAI_RELEASE` is the release a staging or production process serves. It is required there and refused in
+- `LYRIC_ENVIRONMENT` is development, staging or production. It replaces `LYRIC_COPY`.
+- `LYRIC_RELEASE` is the release a staging or production process serves. It is required there and refused in
   development.
 
 ### 9.2 Stores, and where each statement goes

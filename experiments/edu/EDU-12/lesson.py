@@ -15,7 +15,7 @@ CHECKED and a lesson that breaches one is marked invalid rather than scored:
     `SubstrateLearning.contribute()` as a CANDIDATE with zero evidence roots.
     "25% means 25 out of 100" is not evidence because a teacher said it.
 
-    TORIN COMMITS BEFORE IT IS TOLD. In guided practice the answer is recorded
+    LYRIC COMMITS BEFORE IT IS TOLD. In guided practice the answer is recorded
     before feedback is given. The reverse order -- solution, then reproduction,
     then "learned" -- measures copying.
 
@@ -202,7 +202,7 @@ async def teach(authority, teacher_name: str, lessons: Sequence[Dict[str, Any]],
 
     Nothing here becomes knowledge. Each lesson is admitted as a proposal, and
     the record of what was admitted is kept so a later capability can be traced
-    to what was said to Torin -- and, more importantly, so it can be shown that
+    to what was said to Lyric -- and, more importantly, so it can be shown that
     what was said never counted as evidence.
     """
     from core.learning.unified_learning_system import Contribution, ContributionKind

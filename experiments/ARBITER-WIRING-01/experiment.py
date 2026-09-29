@@ -29,7 +29,7 @@ Three breaks were measured in the live tree, and this proves each is closed.
 Real appraisal derivation, the real arbiter, the real queue authority, and the
 coordinator's own `disposition()` / `_interoception()` methods. No stubs.
 
-Run: ./venv_torin/bin/python3 experiments/ARBITER-WIRING-01/experiment.py
+Run: ./venv_lyric/bin/python3 experiments/ARBITER-WIRING-01/experiment.py
 """
 from __future__ import annotations
 import os

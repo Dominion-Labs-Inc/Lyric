@@ -1,21 +1,21 @@
 # DOMINION LABS, INC.
-# TORIN — ARCHITECTURE
+# LYRIC — ARCHITECTURE
 
 **September 2026**
 
 ---
 
-**Purpose.** This document describes how Torin is built: the commitments its design rests on, the
+**Purpose.** This document describes how Lyric is built: the commitments its design rests on, the
 components and who owns what, the two gates every piece of work passes, each subsystem and what feeds
 it, the data that persists, and the boundaries it operates inside. It is the core-design companion to the
-*Torin Product & System Overview*, which describes what Torin is and what it does; where that document
+*Lyric Product & System Overview*, which describes what Lyric is and what it does; where that document
 answers *what*, this one answers *how*.
 
 **How every statement here was verified.** Nothing was carried over from an earlier description.
 Component names, ownership, interfaces and control flow were read from the current source. Counts of
 modules, methods, events and lines were derived by scanning that source. Every figure for stored state
 was measured against the live production database on **2026-09-19 at 20:49 UTC**, under the canonical
-runtime (`./venv_torin/bin/python3`, Python 3.11.14), with the database identity confirmed by asking
+runtime (`./venv_lyric/bin/python3`, Python 3.11.14), with the database identity confirmed by asking
 the server rather than by reading configuration. §34 records the method used for each class of claim.
 
 **What is deliberately gated.** This document describes structure, ownership, interfaces and control
@@ -35,7 +35,7 @@ running system rather than being a statement of intent.
 
 ### 1.1 Cognition is performed by the substrate, not by a model
 
-No generative model participates in Torin's reasoning, planning, judgement of actions, or its decision
+No generative model participates in Lyric's reasoning, planning, judgement of actions, or its decision
 to act. The substrate itself computes inference over knowledge, construction of plans, judgement of
 proposed actions against its governing laws, and evaluation of outcomes.
 
@@ -62,7 +62,7 @@ reconcile.
 
 ### 1.3 Evidence before belief, and the world decides
 
-Torin separates what it **did** from what was **independently observed** afterwards. An action's own
+Lyric separates what it **did** from what was **independently observed** afterwards. An action's own
 report is weak evidence by construction: a bare report of success cannot reach the acceptance threshold
 even when accumulated. Completion is decided by re-observing the world.
 
@@ -761,9 +761,9 @@ as a perfect one.
 
 **Containment is enforced from the inside** by Law 5: the substrate may not modify the machinery that
 governs and halts it, install anything that would make it persist after being stopped, or take
-privileges its boundary does not grant. Torin is designed to operate inside an enclosing protected
+privileges its boundary does not grant. Lyric is designed to operate inside an enclosing protected
 environment maintained as a separate program; that environment and its boundary are external and
-deliberately out of scope here. Torin's governance concerns what the substrate may do, independently of
+deliberately out of scope here. Lyric's governance concerns what the substrate may do, independently of
 what that boundary permits to cross.
 
 ## 23. Bearing — what a percept touches
@@ -947,7 +947,7 @@ is a taxonomy nobody is actually filing against.
 
 ## 31. Multi-tenancy and scoped context
 
-Torin supports multiple principals against a single substrate without collapsing their contexts.
+Lyric supports multiple principals against a single substrate without collapsing their contexts.
 
 - The system's **own** learning goes to the shared knowledge graph and universal beliefs.
 - What a **user** tells it stays in that user's scoped context and touches neither (§4.1).

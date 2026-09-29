@@ -8,7 +8,7 @@ Integration test to verify:
 3. Context-aware selection - pick best tool for use case
 4. Capability index building - automatic indexing
 
-Author: Torin AI Team
+Author: Lyric AI Team
 """
 
 import pytest
@@ -186,7 +186,7 @@ async def test_actual_tool_execution():
     registry.register(tool)
 
     # Create a test file
-    test_file = Path("/tmp/torin_test_file.txt")
+    test_file = Path("/tmp/lyric_test_file.txt")
     test_content = "Hello from capability-based discovery!\nThis is line 2.\n"
     test_file.write_text(test_content)
     print(f"   Created test file: {test_file}")

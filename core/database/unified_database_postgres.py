@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 """
-TorinAI Unified PostgreSQL Database
+Lyric Unified PostgreSQL Database
 ====================================
 Production PostgreSQL database implementation with schema-based tier architecture.
 
 Environments and stores:
-- DEVELOPMENT keeps everything in one database (`POSTGRES_DATABASE`: torinai_db
-  for the main line, torinai_dev for its sandbox). The model is taught there.
+- DEVELOPMENT keeps everything in one database (`POSTGRES_DATABASE`: lyric_db
+  for the main line, lyric_dev for its sandbox). The model is taught there.
 - STAGING and PRODUCTION serve a numbered RELEASE of the model, frozen
   (`<database>_model_v<N>`, read-only), and keep their runtime, each person's
   context and what the substrate remembers of its own while serving (learning)
-  in `<database>_<environment>_<store>`. `TORINAI_ENVIRONMENT` and
-  `TORINAI_RELEASE` say which a process is.
+  in `<database>_<environment>_<store>`. `LYRIC_ENVIRONMENT` and
+  `LYRIC_RELEASE` say which a process is.
 
 Every component holds this one manager. Outside development it sends each
 statement to the database its tables live in (postgres_config.STORE_TABLES);
@@ -114,9 +114,9 @@ class _DatabasePool:
         return self.loop is running and not self.loop.is_closed()
 
 
-class TorinUnifiedDatabasePostgres:
+class LyricUnifiedDatabasePostgres:
     """
-    Unified PostgreSQL Database for TorinAI (Singleton)
+    Unified PostgreSQL Database for Lyric (Singleton)
 
     All instantiations return the same shared instance with shared connection
     pools, preventing connection exhaustion from multiple components each
@@ -131,7 +131,7 @@ class TorinUnifiedDatabasePostgres:
     - Learning and adaptation data
 
     Usage:
-        db = TorinUnifiedDatabasePostgres()
+        db = LyricUnifiedDatabasePostgres()
         await db.initialize()
 
         # Execute query with automatic schema routing
@@ -199,12 +199,12 @@ class TorinUnifiedDatabasePostgres:
         #: database name -> its pool. One in development, one per store in staging and production.
         self._pools: Dict[str, _DatabasePool] = {}
         self.host = 'localhost'
-        # 5433 is TorinAI's own instance; 5432 is the shared one holding
+        # 5433 is Lyric's own instance; 5432 is the shared one holding
         # agentso's tenant databases. See postgres_config.DEFAULT_PORT.
         self.port = DEFAULT_PORT
         self.user = 'postgres'
         self.password = ''
-        self.database = 'torinai_db'
+        self.database = 'lyric_db'
         self.environment = 'development'
         self.release: Optional[int] = None
         #: Whether this process serves a frozen release (staging, production).
@@ -262,7 +262,7 @@ class TorinUnifiedDatabasePostgres:
             self._pools[name] = _DatabasePool(name, index)
 
         logger.info(
-            f"TorinUnifiedDatabasePostgres singleton configured "
+            f"LyricUnifiedDatabasePostgres singleton configured "
             f"(host: {self.host}:{self.port}, {self.environment}"
             f"{f' serving release {self.release}' if self.release else ''}, "
             f"databases: {', '.join(self._pools)}, "
@@ -636,7 +636,7 @@ class TorinUnifiedDatabasePostgres:
         # abort the transports -- but the backends it left behind can be
         # reaped through ordinary SQL from the new one.
         pool.generation += 1
-        pool.tag = f"torinai_{os.getpid()}_{pool.index}_{pool.generation}"
+        pool.tag = f"lyric_{os.getpid()}_{pool.index}_{pool.generation}"
 
         pool.pool = await asyncpg.create_pool(
             host=self.host,
@@ -860,7 +860,7 @@ class TorinUnifiedDatabasePostgres:
         # fetch_one/fetch_all, automatically fetch_all to avoid returning None.
         # This prevents a common class of "NoneType is not iterable" bugs.
         try:
-            autofetch = os.getenv("TORINAI_DB_AUTOFETCH_SELECT", "true").strip().lower() not in {"0", "false", "no", "off"}
+            autofetch = os.getenv("LYRIC_DB_AUTOFETCH_SELECT", "true").strip().lower() not in {"0", "false", "no", "off"}
             if autofetch and not fetch_one and not fetch_all:
                 q = (query or "").lstrip().lower()
                 if q.startswith("select") or q.startswith("with") or q.startswith("show") or q.startswith("explain"):
@@ -1335,9 +1335,9 @@ class TorinUnifiedDatabasePostgres:
 
 
 # Convenience alias
-TorinUnifiedDatabase = TorinUnifiedDatabasePostgres
+LyricUnifiedDatabase = LyricUnifiedDatabasePostgres
 
-async def get_unified_database() -> TorinUnifiedDatabasePostgres:
+async def get_unified_database() -> LyricUnifiedDatabasePostgres:
     """
     Get singleton instance of unified database.
 
@@ -1347,9 +1347,9 @@ async def get_unified_database() -> TorinUnifiedDatabasePostgres:
     The class itself is a singleton via __new__.
 
     Returns:
-        TorinUnifiedDatabasePostgres singleton instance (may not be initialized)
+        LyricUnifiedDatabasePostgres singleton instance (may not be initialized)
     """
-    return TorinUnifiedDatabasePostgres()
+    return LyricUnifiedDatabasePostgres()
 
 
 # Alias for shorter name

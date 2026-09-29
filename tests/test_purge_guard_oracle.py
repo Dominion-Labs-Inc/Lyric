@@ -20,7 +20,7 @@ import pytest
 
 REPO = Path(__file__).resolve().parents[1]
 SCRIPT = REPO / "scripts" / "purge_legacy_fixture_concepts.py"
-PYTHON = REPO / "venv_torin" / "bin" / "python"
+PYTHON = REPO / "venv_lyric" / "bin" / "python"
 
 
 def _dry_run():

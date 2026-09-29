@@ -22,7 +22,7 @@ Measured before, on the live store and the live code:
   E  STANDING CHECK (static)      every Task the coordinator enqueues is intended first, and
                                   every ending of the task runner closes its pursuit
 
-Run: ./venv_torin/bin/python3 experiments/PURSUIT-01/experiment.py
+Run: ./venv_lyric/bin/python3 experiments/PURSUIT-01/experiment.py
 """
 import ast
 import asyncio

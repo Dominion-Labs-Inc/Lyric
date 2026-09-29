@@ -2,7 +2,7 @@
 """
 Environment State
 =================
-Real-time system environment awareness for TorinAI.
+Real-time system environment awareness for Lyric.
 
 Tracks:
 - Running services and health
@@ -129,7 +129,7 @@ class EnvironmentState:
             'torinai-api': {'port': 9001, 'health': '/health'},
             'prometheus': {'port': 9090, 'health': '/-/healthy'},
             'grafana': {'port': 3000, 'health': '/api/health'},
-            # TorinAI's instance, not the shared agentso one on 5432.
+            # Lyric's instance, not the shared agentso one on 5432.
             'postgresql': {'port': 5433, 'health': None},
             'redis': {'port': 6379, 'health': None},
         }

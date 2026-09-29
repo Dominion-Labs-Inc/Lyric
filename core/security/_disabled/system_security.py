@@ -2,7 +2,7 @@
 """
 System Security
 ===============
-Core security functions for TorinAI system
+Core security functions for Lyric system
 
 Purpose:
 - Input validation and sanitization

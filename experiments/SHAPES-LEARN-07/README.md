@@ -87,5 +87,5 @@ The word count grew because "it's" and "don't" are now two pieces each.
   learned from "Milk is white." takes any word of the kind, and which words go without "a" or "the" is not learned
   yet.
 
-Run: `./venv_torin/bin/python3 experiments/SHAPES-LEARN-07/experiment.py` (empties the sandbox first, and leaves the
+Run: `./venv_lyric/bin/python3 experiments/SHAPES-LEARN-07/experiment.py` (empties the sandbox first, and leaves the
 five lessons taught).

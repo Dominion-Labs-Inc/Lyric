@@ -566,7 +566,7 @@ async def get_quantum_performance_summary() -> Dict[str, Any]:
 
 
 def inject_quantum_monitoring_into_system():
-    """Inject quantum monitoring into Torin's monitoring systems"""
+    """Inject quantum monitoring into Lyric's monitoring systems"""
     try:
         logger.info("Injecting quantum monitoring into system monitoring")
         

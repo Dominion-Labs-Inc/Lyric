@@ -32,7 +32,7 @@ A run is only meaningful with both halves read together. **INVENTED must be ~0.*
 ## Run
 
 ```
-./venv_torin/bin/python3 experiments/KNOWS-WORDNET-01/experiment.py [N]
+./venv_lyric/bin/python3 experiments/KNOWS-WORDNET-01/experiment.py [N]
 ```
 
 `N` is the sample size per level (default 500). The sample is seeded (`SEED = 20260924`),

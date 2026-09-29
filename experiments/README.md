@@ -1,7 +1,7 @@
 # Experiments
 
 Each experiment has its own folder with a short `README.md`: what it tests, how to run it, and what its
-saved results say. Run everything from the TorinAI folder with `./venv_torin/bin/python3`.
+saved results say. Run everything from the Lyric folder with `./venv_lyric/bin/python3`.
 
 **Where results go.**
 - **Newer experiments** save every run through `_evidence.py` to `<folder>/results/<UTC timestamp>.json`,
@@ -13,10 +13,10 @@ saved results say. Run everything from the TorinAI folder with `./venv_torin/bin
 The standing record of measurements is `docs/research/BENCHMARKS.md`; session notes are in
 `docs/research/LAB_NOTEBOOK.md`.
 
-**Which database.** `torinai_db` is the main model's store: it holds only what the substrate was taught on
-purpose, so nothing is run against it to try things out. `torinai_dev` has exactly the same structure (copied
+**Which database.** `lyric_db` is the main model's store: it holds only what the substrate was taught on
+purpose, so nothing is run against it to try things out. `lyric_dev` has exactly the same structure (copied
 2026-09-27) and is the sandbox for build, test and experiment runs:
-- run with `POSTGRES_DATABASE=torinai_dev`
+- run with `POSTGRES_DATABASE=lyric_dev`
 - tests use it by default (`tests/conftest.py`)
 - `scripts/reset_dev_store.py` empties the whole sandbox line and can empty nothing else
 
@@ -31,9 +31,9 @@ database:
 development. An experiment that serves a release works on the sandbox line: the sandbox reset drops the releases
 its runs cut.
 
-Most experiment scripts default to `torinai_db` with `os.environ.setdefault`, so an outer
-`POSTGRES_DATABASE=torinai_dev` sends them to the sandbox. A lesson is taught into `torinai_db` only once it has
-been verified in the sandbox, and that run names `torinai_db` on purpose.
+Most experiment scripts default to `lyric_db` with `os.environ.setdefault`, so an outer
+`POSTGRES_DATABASE=lyric_dev` sends them to the sandbox. A lesson is taught into `lyric_db` only once it has
+been verified in the sandbox, and that run names `lyric_db` on purpose.
 
 ## Governance — the constitution
 

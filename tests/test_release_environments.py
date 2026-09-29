@@ -17,40 +17,40 @@ from core.database.postgres_config import (
 
 
 def resolve(**env):
-    return PostgresConfig.resolve(env={"POSTGRES_DATABASE": "torinai_dev", **env}, env_files=[])
+    return PostgresConfig.resolve(env={"POSTGRES_DATABASE": "lyric_dev", **env}, env_files=[])
 
 
 def test_development_is_the_default_and_serves_no_release():
     config = resolve()
     assert config.environment == "development" and config.release is None and not config.frozen
-    assert set(config.databases().values()) == {"torinai_dev"}
+    assert set(config.databases().values()) == {"lyric_dev"}
 
 
 def test_production_names_every_database_from_the_development_database():
-    config = resolve(TORINAI_ENVIRONMENT="production", TORINAI_RELEASE="3")
+    config = resolve(LYRIC_ENVIRONMENT="production", LYRIC_RELEASE="3")
     assert config.frozen and config.release == 3
     assert config.databases() == {
-        "runtime": "torinai_dev_production_runtime",
-        "model": "torinai_dev_model_v3",
-        "user_context": "torinai_dev_production_user_context",
-        "learning": "torinai_dev_production_learning",
+        "runtime": "lyric_dev_production_runtime",
+        "model": "lyric_dev_model_v3",
+        "user_context": "lyric_dev_production_user_context",
+        "learning": "lyric_dev_production_learning",
     }
-    assert config.registry_database == "torinai_dev_model_registry"
+    assert config.registry_database == "lyric_dev_model_registry"
 
 
 def test_staging_serves_the_same_release_databases_as_production_names_them():
-    staging = resolve(TORINAI_ENVIRONMENT="staging", TORINAI_RELEASE="3")
-    assert staging.database_for("model") == "torinai_dev_model_v3"
-    assert staging.database_for("runtime") == "torinai_dev_staging_runtime"
+    staging = resolve(LYRIC_ENVIRONMENT="staging", LYRIC_RELEASE="3")
+    assert staging.database_for("model") == "lyric_dev_model_v3"
+    assert staging.database_for("runtime") == "lyric_dev_staging_runtime"
 
 
 @pytest.mark.parametrize("env, says", [
-    ({"TORINAI_ENVIRONMENT": "staging"}, "serves a release"),
-    ({"TORINAI_ENVIRONMENT": "production", "TORINAI_RELEASE": "0"}, "serves a release"),
-    ({"TORINAI_ENVIRONMENT": "production", "TORINAI_RELEASE": "latest"}, "serves a release"),
-    ({"TORINAI_RELEASE": "2"}, "development serves none"),
-    ({"TORINAI_ENVIRONMENT": "world"}, "not an environment"),
-    ({"TORINAI_COPY": "world"}, "was replaced by TORINAI_ENVIRONMENT"),
+    ({"LYRIC_ENVIRONMENT": "staging"}, "serves a release"),
+    ({"LYRIC_ENVIRONMENT": "production", "LYRIC_RELEASE": "0"}, "serves a release"),
+    ({"LYRIC_ENVIRONMENT": "production", "LYRIC_RELEASE": "latest"}, "serves a release"),
+    ({"LYRIC_RELEASE": "2"}, "development serves none"),
+    ({"LYRIC_ENVIRONMENT": "world"}, "not an environment"),
+    ({"LYRIC_COPY": "world"}, "was replaced by LYRIC_ENVIRONMENT"),
 ])
 def test_settings_that_cannot_be_served_are_refused(env, says):
     with pytest.raises(ValueError, match=says):

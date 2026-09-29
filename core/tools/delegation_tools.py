@@ -3,7 +3,7 @@
 
 Deliberately a TOOL and not a new pipeline.
 
-TorinAI already has exactly one validated execution path, and everything it
+Lyric already has exactly one validated execution path, and everything it
 needs is on it:
 
   tool_registry.execute_tool

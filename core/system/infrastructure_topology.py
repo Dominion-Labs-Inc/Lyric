@@ -76,25 +76,25 @@ class InfrastructureTopology:
         # API Gateway - central routing hub
         self.add_service('api-gateway', ServiceTier.CRITICAL, 8080, depends_on=[])
 
-        # PostgreSQL - TorinAI unified database (memory + system data)
-        # INVERTED HERE UNTIL NOW: this declared TorinAI's critical database
+        # PostgreSQL - Lyric unified database (memory + system data)
+        # INVERTED HERE UNTIL NOW: this declared Lyric's critical database
         # on 5432 and agentso's on 5433, which is backwards. Everything that
         # reasons about dependencies or health from this topology was
         # pointing at the wrong instance.
-        self.add_service('postgresql-torinai', ServiceTier.CRITICAL, 5433, depends_on=[])
+        self.add_service('postgresql-lyric', ServiceTier.CRITICAL, 5433, depends_on=[])
 
-        # TorinAI - system operator
-        self.add_service('torinai-chat', ServiceTier.CRITICAL, 9080, depends_on=['postgresql-torinai'])
-        self.add_service('torinai-api', ServiceTier.CRITICAL, 9001, depends_on=['postgresql-torinai'])
+        # Lyric - system operator
+        self.add_service('torinai-chat', ServiceTier.CRITICAL, 9080, depends_on=['postgresql-lyric'])
+        self.add_service('torinai-api', ServiceTier.CRITICAL, 9001, depends_on=['postgresql-lyric'])
 
         # === IMPORTANT TIER ===
         # Core services depend on PostgreSQL and route through API Gateway
-        self.add_service('employee-auth', ServiceTier.IMPORTANT, 8101, depends_on=['postgresql-torinai'])
-        self.add_service('employee-email', ServiceTier.IMPORTANT, 8102, depends_on=['postgresql-torinai'])
-        self.add_service('email-webhook', ServiceTier.IMPORTANT, 8103, depends_on=['postgresql-torinai'])
-        self.add_service('email-realtime', ServiceTier.IMPORTANT, 8104, depends_on=['postgresql-torinai', 'redis'])
+        self.add_service('employee-auth', ServiceTier.IMPORTANT, 8101, depends_on=['postgresql-lyric'])
+        self.add_service('employee-email', ServiceTier.IMPORTANT, 8102, depends_on=['postgresql-lyric'])
+        self.add_service('email-webhook', ServiceTier.IMPORTANT, 8103, depends_on=['postgresql-lyric'])
+        self.add_service('email-realtime', ServiceTier.IMPORTANT, 8104, depends_on=['postgresql-lyric', 'redis'])
         self.add_service('smtp-sender', ServiceTier.IMPORTANT, 8105, depends_on=[])
-        self.add_service('user-settings', ServiceTier.IMPORTANT, 8106, depends_on=['postgresql-torinai'])
+        self.add_service('user-settings', ServiceTier.IMPORTANT, 8106, depends_on=['postgresql-lyric'])
 
         # AgentSO - SOC platform (uses separate PostgreSQL instance)
         self.add_service('postgresql-agentso', ServiceTier.IMPORTANT, 5432, depends_on=[])
@@ -102,8 +102,8 @@ class InfrastructureTopology:
         self.add_service('agentso-web', ServiceTier.IMPORTANT, 3010, depends_on=['agentso'])
 
         # Cloud services
-        self.add_service('cloud-storage', ServiceTier.IMPORTANT, 8401, depends_on=['postgresql-torinai'])
-        self.add_service('payment-service', ServiceTier.IMPORTANT, 8500, depends_on=['postgresql-torinai'])
+        self.add_service('cloud-storage', ServiceTier.IMPORTANT, 8401, depends_on=['postgresql-lyric'])
+        self.add_service('payment-service', ServiceTier.IMPORTANT, 8500, depends_on=['postgresql-lyric'])
 
         # Redis - caching layer
         self.add_service('redis', ServiceTier.IMPORTANT, 6379, depends_on=[])
@@ -139,7 +139,7 @@ class InfrastructureTopology:
         MATCHED BY PORT, NOT BY NAME. The two sides name the same services
         differently: the scanner reports one `postgresql`, while this topology
         models the two logical databases sharing that instance as
-        `postgresql-torinai` and `postgresql-agentso`. Neither name could ever
+        `postgresql-lyric` and `postgresql-agentso`. Neither name could ever
         match, so a running Postgres was recorded as a CRITICAL service down --
         and the health check reported it as such while every database check in
         the system was passing against it.

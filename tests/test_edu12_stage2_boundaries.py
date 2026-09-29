@@ -7,7 +7,7 @@ like learning and is not:
 
     the teacher may not answer the exam
     the teacher may not write knowledge
-    Torin commits before it is told
+    Lyric commits before it is told
 
 Every test here tries to breach one and asserts it is caught.
 """
@@ -186,7 +186,7 @@ def test_the_sealed_exams_still_match_the_subject_files():
 
 
 def test_teaching_takes_lessons_and_has_no_way_to_receive_exam_items():
-    """The teacher is handed instructional material and Torin's declared state,
+    """The teacher is handed instructional material and Lyric's declared state,
     never the questions. Enforced by the signature: `teach` accepts lessons."""
     import inspect
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-TorinAI Intelligence Module
+Lyric Intelligence Module
 Predictive intelligence and advanced cognitive systems.
 """
 

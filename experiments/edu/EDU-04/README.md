@@ -6,14 +6,14 @@ A learned rule can carry an observation whose elements are opaque, and the match
 
 ## In plain terms
 
-We described a situation to Torin using placeholder names -- e1, e2, e3 -- so it
-could not recognise anything by name. Only the shape was given. Torin matched it to
+We described a situation to Lyric using placeholder names -- e1, e2, e3 -- so it
+could not recognise anything by name. Only the shape was given. Lyric matched it to
 the movement rule it had learned.
 
 To check this was not luck we did two things: we offered a differently-shaped
 situation, which it correctly refused; and we deleted the part of its knowledge
 that came from generalizing, leaving only what it had directly observed. The match
-disappeared. So the match depended on what Torin had worked out, not on what it had
+disappeared. So the match depended on what Lyric had worked out, not on what it had
 merely seen.
 
 ## Result
@@ -25,7 +25,7 @@ GROUNDED 1.00/0.60. Distractor NO_MATCH 0.50. Ablation of rule-derived edges NO_
 Run from the repository root:
 
 ```
-TORIN_MODEL_POLICY=strict_model_free ./venv_torin/bin/python3 experiments/edu/EDU-04/experiment.py
+LYRIC_MODEL_POLICY=strict_model_free ./venv_lyric/bin/python3 experiments/edu/EDU-04/experiment.py
 ```
 
 `manifest.json` in this folder is the frozen result. Every run records

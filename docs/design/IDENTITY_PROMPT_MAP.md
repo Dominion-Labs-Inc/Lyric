@@ -1,14 +1,14 @@
 # Map of prompts & "identity" — `unified_llm` and `autonomous_coordinator`
 
 Purpose: before renaming/rewriting `unified_llm` and stripping the "brain" out of
-the coordinator, inventory **every place Torin's identity and cognition are
+the coordinator, inventory **every place Lyric's identity and cognition are
 pinned to the language model** — as prompt strings, as `self.llm`, and as
 behaviour the coordinator routes through the model. This is the surface the new
 substrate-native center has to absorb or cut.
 
 ## The headline
 
-Torin's "self" lives in the LLM in **two** forms, and a third, substrate-native
+Lyric's "self" lives in the LLM in **two** forms, and a third, substrate-native
 path runs in parallel:
 
 1. **Identity-as-prompt** — the persona/identity is a *string* in
@@ -31,18 +31,18 @@ wearing the "Singleton" identity.
 
 `UnifiedLLMService` is an **inference service** (queue, GPU, model load, logging).
 Its own docstring already disowns the crown: *"It is also not the substrate.
-Torin is the cognitive substrate this service is [for]"* (`:21`).
+Lyric is the cognitive substrate this service is [for]"* (`:21`).
 
 ### A1. `self.system_prompts` — the persona table (`:554`–~`:780`)
-~30 agent-type entries. Every one begins "You are Torin…". Three tiers:
+~30 agent-type entries. Every one begins "You are Lyric…". Three tiers:
 
 | Tier | Entries | Content |
 |---|---|---|
-| **Generic** (identical line) | `chat`, `code`, `research`, `reasoning`, `safety`, `memory`, `vision`, `system_maintenance`, `autonomous`, `health_analyst`, `causal_reasoning`, `code_generator`, `documentation_specialist`, `refactoring_specialist`, `performance_optimizer`, `debugging_specialist`, `logical_reasoning`, `conversation_summarizer`, `constitutional_safety`, `documentation_expert`, `deductive_reasoning`, `memory_consolidator`, `pattern_recognition` | "You are Torin, an advanced AGI assistant created by Dominion Labs Inc. You are the central intelligence powering TorinAI." (~20+ copies) |
+| **Generic** (identical line) | `chat`, `code`, `research`, `reasoning`, `safety`, `memory`, `vision`, `system_maintenance`, `autonomous`, `health_analyst`, `causal_reasoning`, `code_generator`, `documentation_specialist`, `refactoring_specialist`, `performance_optimizer`, `debugging_specialist`, `logical_reasoning`, `conversation_summarizer`, `constitutional_safety`, `documentation_expert`, `deductive_reasoning`, `memory_consolidator`, `pattern_recognition` | "You are Lyric, an advanced AGI assistant created by Dominion Labs Inc. You are the central intelligence powering Lyric." (~20+ copies) |
 | **Rich identity** | `singleton` (`:616`–`:655`), `task_executor` (`:659`–`:746`) | The full self-model: *"You are not a model. You are a cognitive substrate: your reasoning is symbolic and evidence-based… it is the thing that decides. A Qwen… model is available to you as a teacher and helper — it proposes, formalises and reads language for you."* Plus behaviour rules (tool-call etiquette, the 5 laws, idle behaviour). |
 | **Domain** | `agentso` (`:580`) | Cybersecurity SOC persona. |
 
-**This is where Torin's identity actually lives.** It is inert to the substrate —
+**This is where Lyric's identity actually lives.** It is inert to the substrate —
 only the model reads it. The `singleton`/`task_executor` blocks are the canonical
 self-description to lift OUT into a real substrate self-model.
 
@@ -59,7 +59,7 @@ self-description to lift OUT into a real substrate self-model.
 ### B1. The `self.llm` slot — identity/authority conflation
 - `:128` docstring — **stated principle**: "THE COGNITIVE SUBSTRATE IS THE BRAIN. A language model is a TEACHER."
 - `:161` `self.llm = teacher_model  # the consultable model, absent by default`.
-- `:485` `self.llm = self.config.get("llm_brain")  # Torin will pass itself` ← **identity pinned to the llm slot**: the model is called `llm_brain`, and "Torin passes itself" *as* the llm.
+- `:485` `self.llm = self.config.get("llm_brain")  # Lyric will pass itself` ← **identity pinned to the llm slot**: the model is called `llm_brain`, and "Lyric passes itself" *as* the llm.
 - `:639`–`:641` fallback `self.llm = get_llm_service()` → becomes the plain `UnifiedLLMService`.
 - `:685` `self.intrinsic_motivation.set_llm(self.llm)`; `:2659` availability = `self.llm is not None`.
 
@@ -118,7 +118,7 @@ should route:
 3. **Stop treating `self.llm` as the brain.** Split it: an **inference resource**
    (rename `unified_llm` to what it is) vs. the substrate **self/center** that
    owns memory/research/learning/reflection through the real subsystems.
-4. **Demote `llm_brain` / "Torin passes itself."** Torin is the substrate; the
+4. **Demote `llm_brain` / "Lyric passes itself."** Lyric is the substrate; the
    model is a part it consults.
 
 _Generated 2026-08-27 from a direct read of both files. Line numbers are current

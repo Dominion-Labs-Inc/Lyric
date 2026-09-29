@@ -6,7 +6,7 @@ One counterexample that isolates a missing precondition converts an unusable act
 
 ## In plain terms
 
-Torin had learned a rule for moving things that forgot to check where the thing
+Lyric had learned a rule for moving things that forgot to check where the thing
 currently was. It could therefore "plan" to move an object from a room the object
 was not in. We showed it a single lesson in which everything else was true but the
 object was somewhere else, and it did not move. From that one lesson it repaired
@@ -14,7 +14,7 @@ the rule, and its score on a nine-problem exam went from 2 to 9 -- including
 problems needing six moves chained together, which it had never been shown.
 
 The important part is not the score. It is that when we took the lesson away
-again, Torin did not go back to being confidently wrong: it went back to saying
+again, Lyric did not go back to being confidently wrong: it went back to saying
 "I cannot reach that", which is the honest answer.
 
 ## Result
@@ -44,7 +44,7 @@ that it still does anything.
 | T+7d | — | — | — | pending elapsed time |
 
 ```
-./venv_torin/bin/python3 experiments/edu/EDU-01/retention_probe.py
+./venv_lyric/bin/python3 experiments/edu/EDU-01/retention_probe.py
 ```
 
 The log at `retention.json` is append-only and every entry records *measured*
@@ -57,7 +57,7 @@ not get to call itself T+6h.
 Run from the repository root:
 
 ```
-TORIN_MODEL_POLICY=strict_model_free ./venv_torin/bin/python3 experiments/edu/EDU-01/experiment.py
+LYRIC_MODEL_POLICY=strict_model_free ./venv_lyric/bin/python3 experiments/edu/EDU-01/experiment.py
 ```
 
 `manifest.json` in this folder is the frozen result. Every run records

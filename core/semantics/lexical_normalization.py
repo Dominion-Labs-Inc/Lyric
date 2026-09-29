@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""One canonical lexical interpretation of a surface form, for all of Torin.
+"""One canonical lexical interpretation of a surface form, for all of Lyric.
 
 The invariant:
 

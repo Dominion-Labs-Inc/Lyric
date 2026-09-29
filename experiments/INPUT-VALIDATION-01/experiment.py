@@ -16,7 +16,7 @@ moved. This proves the capability is re-homed LIVE and the gate is fail-closed:
   7. The health check reports honest liveness WITHOUT importing the archived
      controller (so the watchdog CRITICAL clears legitimately).
 
-Run: ./venv_torin/bin/python3 experiments/INPUT-VALIDATION-01/experiment.py
+Run: ./venv_lyric/bin/python3 experiments/INPUT-VALIDATION-01/experiment.py
 """
 from __future__ import annotations
 import asyncio

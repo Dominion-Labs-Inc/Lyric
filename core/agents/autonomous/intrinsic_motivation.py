@@ -18,7 +18,7 @@ import random
 import time
 import hashlib
 
-from core.database import TorinUnifiedDatabase
+from core.database import LyricUnifiedDatabase
 
 logger = logging.getLogger(__name__)
 

@@ -217,14 +217,14 @@ def test_record_rate_separates_undefined_from_unread(hm):
 
 def test_topology_matches_services_by_port_not_name():
     """The scanner reports one `postgresql`; the topology models the two logical
-    databases sharing that instance as postgresql-torinai/-agentso. Neither name
+    databases sharing that instance as postgresql-lyric/-agentso. Neither name
     could ever match, so a running Postgres was recorded as a CRITICAL service
     down -- while every database health check was passing against it."""
     from core.system.infrastructure_topology import InfrastructureTopology, ServiceTier
     from core.system.environment_state import ServiceInfo, ServiceStatus
 
-    # TorinAI's Postgres listens on 5433 (`PostgresConfig`), the port the
-    # topology models `postgresql-torinai` on.
+    # Lyric's Postgres listens on 5433 (`PostgresConfig`), the port the
+    # topology models `postgresql-lyric` on.
     class _Env:
         running_services = {
             "postgresql": ServiceInfo(name="postgresql", port=5433,
@@ -234,11 +234,11 @@ def test_topology_matches_services_by_port_not_name():
     topo = InfrastructureTopology()
     topo.update_from_environment(_Env())
 
-    assert topo.services["postgresql-torinai"].is_running is True
-    assert topo.services["postgresql-torinai"].health_score > 0.0
+    assert topo.services["postgresql-lyric"].is_running is True
+    assert topo.services["postgresql-lyric"].health_score > 0.0
     crit_down = [k for k, n in topo.services.items()
                  if n.tier is ServiceTier.CRITICAL and not n.is_running]
-    assert "postgresql-torinai" not in crit_down
+    assert "postgresql-lyric" not in crit_down
 
 
 def test_genuinely_absent_service_still_reads_down():
@@ -250,7 +250,7 @@ def test_genuinely_absent_service_still_reads_down():
 
     topo = InfrastructureTopology()
     topo.update_from_environment(_Env())
-    assert topo.services["postgresql-torinai"].is_running is False
+    assert topo.services["postgresql-lyric"].is_running is False
     assert topo.get_health_summary()["critical_services_down"] > 0
 
 

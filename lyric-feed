@@ -4,16 +4,16 @@
 The app shells out to this rather than reimplementing anything: the channel
 routing table and the raw_event query were both verified against live data, and
 a Swift copy of either would be a second opinion to keep in sync. This is a thin
-adapter over torin-dash's own readers, so there is still one implementation.
+adapter over lyric-dash's own readers, so there is still one implementation.
 """
 import asyncio, importlib.machinery, importlib.util, json, sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 _spec = importlib.util.spec_from_loader(
-    "torin_dash", importlib.machinery.SourceFileLoader("torin_dash", str(HERE / "torin-dash")))
+    "lyric_dash", importlib.machinery.SourceFileLoader("lyric_dash", str(HERE / "lyric-dash")))
 dash = importlib.util.module_from_spec(_spec)
-sys.modules["torin_dash"] = dash
+sys.modules["lyric_dash"] = dash
 _spec.loader.exec_module(dash)
 
 LIMIT = 200
@@ -57,7 +57,7 @@ async def main():
         tail = dash.Tail(dash.CHANNEL_DIR / f"{name}.log", keep=LIMIT, channel=name)
         tail.poll()
         out[name] = {
-            "origin": "torin_main.log" if tail.from_history else "live",
+            "origin": "lyric_main.log" if tail.from_history else "live",
             "entries": [parse(l) for l in list(tail.lines)[-LIMIT:]],
         }
 

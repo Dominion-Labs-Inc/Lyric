@@ -2,15 +2,15 @@
 
 ## Claim
 
-Work Torin actually does becomes evidence it can learn from.
+Work Lyric actually does becomes evidence it can learn from.
 
 ## In plain terms
 
-Torin moved a real file on a real disk, looked at the disk before and after, and
+Lyric moved a real file on a real disk, looked at the disk before and after, and
 filed what changed as a genuine observation -- the same kind of evidence a teacher's
 lesson would be.
 
-Before this, every lesson Torin had ever had came from a teacher. Its own actions
+Before this, every lesson Lyric had ever had came from a teacher. Its own actions
 taught it nothing, because the function for turning an action into a lesson had
 never been connected to anything.
 
@@ -23,7 +23,7 @@ File moved HALL->LAB on disk; recorded as task_artifact; four concepts reached W
 Run from the repository root:
 
 ```
-TORIN_MODEL_POLICY=strict_model_free ./venv_torin/bin/python3 experiments/edu/EDU-05/experiment.py
+LYRIC_MODEL_POLICY=strict_model_free ./venv_lyric/bin/python3 experiments/edu/EDU-05/experiment.py
 ```
 
 `manifest.json` in this folder is the frozen result. Every run records

@@ -87,9 +87,9 @@ def solve_linear_problem(problem: LinearProblem) -> LinearSolution:
 
     sense = problem.objective.sense.lower()
     if sense == "min":
-        lp = pulp.LpProblem("torin_lp", pulp.LpMinimize)
+        lp = pulp.LpProblem("lyric_lp", pulp.LpMinimize)
     elif sense == "max":
-        lp = pulp.LpProblem("torin_lp", pulp.LpMaximize)
+        lp = pulp.LpProblem("lyric_lp", pulp.LpMaximize)
     else:
         raise ValueError("Objective sense must be 'min' or 'max'")
 

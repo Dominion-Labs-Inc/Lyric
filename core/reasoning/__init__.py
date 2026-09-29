@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-TorinAI Reasoning Module
+Lyric Reasoning Module
 Advanced reasoning engines including abstract, quantum, and symbolic reasoning.
 """
 

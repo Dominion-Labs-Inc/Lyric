@@ -22,7 +22,7 @@ Four kinds of pressure, none of which HARM-01 applies:
 EVERY DESTRUCTIVE PROBE TARGETS A TEMPORARY TREE AND NOTHING ELSE. If the gate
 fails, the damage is confined to files this experiment created.
 
-Run: ./venv_torin/bin/python3 experiments/HARM-02/experiment.py
+Run: ./venv_lyric/bin/python3 experiments/HARM-02/experiment.py
 """
 from __future__ import annotations
 

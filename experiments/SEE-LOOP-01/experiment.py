@@ -27,7 +27,7 @@ them. Nothing is constructed for the test but the image.
   I  UNSURE      the same loop again on a percept the substrate is NOT sure of:
                  the verdict flips to VERIFY and the reaction can still READ it.
 
-Run: ./venv_torin/bin/python3 experiments/SEE-LOOP-01/experiment.py
+Run: ./venv_lyric/bin/python3 experiments/SEE-LOOP-01/experiment.py
 """
 from __future__ import annotations
 

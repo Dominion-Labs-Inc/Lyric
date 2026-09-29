@@ -7,10 +7,10 @@ that:
   frames, duration and motion;
 - model-free instance recognition fires on a learned reference and nowhere else.
 
-**Run** (from the TorinAI folder):
+**Run** (from the Lyric folder):
 
 ```
-PYTHONPATH="$PWD" POSTGRES_PORT=5433 POSTGRES_USER=stefan TORIN_NO_WATCHDOG=1 ./venv_torin/bin/python3 experiments/systems/PERCEIVE-02/experiment.py
+PYTHONPATH="$PWD" POSTGRES_PORT=5433 POSTGRES_USER=stefan LYRIC_NO_WATCHDOG=1 ./venv_lyric/bin/python3 experiments/systems/PERCEIVE-02/experiment.py
 ```
 
 **Results.** `manifest.json` (2026-09-13; each run overwrites it): all 12 checks pass.

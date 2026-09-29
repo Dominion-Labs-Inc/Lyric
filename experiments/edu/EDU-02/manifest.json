@@ -3,7 +3,7 @@
   "title": "Autonomous Runtime Knowledge Refutation",
   "recorded_at": "2026-08-19T15:14:40.093747+00:00",
   "initial_state": "learned rule R1, independently validated on held-out evidence, operational",
-  "intervention": "no corrective teaching; Torin autonomously planned and acted in an environment exposing an omitted precondition (AT(X,A))",
+  "intervention": "no corrective teaching; Lyric autonomously planned and acted in an environment exposing an omitted precondition (AT(X,A))",
   "observation": "externally observed filesystem state contradicted R1's predicted effects",
   "attribution": "RULE_EVIDENCE",
   "epistemic_transition": "VALIDATED -> REFUTED",

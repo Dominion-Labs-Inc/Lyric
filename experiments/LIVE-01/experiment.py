@@ -30,7 +30,7 @@ and real video footage for the camera.
                  through complete is recorded.
   H  STOPPED     the ear and the eye stop with the live senses.
 
-Run (sandbox store): ./venv_torin/bin/python3 experiments/LIVE-01/experiment.py
+Run (sandbox store): ./venv_lyric/bin/python3 experiments/LIVE-01/experiment.py
 """
 from __future__ import annotations
 
@@ -47,7 +47,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO))
-os.environ.setdefault("POSTGRES_DATABASE", "torinai_dev")
+os.environ.setdefault("POSTGRES_DATABASE", "lyric_dev")
 
 from experiments._evidence import RunRecord  # noqa: E402
 
@@ -55,7 +55,7 @@ HERE = Path(__file__).resolve().parent
 STIM = HERE / "stimuli"
 JELLYFISH = REPO / "test_data" / "jellyfish_real_10s.mp4"
 N = "".join(random.choice(string.ascii_lowercase) for _ in range(6))
-NAME = "torin"
+NAME = "lyric"
 WORDS = ("are", "mammals", "animals", "do", "birds", "fly", "cats")
 RATES = (140, 165, 190, 215, 240)
 VOICE = "Fred"
@@ -113,12 +113,12 @@ def build_stimuli() -> dict:
                 sf.write(str(path), in_room(spoken).astype(np.float32), H.SR)
             lessons[word].append(path)
     lines = {
-        "early": ("Torin [[slnc 300]] are [[slnc 300]] mammals [[slnc 300]] animals?", 180),
+        "early": ("Lyric [[slnc 300]] are [[slnc 300]] mammals [[slnc 300]] animals?", 180),
         "other": ("are cats animals?", 185),
-        "addressed": ("Torin [[slnc 300]] are [[slnc 300]] mammals [[slnc 300]] animals?", 180),
+        "addressed": ("Lyric [[slnc 300]] are [[slnc 300]] mammals [[slnc 300]] animals?", 180),
         "follow": ("yesterday [[slnc 300]] birds [[slnc 300]] fly", 180),
-        "addressed2": ("Torin [[slnc 300]] do [[slnc 300]] birds [[slnc 300]] fly?", 180),
-        "addressed3": ("Torin [[slnc 300]] are [[slnc 300]] cats [[slnc 300]] animals?", 180),
+        "addressed2": ("Lyric [[slnc 300]] do [[slnc 300]] birds [[slnc 300]] fly?", 180),
+        "addressed3": ("Lyric [[slnc 300]] are [[slnc 300]] cats [[slnc 300]] animals?", 180),
         "late": ("are mammals animals?", 175),
     }
     said = {k: H.decode(str(say(STIM / f"_{k}.aiff", t, r))) for k, (t, r) in lines.items()}
@@ -269,8 +269,8 @@ async def main() -> int:
         seen = []
         for r in kept:
             got = await get_media_store().media_for_memory(str(r.get("seen_memory")))
-            seen.append(bool(got) and str(got[0]["mime"]).startswith("image/")
-                        and bool((got[0]["perceived"] or {}).get("gist")))
+            seen.append(any((m["perceived"] or {}).get("kind") == "sight_trace"
+                            and bool((m["perceived"] or {}).get("gist")) for m in got))
         check("each time it was spoken to, what it saw is remembered with its gist",
               kept and all(seen), f"{sum(seen)} of {len(kept)}")
 

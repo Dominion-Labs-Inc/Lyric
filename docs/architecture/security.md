@@ -5,10 +5,10 @@ update when the authorities change.*
 
 Security has two owners that never share control:
 
-| | **Internal safety (TorinAI)** | **World security (DHCM)** |
+| | **Internal safety (Lyric)** | **World security (DHCM)** |
 |---|---|---|
 | Protects | the substrate's own actions and state | the world and its boundary |
-| Lives in | the `Constitution` and `ThreatSense` faculties, `core/agents/autonomous/` | `Dominion Labs/DHCM/` (outside TorinAI) |
+| Lives in | the `Constitution` and `ThreatSense` faculties, `core/agents/autonomous/` | `Dominion Labs/DHCM/` (outside Lyric) |
 | Runs as | part of the substrate process | the world's agent factory, inside the world |
 
 ---
@@ -67,7 +67,7 @@ the only thing that decides whether an act or a task may happen.
   sources, DDoS metrics). The archived perimeter implementation those tools are written against is
   kept in `core/security/_disabled/`.
 
-## B) World security — outside TorinAI
+## B) World security — outside Lyric
 
 The substrate does not audit the world. The world's **agent factory**
 (`DHCM/institutions/factory.py`, started by `DHCM/walls/world_runtime.py`) spawns

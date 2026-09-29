@@ -6,7 +6,7 @@ Historically, this module hardcoded a Dominion Labs workstation path and carried
 MySQL-era defaults. Those assumptions have been removed.
 
 Resolution order:
-- If `TORINAI_ENV_FILE` (or `DOMINION_ENV_FILE`) is set, load that path.
+- If `LYRIC_ENV_FILE` (or `DOMINION_ENV_FILE`) is set, load that path.
 - Else, look for `.env.production` then `.env` in common repo locations.
 """
 
@@ -25,11 +25,11 @@ def _candidate_roots() -> Iterable[Path]:
     """Return likely repo roots to search for env files."""
     here = Path(__file__).resolve()
 
-    # TorinAI/core/utils/env_loader.py -> TorinAI
-    torinai_root = here.parents[2]
-    yield torinai_root
+    # Lyric/core/utils/env_loader.py -> Lyric
+    lyric_root = here.parents[2]
+    yield lyric_root
 
-    # Workspace root (one above TorinAI)
+    # Workspace root (one above Lyric)
     workspace_root = here.parents[3]
     yield workspace_root
 
@@ -41,35 +41,35 @@ def resolve_env_files() -> list[Path]:
     """The env files to load, in BASE→OVERRIDE order (later files win).
 
     THE MASTER LIVES OUTSIDE THE AI FOLDER. The Dominion Labs workspace `.env`
-    (one above TorinAI) is the single source of every shared credential the AI
+    (one above Lyric) is the single source of every shared credential the AI
     needs -- Cloudflare, threat-intelligence (ABUSEIPDB/VIRUSTOTAL/OTX), and the
-    rest. TorinAI's own `.env.production`/`.env` are the AI-specific layer that
+    rest. Lyric's own `.env.production`/`.env` are the AI-specific layer that
     OVERRIDES the master where they disagree.
 
     The previous resolver returned the FIRST file it found, and it searched the
-    TorinAI root first, so it loaded only the local partial file and never the
+    Lyric root first, so it loaded only the local partial file and never the
     master -- which is exactly why threat_intel had zero sources despite the
     keys existing. Loading the workspace master as a base, then the local files
     on top, gives the process every key with the local layer still winning.
 
     The workspace `.env` also carries PG_*/agentso credentials for the sibling
-    web app; those are inert here because TorinAI reads POSTGRES_*/DB_* through
+    web app; those are inert here because Lyric reads POSTGRES_*/DB_* through
     PostgresConfig (which asserts its own database identity) and nothing reads
     PG_*. So the master can be a safe base without repointing the database.
     """
-    explicit = os.getenv("TORINAI_ENV_FILE") or os.getenv("DOMINION_ENV_FILE")
+    explicit = os.getenv("LYRIC_ENV_FILE") or os.getenv("DOMINION_ENV_FILE")
     if explicit:
         p = Path(explicit).expanduser().resolve()
         return [p] if p.exists() else []
 
     here = Path(__file__).resolve()
-    torinai_root = here.parents[2]
+    lyric_root = here.parents[2]
     workspace_root = here.parents[3]
 
     files: list[Path] = []
     # Base first (workspace master), then the AI-specific overrides. Within a
     # location, .env.production before .env so .env still wins locally.
-    for root in (workspace_root, torinai_root):
+    for root in (workspace_root, lyric_root):
         for name in (".env.production", ".env"):
             candidate = root / name
             if candidate.exists() and candidate not in files:
@@ -92,7 +92,7 @@ def load_global_env(force_reload: bool = False):
     """
     Load environment variables from the Dominion Labs global .env file
 
-    This ensures all services (TorinAI, security systems, Cloud Storage, etc.)
+    This ensures all services (Lyric, security systems, Cloud Storage, etc.)
     use the same environment configuration.
 
     Args:
@@ -236,11 +236,11 @@ def get_database_credentials() -> dict:
     """
     return {
         'host': get_env('DB_HOST', 'localhost'),
-        # TorinAI's own instance. 5432 is the shared agentso one.
+        # Lyric's own instance. 5432 is the shared agentso one.
         'port': int(get_env('DB_PORT', '5433')),
         'user': get_env('DB_USER', 'postgres'),
         'password': get_env('DB_PASSWORD'),
-        'database': get_env('DB_NAME', 'torinai_db')
+        'database': get_env('DB_NAME', 'lyric_db')
     }
 
 

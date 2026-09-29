@@ -17,7 +17,7 @@ Tools:
 - create_alert: Create system alert
 - get_performance_profile: Profile code execution
 
-Author: Torin AI Team
+Author: Lyric AI Team
 """
 
 import logging
@@ -324,9 +324,9 @@ class CheckPostgreSQLHealthTool(Tool):
 
     async def execute(self) -> ToolResult:
         try:
-            from core.database import TorinUnifiedDatabase
+            from core.database import LyricUnifiedDatabase
 
-            db = TorinUnifiedDatabase()
+            db = LyricUnifiedDatabase()
             await db.initialize()
 
             # Get connection stats
@@ -700,7 +700,7 @@ class GetPerformanceProfileTool(Tool):
     def __init__(self):
         super().__init__()
         self.name = "get_performance_profile"
-        self.description = "Get performance profiling data for TorinAI processes"
+        self.description = "Get performance profiling data for Lyric processes"
         self.category = ToolCategory.MONITORING
         self.safety_level = ToolSafety.SAFE
         self.parameters = [
@@ -1564,7 +1564,7 @@ class DashboardGeneratorTool(Tool):
                 dashboard = {
                     "dashboard": {
                         "title": dashboard_name,
-                        "tags": ["generated", "torinai"],
+                        "tags": ["generated", "lyric"],
                         "timezone": "browser",
                         "schemaVersion": 36,
                         "version": 1,

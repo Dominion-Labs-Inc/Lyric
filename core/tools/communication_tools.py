@@ -8,7 +8,7 @@ Tools:
 - send_slack_message: Send message to Dominion Labs Slack channels
 - post_to_webhook: Generic webhook poster
 
-Author: Torin AI Team
+Author: Lyric AI Team
 """
 
 import logging
@@ -43,8 +43,8 @@ class SendSlackMessageTool(Tool):
                 type="string",
                 description="Slack channel",
                 required=False,
-                default="torin-activity",
-                enum=["torin-upgrades", "torin-alerts", "torin-decisions", "torin-activity"]
+                default="lyric-activity",
+                enum=["lyric-upgrades", "lyric-alerts", "lyric-decisions", "lyric-activity"]
             ),
             ToolParameter(
                 name="notification_type",
@@ -73,7 +73,7 @@ class SendSlackMessageTool(Tool):
             ]
         )
 
-    async def execute(self, message: str, channel: str = "torin-activity",
+    async def execute(self, message: str, channel: str = "lyric-activity",
                      notification_type: str = "info", title: str = None) -> ToolResult:
         try:
             from core.integration.slack_notifier import send_slack_notification
@@ -83,7 +83,7 @@ class SendSlackMessageTool(Tool):
             notification = {
                 'id': f'tool_{hash(message) % 10000}',
                 'type': notification_type,
-                'title': title or "TorinAI Notification",
+                'title': title or "Lyric Notification",
                 'message': message,
                 'time': datetime.now().isoformat(),
                 'status': 'info',

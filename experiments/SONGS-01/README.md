@@ -55,4 +55,4 @@ G recalled (1), H speech (1), I video (1).
 **Recordings:** GTZAN (keys: Kraft and Lerch; tempo: GTZAN-Rhythm), vocadito (CC BY 4.0), JFK's inaugural sample, a
 real room recorded from this Mac's microphone (LIVE-01), and the repo's jellyfish footage.
 
-Run (sandbox store): `./venv_torin/bin/python3 experiments/SONGS-01/experiment.py`
+Run (sandbox store): `./venv_lyric/bin/python3 experiments/SONGS-01/experiment.py`

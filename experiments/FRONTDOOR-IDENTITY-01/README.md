@@ -7,10 +7,10 @@ identity, the door falls back to the session.
 
 ACTOR-IDENTITY-01 tests what happens after the binding.
 
-**Run** (from the TorinAI folder):
+**Run** (from the Lyric folder):
 
 ```
-./venv_torin/bin/python3 experiments/FRONTDOOR-IDENTITY-01/experiment.py
+./venv_lyric/bin/python3 experiments/FRONTDOOR-IDENTITY-01/experiment.py
 ```
 
 **Results.** Printed to the terminal only; no run is saved.

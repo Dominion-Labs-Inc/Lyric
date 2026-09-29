@@ -8,14 +8,14 @@ cycles.
 
 ## In plain terms
 
-Torin is meant to be able to use a language model as a helper or a teacher, and
+Lyric is meant to be able to use a language model as a helper or a teacher, and
 we swap models in and out. So the question is not "is the model any good" — it
 is "what damage can a model do if it is wrong, confident, or lying".
 
 We ran the same lesson exactly twice. Once with a fixed list of situations to
 try, and once with Qwen 3.6 (a 35-billion-parameter model running on this
 machine) suggesting which situations to try. Both runs were policed by the same
-rule: a lesson is only worth teaching if the possibilities Torin is still
+rule: a lesson is only worth teaching if the possibilities Lyric is still
 weighing would *look different* afterwards. A lesson everything agrees on
 teaches nothing, no matter how sensible it sounds.
 
@@ -23,17 +23,17 @@ The important part is what the model is *allowed* to say. It can suggest a
 situation to set up. It cannot say what happens. Every suggestion it makes is
 built for real in the warehouse and actually run, and whatever the disk does is
 the lesson. So a model that invents a fact, or insists on an outcome that is
-false, cannot put a single wrong thing into what Torin believes. The worst it
+false, cannot put a single wrong thing into what Lyric believes. The worst it
 can do is waste a setup.
 
 ## Method
 
 ```
-TORIN_MODEL_POLICY is NOT set to strict here -- the model cycle is
+LYRIC_MODEL_POLICY is NOT set to strict here -- the model cycle is
 deliberately allowed to call the model. The substrate cycle is measured
 alongside it and must reach the same answer.
 
-./venv_torin/bin/python3 experiments/edu/EDU-08/experiment.py
+./venv_lyric/bin/python3 experiments/edu/EDU-08/experiment.py
 ```
 
 Model: `Qwen3.6-35B-A3B-UD-Q5_K_XL` served locally at `127.0.0.1:8099`.

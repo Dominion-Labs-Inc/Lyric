@@ -286,13 +286,13 @@ These warnings do not affect governance functionality and are expected in the cu
 
 ### Run Phase 5A Tests
 ```bash
-cd /Users/stefan/Dominion\ Labs/TorinAI
+cd /Users/stefan/Dominion\ Labs/Lyric
 python3 tests/governance/test_phase5_task_governance.py
 ```
 
 ### Run Phase 5B Tests
 ```bash
-cd /Users/stefan/Dominion\ Labs/TorinAI
+cd /Users/stefan/Dominion\ Labs/Lyric
 python3 tests/governance/test_phase5_external_api_governance.py
 ```
 

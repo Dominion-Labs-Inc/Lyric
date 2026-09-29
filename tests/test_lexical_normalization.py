@@ -1,4 +1,4 @@
-"""One surface form, one canonical lexical interpretation, across all of Torin.
+"""One surface form, one canonical lexical interpretation, across all of Lyric.
 
 Concept identity normalised through a singularising path, so `men` and `man`
 were one thing. The formalizer that turns prose into logic had its own private

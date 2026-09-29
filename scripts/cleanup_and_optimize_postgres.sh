@@ -71,7 +71,7 @@ This directory contains MySQL database code that was replaced by PostgreSQL + pg
 ## Migration Details
 - Date: $(date +%Y-%m-%d)
 - Migrated Data: 5 governance laws, 109 memories with embeddings
-- New Database: torinai_db (PostgreSQL 16)
+- New Database: lyric_db (PostgreSQL 16)
 - Schemas: unified, memory_hot, memory_cold
 
 ## Rollback (if needed)
@@ -96,7 +96,7 @@ echo "----------------------------------------------------------------"
 # VACUUM ANALYZE - Update statistics and reclaim space
 echo "Running VACUUM ANALYZE on all tables..."
 
-psql -U stefan -d torinai_db << 'EOF'
+psql -U stefan -d lyric_db << 'EOF'
 -- Governance and directive tables
 VACUUM ANALYZE unified.governance_laws;
 VACUUM ANALYZE unified.internal_directives;
@@ -125,7 +125,7 @@ echo -e "${GREEN}✓${NC} VACUUM ANALYZE completed"
 # REINDEX - Rebuild HNSW indexes for optimal performance
 echo "Rebuilding HNSW vector indexes..."
 
-psql -U stefan -d torinai_db << 'EOF'
+psql -U stefan -d lyric_db << 'EOF'
 -- Reindex memory_hot HNSW index
 REINDEX INDEX CONCURRENTLY memory_hot.idx_memory_hot_embedding;
 
@@ -158,7 +158,7 @@ echo "----------------------------------------------------------------"
 
 # Index usage statistics
 echo "Top 10 most-used indexes:"
-psql -U stefan -d torinai_db -c "
+psql -U stefan -d lyric_db -c "
 SELECT
     schemaname,
     tablename,
@@ -176,7 +176,7 @@ echo ""
 
 # Table sizes
 echo "Database size breakdown:"
-psql -U stefan -d torinai_db -c "
+psql -U stefan -d lyric_db -c "
 SELECT
     schemaname,
     tablename,
@@ -193,13 +193,13 @@ echo ""
 
 # Connection stats
 echo "Connection pool status:"
-psql -U stefan -d torinai_db -c "
+psql -U stefan -d lyric_db -c "
 SELECT
     COUNT(*) as active_connections,
     SUM(CASE WHEN state = 'active' THEN 1 ELSE 0 END) as running_queries,
     SUM(CASE WHEN state = 'idle' THEN 1 ELSE 0 END) as idle_connections
 FROM pg_stat_activity
-WHERE datname = 'torinai_db';
+WHERE datname = 'lyric_db';
 "
 
 echo ""
@@ -231,7 +231,7 @@ echo -e "${BLUE}Step 5: Update Documentation${NC}"
 echo "----------------------------------------------------------------"
 
 # Verify __init__.py is using PostgreSQL
-if grep -q "TorinUnifiedDatabasePostgres as TorinUnifiedDatabase" "$PROJECT_ROOT/core/database/__init__.py"; then
+if grep -q "LyricUnifiedDatabasePostgres as LyricUnifiedDatabase" "$PROJECT_ROOT/core/database/__init__.py"; then
     echo -e "${GREEN}✓${NC} core/database/__init__.py correctly imports PostgreSQL"
 else
     echo -e "${RED}❌${NC} core/database/__init__.py NOT using PostgreSQL!"
@@ -261,7 +261,7 @@ echo "  - Connection pool validated"
 echo ""
 echo "Next Steps:"
 echo "  1. Monitor performance over next 24-48 hours"
-echo "  2. Check logs for any errors: tail -f logs/torin_main.log"
+echo "  2. Check logs for any errors: tail -f logs/lyric_main.log"
 echo "  3. After 30 days, delete MySQL archive if no issues"
 echo ""
 echo "Performance Baseline:"

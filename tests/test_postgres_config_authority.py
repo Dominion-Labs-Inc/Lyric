@@ -33,7 +33,7 @@ def env_file(tmp_path):
     path = tmp_path / ".env.postgres"
     path.write_text(
         "POSTGRES_HOST=file_host\n"
-        "POSTGRES_DATABASE=torinai_db\n"
+        "POSTGRES_DATABASE=lyric_db\n"
         "POSTGRES_USER=file_user\n"
     )
     return path
@@ -50,7 +50,7 @@ def test_the_process_environment_beats_the_env_file(env_file):
 
 def test_the_env_file_fills_values_the_environment_does_not_supply(env_file):
     resolved = PostgresConfig.resolve(env={}, env_files=[env_file])
-    assert resolved.database == "torinai_db"
+    assert resolved.database == "lyric_db"
     assert resolved.host == "file_host"
     assert resolved.provenance["database"] == "dotenv:.env.postgres"
 
@@ -65,7 +65,7 @@ def test_an_explicit_argument_beats_both(env_file):
 
 def test_a_coded_default_applies_only_when_nothing_else_does():
     resolved = PostgresConfig.resolve(env={}, env_files=[])
-    assert resolved.database == "torinai_db"
+    assert resolved.database == "lyric_db"
     assert resolved.provenance["database"] == "default"
 
 
@@ -121,9 +121,9 @@ def test_a_subprocess_connects_to_the_database_it_was_given():
     if not (PG_BIN / "createdb").exists():
         pytest.skip("postgresql client tools not present")
 
-    name = f"torinai_cfgtest_{uuid.uuid4().hex[:10]}"
+    name = f"lyric_cfgtest_{uuid.uuid4().hex[:10]}"
     user = os.getenv("POSTGRES_USER") or "stefan"
-    # SAME SERVER THE CODE CONNECTS TO. TorinAI runs its own instance on 5433;
+    # SAME SERVER THE CODE CONNECTS TO. Lyric runs its own instance on 5433;
     # createdb without -h/-p goes to the default 5432 socket, so the database
     # was created on a different server and the subprocess then reported
     # `database "..." does not exist` -- a test that could only ever fail while
@@ -145,7 +145,7 @@ def test_a_subprocess_connects_to_the_database_it_was_given():
         script = (
             "import asyncio, os, sys;"
             "sys.path.insert(0, %r);"
-            "from core.database.unified_database_postgres import TorinUnifiedDatabasePostgres as D;"
+            "from core.database.unified_database_postgres import LyricUnifiedDatabasePostgres as D;"
             "d = D(database=os.environ['POSTGRES_DATABASE']);"
             "print('IDENTITY', asyncio.run(d.assert_database_identity(os.environ['POSTGRES_DATABASE'])))"
             % str(ROOT)
@@ -172,8 +172,8 @@ def test_identity_mismatch_is_a_hard_failure():
     """Refusing to proceed is the point; a warning would be read past."""
     import asyncio
 
-    from core.database.unified_database_postgres import TorinUnifiedDatabasePostgres
+    from core.database.unified_database_postgres import LyricUnifiedDatabasePostgres
 
-    db = TorinUnifiedDatabasePostgres()
+    db = LyricUnifiedDatabasePostgres()
     with pytest.raises(DatabaseIdentityError):
         asyncio.run(db.assert_database_identity("a_database_that_is_not_connected"))

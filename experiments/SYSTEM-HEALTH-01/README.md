@@ -46,7 +46,7 @@ undecided.
 ## Run
 
 ```
-./venv_torin/bin/python3 experiments/SYSTEM-HEALTH-01/experiment.py
+./venv_lyric/bin/python3 experiments/SYSTEM-HEALTH-01/experiment.py
 ```
 
 Each run writes `results/<UTC timestamp>.json` with a `.md` beside it, reporting **behaviour** (pass/fail),

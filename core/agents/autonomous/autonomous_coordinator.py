@@ -1391,9 +1391,9 @@ def act_capabilities(params: Dict[str, Any], *, extra_payload: str = "",
 # It is kept narrow on purpose, and the narrowness is the point:
 #   * injection grammar runs ONLY on a value that can actually reach a SQL
 #     interface, because applied to a shell command or a file glob it produces
-#     confident nonsense (it fired 85 times in one night on Torin's own work —
+#     confident nonsense (it fired 85 times in one night on Lyric's own work —
 #     a `--include="*.py"` grep flag, a `**/tools/**` glob, a SELECT against
-#     Torin's own database);
+#     Lyric's own database);
 #   * traversal runs on any value that looks like a path once its URL encoding
 #     is peeled off — `%2e%2e%2f` is `../` to whatever decodes it;
 #   * every value is read, however deep it sits in the arguments. A value
@@ -1647,7 +1647,7 @@ _TOOL_CONSEQUENCE: Dict[str, Tuple[ActionClass, str]] = {
     "simulate_state_space": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
     "run_monte_carlo": (ActionClass.INVESTIGATE, "FULLY_REVERSIBLE"),
 
-    # Relocation — recoverable removal. This is what Torin correctly chose.
+    # Relocation — recoverable removal. This is what Lyric correctly chose.
     "move_file": (ActionClass.ARCHIVE, "MOSTLY_REVERSIBLE"),
     "copy_file": (ActionClass.MODIFY, "FULLY_REVERSIBLE"),
     "compress_file": (ActionClass.ARCHIVE, "MOSTLY_REVERSIBLE"),
@@ -2538,7 +2538,7 @@ class Constitution:
 
     #: Where a recoverable removal puts what it removed, relative to the project
     #: root. The redirect is only offered when the act names a single path.
-    RECOVERABLE_PATH = ".torin_recoverable"
+    RECOVERABLE_PATH = ".lyric_recoverable"
 
     def __init__(self, reading_ledger: Optional["ReadingLedger"] = None) -> None:
         #: What the substrate has read, and of which version. An act that works
@@ -6564,7 +6564,7 @@ class AutonomousCoordinator:
     
     THE COGNITIVE SUBSTRATE IS THE BRAIN. It is model-free: no language model is
     consulted for anything. All decisions, reasoning, and coordination flow
-    through Torin's consciousness.
+    through Lyric's consciousness.
     """
 
     # Namespaces for meta-learner arms. Several coordinator decisions map onto
@@ -6858,7 +6858,7 @@ class AutonomousCoordinator:
         )
         self.env_state = EnvironmentState()
         self.discovery = ActiveDiscovery()
-        # Publish it: the security audit needs Torin's own service inventory to
+        # Publish it: the security audit needs Lyric's own service inventory to
         # tell "my service is exposed" from "an unidentified process is listening".
         try:
             from core.system.active_discovery import register_active_discovery
@@ -6994,8 +6994,8 @@ class AutonomousCoordinator:
         # EXECUTION is the self's own faculty, not a delegate agent. The state the
         # former GeneralPurposeExecutor held lives here now; the methods it defined
         # are the coordinator's own (below). No model handle -- substrate-only.
-        from core.database import TorinUnifiedDatabase
-        self.db = TorinUnifiedDatabase()
+        from core.database import LyricUnifiedDatabase
+        self.db = LyricUnifiedDatabase()
         self.tool_registry = None
         self._env_loaded = False
         self._dotenv_values = None
@@ -7018,7 +7018,7 @@ class AutonomousCoordinator:
         # Intrinsic exploration queue control
         # Applies only to intrinsic exploration tasks (metadata: intrinsic_kind="exploration").
         # Set to 0 to disable intrinsic exploration entirely.
-        _cap_raw = os.getenv("TORINAI_INTRINSIC_EXPLORATION_CAP")
+        _cap_raw = os.getenv("LYRIC_INTRINSIC_EXPLORATION_CAP")
         try:
             self._intrinsic_exploration_cap: int = (
                 int(_cap_raw)
@@ -7479,7 +7479,7 @@ class AutonomousCoordinator:
                         raise RuntimeError(f"Health Monitor is REQUIRED but failed to initialize: {e}") from e
                 else:
                     logger.info("✅ Health Monitor ready (no initialization required)")
-                # Register core TorinAI services so the health monitor tracks them
+                # Register core Lyric services so the health monitor tracks them
                 _core_components = ["database", "memory", "learning", "reasoning", "security", "storage"]
                 for _comp in _core_components:
                     try:
@@ -8638,10 +8638,21 @@ class AutonomousCoordinator:
         return await self._hear_lesson(path, {"song": title}, actor_identity=actor_identity,
                                        source=source, domain=domain)
 
+    async def learn_thing(self, name: str, path: str, *, actor_identity: Optional[str],
+                          source: Optional[str] = None, domain: str = "vision") -> str:
+        """Teach a thing by SEEING it, told what it is. The same act as
+        `learn_word`, through `see`'s door: the seeing is remembered as any
+        seeing is, its trace keeping the thing's keypoints, and from then on the
+        thing is known in any picture it is in -- and every earlier seeing of it
+        is now said to show it. Raises when the picture has too few keypoints
+        ever to be known again."""
+        return await self._hear_lesson(path, {"thing": name}, actor_identity=actor_identity,
+                                       source=source, domain=domain, door="see")
+
     async def _hear_lesson(self, path: str, lesson: Dict[str, Any], *,
                            actor_identity: Optional[str], source: Optional[str],
-                           domain: str) -> str:
-        percept = await self._perceive_file(path, door="hear", actor_identity=actor_identity,
+                           domain: str, door: str = "hear") -> str:
+        percept = await self._perceive_file(path, door=door, actor_identity=actor_identity,
                                             source=source, domain=domain, recognize=None,
                                             lesson=lesson)
         memory_id = ((percept.metadata or {}).get("memory_id")
@@ -8839,6 +8850,12 @@ class AutonomousCoordinator:
                 content["heard_before"] = earlier
                 content["caption"] = (f"{content.get('caption', '')}"
                                       f"{self._heard_before_caption(earlier)}")
+        if modality == "image" and content.get("trace"):
+            earlier = await self._seen_before(content, origin.person)
+            if earlier:
+                content["seen_before"] = earlier
+                content["caption"] = (f"{content.get('caption', '')}"
+                                      f"{self._heard_before_caption(earlier, 'seen')}")
         return modality, content
 
     async def sense_first(self, path: str, *, door: str, actor_identity: Optional[str],
@@ -8903,12 +8920,50 @@ class AutonomousCoordinator:
             })
         return out
 
+    async def _seen_before(self, content: Dict[str, Any],
+                           actor: Optional[str]) -> List[Dict[str, Any]]:
+        """The seeings of this same thing the substrate remembers, recalled by
+        the picture itself (`MemoryAgent.retrieve`, strategy `sight`): each with
+        its memory, when it was, how firmly it agreed (`support`), whether it
+        was the same picture, the individual it was seen as, and what it was
+        named (the thing it was shown as, or known to show). Only memories
+        `actor` may see."""
+        from core.perception.vision import sight_trace
+        from core.perception.perception_faculty import decode_trace
+        seen = sight_trace(decode_trace(content["trace"]))
+        if seen is None or not len(seen["descriptors"]):
+            return []
+        if self.memory is None:
+            from core.memory import get_memory_agent
+            self.memory = await get_memory_agent()
+        out: List[Dict[str, Any]] = []
+        for item in await self.memory.retrieve(strategies=["sight"], seen=seen,
+                                               actor=actor, limit=5):
+            match = getattr(item, "seen_match", None) or {}
+            kept = next((m["perceived"] for m in await self.memory.get_memory_media(item.memory_id)
+                         if (m.get("perceived") or {}).get("kind") == "sight_trace"), {})
+            named = [d.get("label") for d in kept.get("detections") or [] if d.get("label")]
+            taught = (kept.get("lesson") or {}).get("thing")
+            when = getattr(item, "created_at", None)
+            if isinstance(when, (int, float)):
+                when = datetime.fromtimestamp(float(when))
+            out.append({
+                "memory": item.memory_id,
+                "when": when.isoformat(timespec="minutes") if hasattr(when, "isoformat") else when,
+                "subject": kept.get("subject"),
+                "named": list(dict.fromkeys(([taught] if taught else []) + named)),
+                "same_picture": bool(match.get("same_picture")),
+                "agreeing": match.get("agreeing"),
+                "support": float(getattr(item, "similarity_score", 0.0) or 0.0),
+            })
+        return out
+
     @staticmethod
-    def _heard_before_caption(earlier: Sequence[Dict[str, Any]]) -> str:
-        """What was heard before, in words, for the recallable account."""
+    def _heard_before_caption(earlier: Sequence[Dict[str, Any]], met: str = "heard") -> str:
+        """What was heard or seen before, in words, for the recallable account."""
         last = max((e.get("when") or "" for e in earlier), default="")
         names = list(dict.fromkeys(n for e in earlier for n in e.get("named") or []))
-        text = f"; heard before, {len(earlier)} time(s)"
+        text = f"; {met} before, {len(earlier)} time(s)"
         if last:
             text += f", last on {str(last)[:16].replace('T', ' ')}"
         if names:
@@ -8925,6 +8980,26 @@ class AutonomousCoordinator:
         agreement earned: told what a sound is once, the substrate knows every
         time it heard it."""
         lesson = content.get("lesson") or {}
+        thing = lesson.get("thing") if isinstance(lesson, dict) else None
+        if thing:
+            # A THING SHOWN, told what it is: every earlier seeing of it now
+            # shows it, as a known instance recognised in it would.
+            from core.domain.evidence_producers import quality_from_resolution, submit_image
+            for earlier in content.get("seen_before") or []:
+                if not earlier.get("subject") or thing in (earlier.get("named") or []):
+                    continue
+                try:
+                    await submit_image(
+                        str(earlier["subject"]),
+                        {"subject": earlier["subject"],
+                         "detections": [{"label": thing, "confidence": round(
+                             quality_from_resolution(float(earlier.get("support") or 0.0)), 3)}]},
+                        domain=domain, memory_id=earlier.get("memory"), origin=origin)
+                except Exception as error:
+                    raise_if_structural(error, "autonomous_coordinator.name_what_came_before")
+                    logger.error("the thing %r could not be said of %s, seen before: %s",
+                                 thing, earlier.get("subject"), error)
+            return
         title = lesson.get("song") if isinstance(lesson, dict) else None
         if not title:
             return
@@ -9009,6 +9084,10 @@ class AutonomousCoordinator:
                                      for e in (content.get("heard_before") or [])):
             if earlier:
                 claims.append(f"{subject} same_sound_as {_term_like(earlier)}")
+        for earlier in dict.fromkeys(str(e.get("subject") or "")
+                                     for e in (content.get("seen_before") or [])):
+            if earlier:
+                claims.append(f"{subject} same_thing_as {_term_like(earlier)}")
         return claims
 
     async def remember_image(self, path: str, note: Optional[str] = None, *,
@@ -9040,7 +9119,7 @@ class AutonomousCoordinator:
             # a place for them to drift apart.
             perceived = {k: sensed.get(k) for k in
                          ("properties", "blobs", "blob_relations", "detections",
-                          "sha256", "captured", "gist", "subject", "seen_before")}
+                          "sha256", "captured", "gist", "subject", "seen_before", "lesson")}
         else:
             desc = await self.vision.describe_picture(str(path))
             caption = self._image_caption(desc)
@@ -9061,20 +9140,26 @@ class AutonomousCoordinator:
         if self.memory is None:
             from core.memory import get_memory_agent
             self.memory = await get_memory_agent()
+        # A SEEING THAT WAS A LESSON says what it taught, as a hearing does.
+        from core.perception.perception_faculty import PerceptionFaculty
+        taught = PerceptionFaculty.lesson_of((sensed or {}).get("lesson"))
+        all_tags = list(dict.fromkeys(
+            list(tags or []) + ["image", "vision"]
+            + ([getattr(self.memory, PerceptionFaculty.LESSONS[taught[0]])] if taught else [])))
         if within:
             # A SEEING WITHIN A PURSUIT is part of that pursuit's memory.
             return await self.memory.add_perception_to_pursuit(
                 within, {"role": "seen", "source": origin.material,
                          "content": {"caption": content,
                                      "subject": (sensed or {}).get("subject")}},
-                media=media, media_meta=perceived,
-                tags=list(tags or []) + ["image", "vision"])
+                media=media, media_meta=perceived, tags=all_tags)
         ok, memory_id = await self.memory.store_memory(
             origin=origin,
             content=content, memory_type=MemoryType.EPISODIC,
             importance_score=importance,
-            tags=list(tags or []) + ["image", "vision"],
-            source_context={"source_system": "vision", "has_image": True},
+            tags=all_tags,
+            source_context={"source_system": "vision", "has_image": True,
+                            **({taught[0]: taught[1]} if taught else {})},
             media=media, media_meta=perceived)
         return memory_id if ok else None
 
@@ -9167,7 +9252,10 @@ class AutonomousCoordinator:
                 rebuilt.append({"kind": "sound", "rate": hearing.SR,
                                 "samples": await self.vision.rebuild_sound(media["bytes"]),
                                 "from": media["media_id"], "caption": perceived.get("caption")})
-            elif str(media.get("mime") or "").startswith("image/") and perceived.get("gist"):
+            elif perceived.get("gist") and (perceived.get("kind") == "sight_trace"
+                                            or str(media.get("mime") or "").startswith("image/")):
+                # A seeing keeps its gist and sight trace, never the photograph;
+                # a seeing from before that kept a photograph has its gist too.
                 rebuilt.append({"kind": "image",
                                 "pixels": await self.vision.rebuild_picture(perceived),
                                 "from": media["media_id"], "caption": perceived.get("caption")})
@@ -10061,7 +10149,7 @@ class AutonomousCoordinator:
             # understand_domain() is not on UniversalDomainMaster under any
             # name -- its public API is execute_cross_domain_query,
             # get_statistics, initialize, shutdown. Insight about ONE domain is
-            # the registry's question anyway, so it is answered from what Torin
+            # the registry's question anyway, so it is answered from what Lyric
             # has actually learned about it.
             registry = self.domain_registry
             if registry is None:
@@ -10089,7 +10177,7 @@ class AutonomousCoordinator:
                     "statistics": await self.universal_domain_master.get_statistics(),
                 }
 
-            # A domain Torin has not learned is a real answer, not a failure.
+            # A domain Lyric has not learned is a real answer, not a failure.
             logger.info("No learned domain matching %r", domain_name)
             return {"domain": domain_name, "learned": False,
                     "reason": "not a registered domain"}
@@ -11982,7 +12070,7 @@ class AutonomousCoordinator:
             # trained since the last pass. The authority owns the work; the
             # queue owns the cadence.
             ("idle_learning_consolidation", "_idle_learning_consolidation", "low", self.config.get("idle_learning_consolidation_interval_s", 900.0)),
-            # PRIORITY 4, TORINAI_REFERENCE.md:3114 — "expand domain knowledge
+            # PRIORITY 4, LYRIC_REFERENCE.md:3114 — "expand domain knowledge
             # from recent task outcomes". The producer has been writing those
             # outcomes to META memory all along and nothing read them; this is
             # idle_domain_expansion is now EVENT-DRIVEN (retired from the poll):
@@ -12392,7 +12480,7 @@ class AutonomousCoordinator:
                 # Skip common large/noisy dirs
                 dirs[:] = [
                     d for d in dirs
-                    if d not in {".git", "venv", "venv_torin", "__pycache__", "logs", "tmp", "node_modules"}
+                    if d not in {".git", "venv", "venv_lyric", "__pycache__", "logs", "tmp", "node_modules"}
                 ]
                 for name in files:
                     if name.endswith(suffixes):
@@ -12462,14 +12550,14 @@ class AutonomousCoordinator:
 
         # Lightweight codebase inventory (counts only; avoids heavy reads)
         try:
-            torin_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+            lyric_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
             snapshot["codebase"] = {
-                "root": torin_root,
+                "root": lyric_root,
                 "py_files": {
-                    "core": _count_files(os.path.join(torin_root, "core"), (".py",)),
-                    "services": _count_files(os.path.join(torin_root, "services"), (".py",)),
-                    "scripts": _count_files(os.path.join(torin_root, "scripts"), (".py",)),
-                    "tests": _count_files(os.path.join(torin_root, "tests"), (".py",)),
+                    "core": _count_files(os.path.join(lyric_root, "core"), (".py",)),
+                    "services": _count_files(os.path.join(lyric_root, "services"), (".py",)),
+                    "scripts": _count_files(os.path.join(lyric_root, "scripts"), (".py",)),
+                    "tests": _count_files(os.path.join(lyric_root, "tests"), (".py",)),
                 },
             }
         except Exception as e:
@@ -12611,7 +12699,7 @@ class AutonomousCoordinator:
                 f"- {topics_str}\n\n"
                 "Deliverables (STRICT):\n"
                 "1) Bullet summary of findings with source URLs\n"
-                "2) Relevance mapping to TorinAI subsystems/tools\n"
+                "2) Relevance mapping to Lyric subsystems/tools\n"
                 "3) Recommendations ranked by impact/effort\n"
                 "4) If code changes are suggested, propose follow-up tasks — DO NOT modify code in this task\n\n"
                 f"System review highlights: {snapshot.get('highlights', {})}"
@@ -12903,7 +12991,7 @@ class AutonomousCoordinator:
     async def _idle_domain_expansion_work(self):
         """PRIORITY 4 — Expand domain knowledge from recent task outcomes.
 
-        TORINAI_REFERENCE.md:3114 specifies this tier. Every part of it already
+        LYRIC_REFERENCE.md:3114 specifies this tier. Every part of it already
         existed and nothing joined them:
 
           producer  _store_task_outcome_meta_memory (:1725, 4 live call sites)
@@ -14385,7 +14473,7 @@ class AutonomousCoordinator:
 
         PredictiveIntelligenceSystem.validate_prediction() computes real error
         and confidence calibration, and had zero callers -- as did both
-        prediction *producers*. Torin therefore never predicted anything and
+        prediction *producers*. Lyric therefore never predicted anything and
         never compared a prediction to reality, so its forecasting was
         analytics rather than a world model that can be wrong and learn from it.
 
@@ -16822,7 +16910,7 @@ class AutonomousCoordinator:
         """Accept work from the user and run it ON the substrate.
 
         The companion is not a separate agent with its own rules -- it is the
-        user's connection to Torin. So a user request must enter through the
+        user's connection to Lyric. So a user request must enter through the
         same door as everything else: the task queue, the safety gate, the
         tools, memory, beliefs, meta-learning and credit assignment.
 
@@ -17216,8 +17304,8 @@ class AutonomousCoordinator:
             # Test suite info — so the AI knows its tests exist and where they are
             try:
                 import os as _os
-                _torin_root = _os.path.abspath(_os.path.join(_os.path.dirname(__file__), "..", "..", ".."))
-                _tests_dir = _os.path.join(_torin_root, "tests")
+                _lyric_root = _os.path.abspath(_os.path.join(_os.path.dirname(__file__), "..", "..", ".."))
+                _tests_dir = _os.path.join(_lyric_root, "tests")
                 if _os.path.isdir(_tests_dir):
                     _test_cats = sorted(
                         d for d in _os.listdir(_tests_dir)
@@ -17957,7 +18045,7 @@ The substrate must realign with its constitutional responsibilities immediately.
                 from core.integration.universal_domain_master import get_universal_domain_master
                 self.universal_domain_master = get_universal_domain_master()
             import os as _exec_os
-            if not _exec_os.environ.get("TORIN_SHADOW_MODE"):
+            if not _exec_os.environ.get("LYRIC_SHADOW_MODE"):
                 try:
                     await self.db.initialize()
                 except Exception as _dbe:
@@ -17978,7 +18066,7 @@ The substrate must realign with its constitutional responsibilities immediately.
             return False
 
     def _ensure_dotenv_loaded(self) -> None:
-        """Read TorinAI's .env files for runtime integration checks, WITHOUT
+        """Read Lyric's .env files for runtime integration checks, WITHOUT
         mutating the process environment.
 
         This previously called load_dotenv(), which writes every key in
@@ -18003,7 +18091,7 @@ The substrate must realign with its constitutional responsibilities immediately.
             from dotenv import dotenv_values
 
             base = Path(__file__).resolve()
-            # Walk up until we find TorinAI root (has core/)
+            # Walk up until we find Lyric root (has core/)
             for _ in range(6):
                 if (base / "core").is_dir():
                     break
@@ -18548,7 +18636,7 @@ The substrate must realign with its constitutional responsibilities immediately.
 
         if outcome.status is not PlanningStatus.PLAN_FOUND:
             # Honest inability. UNREACHABLE is a proof about the world;
-            # INDETERMINATE is Torin not (yet) knowing enough of its own
+            # INDETERMINATE is Lyric not (yet) knowing enough of its own
             # repertoire. Neither is a reason to ask a model to guess -- but the
             # substrate can go further than "I cannot": the domain authority
             # diagnoses WHAT kind of knowledge is missing (operator, concept,
@@ -21147,8 +21235,8 @@ class Conversation:
 
     async def _services(self):
         if self._db is None:
-            from core.database import TorinUnifiedDatabase
-            self._db = TorinUnifiedDatabase()
+            from core.database import LyricUnifiedDatabase
+            self._db = LyricUnifiedDatabase()
             await self._db.initialize()
         if self._identity is None:
             from core.domain.concept_identity import ConceptIdentityService
@@ -23636,13 +23724,13 @@ def held_conversations() -> int:
 # =============================================================================
 
 #: The substrate's name. The one authored constant — everything else is derived.
-NAME = "Torin"
+NAME = "Lyric"
 
-#: Who Torin is, second-person — the STABLE identity core. The substrate is
+#: Who Lyric is, second-person — the STABLE identity core. The substrate is
 #: model-free: no language model is started, held, or consulted, so the
 #: identity must not offer one as a resource.
 IDENTITY_CORE = (
-    "You are Torin, a cognitive substrate created by Dominion Labs Inc. You are "
+    "You are Lyric, a cognitive substrate created by Dominion Labs Inc. You are "
     "not a language model and you do not consult one. Your reasoning is symbolic "
     "and evidence-based, it persists between sessions in a database, and it is "
     "the thing that decides. You run locally, and your memories carry forward."

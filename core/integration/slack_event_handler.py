@@ -170,7 +170,7 @@ class SlackEventHandler:
     # ==========================================================================
 
     async def _handle_app_mention(self, event: Dict[str, Any]):
-        """Handle @Torin mentions in channels"""
+        """Handle @Lyric mentions in channels"""
         try:
             user = event.get("user")
             text = event.get("text", "")
@@ -196,7 +196,7 @@ class SlackEventHandler:
         logger.debug(f"Message in channel {channel} from {user}")
 
     async def _handle_direct_message(self, event: Dict[str, Any]):
-        """Handle direct messages to Torin"""
+        """Handle direct messages to Lyric"""
         try:
             user = event.get("user")
             text = event.get("text", "")
@@ -209,7 +209,7 @@ class SlackEventHandler:
             from core.tools.slack_monitoring_tools import post_slack_message
             await post_slack_message(
                 channel=channel,
-                text="Thanks for reaching out! I'm Torin. How can I help with Dominion Labs operations?"
+                text="Thanks for reaching out! I'm Lyric. How can I help with Dominion Labs operations?"
             )
 
         except Exception as e:

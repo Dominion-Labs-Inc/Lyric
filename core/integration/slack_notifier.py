@@ -2,7 +2,7 @@
 """
 Slack Notification System
 =========================
-Tracks and notifies about TorinAI singleton's autonomous actions and decisions
+Tracks and notifies about Lyric singleton's autonomous actions and decisions
 
 Purpose:
 - Monitor singleton's autonomous decision-making
@@ -108,11 +108,11 @@ class ActionCategory(Enum):
 
 class SlackChannel(Enum):
     """Slack channels for different notification types"""
-    UPGRADES = "torin-upgrades"
-    ALERTS = "torin-alerts"
-    DECISIONS = "torin-decisions"
-    ACTIVITY = "torin-activity"
-    GOVERNANCE = "torin-governance"
+    UPGRADES = "lyric-upgrades"
+    ALERTS = "lyric-alerts"
+    DECISIONS = "lyric-decisions"
+    ACTIVITY = "lyric-activity"
+    GOVERNANCE = "lyric-governance"
 
 
 @dataclass
@@ -173,7 +173,7 @@ class SlackNotifier:
     """
     Slack Notification System for Singleton Action Tracking
 
-    Monitors TorinAI singleton's autonomous decisions and sends appropriate
+    Monitors Lyric singleton's autonomous decisions and sends appropriate
     notifications based on decision tier:
     - CRITICAL: Full governance session (human approval required)
     - IMPORTANT: Slack approval request (30-min timeout, default deny)
@@ -200,10 +200,10 @@ class SlackNotifier:
         # Set up channel-specific webhooks first
         import os
         self.channel_webhooks = {
-            SlackChannel.UPGRADES: os.getenv('SLACK_WEBHOOK_TORIN_UPGRADES'),
-            SlackChannel.ALERTS: os.getenv('SLACK_WEBHOOK_TORIN_ALERTS'),
-            SlackChannel.DECISIONS: os.getenv('SLACK_WEBHOOK_TORIN_DECISIONS'),
-            SlackChannel.ACTIVITY: os.getenv('SLACK_WEBHOOK_TORIN_ACTIVITY'),
+            SlackChannel.UPGRADES: os.getenv('SLACK_WEBHOOK_LYRIC_UPGRADES'),
+            SlackChannel.ALERTS: os.getenv('SLACK_WEBHOOK_LYRIC_ALERTS'),
+            SlackChannel.DECISIONS: os.getenv('SLACK_WEBHOOK_LYRIC_DECISIONS'),
+            SlackChannel.ACTIVITY: os.getenv('SLACK_WEBHOOK_LYRIC_ACTIVITY'),
             SlackChannel.GOVERNANCE: os.getenv('SLACK_WEBHOOK_CRITICAL')
         }
 
@@ -315,7 +315,7 @@ class SlackNotifier:
             channel=SlackChannel.GOVERNANCE,
             title="🏛️ GOVERNANCE SESSION REQUIRED",
             message=(
-                f"The TorinAI singleton is requesting governance approval for a CRITICAL action.\n\n"
+                f"The Lyric singleton is requesting governance approval for a CRITICAL action.\n\n"
                 f"**Action**: {action.action_type}\n"
                 f"**Category**: {action.action_category.value}\n"
                 f"**Description**: {action.description}\n"
@@ -627,7 +627,7 @@ class SlackNotifier:
                     "title": notification.title,
                     "text": notification.message,
                     "fields": notification.fields,
-                    "footer": "TorinAI Singleton Monitor",
+                    "footer": "Lyric Singleton Monitor",
                     "ts": int(notification.timestamp.timestamp())
                 }]
             }

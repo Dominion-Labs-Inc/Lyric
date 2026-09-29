@@ -24,15 +24,15 @@ logger = logging.getLogger(__name__)
 async def main():
     """Send a live test notification to Slack"""
     logger.info("Sending LIVE test notification to Slack...")
-    logger.info("This will post to your #torin-activity channel")
+    logger.info("This will post to your #lyric-activity channel")
 
     notifier = get_slack_notifier()
 
     try:
         await notifier.send_security_alert(
-            alert_title="TorinAI Notification System Test",
+            alert_title="Lyric Notification System Test",
             alert_message=(
-                "This is a LIVE test of the TorinAI notification system.\n\n"
+                "This is a LIVE test of the Lyric notification system.\n\n"
                 "✅ All notification types are working correctly:\n"
                 "- Security alerts\n"
                 "- Governance sessions\n"
@@ -49,7 +49,7 @@ async def main():
         )
 
         logger.info("✅ Live notification sent successfully!")
-        logger.info("Check your Slack #torin-alerts channel to see the message")
+        logger.info("Check your Slack #lyric-alerts channel to see the message")
 
     except Exception as e:
         logger.error(f"❌ Failed to send live notification: {e}")

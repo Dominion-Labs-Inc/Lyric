@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Quantum Learning Integration Bridge
-Connects quantum computing with Torin's autonomous learning system
+Connects quantum computing with Lyric's autonomous learning system
 """
 
 import asyncio
@@ -13,7 +13,7 @@ from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
 
-# Import Torin's learning system.
+# Import Lyric's learning system.
 #
 # `core.learning.learning_engine` HAS NEVER EXISTED and there is no
 # `LearningEngine` class anywhere in the codebase, so this import always raised
@@ -45,7 +45,7 @@ class QuantumLearningResult:
 
 
 class QuantumLearningBridge:
-    """Bridges quantum computing with Torin's learning system"""
+    """Bridges quantum computing with Lyric's learning system"""
     
     def __init__(self):
         self.quantum_processor: Optional[HybridQuantumProcessor] = None
@@ -435,7 +435,7 @@ async def initialize_quantum_learning_bridge() -> QuantumLearningBridge:
 def inject_quantum_into_learning_system():
     """Inject quantum capabilities into existing learning system"""
     try:
-        # This would be called during Torin initialization
+        # This would be called during Lyric initialization
         # to seamlessly add quantum capabilities to the learning system
 
         logger.info("Injecting quantum capabilities into learning system")

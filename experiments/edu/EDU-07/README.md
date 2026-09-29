@@ -6,10 +6,10 @@ Prior knowledge from a structurally analogous source domain reduces the target-d
 
 ## In plain terms
 
-This is the one that matters. Torin took a rule it had learned in one world and used
+This is the one that matters. Lyric took a rule it had learned in one world and used
 it to learn a THIRD world faster.
 
-After watching a single event in the new warehouse world, Torin proposed a complete
+After watching a single event in the new warehouse world, Lyric proposed a complete
 rule for it -- borrowed from the movement rule it already knew. Learning the same
 rule from scratch took six observations. The proposal was only ever a proposal: it
 was filed as a guess with no supporting evidence, and only became usable knowledge
@@ -29,7 +29,7 @@ N_A=1 vs N_B=6 target observations to validated competence; held-out 5/5 in both
 Run from the repository root:
 
 ```
-TORIN_MODEL_POLICY=strict_model_free ./venv_torin/bin/python3 experiments/edu/EDU-07/experiment.py
+LYRIC_MODEL_POLICY=strict_model_free ./venv_lyric/bin/python3 experiments/edu/EDU-07/experiment.py
 ```
 
 `manifest.json` in this folder is the frozen result. Every run records

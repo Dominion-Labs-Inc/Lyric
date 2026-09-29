@@ -844,3 +844,45 @@ def test_a_new_name_is_never_a_held_name_of_its_concept_with_other_words():
     assert "All ?slot0 can fly." in {p.surface for p in view.item_based()}
     (reading,) = read("All geese can fly.", view)
     assert reading.meaning == flies("goose")
+
+
+def _lessons_view(last):
+    """The lessons english_01 to english_0<last>, learned in memory as the teaching path learns them."""
+    import json
+    view = _believed()
+    for n in range(1, last + 1):
+        path = Path(__file__).resolve().parents[1] / "data" / "lessons" / f"english_0{n}.json"
+        _learn(view, [(r["sentence"], Meaning.from_dict(r["meaning"]))
+                      for r in json.loads(path.read_text())["records"]])
+    return view
+
+
+def test_a_word_never_held_is_said_as_the_words_used_like_it_are():
+    view = _lessons_view(7)
+    assert view.use_of("Thiosulfil") == "name", "written with a capital by its source"
+    assert view.use_of("paleoanthropology") == "mass", "ending as 'biology', 'geology' and 'zoology' do"
+    assert view.use_of("fire tongs") == "plural", "its last word is held as a plural only"
+    for word in ("ocelot", "lens", "bus", "abacus"):
+        assert view.use_of(word) == "count", f"{word}: a plural or 'no a' is never guessed from a final 's'"
+    before = len(view)
+    for fact, sentence in ((("isa", "Thiosulfil", "sulfa drug"), "Thiosulfil is a sulfa drug."),
+                           (("isa", "paleoanthropology", "vertebrate paleontology"),
+                            "Paleoanthropology is a kind of vertebrate paleontology."),
+                           (("isa", "fire tongs", "tongs"), "Fire tongs are tongs."),
+                           (("isa", "lens", "optical device"), "A lens is an optical device.")):
+        said = dr.say(_tell(fact), view)
+        assert sentence in said, (fact, said)
+        assert not any(s.startswith(("A Thiosulfil", "A paleoanthropology", "A fire tongs")) for s in said), said
+    for fact, sentence in ((("isa", "Thiosulfil", "sulfa drug"), "Thiosulfil is a sulfa drug."),
+                           (("isa", "paleoanthropology", "vertebrate paleontology"),
+                            "Paleoanthropology is a kind of vertebrate paleontology.")):
+        # Names of words none of which is held read back as the names said. A word never held keeps its writing
+        # when read ("Paleoanthropology" opening the sentence): the meaning is the same, case aside.
+        assert [r.meaning.canonical().lower() for r in read(sentence, view)] == [_tell(fact).canonical().lower()], \
+            sentence
+    assert len(view) == before, "saying and reading write nothing"
+    lens = _tell(("isa", "lens", "optical device"))
+    assert [r.meaning for r in read("A lens is an optical device.", view)] != [lens], \
+        "a name holding a held word ('device') is read as that word described, until the name is taught"
+    _learn(view, [("A lens is an optical device.", lens)])
+    assert [r.meaning for r in read("A lens is an optical device.", view)] == [lens], "and then as the name"

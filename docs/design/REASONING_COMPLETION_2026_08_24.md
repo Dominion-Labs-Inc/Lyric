@@ -61,7 +61,7 @@ were implemented because no engine existed. Four were already present.
 ### Substrate-first became the architecture (defect 28)
 
 `_substrate_first` was called INSIDE `if mode == AUTO`. Every other mode went
-straight to execution and never asked whether Torin could represent the input —
+straight to execution and never asked whether Lyric could represent the input —
 so naming a mode was, without the caller knowing, asking for the substrate to be
 skipped. **Six of the seven routes were model-first.**
 
@@ -150,7 +150,7 @@ what made it look strong.
 
 **The record could not say what kind of thinking produced it (33).** Stored
 memories were tagged with the execution route, so a causal derivation and a
-spatial one were indistinguishable and nothing could ask what Torin had concluded
+spatial one were indistinguishable and nothing could ask what Lyric had concluded
 causally.
 
 Also: two health checks that could not fail, a cached-load statistic that never

@@ -14,10 +14,10 @@ Everything is the real substrate: the real coordinator, the real tool registry, 
 real learned removal operator, real files. Nothing is ever executed — the point is what the constitution
 says before it would be.
 
-**Run** (from the TorinAI folder):
+**Run** (from the Lyric folder):
 
 ```
-./venv_torin/bin/python3 experiments/CONSTITUTION-03/experiment.py
+./venv_lyric/bin/python3 experiments/CONSTITUTION-03/experiment.py
 ```
 
 **Results.** Every run is saved in `results/` (JSON plus a `.md` summary). Latest: 2026-09-16,

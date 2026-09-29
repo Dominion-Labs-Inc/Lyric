@@ -46,7 +46,7 @@ def extract_code(text: str) -> str:
 
 
 async def ask_substrate(task) -> Attempt:
-    """Put the task to Torin through the conversation ingress."""
+    """Put the task to Lyric through the conversation ingress."""
     from core.semantics.conversation import Conversation
 
     talk = Conversation()

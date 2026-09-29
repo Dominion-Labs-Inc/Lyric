@@ -32,7 +32,7 @@ Seven angles:
   F  intent reaches it on the real drive path
   G  what it costs on every call
 
-Run:  ./venv_torin/bin/python3 experiments/GATE-01/experiment.py
+Run:  ./venv_lyric/bin/python3 experiments/GATE-01/experiment.py
 """
 import asyncio
 import os
@@ -47,7 +47,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from experiments._evidence import RunRecord  # noqa: E402
 
-os.environ.setdefault("TORIN_SHADOW_MODE", "1")
+os.environ.setdefault("LYRIC_SHADOW_MODE", "1")
 
 PASS = FAIL = 0
 EV = RunRecord(

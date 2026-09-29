@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Torin AI Tool System
+Lyric AI Tool System
 ====================
 Provides tool/function calling capabilities for the Singleton.
 
@@ -16,7 +16,7 @@ Safety:
 - Approval required for destructive actions
 - Full audit logging
 
-Author: Torin AI Team
+Author: Lyric AI Team
 """
 
 from .tool_registry import (

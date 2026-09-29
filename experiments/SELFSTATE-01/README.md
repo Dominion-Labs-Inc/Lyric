@@ -59,7 +59,7 @@ fires it immediately, so a task outcome is still felt at once.
 ## Run
 
 ```
-./venv_torin/bin/python3 experiments/SELFSTATE-01/experiment.py
+./venv_lyric/bin/python3 experiments/SELFSTATE-01/experiment.py
 ```
 
 Each run writes a structured record to `results/<timestamp>.json`.

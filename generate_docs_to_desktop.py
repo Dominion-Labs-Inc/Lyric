@@ -18,7 +18,7 @@ from core.services.unified_llm import get_llm_service
 from core.agents.autonomous.autonomous_coordinator import AutonomousCoordinator
 from core.agents.autonomous.shared_types import Task, TaskType, Priority
 
-DESKTOP_PATH = Path.home() / "Desktop" / "TorinAI_Generated_Docs"
+DESKTOP_PATH = Path.home() / "Desktop" / "Lyric_Generated_Docs"
 
 async def main():
     print("=" * 80)
@@ -39,13 +39,13 @@ async def main():
 
     # PHASE 1: COMPREHENSIVE RESEARCH
     print("\n" + "="*80)
-    print("PHASE 1: RESEARCHING TORINAI CODEBASE")
+    print("PHASE 1: RESEARCHING LYRIC CODEBASE")
     print("="*80)
 
     research_task = Task(
-        id="research_torinai",
+        id="research_lyric",
         type=TaskType.RESEARCH,
-        description=f"""Research TorinAI codebase comprehensively. Use memory tools to avoid context limits.
+        description=f"""Research Lyric codebase comprehensively. Use memory tools to avoid context limits.
 
 WORKING MEMORY PROTOCOL:
 - After EACH discovery: store_memory(content="findings", memory_type="semantic", tags=["research", "category_name"])
@@ -120,14 +120,14 @@ DO NOT complete until research_findings.txt is written.""",
             "name": "PDF System Overview",
             "prompt": f"""Based on the research findings below, use generate_pdf_document to create a comprehensive system overview PDF.
 
-Output path: {DESKTOP_PATH}/TorinAI_Overview.pdf
-Title: TorinAI: Autonomous AI System
+Output path: {DESKTOP_PATH}/Lyric_Overview.pdf
+Title: Lyric: Autonomous AI System
 Author: Dominion Labs
 
 Create well-structured, properly formatted content with markdown formatting:
 
 # Overview
-What is TorinAI based on actual codebase
+What is Lyric based on actual codebase
 
 # Architecture
 Real architecture from code analysis
@@ -168,7 +168,7 @@ RESEARCH FINDINGS:
             "prompt": f"""Based on the research findings below, use generate_pdf_document to create accurate technical specifications.
 
 Output path: {DESKTOP_PATH}/Technical_Specifications.pdf
-Title: TorinAI Technical Specifications
+Title: Lyric Technical Specifications
 Author: Dominion Labs Engineering
 
 Include ONLY verified information from research:
@@ -210,7 +210,7 @@ RESEARCH FINDINGS:
             "prompt": f"""Based on research findings, use generate_word_document to create API documentation.
 
 Output path: {DESKTOP_PATH}/API_Documentation.docx
-Title: TorinAI API Documentation
+Title: Lyric API Documentation
 Author: Dominion Labs
 
 Document actual API modules found in research:
@@ -227,7 +227,7 @@ RESEARCH FINDINGS:
             "prompt": f"""Based on research findings, use generate_architecture_diagram to create a high-quality system architecture diagram.
 
 Output path: {DESKTOP_PATH}/system_architecture.png
-Title: TorinAI System Architecture
+Title: Lyric System Architecture
 Style: layered
 
 CRITICAL FORMATTING REQUIREMENTS:
@@ -247,8 +247,8 @@ RESEARCH FINDINGS:
             "name": "PowerPoint Presentation",
             "prompt": f"""Based on research findings, use generate_powerpoint to create a presentation.
 
-Output path: {DESKTOP_PATH}/TorinAI_Presentation.pptx
-Title: TorinAI Overview
+Output path: {DESKTOP_PATH}/Lyric_Presentation.pptx
+Title: Lyric Overview
 Author: Dominion Labs
 
 Create slides with actual information from research (not generic fluff):
@@ -265,7 +265,7 @@ RESEARCH FINDINGS:
             "prompt": f"""Based on research findings, use generate_word_document to create a comprehensive, practical user guide.
 
 Output path: {DESKTOP_PATH}/User_Guide.docx
-Title: TorinAI User Guide
+Title: Lyric User Guide
 Author: Dominion Labs Support
 
 Create detailed sections based on what's actually in the codebase:

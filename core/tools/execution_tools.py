@@ -8,7 +8,7 @@ Available Tools:
 - run_python: Execute Python code in isolated environment
 - run_shell_command: Execute shell commands with safety constraints
 
-Author: Torin AI Team
+Author: Lyric AI Team
 """
 
 import asyncio
@@ -39,18 +39,18 @@ logger = logging.getLogger(__name__)
 def resolve_working_directory(working_directory: Optional[str]) -> Optional[Path]:
     """
     Resolve working directory path, handling special cases.
-    Maps /data to TorinAI's actual data directory.
+    Maps /data to Lyric's actual data directory.
     """
     if not working_directory:
         return None
 
     path = Path(working_directory)
 
-    # Handle absolute /data path - map to TorinAI data directory
+    # Handle absolute /data path - map to Lyric data directory
     if str(path).startswith('/data'):
-        torin_root = Path(__file__).parent.parent.parent  # Get TorinAI root
+        lyric_root = Path(__file__).parent.parent.parent  # Get Lyric root
         relative_path = str(path)[1:]  # Remove leading /
-        path = torin_root / relative_path
+        path = lyric_root / relative_path
 
     # Create directory if it doesn't exist
     if not path.exists():

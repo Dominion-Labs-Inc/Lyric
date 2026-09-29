@@ -6,7 +6,7 @@ synthesis). It then reads sentences, and words, it never saw.
 - Both affirmative and negated readings are derived.
 - On held-out sentences, the result is compared with the six-regex extractor.
 
-**Run:** `./venv_torin/bin/python3 experiments/edu/EDU-13/reading.py`
+**Run:** `./venv_lyric/bin/python3 experiments/edu/EDU-13/reading.py`
 
 **Results.** `reading.json` (recorded 2026-08-24): passed; all 7 held-out sentences read correctly.
 

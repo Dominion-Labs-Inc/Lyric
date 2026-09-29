@@ -3,7 +3,7 @@
   "purpose": "sight over real files: substrate holds exactly what code read from the bytes",
   "run_at": "2026-09-18T00:10:29.408974+00:00",
   "image": {
-    "path": "/Users/stefan/Dominion Labs/TorinAI/test_data/vision_test.png",
+    "path": "/Users/stefan/Dominion Labs/Lyric/test_data/vision_test.png",
     "measured": {
       "width": 800,
       "height": 400,

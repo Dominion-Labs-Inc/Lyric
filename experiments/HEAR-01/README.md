@@ -78,7 +78,7 @@ level, and the jellyfish clip given JFK's audio.
 nonce afterwards):
 
 ```
-POSTGRES_DATABASE=torinai_dev ./venv_torin/bin/python3 experiments/HEAR-01/experiment.py
+POSTGRES_DATABASE=lyric_dev ./venv_lyric/bin/python3 experiments/HEAR-01/experiment.py
 ```
 
 **Results.** Each run writes `results/<UTC timestamp>.json` and a `.md` beside it.

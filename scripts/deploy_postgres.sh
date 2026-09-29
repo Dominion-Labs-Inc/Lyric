@@ -15,7 +15,7 @@ export PATH="/opt/homebrew/Cellar/postgresql@16/16.11_1/bin:$PATH"
 echo "================================================================"
 echo "POSTGRESQL + pgvector DEPLOYMENT"
 echo "================================================================"
-echo "Project: TorinAI"
+echo "Project: Lyric"
 echo "Strategy: Blue-Green deployment"
 echo "Rollback: Available if issues detected"
 echo "================================================================"
@@ -34,7 +34,7 @@ echo "Step 1: Pre-Deployment Verification"
 echo "----------------------------------------------------------------"
 
 # Check if PostgreSQL is running
-if ! psql -U stefan -d torinai_db -c "SELECT 1" > /dev/null 2>&1; then
+if ! psql -U stefan -d lyric_db -c "SELECT 1" > /dev/null 2>&1; then
     echo -e "${RED}❌ PostgreSQL is not running or accessible${NC}"
     echo "Please start PostgreSQL: brew services start postgresql@16"
     exit 1
@@ -42,30 +42,30 @@ fi
 echo -e "${GREEN}✓${NC} PostgreSQL is running"
 
 # Verify schemas exist
-if ! psql -U stefan -d torinai_db -c "SELECT 1 FROM pg_namespace WHERE nspname = 'unified'" | grep -q 1; then
+if ! psql -U stefan -d lyric_db -c "SELECT 1 FROM pg_namespace WHERE nspname = 'unified'" | grep -q 1; then
     echo -e "${RED}❌ unified schema not found${NC}"
-    echo "Run: psql -U stefan -d torinai_db -f data/system/postgres_schemas.sql"
+    echo "Run: psql -U stefan -d lyric_db -f data/system/postgres_schemas.sql"
     exit 1
 fi
 echo -e "${GREEN}✓${NC} PostgreSQL schemas deployed"
 
 # Verify pgvector extension
-if ! psql -U stefan -d torinai_db -c "SELECT 1 FROM pg_extension WHERE extname = 'vector'" | grep -q 1; then
+if ! psql -U stefan -d lyric_db -c "SELECT 1 FROM pg_extension WHERE extname = 'vector'" | grep -q 1; then
     echo -e "${RED}❌ pgvector extension not installed${NC}"
-    echo "Run: psql -U stefan -d torinai_db -c 'CREATE EXTENSION vector;'"
+    echo "Run: psql -U stefan -d lyric_db -c 'CREATE EXTENSION vector;'"
     exit 1
 fi
 echo -e "${GREEN}✓${NC} pgvector extension installed"
 
 # Check data migration
-LAWS_COUNT=$(psql -U stefan -d torinai_db -t -c "SELECT COUNT(*) FROM unified.governance_laws" | xargs)
+LAWS_COUNT=$(psql -U stefan -d lyric_db -t -c "SELECT COUNT(*) FROM unified.governance_laws" | xargs)
 echo -e "${GREEN}✓${NC} Governance laws in PostgreSQL: $LAWS_COUNT"
 
-MEMORIES_COUNT=$(psql -U stefan -d torinai_db -t -c "SELECT COUNT(*) FROM memory_hot.memory_hot WHERE embedding IS NOT NULL" | xargs)
+MEMORIES_COUNT=$(psql -U stefan -d lyric_db -t -c "SELECT COUNT(*) FROM memory_hot.memory_hot WHERE embedding IS NOT NULL" | xargs)
 echo -e "${GREEN}✓${NC} Memories with embeddings: $MEMORIES_COUNT"
 
 # Check HNSW index exists
-INDEX_EXISTS=$(psql -U stefan -d torinai_db -t -c "SELECT COUNT(*) FROM pg_indexes WHERE schemaname='memory_hot' AND tablename='memory_hot' AND indexdef LIKE '%hnsw%'" | xargs)
+INDEX_EXISTS=$(psql -U stefan -d lyric_db -t -c "SELECT COUNT(*) FROM pg_indexes WHERE schemaname='memory_hot' AND tablename='memory_hot' AND indexdef LIKE '%hnsw%'" | xargs)
 if [ "$INDEX_EXISTS" -eq "0" ]; then
     echo -e "${RED}❌ HNSW index not found${NC}"
     exit 1
@@ -94,21 +94,21 @@ echo ""
 echo "Step 3: Stop Running Services"
 echo "----------------------------------------------------------------"
 
-# Check if TorinAI is running
-TORIN_PID=$(pgrep -f "python.*core/main.py" || true)
-if [ -n "$TORIN_PID" ]; then
-    echo "Stopping TorinAI (PID: $TORIN_PID)..."
-    kill $TORIN_PID
+# Check if Lyric is running
+LYRIC_PID=$(pgrep -f "python.*core/main.py" || true)
+if [ -n "$LYRIC_PID" ]; then
+    echo "Stopping Lyric (PID: $LYRIC_PID)..."
+    kill $LYRIC_PID
     sleep 2
 
     # Force kill if still running
-    if ps -p $TORIN_PID > /dev/null 2>&1; then
+    if ps -p $LYRIC_PID > /dev/null 2>&1; then
         echo "Force stopping..."
-        kill -9 $TORIN_PID
+        kill -9 $LYRIC_PID
     fi
-    echo -e "${GREEN}✓${NC} TorinAI stopped"
+    echo -e "${GREEN}✓${NC} Lyric stopped"
 else
-    echo -e "${YELLOW}⚠${NC} TorinAI not running"
+    echo -e "${YELLOW}⚠${NC} Lyric not running"
 fi
 
 echo ""
@@ -128,11 +128,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from core.database import TorinUnifiedDatabase
+from core.database import LyricUnifiedDatabase
 
 async def health_check():
     """Perform comprehensive health check"""
-    db = TorinUnifiedDatabase()
+    db = LyricUnifiedDatabase()
 
     try:
         await db.initialize()
@@ -195,7 +195,7 @@ echo "Step 5: Running Health Check"
 echo "----------------------------------------------------------------"
 
 cd "$PROJECT_ROOT"
-source venv_torin/bin/activate
+source venv_lyric/bin/activate
 
 if python scripts/health_check_postgres.py; then
     echo -e "${GREEN}✓${NC} Health check passed"
@@ -214,7 +214,7 @@ echo "DEPLOYMENT READY"
 echo "================================================================"
 echo ""
 echo "PostgreSQL is ready for production use:"
-echo "  - Database: torinai_db"
+echo "  - Database: lyric_db"
 echo "  - Schemas: unified, memory_hot, memory_cold"
 echo "  - Governance laws: $LAWS_COUNT"
 echo "  - Memories: $MEMORIES_COUNT"
@@ -222,8 +222,8 @@ echo "  - HNSW index: ✓ Functional"
 echo "  - Health checks: ✓ Passing"
 echo ""
 echo "Next steps:"
-echo "  1. Start TorinAI: python core/main.py"
-echo "  2. Monitor logs: tail -f logs/torin_main.log"
+echo "  1. Start Lyric: python core/main.py"
+echo "  2. Monitor logs: tail -f logs/lyric_main.log"
 echo "  3. Verify autonomous agents start correctly"
 echo ""
 echo "Rollback (if needed):"

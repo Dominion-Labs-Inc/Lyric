@@ -12,7 +12,7 @@ once as evidence, and is held as beliefs grounded in that memory. The
 photograph is a COCO camera image with one pixel changed per run, so each run
 sees a picture no earlier run has seen; everything it wrote is removed by id.
 
-Run: ./venv_torin/bin/python3 experiments/SYSTEM-PERCEPTION-01/experiment.py
+Run: ./venv_lyric/bin/python3 experiments/SYSTEM-PERCEPTION-01/experiment.py
 """
 from __future__ import annotations
 

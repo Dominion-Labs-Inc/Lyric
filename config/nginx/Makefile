@@ -5,33 +5,33 @@ PY?=python3
 HOST?=127.0.0.1
 PORT?=8000
 
-# Main commands using the ONE AND ONLY torin script
+# Main commands using the ONE AND ONLY lyric script
 start:
-	./torin start --host $(HOST) --port $(PORT)
+	./lyric start --host $(HOST) --port $(PORT)
 
 start-public:
-	./torin start --host 0.0.0.0 --port $(PORT)
+	./lyric start --host 0.0.0.0 --port $(PORT)
 
 stop:
-	./torin stop
+	./lyric stop
 
 kill:
-	./torin kill
+	./lyric kill
 
 status:
-	./torin status
+	./lyric status
 
 restart:
-	./torin restart --host $(HOST) --port $(PORT)
+	./lyric restart --host $(HOST) --port $(PORT)
 
 interactive:
-	./torin start --interactive
+	./lyric start --interactive
 
 quantum:
-	./torin start --mode quantum-only
+	./lyric start --mode quantum-only
 
 help:
-	./torin help
+	./lyric help
 
 # Legacy commands for compatibility
 setup:

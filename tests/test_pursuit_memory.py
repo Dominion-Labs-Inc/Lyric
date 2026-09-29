@@ -1,7 +1,7 @@
 """One pursuit is one memory: formed as the work is taken on, every task within it added as it ends, repeats counted
 rather than listed, closed with how the pursuit ended. Separate pursuits are never merged.
 
-The store tests run against the database they are pointed at (the sandbox, `POSTGRES_DATABASE=torinai_dev`), with the
+The store tests run against the database they are pointed at (the sandbox, `POSTGRES_DATABASE=lyric_dev`), with the
 memory agent's background loops kept off (shadow mode), and remove every row they write by id.
 """
 import asyncio
@@ -72,7 +72,7 @@ def test_a_pursuit_says_each_task_and_how_it_ended():
 
 
 def test_one_pursuit_is_one_memory_and_two_are_two(monkeypatch):
-    monkeypatch.setenv("TORIN_SHADOW_MODE", "1")
+    monkeypatch.setenv("LYRIC_SHADOW_MODE", "1")
     nonce = uuid4().hex[:8]
 
     async def run():
@@ -154,7 +154,7 @@ def test_one_pursuit_is_one_memory_and_two_are_two(monkeypatch):
 def test_the_coordinator_keeps_a_pursuit_in_one_memory(monkeypatch):
     """Taken on through `intend`, a root task and the task of a goal raised inside the pursuit land in one memory,
     and the pursuit's conclusion closes it."""
-    monkeypatch.setenv("TORIN_SHADOW_MODE", "1")
+    monkeypatch.setenv("LYRIC_SHADOW_MODE", "1")
     nonce = uuid4().hex[:8]
 
     async def run():

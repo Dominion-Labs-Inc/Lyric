@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Notification Helpers for TorinAI
+Notification Helpers for Lyric
 Comprehensive notification functions for all error types, successes, and informational events
 """
 import logging

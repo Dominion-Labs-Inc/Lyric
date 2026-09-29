@@ -20,7 +20,7 @@ final class Control: ObservableObject {
     @Published private(set) var status: Status = .idle
 
     private let home: URL
-    private var pidFile: URL { home.appendingPathComponent("runtime/torin_main.pid") }
+    private var pidFile: URL { home.appendingPathComponent("runtime/lyric_main.pid") }
 
     /// Startup does dependency preflight and service init before it writes a
     /// PID, so the window has to be generous; shutdown drains workers.
@@ -73,32 +73,32 @@ final class Control: ObservableObject {
 
     private func startAndConfirm() async throws {
         if await livePID() != nil {
-            throw Failure(reason: "TorinAI is already running")
+            throw Failure(reason: "Lyric is already running")
         }
-        let log = home.appendingPathComponent("logs/torin_launch.log").path
-        // Detached: TorinAI must outlive this window. Without nohup + disown the
+        let log = home.appendingPathComponent("logs/lyric_launch.log").path
+        // Detached: Lyric must outlive this window. Without nohup + disown the
         // substrate would die whenever the dashboard was closed.
         let command = """
-        cd '\(home.path)' && nohup ./torin > '\(log)' 2>&1 &
+        cd '\(home.path)' && nohup ./lyric > '\(log)' 2>&1 &
         disown
         """
-        try run("/bin/bash", ["-lc", command], env: ["TORIN_LAUNCHER": "app"])
+        try run("/bin/bash", ["-lc", command], env: ["LYRIC_LAUNCHER": "app"])
 
         if let pid = try await waitFor(startTimeout, until: { await self.livePID() != nil }) as Int32?? {
             _ = pid
             return
         }
-        throw Failure(reason: "did not start within \(Int(startTimeout))s — see logs/torin_launch.log")
+        throw Failure(reason: "did not start within \(Int(startTimeout))s — see logs/lyric_launch.log")
     }
 
     private func stopAndConfirm() async throws {
         guard await livePID() != nil else { return }          // already down
-        try run(home.appendingPathComponent("torin-stop").path, [], env: [:])
+        try run(home.appendingPathComponent("lyric-stop").path, [], env: [:])
 
         if (try await waitFor(stopTimeout, until: { await self.livePID() == nil })) != nil {
             return
         }
-        throw Failure(reason: "still running after \(Int(stopTimeout))s — use torin-kill")
+        throw Failure(reason: "still running after \(Int(stopTimeout))s — use lyric-kill")
     }
 
     /// Poll until the condition holds, or give up. Returns nil on timeout.
@@ -118,7 +118,7 @@ final class Control: ObservableObject {
         process.executableURL = URL(fileURLWithPath: launchPath)
         process.arguments = args
         process.currentDirectoryURL = URL(fileURLWithPath:
-            "/Users/stefan/Dominion Labs/TorinAI")
+            "/Users/stefan/Dominion Labs/Lyric")
         var environment = ProcessInfo.processInfo.environment
         env.forEach { environment[$0.key] = $0.value }
         process.environment = environment

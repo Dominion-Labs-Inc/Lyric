@@ -38,7 +38,7 @@ from core.reasoning.neural_bridge import get_neural_bridge, ReasoningRequest  # 
 from core.reasoning.intent_authority import (  # noqa: E402
     get_intent_authority, continuity_thread, continuity_goal, continuity_question)
 
-os.environ.setdefault("TORIN_SHADOW_MODE", "1")
+os.environ.setdefault("LYRIC_SHADOW_MODE", "1")
 
 PASS = FAIL = 0
 EV = RunRecord(

@@ -1,4 +1,4 @@
-# TorinAI — Architecture
+# Lyric — Architecture
 
 *The canonical architecture document. Verified against the running system
 (`experiments/systems/VERIFY-01`). This master holds the conceptual model, the subsystem
@@ -10,9 +10,9 @@ subsystem, method, or wiring changes. Supersedes `ARCHITECTURE_GRAPH.md` and
 
 ---
 
-## 1. What TorinAI is
+## 1. What Lyric is
 
-TorinAI is a **persistent cognitive substrate**: a system that maintains and develops
+Lyric is a **persistent cognitive substrate**: a system that maintains and develops
 structured knowledge, memory, beliefs, learned operators, competence, and goals over time,
 and reasons over what it holds rather than regenerating an answer from scratch. Cognition is
 **one body** — not a bus between independent services. Each faculty is an **subsystem that does
@@ -21,7 +21,7 @@ every authority. The output of one subsystem becomes structured input to another
 revises a belief, an action produces an experience, an experience induces an operator, a
 competence gap raises the motivation to explore.
 
-> **Language models.** TorinAI's cognition uses no language model. Reasoning, learning,
+> **Language models.** Lyric's cognition uses no language model. Reasoning, learning,
 > planning, action, and verification consult none. The last component that could consult one
 > — the teaching module `core/learning/teacher_policy.py` — has been deleted, along with
 > `unified_llm` and `llm_teacher`. There is no longer any path from the substrate to a
@@ -213,7 +213,7 @@ Each links to its exhaustive method reference.
 - **Governance** — [`architecture/security.md`](architecture/security.md). The substrate's own law,
   held by the `Constitution` inside the coordinator and applied at the single gate every tool call
   passes (`tool_registry.execute_tool`); self-defense is the Constitution and `ThreatSense`
-  together. World/DHCM security lives in the world's factory, outside TorinAI.
+  together. World/DHCM security lives in the world's factory, outside Lyric.
 - **The body / coordinator** — [`architecture/coordinator.md`](architecture/coordinator.md).
   Holds every authority; execution faculty (`execute_task`), the self (`state`/`render`/
   `disposition`), grounded completion (`_derive_completion_anchor`→`_decide_completion`, DID+SAW),
@@ -249,8 +249,8 @@ one body rather than co-resident parts.
 
 ## 7. Running it
 
-Canonical runtime: `./venv_torin/bin/python3` (Python 3.11). Postgres at `127.0.0.1:5433`,
-database `torinai_db`.
+Canonical runtime: `./venv_lyric/bin/python3` (Python 3.11). Postgres at `127.0.0.1:5433`,
+database `lyric_db`.
 
 ```python
 from core.main import get_system
@@ -258,7 +258,7 @@ system = get_system(); await system.initialize()
 coord = system.autonomous_coordinator
 ```
 
-Environment: `PYTHONPATH="$PWD"`, `POSTGRES_PORT=5433`, `TORIN_NO_WATCHDOG=1`.
+Environment: `PYTHONPATH="$PWD"`, `POSTGRES_PORT=5433`, `LYRIC_NO_WATCHDOG=1`.
 
 ---
 

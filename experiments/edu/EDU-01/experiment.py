@@ -9,7 +9,7 @@ demonstrations only.
 """
 import asyncio, json, sys
 from datetime import datetime, timezone
-sys.path.insert(0, '/Users/stefan/Dominion Labs/TorinAI')
+sys.path.insert(0, '/Users/stefan/Dominion Labs/Lyric')
 
 from core.database.unified_database_postgres import get_unified_database
 from core.learning.rule_store import get_rule_store
@@ -127,7 +127,7 @@ async def main():
                     "ablated": {"score": abl_ok, "of": total, "detail": abl_rows}},
         "delta_pp": round(100.0 * (post_ok - pre_ok) / total, 1),
     }
-    out = "/Users/stefan/Dominion Labs/TorinAI/experiments/edu/EDU-01_T0.json"
+    out = "/Users/stefan/Dominion Labs/Lyric/experiments/edu/EDU-01_T0.json"
     json.dump(report, open(out, "w"), indent=2)
     print(f"\nΔ competence: {pre_ok}/{total} -> {post_ok}/{total}  "
           f"(+{report['delta_pp']} percentage points)")

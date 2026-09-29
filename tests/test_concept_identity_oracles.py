@@ -19,7 +19,7 @@ and row-count equality can hide a root set that has quietly changed underneath.
 
 The invariant that spans both is stronger than "row count stays fixed":
 
-    Reinterpreting an observation may change Torin's semantic interpretation
+    Reinterpreting an observation may change Lyric's semantic interpretation
     of it. It cannot manufacture additional independent evidence.
 """
 

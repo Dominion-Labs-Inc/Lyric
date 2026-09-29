@@ -839,7 +839,7 @@ class DomainRegistry:
         DERIVED, never persisted. The ontology remains the single authority:
         this view is rebuilt on every initialize() and is not written to
         unified.concepts, so the universal level cannot drift from its owner
-        and never enters the record as something Torin learned.
+        and never enters the record as something Lyric learned.
         """
         from .universal_ontology import get_universal_ontology
 
@@ -1263,7 +1263,7 @@ class DomainRegistry:
         # LEARNED and DERIVED counted apart. The universal level is projected
         # from UniversalOntology on every load and is never persisted, so
         # folding it into one total reports 24 designed concepts as though
-        # Torin had learned them -- and an operator reading a single number has
+        # Lyric had learned them -- and an operator reading a single number has
         # no way to tell which part of the graph came from experience.
         projected = sum(
             1 for d in self.domains.values() for c in d.concepts.values()

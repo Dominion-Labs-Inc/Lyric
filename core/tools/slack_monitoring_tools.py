@@ -2,7 +2,7 @@
 """
 Slack Monitoring & Interaction Tools
 ====================================
-Comprehensive tools for Torin to monitor and interact with Dominion Labs Slack workspace.
+Comprehensive tools for Lyric to monitor and interact with Dominion Labs Slack workspace.
 
 Leverages all 43+ Slack Bot Events for internal monitoring:
 - Message events (channels, DMs, threads)

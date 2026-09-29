@@ -6,7 +6,7 @@ stored and comes back by search and by id, is superseded keeping what it said,
 and cannot be deleted without the token governance requires. Everything written
 is removed by id.
 
-Run: ./venv_torin/bin/python3 experiments/SYSTEM-MEMORY-01/experiment.py
+Run: ./venv_lyric/bin/python3 experiments/SYSTEM-MEMORY-01/experiment.py
 """
 from __future__ import annotations
 

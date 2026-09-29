@@ -11,7 +11,7 @@ Available Tools:
 - create_directory: Create directories
 - search_files: Find files by pattern
 
-Author: Torin AI Team
+Author: Lyric AI Team
 """
 
 import os
@@ -167,9 +167,9 @@ class SmartPathResolver:
         corrections = []
 
         # Common correction: add 'core/' subdirectory
-        if "TorinAI" in str(path):
-            # Try /TorinAI/core/xyz if /TorinAI/xyz fails
-            core_variant = Path(str(path).replace("/TorinAI/", "/TorinAI/core/"))
+        if "Lyric" in str(path):
+            # Try /Lyric/core/xyz if /Lyric/xyz fails
+            core_variant = Path(str(path).replace("/Lyric/", "/Lyric/core/"))
             if core_variant.exists() and (not must_be_dir or core_variant.is_dir()):
                 corrections.append(str(core_variant))
 

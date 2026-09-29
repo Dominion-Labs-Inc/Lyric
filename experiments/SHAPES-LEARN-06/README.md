@@ -60,5 +60,5 @@ look at.
 - A plural a lesson never used ("Rain causes floods.") needs word shapes (step 4).
 - What the substrate says about itself ("I hold nothing for writing.") is still fixed wording, as the plan orders.
 
-Run: `./venv_torin/bin/python3 experiments/SHAPES-LEARN-06/experiment.py` (empties the sandbox first, and leaves the
+Run: `./venv_lyric/bin/python3 experiments/SHAPES-LEARN-06/experiment.py` (empties the sandbox first, and leaves the
 four lessons taught).

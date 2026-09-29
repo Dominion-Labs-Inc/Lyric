@@ -24,7 +24,7 @@ The lesson and what the substrate learns are KEPT (the store is to be wiped and
 re-taught); scratch files are removed after their contents are copied into the
 transcript. The fixture user's context is kept too, under `USER`, so it can be inspected.
 
-Run: ./venv_torin/bin/python3 experiments/LEARNED-WORK-01/experiment.py
+Run: ./venv_lyric/bin/python3 experiments/LEARNED-WORK-01/experiment.py
 """
 from __future__ import annotations
 

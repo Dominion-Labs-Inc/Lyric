@@ -247,7 +247,7 @@ class ExperienceEvaluator:
         # went uncalled. The two answer different questions:
         #
         #   outcome_quality  = how well did the task go?
-        #   intrinsic_reward = how valuable was this experience to Torin's drives?
+        #   intrinsic_reward = how valuable was this experience to Lyric's drives?
         #
         # A failed experiment that revealed something novel should score low on
         # the first and high on the second. Aliasing them made that unsayable.

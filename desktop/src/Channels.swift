@@ -2,9 +2,9 @@ import Foundation
 
 /// Where the panes get their records.
 ///
-/// Deliberately the SAME sources torin-dash reads, and the same rules: channel
-/// files when TorinAI is running, the combined log routed after the fact when it
-/// is not, and Torin's own recorded events for the substrate. Re-deriving the
+/// Deliberately the SAME sources lyric-dash reads, and the same rules: channel
+/// files when Lyric is running, the combined log routed after the fact when it
+/// is not, and Lyric's own recorded events for the substrate. Re-deriving the
 /// routing table here would give the app a second opinion about which channel a
 /// module belongs to, so the table is parsed from channels.py rather than copied.
 enum Channel: String, CaseIterable, Identifiable {
@@ -51,7 +51,7 @@ final class Feed: ObservableObject {
 
     init(home: URL) {
         self.home = home
-        self.python = home.appendingPathComponent("venv_torin/bin/python3")
+        self.python = home.appendingPathComponent("venv_lyric/bin/python3")
     }
 
     func start() {
@@ -69,12 +69,12 @@ final class Feed: ObservableObject {
         // channel routing and the raw_event query. Both were verified against
         // live data; duplicating them here would mean two things to keep right.
         guard FileManager.default.isExecutableFile(atPath: python.path) else {
-            lastError = "venv_torin python not found at \(python.path)"
+            lastError = "venv_lyric python not found at \(python.path)"
             return
         }
         let process = Process()
         process.executableURL = python
-        process.arguments = [home.appendingPathComponent("torin-feed").path, "--json"]
+        process.arguments = [home.appendingPathComponent("lyric-feed").path, "--json"]
         process.currentDirectoryURL = home
         let pipe = Pipe()
         process.standardOutput = pipe
@@ -131,7 +131,7 @@ final class Feed: ObservableObject {
     }
 
     private func isRunning() -> Bool {
-        let pidFile = home.appendingPathComponent("runtime/torin_main.pid")
+        let pidFile = home.appendingPathComponent("runtime/lyric_main.pid")
         guard let text = try? String(contentsOf: pidFile, encoding: .utf8),
               let pid = Int32(text.trimmingCharacters(in: .whitespacesAndNewlines))
         else { return false }

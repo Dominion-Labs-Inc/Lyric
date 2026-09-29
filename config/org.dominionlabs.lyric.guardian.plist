@@ -3,18 +3,18 @@
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>org.dominionlabs.torin.guardian</string>
+    <string>org.dominionlabs.lyric.guardian</string>
 
     <!-- The guardian IS the always-on layer: monitoring and security that must
          outlive the substrate. launchd keeps it alive across crashes and reboots,
          which is what makes "daemon" true rather than "a script someone ran". -->
     <key>ProgramArguments</key>
     <array>
-        <string>/Users/stefan/Dominion Labs/TorinAI/torin-guardian</string>
+        <string>/Users/stefan/Dominion Labs/Lyric/lyric-guardian</string>
     </array>
 
     <key>WorkingDirectory</key>
-    <string>/Users/stefan/Dominion Labs/TorinAI</string>
+    <string>/Users/stefan/Dominion Labs/Lyric</string>
 
     <!-- Start at load and keep running; relaunch if it ever exits. -->
     <key>RunAtLoad</key>
@@ -27,8 +27,8 @@
     <integer>10</integer>
 
     <key>StandardOutPath</key>
-    <string>/Users/stefan/Dominion Labs/TorinAI/logs/guardian.log</string>
+    <string>/Users/stefan/Dominion Labs/Lyric/logs/guardian.log</string>
     <key>StandardErrorPath</key>
-    <string>/Users/stefan/Dominion Labs/TorinAI/logs/guardian.log</string>
+    <string>/Users/stefan/Dominion Labs/Lyric/logs/guardian.log</string>
 </dict>
 </plist>

@@ -8,7 +8,7 @@
 (3) END-TO-END: a real event drives the real selection cycle, which consults the frontier
     (`_intrinsic_pursuits`) — proven by the cycle running off the event and reading the seeded pursuit.
 
-Run: ./venv_torin/bin/python3 scratchpad/bench_eventdriven.py
+Run: ./venv_lyric/bin/python3 scratchpad/bench_eventdriven.py
 """
 from __future__ import annotations
 import asyncio, os, sys

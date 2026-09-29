@@ -1,6 +1,6 @@
 # EDU — the education benchmark ladder
 
-> **What this ladder is evidence for.** TorinAI is a persistent, model-optional
+> **What this ladder is evidence for.** Lyric is a persistent, model-optional
 > experimental cognitive architecture with substrate-native learning, causal
 > reasoning, active experimentation, cross-domain transfer, planning, action,
 > self-correction, and probabilistic epistemic control.
@@ -20,7 +20,7 @@ frozen.
 
 ## Two axes, deliberately separate
 
-**Competence** is what Torin has learned. **Teachability** is how efficiently it
+**Competence** is what Lyric has learned. **Teachability** is how efficiently it
 can be taught. They are different questions and a teaching experiment is not a
 higher level of competence, so the teacher track is not EDU numbered as Levels
 7 and 8.

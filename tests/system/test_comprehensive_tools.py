@@ -6,7 +6,7 @@ Tests all extended and new tools to verify they register and function properly.
 
 Run with: python3 -m pytest tests/test_comprehensive_tools.py -v
 
-Author: Torin AI Team
+Author: Lyric AI Team
 """
 
 import asyncio
@@ -775,7 +775,7 @@ def test_print_tool_summary():
     registry = get_tool_registry()
 
     print(f"\n{'='*60}")
-    print(f"TORIN AI TOOL REGISTRY SUMMARY")
+    print(f"LYRIC AI TOOL REGISTRY SUMMARY")
     print(f"{'='*60}\n")
 
     print(f"Total Tools Registered: {len(registry.tools)}\n")

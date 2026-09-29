@@ -1,7 +1,7 @@
 """The substrate's shell activity, surfaced in the dedicated terminal.
 
 Every command the substrate runs was captured through a PIPE and returned as a
-tool result, which reaches `logs/torin_main.log` and nothing else. The window
+tool result, which reaches `logs/lyric_main.log` and nothing else. The window
 that started the run -- the one that owns every subprocess in the tree -- showed
 no sign that a command had been executed at all. Watching the system work meant
 tailing a file in a second window, which is exactly the split the dedicated
@@ -54,15 +54,15 @@ _SECRET = re.compile(
 def enabled() -> bool:
     """Emit only when there is a dedicated terminal attached to emit to.
 
-    TORIN_SHELL is set by TorinAI/.torinshell/.zshrc and inherited by the
-    process `torin` starts, so it is a direct answer to "did this run come from
-    the dedicated terminal". stdout is NOT consulted: `torin` pipes it through a
+    LYRIC_SHELL is set by Lyric/.lyricshell/.zshrc and inherited by the
+    process `lyric` starts, so it is a direct answer to "did this run come from
+    the dedicated terminal". stdout is NOT consulted: `lyric` pipes it through a
     colouriser, so isatty() is False even when a terminal is right there.
     """
-    override = os.getenv("TORIN_COMMAND_ECHO")
+    override = os.getenv("LYRIC_COMMAND_ECHO")
     if override is not None:
         return override.strip().lower() in ("1", "true", "yes", "on")
-    return os.getenv("TORIN_SHELL") == "1"
+    return os.getenv("LYRIC_SHELL") == "1"
 
 
 def _redact(text: str) -> str:

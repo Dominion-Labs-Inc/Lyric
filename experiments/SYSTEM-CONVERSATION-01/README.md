@@ -47,7 +47,7 @@ order-dependent. Every run now uses fresh nonce words and removes, by id, every 
 ## Run
 
 ```
-./venv_torin/bin/python3 experiments/SYSTEM-CONVERSATION-01/experiment.py
+./venv_lyric/bin/python3 experiments/SYSTEM-CONVERSATION-01/experiment.py
 ```
 
 Residue is snapshotted to `data/snapshots/system_conversation_01_<nonce>_<ts>.json` before removal. Each run

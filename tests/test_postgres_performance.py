@@ -10,7 +10,7 @@ import time
 import numpy as np
 from typing import List
 
-from core.database import TorinUnifiedDatabase
+from core.database import LyricUnifiedDatabase
 
 
 @pytest.mark.asyncio
@@ -21,7 +21,7 @@ async def test_vector_search_performance():
     Expected: < 100ms for 1000 vectors with HNSW index
     vs 5000ms+ for MySQL JSON + Python loop
     """
-    db = TorinUnifiedDatabase()
+    db = LyricUnifiedDatabase()
     await db.initialize()
 
     try:
@@ -136,7 +136,7 @@ async def test_concurrent_vector_searches():
     """
     Test concurrent semantic searches to validate connection pool performance
     """
-    db = TorinUnifiedDatabase()
+    db = LyricUnifiedDatabase()
     await db.initialize()
 
     try:

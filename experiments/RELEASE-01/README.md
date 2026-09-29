@@ -27,7 +27,7 @@ made at every start:
   encoded. A cut is now refused while any concept is unencoded; the development phase finishes its encoding before
   it stops; a frozen release is never encoded.
 
-The run is on the sandbox line (`torinai_dev`). The experiment process is development. Each staging or production
+The run is on the sandbox line (`lyric_dev`). The experiment process is development. Each staging or production
 process runs separately (`serve.py`), because a process is one environment for its whole life.
 
 ## What it checks
@@ -43,12 +43,12 @@ process runs separately (`serve.py`), because a process is one environment for i
 | G. Take | development takes every memory production kept (through the memory agent, which may merge one into a memory it already holds) and its recalls as access counts. Taking again takes nothing |
 | H. Next | release 2 carries what production kept. Staged and promoted, it retires release 1. Production serves 2 and will not serve 1 |
 | I. Rollback | production goes back to release 1 and serves it. Both releases are intact |
-| J. Main | the main line (`torinai_db`) is untouched, and no main-line release was made |
+| J. Main | the main line (`lyric_db`) is untouched, and no main-line release was made |
 
 ## Run
 
 ```
-./venv_torin/bin/python3 experiments/RELEASE-01/experiment.py
+./venv_lyric/bin/python3 experiments/RELEASE-01/experiment.py
 ```
 
 It empties the sandbox line first (`scripts/reset_dev_store.py`). The development phase is `experiments/_develop.py`:

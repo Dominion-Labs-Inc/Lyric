@@ -24,7 +24,7 @@ from core.agents.autonomous.directive_types import (
     ABTestStatus,
     DirectivePerformanceReport
 )
-from core.database import TorinUnifiedDatabase, get_unified_db
+from core.database import LyricUnifiedDatabase, get_unified_db
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +47,7 @@ class DirectiveManager:
     - Calculate performance metrics
     """
 
-    def __init__(self, db: Optional[TorinUnifiedDatabase] = None):
+    def __init__(self, db: Optional[LyricUnifiedDatabase] = None):
         """
         Initialize directive manager.
 

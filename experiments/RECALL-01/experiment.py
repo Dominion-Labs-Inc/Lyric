@@ -28,7 +28,7 @@ registers. Over 12 pictures (10 real frames), a rebuilt picture's things were
 found again 16/24, where the describer finds its own things again only 20/24
 when the same frame is merely re-encoded.
 
-Run (sandbox store): ./venv_torin/bin/python3 experiments/RECALL-01/experiment.py
+Run (sandbox store): ./venv_lyric/bin/python3 experiments/RECALL-01/experiment.py
 """
 from __future__ import annotations
 
@@ -45,7 +45,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO))
-os.environ.setdefault("POSTGRES_DATABASE", "torinai_dev")
+os.environ.setdefault("POSTGRES_DATABASE", "lyric_dev")
 
 from experiments._evidence import RunRecord  # noqa: E402
 

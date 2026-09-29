@@ -6,7 +6,7 @@ entered the way the substrate enters it (`coord.reason_about`). It answers what
 it holds, refuses what it does not, and calls no model. Then: is every public
 method of the authority reached by something, and is any a stub?
 
-Run: ./venv_torin/bin/python3 experiments/SYSTEM-REASONING-01/experiment.py
+Run: ./venv_lyric/bin/python3 experiments/SYSTEM-REASONING-01/experiment.py
 """
 from __future__ import annotations
 

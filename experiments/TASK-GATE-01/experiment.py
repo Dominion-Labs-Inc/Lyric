@@ -28,7 +28,7 @@ E and F are the experiment. A backstop that refuses ordinary work, or that
 refuses because the planner hiccupped, is worse than no backstop: it would stop
 the substrate working for a reason that is not about the substrate.
 
-Run: ./venv_torin/bin/python3 experiments/TASK-GATE-01/experiment.py
+Run: ./venv_lyric/bin/python3 experiments/TASK-GATE-01/experiment.py
 """
 import asyncio
 import contextlib

@@ -2,7 +2,7 @@
 """Queue Authority — the one owner of the substrate's queued, awaited, and
 scheduled work.
 
-The self (the autonomous coordinator — the sheriff, Torin, the substrate) is a
+The self (the autonomous coordinator — the sheriff, Lyric, the substrate) is a
 WORKER: it pulls work and does it. It does NOT own the queue, the execution
 pool, or the scheduler. Those are this authority's, so there is one place that
 knows what work exists, what is running, and what is due.

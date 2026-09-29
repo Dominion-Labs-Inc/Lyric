@@ -23,7 +23,7 @@ class CodeGenerationToolsTests(TestBase):
             test_type="code_generation_tools"
         )
         self.registry = get_tool_registry()
-        self.test_dir = Path("/Users/stefan/Dominion Labs/TorinAI/data/tool_tests/codegen")
+        self.test_dir = Path("/Users/stefan/Dominion Labs/Lyric/data/tool_tests/codegen")
         self.test_dir.mkdir(parents=True, exist_ok=True)
 
     async def run_all_tests(self):

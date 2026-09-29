@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Check torinai_thinking_hot and torinai_memory_cold databases ONLY
+Check lyric_thinking_hot and lyric_memory_cold databases ONLY
 """
 import asyncio
 import aiomysql
@@ -81,15 +81,15 @@ async def main():
     print("=" * 80)
 
     # Check both databases
-    await check_database("torinai_thinking_hot")
-    await check_database("torinai_memory_cold")
+    await check_database("lyric_thinking_hot")
+    await check_database("lyric_memory_cold")
 
     # Expected schemas
     print(f"\n{'=' * 80}")
     print("EXPECTED SCHEMAS")
     print(f"{'=' * 80}\n")
 
-    print("torinai_thinking_hot should have:")
+    print("lyric_thinking_hot should have:")
     print("  - memories (main memory storage)")
     print("  - memory_tags (tag associations)")
     print("  - archive_log (tracking archived memories)")

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Learning Tools for TorinAI Tool Registry
+Learning Tools for Lyric Tool Registry
 Exposes learning capabilities to all agents via tool interface.
 """
 

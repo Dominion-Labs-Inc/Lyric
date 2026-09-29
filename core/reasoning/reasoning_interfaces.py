@@ -10,7 +10,7 @@ from enum import Enum
 
 
 class ReasoningType(Enum):
-    """The KINDS OF THINKING Torin can do. One list, and this is it.
+    """The KINDS OF THINKING Lyric can do. One list, and this is it.
 
     THIS ENUM EXISTED TWICE. `abstract_reasoning_engine` declared its own with
     16 members while this one had 8; six names were shared. Enum equality is
@@ -30,7 +30,7 @@ class ReasoningType(Enum):
     nothing that looked one up by value changes meaning.
 
     THE CLASSICAL ELEVEN come first, then the quantum family. They are separated
-    because the quantum members need hardware Torin does not currently have --
+    because the quantum members need hardware Lyric does not currently have --
     see `ReasoningType.is_quantum`.
     """
 

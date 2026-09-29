@@ -766,9 +766,9 @@ class PredictiveIntelligenceSystem(IOutcomePrediction):
                 import shutil
                 import os
                 
-                # Get disk usage for the Torin directory
-                torin_path = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-                total, used, free = shutil.disk_usage(torin_path)
+                # Get disk usage for the Lyric directory
+                lyric_path = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+                total, used, free = shutil.disk_usage(lyric_path)
                 storage_usage = used / total
                 resource_data['storage_usage'] = storage_usage
                 resource_data['storage_available'] = 1.0 - storage_usage

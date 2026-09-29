@@ -666,7 +666,7 @@ class DeterministicExtractor(IFormalizer):
                 )
             if node["kind"] == "unsupported":
                 # Classified successfully, cannot be represented. Naming which
-                # is the difference between "Torin misread this" and "the
+                # is the difference between "Lyric misread this" and "the
                 # formal language has no existential quantifier".
                 return Formalization(
                     source=self.name,
@@ -2910,11 +2910,11 @@ class NeuralSymbolicBridge:
         None when the input has no deterministic formalization here -- in
         which case the caller proceeds to the kinds of thinking.
 
-        The probe uses only deterministic formalizers, so an input Torin can
+        The probe uses only deterministic formalizers, so an input Lyric can
         represent itself never enters the model call graph.
         """
         # ARITHMETIC FIRST, AND BEFORE ANY MODEL. The constraint solver runs
-        # here so Z3 PRODUCES the answer -- "Torin can do algebra" is a
+        # here so Z3 PRODUCES the answer -- "Lyric can do algebra" is a
         # substrate claim, never contingent on a model checking it.
         equation = read_equation(request.query)
         if equation is not None:
@@ -2976,7 +2976,7 @@ class NeuralSymbolicBridge:
             )
 
         if formalization.succeeded:
-            # Torin can represent this. The solver decides it; no model needed.
+            # Lyric can represent this. The solver decides it; no model needed.
             return await self._symbolic_reasoning(request, formalization=formalization)
 
         # DETERMINISTIC FORMALIZATION FAILED -- WHICH IS NOT THE END, AND NEVER
@@ -3899,8 +3899,8 @@ class NeuralSymbolicBridge:
         fall through to a model.
 
         Every kind here is model-free. This runs after `_substrate_solvers` and
-        before any execution route, which is the whole ordering: what Torin can
-        prove, then what Torin can derive, then what a model can propose.
+        before any execution route, which is the whole ordering: what Lyric can
+        prove, then what Lyric can derive, then what a model can propose.
         """
         try:
             from core.reasoning.abstract_reasoning_engine import (
@@ -4219,7 +4219,7 @@ class NeuralSymbolicBridge:
             # `mode_used` is the execution route, so every kind-derived
             # conclusion was stored as "abstract" -- a causal derivation and a
             # spatial one were indistinguishable in the record, and a later
-            # reader could not ask "what has Torin concluded causally?" at all.
+            # reader could not ask "what has Lyric concluded causally?" at all.
             # The kind is the more informative fact and is what makes the record
             # readable afterwards.
             kind = (result.metadata or {}).get("kind")

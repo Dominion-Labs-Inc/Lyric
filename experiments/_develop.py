@@ -2,11 +2,11 @@
 """The development phase of an experiment that serves a release: teach the sandbox's model, then stop.
 
 Run as its own process, because a process is one environment for its whole life. It starts the substrate in
-development on `torinai_dev` (the sandbox), teaches the SHAPES-LEARN-01 lesson through the one teaching path,
+development on `lyric_dev` (the sandbox), teaches the SHAPES-LEARN-01 lesson through the one teaching path,
 stores one memory of the substrate's own carrying `--mark`, shuts down, and prints what it did as JSON on its
 last line. The release cut from the sandbox afterwards carries all of it.
 
-Run: ./venv_torin/bin/python3 experiments/_develop.py --mark WORD [--seconds N]
+Run: ./venv_lyric/bin/python3 experiments/_develop.py --mark WORD [--seconds N]
 """
 from __future__ import annotations
 
@@ -19,10 +19,10 @@ import os
 import sys
 from pathlib import Path
 
-os.environ.pop("TORINAI_RELEASE", None)
-os.environ["TORINAI_ENVIRONMENT"] = "development"
-os.environ["POSTGRES_DATABASE"] = "torinai_dev"
-for k, v in {"POSTGRES_PORT": "5433", "POSTGRES_USER": "stefan", "TORIN_NO_WATCHDOG": "1"}.items():
+os.environ.pop("LYRIC_RELEASE", None)
+os.environ["LYRIC_ENVIRONMENT"] = "development"
+os.environ["POSTGRES_DATABASE"] = "lyric_dev"
+for k, v in {"POSTGRES_PORT": "5433", "POSTGRES_USER": "stefan", "LYRIC_NO_WATCHDOG": "1"}.items():
     os.environ.setdefault(k, v)
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -58,7 +58,7 @@ async def main(mark: str, seconds: float) -> dict:
     from core.database import get_database_manager
     db = get_database_manager()
     await db.initialize()
-    await db.assert_database_identity("torinai_dev")
+    await db.assert_database_identity("lyric_dev")
     log = io.StringIO()
     with contextlib.redirect_stdout(log), contextlib.redirect_stderr(log):
         from core.main import get_system

@@ -38,7 +38,7 @@ Induction and validation are the learning authority's own (`reinduce_operator`):
 it induces from what was filed and validates against the most recent moves, which
 it holds back.
 
-Run:  ./venv_torin/bin/python3 experiments/fs_move_teach.py
+Run:  ./venv_lyric/bin/python3 experiments/fs_move_teach.py
 """
 import asyncio
 import os
@@ -49,7 +49,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-os.environ.setdefault("TORIN_SHADOW_MODE", "1")
+os.environ.setdefault("LYRIC_SHADOW_MODE", "1")
 
 #: The domain acts on paths belong to. Not chosen here: `derived_domain_id`
 #: names it from the kind of thing the act touches, and `main` checks the two

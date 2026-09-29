@@ -1,7 +1,7 @@
 """
 Memory Storage Backends
 =======================
-PostgreSQL hot/cold tier storage for TorinAI memory system.
+PostgreSQL hot/cold tier storage for Lyric memory system.
 """
 
 from .postgres_storage import PostgresStorage

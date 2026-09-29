@@ -7,7 +7,7 @@ import asyncio
 import sys
 from pathlib import Path
 
-# Add TorinAI to path
+# Add Lyric to path
 sys.path.insert(0, str(Path(__file__).parent))
 
 from core.reasoning.neural_bridge import NeuralSymbolicBridge, ReasoningRequest, ReasoningMode
@@ -38,7 +38,7 @@ async def test_vision_memory():
     print("Testing: Vision analysis → THE BRAIN reasoning")
     print("=" * 80)
 
-    test_image = "/Users/stefan/Dominion Labs/TorinAI/test_data/vision_test.png"
+    test_image = "/Users/stefan/Dominion Labs/Lyric/test_data/vision_test.png"
 
     request = ReasoningRequest(
         query="What color is the circle in the image?",

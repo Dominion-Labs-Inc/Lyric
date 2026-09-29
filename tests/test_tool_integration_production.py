@@ -22,7 +22,7 @@ Tests all 228 tools across 14 categories:
 
 All results logged to MySQL test_sessions and test_results tables.
 
-Author: Torin AI Team
+Author: Lyric AI Team
 Date: January 8, 2026
 """
 
@@ -56,7 +56,7 @@ class ToolIntegrationTests(TestBase):
         self.registry = None
         self.executor = None
         self.test_files_created = []
-        self.test_output_dir = "/Users/stefan/Dominion Labs/TorinAI/data/output/test_tool_outputs"
+        self.test_output_dir = "/Users/stefan/Dominion Labs/Lyric/data/output/test_tool_outputs"
 
     async def setup(self):
         """Initialize test environment"""
@@ -171,7 +171,7 @@ class ToolIntegrationTests(TestBase):
         assert result.success
 
     async def test_search_files(self):
-        result = await self.registry.execute_tool("search_files", {"pattern": "*.py", "base_path": "/Users/stefan/Dominion Labs/TorinAI/core", "max_results": 5})
+        result = await self.registry.execute_tool("search_files", {"pattern": "*.py", "base_path": "/Users/stefan/Dominion Labs/Lyric/core", "max_results": 5})
         assert result.success
 
     # =========================================================================
@@ -203,11 +203,11 @@ class ToolIntegrationTests(TestBase):
     # =========================================================================
 
     async def test_mysql_query(self):
-        result = await self.registry.execute_tool("mysql_query", {"query": "SELECT 1 as test", "database": "torinai_unified"})
+        result = await self.registry.execute_tool("mysql_query", {"query": "SELECT 1 as test", "database": "lyric_unified"})
         assert result.success
 
     async def test_mysql_table_info(self):
-        result = await self.registry.execute_tool("mysql_table_info", {"table": "test_sessions", "database": "torinai_unified"})
+        result = await self.registry.execute_tool("mysql_table_info", {"table": "test_sessions", "database": "lyric_unified"})
         assert result.success
 
     async def test_check_mysql_health(self):
@@ -236,7 +236,7 @@ class ToolIntegrationTests(TestBase):
         assert result.success
 
     async def test_find_todos(self):
-        result = await self.registry.execute_tool("find_todos", {"directory": "/Users/stefan/Dominion Labs/TorinAI/core", "max_results": 5})
+        result = await self.registry.execute_tool("find_todos", {"directory": "/Users/stefan/Dominion Labs/Lyric/core", "max_results": 5})
         assert result.success
 
     # =========================================================================

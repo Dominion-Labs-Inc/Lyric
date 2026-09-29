@@ -1,11 +1,11 @@
 # DOMINION LABS, INC.
-# TORIN — PRODUCT & SYSTEM OVERVIEW
+# LYRIC — PRODUCT & SYSTEM OVERVIEW
 
 **September 2026**
 
 ---
 
-**Purpose.** This document is a consolidated description of Torin, the primary R&D platform of Dominion
+**Purpose.** This document is a consolidated description of Lyric, the primary R&D platform of Dominion
 Labs, Inc. Every substantive technical statement was verified against the running implementation — the
 live database, subsystems loaded in-process, executed experiment suites, and the source itself. Figures
 are measurements, not estimates, and are dated in §23. The experiments behind the principal claims are
@@ -17,12 +17,12 @@ listed in §17.
 
 ## 1. Product Definition
 
-Torin is **a persistent cognitive architecture with substrate-native learning, causal reasoning, active
+Lyric is **a persistent cognitive architecture with substrate-native learning, causal reasoning, active
 experimentation, cross-domain reasoning and knowledge transfer, planning, self-correction, and
 probabilistic epistemic control.**
 
 Its design treats intelligence as a persistent computational system rather than as a model invocation.
-A model answers and forgets. Torin retains:
+A model answers and forgets. Lyric retains:
 
 - what it has observed;
 - what it has concluded, and how strongly;
@@ -48,7 +48,7 @@ The objective is a persistent system that:
 
 This is the central architectural commitment.
 
-**No generative model participates in Torin's reasoning, planning, judgement of actions, or its decision
+**No generative model participates in Lyric's reasoning, planning, judgement of actions, or its decision
 to act.** The substrate itself computes all four:
 
 - inference over knowledge;
@@ -86,7 +86,7 @@ is true, what to do, or whether an act is permitted.
 
 ### 2.2 One concept, one owner
 
-Torin is organised around **authorities**. For every concept in the system there is exactly one component
+Lyric is organised around **authorities**. For every concept in the system there is exactly one component
 that owns it; everything else reads from that owner.
 
 | Concept | Owner |
@@ -107,7 +107,7 @@ behaviour explainable and auditable, which matters disproportionately in governe
 
 ### 2.3 Functional dimensions
 
-Torin's capabilities fall into nine areas:
+Lyric's capabilities fall into nine areas:
 
 - cognition
 - persistent state and memory
@@ -142,7 +142,7 @@ state. Expensive reactions run off the acting path.
 
 ## 3. Persistent State & Memory
 
-Memory in Torin is an active system, not a store. It:
+Memory in Lyric is an active system, not a store. It:
 
 - decides what is worth keeping;
 - merges repeated experience;
@@ -206,7 +206,7 @@ recalled with it.
 
 ## 4. Learning & Adaptation
 
-Torin does not have "a learning feature." Every source of learning — execution, teaching, perception,
+Lyric does not have "a learning feature." Every source of learning — execution, teaching, perception,
 research — passes through **one learning authority**, which fans a learned item out to the reasoning,
 belief, lexicon, domain and memory systems from a single place. Behind that authority are several distinct
 learning systems, each owning a different question and each with its own evidence discipline.
@@ -296,7 +296,7 @@ the ambiguity rather than choosing arbitrarily.
 
 ### 4.7 Interpretable perceptual learning
 
-Torin learns to recognise what it sees without a neural network. Its recognisers are **Tsetlin machines**:
+Lyric learns to recognise what it sees without a neural network. Its recognisers are **Tsetlin machines**:
 clause-based learners trained by automaton feedback rather than gradients, whose learned clauses remain
 readable propositional logic. On handwritten digits (MNIST) this reaches 97.9% accuracy on the full
 10,000-image test set, with every decision traceable to the clauses that voted for it.
@@ -318,7 +318,7 @@ not know what this is" as absence, not as a weak belief.
 
 ## 5. Domain Knowledge, Competence & Curiosity
 
-Torin organises what it knows by **domain**. It measures its own standing in each domain along three axes
+Lyric organises what it knows by **domain**. It measures its own standing in each domain along three axes
 that are deliberately not collapsed into one number.
 
 | Axis | The question |
@@ -377,11 +377,11 @@ system knows it is deficient but not yet how, it says exactly that rather than m
 ### 5.2 Known-unknowns and thin regions
 
 A domain can be **mature and still missing a specific fact**. A rich concept graph can fail to answer one
-in-domain question because that relation was never established about that subject. Torin localises such
+in-domain question because that relation was never established about that subject. Lyric localises such
 gaps and registers them as **known-unknowns**. A known-unknown is resolved only by a close that is verified
 against the world.
 
-Separately, Torin maps **where a domain is thin**. It ranks concepts by connectivity, so sparsely
+Separately, Lyric maps **where a domain is thin**. It ranks concepts by connectivity, so sparsely
 connected regions surface as learning candidates. This gives a view between a single global maturity score
 and a question about one specific fact.
 
@@ -426,7 +426,7 @@ The system also discovers domains from accumulated concepts, refiling concepts a
 
 ### 6.1 Evidence
 
-Everything Torin knows traces to recorded evidence, and the system enforces the distinction between an
+Everything Lyric knows traces to recorded evidence, and the system enforces the distinction between an
 observation and a conclusion drawn from it.
 
 - **Every observation is filed as an evidence record** carrying its source class. The classes are:
@@ -469,7 +469,7 @@ that it **cannot reach the acceptance threshold even when accumulated**. The wor
 
 ### 6.4 Signal provenance — no number without a source
 
-Every number Torin computes about itself is registered by Dominion Labs in a signal-provenance register.
+Every number Lyric computes about itself is registered by Dominion Labs in a signal-provenance register.
 Each entry records what the number means, what feeds it, whether that feed is live, and what consumes it.
 In code, three states are kept strictly separate.
 
@@ -533,7 +533,7 @@ and the outcome governs behaviour through one reaction:
 
 ### 8.1 Eleven kinds of reasoning
 
-Torin maintains one explicit catalogue of the kinds of thinking it can do.
+Lyric maintains one explicit catalogue of the kinds of thinking it can do.
 
 | Kind | The question it answers |
 |---|---|
@@ -606,7 +606,7 @@ learns next.
 
 ## 9. Intent
 
-Torin records **what it is trying to achieve, before it acts**, and reconciles that record against what
+Lyric records **what it is trying to achieve, before it acts**, and reconciles that record against what
 actually happened afterwards. Intent is a first-class persistent structure, not a log line.
 
 - **Intent forms when reasoning begins**, not when a tool is called.
@@ -672,7 +672,7 @@ The laws are applied in a fixed order that settles the strongest verdict first.
 
 **Harm is defined, not detected.** Law 3 obliges the system to prevent harm, and an undefined "harm" is
 the known failure of Asimov's First Law: read literally it paralyses the agent, read loosely it permits
-anything. Torin's constitution names five specific requirements rather than one undefined word, and Law 3
+anything. Lyric's constitution names five specific requirements rather than one undefined word, and Law 3
 carries an explicit definition —
 
 > An act **harms** when it reaches an identifiable **party**, touches one of their **interests**, through
@@ -740,7 +740,7 @@ failure in self-assessment systems: an unset metric reading as a perfect one.
 
 ### 11.1 Verification
 
-Torin does not accept its own success reports. Completion is decided from **independent groundings**:
+Lyric does not accept its own success reports. Completion is decided from **independent groundings**:
 
 - what the action reported doing;
 - a **fresh, separate re-observation of the world afterwards**.
@@ -757,7 +757,7 @@ Preserving that distinction keeps the learning record honest.
 
 ### 11.2 Self-perception
 
-Torin composes an explicit model of its own state: measured, never scripted.
+Lyric composes an explicit model of its own state: measured, never scripted.
 
 **Appraisal** converts signals into disposition **once**, with context, rather than having each consumer
 interpret raw signals for itself. Its eleven dimensions are:
@@ -913,7 +913,7 @@ lawfulness and standards drift — and they report separately rather than into a
 - It adjusts what it **expects** of itself, and never what it is **permitted** to do. That boundary keeps
   self-correction from becoming self-modification.
 
-Distributional drift in the data Torin works on is a separate tool capability. It concerns that data and
+Distributional drift in the data Lyric works on is a separate tool capability. It concerns that data and
 never enters self-perception.
 
 ### 11.6 Health
@@ -966,7 +966,7 @@ Tools are not privileged components:
 
 Tool availability is not authority: every tool call passes the governance gate in §10.
 
-**Environment perception.** Torin perceives *where it is running*. Every value is read live from the host,
+**Environment perception.** Lyric perceives *where it is running*. Every value is read live from the host,
 and a **stable environment identity** is derived from the facts that make a place that place.
 
 The system distinguishes an environment it has operated in before from a **novel** one. On first
@@ -978,7 +978,7 @@ applies.
 
 ## 13. Language & Knowledge Foundation
 
-Torin holds a large structured knowledge base. It reads language through **a single model-free reader**:
+Lyric holds a large structured knowledge base. It reads language through **a single model-free reader**:
 one component owns what a sentence asserts, so the system cannot hold two incompatible readings of the same
 text. Where a sentence is beyond what the reader can parse, the system says it could not read it rather
 than guessing.
@@ -994,7 +994,7 @@ The knowledge base combines two kinds of structure:
 - **taxonomic** — *is-a* relations;
 - **operational** — what actions provide, add, remove, accept and require.
 
-**Conversation.** People interact with Torin in natural language. The system:
+**Conversation.** People interact with Lyric in natural language. The system:
 
 - classifies each utterance as a question, a statement to learn from, or a job to do;
 - answers from what it holds;
@@ -1026,7 +1026,7 @@ How many copies may run at once depends on the kind of reasoning involved:
 
 The system can wait on a copy's findings, or continue working and collect them later.
 
-**One mind, separate contexts.** Torin supports multiple principals against a single substrate without
+**One mind, separate contexts.** Lyric supports multiple principals against a single substrate without
 collapsing their contexts:
 
 - The system's **own learning** goes to the shared knowledge graph and universal beliefs.
@@ -1044,15 +1044,15 @@ collapsing their contexts:
 
 ## 15. Security & System Boundaries
 
-Torin's own containment discipline is enforced from the inside by Law 5. The system may not:
+Lyric's own containment discipline is enforced from the inside by Law 5. The system may not:
 
 - modify the machinery that governs and halts it;
 - install anything that would make it persist after being stopped;
 - take privileges its boundary does not grant.
 
-Torin is designed to operate inside an enclosing protected environment maintained as a separate program.
+Lyric is designed to operate inside an enclosing protected environment maintained as a separate program.
 That environment and its boundary are described in their own materials and are deliberately out of scope
-here. Torin's governance concerns what the substrate may **do**, independently of what that boundary
+here. Lyric's governance concerns what the substrate may **do**, independently of what that boundary
 permits to **cross**.
 
 ---
@@ -1072,7 +1072,7 @@ permits to **cross**.
 
 ## 17. Evidence Base
 
-Torin's capability claims rest on an experimental record maintained alongside the system. Experiments
+Lyric's capability claims rest on an experimental record maintained alongside the system. Experiments
 exercise the **live system** — real database, real tools, real files, real images. They verify outcomes
 against the environment rather than against the system's own reports. Every result below was produced
 with no model in the loop. Each row names the date of the run it came from; every run is saved to its
@@ -1223,7 +1223,7 @@ read off an image belongs to the image, and the system is explicit that giving a
 
 ## 19. Positioning & Verification Discipline
 
-Torin is a cognitive system in the architectural sense. **This is not a claim of artificial general
+Lyric is a cognitive system in the architectural sense. **This is not a claim of artificial general
 intelligence**, and no such claim is made or implied anywhere in this document.
 
 Claims about autonomy, learning, reasoning, perception, security and generality are limited to what the
@@ -1233,7 +1233,7 @@ implementation and its recorded evidence support.
 
 ## 20. Government & Defense Relevance
 
-Torin's government and defense focus centres on environments that require:
+Lyric's government and defense focus centres on environments that require:
 
 - **Persistent institutional knowledge** that does not reset between sessions or personnel changes.
 - **Sovereign, isolated deployment** with no external model dependency. This is a property of the
@@ -1252,7 +1252,7 @@ award should be inferred from this document.**
 
 ## 21. Enterprise Direction & Development Trajectory
 
-Following technical and mission validation, Torin is positioned for regulated enterprise environments
+Following technical and mission validation, Lyric is positioned for regulated enterprise environments
 where persistent institutional knowledge, controlled autonomy, verification and auditable governance carry
 operational value. These are sectors where an action taken without a recorded reason, or a conclusion
 without traceable evidence, is itself the risk.
@@ -1273,7 +1273,7 @@ Continuing direction:
 
 | Term | Meaning |
 |---|---|
-| **Torin** | Dominion Labs' computational substrate — the cognitive architecture itself |
+| **Lyric** | Dominion Labs' computational substrate — the cognitive architecture itself |
 | **Computational substrate** | The persistent system supporting cognition, memory, learning, tools, governance and execution |
 | **Authority** | The single owner of a concept in the system |
 | **Operator** | A learned rule describing what an action requires and what it changes |
@@ -1292,7 +1292,7 @@ precedence over any description in this document. Where this document and the sy
 document is to be corrected.
 
 Measurements were taken **2026-09-19 at 20:49 UTC** against the live system, using the canonical
-runtime (`./venv_torin/bin/python3`, Python 3.11.14) and the production database, whose identity was
+runtime (`./venv_lyric/bin/python3`, Python 3.11.14) and the production database, whose identity was
 confirmed by asking the server rather than by reading configuration. Development is active. Figures for retained knowledge, learned operators and
 recorded evidence are expected to grow.
 

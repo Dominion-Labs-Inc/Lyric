@@ -5,7 +5,7 @@ The substrate ships a working Z3 backend (`core/reasoning/constraint_solver.py`)
 that answers `4x + 8 = 32` correctly, including negative roots. It was
 UNREACHABLE without a language model: the only route to it ran through
 `_neuro_symbolic_reasoning`, whose first phase is "NEURAL PROPOSES" -- so Z3
-could check a model's answer but never produce one. "Torin can do algebra" was
+could check a model's answer but never produce one. "Lyric can do algebra" was
 therefore a model-dependent claim, and severing Z3 would have changed nothing
 because the model was doing the work.
 

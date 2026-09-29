@@ -10,7 +10,7 @@ the code decides. Four competences are measured separately:
 The exam is sealed in `curriculum.py` before any lesson runs, and it is graded by behaviour on hidden
 input/output pairs.
 
-**Run:** `./venv_torin/bin/python3 experiments/edu/EDU-15/session.py`
+**Run:** `./venv_lyric/bin/python3 experiments/edu/EDU-15/session.py`
 
 **Results.** No result is saved in this folder.
 

@@ -1,7 +1,7 @@
-# TorinAI Reasoning, Simulation, and Optimization Stack
+# Lyric Reasoning, Simulation, and Optimization Stack
 
 This document summarizes the new industrial-grade reasoning and numerical
-capabilities added to TorinAI and how to use them from code and tools.
+capabilities added to Lyric and how to use them from code and tools.
 
 ## Components
 

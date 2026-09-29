@@ -17,17 +17,17 @@ import asyncio
 import sys
 from pathlib import Path
 
-# Add TorinAI to path
+# Add Lyric to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from core.database.unified_database_postgres import TorinUnifiedDatabasePostgres
+from core.database.unified_database_postgres import LyricUnifiedDatabasePostgres
 
 
 @pytest.mark.asyncio
 async def test_singleton_pattern():
     """Test that database class is a singleton"""
-    db1 = TorinUnifiedDatabasePostgres()
-    db2 = TorinUnifiedDatabasePostgres()
+    db1 = LyricUnifiedDatabasePostgres()
+    db2 = LyricUnifiedDatabasePostgres()
 
     assert db1 is db2, "Database instances should be identical (singleton)"
     print("✓ Singleton pattern working")
@@ -36,7 +36,7 @@ async def test_singleton_pattern():
 @pytest.mark.asyncio
 async def test_connection_pool_creation():
     """Test connection pool initialization"""
-    db = TorinUnifiedDatabasePostgres()
+    db = LyricUnifiedDatabasePostgres()
 
     # Initialize should create pool
     success = await db.initialize()
@@ -52,7 +52,7 @@ async def test_connection_pool_creation():
 @pytest.mark.asyncio
 async def test_schema_routing_unified():
     """Test query routing to unified schema"""
-    db = TorinUnifiedDatabasePostgres()
+    db = LyricUnifiedDatabasePostgres()
     await db.initialize()
 
     # Test unified schema (default)
@@ -67,7 +67,7 @@ async def test_schema_routing_unified():
 @pytest.mark.asyncio
 async def test_schema_routing_hot_tier():
     """Test query routing to memory_hot schema"""
-    db = TorinUnifiedDatabasePostgres()
+    db = LyricUnifiedDatabasePostgres()
     await db.initialize()
 
     # Test hot tier schema
@@ -82,7 +82,7 @@ async def test_schema_routing_hot_tier():
 @pytest.mark.asyncio
 async def test_schema_routing_cold_tier():
     """Test query routing to memory_cold schema"""
-    db = TorinUnifiedDatabasePostgres()
+    db = LyricUnifiedDatabasePostgres()
     await db.initialize()
 
     # Test cold tier schema
@@ -97,7 +97,7 @@ async def test_schema_routing_cold_tier():
 @pytest.mark.asyncio
 async def test_execute_query_placeholders():
     """Test query execution with $1, $2, $3 placeholders"""
-    db = TorinUnifiedDatabasePostgres()
+    db = LyricUnifiedDatabasePostgres()
     await db.initialize()
 
     # Test parameterized query with PostgreSQL placeholders
@@ -119,7 +119,7 @@ async def test_execute_query_placeholders():
 @pytest.mark.asyncio
 async def test_fetch_all():
     """Test fetch_all query mode"""
-    db = TorinUnifiedDatabasePostgres()
+    db = LyricUnifiedDatabasePostgres()
     await db.initialize()
 
     # Query that returns multiple rows
@@ -140,7 +140,7 @@ async def test_fetch_all():
 @pytest.mark.asyncio
 async def test_table_exists():
     """Test table existence check"""
-    db = TorinUnifiedDatabasePostgres()
+    db = LyricUnifiedDatabasePostgres()
     await db.initialize()
 
     # Check if governance_laws table exists in unified schema
@@ -158,7 +158,7 @@ async def test_table_exists():
 @pytest.mark.asyncio
 async def test_governance_laws_query():
     """Test querying governance laws from unified schema"""
-    db = TorinUnifiedDatabasePostgres()
+    db = LyricUnifiedDatabasePostgres()
     await db.initialize()
 
     # Query governance laws (should have 5 laws from seed data)
@@ -180,7 +180,7 @@ async def test_governance_laws_query():
 @pytest.mark.asyncio
 async def test_pgvector_extension():
     """Test pgvector extension availability"""
-    db = TorinUnifiedDatabasePostgres()
+    db = LyricUnifiedDatabasePostgres()
     await db.initialize()
 
     # Check if pgvector extension is installed
@@ -197,7 +197,7 @@ async def test_pgvector_extension():
 @pytest.mark.asyncio
 async def test_vector_storage():
     """Test storing and querying vector embeddings"""
-    db = TorinUnifiedDatabasePostgres()
+    db = LyricUnifiedDatabasePostgres()
     await db.initialize()
 
     # Check if memory_hot table exists
@@ -255,7 +255,7 @@ async def test_vector_storage():
 @pytest.mark.asyncio
 async def test_vector_similarity_search():
     """Test pgvector similarity search"""
-    db = TorinUnifiedDatabasePostgres()
+    db = LyricUnifiedDatabasePostgres()
     await db.initialize()
 
     # Check if memory_hot table exists
@@ -329,7 +329,7 @@ async def test_vector_similarity_search():
 @pytest.mark.asyncio
 async def test_health_check():
     """Test database health check"""
-    db = TorinUnifiedDatabasePostgres()
+    db = LyricUnifiedDatabasePostgres()
     await db.initialize()
 
     health = await db.health_check()
@@ -355,7 +355,7 @@ async def test_health_check():
 @pytest.mark.asyncio
 async def test_metrics():
     """Test database metrics tracking"""
-    db = TorinUnifiedDatabasePostgres()
+    db = LyricUnifiedDatabasePostgres()
     await db.initialize()
 
     # Execute some queries to generate metrics

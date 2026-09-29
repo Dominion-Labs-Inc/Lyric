@@ -2,7 +2,7 @@
 """
 Integration Test: Slack Uncertainty Escalation
 ===============================================
-Tests that Torin actually uses Slack tools when encountering uncertainty
+Tests that Lyric actually uses Slack tools when encountering uncertainty
 during internal operations.
 
 IMPORTANT: This is a REAL integration test - it will send actual messages to Slack!
@@ -92,17 +92,17 @@ async def test_scenario_1_missing_resource():
     from core.tools.slack_tools import ask_for_clarification
 
     # AI encounters uncertainty - system logs not found
-    logger.info("🤖 AI Task: Analyze system logs from /var/log/torin/")
+    logger.info("🤖 AI Task: Analyze system logs from /var/log/lyric/")
     logger.info("❌ AI Finding: Directory does not exist")
     logger.info("💭 AI Decision: Need to ask team where logs are stored")
 
     # AI should call this when uncertain
     result = await ask_for_clarification(
-        question="I need to analyze system logs but can't find them at /var/log/torin/. Where are TorinAI system logs actually stored?",
+        question="I need to analyze system logs but can't find them at /var/log/lyric/. Where are Lyric system logs actually stored?",
         what_tried=[
-            "Searched /var/log/torin/ - directory doesn't exist",
-            "Checked /var/log/ - no torin-related logs found",
-            "Searched for *.log files containing 'torin' - no results"
+            "Searched /var/log/lyric/ - directory doesn't exist",
+            "Checked /var/log/ - no lyric-related logs found",
+            "Searched for *.log files containing 'lyric' - no results"
         ],
         task="Analyze system performance from logs",
         context=context
@@ -140,7 +140,7 @@ async def test_scenario_2_ambiguous_task():
 
     from core.tools.slack_tools import ask_for_clarification
 
-    logger.info("🤖 AI Task: 'Improve TorinAI security'")
+    logger.info("🤖 AI Task: 'Improve Lyric security'")
     logger.info("💭 AI Reasoning: Task is too broad - many possible approaches")
     logger.info("💭 AI Decision: Need specific direction from team")
 
@@ -154,7 +154,7 @@ async def test_scenario_2_ambiguous_task():
 5. Code security audit (vulnerability scanning)?
 
 Which area is the priority, or should I address all of them?""",
-        task="Improve TorinAI security",
+        task="Improve Lyric security",
         context=context
     )
 

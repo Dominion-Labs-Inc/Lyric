@@ -788,7 +788,7 @@ class UniversalDomainMaster:
         if hasattr(self, '_initialized'):
             return
 
-        self.db = None  # Will be set to TorinUnifiedDatabase in initialize()
+        self.db = None  # Will be set to LyricUnifiedDatabase in initialize()
 
         # Domain registry cache
         self.domain_cache: Dict[DomainType, Dict[str, Any]] = {}
@@ -970,7 +970,7 @@ class UniversalDomainMaster:
         What they did do is make 15 concept-less rows count as registered
         domains, so the registry reported "15 empty domains" beside its 18 real
         fields and every category looked like a knowledge domain holding
-        nothing. A domain is something Torin has learned; a DomainType is a
+        nothing. A domain is something Lyric has learned; a DomainType is a
         classification of one. Persisting the classifications as domains put
         both in one table with no way to tell them apart.
 
@@ -3963,7 +3963,7 @@ class UniversalDomainMaster:
                 await self._embedding_backfill
             except asyncio.CancelledError:
                 pass
-        # Database connection is managed by TorinUnifiedDatabase singleton
+        # Database connection is managed by LyricUnifiedDatabase singleton
         # No need to close here
         logger.info("Universal Domain Master shutdown complete")
 

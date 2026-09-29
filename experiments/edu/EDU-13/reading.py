@@ -43,7 +43,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
-os.environ.setdefault("TORIN_MODEL_POLICY", "strict_model_free")
+os.environ.setdefault("LYRIC_MODEL_POLICY", "strict_model_free")
 logging.disable(logging.INFO)
 
 from core.execution.procedure import Operator  # noqa: E402

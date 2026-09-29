@@ -11,7 +11,7 @@ Key Validations:
 - CRITICAL tools return queued status (not executed)
 - ROUTINE tools execute successfully
 
-Author: Torin AI Team
+Author: Lyric AI Team
 Date: January 1, 2026
 """
 

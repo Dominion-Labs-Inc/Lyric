@@ -19,7 +19,7 @@ history reads `OPTIMISTIC_PROGRESS` (1.0) by design, so "progress = 1.0" on a ne
 ## Run
 
 ```
-./venv_torin/bin/python3 experiments/SYSTEM-DOMAIN-01/experiment.py
+./venv_lyric/bin/python3 experiments/SYSTEM-DOMAIN-01/experiment.py
 ```
 
 The probe domain is removed afterwards. Each run writes `results/<UTC timestamp>.json` with a `.md` beside it. The run reports three things apart (`experiments/_isolation.py`): **behaviour** checks, which alone decide pass/fail; **wiring** findings (a public method nothing in `core/` calls — split into ones only experiments/tests exercise and ones nothing calls); and **completeness** findings (a body that raises `NotImplementedError`, returns a literal, or is empty).

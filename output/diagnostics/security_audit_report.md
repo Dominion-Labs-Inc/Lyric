@@ -1,8 +1,8 @@
-# Security Audit Results — TorinAI Dependencies
+# Security Audit Results — Lyric Dependencies
 
 ## Executive Summary
 
-A comprehensive security scan of the TorinAI Python environment identified **156 known vulnerabilities across 30 packages** out of 0 total packages scanned.
+A comprehensive security scan of the Lyric Python environment identified **156 known vulnerabilities across 30 packages** out of 0 total packages scanned.
 
 ## Key Metrics
 
@@ -37,4 +37,4 @@ A comprehensive security scan of the TorinAI Python environment identified **156
 
 ## Full Results
 
-Full JSON results saved to: `/Users/stefan/Dominion Labs/TorinAI/output/diagnostics/pip_audit_results.json`
+Full JSON results saved to: `/Users/stefan/Dominion Labs/Lyric/output/diagnostics/pip_audit_results.json`

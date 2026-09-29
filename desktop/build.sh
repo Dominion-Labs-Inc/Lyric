@@ -1,31 +1,31 @@
 #!/bin/bash
-# Build TorinAI.app. No Xcode project: three Swift files and a plist is the whole
+# Build Lyric.app. No Xcode project: three Swift files and a plist is the whole
 # app, and a checked-in .xcodeproj would be more to maintain than to gain.
 set -e
 cd "$(dirname "$0")"
-APP="${1:-/Users/stefan/Desktop/TorinAI Dashboard.app}"
+APP="${1:-/Users/stefan/Desktop/Lyric Dashboard.app}"
 
 rm -rf build && mkdir -p build
 swiftc -O -parse-as-library \
     src/Gate.swift src/Channels.swift src/Control.swift src/Approvals.swift src/Systems.swift src/App.swift \
     -framework SwiftUI -framework LocalAuthentication -framework AppKit \
-    -o build/TorinAI
+    -o build/Lyric
 
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-cp build/TorinAI "$APP/Contents/MacOS/TorinAI"
+cp build/Lyric "$APP/Contents/MacOS/Lyric"
 
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>CFBundleName</key>              <string>TorinAI</string>
-    <key>CFBundleDisplayName</key>       <string>TorinAI</string>
-    <key>CFBundleIdentifier</key>        <string>org.dmnlabs.torinai.dashboard</string>
+    <key>CFBundleName</key>              <string>Lyric</string>
+    <key>CFBundleDisplayName</key>       <string>Lyric</string>
+    <key>CFBundleIdentifier</key>        <string>org.dmnlabs.lyric.dashboard</string>
     <key>CFBundleVersion</key>           <string>1.0</string>
     <key>CFBundleShortVersionString</key><string>1.0</string>
     <key>CFBundlePackageType</key>       <string>APPL</string>
-    <key>CFBundleExecutable</key>        <string>TorinAI</string>
+    <key>CFBundleExecutable</key>        <string>Lyric</string>
     <key>CFBundleIconFile</key>          <string>AppIcon</string>
     <key>LSMinimumSystemVersion</key>    <string>13.0</string>
     <key>NSHighResolutionCapable</key>   <true/>

@@ -34,7 +34,7 @@ from pathlib import Path
 from uuid import uuid4
 
 for k, v in {"POSTGRES_PORT": "5433", "POSTGRES_USER": "stefan",
-             "POSTGRES_DATABASE": "torinai_db", "TORIN_NO_WATCHDOG": "1"}.items():
+             "POSTGRES_DATABASE": "lyric_db", "LYRIC_NO_WATCHDOG": "1"}.items():
     os.environ.setdefault(k, v)
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))

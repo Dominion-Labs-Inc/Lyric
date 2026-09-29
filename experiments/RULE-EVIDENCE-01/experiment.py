@@ -29,7 +29,7 @@ TWO THINGS A RULE'S COUNTS HAVE TO GET RIGHT, and both were wrong.
   E  CONFIDENCE READS TRUE                      p/(p+n) is about contradictions only
   F  NOTHING IS INVENTED                        no independent evidence ⇒ status unchanged
 
-Run: ./venv_torin/bin/python3 experiments/RULE-EVIDENCE-01/experiment.py
+Run: ./venv_lyric/bin/python3 experiments/RULE-EVIDENCE-01/experiment.py
 """
 import asyncio
 import os

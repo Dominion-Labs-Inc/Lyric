@@ -9,7 +9,7 @@ curated set of graduate roots, the P279 edges as (child_qid, child_label,
 parent_qid, parent_label), keeping notable children (English Wikipedia article),
 and caches them for `core/reasoning/sense_taxonomy.py` to load.
 
-Run:  PYTHONPATH="$PWD" ./venv_torin/bin/python3 scripts/fetch_sense_taxonomy.py
+Run:  PYTHONPATH="$PWD" ./venv_lyric/bin/python3 scripts/fetch_sense_taxonomy.py
 """
 import os, sys, json, time, urllib.request, urllib.parse, socket
 
@@ -23,7 +23,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 def _sparql(query):
     url = "https://query.wikidata.org/sparql?format=json&query=" + urllib.parse.quote(query)
-    req = urllib.request.Request(url, headers={"User-Agent": "TorinAI-teach/1.0 (research)"})
+    req = urllib.request.Request(url, headers={"User-Agent": "Lyric-teach/1.0 (research)"})
     return json.loads(urllib.request.urlopen(req).read().decode("utf-8"), strict=False)["results"]["bindings"]
 
 

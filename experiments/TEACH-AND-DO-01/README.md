@@ -95,7 +95,7 @@ completes; the plan runs gather → analyse → write → validate and writes th
 ## Run
 
 ```
-./venv_torin/bin/python3 experiments/TEACH-AND-DO-01/experiment.py
+./venv_lyric/bin/python3 experiments/TEACH-AND-DO-01/experiment.py
 ```
 
 Boots the whole system, alone (its store deltas assume nothing else is writing). Each run writes

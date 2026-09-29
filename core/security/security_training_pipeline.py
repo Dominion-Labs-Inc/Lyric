@@ -2,7 +2,7 @@
 """
 Security Training Pipeline
 ==========================
-Adversarial training and security model enhancement for TorinAI
+Adversarial training and security model enhancement for Lyric
 
 Features:
 - Adversarial testing and red-teaming

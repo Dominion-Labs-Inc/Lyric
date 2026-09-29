@@ -11,10 +11,10 @@ after a fix. It used to import an archived module, fail, and let everything thro
 - End to end, `SafetyFramework` now blocks malicious SQL-sink input.
 - The health check reports liveness without the archived module.
 
-**Run** (from the TorinAI folder):
+**Run** (from the Lyric folder):
 
 ```
-./venv_torin/bin/python3 experiments/INPUT-VALIDATION-01/experiment.py
+./venv_lyric/bin/python3 experiments/INPUT-VALIDATION-01/experiment.py
 ```
 
 **Results.** Printed to the terminal only; no run is saved.

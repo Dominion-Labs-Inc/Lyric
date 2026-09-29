@@ -3,8 +3,8 @@
   "_frozen": "2026-08-15, before any control corpus was ingested and before any score was observed.",
   "_contract": [
     "This file is NEVER ingested and never reaches an extractor. It is read only by the oracles.",
-    "The two corpora are ingested INDEPENDENTLY and neither may contain material that states or implies the correspondence. Torin must discover it.",
-    "Expected mappings were chosen from the standard electrical/hydraulic analogy in engineering, not from anything Torin produced.",
+    "The two corpora are ingested INDEPENDENTLY and neither may contain material that states or implies the correspondence. Lyric must discover it.",
+    "Expected mappings were chosen from the standard electrical/hydraulic analogy in engineering, not from anything Lyric produced.",
     "Do not edit expected_mappings or negative_mappings after observing results. Adding a mapping because the system found it converts the control into a description of the output."
   ],
 

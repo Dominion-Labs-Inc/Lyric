@@ -2820,7 +2820,7 @@ class AbstractReasoningEngine:
                     # A stored record that does not say whether a statement was
                     # derived or merely proposed cannot be re-read correctly
                     # later, and recall would hand a model's suggestion back as
-                    # something Torin concluded.
+                    # something Lyric concluded.
                     "conclusions": [
                         {
                             "statement": c.statement,

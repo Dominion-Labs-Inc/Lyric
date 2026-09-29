@@ -16,10 +16,10 @@ A module may be deleted only when its capabilities are absorbed and **regression
 
 When the database is up, the old gate writes each evaluation to `unified.safety_assessments`.
 
-**Run** (from the TorinAI folder):
+**Run** (from the Lyric folder):
 
 ```
-./venv_torin/bin/python3 experiments/GOVERNANCE-ABSORPTION-01/experiment.py
+./venv_lyric/bin/python3 experiments/GOVERNANCE-ABSORPTION-01/experiment.py
 ```
 
 **Results.** Every run is saved in `results/`. Latest: 2026-09-16, 12/12, 0 regressions, 17/17

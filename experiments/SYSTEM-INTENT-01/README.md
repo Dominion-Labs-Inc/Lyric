@@ -20,7 +20,7 @@ pursuit's `standing` is a dict, not a label. Both were harness mistakes in the f
 ## Run
 
 ```
-./venv_torin/bin/python3 experiments/SYSTEM-INTENT-01/experiment.py
+./venv_lyric/bin/python3 experiments/SYSTEM-INTENT-01/experiment.py
 ```
 
 Everything written is removed by id. Each run writes `results/<UTC timestamp>.json` with a `.md` beside it. The run reports three things apart (`experiments/_isolation.py`): **behaviour** checks, which alone decide pass/fail; **wiring** findings (a public method nothing in `core/` calls — split into ones only experiments/tests exercise and ones nothing calls); and **completeness** findings (a body that raises `NotImplementedError`, returns a literal, or is empty).

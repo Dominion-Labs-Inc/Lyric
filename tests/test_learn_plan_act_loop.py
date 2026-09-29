@@ -180,7 +180,7 @@ async def test_the_plan_and_its_order_survive_a_restart(substrate):
 
 @pytest.mark.asyncio
 async def test_provenance_traces_a_task_to_the_learned_rule(substrate):
-    """Not only what Torin did, but which acquired experience authorised it."""
+    """Not only what Lyric did, but which acquired experience authorised it."""
     engine, _, stored = substrate
     goal = await _state_goal(engine)
     plan = (await engine.plan_for_goal(goal.id, _context())).plan
@@ -232,7 +232,7 @@ async def test_a_sealed_vault_is_unreachable_not_replanned_as_a_template(substra
 @pytest.mark.asyncio
 async def test_truncated_grounding_reports_indeterminate_never_unreachable(substrate):
     """Unreached is not unreachable. Claiming impossibility from an operator set
-    Torin failed to enumerate would be a false proof about the world."""
+    Lyric failed to enumerate would be a false proof about the world."""
     engine, _, _ = substrate
     goal = await _state_goal(engine)
 

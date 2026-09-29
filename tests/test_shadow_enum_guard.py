@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Architectural guard: one concept, one enum.
 
-Torin has been broken three separate times by the same defect — an Enum defined
+Lyric has been broken three separate times by the same defect — an Enum defined
 twice with near-identical members. Enum equality is identity-based, so the
 copies compare unequal while printing the same string, and the failure surfaces
 as a plausible negative result rather than an error:

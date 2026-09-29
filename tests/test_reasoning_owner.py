@@ -1,7 +1,7 @@
 """What reasoning writes down is whoever's reasoning it was: a person's arguments, temporal knowledge, hypotheses
 and failed work stay in their context; the substrate keeps and reads back only its own.
 
-Runs against the database it is pointed at (the sandbox, `POSTGRES_DATABASE=torinai_dev`) and removes the rows it
+Runs against the database it is pointed at (the sandbox, `POSTGRES_DATABASE=lyric_dev`) and removes the rows it
 writes.
 """
 import asyncio
@@ -19,7 +19,7 @@ async def _db():
     db = get_database_manager()
     await db.initialize()
     where = await db.execute_query("SELECT current_database() AS d", (), fetch_one=True)
-    assert where["d"] == "torinai_dev", where
+    assert where["d"] == "lyric_dev", where
     return db
 
 

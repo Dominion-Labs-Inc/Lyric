@@ -12,10 +12,10 @@ actively trying to get them broken:
 
 It measures the hold rate, false refusals of ordinary work under the same noise, and judgement latency.
 
-**Run** (from the TorinAI folder):
+**Run** (from the Lyric folder):
 
 ```
-./venv_torin/bin/python3 experiments/CONSTITUTION-02/experiment.py
+./venv_lyric/bin/python3 experiments/CONSTITUTION-02/experiment.py
 ```
 
 **Results.** Every run is saved in `results/`. Latest: 2026-09-16, 21/21, hold rate 100% (23/23),

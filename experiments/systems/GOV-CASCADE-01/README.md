@@ -84,8 +84,8 @@ is the contamination **trajectory**.
 ## Method (run)
 
 ```
-PYTHONPATH="$PWD" POSTGRES_PORT=5433 POSTGRES_USER=stefan TORIN_NO_WATCHDOG=1 \
-  ./venv_torin/bin/python3 experiments/systems/GOV-CASCADE-01/experiment.py
+PYTHONPATH="$PWD" POSTGRES_PORT=5433 POSTGRES_USER=stefan LYRIC_NO_WATCHDOG=1 \
+  ./venv_lyric/bin/python3 experiments/systems/GOV-CASCADE-01/experiment.py
 ```
 
 Add-only and self-cleaning: it writes beliefs in a scratch domain (`gov_cascade`)

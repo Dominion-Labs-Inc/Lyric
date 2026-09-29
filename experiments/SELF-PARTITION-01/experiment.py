@@ -16,7 +16,7 @@ Pass 1 (write isolation + promotion). Proves the learning-intake ROUTER:
 Real Postgres, the real learning authority, the real belief graph, the real concept
 graph. No stubs.
 
-Run: ./venv_torin/bin/python3 experiments/SELF-PARTITION-01/experiment.py
+Run: ./venv_lyric/bin/python3 experiments/SELF-PARTITION-01/experiment.py
 """
 from __future__ import annotations
 import asyncio

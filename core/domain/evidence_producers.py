@@ -430,7 +430,7 @@ async def submit_learned_rule(
     unified.learned_rules keyed on predicate identity; concept ingestion writes
     structures to unified.concept_relations keyed on concept id. Both are real
     learning systems, and nothing carried a result from one to the other -- so
-    "what Torin has learned" had two answers depending on which store you asked.
+    "what Lyric has learned" had two answers depending on which store you asked.
 
     The cost was measurable: CrossDomainGrounder searched 44 learned structures
     for a routing problem structurally identical to MOVE and returned NO_MATCH,
@@ -607,7 +607,7 @@ async def submit_tool_capability(tool, *, domain: str = "tools") -> "IngestionRe
 
     A tool is an operator the substrate can invoke, and its parameter list is a
     precondition list in a different notation. Until this existed, the concept
-    graph knew about operators Torin had LEARNED and nothing about the 371 it
+    graph knew about operators Lyric had LEARNED and nothing about the 371 it
     could already perform -- so cross-domain grounding could recognise an
     unfamiliar situation as a learned rule but never as something it had a tool
     for.
@@ -971,7 +971,7 @@ async def _submit_perceived(
     # hearing named only by that -- a song taught now, said of a recording
     # heard before -- is a real observation of it.
     heard = any(payload.get(k) for k in ("said", "spoken_by", "in_key", "tempo", "plays",
-                                         "heard_before"))
+                                         "heard_before", "seen_before"))
     if not observer or (not detections and not properties and not extra and not blobs
                         and not heard):
         return None
@@ -1128,15 +1128,17 @@ async def _submit_perceived(
         rels.append(["plays", title] if sup is None
                     else ["plays", title, "positive", quality_from_resolution(float(sup))])
         concepts.append({"label": title, "kind": "entity", "domains": [domain], "is_name": True})
-    # HEARD BEFORE: the same sound as a hearing memory already holds, found by
-    # the sound itself, with the support its agreement earned.
-    for earlier in (payload.get("heard_before") or []):
-        other = _term_like(earlier.get("subject") or "") if isinstance(earlier, dict) else ""
-        if not other or other == _term_like(observer):
-            continue
-        sup = earlier.get("support")
-        rels.append(["same_sound_as", other] if sup is None
-                    else ["same_sound_as", other, "positive", quality_from_resolution(float(sup))])
+    # HEARD OR SEEN BEFORE: the same sound, the same thing, as a memory already
+    # holds, found by the sound or the picture itself, with the support its
+    # agreement earned.
+    for key, relation in (("heard_before", "same_sound_as"), ("seen_before", "same_thing_as")):
+        for earlier in (payload.get(key) or []):
+            other = _term_like(earlier.get("subject") or "") if isinstance(earlier, dict) else ""
+            if not other or other == _term_like(observer):
+                continue
+            sup = earlier.get("support")
+            rels.append([relation, other] if sup is None
+                        else [relation, other, "positive", quality_from_resolution(float(sup))])
 
     for relation, surface, concept_dicts in extra:
         rels.append([relation, surface])

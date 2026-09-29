@@ -2,7 +2,7 @@
 """
 Prometheus Metrics Exporter
 ============================
-Exports TorinAI system metrics in Prometheus format
+Exports Lyric system metrics in Prometheus format
 
 Purpose:
 - Export system metrics (CPU, memory, disk)
@@ -35,7 +35,7 @@ logger = logging.getLogger(__name__)
 
 
 class PrometheusMetrics:
-    """Prometheus metrics exporter for TorinAI"""
+    """Prometheus metrics exporter for Lyric"""
 
     def __init__(self):
         if not PROMETHEUS_AVAILABLE:
@@ -43,41 +43,41 @@ class PrometheusMetrics:
             return
 
         # System metrics (Gauges - current values)
-        self.cpu_usage = Gauge('torin_cpu_usage_percent', 'CPU usage percentage')
-        self.memory_usage = Gauge('torin_memory_usage_mb', 'Memory usage in MB')
-        self.disk_usage = Gauge('torin_disk_usage_percent', 'Disk usage percentage')
-        self.gpu_memory_usage = Gauge('torin_gpu_memory_mb', 'GPU memory usage in MB')
-        self.process_memory = Gauge('torin_process_memory_mb', 'Process memory usage in MB')
+        self.cpu_usage = Gauge('lyric_cpu_usage_percent', 'CPU usage percentage')
+        self.memory_usage = Gauge('lyric_memory_usage_mb', 'Memory usage in MB')
+        self.disk_usage = Gauge('lyric_disk_usage_percent', 'Disk usage percentage')
+        self.gpu_memory_usage = Gauge('lyric_gpu_memory_mb', 'GPU memory usage in MB')
+        self.process_memory = Gauge('lyric_process_memory_mb', 'Process memory usage in MB')
 
         # LLM metrics (Counters and Histograms)
-        self.llm_requests = Counter('torin_llm_requests_total', 'Total LLM requests', ['agent_type', 'model', 'status'])
-        self.llm_tokens = Counter('torin_llm_tokens_total', 'Total LLM tokens used', ['agent_type', 'model'])
-        self.llm_latency = Histogram('torin_llm_latency_seconds', 'LLM request latency', ['agent_type', 'model'])
-        self.llm_errors = Counter('torin_llm_errors_total', 'Total LLM errors', ['agent_type', 'error_type'])
-        self.llm_queue_size = Gauge('torin_llm_queue_size', 'LLM request queue size')
-        self.llm_active_requests = Gauge('torin_llm_active_requests', 'Active LLM requests')
-        self.llm_cache_hits = Counter('torin_llm_cache_hits', 'LLM cache hits', ['type'])
+        self.llm_requests = Counter('lyric_llm_requests_total', 'Total LLM requests', ['agent_type', 'model', 'status'])
+        self.llm_tokens = Counter('lyric_llm_tokens_total', 'Total LLM tokens used', ['agent_type', 'model'])
+        self.llm_latency = Histogram('lyric_llm_latency_seconds', 'LLM request latency', ['agent_type', 'model'])
+        self.llm_errors = Counter('lyric_llm_errors_total', 'Total LLM errors', ['agent_type', 'error_type'])
+        self.llm_queue_size = Gauge('lyric_llm_queue_size', 'LLM request queue size')
+        self.llm_active_requests = Gauge('lyric_llm_active_requests', 'Active LLM requests')
+        self.llm_cache_hits = Counter('lyric_llm_cache_hits', 'LLM cache hits', ['type'])
 
         # Agent metrics (Counters)
-        self.agent_tasks = Counter('torin_agent_tasks_total', 'Total agent tasks', ['agent_type'])
-        self.agent_errors = Counter('torin_agent_errors_total', 'Total agent errors', ['agent_type', 'error'])
+        self.agent_tasks = Counter('lyric_agent_tasks_total', 'Total agent tasks', ['agent_type'])
+        self.agent_errors = Counter('lyric_agent_errors_total', 'Total agent errors', ['agent_type', 'error'])
 
         # Memory system metrics
-        self.memory_operations = Counter('torin_memory_operations_total', 'Memory operations', ['operation'])
-        self.memory_size = Gauge('torin_memory_size_bytes', 'Memory system size in bytes')
+        self.memory_operations = Counter('lyric_memory_operations_total', 'Memory operations', ['operation'])
+        self.memory_size = Gauge('lyric_memory_size_bytes', 'Memory system size in bytes')
 
         # Database metrics
-        self.db_connections = Gauge('torin_db_connections', 'Database connections', ['pool'])
-        self.db_queries = Counter('torin_db_queries_total', 'Database queries', ['table', 'operation'])
-        self.db_query_latency = Histogram('torin_db_query_latency_seconds', 'Database query latency')
+        self.db_connections = Gauge('lyric_db_connections', 'Database connections', ['pool'])
+        self.db_queries = Counter('lyric_db_queries_total', 'Database queries', ['table', 'operation'])
+        self.db_query_latency = Histogram('lyric_db_query_latency_seconds', 'Database query latency')
 
         # Learning metrics
-        self.learning_cycles = Counter('torin_learning_cycles_total', 'Learning cycles completed')
-        self.learning_improvements = Counter('torin_learning_improvements_total', 'Improvements deployed')
-        self.learning_safety_blocks = Counter('torin_learning_safety_blocks_total', 'Safety blocks')
+        self.learning_cycles = Counter('lyric_learning_cycles_total', 'Learning cycles completed')
+        self.learning_improvements = Counter('lyric_learning_improvements_total', 'Improvements deployed')
+        self.learning_safety_blocks = Counter('lyric_learning_safety_blocks_total', 'Safety blocks')
 
         # System info (metadata)
-        self.system_info = Info('torin_system', 'System information')
+        self.system_info = Info('lyric_system', 'System information')
 
         logger.info("Prometheus metrics initialized")
 

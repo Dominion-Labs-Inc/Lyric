@@ -11,10 +11,10 @@ every later reading with it, and reports regressions.
 
 Uses real Postgres and cleans up after itself.
 
-**Run** (from the TorinAI folder):
+**Run** (from the Lyric folder):
 
 ```
-./venv_torin/bin/python3 experiments/CAPABILITY-BASELINE-01/experiment.py
+./venv_lyric/bin/python3 experiments/CAPABILITY-BASELINE-01/experiment.py
 ```
 
 **Results.** Printed to the terminal only; no run is saved.

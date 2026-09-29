@@ -4,7 +4,7 @@ Pytest Configuration for Governance Tests
 ==========================================
 MySQL logging removed.
 
-This suite previously logged results to a MySQL schema. TorinAI no longer uses
+This suite previously logged results to a MySQL schema. Lyric no longer uses
 MySQL, so we keep a lightweight session id and emit concise results to stdout.
 """
 

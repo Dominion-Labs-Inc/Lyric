@@ -782,10 +782,10 @@ class NotificationService:
 **Email Template Example**:
 
 ```html
-Subject: [TorinAI Governance] Memory Ranking Weights Changed
+Subject: [Lyric Governance] Memory Ranking Weights Changed
 
 Body:
-TorinAI has executed a memory ranking weight change that triggered governance notification.
+Lyric has executed a memory ranking weight change that triggered governance notification.
 
 Trigger: mem_ops_004 - Memory Ranking Weight Change
 Category: MEMORY_OPERATIONS
@@ -799,14 +799,14 @@ Details:
 Rationale:
 Memory ranking weight changes >15% can affect which memories surface in queries. This action has been logged for audit purposes.
 
-View full details: https://torinai.app/governance/notifications/{notification_id}
+View full details: https://lyric.app/governance/notifications/{notification_id}
 ```
 
 **Slack Webhook Example**:
 
 ```json
 {
-  "text": "🚨 TorinAI Governance Notification",
+  "text": "🚨 Lyric Governance Notification",
   "blocks": [
     {
       "type": "header",
@@ -841,7 +841,7 @@ View full details: https://torinai.app/governance/notifications/{notification_id
             "type": "plain_text",
             "text": "View Details"
           },
-          "url": "https://torinai.app/governance/notifications/{notification_id}"
+          "url": "https://lyric.app/governance/notifications/{notification_id}"
         }
       ]
     }
@@ -1086,7 +1086,7 @@ class AuditTrailService:
 
 ```javascript
 // Frontend WebSocket client
-const socket = io('wss://torinai.app/governance');
+const socket = io('wss://lyric.app/governance');
 
 socket.on('decision_created', (data) => {
   console.log('New decision queued:', data);

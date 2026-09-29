@@ -34,7 +34,7 @@ third_party folder, three LibriSpeech utterances, and the macOS system sounds
 (so section H, I, J and K need macOS). Mixtures and the muxed clip are built from
 those real recordings into `stimuli/` on first run.
 
-Run (sandbox store): ./venv_torin/bin/python3 experiments/HEAR-01/experiment.py
+Run (sandbox store): ./venv_lyric/bin/python3 experiments/HEAR-01/experiment.py
 """
 from __future__ import annotations
 
@@ -51,7 +51,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO))
-os.environ.setdefault("POSTGRES_DATABASE", "torinai_dev")
+os.environ.setdefault("POSTGRES_DATABASE", "lyric_dev")
 
 from experiments._evidence import RunRecord  # noqa: E402
 

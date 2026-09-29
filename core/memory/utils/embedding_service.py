@@ -35,17 +35,17 @@ logger = logging.getLogger(__name__)
 #: other on the old model, producing vectors of a different width and meaning
 #: that nothing downstream could tell apart from the right ones.
 #:
-#: Override with TORIN_EMBEDDING_MODEL to try another, and note that changing
+#: Override with LYRIC_EMBEDDING_MODEL to try another, and note that changing
 #: it invalidates every vector already stored: the `embedding` column is a
 #: fixed-width pgvector, and mixed widths break the distance operator rather
 #: than reporting a mismatch.
-EMBEDDING_MODEL_ID = os.getenv("TORIN_EMBEDDING_MODEL",
+EMBEDDING_MODEL_ID = os.getenv("LYRIC_EMBEDDING_MODEL",
                                "sentence-transformers/all-MiniLM-L6-v2")
 
 #: Vector width of EMBEDDING_MODEL_ID. Read from the model once it loads;
 #: this is the declared expectation, and a mismatch is reported rather than
 #: silently stored.
-EMBEDDING_DIMENSIONS = int(os.getenv("TORIN_EMBEDDING_DIMENSIONS", "384"))
+EMBEDDING_DIMENSIONS = int(os.getenv("LYRIC_EMBEDDING_DIMENSIONS", "384"))
 
 
 class EmbeddingService:

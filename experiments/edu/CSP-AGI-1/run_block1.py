@@ -24,7 +24,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "EDU-12"))
 
-os.environ.setdefault("TORIN_MODEL_POLICY", "strict_model_free")
+os.environ.setdefault("LYRIC_MODEL_POLICY", "strict_model_free")
 logging.disable(logging.INFO)
 
 from core.learning.analogical_projection import (ProjectionOutcome,  # noqa: E402

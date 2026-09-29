@@ -84,7 +84,7 @@ async def _purge(store, engine=None):
 async def locked():
     """A world where MOVE into LAB silently does nothing: the rule predicts the
     move, the filesystem disagrees, and the disagreement is the rule's."""
-    root = Path(tempfile.mkdtemp(prefix="torin_authority_"))
+    root = Path(tempfile.mkdtemp(prefix="lyric_authority_"))
     world = LockedWorld(root, ["HALL", "LAB"], [("HALL", "LAB")], locked={"LAB"})
     world.place("z", "HALL")
     get_binding_registry().register(DOMAIN, world.binding())
@@ -416,7 +416,7 @@ async def wrong_destination():
     This is the case the whole design turns on: execution machinery worked
     perfectly and the learned model was wrong. Anything that reads a
     contradiction off tool failure would see nothing here."""
-    root = Path(tempfile.mkdtemp(prefix="torin_authority_wrong_"))
+    root = Path(tempfile.mkdtemp(prefix="lyric_authority_wrong_"))
     world = World(root, ["HALL", "LAB", "VAULT"], [("HALL", "LAB"), ("LAB", "VAULT")])
     world.place("z", "HALL")
     get_binding_registry().register(DOMAIN, world.binding(destination_override="VAULT"))
@@ -502,7 +502,7 @@ async def test_a_confirmed_rule_does_not_ask_for_replanning():
     from core.agents.autonomous.behavior_arbiter import get_behavior_arbiter
     import core.agents.autonomous.appraisal as appraisal_module
 
-    root = Path(tempfile.mkdtemp(prefix="torin_authority_ok_"))
+    root = Path(tempfile.mkdtemp(prefix="lyric_authority_ok_"))
     world = World(root, ["HALL", "LAB"], [("HALL", "LAB")])
     world.place("z", "HALL")
     get_binding_registry().register(DOMAIN, world.binding())

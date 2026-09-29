@@ -17,7 +17,7 @@ import sys
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from core.database.unified_database_mysql import TorinUnifiedDatabaseMySQL
+from core.database.unified_database_mysql import LyricUnifiedDatabaseMySQL
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 async def apply_views():
     """Apply adaptive learning views to database"""
-    db = TorinUnifiedDatabaseMySQL()
+    db = LyricUnifiedDatabaseMySQL()
 
     try:
         await db.initialize()
@@ -56,7 +56,7 @@ async def apply_views():
 
         # Verify views exist
         result = await db.execute_query(
-            "SELECT COUNT(*) as count FROM information_schema.VIEWS WHERE TABLE_SCHEMA = 'torinai_unified' AND TABLE_NAME IN ('tool_category_affinity', 'recent_tool_usage')"
+            "SELECT COUNT(*) as count FROM information_schema.VIEWS WHERE TABLE_SCHEMA = 'lyric_unified' AND TABLE_NAME IN ('tool_category_affinity', 'recent_tool_usage')"
         )
 
         if result and result[0]['count'] == 2:

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """EDU-04 — Level 4: cross-domain transfer of a self-induced rule, model-free.
 
-WHAT IS BEING CLAIMED. Torin induced an operator from demonstrations in one
+WHAT IS BEING CLAIMED. Lyric induced an operator from demonstrations in one
 domain, projected it into its concept graph as structure, and then recognised
 an unfamiliar situation in a different domain as an instance of that structure
 -- with the evidence that warrants the correspondence, and without a model.
@@ -31,7 +31,7 @@ ablation, it never depended on the rule.
 THE ABLATION IS NOW SCOPED TO THE SOURCE DOMAIN, AND IT HAD TO BE.
 
 As originally written the ablation deleted the rule's projected edges and
-re-grounded against EVERY learned domain. That tests "does any structure Torin
+re-grounded against EVERY learned domain. That tests "does any structure Lyric
 holds carry this observation", which is not the claim -- and it stopped being a
 valid control almost immediately. This benchmark was frozen as passing at
 2026-08-19 18:37:48 UTC; the `archive` domain was taught at 19:16:40 UTC, 39

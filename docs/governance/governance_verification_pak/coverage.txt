@@ -1,5 +1,5 @@
 ================================================================================
-TORINAI GOVERNANCE SYSTEM - TEST COVERAGE REPORT
+LYRIC GOVERNANCE SYSTEM - TEST COVERAGE REPORT
 Generated: December 30, 2025
 Test Suites: Phase 1-6 (Complete)
 Total Tests: 118/118 passing (100%)

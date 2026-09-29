@@ -3,9 +3,9 @@
 **Claim.** The substrate DECIDES which domains exist, from what it has learned and
 been taught, rather than filing whatever string a caller passed into `domain=`.
 
-**Run.** `./venv_torin/bin/python3 experiments/DOMAIN-DISCOVERY-01/experiment.py`
+**Run.** `./venv_lyric/bin/python3 experiments/DOMAIN-DISCOVERY-01/experiment.py`
 
-**2026-09-27, run `20260927T061500Z` in the sandbox (`torinai_dev`): 8/11. The harness fails, not the code.** Three
+**2026-09-27, run `20260927T061500Z` in the sandbox (`lyric_dev`): 8/11. The harness fails, not the code.** Three
 checks read the store for what only exists after learning:
 - a provisional domain comes from learned rules (`kite17` on 09-25);
 - a stored decision (`warehouse`);

@@ -41,7 +41,7 @@ synthetic domain of section A is deleted, and every intent this run creates is
 removed. Nothing here makes a real operator fail — see INTENT-04 for why that
 matters.
 
-Run:  ./venv_torin/bin/python3 experiments/CREDIT-01/experiment.py
+Run:  ./venv_lyric/bin/python3 experiments/CREDIT-01/experiment.py
 """
 import asyncio
 import os
@@ -55,7 +55,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from experiments._evidence import RunRecord  # noqa: E402
 
-os.environ.setdefault("TORIN_SHADOW_MODE", "1")
+os.environ.setdefault("LYRIC_SHADOW_MODE", "1")
 
 from experiments.fs_move_teach import DOMAIN, ensure_taught  # noqa: E402
 SYN = f"credit01_syn_{uuid.uuid4().hex[:8]}"

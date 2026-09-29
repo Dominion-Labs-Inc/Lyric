@@ -6,7 +6,7 @@
 3. **Read:** unseen sentences are graded against a key the model never supplied.
 4. **Refuse:** a wrong teacher must not produce a confident substrate.
 
-**Run:** `./venv_torin/bin/python3 experiments/edu/EDU-14/taught_to_read.py`
+**Run:** `./venv_lyric/bin/python3 experiments/edu/EDU-14/taught_to_read.py`
 
 **Results.** `taught_to_read.json` (recorded 2026-08-20): passed. 5 sentences were taught, and 7
 sentences never taught were read.

@@ -113,7 +113,7 @@ HELD_OUT = [move("f", "R11", "R12", "h1"), move("g", "R13", "R14", "h2")]
 
 @pytest_asyncio.fixture
 async def world_and_rule():
-    root = Path(tempfile.mkdtemp(prefix="torin_test_world_"))
+    root = Path(tempfile.mkdtemp(prefix="lyric_test_world_"))
     world = World(root, ["HALL", "LAB", "VAULT"], [("HALL", "LAB"), ("LAB", "VAULT")])
     world.place("z", "HALL")
     get_binding_registry().register(DOMAIN, world.binding())
@@ -375,7 +375,7 @@ class LockedWorld(World):
 
 @pytest_asyncio.fixture
 async def locked_world():
-    root = Path(tempfile.mkdtemp(prefix="torin_locked_"))
+    root = Path(tempfile.mkdtemp(prefix="lyric_locked_"))
     world = LockedWorld(root, ["HALL", "LAB"], [("HALL", "LAB")], locked={"LAB"})
     world.place("z", "HALL")
     get_binding_registry().register(DOMAIN, world.binding())
@@ -460,7 +460,7 @@ async def test_a_refuted_rule_stops_being_operational_knowledge(locked_world):
 
 
 @pytest.mark.asyncio
-async def test_torin_does_not_invent_the_condition_it_was_never_taught(locked_world):
+async def test_lyric_does_not_invent_the_condition_it_was_never_taught(locked_world):
     """One contradiction reduces certainty; it does not determine a replacement.
 
     LOCKED is not even in the rule's vocabulary. Manufacturing `NOT LOCKED(B)`

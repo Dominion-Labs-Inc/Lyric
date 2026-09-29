@@ -1,6 +1,6 @@
 """A perception is whoever's it is: a person's image stays in their context, the substrate's own seeing is its own.
 
-The last test runs against the database it is pointed at (the sandbox, `POSTGRES_DATABASE=torinai_dev`) and
+The last test runs against the database it is pointed at (the sandbox, `POSTGRES_DATABASE=lyric_dev`) and
 removes the rows it writes.
 """
 import asyncio
@@ -83,7 +83,7 @@ def test_two_people_showing_the_same_picture_do_not_put_it_in_the_shared_mind():
         db = get_database_manager()
         await db.initialize()
         where = await db.execute_query("SELECT current_database() AS d", (), fetch_one=True)
-        assert where["d"] == "torinai_dev", where
+        assert where["d"] == "lyric_dev", where
         token = "zpercept" + "".join(random.choice(string.ascii_lowercase) for _ in range(8))
         actors = [f"{token}-a", f"{token}-b"]
         seen = Provenance(producer="upload", source_id="upload:image", source_type="PERCEPTION")

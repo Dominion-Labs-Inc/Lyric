@@ -33,8 +33,8 @@ from pathlib import Path
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from core.database.unified_database_mysql import TorinUnifiedDatabaseMySQL
-from core.database import TorinUnifiedDatabase  # PostgreSQL (aliased in __init__.py)
+from core.database.unified_database_mysql import LyricUnifiedDatabaseMySQL
+from core.database import LyricUnifiedDatabase  # PostgreSQL (aliased in __init__.py)
 
 # Configure logging
 logging.basicConfig(
@@ -48,8 +48,8 @@ class DataMigrator:
     """Migrates clean data from MySQL to PostgreSQL"""
 
     def __init__(self):
-        self.mysql_db = TorinUnifiedDatabaseMySQL()
-        self.postgres_db = TorinUnifiedDatabase()  # PostgreSQL
+        self.mysql_db = LyricUnifiedDatabaseMySQL()
+        self.postgres_db = LyricUnifiedDatabase()  # PostgreSQL
 
         # Migration statistics
         self.stats = {

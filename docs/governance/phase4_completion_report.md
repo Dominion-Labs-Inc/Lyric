@@ -524,9 +524,9 @@ evaluation = await governance.evaluate_action(
 **Status**: ✅ INTEGRATED
 
 ### Database Integration
-Phase 4 components integrate with TorinUnifiedDatabase:
+Phase 4 components integrate with LyricUnifiedDatabase:
 
-- `LearningAdapter`: Uses `TorinUnifiedDatabase()` for persistence
+- `LearningAdapter`: Uses `LyricUnifiedDatabase()` for persistence
 - `GovernancePatternLearner`: Database-backed pattern storage
 - `EnhancedASISelfImprovement`: Database integration for model weight tracking
 

@@ -61,7 +61,7 @@ from typing import Dict, List, Optional, Sequence
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
-os.environ.setdefault("TORIN_MODEL_POLICY", "strict_model_free")
+os.environ.setdefault("LYRIC_MODEL_POLICY", "strict_model_free")
 
 logging.disable(logging.INFO)
 

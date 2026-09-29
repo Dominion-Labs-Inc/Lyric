@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-TorinAI Learning System Initialization
+Lyric Learning System Initialization
 
 Imports here are unguarded on purpose. A learning package that imports
 successfully while its own components are None is worse than one that fails:

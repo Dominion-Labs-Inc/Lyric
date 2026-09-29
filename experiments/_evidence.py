@@ -225,7 +225,7 @@ class RunRecord:
             "executable": sys.executable,
             "platform": platform.platform(),
             "cwd": os.getcwd(),
-            "shadow_mode": os.environ.get("TORIN_SHADOW_MODE"),
+            "shadow_mode": os.environ.get("LYRIC_SHADOW_MODE"),
             "git_commit": _cmd(["git", "-C", str(ROOT), "rev-parse", "HEAD"]),
             "postgres": None,
         }

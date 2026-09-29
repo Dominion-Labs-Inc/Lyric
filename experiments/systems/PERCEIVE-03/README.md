@@ -8,10 +8,10 @@
 5. save the rule;
 6. name a held-out blob through ordinary reasoning, and abstain on a category it never learned.
 
-**Run** (from the TorinAI folder):
+**Run** (from the Lyric folder):
 
 ```
-PYTHONPATH="$PWD" POSTGRES_PORT=5433 POSTGRES_USER=stefan TORIN_NO_WATCHDOG=1 ./venv_torin/bin/python3 experiments/systems/PERCEIVE-03/experiment.py
+PYTHONPATH="$PWD" POSTGRES_PORT=5433 POSTGRES_USER=stefan LYRIC_NO_WATCHDOG=1 ./venv_lyric/bin/python3 experiments/systems/PERCEIVE-03/experiment.py
 ```
 
 **Results.** `manifest.json` (2026-09-17; each run overwrites it): **PASS, 5/5**, on two runs in a row.

@@ -6,7 +6,7 @@ grades a real component from real evidence and refuses to grade with none;
 recovery records a failure and can account for its history; the throttle it
 hands the tool gate is a number.
 
-Run: ./venv_torin/bin/python3 experiments/SYSTEM-HEALTH-01/experiment.py
+Run: ./venv_lyric/bin/python3 experiments/SYSTEM-HEALTH-01/experiment.py
 """
 from __future__ import annotations
 

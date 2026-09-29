@@ -21,7 +21,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
 from collections import defaultdict
-from core.database import TorinUnifiedDatabase
+from core.database import LyricUnifiedDatabase
 
 logger = logging.getLogger(__name__)
 
@@ -299,7 +299,7 @@ class BayesianUncertaintySystem:
 
     def __init__(self, db_path: Optional[str] = None):
         # All persistence goes through the unified PostgreSQL database.
-        self.unified_db = TorinUnifiedDatabase()
+        self.unified_db = LyricUnifiedDatabase()
         
         # Bayesian beliefs
         self.beliefs: Dict[str, BayesianBelief] = {}

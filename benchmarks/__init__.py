@@ -1,4 +1,4 @@
-"""TorinAI capability benchmarks.
+"""Lyric capability benchmarks.
 
 The substrate is not an LLM. To know whether its faculties actually beat a
 language model at a task — and to keep collecting that evidence across many

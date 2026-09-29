@@ -1,9 +1,9 @@
 /Users/stefan/Library/Python/3.9/lib/python/site-packages/transformers/utils/hub.py:110: FutureWarning: Using `TRANSFORMERS_CACHE` is deprecated and will be removed in v5 of Transformers. Use `HF_HOME` instead.
   warnings.warn(
 WARNING:root:Neural-symbolic reasoning not available: No module named 'core.memory.unified_memory_system'
-/Users/stefan/Library/Python/3.9/lib/python/site-packages/aiomysql/cursors.py:239: Warning: Can't create database 'torinai_thinking_hot'; database exists
+/Users/stefan/Library/Python/3.9/lib/python/site-packages/aiomysql/cursors.py:239: Warning: Can't create database 'lyric_thinking_hot'; database exists
   await self._query(query)
-/Users/stefan/Library/Python/3.9/lib/python/site-packages/aiomysql/cursors.py:239: Warning: Can't create database 'torinai_memory_cold'; database exists
+/Users/stefan/Library/Python/3.9/lib/python/site-packages/aiomysql/cursors.py:239: Warning: Can't create database 'lyric_memory_cold'; database exists
   await self._query(query)
 /Users/stefan/Library/Python/3.9/lib/python/site-packages/aiomysql/cursors.py:239: Warning: Table 'memory_hot' already exists
   await self._query(query)

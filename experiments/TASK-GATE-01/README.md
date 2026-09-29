@@ -64,7 +64,7 @@ plan is not evidence that the plan was withdrawn, and the act still faces the to
 ## Run
 
 ```
-./venv_torin/bin/python3 experiments/TASK-GATE-01/experiment.py
+./venv_lyric/bin/python3 experiments/TASK-GATE-01/experiment.py
 ```
 
 Runs a LIVE substrate, halts it on purpose and resumes it, and removes the probe plans it

@@ -1,7 +1,7 @@
 # Governance Session — Retired
 
 **Date**: 2026-08-12
-**Archived to**: `TorinAI/archive/governance_session/`
+**Archived to**: `Lyric/archive/governance_session/`
 
 ## What it was
 
@@ -13,7 +13,7 @@ governance session with multi-judge panel"`.
 
 ## Why it was retired
 
-**It contradicts the architecture.** TorinAI's Singleton retains full tool autonomy by
+**It contradicts the architecture.** Lyric's Singleton retains full tool autonomy by
 design. Safety's role is to score and record actions and hand the assessment back as
 context the agent reasons over — not to gate execution behind human approval. A system
 whose purpose was to block was always going to sit unused.

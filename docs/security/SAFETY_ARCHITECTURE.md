@@ -1,4 +1,4 @@
-# TorinAI Safety & Governance Architecture
+# Lyric Safety & Governance Architecture
 
 **Date**: 2026-08-11
 **Scope**: The control plane — what decides whether an agent action may run, whether it really
@@ -178,7 +178,7 @@ safety monitor attached to that loop**.
 | `integration/approval_manager.py` | 261 | DEAD PATH | Pending-approval store, timeouts |
 | `learning/governance_pattern_learner.py` | 186 | **ORPHANED** | Learns approval patterns |
 | `agents/autonomous/singleton_constitution.py` | 630 | LIVE (5 importers) | 5 laws, numeric compliance scoring |
-| `learning/safety_audit_trail.py` | 542 | LIVE | JSONL audit to `/tmp/torin_audit` |
+| `learning/safety_audit_trail.py` | 542 | LIVE | JSONL audit to `/tmp/lyric_audit` |
 
 **G3 — Human approval is complete and dead.**
 
@@ -256,13 +256,13 @@ execution path.
 | Module | Lines | Status |
 |---|---|---|
 | `health/system_watchdog.py` | 1021 | **Never started** |
-| `monitoring/resource_config.py` | 12 | Defines `TORIN_RESOURCE_LIMITS` |
+| `monitoring/resource_config.py` | 12 | Defines `LYRIC_RESOURCE_LIMITS` |
 | `chaos/safety_controller.py` | 503 | **LIVE** |
 | `quantum/quantum_safety.py` | 407 | Reachable only via quantum (unimportable) |
 | `quantum/asi_quantum_safety.py` | 630 | ORPHANED |
 
 **E4 — The watchdog is constructed with the wrong type and never started.**
-`autonomous_coordinator.py:319` does `SystemWatchdog(TORIN_RESOURCE_LIMITS)`, but
+`autonomous_coordinator.py:319` does `SystemWatchdog(LYRIC_RESOURCE_LIMITS)`, but
 `SystemWatchdog.__init__` expects a `WatchdogConfig`. The two dataclasses share only
 `check_interval` — `ResourceLimits` has no `auto_recovery`, `max_recovery_attempts`,
 `recovery_cooldown` or `alert_on_recovery`. Since `config or WatchdogConfig()` treats the wrong

@@ -9,10 +9,10 @@ substrate:
 
 Measured: perception fidelity, naming recall, abstention, and model calls (which must be 0).
 
-**Run** (from the TorinAI folder):
+**Run** (from the Lyric folder):
 
 ```
-PYTHONPATH="$PWD" POSTGRES_PORT=5433 POSTGRES_USER=stefan TORIN_NO_WATCHDOG=1 ./venv_torin/bin/python3 experiments/systems/PERCEIVE-EVAL/experiment.py
+PYTHONPATH="$PWD" POSTGRES_PORT=5433 POSTGRES_USER=stefan LYRIC_NO_WATCHDOG=1 ./venv_lyric/bin/python3 experiments/systems/PERCEIVE-EVAL/experiment.py
 ```
 
 **Results.** `manifest.json` (2026-09-17; each run overwrites it), 31 images:

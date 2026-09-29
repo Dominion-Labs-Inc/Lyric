@@ -22,7 +22,7 @@ What the teacher chooses is WHICH removals to show:
 
 Induction and validation are the learning authority's own (`reinduce_operator`).
 
-Run:  ./venv_torin/bin/python3 experiments/fs_remove_teach.py
+Run:  ./venv_lyric/bin/python3 experiments/fs_remove_teach.py
 """
 import asyncio
 import os
@@ -33,7 +33,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-os.environ.setdefault("TORIN_SHADOW_MODE", "1")
+os.environ.setdefault("LYRIC_SHADOW_MODE", "1")
 
 from experiments.fs_move_teach import DOMAIN, still_world  # noqa: E402
 

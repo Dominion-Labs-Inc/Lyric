@@ -36,7 +36,7 @@ Defensive Security & Intrusion Detection Tools:
 - hunt_threats: Proactive threat hunting using IOCs and behavioral analysis
 - detect_zero_day: Heuristic-based detection of novel attack patterns
 
-Author: Torin AI Team
+Author: Lyric AI Team
 """
 
 import asyncio

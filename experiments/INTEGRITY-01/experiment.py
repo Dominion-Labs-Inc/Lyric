@@ -13,7 +13,7 @@ in a way that does not realize one's own intent dents it — and low integrity d
   4. No measurable chain link → integrity is UNMEASURED (None), contributing nothing (not zero).
   5. Low integrity RAISES caution (verify) and replan (re-examine); high integrity BACKS approach.
 
-Run: ./venv_torin/bin/python3 experiments/INTEGRITY-01/experiment.py
+Run: ./venv_lyric/bin/python3 experiments/INTEGRITY-01/experiment.py
 """
 from __future__ import annotations
 import os

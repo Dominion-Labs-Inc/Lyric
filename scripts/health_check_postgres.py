@@ -6,11 +6,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from core.database import TorinUnifiedDatabase
+from core.database import LyricUnifiedDatabase
 
 async def health_check():
     """Perform comprehensive health check"""
-    db = TorinUnifiedDatabase()
+    db = LyricUnifiedDatabase()
 
     try:
         await db.initialize()

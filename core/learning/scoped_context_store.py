@@ -35,7 +35,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict, List, Optional
 
-from core.database import TorinUnifiedDatabase
+from core.database import LyricUnifiedDatabase
 from core.reasoning.bayesian_uncertainty import (posterior_from_evidence,
                                                  clamp_posterior)
 
@@ -54,7 +54,7 @@ class ScopedContextStore:
     """Per-actor context: scoped edges + scoped beliefs. One owner, two tables."""
 
     def __init__(self) -> None:
-        self.db = TorinUnifiedDatabase()
+        self.db = LyricUnifiedDatabase()
         self._schema_ready = False
 
     async def _ready(self) -> None:

@@ -33,7 +33,7 @@ someone else's behalf count.
 ## Run
 
 ```
-./venv_torin/bin/python3 experiments/THREAT-SENSE-02/experiment.py
+./venv_lyric/bin/python3 experiments/THREAT-SENSE-02/experiment.py
 ```
 
 Judges only — nothing executes — in a temporary sandbox. Containment rows it writes and the beliefs its

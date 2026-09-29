@@ -16,7 +16,7 @@ Usage:
     # Generate migration code for a specific tool
     python migrate_to_capabilities.py --tool ReadFileTool
 
-Author: Torin AI Team
+Author: Lyric AI Team
 """
 
 from typing import List, Dict, Set

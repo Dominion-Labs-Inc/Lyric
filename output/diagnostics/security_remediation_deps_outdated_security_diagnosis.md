@@ -31,7 +31,7 @@ These errors compounded the primary failure by preventing even basic environment
 
 ### Python Environment
 - **Python version**: 3.11.14 (Clang 17.0.0)
-- **Virtual environment**: `/Users/stefan/Dominion Labs/TorinAI/venv_torin`
+- **Virtual environment**: `/Users/stefan/Dominion Labs/Lyric/venv_lyric`
 - **Total packages installed**: 258
 - **Security-sensitive packages identified**: 47
 
@@ -65,7 +65,7 @@ The task claims "13 security-sensitive packages are outdated" — this number li
 ### Immediate Fix (Priority 1)
 Install a security auditing tool to enable the scan:
 ```bash
-/Users/stefan/Dominion\ Labs/TorinAI/venv_torin/bin/pip3 install pip-audit
+/Users/stefan/Dominion\ Labs/Lyric/venv_lyric/bin/pip3 install pip-audit
 ```
 
 ### Remediation Steps for Retry

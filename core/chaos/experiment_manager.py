@@ -92,7 +92,7 @@ class ChaosExperimentManager:
         injection_config: InjectionConfig,
         blast_radius: int = 1,
         hypothesis: Optional[Hypothesis] = None,
-        created_by: str = "torin_ai"
+        created_by: str = "lyric"
     ) -> ChaosExperiment:
         """
         Create a new chaos experiment.
@@ -305,7 +305,7 @@ class ChaosExperimentManager:
             injection_config=injection_config,
             blast_radius=exp_dict.get('blast_radius', 1),
             hypothesis=hypothesis,
-            created_by=exp_dict.get('created_by', 'torin_ai'),
+            created_by=exp_dict.get('created_by', 'lyric'),
             status=ExperimentStatus(exp_dict['status'])
         )
 
@@ -579,7 +579,7 @@ class ChaosExperimentManager:
         scenario_id: str,
         environment: str,
         blast_radius: int = 1,
-        created_by: str = "torin_ai"
+        created_by: str = "lyric"
     ) -> Optional[ChaosExperiment]:
         """
         Create an experiment from a scenario template.

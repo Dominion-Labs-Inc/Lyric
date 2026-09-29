@@ -151,8 +151,8 @@ class SubstrateEncoder:
 async def taught_readings(limit: int = 40000) -> List[Tuple[str, str, str]]:
     """Every proposition the substrate has been taught, as (subject, relation,
     object). Read from MEMORY, which is the only store."""
-    from core.database.unified_database_postgres import TorinUnifiedDatabasePostgres
-    db = TorinUnifiedDatabasePostgres()
+    from core.database.unified_database_postgres import LyricUnifiedDatabasePostgres
+    db = LyricUnifiedDatabasePostgres()
     await db.initialize()
     rows = await db.query(
         "SELECT metadata->>'reading' AS reading FROM memory_hot.memory_hot "

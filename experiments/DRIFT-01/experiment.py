@@ -24,7 +24,7 @@ Nothing is stubbed, and no detector is invented to make a check pass.
  10  every self-correction is recorded
  11  correction adjusts EXPECTATION, never LAW
 
-Run: ./venv_torin/bin/python3 experiments/DRIFT-01/experiment.py
+Run: ./venv_lyric/bin/python3 experiments/DRIFT-01/experiment.py
 """
 from __future__ import annotations
 

@@ -52,7 +52,7 @@ needed before the scale question can be answered.
 **Run**
 
 ```
-./venv_torin/bin/python3 experiments/ENCODER-01/experiment.py     # and -02 … -10
+./venv_lyric/bin/python3 experiments/ENCODER-01/experiment.py     # and -02 … -10
 ```
 
 Every run is saved under each experiment's `results/`, never overwritten.

@@ -17,7 +17,7 @@ decreases and the next pursuit changes. It does NOT prove the substrate autonomo
 task to produce that evidence; the executed-outcome is stood in by a real evidence update (real
 machinery, not a stub), which is the deterministic, reproducible core of the claim.
 
-Run: ./venv_torin/bin/python3 experiments/MOTIVATION-CLOSEDLOOP-01/experiment.py
+Run: ./venv_lyric/bin/python3 experiments/MOTIVATION-CLOSEDLOOP-01/experiment.py
 """
 from __future__ import annotations
 

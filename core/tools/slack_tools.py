@@ -2,7 +2,7 @@
 """
 Slack Communication Tools
 =========================
-Context-aware tools for Torin to communicate with Dominion Labs team via Slack.
+Context-aware tools for Lyric to communicate with Dominion Labs team via Slack.
 
 IMPORTANT: Only escalates internal operations to Slack, NOT external user interactions.
 """
@@ -27,7 +27,7 @@ def should_escalate_to_slack(context: Dict[str, Any]) -> bool:
     Determine if uncertainty should be escalated to Dominion Labs Slack.
 
     Only escalate when:
-    - Working on internal TorinAI operations
+    - Working on internal Lyric operations
     - Autonomous task execution
     - System maintenance/diagnostics
 
@@ -108,7 +108,7 @@ async def send_slack_message(
         slack_channel = channel_map.get(channel, SlackChannel.ACTIVITY) if channel else SlackChannel.ACTIVITY
 
         severity = "warning" if urgent else "info"
-        title = "🚨 Torin Urgent Help Needed" if urgent else "🤖 Torin Needs Guidance"
+        title = "🚨 Lyric Urgent Help Needed" if urgent else "🤖 Lyric Needs Guidance"
 
         # force=True: this is a DELIBERATE tool send, not an automatic
         # notification. The event notifier is disabled globally, but the tool
@@ -142,7 +142,7 @@ async def ask_for_clarification(
     """
     Ask Dominion Labs team for clarification (INTERNAL OPERATIONS ONLY).
 
-    Only use this for internal TorinAI tasks, NOT external user conversations.
+    Only use this for internal Lyric tasks, NOT external user conversations.
 
     Args:
         question: The question you need answered
@@ -301,7 +301,7 @@ try:
         def __init__(self):
             super().__init__()
             self.name = "ask_for_clarification"
-            self.description = "Ask Dominion Labs team for clarification when stuck on INTERNAL TorinAI tasks (NOT for external user conversations)"
+            self.description = "Ask Dominion Labs team for clarification when stuck on INTERNAL Lyric tasks (NOT for external user conversations)"
             self.category = ToolCategory.COMMUNICATION
             self.safety_level = ToolSafety.MODERATE
             self.parameters = [

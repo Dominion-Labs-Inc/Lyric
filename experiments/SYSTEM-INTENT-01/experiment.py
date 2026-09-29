@@ -6,7 +6,7 @@ pursuit is formed once per (actor, continuity key), a return refreshes rather
 than duplicates, reconciliation records its outcome, an unknown id is None, and
 an actor can be forgotten. Everything written is removed by id.
 
-Run: ./venv_torin/bin/python3 experiments/SYSTEM-INTENT-01/experiment.py
+Run: ./venv_lyric/bin/python3 experiments/SYSTEM-INTENT-01/experiment.py
 """
 from __future__ import annotations
 

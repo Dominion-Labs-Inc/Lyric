@@ -425,7 +425,7 @@ class HealthMonitor:
         # so no process reports on a subsystem it does not host. Read from the
         # environment so a process can declare itself before the singleton is
         # built; changeable later via set_scope().
-        self.scope: str = (os.getenv("TORINAI_HEALTH_SCOPE", "all") or "all").strip().lower()
+        self.scope: str = (os.getenv("LYRIC_HEALTH_SCOPE", "all") or "all").strip().lower()
 
         # Derived from COMPONENT_MANIFEST so the set of monitored components and
         # their description are ONE declaration. Synced to unified.components in
@@ -1851,7 +1851,7 @@ class HealthMonitor:
         """Domain knowledge: what has been learned, and what survived validation.
 
         Reports the LEARNED and DERIVED parts separately -- the universal level
-        is projected from the ontology on every load and is not something Torin
+        is projected from the ontology on every load and is not something Lyric
         learned, so folding them into one count would report designed concepts
         as acquired knowledge.
         """
@@ -1936,8 +1936,8 @@ class HealthMonitor:
 
         try:
             from core.database.postgres_config import STORES
-            from core.database.unified_database_postgres import TorinUnifiedDatabasePostgres
-            db = TorinUnifiedDatabasePostgres()
+            from core.database.unified_database_postgres import LyricUnifiedDatabasePostgres
+            db = LyricUnifiedDatabasePostgres()
 
             # Every database this environment keeps: one in development, one per
             # store in staging and production. The totals are over all of them; each is also
@@ -2455,7 +2455,7 @@ class HealthMonitor:
 
         return metrics, issues
 
-    #: The network paths Torin actually requires, and whether each is essential.
+    #: The network paths Lyric actually requires, and whether each is essential.
     #: Health means "the communication this substrate depends on works", not
     #: "the internet is reachable" -- an optional integration being down must
     #: not declare the network unhealthy.
@@ -2545,7 +2545,7 @@ class HealthMonitor:
             return False, f"{type(e).__name__}: {str(e)[:80]}"
 
     async def _check_network_health(self) -> tuple[Dict[str, Any], List[str]]:
-        """Network health = Torin's required communication paths work.
+        """Network health = Lyric's required communication paths work.
 
         This counted psutil packet totals, which say nothing about whether the
         substrate can reach what it depends on, and emitted no normalized
@@ -3062,7 +3062,7 @@ class HealthMonitor:
             elif disk.percent > self.thresholds.get('disk_warning', 85):
                 components['disk'] = {'status': 'degraded', 'disk_percent': disk.percent, 'issues': [f'High disk: {disk.percent}%']}
 
-            # Registered TorinAI service components
+            # Registered Lyric service components
             for comp_name, comp_health in self.component_health.items():
                 status_val = comp_health.status.value if hasattr(comp_health.status, 'value') else str(comp_health.status)
                 components[comp_name] = {
@@ -3132,7 +3132,7 @@ class HealthMonitor:
                 # Check OS-level system health
                 await self.get_system_health()
 
-                # Check ALL known TorinAI subsystems (not just already-registered ones)
+                # Check ALL known Lyric subsystems (not just already-registered ones)
                 for component in self._monitored_components:
                     try:
                         await self.check_component_health(component)

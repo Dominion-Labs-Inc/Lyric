@@ -54,7 +54,7 @@ async def main():
         "run": "capability_benchmark_full_frozen_suite",
         "started_at": started.isoformat(),
         "duration_seconds": round(took, 2),
-        "command": ("./venv_torin/bin/python3 "
+        "command": ("./venv_lyric/bin/python3 "
                     "experiments/CAPABILITY-BENCHMARK-01/full_suite.py"),
         "report": report if isinstance(report, dict) else str(report),
     }

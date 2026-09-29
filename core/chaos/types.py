@@ -113,7 +113,7 @@ class ChaosExperiment:
     # Experiment state
     status: ExperimentStatus = ExperimentStatus.PENDING
     created_at: datetime = field(default_factory=datetime.now)
-    created_by: str = "torin_ai"
+    created_by: str = "lyric"
 
     # Governance
     governance_decision_id: Optional[str] = None

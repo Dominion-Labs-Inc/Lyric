@@ -12,10 +12,10 @@ real filesystem world. The whole chain is then read back, without calling any in
 
 kite17's operating counters are restored at the end, so the run can be repeated.
 
-**Run** (from the TorinAI folder):
+**Run** (from the Lyric folder):
 
 ```
-./venv_torin/bin/python3 experiments/INTEGRATION-LOOP-01/experiment.py
+./venv_lyric/bin/python3 experiments/INTEGRATION-LOOP-01/experiment.py
 ```
 
 The docstring's `scratchpad/bench_integration_loop.py` is an old path.

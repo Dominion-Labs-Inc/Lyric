@@ -9,10 +9,10 @@ loop already reads (`should_explore`, `max_goals`, `mode`).
 - Escalation works as it did before.
 - The directive's `to_dict()` shows both new signals.
 
-**Run** (from the TorinAI folder):
+**Run** (from the Lyric folder):
 
 ```
-./venv_torin/bin/python3 experiments/AFFECT-WIRING-01/experiment.py
+./venv_lyric/bin/python3 experiments/AFFECT-WIRING-01/experiment.py
 ```
 
 **Results.** Printed to the terminal only; no run is saved.

@@ -127,7 +127,7 @@ def text(value, factor=2):
 
 @pytest_asyncio.fixture
 async def taught():
-    root = Path(tempfile.mkdtemp(prefix="torin_computation_"))
+    root = Path(tempfile.mkdtemp(prefix="lyric_computation_"))
     store = RuleStore()
     await store.ensure_schema()
 

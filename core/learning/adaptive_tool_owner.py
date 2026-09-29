@@ -13,7 +13,7 @@ What was missing is an OWNER, and the consequence was not merely a dead writer.
     selection time:  classify intent -> affinities -> rank -> choose
     feedback  time:  classify intent AGAIN -> rank AGAIN -> assign credit
 
-Torin was not learning from the decision it made. It was learning from a
+Lyric was not learning from the decision it made. It was learning from a
 RECONSTRUCTION of that decision. Both reconstructions are deterministic today,
 so the defect is latent rather than active — but a change to keyword weights, to
 the tool registry, to capability metadata or to accumulated affinity silently

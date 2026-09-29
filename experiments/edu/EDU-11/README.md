@@ -3,7 +3,7 @@
 ## Claim
 
 When a genuine precondition is absent from the observation vocabulary entirely,
-Torin still recovers the correct *observable* causal structure, and it
+Lyric still recovers the correct *observable* causal structure, and it
 distinguishes a hidden cause that leaves a detectable signature from one that
 provably does not — positing a latent in the identifiable regime with 0.976
 correspondence to the real hidden state, and refusing to posit one in both the
@@ -15,7 +15,7 @@ support the finding.
 
 ## In plain terms
 
-Until now Torin was always given a list of things to look at that contained the
+Until now Lyric was always given a list of things to look at that contained the
 real answer. Its job was to work out which ones mattered.
 
 Here one of the things that matters is not on the list at all. The forklift also
@@ -31,7 +31,7 @@ The trick is that a hidden cause changes *when* things fail, not just how often.
 If the forklift's calibration drifts and stays drifted for a while, failures
 arrive in clumps. If it were re-rolled every single attempt, the failures would
 scatter — and then it is genuinely impossible to tell "hidden cause" from "just
-unreliable", because there is nothing left to distinguish them. So Torin is
+unreliable", because there is nothing left to distinguish them. So Lyric is
 asked all three questions, and is only allowed to answer "there is something
 hidden here" to the one where that is actually knowable.
 
@@ -76,7 +76,7 @@ inverted is still recovering it. Chance is 0.5.
 ## Method
 
 ```
-EDU11_SEEDS=30 ./venv_torin/bin/python3 experiments/edu/EDU-11/experiment.py
+EDU11_SEEDS=30 ./venv_lyric/bin/python3 experiments/edu/EDU-11/experiment.py
 ```
 
 No language model is involved. Detection is

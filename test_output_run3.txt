@@ -1,28 +1,28 @@
 /Users/stefan/Library/Python/3.9/lib/python/site-packages/transformers/utils/hub.py:110: FutureWarning: Using `TRANSFORMERS_CACHE` is deprecated and will be removed in v5 of Transformers. Use `HF_HOME` instead.
   warnings.warn(
-INFO:core.r2_storage:✓ Loaded credentials from /Users/stefan/Dominion Labs/TorinAI/.env.production
+INFO:core.r2_storage:✓ Loaded credentials from /Users/stefan/Dominion Labs/Lyric/.env.production
 INFO:core.memory.storage.mysql_storage:💾 Initializing Memory Database (MySQL) at localhost:3306
 INFO:core.memory.storage.mysql_storage:📝 Ensuring hot and cold databases exist...
-/Users/stefan/Library/Python/3.9/lib/python/site-packages/aiomysql/cursors.py:239: Warning: Can't create database 'torinai_thinking_hot'; database exists
+/Users/stefan/Library/Python/3.9/lib/python/site-packages/aiomysql/cursors.py:239: Warning: Can't create database 'lyric_thinking_hot'; database exists
   await self._query(query)
-INFO:core.memory.storage.mysql_storage:✅ Hot database 'torinai_thinking_hot' ready
-/Users/stefan/Library/Python/3.9/lib/python/site-packages/aiomysql/cursors.py:239: Warning: Can't create database 'torinai_memory_cold'; database exists
+INFO:core.memory.storage.mysql_storage:✅ Hot database 'lyric_thinking_hot' ready
+/Users/stefan/Library/Python/3.9/lib/python/site-packages/aiomysql/cursors.py:239: Warning: Can't create database 'lyric_memory_cold'; database exists
   await self._query(query)
-INFO:core.memory.storage.mysql_storage:✅ Cold database 'torinai_memory_cold' ready
+INFO:core.memory.storage.mysql_storage:✅ Cold database 'lyric_memory_cold' ready
 INFO:core.memory.storage.mysql_storage:✅ MySQL connection pools created
 /Users/stefan/Library/Python/3.9/lib/python/site-packages/aiomysql/cursors.py:239: Warning: Table 'memory_hot' already exists
   await self._query(query)
-INFO:core.memory.storage.mysql_storage:✅ Hot memory schema created in torinai_unified
+INFO:core.memory.storage.mysql_storage:✅ Hot memory schema created in lyric_unified
 /Users/stefan/Library/Python/3.9/lib/python/site-packages/aiomysql/cursors.py:239: Warning: Table 'memory_cold' already exists
   await self._query(query)
 /Users/stefan/Library/Python/3.9/lib/python/site-packages/aiomysql/cursors.py:239: Warning: Table 'archival_log' already exists
   await self._query(query)
 /Users/stefan/Library/Python/3.9/lib/python/site-packages/aiomysql/cursors.py:239: Warning: Table 'r2_backup_log' already exists
   await self._query(query)
-INFO:core.memory.storage.mysql_storage:✅ Cold memory schema created in torinai_memory_cold
+INFO:core.memory.storage.mysql_storage:✅ Cold memory schema created in lyric_memory_cold
 INFO:core.memory.storage.mysql_storage:✅ Memory Database (MySQL) initialized successfully
 INFO:core.agents.memory_agent:✅ MySQL memory database initialized (hot/cold tiers)
-INFO:core.database.logging_database:📝 Initializing MySQL-based logging at localhost:3306/torinai_unified
+INFO:core.database.logging_database:📝 Initializing MySQL-based logging at localhost:3306/lyric_unified
 INFO:core.database.logging_database:🔄 Log queue worker started
 INFO:core.database.logging_database:✅ MySQL logging initialized with queue-based worker
 INFO:core.agents.memory_agent:✅ Logging database initialized
@@ -41,10 +41,10 @@ INFO:core.memory.storage.r2_storage:R2MemoryBackend initialized (Short-term: tor
 INFO:core.agents.memory_agent:✅ R2 memory backend initialized
 INFO:core.agents.memory_agent:✅ Centralized Memory Manager initialization complete
 INFO:core.health.system_watchdog:🐕 System watchdog started - preventing kernel panics
-INFO:core.database.logging_database:📝 Initializing MySQL-based logging at localhost:3306/torinai_unified
+INFO:core.database.logging_database:📝 Initializing MySQL-based logging at localhost:3306/lyric_unified
 INFO:core.database.logging_database:🔄 Log queue worker started
 INFO:core.database.logging_database:✅ MySQL logging initialized with queue-based worker
-INFO:core.database.logging_database:📝 Initializing MySQL-based logging at localhost:3306/torinai_unified
+INFO:core.database.logging_database:📝 Initializing MySQL-based logging at localhost:3306/lyric_unified
 INFO:core.database.logging_database:🔄 Log queue worker started
 INFO:core.database.logging_database:✅ MySQL logging initialized with queue-based worker
 INFO:core.learning.unified_learning_system:✅ Logging database initialized for learning activity tracking

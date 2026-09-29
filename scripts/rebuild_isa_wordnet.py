@@ -14,12 +14,12 @@ recorded per edge, so we separate keep-from-junk by content:
   PURGE everything else (the ConceptNet free-text junk).
 
 Backup of every isa edge is written first (recoverable).
-Run: PYTHONPATH="$PWD" POSTGRES_PORT=5433 POSTGRES_USER=stefan TORIN_NO_WATCHDOG=1 \
-     ./venv_torin/bin/python3 scripts/rebuild_isa_wordnet.py
+Run: PYTHONPATH="$PWD" POSTGRES_PORT=5433 POSTGRES_USER=stefan LYRIC_NO_WATCHDOG=1 \
+     ./venv_lyric/bin/python3 scripts/rebuild_isa_wordnet.py
 """
 import os, sys, json, io, contextlib, asyncio, time
 for k, v in {"POSTGRES_PORT": "5433", "POSTGRES_USER": "stefan",
-             "POSTGRES_DATABASE": "torinai_db", "TORIN_NO_WATCHDOG": "1"}.items():
+             "POSTGRES_DATABASE": "lyric_db", "LYRIC_NO_WATCHDOG": "1"}.items():
     os.environ.setdefault(k, v)
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)

@@ -10,10 +10,10 @@
 - End to end: a real event drives the real selection cycle, and the cycle reads the pursuit that was
   seeded on the frontier.
 
-**Run** (from the TorinAI folder):
+**Run** (from the Lyric folder):
 
 ```
-./venv_torin/bin/python3 experiments/INTRINSIC-EVENTDRIVEN-01/experiment.py
+./venv_lyric/bin/python3 experiments/INTRINSIC-EVENTDRIVEN-01/experiment.py
 ```
 
 The docstring's `scratchpad/bench_eventdriven.py` is an old path.

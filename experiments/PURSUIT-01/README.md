@@ -58,7 +58,7 @@ intervention" work) is a decision, so it is reported and left.
 ## Run
 
 ```
-./venv_torin/bin/python3 experiments/PURSUIT-01/experiment.py
+./venv_lyric/bin/python3 experiments/PURSUIT-01/experiment.py
 ```
 
 Boots the coordinator without its cognition loop (queued work is inspected, not run), halts it

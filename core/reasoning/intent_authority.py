@@ -40,7 +40,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import asyncpg
 
-from core.database import TorinUnifiedDatabase
+from core.database import LyricUnifiedDatabase
 
 logger = logging.getLogger(__name__)
 
@@ -237,7 +237,7 @@ class IntentStore:
     the actor does not own returns None, not another actor's content."""
 
     def __init__(self) -> None:
-        self.db = TorinUnifiedDatabase()
+        self.db = LyricUnifiedDatabase()
         self._schema_ready = False
 
     async def _ready(self) -> None:
@@ -750,7 +750,7 @@ def get_intent_authority() -> IntentAuthority:
 # authority, so binding a fabricated id names nothing and judges as no intent at
 # all -- which is what an unrecorded claim should be worth.
 _acting_intent: "contextvars.ContextVar[Optional[str]]" = contextvars.ContextVar(
-    "torin_acting_intent", default=None)
+    "lyric_acting_intent", default=None)
 
 
 def set_acting_intent(intent_id: Optional[str]):
@@ -772,7 +772,7 @@ def set_acting_intent(intent_id: Optional[str]):
 #: Read through `is_substrate_actor`, so what reaches the laws is a regime and
 #: never an identity.
 _acting_actor: "contextvars.ContextVar[Optional[str]]" = contextvars.ContextVar(
-    "torin_acting_actor", default=None)
+    "lyric_acting_actor", default=None)
 
 
 def set_acting_actor(actor: Optional[str]):
@@ -797,7 +797,7 @@ def reset_acting_actor(token) -> None:
 #: once -- attributed to the task it served, or to none when the caller had no
 #: task (a conversation looking something up).
 _acting_task: "contextvars.ContextVar[Optional[Tuple[str, str]]]" = contextvars.ContextVar(
-    "torin_acting_task", default=None)
+    "lyric_acting_task", default=None)
 
 
 def set_acting_task(task_id: Optional[str], description: str = ""):
@@ -827,7 +827,7 @@ def get_acting_intent() -> Optional[str]:
 #: intent above: concurrent tasks must not inherit each other's authorisation,
 #: and only the ID travels — the constitution holds the judgement itself.
 _carrying_out: "contextvars.ContextVar[Optional[str]]" = contextvars.ContextVar(
-    "torin_carrying_out_judgment", default=None)
+    "lyric_carrying_out_judgment", default=None)
 
 
 def set_carrying_out(judgment_id: Optional[str]):

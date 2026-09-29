@@ -11,10 +11,10 @@ reconciliation and downstream appraisal**, checked end to end on the real substr
 | B · missed | a route proved for a goal the world does not satisfy reconciles as **missed**, recording what it *meant* beside what actually held, landing on the intent as `abandoned` |
 | B · felt | the miss is felt: the same link reads `matched_aim: false`, and an unrealized intent is measurably less coherent than a realized one (0.7 vs 1.0) |
 
-**Run** (from the TorinAI folder):
+**Run** (from the Lyric folder):
 
 ```
-./venv_torin/bin/python3 experiments/INTENT-04/experiment.py
+./venv_lyric/bin/python3 experiments/INTENT-04/experiment.py
 ```
 
 **Results.** Every run is saved in `results/` (JSON + `.md`). Latest: 2026-09-16, **15/15**

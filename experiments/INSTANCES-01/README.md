@@ -45,7 +45,7 @@ was run only when the live table owed nothing.
 ## Run
 
 ```
-./venv_torin/bin/python3 experiments/INSTANCES-01/experiment.py
+./venv_lyric/bin/python3 experiments/INSTANCES-01/experiment.py
 ```
 
 Needs only the database (no full boot). Everything written is removed by id. Each run writes

@@ -62,8 +62,8 @@ run time.
 ## Run
 
 ```
-PYTHONPATH="$PWD" POSTGRES_PORT=5433 POSTGRES_USER=stefan TORIN_NO_WATCHDOG=1 \
-  ./venv_torin/bin/python3 experiments/systems/VERIFY-01/experiment.py
+PYTHONPATH="$PWD" POSTGRES_PORT=5433 POSTGRES_USER=stefan LYRIC_NO_WATCHDOG=1 \
+  ./venv_lyric/bin/python3 experiments/systems/VERIFY-01/experiment.py
 ```
 
 Read-mostly: it writes only a throwaway `verify01` belief/memory probe; it does

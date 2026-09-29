@@ -11,10 +11,10 @@
 
 Uses real Postgres, the real learning authority, and the real belief and concept graphs.
 
-**Run** (from the TorinAI folder):
+**Run** (from the Lyric folder):
 
 ```
-./venv_torin/bin/python3 experiments/SELF-PARTITION-01/experiment.py
+./venv_lyric/bin/python3 experiments/SELF-PARTITION-01/experiment.py
 ```
 
 **Results.** Printed to the terminal only; no run is saved.

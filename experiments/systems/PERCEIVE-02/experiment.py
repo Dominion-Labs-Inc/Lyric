@@ -8,20 +8,20 @@ exactly what the code read from the bytes -- the same widths, colours, shapes an
 codec the describer measured -- and that model-free instance recognition both
 fires on a learned reference and refuses to hallucinate it elsewhere.
 
-    PYTHONPATH="$PWD" POSTGRES_PORT=5433 POSTGRES_USER=stefan TORIN_NO_WATCHDOG=1 \
-    ./venv_torin/bin/python3 experiments/systems/PERCEIVE-02/experiment.py
+    PYTHONPATH="$PWD" POSTGRES_PORT=5433 POSTGRES_USER=stefan LYRIC_NO_WATCHDOG=1 \
+    ./venv_lyric/bin/python3 experiments/systems/PERCEIVE-02/experiment.py
 """
 from __future__ import annotations
 import os, re
 for k, v in {"POSTGRES_PORT": "5433", "POSTGRES_USER": "stefan",
-             "POSTGRES_DATABASE": "torinai_db", "TORIN_NO_WATCHDOG": "1"}.items():
+             "POSTGRES_DATABASE": "lyric_db", "LYRIC_NO_WATCHDOG": "1"}.items():
     os.environ.setdefault(k, v)
 import asyncio, contextlib, io, json, sys
 from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-REPO = Path(__file__).resolve().parents[3]              # TorinAI repo root
+REPO = Path(__file__).resolve().parents[3]              # Lyric repo root
 sys.path.insert(0, str(REPO))
 HERE = Path(__file__).resolve().parent
 

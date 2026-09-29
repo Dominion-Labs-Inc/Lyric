@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Test base class (DB logging removed).
 
-This test harness originally logged to a MySQL schema. TorinAI no longer uses
+This test harness originally logged to a MySQL schema. Lyric no longer uses
 MySQL, and test logging is now kept in-memory (and standard Python logging).
 
 Usage:
@@ -16,7 +16,7 @@ Usage:
         async def run_all_tests(self):
             await self.run_test("test_name", self.test_method)
 
-Author: Torin AI Team
+Author: Lyric AI Team
 Date: January 1, 2026
 """
 
@@ -60,7 +60,7 @@ class TestResult:
 
 class TestBase:
     """
-    Base class for TorinAI tests.
+    Base class for Lyric tests.
 
     Features:
     - Test session management

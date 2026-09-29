@@ -1,6 +1,6 @@
 """The pool: experiences handed to the memory agent whole, waiting as candidates in their owner's store.
 
-Runs against the database it is pointed at (the sandbox, `POSTGRES_DATABASE=torinai_dev`); every row it writes is
+Runs against the database it is pointed at (the sandbox, `POSTGRES_DATABASE=lyric_dev`); every row it writes is
 removed by id.
 """
 import asyncio
@@ -247,7 +247,7 @@ def test_a_memory_waits_in_the_pool_as_itself_and_is_decided_from_its_record(mon
     nonce = uuid4().hex[:8]
     # Storing a memory starts the memory agent, and with it the pool's own worker, which would claim these
     # items before this test decides them. Shadow mode keeps the background loops off.
-    monkeypatch.setenv("TORIN_SHADOW_MODE", "1")
+    monkeypatch.setenv("LYRIC_SHADOW_MODE", "1")
 
     async def run():
         from core.agents.memory_agent import MemoryAgent

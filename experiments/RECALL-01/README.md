@@ -69,7 +69,7 @@ recordings and 12 pictures (10 real frames) came first.
 memory id):
 
 ```
-POSTGRES_DATABASE=torinai_dev ./venv_torin/bin/python3 experiments/RECALL-01/experiment.py
+POSTGRES_DATABASE=lyric_dev ./venv_lyric/bin/python3 experiments/RECALL-01/experiment.py
 ```
 
 **Results.** `results/<UTC timestamp>.json` and `.md`.

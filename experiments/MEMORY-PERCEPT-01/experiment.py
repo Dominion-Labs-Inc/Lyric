@@ -23,7 +23,7 @@ of the seeing rather than to a memory of it.
   G  MODALITY     the link is `percept_id`, not `image_id` — hearing arrives
                  through the same door and binds the same way.
 
-Run: ./venv_torin/bin/python3 experiments/MEMORY-PERCEPT-01/experiment.py
+Run: ./venv_lyric/bin/python3 experiments/MEMORY-PERCEPT-01/experiment.py
 """
 from __future__ import annotations
 

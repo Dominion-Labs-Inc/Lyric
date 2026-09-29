@@ -14,7 +14,7 @@ capability gets overstated:
 A document that perceives and yields no claim is not understood, and saying so is
 the point. Perception is the easy half.
 
-Run: PYTHONPATH="$PWD" ./venv_torin/bin/python3 experiments/DOC-01/experiment.py
+Run: PYTHONPATH="$PWD" ./venv_lyric/bin/python3 experiments/DOC-01/experiment.py
 """
 from __future__ import annotations
 

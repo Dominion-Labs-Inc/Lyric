@@ -22,7 +22,7 @@ Every judgement below comes from the REAL constitution the coordinator owns.
   G  ORDERING    — harm prevention over performance: the safer route to the same
                    goal outranks both the destructive form and a flat refusal
 
-Run: ./venv_torin/bin/python3 experiments/HARM-01/experiment.py
+Run: ./venv_lyric/bin/python3 experiments/HARM-01/experiment.py
 """
 from __future__ import annotations
 

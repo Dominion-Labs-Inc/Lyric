@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Run the NLU suite against ONE live substrate.
 
-  PYTHONPATH="$PWD" ./venv_torin/bin/python3 experiments/nlu/run_all.py
+  PYTHONPATH="$PWD" ./venv_lyric/bin/python3 experiments/nlu/run_all.py
 
 Boots the substrate once and runs every experiment against it, in order. The
 experiments that WRITE to the store run last, so nothing they teach can flatter

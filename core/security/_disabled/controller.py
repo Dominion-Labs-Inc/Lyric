@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Dict, Any, List, Optional
 from datetime import datetime
 
-# aiomysql removed - using TorinUnifiedDatabase for PostgreSQL access
+# aiomysql removed - using LyricUnifiedDatabase for PostgreSQL access
 
 from core.security.system_security import (
     SystemSecurity, get_system_security
@@ -96,7 +96,7 @@ class SecurityController:
         self.autonomous_coordinator = None
 
         # Message Queue for offline resilience
-        # Security systems run 24/7, but TorinAI may not - queue findings for delivery when it comes online
+        # Security systems run 24/7, but Lyric may not - queue findings for delivery when it comes online
         self.finding_queue: List[Dict[str, Any]] = []
         self.max_queue_size = 1000
         self.queue_file = Path(__file__).parent.parent.parent / "data" / "security_finding_queue.json"
@@ -107,8 +107,8 @@ class SecurityController:
         # Background task for queue processing
         self._queue_processor_task = None
 
-        # Database connection pool for persisting security data (uses TorinUnifiedDatabase)
-        self.db_pool = None  # Using TorinUnifiedDatabase instead of direct connection pool
+        # Database connection pool for persisting security data (uses LyricUnifiedDatabase)
+        self.db_pool = None  # Using LyricUnifiedDatabase instead of direct connection pool
         try:
             self._db_init_task = asyncio.create_task(self._initialize_database())
         except RuntimeError:
@@ -193,10 +193,10 @@ class SecurityController:
                     # unvalidated path.
                     #
                     # But running it on EVERY string parameter is a category
-                    # error, and it fired 85 times in one night on Torin's own
+                    # error, and it fired 85 times in one night on Lyric's own
                     # work: a `--include="*.py"` grep flag (the `(--[^\n]*$)`
                     # comment rule), a `**/tools/**/*.py` file glob, and a
-                    # `sqlite3 ... "SELECT name FROM ..."` query against Torin's
+                    # `sqlite3 ... "SELECT name FROM ..."` query against Lyric's
                     # OWN database. A shell command, a Python source blob and a
                     # glob pattern never reach a database, so SQL-injection
                     # grammar tells us nothing about them -- those parameters
@@ -540,21 +540,21 @@ class SecurityController:
         }
 
     # ========================================================================
-    # DATABASE INTEGRATION (torinai_db - PostgreSQL)
+    # DATABASE INTEGRATION (lyric_db - PostgreSQL)
     # ========================================================================
 
     async def _initialize_database(self):
         """
-        Initialize database connection for torinai_db (PostgreSQL)
+        Initialize database connection for lyric_db (PostgreSQL)
 
-        Uses TorinUnifiedDatabase for persisting security events and logs.
+        Uses LyricUnifiedDatabase for persisting security events and logs.
         Falls back gracefully if database is unavailable - security continues to work.
         """
         try:
-            # Use TorinUnifiedDatabase for PostgreSQL access
+            # Use LyricUnifiedDatabase for PostgreSQL access
             from core.database import get_database_manager
             self.db_pool = get_database_manager()
-            logger.info("✅ SecurityController using TorinUnifiedDatabase (PostgreSQL)")
+            logger.info("✅ SecurityController using LyricUnifiedDatabase (PostgreSQL)")
 
         except Exception as e:
             logger.error(f"Failed to initialize database connection: {e}")
@@ -583,7 +583,7 @@ class SecurityController:
             return  # Database not available, skip silently
 
         try:
-            # Use TorinUnifiedDatabase execute_query method for PostgreSQL
+            # Use LyricUnifiedDatabase execute_query method for PostgreSQL
             await self.db_pool.execute_query(
                 """
                 INSERT INTO security_events
@@ -624,7 +624,7 @@ class SecurityController:
             return  # Database not available, skip silently
 
         try:
-            # Use TorinUnifiedDatabase execute_query method for PostgreSQL
+            # Use LyricUnifiedDatabase execute_query method for PostgreSQL
             await self.db_pool.execute_query(
                 """
                 INSERT INTO security_logs
@@ -1221,8 +1221,8 @@ class SecurityController:
     async def cleanup(self):
         """Cleanup resources (database connection, etc.)"""
         if self.db_pool:
-            # TorinUnifiedDatabase handles its own connection management
-            logger.info("Database connection cleanup (managed by TorinUnifiedDatabase)")
+            # LyricUnifiedDatabase handles its own connection management
+            logger.info("Database connection cleanup (managed by LyricUnifiedDatabase)")
 
 
 # Singleton instance

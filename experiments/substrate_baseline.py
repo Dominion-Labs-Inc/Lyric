@@ -97,7 +97,7 @@ async def _census(conn: asyncpg.Connection) -> Dict[str, Any]:
 async def _snapshot(label: str) -> Dict[str, Any]:
     # RESOLVED, NOT HARDCODED. This passed no port at all, and asyncpg's
     # default is 5432 -- the shared instance holding agentso's tenant
-    # databases, whose copy of torinai_db last saw a write on 2026-08-18.
+    # databases, whose copy of lyric_db last saw a write on 2026-08-18.
     # Every baseline this file measured was therefore taken against a stale
     # database rather than the live one on 5433.
     from core.database.postgres_config import PostgresConfig

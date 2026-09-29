@@ -1347,9 +1347,10 @@ class PatternInventory:
             # WHICH ENDINGS DECIDE A WORD'S USE, the longest first, as the elsewhere condition orders them: a word
             # that a longer ending decides ("kindness", by "ness") is that ending's, and no evidence for a shorter
             # one ("s"), which "lens" and "abacus" end in too. An ending decides a use within Yang's tolerance, and
-            # one other than counted only where it is more reliable than counting is over every word held, the rule
-            # it overrides (Albright & Hayes: the more reliable rule wins). A capital shows a name, and a plural is
-            # a word's shape, so neither decides an ending.
+            # one other than counted only where Albright & Hayes's confidence in it is above their confidence in
+            # counting over every word held, the rule it overrides: two words ending "eat" ("heat", "meat") do not
+            # make "feat" uncounted. A capital shows a name, and a plural is a word's shape, so neither decides an
+            # ending.
             by_ending: Dict[str, List[Tuple[str, str]]] = {}
             kept = {"count": 0, "mass": 0}
             for word, counts in words.items():
@@ -1359,7 +1360,7 @@ class PatternInventory:
                 kept[how] += 1
                 for size in range(1, min(4, len(word) - 1) + 1):
                     by_ending.setdefault(word[len(word) - size:], []).append((word, how))
-            counted = kept["count"] / max(1, kept["count"] + kept["mass"])
+            counted = _confidence(kept["count"], kept["count"] + kept["mass"])
             endings: Dict[str, str] = {}
             for ending in sorted(by_ending, key=lambda e: (-len(e), e)):
                 tally: Dict[str, int] = {}
@@ -1372,7 +1373,7 @@ class PatternInventory:
                     continue
                 how, most = max(tally.items(), key=lambda kv: (kv[1], kv[0] == "count", kv[0]))
                 if most * 2 > total and total - most <= total / math.log(total) \
-                        and (how == "count" or most / total > counted):
+                        and (how == "count" or _confidence(most, total) > counted):
                     endings[ending] = how
             self._uses = (slots, endings, words)
         return self._uses
@@ -1429,6 +1430,17 @@ class PatternInventory:
             if key in self._by_key:
                 groups.setdefault(self._find(key), set()).add(self._by_key[key])
         return sorted((frozenset(g) for g in groups.values()), key=lambda g: sorted(x.surface for x in g))
+
+
+def _confidence(hits: int, scope: int) -> float:
+    """Albright & Hayes's (2003) confidence in a rule: the lower limit of a 75% confidence interval on its
+    reliability, adjusted as (hits + 0.5) / (scope + 1), so a rule shown by few words is trusted less than one shown
+    by many with the same rate."""
+    if scope < 2:
+        return 0.0
+    from scipy.stats import t
+    reliability = (hits + 0.5) / (scope + 1)
+    return reliability - t.ppf(0.875, scope - 1) * math.sqrt(reliability * (1 - reliability) / scope)
 
 
 def _tolerated(right: int, covered: int) -> bool:
@@ -2176,6 +2188,12 @@ def _said_fillers(view: PatternInventory, pattern: Pattern, slot: str,
         return [(lx, view.link_between(pattern.key, slot, lx.key), "linked") for lx in written_here(placed)]
     if held:
         kind = [lx for lx in held if fits(lx) and view.same_kind(pattern.key, slot, lx.key)]
+        if not taken:
+            # A held word stands, through a link proposed, only where words used as it is used stand: "smoke", used
+            # without "a", not after one.
+            admits = view.slot_admits(pattern.key, slot)
+            kind = [lx for lx in kind if not admits or not one_word(lx)
+                    or view.used_as(lx.words[0]) in (None,) + tuple(admits)]
         placed = [lx for lx in kind if in_shape(lx)]
         if kind and not placed and as_taken(value):
             shaped = Lexical(form_of(as_taken(value)), value)

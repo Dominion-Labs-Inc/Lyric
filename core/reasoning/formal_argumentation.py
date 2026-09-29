@@ -36,7 +36,7 @@ from pathlib import Path
 from collections import defaultdict
 import re
 
-from core.database import TorinUnifiedDatabase
+from core.database import LyricUnifiedDatabase
 
 logger = logging.getLogger(__name__)
 
@@ -224,7 +224,7 @@ class FormalArgumentationSystem:
         # Use unified database instead of separate argumentation.db
         # Argumentation knowledge persists to the unified PostgreSQL
         # database like the rest of the system -- no SQLite file.
-        self.unified_db = TorinUnifiedDatabase()
+        self.unified_db = LyricUnifiedDatabase()
 
         # Store db_path (defaults to argumentation.db in workspace)
 

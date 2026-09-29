@@ -1,7 +1,7 @@
 #!/bin/bash
 #
-# TorinAI Stop Script
-# Gracefully stops the TorinAI system
+# Lyric Stop Script
+# Gracefully stops the Lyric system
 #
 
 set -e  # Exit on error
@@ -22,11 +22,11 @@ LOGS_DIR="$SCRIPT_DIR/logs"
 PID_DIR="$RUNTIME_DIR"
 
 # PID files
-MAIN_PID_FILE="$PID_DIR/torin_main.pid"
+MAIN_PID_FILE="$PID_DIR/lyric_main.pid"
 
 echo ""
 echo -e "${RED}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${RED} Stopping TorinAI${NC}"
+echo -e "${RED} Stopping Lyric${NC}"
 echo -e "${RED}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
 
@@ -80,14 +80,14 @@ stop_process() {
 }
 
 # Stop main system
-stop_process "$MAIN_PID_FILE" "Main TorinAI System"
+stop_process "$MAIN_PID_FILE" "Main Lyric System"
 
-# Kill any remaining Python processes running TorinAI
+# Kill any remaining Python processes running Lyric
 echo ""
-echo -e "${YELLOW}Checking for remaining TorinAI processes...${NC}"
+echo -e "${YELLOW}Checking for remaining Lyric processes...${NC}"
 
-# Find all Python processes with 'torin' or 'core/main.py' in command line
-REMAINING_PIDS=$(ps aux | grep -i "[p]ython.*torin\|[p]ython.*core/main.py" | awk '{print $2}' || true)
+# Find all Python processes with 'lyric' or 'core/main.py' in command line
+REMAINING_PIDS=$(ps aux | grep -i "[p]ython.*lyric\|[p]ython.*core/main.py" | awk '{print $2}' || true)
 
 if [ -n "$REMAINING_PIDS" ]; then
     echo -e "${ORANGE}Found remaining processes, cleaning up...${NC}"
@@ -101,9 +101,9 @@ else
     echo -e "${GREEN}✓ No remaining processes found${NC}"
 fi
 
-# Kill processes on TorinAI server ports
+# Kill processes on Lyric server ports
 echo ""
-echo -e "${YELLOW}Checking TorinAI server ports...${NC}"
+echo -e "${YELLOW}Checking Lyric server ports...${NC}"
 
 # Port 9080 - Chat Server
 PORT_9080_PID=$(lsof -ti :9080 2>/dev/null || true)
@@ -134,12 +134,12 @@ echo -e "${GREEN}✓ Runtime cleanup complete${NC}"
 
 # Verify everything is stopped
 echo ""
-STILL_RUNNING=$(ps aux | grep -i "[p]ython.*torin\|[p]ython.*core/main.py" | wc -l || echo "0")
+STILL_RUNNING=$(ps aux | grep -i "[p]ython.*lyric\|[p]ython.*core/main.py" | wc -l || echo "0")
 if [ "$STILL_RUNNING" -gt 0 ]; then
-    echo -e "${RED}⚠️  Warning: Some TorinAI processes may still be running${NC}"
-    echo -e "${YELLOW}Run 'ps aux | grep python | grep torin' to check${NC}"
+    echo -e "${RED}⚠️  Warning: Some Lyric processes may still be running${NC}"
+    echo -e "${YELLOW}Run 'ps aux | grep python | grep lyric' to check${NC}"
 else
-    echo -e "${GREEN}✓ All TorinAI processes stopped${NC}"
+    echo -e "${GREEN}✓ All Lyric processes stopped${NC}"
 fi
 
 # ============================================================================
@@ -158,7 +158,7 @@ fi
 
 if command -v mysql &> /dev/null && [ -n "$MYSQL_PASSWORD" ]; then
     # Use python to avoid bash ! escaping issues with the password
-    STALE_COUNT=$("$SCRIPT_DIR/venv_torin/bin/python3" -c "
+    STALE_COUNT=$("$SCRIPT_DIR/venv_lyric/bin/python3" -c "
 import subprocess, sys
 result = subprocess.run(
     ['mysql', '-u', 'root', '-p$MYSQL_PASSWORD', '-h', 'localhost',
@@ -173,7 +173,7 @@ print(result.stdout.strip() if result.returncode == 0 else '0')
         echo -e "${ORANGE}  Found $STALE_COUNT stale MySQL connections${NC}"
 
         # Kill stale sleeping connections via python (avoids bash escaping issues)
-        "$SCRIPT_DIR/venv_torin/bin/python3" -c "
+        "$SCRIPT_DIR/venv_lyric/bin/python3" -c "
 import subprocess
 # Get stale connection IDs
 result = subprocess.run(
@@ -198,7 +198,7 @@ if ids:
     fi
 
     # Show final connection status
-    FINAL_COUNT=$("$SCRIPT_DIR/venv_torin/bin/python3" -c "
+    FINAL_COUNT=$("$SCRIPT_DIR/venv_lyric/bin/python3" -c "
 import subprocess
 result = subprocess.run(
     ['mysql', '-u', 'root', '-p$MYSQL_PASSWORD', '-h', 'localhost',
@@ -220,6 +220,6 @@ fi
 
 echo ""
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${GREEN} TorinAI Stopped${NC}"
+echo -e "${GREEN} Lyric Stopped${NC}"
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""

@@ -46,14 +46,14 @@ _lock = threading.Lock()
 
 
 def _from_env() -> LearningPolicy:
-    raw = (os.getenv("TORIN_LEARNING_POLICY") or "").strip().lower()
+    raw = (os.getenv("LYRIC_LEARNING_POLICY") or "").strip().lower()
     if not raw:
         return LearningPolicy.OPEN
     try:
         return LearningPolicy(raw)
     except ValueError:
         raise ValueError(
-            f"TORIN_LEARNING_POLICY={raw!r} is not a LearningPolicy; expected one "
+            f"LYRIC_LEARNING_POLICY={raw!r} is not a LearningPolicy; expected one "
             f"of {[p.value for p in LearningPolicy]}"
         )
 

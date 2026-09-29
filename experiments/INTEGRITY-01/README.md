@@ -8,10 +8,10 @@ identity → intention → action → outcome, and it is not the same as success
 - With no measured link, integrity is unmeasured (None), not zero.
 - Low integrity makes the substrate verify more and replan; high integrity supports engaging.
 
-**Run** (from the TorinAI folder):
+**Run** (from the Lyric folder):
 
 ```
-./venv_torin/bin/python3 experiments/INTEGRITY-01/experiment.py
+./venv_lyric/bin/python3 experiments/INTEGRITY-01/experiment.py
 ```
 
 **Results.** Printed to the terminal only; no run is saved.

@@ -150,9 +150,13 @@ def _heard_suffix(mem: Dict[str, Any]) -> str:
     was recalled BY THE SOUND, else "". A memory found by the sound is not a
     memory about a topic; it is this very sound, met before, and says so."""
     match = mem.get('heard_match')
-    if not match:
-        return ""
-    return f" (heard before: the same sound, {float(match.get('share') or 0):.0%} of it agreed)"
+    if match:
+        return f" (heard before: the same sound, {float(match.get('share') or 0):.0%} of it agreed)"
+    seen = mem.get('seen_match')
+    if seen:
+        return (" (seen before: the same picture)" if seen.get('same_picture') else
+                f" (seen before: the same thing, {int(seen.get('agreeing') or 0)} keypoints agreed)")
+    return ""
 
 
 class MemoryInjector:
@@ -194,6 +198,7 @@ class MemoryInjector:
         plan: Optional[Any] = None,
         actor: Optional[str] = None,
         heard: Optional[Any] = None,
+        seen: Optional[Dict[str, Any]] = None,
     ) -> InjectedMemories:
         """
         Inject memories into prompt
@@ -207,6 +212,8 @@ class MemoryInjector:
                 same sound, recalled by the sound itself, are injected first,
                 and whatever the policy decides about the words -- a sound
                 met again is about this, by what it is
+            seen: A picture being seen (its sight features): the memories of
+                the same thing, recalled by the picture itself, likewise
 
         Returns:
             InjectedMemories with formatted text
@@ -262,7 +269,7 @@ class MemoryInjector:
                 )
                 _warranted, _why = False, "policy_unreachable"
 
-        if not _warranted and heard is None:
+        if not _warranted and heard is None and seen is None:
             logger.debug(f"Query does not warrant memory search — skipping ({_why})")
             return InjectedMemories(
                 formatted_text="",
@@ -284,6 +291,7 @@ class MemoryInjector:
                 min_importance=config.min_importance_score,
                 actor=actor,
                 heard=heard,
+                seen=seen,
             )
             retrieval_time = (datetime.now() - retrieval_start).total_seconds()
 
@@ -348,6 +356,7 @@ class MemoryInjector:
         min_importance: float = 0.5,
         actor: Optional[str] = None,
         heard: Optional[Any] = None,
+        seen: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
         """Retrieve relevant memories, filtering by both similarity and importance.
         
@@ -372,6 +381,11 @@ class MemoryInjector:
             if heard is not None:
                 results = list(await memory_agent.retrieve(
                     strategies=["sound"], heard=heard, actor=actor, limit=max_results))
+            if seen is not None:
+                held = {r.memory_id for r in results}
+                results += [r for r in await memory_agent.retrieve(
+                    strategies=["sight"], seen=seen, actor=actor, limit=max_results)
+                    if r.memory_id not in held]
             if query:
                 success, found = await memory_agent.search_memories(
                     query=query,
@@ -459,6 +473,7 @@ class MemoryInjector:
                     'percept_digest': getattr(result, 'percept_digest', None),
                     # RECALLED BY THE SOUND: how much of what is heard agreed.
                     'heard_match': getattr(result, 'heard_match', None),
+                    'seen_match': getattr(result, 'seen_match', None),
                 })
 
             if len(results) > len(memories):

@@ -6,7 +6,7 @@ A told fact is admitted once, fans out to a belief, and is not admitted twice; a
 malformed fact is refused; two demonstrations become a rule through the
 induction the substrate drains itself. Everything written is removed by id.
 
-Run: ./venv_torin/bin/python3 experiments/SYSTEM-LEARNING-01/experiment.py
+Run: ./venv_lyric/bin/python3 experiments/SYSTEM-LEARNING-01/experiment.py
 """
 from __future__ import annotations
 

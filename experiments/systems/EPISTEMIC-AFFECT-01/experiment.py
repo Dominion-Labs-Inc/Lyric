@@ -18,13 +18,13 @@ Invariant (verified, not assumed): knowledge → emotion → DISPOSITION. Emotio
 rewrites the evidence it read, and the channel is one-directional — so the core
 decision stays evidence-vs-bar, with feeling setting only the bar (disposition).
 
-    PYTHONPATH="$PWD" POSTGRES_PORT=5433 POSTGRES_USER=stefan TORIN_NO_WATCHDOG=1 \
-    ./venv_torin/bin/python3 experiments/systems/EPISTEMIC-AFFECT-01/experiment.py
+    PYTHONPATH="$PWD" POSTGRES_PORT=5433 POSTGRES_USER=stefan LYRIC_NO_WATCHDOG=1 \
+    ./venv_lyric/bin/python3 experiments/systems/EPISTEMIC-AFFECT-01/experiment.py
 """
 from __future__ import annotations
 import os
 for k, v in {"POSTGRES_PORT": "5433", "POSTGRES_USER": "stefan",
-             "POSTGRES_DATABASE": "torinai_db", "TORIN_NO_WATCHDOG": "1"}.items():
+             "POSTGRES_DATABASE": "lyric_db", "LYRIC_NO_WATCHDOG": "1"}.items():
     os.environ.setdefault(k, v)
 import asyncio, contextlib, io, sys, uuid
 from pathlib import Path

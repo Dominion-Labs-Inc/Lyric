@@ -2,7 +2,7 @@
 """
 AI Performance Test Suite
 ==========================
-Comprehensive performance testing for TorinAI cognitive systems:
+Comprehensive performance testing for Lyric cognitive systems:
 - VLM reasoning and generation
 - All reasoning systems (Abstract, Quantum, Proof)
 - Memory operations (storage, retrieval, search)
@@ -14,7 +14,7 @@ Logs all metrics to MySQL via TestBase.
 Usage:
     python3 tests/test_ai_performance_suite.py
 
-Author: Torin AI Team
+Author: Lyric AI Team
 Date: January 14, 2026
 """
 
@@ -826,7 +826,7 @@ Question: Must all A be D? Explain your reasoning step by step."""
 async def main():
     """Main entry point"""
     print("=" * 80)
-    print("TorinAI Performance Test Suite")
+    print("Lyric Performance Test Suite")
     print("=" * 80)
     print()
 

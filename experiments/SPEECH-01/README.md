@@ -67,4 +67,4 @@ as a live buffer presents speech, with room quiet at −60 dBFS around them, bui
 `stimuli/` on first run from a fixed seed. The macOS system sounds stand for sounds that are not
 a voice.
 
-Run (sandbox store): `./venv_torin/bin/python3 experiments/SPEECH-01/experiment.py`
+Run (sandbox store): `./venv_lyric/bin/python3 experiments/SPEECH-01/experiment.py`

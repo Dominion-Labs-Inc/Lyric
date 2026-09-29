@@ -78,4 +78,4 @@ the tests.
 Stimuli: the JFK inaugural sample and frames of the repo's real jellyfish footage. The question
 chains a told fact ("a vex‹nonce› is a mammal") through a held one ("a mammal is an animal").
 
-Run (sandbox store): `./venv_torin/bin/python3 experiments/SENSES-TOGETHER-01/experiment.py`
+Run (sandbox store): `./venv_lyric/bin/python3 experiments/SENSES-TOGETHER-01/experiment.py`

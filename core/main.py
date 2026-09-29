@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-TorinAI Main Entry Point
+Lyric Main Entry Point
 =========================
-Primary initialization and orchestration for TorinAI system
+Primary initialization and orchestration for Lyric system
 
 INITIALIZATION ORDER (model-free: no language model is started):
 1. (retired) — the unified LLM service was removed
@@ -72,12 +72,12 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
         logging.StreamHandler(sys.stdout),
-        logging.FileHandler('logs/torin_main.log')
+        logging.FileHandler('logs/lyric_main.log')
     ]
 )
 
 # Split the one stream into per-concern channels. ADDITIVE: the stdout stream
-# and logs/torin_main.log above are untouched, so anything that greps the main
+# and logs/lyric_main.log above are untouched, so anything that greps the main
 # log still works -- this is a second way to read the same records.
 try:
     from core.observability import channels as _channels
@@ -163,12 +163,12 @@ class ServiceInitializer:
 
 
 # ============================================================================
-# Main TorinAI System Class
+# Main Lyric System Class
 # ============================================================================
 
-class TorinAISystem:
+class LyricSystem:
     """
-    TorinAI Main System Orchestrator
+    Lyric Main System Orchestrator
 
     Manages initialization, coordination, and shutdown of all subsystems
     (model-free — no language model):
@@ -266,7 +266,7 @@ class TorinAISystem:
         # Service initializer
         self.service_init = ServiceInitializer()
 
-        logger.info("TorinAI System initializing...")
+        logger.info("Lyric System initializing...")
 
     async def initialize(self):
         """Initialize all subsystems in proper dependency order"""
@@ -275,7 +275,7 @@ class TorinAISystem:
             return
 
         logger.info("=" * 80)
-        logger.info("TorinAI System Initialization - PRODUCTION MODE")
+        logger.info("Lyric System Initialization - PRODUCTION MODE")
         logger.info("=" * 80)
         logger.info("Initialization Order:")
         logger.info("  2.  Database Systems")
@@ -408,7 +408,7 @@ class TorinAISystem:
 
             logger.info("")
             logger.info("=" * 80)
-            logger.info("✓ TorinAI System Initialization Complete")
+            logger.info("✓ Lyric System Initialization Complete")
             logger.info("=" * 80)
             logger.info(f"Services Initialized: {self.stats['services_initialized']}")
             logger.info(f"Services Failed: {self.stats['services_failed']}")
@@ -480,11 +480,11 @@ class TorinAISystem:
                     message_parts.append(f"*Support:* {', '.join(support_services)}")
 
                 # Add environment info (without sensitive data)
-                env_mode = os.getenv('TORIN_MODE', 'production')
+                env_mode = os.getenv('LYRIC_MODE', 'production')
                 message_parts.append(f"*Environment:* {env_mode.title()}")
 
                 await send_system_notification(
-                    title="TorinAI System Online",
+                    title="Lyric System Online",
                     message="\n".join(message_parts),
                     severity="info",
                     metadata={
@@ -508,10 +508,10 @@ class TorinAISystem:
         """Initialize database systems"""
         # Initialize unified PostgreSQL database
         try:
-            from core.database import TorinUnifiedDatabase
+            from core.database import LyricUnifiedDatabase
 
             logger.info("Initializing PostgreSQL unified database...")
-            self.unified_database = TorinUnifiedDatabase()
+            self.unified_database = LyricUnifiedDatabase()
 
             success = await asyncio.wait_for(
                 self.unified_database.initialize(),
@@ -965,7 +965,7 @@ class TorinAISystem:
         try:
             from core.quantum.quantum_factory import initialize_quantum_computing
 
-            logger.info("🚀 Initializing Torin Quantum Computing Subsystem with REAL QUANTUM HARDWARE")
+            logger.info("🚀 Initializing Lyric Quantum Computing Subsystem with REAL QUANTUM HARDWARE")
             logger.info("  Calling factory function: initialize_quantum_computing()")
 
             async def init_quantum():
@@ -1394,7 +1394,7 @@ class TorinAISystem:
             logger.warning("System already running")
             return
 
-        logger.info("Starting TorinAI services...")
+        logger.info("Starting Lyric services...")
 
         try:
             # Start autonomous coordinator
@@ -1443,7 +1443,7 @@ class TorinAISystem:
         if not self.running:
             await self.start()
 
-        logger.info("TorinAI system running... (Press Ctrl+C to stop)")
+        logger.info("Lyric system running... (Press Ctrl+C to stop)")
         # THE LIVE SENSES ARE ON WHILE IT RUNS: listening and looking all the
         # time, keeping only what is said to it (`core.perception.live`). They
         # start here, with the running substrate, and never with a boot that
@@ -1543,7 +1543,7 @@ class TorinAISystem:
         self._shutdown_in_progress = True
 
         logger.info("=" * 80)
-        logger.info("TorinAI System Shutdown Initiated")
+        logger.info("Lyric System Shutdown Initiated")
         logger.info("=" * 80)
 
         self.running = False
@@ -1634,7 +1634,7 @@ class TorinAISystem:
             try:
                 from core.utils.notification_publisher import send_system_notification
                 await send_system_notification(
-                    title="TorinAI System Stopped",
+                    title="Lyric System Stopped",
                     message="System shutdown completed successfully",
                     severity="info",
                     metadata=self.stats
@@ -1649,7 +1649,7 @@ class TorinAISystem:
                     uptime_str = f"{uptime_hours:.1f}h" if uptime_hours >= 1 else f"{uptime_seconds/60:.1f}m"
 
                     shutdown_message = {
-                        "text": "🛑 *TorinAI System Shutdown*",
+                        "text": "🛑 *Lyric System Shutdown*",
                         "blocks": [
                             {
                                 "type": "header",
@@ -1684,7 +1684,7 @@ class TorinAISystem:
                     logger.warning(f"Failed to send Slack shutdown notification: {e}")
 
             logger.info("=" * 80)
-            logger.info("✓ TorinAI System Shutdown Complete")
+            logger.info("✓ Lyric System Shutdown Complete")
             logger.info("=" * 80)
 
         except Exception as e:
@@ -1730,14 +1730,14 @@ class TorinAISystem:
 # Global Instance
 # ============================================================================
 
-_system: Optional[TorinAISystem] = None
+_system: Optional[LyricSystem] = None
 
 
-def get_system() -> TorinAISystem:
+def get_system() -> LyricSystem:
     """Get global system instance"""
     global _system
     if _system is None:
-        _system = TorinAISystem()
+        _system = LyricSystem()
     return _system
 
 
@@ -1782,7 +1782,7 @@ if __name__ == "__main__":
     runtime_dir.mkdir(exist_ok=True)
 
     # Write PID file for robust process management
-    pid_file = runtime_dir / "torin_main.pid"
+    pid_file = runtime_dir / "lyric_main.pid"
     try:
         with open(pid_file, 'w') as f:
             f.write(str(os.getpid()))

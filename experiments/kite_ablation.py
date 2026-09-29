@@ -15,8 +15,8 @@ the SHAM condition something to control for: if clone-and-restore alone changed
 a result, every other condition would be uninterpretable.
 
 Interventions delete rows and respect foreign keys. They never drop a table.
-The distinction matters: the claim is that Torin lost an acquired competence,
-not that Torin was broken. A condition whose parser, inference engine, model
+The distinction matters: the claim is that Lyric lost an acquired competence,
+not that Lyric was broken. A condition whose parser, inference engine, model
 guard or schema is damaged proves nothing about learning.
 
     python3 experiments/kite_ablation.py
@@ -36,16 +36,16 @@ from typing import Dict, List, Optional
 ROOT = Path(__file__).resolve().parent.parent
 RESULTS = Path(__file__).resolve().parent / "results"
 PG_BIN = Path("/opt/homebrew/opt/postgresql@16/bin")
-SOURCE_DB = os.getenv("POSTGRES_DATABASE", "torinai_db")
+SOURCE_DB = os.getenv("POSTGRES_DATABASE", "lyric_db")
 PG_USER = os.getenv("POSTGRES_USER", "stefan")
 
 #: EVERY CLI CALL BELOW MUST CARRY THIS. `createdb`, `pg_dump` and `psql`
 #: connect to port 5432 when none is given -- the shared instance holding
-#: agentso's tenant databases, whose copy of torinai_db is stale. This script
+#: agentso's tenant databases, whose copy of lyric_db is stale. This script
 #: clones and ablates whole databases, so running it against the wrong instance
 #: both measures the wrong substrate and writes into somebody else's server.
 PG_PORT = os.getenv("POSTGRES_PORT", "5433")
-PYTHON = ROOT / "venv_torin" / "bin" / "python3"
+PYTHON = ROOT / "venv_lyric" / "bin" / "python3"
 DOMAIN = "kite17"
 
 #: Each condition names the intervention applied to its own clone. The SQL is
@@ -137,7 +137,7 @@ def clone(source: str, target: str) -> str:
     """Copy the substrate into a fresh database via dump/restore.
 
     CREATE DATABASE ... TEMPLATE would be faster but requires no other session
-    on the source, which cannot be guaranteed while Torin may be running.
+    on the source, which cannot be guaranteed while Lyric may be running.
     """
     pg("dropdb", "--if-exists", target)
     created = pg("createdb", target)
@@ -193,8 +193,8 @@ def evaluate(condition: str, database: str) -> Dict:
         "POSTGRES_DATABASE": database,
         "POSTGRES_USER": PG_USER,
         "POSTGRES_PORT": PG_PORT,
-        "TORIN_MODEL_POLICY": "strict_model_free",
-        "TORIN_LEARNING_POLICY": "frozen",
+        "LYRIC_MODEL_POLICY": "strict_model_free",
+        "LYRIC_LEARNING_POLICY": "frozen",
     })
     process = subprocess.run(
         [str(PYTHON), str(ROOT / "experiments" / "kite_evaluate.py"),
@@ -216,7 +216,7 @@ def evaluate(condition: str, database: str) -> Dict:
 
 
 def run_condition(name: str, spec: Dict, snapshot: List[Dict]) -> Dict:
-    database = f"torinai_abl_{name.lower()}"
+    database = f"lyric_abl_{name.lower()}"
     print(f"\n=== {name} ({spec['expect']}) ===", flush=True)
     clone(SOURCE_DB, database)
     applied = apply_sql(database, spec["sql"])
@@ -334,7 +334,7 @@ def main() -> int:
 
     if not args.keep_clones:
         for name in CONDITIONS:
-            pg("dropdb", "--if-exists", f"torinai_abl_{name.lower()}")
+            pg("dropdb", "--if-exists", f"lyric_abl_{name.lower()}")
         print("clones dropped")
     return 0
 

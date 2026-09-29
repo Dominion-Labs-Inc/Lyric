@@ -8,10 +8,10 @@ how often it is called.
 - After the lookup finishes, a later call researches again; there is no cache across time.
 - Differences in case and whitespace still count as one phrase.
 
-**Run** (from the TorinAI folder):
+**Run** (from the Lyric folder):
 
 ```
-./venv_torin/bin/python3 experiments/LOOKUP-SINGLEFLIGHT-01/experiment.py
+./venv_lyric/bin/python3 experiments/LOOKUP-SINGLEFLIGHT-01/experiment.py
 ```
 
 The docstring's `scratchpad/bench_lookup_singleflight.py` is an old path.

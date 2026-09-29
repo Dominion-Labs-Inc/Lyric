@@ -207,7 +207,7 @@ Testable acceptance conditions:
    no known remedy is reported, not acted on with a fabricated response.
 5. **Credit only on measured discharge.** A coping action is credited ONLY by a
    real, measured post-action change in fitness/error, filtered by `OutcomeClass`
-   ([[torinai_credit_invariant]]).
+   ([[lyric_credit_invariant]]).
 6. **Valence is a derivative of MEASURED fitness, not of a proxy.** No stand-in
    metric (e.g. task-success alone) substitutes for the fitness terms; if a term is
    unavailable it is excluded and reported, so valence can never be manufactured
@@ -310,7 +310,7 @@ A struggling substrate does FOCUSED work, not less work. This is a hard test
 
 - **No qualia claim.** Functional feeling only: a grounded, persistent, global
   valenced state that matters to the substrate and shapes it. Phenomenal experience
-  is unknowable here and not asserted ([[torinai_computational_interoception]]).
+  is unknowable here and not asserted ([[lyric_computational_interoception]]).
 - **No LLM in the affect loop.** Valence is constructed from the substrate's own
   fitness metrics; no model is consulted. The transferable idea from LLM affect work
   (durable valenced memory + a mood index over retrieval) is adopted structurally in

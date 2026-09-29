@@ -324,8 +324,8 @@ class TargetSystemAdapter(ABC):
     async def initialize_db(self) -> None:
         """Initialize database connection and load persisted state"""
         try:
-            from core.database import TorinUnifiedDatabase
-            self.db = TorinUnifiedDatabase()
+            from core.database import LyricUnifiedDatabase
+            self.db = LyricUnifiedDatabase()
             await self.db.initialize()
             logger.info(f"{self.system_name} chaos adapter database connected")
 

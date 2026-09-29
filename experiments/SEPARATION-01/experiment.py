@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """SEPARATION-01 — staging serves a frozen release, and keeps its runtime, the model and each person's context apart.
 
-The model is taught in development (the sandbox, `torinai_dev`), cut into release 1 and staged. This process is
+The model is taught in development (the sandbox, `lyric_dev`), cut into release 1 and staged. This process is
 staging serving release 1. Where every row landed is read over separate connections to each database, never
 through the database manager under test.
 
@@ -22,7 +22,7 @@ through the database manager under test.
   J  UNTOUCHED nothing refused in the whole run, nothing the frozen release refused; the release is still what was
                cut; development received nothing from staging; the main line is untouched
 
-Run: ./venv_torin/bin/python3 experiments/SEPARATION-01/experiment.py
+Run: ./venv_lyric/bin/python3 experiments/SEPARATION-01/experiment.py
 """
 from __future__ import annotations
 
@@ -36,17 +36,17 @@ import subprocess
 import sys
 from pathlib import Path
 
-os.environ["TORINAI_ENVIRONMENT"] = "staging"
-os.environ["TORINAI_RELEASE"] = "1"
-os.environ["POSTGRES_DATABASE"] = "torinai_dev"
-for k, v in {"POSTGRES_PORT": "5433", "POSTGRES_USER": "stefan", "TORIN_NO_WATCHDOG": "1"}.items():
+os.environ["LYRIC_ENVIRONMENT"] = "staging"
+os.environ["LYRIC_RELEASE"] = "1"
+os.environ["POSTGRES_DATABASE"] = "lyric_dev"
+for k, v in {"POSTGRES_PORT": "5433", "POSTGRES_USER": "stefan", "LYRIC_NO_WATCHDOG": "1"}.items():
     os.environ.setdefault(k, v)
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 from experiments._evidence import RunRecord  # noqa: E402
 
-BASE = "torinai_dev"
+BASE = "lyric_dev"
 STAGING = {"runtime": f"{BASE}_staging_runtime", "model": f"{BASE}_model_v1",
            "user_context": f"{BASE}_staging_user_context", "learning": f"{BASE}_staging_learning"}
 ALICE, BOB = "user:alice:separation01", "user:bob:separation01"
@@ -127,11 +127,11 @@ async def fetch(database: str, sql: str, *args):
 
 
 async def main_line() -> tuple:
-    rows = sum((await rows_in("torinai_db")).values())
+    rows = sum((await rows_in("lyric_db")).values())
     c = await connect("postgres")
     try:
         releases = sorted(r["datname"] for r in await c.fetch(
-            "select datname from pg_database where datname ~ '^torinai_db_model_'"))
+            "select datname from pg_database where datname ~ '^lyric_db_model_'"))
     finally:
         await c.close()
     return rows, releases
@@ -150,7 +150,7 @@ async def main() -> int:
     develop = subprocess.run([sys.executable, str(ROOT / "experiments" / "_develop.py"), "--mark", MARK],
                              capture_output=True, text=True,
                              env={k: v for k, v in os.environ.items()
-                                  if k not in ("TORINAI_ENVIRONMENT", "TORINAI_RELEASE")})
+                                  if k not in ("LYRIC_ENVIRONMENT", "LYRIC_RELEASE")})
     if develop.returncode != 0:
         say_line(f"development phase failed:\n{develop.stderr[-3000:]}")
         return 1

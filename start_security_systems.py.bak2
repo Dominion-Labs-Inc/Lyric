@@ -2,11 +2,11 @@
 """
 Security Systems Service Launcher
 ==================================
-Starts TorinAI security systems as separate background services
+Starts Lyric security systems as separate background services
 
 Uses PortManager to avoid conflicts with existing Dominion Labs services.
 Each system runs independently with its own API endpoint.
-TorinAI can connect to and operate these systems via HTTP interfaces.
+Lyric can connect to and operate these systems via HTTP interfaces.
 
 Existing Dominion Labs Ports (avoided):
 - 8080: Website
@@ -15,8 +15,8 @@ Existing Dominion Labs Ports (avoided):
 - 8206: Flux Image Gen
 - 8300: Model Server
 - 8500: Payment Service
-- 9080: TorinAI Chat
-- 9001: TorinAI External API
+- 9080: Lyric Chat
+- 9001: Lyric External API
 - 6379: Redis
 - 3306: MySQL
 """
@@ -29,7 +29,7 @@ from pathlib import Path
 from typing import List
 from aiohttp import web
 
-# Add TorinAI to path
+# Add Lyric to path
 sys.path.insert(0, str(Path(__file__).parent))
 
 from core.utils.port_manager import get_port_manager
@@ -371,7 +371,7 @@ class SecuritySystemsLauncher:
     async def start_all(self):
         """Start all security systems"""
         logger.info("\n" + "=" * 80)
-        logger.info("STARTING TORINAI SECURITY SYSTEMS")
+        logger.info("STARTING LYRIC SECURITY SYSTEMS")
         logger.info("=" * 80)
         logger.info("Using PortManager to avoid conflicts with Dominion Labs services")
         logger.info("=" * 80 + "\n")
@@ -412,7 +412,7 @@ class SecuritySystemsLauncher:
                 logger.info(f"  • {service.name:20s} http://localhost:{service.port}")
 
             logger.info("\nPort Allocations saved to: data/ports.json")
-            logger.info("\nTorinAI can now connect to and operate these systems!")
+            logger.info("\nLyric can now connect to and operate these systems!")
             logger.info("Press Ctrl+C to stop all services")
             logger.info("=" * 80 + "\n")
 

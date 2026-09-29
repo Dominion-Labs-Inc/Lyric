@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-TorinAI Chaos Engineering Framework
+Lyric Chaos Engineering Framework
 ====================================
 
 Production-grade chaos testing framework for discovering resilience gaps
@@ -21,7 +21,7 @@ Target Systems:
 - Memory Systems
 - Tool Execution
 
-Author: Torin AI Team
+Author: Lyric AI Team
 """
 
 from .types import (

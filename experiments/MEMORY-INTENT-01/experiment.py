@@ -23,7 +23,7 @@ Measured before this ran: intent appeared in 0 of 9,308 memories as a relation
   F  BASELINE    what fraction of the existing record carries each kind of
                  contemporaneous context. Coverage is thin and is reported.
 
-Run: ./venv_torin/bin/python3 experiments/MEMORY-INTENT-01/experiment.py
+Run: ./venv_lyric/bin/python3 experiments/MEMORY-INTENT-01/experiment.py
 """
 from __future__ import annotations
 

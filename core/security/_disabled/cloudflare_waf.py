@@ -48,7 +48,7 @@ class CloudflareWAFManager:
         }
 
         # SSL verification (secure by default)
-        verify_env = os.getenv("CLOUDFLARE_VERIFY_SSL", os.getenv("TORINAI_CLOUDFLARE_VERIFY_SSL", "true"))
+        verify_env = os.getenv("CLOUDFLARE_VERIFY_SSL", os.getenv("LYRIC_CLOUDFLARE_VERIFY_SSL", "true"))
         self.verify_ssl = str(verify_env).strip().lower() not in {"0", "false", "no", "off"}
         if not self.verify_ssl:
             self.logger.warning(
@@ -103,7 +103,7 @@ class CloudflareWAFManager:
         waf_rule = WAFRule(
             rule_id=rule_id,
             zone_id=self.zone_id,
-            description=f"TorinAI Block: {reason}",
+            description=f"Lyric Block: {reason}",
             expression=expression,
             action=mode,
             priority=1,  # High priority
@@ -212,7 +212,7 @@ class CloudflareWAFManager:
                     "target": "country",
                     "value": country_code.upper()
                 },
-                "notes": f"TorinAI: {reason}"
+                "notes": f"Lyric: {reason}"
             }
 
             async with aiohttp.ClientSession(connector=connector) as session:
@@ -280,7 +280,7 @@ class CloudflareWAFManager:
         waf_rule = WAFRule(
             rule_id=rule_id,
             zone_id=self.zone_id,
-            description=f"TorinAI Rate Limit: {requests_per_minute}/min",
+            description=f"Lyric Rate Limit: {requests_per_minute}/min",
             expression=expression,
             action=action,
             priority=10,
@@ -323,7 +323,7 @@ class CloudflareWAFManager:
         waf_rule = WAFRule(
             rule_id=rule_id,
             zone_id=self.zone_id,
-            description=f"TorinAI Custom: {description}",
+            description=f"Lyric Custom: {description}",
             expression=expression,
             action=action,
             priority=priority,
@@ -506,7 +506,7 @@ class CloudflareWAFManager:
         payload = {
             "urls": urls,
             "configurations": [{"target": "ip", "value": ip} for ip in allowed_ips],
-            "description": "TorinAI Zone Lockdown",
+            "description": "Lyric Zone Lockdown",
             "paused": False
         }
         

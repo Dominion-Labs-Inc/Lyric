@@ -92,4 +92,4 @@ and "Is the substrate halted?".
 | H. Nothing | reading wrote nothing |
 | I. Main | the main model's store is untouched |
 
-Run: `./venv_torin/bin/python3 experiments/SHAPES-LEARN-03/experiment.py` (sandbox; empties it first).
+Run: `./venv_lyric/bin/python3 experiments/SHAPES-LEARN-03/experiment.py` (sandbox; empties it first).

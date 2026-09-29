@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Start TorinAI with Memory Monitoring
+Start Lyric with Memory Monitoring
 =====================================
 Starts the autonomous system and monitors memory storage in real-time
 """
@@ -10,7 +10,7 @@ from pathlib import Path
 from datetime import datetime
 import time
 
-# Add TorinAI to path
+# Add Lyric to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import aiomysql
@@ -44,7 +44,7 @@ class MemoryMonitor:
                 port=MYSQL_PORT,
                 user=MYSQL_USER,
                 password=MYSQL_PASSWORD,
-                db="torinai_thinking_hot"
+                db="lyric_thinking_hot"
             )
 
             async with conn.cursor() as cursor:
@@ -66,7 +66,7 @@ class MemoryMonitor:
                 port=MYSQL_PORT,
                 user=MYSQL_USER,
                 password=MYSQL_PASSWORD,
-                db="torinai_thinking_hot"
+                db="lyric_thinking_hot"
             )
 
             async with conn.cursor() as cursor:
@@ -92,7 +92,7 @@ class MemoryMonitor:
         print("Memory Storage Monitor")
         print("="*80)
         print(f"Started: {datetime.now().isoformat()}")
-        print(f"Monitoring: torinai_thinking_hot.memory_hot")
+        print(f"Monitoring: lyric_thinking_hot.memory_hot")
         print("="*80)
 
         # Get initial count
@@ -162,7 +162,7 @@ async def start_autonomous_system():
 async def main():
     """Main entry point"""
     print("\n" + "="*80)
-    print("TorinAI System Startup with Memory Monitoring")
+    print("Lyric System Startup with Memory Monitoring")
     print("="*80)
     print("\nThis script will:")
     print("  1. Start the autonomous coordinator")

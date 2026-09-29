@@ -8,7 +8,7 @@ user's; a job's failure comes back as an error, never as a result; a one-shot
 schedule fires. A separate, unpersisted queue is used for the work leg so
 nothing reaches the durable queue the live substrate restores from.
 
-Run: ./venv_torin/bin/python3 experiments/SYSTEM-QUEUE-01/experiment.py
+Run: ./venv_lyric/bin/python3 experiments/SYSTEM-QUEUE-01/experiment.py
 """
 from __future__ import annotations
 

@@ -45,7 +45,7 @@ a sweep checks without counting a resolution attempt.
 ## Run
 
 ```
-./venv_torin/bin/python3 experiments/SYSTEM-LEARNING-01/experiment.py
+./venv_lyric/bin/python3 experiments/SYSTEM-LEARNING-01/experiment.py
 ```
 
 Its probe facts, demonstrations, rules, domain, and strategy/retry arms are removed by id. Each run writes

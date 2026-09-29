@@ -26,7 +26,7 @@ too, unless it was read and found not to be memory (`NOT_MEMORY`). Scripts that 
 listed, not failed: they are run by hand, not by the substrate. And every hand-off of a memory to the memory agent
 must say where it came from (`origin=`) and never name its owner: the memory agent decides whose it is.
 
-Run:  ./venv_torin/bin/python3 scripts/separation_map.py [--all]
+Run:  ./venv_lyric/bin/python3 scripts/separation_map.py [--all]
 """
 from __future__ import annotations
 

@@ -66,7 +66,7 @@ untested, and reporting zero would hand the constitution a measured doubt nobody
 ## Run
 
 ```
-./venv_torin/bin/python3 experiments/RULE-EVIDENCE-01/experiment.py
+./venv_lyric/bin/python3 experiments/RULE-EVIDENCE-01/experiment.py
 ```
 
 Needs Postgres, not a full substrate boot. Every probe rule it creates is forgotten

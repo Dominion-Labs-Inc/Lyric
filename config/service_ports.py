@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 """
-Service Port Configuration (TorinAI)
-Centralized port configuration for all TorinAI services
+Service Port Configuration (Lyric)
+Centralized port configuration for all Lyric services
 Last updated: December 30, 2025
 """
 
 # ============================================================================
-# CORE TORINAI SERVICES (Autonomous System)
+# CORE LYRIC SERVICES (Autonomous System)
 # ============================================================================
-# Main TorinAI autonomous system API
+# Main Lyric autonomous system API
 
 # Core Services
-TORIN_API_PORT = 8007           # Main TorinAI API (autonomous system, legacy compatibility)
+LYRIC_API_PORT = 8007           # Main Lyric API (autonomous system, legacy compatibility)
 # LLM & AI Services
 OLLAMA_PORT = 11434             # Ollama LLM server (local inference)
 SLACK_WEBHOOK_PORT = 8005       # Slack webhook receiver (notifications)
@@ -20,9 +20,9 @@ WEBSOCKET_PORT = 8009           # WebSocket server (real-time updates)
 # ============================================================================
 # APPLICATION SERVICES (Chat Apps & APIs)
 # ============================================================================
-# iOS App (TorinChat) and Employee Portal (TorinPlus)
-IOS_API_PORT = 8010             # Frontend server - Public iOS app (TorinChat)
-BACKEND_API_PORT = 8011         # Backend server - Employee portal admin (TorinPlus)
+# iOS App (LyricChat) and Employee Portal (LyricPlus)
+IOS_API_PORT = 8010             # Frontend server - Public iOS app (LyricChat)
+BACKEND_API_PORT = 8011         # Backend server - Employee portal admin (LyricPlus)
 
 # Legacy/Additional Ports
 BACKEND_PORT = 8000             # Legacy backend port
@@ -57,7 +57,7 @@ def get_service_url(host: str, port: int) -> str:
 def get_all_ports() -> dict:
     """Get dictionary of all configured service ports"""
     ports = {
-        "torin_api": TORIN_API_PORT,
+        "lyric_api": LYRIC_API_PORT,
         "ollama": OLLAMA_PORT,
         "slack_webhook": SLACK_WEBHOOK_PORT,
         "websocket": WEBSOCKET_PORT,
@@ -83,9 +83,9 @@ def get_all_ports() -> dict:
 
 
 if __name__ == "__main__":
-    print("TorinAI Service Port Configuration")
+    print("Lyric Service Port Configuration")
     print("=" * 60)
-    print(f"Main API Port:        {TORIN_API_PORT}")
+    print(f"Main API Port:        {LYRIC_API_PORT}")
     print(f"Ollama LLM Port:      {OLLAMA_PORT}")
     print(f"Slack Webhook Port:   {SLACK_WEBHOOK_PORT}")
     print(f"WebSocket Port:       {WEBSOCKET_PORT}")
@@ -100,4 +100,4 @@ if __name__ == "__main__":
         print("\nNo port conflicts detected!")
 
     print("\nService URLs (localhost):")
-    print(f"  TorinAI API:  http://localhost:{TORIN_API_PORT}")
+    print(f"  Lyric API:  http://localhost:{LYRIC_API_PORT}")

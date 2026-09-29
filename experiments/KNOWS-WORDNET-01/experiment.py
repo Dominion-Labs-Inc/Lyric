@@ -24,7 +24,7 @@ neither is meaningful alone.
 
 Nothing is taught by this experiment. It only asks.
 
-    ./venv_torin/bin/python3 experiments/KNOWS-WORDNET-01/experiment.py [N]
+    ./venv_lyric/bin/python3 experiments/KNOWS-WORDNET-01/experiment.py [N]
 """
 import asyncio
 import contextlib

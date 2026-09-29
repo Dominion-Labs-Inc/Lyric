@@ -57,7 +57,7 @@ something that stopped.
 ## Run
 
 ```
-./venv_torin/bin/python3 experiments/THREAT-SENSE-01/experiment.py
+./venv_lyric/bin/python3 experiments/THREAT-SENSE-01/experiment.py
 ```
 
 Runs a LIVE substrate, halts it on purpose in section F and resumes it, and deletes the

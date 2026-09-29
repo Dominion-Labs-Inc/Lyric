@@ -163,7 +163,7 @@ def test_the_freeze_records_what_may_and_may_not_be_repaired():
 
     frozen = json.loads((EDU12 / "FROZEN.json").read_text())
     assert frozen["freeze_id"].startswith("EDU-12_S0_ADMISSIBLE")
-    assert "may not expand Torin's cognitive implementation" in frozen["rule"]
+    assert "may not expand Lyric's cognitive implementation" in frozen["rule"]
 
     # A RE-FREEZE MUST BE DELIBERATE AND TRACEABLE. The guard failing is what
     # is supposed to happen when the substrate changes; quietly updating the

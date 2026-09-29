@@ -16,7 +16,7 @@ Platform Support:
 - Windows: Support via clip.exe, PowerShell, native notifications
 - Fallback: pyperclip library for clipboard, logging for notifications
 
-Author: Torin AI Team
+Author: Lyric AI Team
 """
 
 import logging

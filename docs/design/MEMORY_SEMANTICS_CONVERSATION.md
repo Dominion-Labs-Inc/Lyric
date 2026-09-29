@@ -70,10 +70,10 @@ misdescribe their own file** — that is itself one of the defects below.
 | `autonomous_coordinator` | **the orchestra.** Nothing happens without it. | 10,738 lines; `AutonomousCoordinator` itself declares 133 methods. `main.py` hands it learning, ASI self-improvement, intelligence, governance, health, recovery, proof engine, agent coordinator, research. |
 | the substrate | knowledge and inference, spread across four folders | `semantics` (language), `reasoning` (inference, planning, Z3), `learning` (induction, grounding, authority), `domain` (concepts, transfer) |
 | `unified_llm` | **the inference service** — one model, one queue, one place where device, timeout, prompts and logging live | Owns the runtime: attaches to a running `llama-server` or loads the GGUF in-process (*"a 25GB model loaded twice does not fit on this machine"*). Every call becomes an `_InferenceJob`; the single `_inference_worker` is *"the ONLY code that ever touches the Llama object"*, so the loop stays free for tool calls while the GPU is busy. `InferenceSpeedTracker` keeps an EWMA of tokens/sec for dynamic timeouts. **Its file header describes only the model and is stale** — see defect 08. |
-| the model | a reference the coordinator holds and may consult | `coordinator.py:446` — `self.llm = self.config.get("llm_brain")  # Torin will pass itself`, above the comment *"Its absence is a normal operating state, not a degraded one."* |
+| the model | a reference the coordinator holds and may consult | `coordinator.py:446` — `self.llm = self.config.get("llm_brain")  # Lyric will pass itself`, above the comment *"Its absence is a normal operating state, not a degraded one."* |
 
 **The model is not the brain.** Before the substrate-first change it was the
-centre of the architecture; `llm_brain` is now a slot Torin passes *itself* into.
+centre of the architecture; `llm_brain` is now a slot Lyric passes *itself* into.
 Anything still written as if the model were the centre is legacy, not design.
 
 ### One faculty per job
@@ -928,7 +928,7 @@ Two further points:
 
 - What is saved is `{tool_results, epistemic_mutations}` — iteration state of
   the execution loop. It is not substrate state: no rules, no concepts, no
-  bindings, no reasoning record. Restoring one would not restore Torin to
+  bindings, no reasoning record. Restoring one would not restore Lyric to
   anything.
 - `checkpoint_manager`'s DEFAULT directory `data/checkpoints/` is empty and
   always has been; the only real user overrides it. The health entry
@@ -952,7 +952,7 @@ warm" were the same reading. Now counted; verified 0 → 2 for two real loads.
 
 ## Substrate capability vs model scaffolding — the reasoning folder
 
-The question this answers: which of these 21 files exist because Torin reasons,
+The question this answers: which of these 21 files exist because Lyric reasons,
 and which exist because a language model needed help iterating? Measured, not
 inferred — LLM call sites counted per file, and the two execution paths compared
 structurally.
@@ -1097,7 +1097,7 @@ prompts no longer ask for a self-rating; the two fabricating fallbacks are gone.
 Quality metrics are computed over derived conclusions only. Derived outranks
 proposed as the PRIMARY sort key, not by arithmetic accident. `origin` travels
 into memory with the conclusion, so recall cannot hand a suggestion back as
-something Torin concluded.
+something Lyric concluded.
 
 Proposals are RETAINED, not filtered out — a model may propose. Applying the
 derived thresholds to a proposal would have deleted the model path silently
@@ -1125,7 +1125,7 @@ The third missing supplier in the execution chain, found while tracing what a
 binding would bind TO.
 
 `tool_registry.project_capabilities()` exists and is complete. Its docstring
-states the purpose exactly: *"The concept graph knew about operators Torin had
+states the purpose exactly: *"The concept graph knew about operators Lyric had
 LEARNED and nothing about the ones it could already perform, so cross-domain
 grounding could recognise an unfamiliar situation as a learned rule but never as
 something there was already a tool for."* It enumerates eager AND lazy tools,
@@ -1203,7 +1203,7 @@ The IDENTICAL result — same answer, same confidence, the same Z3 refutation
 proof — was recorded when reached through SYMBOLIC and dropped when reached
 through AUTO. Only the door differed.
 
-AUTO is the default and the substrate-first mode. So everything Torin proved for
+AUTO is the default and the substrate-first mode. So everything Lyric proved for
 itself through the normal path was forgotten, while everything a model produced
 was remembered. Survivorship bias aimed squarely at the substrate: anything
 learning from that record would conclude the model was the more productive
@@ -1694,14 +1694,14 @@ as premises. Before the fix those columns read 3 (the hardcoded list) and 0.
 
 `_substrate_first` was called inside `if request.mode == ReasoningMode.AUTO`.
 Every other mode — SYMBOLIC, NEURAL, HYBRID, NEURO_SYMBOLIC, ABSTRACT,
-CROSS_DOMAIN — went straight to `run_mode()` and never asked whether Torin could
+CROSS_DOMAIN — went straight to `run_mode()` and never asked whether Lyric could
 represent the input itself.
 
 So naming a mode was, without the caller knowing it, **asking for the substrate
 to be skipped**. "Substrate-first" described one of seven routes rather than the
 architecture, and six of the seven were model-first.
 
-**Whether Torin can settle something from its own rules is not a routing
+**Whether Lyric can settle something from its own rules is not a routing
 preference.** It is the first question, and the answer does not depend on what
 the caller guessed the work would need. `mode` now says only what to do WHEN THE
 SUBSTRATE CANNOT SETTLE IT — AUTO meaning "choose for me", the others naming the
@@ -1709,7 +1709,7 @@ fallback. It never means "do not ask".
 
 Nothing is lost by asking first: `_substrate_first` returns None the moment
 deterministic formalization fails and probes only the model-free formalizers, so
-an input Torin cannot read costs one failed parse before the requested mode runs
+an input Lyric cannot read costs one failed parse before the requested mode runs
 exactly as before.
 
 **Verified — the same settleable query through all seven modes:**
@@ -1759,8 +1759,8 @@ implemented; nine of them unaskable.
 2. `ReasoningRequest.kinds: List[ReasoningType]` — a caller names kinds of
    thinking. Empty means "read it from the query".
 3. `_reason_by_kind()` runs **after `_substrate_first` and before any execution
-   route**. That order IS the architecture: what Torin can prove, then what
-   Torin can derive, then what a model can propose. It returns None — not an
+   route**. That order IS the architecture: what Lyric can prove, then what
+   Lyric can derive, then what a model can propose. It returns None — not an
    empty result — when no kind applies, so "no kind fits this" stays
    distinguishable from "a kind ran and found nothing"; only the first should
    reach a model.
@@ -1960,7 +1960,7 @@ about wiring, and a fix verified only this way would pass with the fix reverted:
 FIXED.** Found by the persistence test. `_capture_reasoning_memory` tags with
 `mode_used`, the execution ROUTE, so every kind-derived conclusion was stored as
 `"abstract"`: a causal derivation and a spatial one were indistinguishable in the
-record, and nothing could later ask what Torin had concluded causally. The kind
+record, and nothing could later ask what Lyric had concluded causally. The kind
 is now tagged alongside the route.
 
 ### Does reasoning survive a restart? Yes — tested with separate processes.
@@ -2570,7 +2570,7 @@ repository contradicted it outright.
 Raised because a stale comment said otherwise, and the correction matters for
 how substrate execution attributes what it observes.
 
-**One instance, one user.** TorinAI runs as a single instance behind one
+**One instance, one user.** Lyric runs as a single instance behind one
 fingerprint-guarded door. Multi-user isolation is not a concern here, and an
 earlier reading that framed the global binding registry as a data-isolation risk
 was answering a question this deployment does not ask.
@@ -2686,7 +2686,7 @@ no actor. A world registered for one user is the world every user acts in.
 
 Internal work must NOT be scoped to a user. Health monitoring, security auditing
 and the idle loops are the substrate's own cognition and their memories belong
-to Torin, not to whoever happened to be connected. `TaskSource` already draws
+to Lyric, not to whoever happened to be connected. `TaskSource` already draws
 that line, so the rule is available: user-sourced work is actor-scoped, the
 substrate's own work is not.
 
@@ -2706,11 +2706,11 @@ and every button moves a real subsystem.
 The dashboard is a native SwiftUI app in its OWN process; the controllable
 systems are live objects inside the running substrate's process. Swift cannot
 call a method on an object it does not hold. The existing app already crosses
-this boundary through Python + Postgres (`torin-feed --json`), so control uses
+this boundary through Python + Postgres (`lyric-feed --json`), so control uses
 the same shape:
 
-    STATUS   substrate --(loop)--> unified.system_control_status --> torin-systems --status --> app
-    CONTROL  app --> torin-systems --control --> unified.system_control_commands --(loop)--> substrate acts
+    STATUS   substrate --(loop)--> unified.system_control_status --> lyric-systems --status --> app
+    CONTROL  app --> lyric-systems --control --> unified.system_control_commands --(loop)--> substrate acts
 
 Nothing is simulated. A button writes a command row; the substrate, which holds
 the objects, drains it on its loop and calls the real `start_monitoring` /
@@ -2728,14 +2728,14 @@ the objects, drains it on its loop and calls the real `start_monitoring` /
   turning, not a re-resolved singleton.
 - Two tables: `system_control_commands` (queue) and `system_control_status`
   (current state per system).
-- `torin-systems` — the CLI the app shells out to: `--status` and
+- `lyric-systems` — the CLI the app shells out to: `--status` and
   `--control <system> <action>`.
 - `core/main.py` — `_system_control_loop`, launched with the servers, publishing
   status and draining commands every 2s off the live objects.
 - `desktop/src/Systems.swift` + a tab strip in `App.swift`: Logs / Monitoring /
   Security. Coloured dots (green running, yellow stopped, blue always-on gate,
   grey absent), Stop/Restart/Start per controllable system, enabled by actual
-  state. Compiled into `TorinAI Dashboard.app`.
+  state. Compiled into `Lyric Dashboard.app`.
 
 ### Honest by construction
 
@@ -2750,8 +2750,8 @@ status dot and NO buttons rather than a control that could not do anything.
     full loop:  enqueue 'start' -> substrate drains -> stopped -> running,
                 command recorded done, status published running
     gates and unknown systems refuse with a reason
-    torin-systems --status -> 8 systems across monitoring + security
-    torin-systems --control -> real pending row queued
+    lyric-systems --status -> 8 systems across monitoring + security
+    lyric-systems --control -> real pending row queued
     whole Swift app compiles and builds to the .app
 
 Status when the substrate is DOWN reads `absent`/stale-with-age, which is the
@@ -2767,7 +2767,7 @@ subprocess and waited on it synchronously on the main actor, every 2s. Moved to
 a detached task; only the parsed result touches main. A `refreshing` guard drops
 a tick if the previous one has not returned, so a slow read cannot pile up.
 
-**The subprocess cost 9.13 seconds.** `torin-systems` imported
+**The subprocess cost 9.13 seconds.** `lyric-systems` imported
 `core.database`, which pulls in the whole cognitive stack -- torch,
 transformers, the model runtime -- measured at 9.78s just to import, for a query
 that needs none of it. Rewritten to connect with `asyncpg` directly, reading the
@@ -2811,7 +2811,7 @@ Now **SUBSTRATE / SYSTEM / SECURITY / HEALTH**, decided by the owner:
 Changed in the routing AUTHORITY (`core/observability/channels.py`) so every
 reader inherits it, plus the panel metadata and the Swift enum/colors/grid.
 
-**A hardcoded list defeated it, and had to be found by running it.** `torin-feed`
+**A hardcoded list defeated it, and had to be found by running it.** `lyric-feed`
 had `("tasks", "security", "system")` baked in rather than reading
 `ALL_CHANNELS`, so the routing change did not reach the panels until that was
 fixed -- the same second-authority defect that recurs throughout this document.
@@ -2835,7 +2835,7 @@ a substrate subsystem. Built.
 
 ### What it is
 
-`core/guardian/supervisor.py` + `torin-guardian` — a separate process that
+`core/guardian/supervisor.py` + `lyric-guardian` — a separate process that
 constructs and RUNS the monitoring and security systems, owns their control
 loop, and is meant to start before the substrate and outlive it. The thing that
 protects a system must be more durable than the thing it protects.
@@ -2862,10 +2862,10 @@ substrate fallback on its own, by the heartbeat going stale.
 
 ### Always-on
 
-`config/org.dominionlabs.torin.guardian.plist` + `torin-guardian-install` — a
+`config/org.dominionlabs.lyric.guardian.plist` + `lyric-guardian-install` — a
 launchd agent with `RunAtLoad` and `KeepAlive`, so the guardian starts at boot
 and relaunches if it ever exits. That is what makes "daemon" real rather than "a
-script someone ran". Run `./torin-guardian-install` once.
+script someone ran". Run `./lyric-guardian-install` once.
 
 ### Verified against the real system
 
@@ -2891,7 +2891,7 @@ Not the guardian, and not fixed here -- recorded so they are not rediscovered:
 
 ### What this changes for the dashboard
 
-Once the guardian runs (install it, or launch `./torin-guardian`), the
+Once the guardian runs (install it, or launch `./lyric-guardian`), the
 Monitoring and Security tabs' Start/Stop/Restart work whether the substrate is up
 or down -- because the objects live in the guardian, and the guardian is always
 on. The tabs already read the same `system_control_status` table; nothing in the
@@ -2906,20 +2906,20 @@ neither the guardian nor the substrate had run since the table was created or
 cleared. The tabs showed only PUBLISHED status, so a cold start looked broken.
 
 The system list is static -- it is the registry -- so the tabs can always show
-the eight systems and their off state. `torin-systems --status` now falls back
+the eight systems and their off state. `lyric-systems --status` now falls back
 to the registry, marked `absent`, when the status table is empty; live status
 overrides it the moment anything publishes.
 
 The catch was cost: the registry lives in `core.health.system_control`, and
 importing it the normal way pulls in `core/__init__` -- the whole stack, 9.75s.
 So it is loaded IN ISOLATION (SourceFileLoader, registered in `sys.modules` so
-its frozen dataclass resolves), the same trick torin-dash uses for channels.py.
+its frozen dataclass resolves), the same trick lyric-dash uses for channels.py.
 Its module-level imports are stdlib only, so this stays at 0.10s.
 
 Verified: nothing running -> all 8 listed absent (0.10s); guardian running -> 5
 flip to running; guardian stopped -> still all 8, never blank.
 
-Also confirmed the logs were never broken -- `torin-feed` returns all four
+Also confirmed the logs were never broken -- `lyric-feed` returns all four
 channels populated (substrate/system/security/health). The blank the report
 referred to was the Monitoring tab's empty status table, now fixed.
 
@@ -2927,7 +2927,7 @@ referred to was the Monitoring tab's empty status table, now fixed.
 
 ### Logs blank in the app — a stale build, not a data fault (2026-08-25)
 
-The Logs panes were empty while `torin-feed --json` returned all four channels
+The Logs panes were empty while `lyric-feed --json` returned all four channels
 populated from the CLI (substrate 30, system 2095, security 322, health 130,
 all fresh). Data path fine; the app binary was stale.
 

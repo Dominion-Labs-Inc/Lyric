@@ -38,7 +38,7 @@ deleted (measured: the first run left exactly that row behind).
 ## Run
 
 ```
-./venv_torin/bin/python3 experiments/SYSTEM-BELIEFS-01/experiment.py
+./venv_lyric/bin/python3 experiments/SYSTEM-BELIEFS-01/experiment.py
 ```
 
 Everything written — beliefs, the known unknowns, the grounding memories, the probe domain — is removed by id.

@@ -18,10 +18,10 @@ it asked about.
   G  NOTHING    reading wrote nothing
   H  MAIN       the main model's store is untouched
 
-Runs in the SANDBOX (`torinai_dev`), emptied first by `scripts/reset_dev_store.py`. What it leaves is kept: both
+Runs in the SANDBOX (`lyric_dev`), emptied first by `scripts/reset_dev_store.py`. What it leaves is kept: both
 lessons, and the conversation remembered.
 
-Run: ./venv_torin/bin/python3 experiments/SHAPES-LEARN-04/experiment.py
+Run: ./venv_lyric/bin/python3 experiments/SHAPES-LEARN-04/experiment.py
 """
 from __future__ import annotations
 
@@ -31,9 +31,9 @@ import subprocess
 import sys
 from pathlib import Path
 
-os.environ.setdefault("POSTGRES_DATABASE", "torinai_dev")
+os.environ.setdefault("POSTGRES_DATABASE", "lyric_dev")
 for k, v in {"POSTGRES_PORT": "5433", "POSTGRES_USER": "stefan",
-             "TORIN_NO_WATCHDOG": "1"}.items():
+             "LYRIC_NO_WATCHDOG": "1"}.items():
     os.environ.setdefault(k, v)
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
@@ -98,7 +98,7 @@ def check(name, ok, detail=""):
 async def main_store_rows() -> int:
     """Rows in the main model's store, counted over its own connection."""
     import asyncpg
-    c = await asyncpg.connect(host="localhost", port=5433, user="stefan", database="torinai_db")
+    c = await asyncpg.connect(host="localhost", port=5433, user="stefan", database="lyric_db")
     try:
         n = 0
         for t in await c.fetch(
@@ -116,8 +116,8 @@ async def main() -> int:
     db = get_database_manager()
     await db.initialize()
     where = await db.execute_query("SELECT current_database() AS d", (), fetch_one=True)
-    check("the run is in the sandbox", where["d"] == "torinai_dev", f"connected to {where['d']}")
-    if where["d"] != "torinai_dev":
+    check("the run is in the sandbox", where["d"] == "lyric_dev", f"connected to {where['d']}")
+    if where["d"] != "lyric_dev":
         return 1
     import contextlib
     import io
@@ -152,7 +152,7 @@ async def _talk(conversation, sentences):
         reply = type(conversation).say(understanding)
         replies.append(reply)
         say_line(f"    you>   {sentence}")
-        say_line(f"    torin> {reply}".replace("\n", "\n           "))
+        say_line(f"    lyric> {reply}".replace("\n", "\n           "))
     return replies
 
 

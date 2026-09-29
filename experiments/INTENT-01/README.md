@@ -11,7 +11,7 @@
   key, so it cannot collapse into the conversation's intent (the flat-key trap);
 - the **content/shape split** holds: the substrate-wide view carries no actor and no content;
 - the **outcome reconciles** onto the intent (meant-vs-happened, for learning);
-- it **survives a restart** — a separate `./venv_torin/bin/python3` process reads it all back;
+- it **survives a restart** — a separate `./venv_lyric/bin/python3` process reads it all back;
 - **forgetting the actor** removes content and continuity while the anonymous shape (the lesson)
   survives.
 
@@ -19,10 +19,10 @@ The restart check spawns a fresh interpreter, so persistence is proven across a 
 not asserted. The experiment uses a unique actor per run and deletes its own rows at the end, so it is
 repeatable and leaves the tables as it found them.
 
-**Run** (from the TorinAI folder):
+**Run** (from the Lyric folder):
 
 ```
-./venv_torin/bin/python3 experiments/INTENT-01/experiment.py
+./venv_lyric/bin/python3 experiments/INTENT-01/experiment.py
 ```
 
 **Results.** Every run is saved in `results/` (JSON plus a `.md` summary). Latest: 2026-09-16, **14/14**

@@ -66,4 +66,4 @@ scale are what cover it.
 **What it leaves.** The sandbox keeps both lessons and the conversation, remembered. Nothing is cleaned up, because
 that is the point.
 
-Run: `./venv_torin/bin/python3 experiments/SHAPES-LEARN-04/experiment.py` (empties the sandbox first).
+Run: `./venv_lyric/bin/python3 experiments/SHAPES-LEARN-04/experiment.py` (empties the sandbox first).

@@ -4,7 +4,7 @@
   "architecture_fingerprint": "18ee0bcbcda572202b01d33ab4ded496fd5e5d4f42201b8ba39660fb320ffd47",
   "substrate_files": 285,
   "baseline": "manifest.json (first admissible S0)",
-  "rule": "During the frozen educational phase, failures may repair the EXPERIMENT but may not expand Torin's cognitive implementation.",
+  "rule": "During the frozen educational phase, failures may repair the EXPERIMENT but may not expand Lyric's cognitive implementation.",
   "may_be_repaired": [
     "an exam that leaks an answer",
     "a harness that bypasses the production ingress",
@@ -12,12 +12,12 @@
     "a database or process state that does not reset"
   ],
   "may_not_be_repaired": [
-    "Torin cannot learn percentages",
-    "Torin cannot synthesise programs",
-    "Torin cannot parse a legitimate held-out construction",
-    "Torin cannot transfer a concept"
+    "Lyric cannot learn percentages",
+    "Lyric cannot synthesise programs",
+    "Lyric cannot parse a legitimate held-out construction",
+    "Lyric cannot transfer a concept"
   ],
-  "why": "Repairing a cognitive capability mid-experiment destroys the distinction between 'Torin learned' and 'we upgraded Torin while teaching it'. A capability Torin cannot acquire through education IS the result.",
+  "why": "Repairing a cognitive capability mid-experiment destroys the distinction between 'Lyric learned' and 'we upgraded Lyric while teaching it'. A capability Lyric cannot acquire through education IS the result.",
   "supersedes": {
     "freeze_id": "EDU-12_S0_ADMISSIBLE_08",
     "fingerprint": "c3e29f0362a92c073b6484c33a78c1ec1c373fcafb579a2e32ec3fe951d54bb7",
@@ -27,7 +27,7 @@
   "change": {
     "what": "Planning outcomes are named: PROVED_PLAN / CONDITIONAL_PLAN / NO_PROVED_PLAN_WITHIN_BOUND / UNREACHABLE, read off status and guarantee together, so a plan that computed every value it needs and one that will not know its result until it runs stop being the same answer.",
     "effect": "A learned program runs end to end against a real world through real tools -- copy_file and run_python -- over a file the substrate has never read. Planned blind (the plan carries pending_read and pending_multiply, not numbers), executed for real, each step binding what the step before it actually produced. 17 -> TEXT(17) -> NUMBER(17) -> PRODUCT(34) -> a file on disk holding 34. Zero model calls, and the plan survives a restart carrying only serialisable data because the bindings are recoverable from the world rather than remembered.",
-    "unlocked": "Torin can construct and execute programs whose intermediate values do not exist until earlier steps actually run. The negative control holds the line: a file containing `hello` makes the parse tool succeed and the world refuse, the rule is CONTRADICTED, and the multiply that would have consumed it refuses by naming the precondition that does not hold -- no value is invented to keep going.",
+    "unlocked": "Lyric can construct and execute programs whose intermediate values do not exist until earlier steps actually run. The negative control holds the line: a file containing `hello` makes the parse tool succeed and the world refuse, the rule is CONTRADICTED, and the multiply that would have consumed it refuses by naming the precondition that does not hold -- no value is invented to keep going.",
     "also_repaired": [
       "rule_store.validate kept its own copy of 'did the world do what the rule predicted' and it had drifted to a subset test, so EVERY rule whose output the world supplies was REFUTED by held-out evidence of it working. One owner now: rule_induction.derives / contradicted_by",
       "effect_verification judged a prediction naming no particular value by exact membership, so 'reading produces some text' was contradicted by text appearing. Such a prediction is now checked against what CHANGED, and is UNKNOWN rather than confirmed where the prior world was not supplied",

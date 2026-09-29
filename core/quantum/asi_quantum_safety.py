@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 ASI Safety Quantum Integration
-Integrates quantum computing capabilities with Torin's ASI Safety framework
+Integrates quantum computing capabilities with Lyric's ASI Safety framework
 """
 
 import asyncio

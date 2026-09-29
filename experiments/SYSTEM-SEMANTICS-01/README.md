@@ -22,7 +22,7 @@ with this experiment's provenance and every row that cites one.
 ## Run
 
 ```
-./venv_torin/bin/python3 experiments/SYSTEM-SEMANTICS-01/experiment.py
+./venv_lyric/bin/python3 experiments/SYSTEM-SEMANTICS-01/experiment.py
 ```
 
 Everything written is removed by id. Each run writes `results/<UTC timestamp>.json` with a `.md` beside it. The run reports three things apart (`experiments/_isolation.py`): **behaviour** checks, which alone decide pass/fail; **wiring** findings (a public method nothing in `core/` calls — split into ones only experiments/tests exercise and ones nothing calls); and **completeness** findings (a body that raises `NotImplementedError`, returns a literal, or is empty).

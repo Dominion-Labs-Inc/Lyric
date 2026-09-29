@@ -181,8 +181,8 @@ conda-env/
 .conda/.env
 
 # ===== Added 2026-08-29: gaps that let the venv/secrets/build get committed =====
-# The project virtualenv is named venv_torin (the generic `venv/` above missed it)
-venv_torin/
+# The project virtualenv is named venv_lyric (the generic `venv/` above missed it)
+venv_lyric/
 # CPython source + tarball used to build the venv — never source-control these
 Python-3.11.4/
 Python-3.11.4.tgz
@@ -191,7 +191,7 @@ Python-3.11.4.tgz
 *.key
 *.pem
 # Shell history / session state captured under the sandbox shell
-.torinshell/
+.lyricshell/
 # Database dumps (data + potentially sensitive)
 backups/
 *.dump

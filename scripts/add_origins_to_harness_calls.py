@@ -2,7 +2,7 @@
 from: the harness's own material is the substrate's own (named after the experiment or test); a call that named a
 person as the owner now gives that person as the origin."""
 import ast, os, sys
-ROOT = "/Users/stefan/Dominion Labs/TorinAI"
+ROOT = "/Users/stefan/Dominion Labs/Lyric"
 NEEDS = {"store_memory": "origin", "enqueue_memory": "origin", "see": "actor_identity",
          "remember_image": "origin", "reason_about": "origin", "make_enhanced_prediction": "origin",
          "perform_cross_domain_reasoning": "origin", "remember_told": "origin"}

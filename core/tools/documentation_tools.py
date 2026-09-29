@@ -1403,7 +1403,7 @@ class GeneratePDFDocumentTool(Tool):
             output_path = kwargs.get("output_path")
             title = kwargs.get("title", "Document")
             content = kwargs.get("content", "")
-            author = kwargs.get("author", "TorinAI")
+            author = kwargs.get("author", "Lyric")
             include_toc = kwargs.get("include_toc", False)
 
             # Create PDF with professional margins
@@ -1717,7 +1717,7 @@ class GenerateWordDocumentTool(Tool):
             output_path = kwargs.get("output_path")
             title = kwargs.get("title", "Document")
             content = kwargs.get("content", "")
-            author = kwargs.get("author", "TorinAI")
+            author = kwargs.get("author", "Lyric")
 
             # Create document
             doc = Document()
@@ -1823,7 +1823,7 @@ class GeneratePowerPointTool(Tool):
             output_path = kwargs.get("output_path")
             title = kwargs.get("title", "Presentation")
             slides_data = kwargs.get("slides", [])
-            author = kwargs.get("author", "TorinAI")
+            author = kwargs.get("author", "Lyric")
 
             # Create presentation
             prs = Presentation()

@@ -73,7 +73,7 @@ def predicate_name(text: str) -> str:
 #: have given a failed induction test six possible explanations instead of one.
 #: That proof is done (EDU-01 through EDU-11), so the restriction is lifted
 #: HERE, in the induction owner, rather than by standing a second numeric
-#: pattern-learner beside it: "what has Torin generalized" must keep exactly
+#: pattern-learner beside it: "what has Lyric generalized" must keep exactly
 #: one answer.
 #:
 #: The language stays FUNCTION-FREE. A number is a constant term, not an

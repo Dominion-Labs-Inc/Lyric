@@ -2,7 +2,7 @@
 """
 Quantum Computing Factory
 =========================
-Factory functions for initializing Torin's quantum computing subsystem with IBM Quantum
+Factory functions for initializing Lyric's quantum computing subsystem with IBM Quantum
 
 Provides:
 - IBM Quantum provider initialization with credentials
@@ -129,7 +129,7 @@ async def initialize_quantum_computing(
         RuntimeError: If initialization fails
     """
     try:
-        logger.info("🚀 Initializing Torin Quantum Computing Subsystem")
+        logger.info("🚀 Initializing Lyric Quantum Computing Subsystem")
         logger.info(f"   Mode: {'Simulator' if use_simulator else 'Real Hardware'}")
 
         # Create configuration

@@ -10,7 +10,7 @@ nothing on its own.
 from __future__ import annotations
 import os
 for k, v in {"POSTGRES_PORT": "5433", "POSTGRES_USER": "stefan",
-             "POSTGRES_DATABASE": "torinai_db", "TORIN_NO_WATCHDOG": "1"}.items():
+             "POSTGRES_DATABASE": "lyric_db", "LYRIC_NO_WATCHDOG": "1"}.items():
     os.environ.setdefault(k, v)
 import asyncio, contextlib, io, sys
 from uuid import uuid4

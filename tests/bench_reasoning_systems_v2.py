@@ -23,7 +23,7 @@ verified answer for. A case the substrate gets wrong is reported as FAIL — the
 point of the harness is to tell the truth about what reasons and what does not.
 
 Run:
-    PYTHONPATH="$PWD" ./venv_torin/bin/python3 tests/bench_reasoning_systems_v2.py
+    PYTHONPATH="$PWD" ./venv_lyric/bin/python3 tests/bench_reasoning_systems_v2.py
 """
 
 import asyncio

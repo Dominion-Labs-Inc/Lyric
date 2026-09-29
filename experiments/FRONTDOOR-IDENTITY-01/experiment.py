@@ -7,7 +7,7 @@ this person is scoped to THEM, not the session — and falls back to the session
 identity is present. (That a bound conversation then scopes teaching to the identity is
 ACTOR-IDENTITY-01; this proves the front door does the binding.)
 
-Run: ./venv_torin/bin/python3 experiments/FRONTDOOR-IDENTITY-01/experiment.py
+Run: ./venv_lyric/bin/python3 experiments/FRONTDOOR-IDENTITY-01/experiment.py
 """
 from __future__ import annotations
 import asyncio

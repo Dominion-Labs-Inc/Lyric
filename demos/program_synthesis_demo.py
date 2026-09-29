@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-TorinAI — learning an algorithm from examples, model-free.
+Lyric — learning an algorithm from examples, model-free.
 
-Run:   PYTHONPATH="$PWD" ./venv_torin/bin/python3 demos/program_synthesis_demo.py
+Run:   PYTHONPATH="$PWD" ./venv_lyric/bin/python3 demos/program_synthesis_demo.py
 
 This is the REAL substrate. No database, no language model — the derivation is
-pure. Given only input->output examples, TorinAI derives a procedure that
+pure. Given only input->output examples, Lyric derives a procedure that
 reproduces them, runs it on inputs it has never seen, and — when asked for
 something it cannot build — reports an honest gap instead of guessing.
 
@@ -40,7 +40,7 @@ def rule(ch="─", n=64):
 
 def header():
     rule("═")
-    print(f"{BOLD} TorinAI — deriving procedures from examples (model-free){RST}")
+    print(f"{BOLD} Lyric — deriving procedures from examples (model-free){RST}")
     rule("═")
     print("We give it input→output examples. We never provide the algorithm.")
     print(f"{DIM} Language model: not loaded   ·   Database: not used   ·   "

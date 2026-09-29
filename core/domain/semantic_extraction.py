@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Semantic extraction — a typed subsystem, not a prompt helper.
 
-Torin performs three operations that can all be expressed as prompts and must
+Lyric performs three operations that can all be expressed as prompts and must
 NOT therefore share an execution mode or an output contract:
 
     GENERATIVE REASONING      may deliberate, explore, hypothesise

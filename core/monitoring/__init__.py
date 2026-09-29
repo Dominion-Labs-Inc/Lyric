@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-TorinAI Monitoring Module
+Lyric Monitoring Module
 Distributed monitoring agents for model validation and coordination
 """
 

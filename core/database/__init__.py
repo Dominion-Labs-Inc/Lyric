@@ -1,4 +1,4 @@
-"""Database module for TorinAI.
+"""Database module for Lyric.
 
 Provides unified PostgreSQL access (with pgvector) and the logging database.
 
@@ -8,8 +8,8 @@ to archive/mysql_deprecated_*/ for historical reference only.
 
 # PostgreSQL is the default (and only) active database backend.
 from .unified_database_postgres import (
-    TorinUnifiedDatabasePostgres,
-    TorinUnifiedDatabasePostgres as TorinUnifiedDatabase,
+    LyricUnifiedDatabasePostgres,
+    LyricUnifiedDatabasePostgres as LyricUnifiedDatabase,
     get_unified_db,
 )
 
@@ -23,13 +23,13 @@ def get_database_manager():
     """Get singleton PostgreSQL database manager instance"""
     global _database_instance
     if _database_instance is None:
-        _database_instance = TorinUnifiedDatabase()
+        _database_instance = LyricUnifiedDatabase()
     return _database_instance
 
 
 __all__ = [
-    'TorinUnifiedDatabase',
-    'TorinUnifiedDatabasePostgres',
+    'LyricUnifiedDatabase',
+    'LyricUnifiedDatabasePostgres',
     'LoggingDatabase',
     'get_database_manager',
     'get_unified_db',

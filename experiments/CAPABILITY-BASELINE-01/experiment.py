@@ -11,7 +11,7 @@ the degrading ones. Real Postgres, no stubs. Self-cleaning.
   4. establish=False refuses to CREATE a baseline from an unfit reading but still UPDATES an existing one.
   5. Decimal/float mismatch is handled (every comparison after the first actually runs).
 
-Run: ./venv_torin/bin/python3 experiments/CAPABILITY-BASELINE-01/experiment.py
+Run: ./venv_lyric/bin/python3 experiments/CAPABILITY-BASELINE-01/experiment.py
 """
 from __future__ import annotations
 import asyncio

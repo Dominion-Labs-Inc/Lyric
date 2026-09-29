@@ -9,7 +9,7 @@ Available Tools:
 - grep_search: Fast text/regex search
 - analyze_code: Static code analysis
 
-Author: Torin AI Team
+Author: Lyric AI Team
 """
 
 import logging

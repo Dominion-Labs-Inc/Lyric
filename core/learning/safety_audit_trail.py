@@ -106,7 +106,7 @@ class SafetyAuditTrail:
         # never actually hold six months of events.
         self.audit_dir = self.config.get(
             "audit_dir",
-            os.getenv("TORIN_AUDIT_DIR", str(Path(__file__).resolve().parents[2] / "data" / "audit")),
+            os.getenv("LYRIC_AUDIT_DIR", str(Path(__file__).resolve().parents[2] / "data" / "audit")),
         )
         self.retention_days = self.config.get("retention_days", 180)  # 6 months
 

@@ -55,9 +55,9 @@ echo -e "${GREEN}Starting test suite...${NC}"
 echo ""
 
 # Activate virtual environment if it exists
-if [ -d "../../venv_torin" ]; then
+if [ -d "../../venv_lyric" ]; then
     echo "Activating virtual environment..."
-    source ../../venv_torin/bin/activate
+    source ../../venv_lyric/bin/activate
 fi
 
 # Set Python path

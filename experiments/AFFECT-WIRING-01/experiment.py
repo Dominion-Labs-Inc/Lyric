@@ -13,7 +13,7 @@ This proves both now have real teeth, routed through knobs the loop already cons
   3. Regression: the already-wired loops (escalation) are unchanged.
   4. The directive surfaces the new signals (to_dict).
 
-Run: ./venv_torin/bin/python3 experiments/AFFECT-WIRING-01/experiment.py
+Run: ./venv_lyric/bin/python3 experiments/AFFECT-WIRING-01/experiment.py
 """
 from __future__ import annotations
 import os

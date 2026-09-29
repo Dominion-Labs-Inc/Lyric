@@ -54,7 +54,7 @@ def generate_capability_profile(tool_name, capabilities):
     return profile
 
 # Read file
-file_path = "/Users/stefan/Dominion Labs/TorinAI/core/tools/search_tools.py"
+file_path = "/Users/stefan/Dominion Labs/Lyric/core/tools/search_tools.py"
 with open(file_path, 'r') as f:
     content = f.read()
 

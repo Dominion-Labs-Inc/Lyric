@@ -2,7 +2,7 @@
 #
 # Setup Tor for Dark Web Access
 # ==============================
-# Installs and configures Tor SOCKS5 proxy for TorinAI dark web detection
+# Installs and configures Tor SOCKS5 proxy for Lyric dark web detection
 #
 
 echo "🧅 Setting up Tor for dark web access..."
@@ -76,7 +76,7 @@ echo
 echo "================================================================"
 echo "✅ TOR SETUP COMPLETE"
 echo "================================================================"
-echo "TorinAI can now access:"
+echo "Lyric can now access:"
 echo "  • Clearnet paste sites (Pastebin, psbdmp.ws, etc.)"
 echo "  • .onion hidden services (dark web paste sites, markets)"
 echo "  • Dark web breach databases"

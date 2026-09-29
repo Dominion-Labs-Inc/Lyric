@@ -1,8 +1,8 @@
-# TorinAI System Reference
+# Lyric System Reference
 
 **Version:** Current as of 2026-03-06
 **Classification:** Internal Technical Reference
-**Purpose:** Authoritative, scientifically thorough documentation of all TorinAI systems, subsystems,
+**Purpose:** Authoritative, scientifically thorough documentation of all Lyric systems, subsystems,
 algorithms, equations, data structures, and control flows. Use this to evaluate what the system
 is doing, what it should be doing, and where the gaps are.
 
@@ -42,8 +42,8 @@ is doing, what it should be doing, and where the gaps are.
 
 ## 1. System Overview
 
-TorinAI is a continuously running autonomous artificial intelligence system operating entirely on local
-hardware (Apple Silicon, MPS GPU). It is organized around a single core principle: the Singleton (Torin)
+Lyric is a continuously running autonomous artificial intelligence system operating entirely on local
+hardware (Apple Silicon, MPS GPU). It is organized around a single core principle: the Singleton (Lyric)
 is the brain, the central intelligence, and the source of truth. Every subsystem exists to serve and extend
 the Singleton's capabilities.
 
@@ -80,7 +80,7 @@ normal operation. Human involvement is required only for CRITICAL-tier governanc
 
 ```
 +---------------------------------------------------------------------------+
-|                          SINGLETON (TORIN)                                |
+|                          SINGLETON (LYRIC)                                |
 |                      Autonomous Coordinator                               |
 |               Single asyncio event loop, 2-second cycle                  |
 +---------------------------------------------------------------------------+
@@ -105,7 +105,7 @@ normal operation. Human involvement is required only for CRITICAL-tier governanc
 - Single asyncio event loop for all agent coroutines (no ThreadPoolExecutor for agents)
 - DB pool bound to main loop — no cross-loop asyncpg access
 - `get_llm_service()` and `get_lightweight_llm_service()` are SYNCHRONOUS — never await them
-- `execute_query()` auto-fetches for SELECT-like queries by default (override: `TORINAI_DB_AUTOFETCH_SELECT=0`)
+- `execute_query()` auto-fetches for SELECT-like queries by default (override: `LYRIC_DB_AUTOFETCH_SELECT=0`)
 
 ---
 
@@ -175,7 +175,7 @@ else:
 **Model paths (configurable):**
 - Unified brain model: env `LOCAL_MODEL_PATH` or config `model_path`
 - Vision projector: env `MMPROJ_PATH` or config `mmproj_path`
-- Models base dir autodiscovery: env `TORINAI_MODELS_DIR` (defaults to `./models` at repo root)
+- Models base dir autodiscovery: env `LYRIC_MODELS_DIR` (defaults to `./models` at repo root)
 
 ---
 
@@ -223,7 +223,7 @@ is accountable for ecosystem health. It must:
 ### 4.1 Initialization Dependencies
 
 **Required (raises ValueError if absent):**
-- `torin_brain` — LLM service instance
+- `lyric_brain` — LLM service instance
 
 **Conditionally required:**
 - `health_monitor` — raises RuntimeError if configured but fails to start
@@ -2040,7 +2040,7 @@ score = sample * speed_factor
 
 ### 13.1 Security Audit Worker — REMOVED (2026-09-14)
 
-Removed from TorinAI with all of its consumers. World security is the DHCM world factory's
+Removed from Lyric with all of its consumers. World security is the DHCM world factory's
 `security-audit` agent (`DHCM/institutions/security_audit_agent.py`); see
 `docs/architecture/security.md`.
 
@@ -2106,10 +2106,10 @@ reputation_score > 0.5 → severity: info
 Linux (iptables):
 ```bash
 # Block IP:
-iptables -A INPUT -s {ip} -j DROP -m comment --comment "TorinAI: {reason}"
+iptables -A INPUT -s {ip} -j DROP -m comment --comment "Lyric: {reason}"
 
 # Allow IP (insert at position 1):
-iptables -I INPUT 1 -s {ip} -j ACCEPT -m comment --comment "TorinAI: whitelist"
+iptables -I INPUT 1 -s {ip} -j ACCEPT -m comment --comment "Lyric: whitelist"
 
 # Block port:
 iptables -A INPUT -p tcp --dport {port} -j DROP
@@ -2123,7 +2123,7 @@ block drop in quick from {ip} to any
 # Allow IP rule file format:
 pass in quick from {ip} to any
 
-# Load via: pfctl -a torin_defense -f /tmp/torin_rule_{hash}.conf
+# Load via: pfctl -a lyric_defense -f /tmp/lyric_rule_{hash}.conf
 ```
 
 **Rule ID:** SHA256(f"block_{ip}_{timestamp}")[:16]
@@ -2134,7 +2134,7 @@ pass in quick from {ip} to any
 - Rules not persisted — lost on system restart
 - Requires root/sudo privileges
 - Windows: not implemented (stub only)
-- macOS: requires `torin_defense` pf anchor to pre-exist
+- macOS: requires `lyric_defense` pf anchor to pre-exist
 
 ### 13.4 Cloudflare WAF Manager
 
@@ -2143,7 +2143,7 @@ pass in quick from {ip} to any
 **2-step rule creation process:**
 ```
 Step 1: POST /zones/{zone_id}/filters
-  body: {"expression": "ip.src eq {ip}", "description": "TorinAI: {reason}"}
+  body: {"expression": "ip.src eq {ip}", "description": "Lyric: {reason}"}
   Response: filter_id
 
 Step 2: POST /zones/{zone_id}/firewall/rules
@@ -2881,18 +2881,18 @@ domain_specific_learning: per-domain learning events
 
 **5 Channels:**
 ```
-torin-upgrades   - Self-upgrade proposals and outcomes
-torin-alerts     - Security and health alerts
-torin-decisions  - Approval requests and governance decisions
-torin-activity   - Routine activity log
-torin-governance - Full governance sessions
+lyric-upgrades   - Self-upgrade proposals and outcomes
+lyric-alerts     - Security and health alerts
+lyric-decisions  - Approval requests and governance decisions
+lyric-activity   - Routine activity log
+lyric-governance - Full governance sessions
 ```
 
 **Notification routing by tier:**
 ```
-CRITICAL:  Human approval required, 24-hour expiration → #torin-governance
-IMPORTANT: 30-minute timeout, default deny → #torin-decisions
-ROUTINE:   Informational only → #torin-activity
+CRITICAL:  Human approval required, 24-hour expiration → #lyric-governance
+IMPORTANT: 30-minute timeout, default deny → #lyric-decisions
+ROUTINE:   Informational only → #lyric-activity
 ```
 
 **SingletonAction fields:**
@@ -3005,7 +3005,7 @@ row = await self.db.execute_query("SELECT * FROM table WHERE id=$1", (some_id,),
 | `servers/voice/voice_service_api.py` | Voice input/output interface | config/service_ports.py |
 
 **Port configuration:** `config/service_ports.py`
-**System configuration:** `config/torin_config.py`
+**System configuration:** `config/lyric_config.py`
 
 ---
 
@@ -3104,7 +3104,7 @@ Resolved: the coordinator now runs a structured idle dispatcher before any intri
 **25.2 Intrinsic Goal Deduplication**
 Resolved: intrinsic exploration is globally capped and deduplicated by full goal description.
 
-- Cap: `TORINAI_INTRINSIC_EXPLORATION_CAP` env var or config `intrinsic_exploration_cap` (default 1; set 0 to disable)
+- Cap: `LYRIC_INTRINSIC_EXPLORATION_CAP` env var or config `intrinsic_exploration_cap` (default 1; set 0 to disable)
 - Dedup key: `IdleWorkPlaybook.description_fingerprint(goal.description)`
 - Scope: dedup applies across queued + in-progress exploration tasks (not just by `target_component`)
 - Cleanup: cap/dedup are derived from task queue state; no sticky `_exploring_components` cleanup is required
@@ -3138,7 +3138,7 @@ Model paths are now configurable and no longer depend on developer-machine absol
 
 - Unified model overrides: env `LOCAL_MODEL_PATH` / `MMPROJ_PATH` or config `model_path` / `mmproj_path`
 - Lightweight model override: env `LIGHTWEIGHT_MODEL_PATH` or config `model_path`
-- Models base directory: env `TORINAI_MODELS_DIR` (defaults to `./models` at workspace root)
+- Models base directory: env `LYRIC_MODELS_DIR` (defaults to `./models` at workspace root)
 - Best-effort autodiscovery is used when explicit paths are not provided
 
 **25.7 Firewall Rules Not Persisted**
@@ -3147,15 +3147,15 @@ Resolved: OS firewall blocks are now persisted and restored on startup.
 - Persistence table: `firewall_blocklist` in the unified PostgreSQL schema
 - Restore point: `RealTimeFirewallManager.start_monitoring()` calls `restore_persisted_blocks()` before drift monitoring begins
 - Expiration: temporary blocks store `expires_at` and are auto-unblocked when expired (prevents restarts from turning temporary blocks into permanent blocks)
-- Opt-out: set `TORINAI_FIREWALL_PERSISTENCE=0` to disable persistence/restore
+- Opt-out: set `LYRIC_FIREWALL_PERSISTENCE=0` to disable persistence/restore
 
 **25.8 Threat Intelligence Cache Lost on Restart**
 Partially resolved: threat intelligence cache and internal “known bad” IPs persist across restarts.
 
 - Persistence table: `threat_intel_state` (unified PostgreSQL schema)
 - Restored at startup: `ThreatIntelligenceEngine.load_persisted_state()` is invoked during main initialization
-- Policy: by default, persists high-risk intel (`reputation_score >= 0.5` or `confidence` HIGH/CRITICAL); set `TORINAI_THREAT_INTEL_PERSIST_ALL=1` to persist all cached intel
-- Opt-out: set `TORINAI_THREAT_INTEL_PERSISTENCE=0`
+- Policy: by default, persists high-risk intel (`reputation_score >= 0.5` or `confidence` HIGH/CRITICAL); set `LYRIC_THREAT_INTEL_PERSIST_ALL=1` to persist all cached intel
+- Opt-out: set `LYRIC_THREAT_INTEL_PERSISTENCE=0`
 
 Remaining: broader security findings history + health history are still in-memory only and are not yet persisted.
 
@@ -3177,7 +3177,7 @@ Partially resolved: `StaticCodeAnalyzer` now combines regex scans with AST-based
 
 **25.11 No LLM Failure Alert**
 Resolved: UnifiedLLMService now emits a CRITICAL system notification on model load failure and
-schedules limited backoff retries (`TORINAI_LLM_RETRY_MAX`, default 3).
+schedules limited backoff retries (`LYRIC_LLM_RETRY_MAX`, default 3).
 
 **25.12 Upgrade Test Suite Assumes SQLite**
 Resolved: `core/learning/upgrade_test_suite.py` now uses the unified PostgreSQL manager for
@@ -3187,7 +3187,7 @@ DB connectivity/schema/query checks (and skips gracefully when Postgres is unava
 Resolved: extrinsic tasks are enabled by default (still overrideable).
 
 - Default: enabled when not explicitly configured
-- Opt-out: set env `TORINAI_ENABLE_EXTRINSIC_TASKS=0` or config `enable_extrinsic_tasks=false`
+- Opt-out: set env `LYRIC_ENABLE_EXTRINSIC_TASKS=0` or config `enable_extrinsic_tasks=false`
 
 **25.14 Cloudflare WAF SSL Verification Disabled**
 Resolved: Cloudflare API calls verify TLS certificates by default. Temporary override is
@@ -3196,8 +3196,8 @@ available via `CLOUDFLARE_VERIFY_SSL=false` (not recommended).
 **25.15 Motivation Profile Path Hardcoded**
 The motivation profile path is now configurable.
 
-- Default: `TorinAI/data/motivation_profile.json` (repo-local)
-- Overrides: env `TORINAI_MOTIVATION_PROFILE_PATH` or config keys `motivation_profile_path`
+- Default: `Lyric/data/motivation_profile.json` (repo-local)
+- Overrides: env `LYRIC_MOTIVATION_PROFILE_PATH` or config keys `motivation_profile_path`
   (preferred) / `profile_path` (legacy)
 
 **25.16 No Knowledge Cutoff Tracking**
@@ -3206,7 +3206,7 @@ research scheduling.
 
 - Declared model cutoff date: set via `MODEL_KNOWLEDGE_CUTOFF_DATE` env var or config keys
   `model_knowledge_cutoff_date` / `knowledge_cutoff_date`.
-- Persistent state: `TorinAI/data/knowledge_cutoff_state.json` (configurable via
+- Persistent state: `Lyric/data/knowledge_cutoff_state.json` (configurable via
   `knowledge_cutoff_state_path`). Tracks `refreshed_through_date`, last start/completion timestamps,
   and last refresh task id.
 - Staleness detection: system review snapshots include `days_stale` based on `refreshed_through_date`.
@@ -3227,7 +3227,7 @@ Resolved: tool execution now enforces governance `enforcement_mode` inside
 
 **25.19 fetch_all=True Missing by Default**
 Resolved: `execute_query()` auto-fetches for SELECT-like queries by default (returns `[]` when
-no rows). Disable via `TORINAI_DB_AUTOFETCH_SELECT=0` if strict legacy behavior is needed.
+no rows). Disable via `LYRIC_DB_AUTOFETCH_SELECT=0` if strict legacy behavior is needed.
 
 **25.20 Thompson Sampling Fallback Chain Can Exhaust**
 Resolved: hard-gate exhaustion no longer crashes strategy selection.

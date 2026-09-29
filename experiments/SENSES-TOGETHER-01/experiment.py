@@ -22,7 +22,7 @@ Measured before the change (2026-09-28, same stimuli): sight held the loop for
 1.4 s at a stretch, and a question answered in 0.3 s waited 1.4 s behind a
 picture. The thresholds below were fixed before this experiment first ran.
 
-Run (sandbox store): ./venv_torin/bin/python3 experiments/SENSES-TOGETHER-01/experiment.py
+Run (sandbox store): ./venv_lyric/bin/python3 experiments/SENSES-TOGETHER-01/experiment.py
 """
 from __future__ import annotations
 
@@ -38,7 +38,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO))
-os.environ.setdefault("POSTGRES_DATABASE", "torinai_dev")
+os.environ.setdefault("POSTGRES_DATABASE", "lyric_dev")
 
 from experiments._evidence import RunRecord  # noqa: E402
 from experiments._isolation import boot, db, shutdown  # noqa: E402
@@ -209,7 +209,7 @@ async def main() -> int:
             if "hear" in got:
                 right.append(await own("hearing", got["hear"], "sound_trace"))
             if "see" in got:
-                right.append(await own("seeing", got["see"], "image"))
+                right.append(await own("seeing", got["see"], "sight_trace"))
             if "reason" in got:
                 right.append(answered(got["reason"]))
             check(f"{label}: every result is right, each memory its own", all(right),

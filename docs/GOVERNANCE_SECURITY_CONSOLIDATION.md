@@ -469,7 +469,7 @@ Capability classes not already covered above:
 
 ## 7. Order of work today
 
-1. **Snapshot** every file to be moved or deleted into `data/snapshots/` (TorinAI is not a git repository).
+1. **Snapshot** every file to be moved or deleted into `data/snapshots/` (Lyric is not a git repository).
 2. **Licence:** a final GOVERNANCE-ABSORPTION-01 run, plus one act per old hard-block rule through both the old gate and the Constitution.
 3. **The live gap first:** A0. Then integrity and halt: A3, A2, A4.
 4. **Policy and classifier:** A1, A6.

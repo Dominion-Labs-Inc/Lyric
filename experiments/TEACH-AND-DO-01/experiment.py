@@ -20,7 +20,7 @@ Plain-words requests are OBSERVED, not scored: how the model-free substrate hand
 text is what this finds out. The taught lesson is KEPT (the store is to be wiped and
 re-taught); scratch files are removed.
 
-Run: ./venv_torin/bin/python3 experiments/TEACH-AND-DO-01/experiment.py
+Run: ./venv_lyric/bin/python3 experiments/TEACH-AND-DO-01/experiment.py
 """
 from __future__ import annotations
 

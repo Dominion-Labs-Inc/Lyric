@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-TorinAI Autonomous Agents Module
+Lyric Autonomous Agents Module
 Modular autonomous system with separated concerns for perception, planning, execution, and learning.
 Simplified maintenance system with direct implementations.
 """

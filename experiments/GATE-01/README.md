@@ -25,10 +25,10 @@ the side effect lands is worse than no gate — it reports success at stopping s
 | F · intent at the gate | the real drive path moves a file through the gate, and the act **names the intent reasoning recorded** — the gate sees *why*, not just what |
 | G · cost | judging every act |
 
-**Run** (from the TorinAI folder):
+**Run** (from the Lyric folder):
 
 ```
-./venv_torin/bin/python3 experiments/GATE-01/experiment.py
+./venv_lyric/bin/python3 experiments/GATE-01/experiment.py
 ```
 
 **Results.** Every run is saved in `results/` (JSON + `.md`). Latest: 2026-09-17, **25/25**

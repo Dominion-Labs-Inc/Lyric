@@ -7,7 +7,7 @@
 
 ## Three Governance Systems
 
-TorinAI has **three complementary governance systems** that work together:
+Lyric has **three complementary governance systems** that work together:
 
 ### 1. Governance Trigger System (Phase 1-3) ✅ COMPLETE
 **File**: `core/governance/unified_governance_trigger_system.py`

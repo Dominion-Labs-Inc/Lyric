@@ -39,7 +39,7 @@ class SystemDiagnostics:
         self.start_time = time.time()
         
         print("=" * 80)
-        print("TORIN SYSTEM DIAGNOSTICS")
+        print("LYRIC SYSTEM DIAGNOSTICS")
         print("=" * 80)
         print(f"Started: {datetime.now().isoformat()}")
         print()
@@ -270,7 +270,7 @@ class SystemDiagnostics:
             tool = ReadFileTool()
             
             # Create test file
-            test_file = Path("/tmp/torin_test.txt")
+            test_file = Path("/tmp/lyric_test.txt")
             test_file.write_text("DIAGNOSTIC_TEST_CONTENT")
             
             start = time.time()
@@ -511,7 +511,7 @@ async def main():
     """Run diagnostics"""
     import argparse
     
-    parser = argparse.ArgumentParser(description='TorinAI System Diagnostics')
+    parser = argparse.ArgumentParser(description='Lyric System Diagnostics')
     parser.add_argument('--quick', action='store_true', help='Skip slow tests')
     parser.add_argument('--llm-only', action='store_true', help='Only test LLM system')
     args = parser.parse_args()

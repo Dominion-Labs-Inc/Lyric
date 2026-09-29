@@ -13,7 +13,7 @@ Tests EVERY tool registered in the registry across 7 sections:
   Section 7  – Capability Coverage    : Every Capability enum value has at least one tool provider
 
 Run:
-  cd "/Users/stefan/Dominion Labs/TorinAI" && python test_comprehensive_tool_capabilities.py
+  cd "/Users/stefan/Dominion Labs/Lyric" && python test_comprehensive_tool_capabilities.py
 """
 
 import asyncio

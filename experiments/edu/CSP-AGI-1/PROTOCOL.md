@@ -6,7 +6,7 @@ Not a proof of AGI, and no run of it can be. It is one block of a larger
 protocol, and it is the block that is hardest to pass by accident.
 
 This run is **developmental data**. The protocol's own rule is that a frozen
-architecture must precede the evaluator, and Torin's substrate was modified
+architecture must precede the evaluator, and Lyric's substrate was modified
 extensively on the day this was written. What follows is therefore a
 measurement of the instrument as much as of the subject, and it is recorded as
 such.

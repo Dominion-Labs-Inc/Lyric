@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Database Schema Diagnostic Tool
-Checks all TorinAI databases and reports their schemas
+Checks all Lyric databases and reports their schemas
 """
 import asyncio
 import aiomysql
@@ -87,15 +87,15 @@ async def check_all_databases():
     """Main diagnostic function"""
 
     print("=" * 80)
-    print("TorinAI Database Schema Diagnostic Report")
+    print("Lyric Database Schema Diagnostic Report")
     print("=" * 80)
     print()
 
     # Databases to check
     databases = [
-        ("torinai_unified", "Main unified database (directives, governance, metrics, test logs, chaos experiments)"),
-        ("torinai_thinking_hot", "Hot tier memory storage (last 60 days)"),
-        ("torinai_memory_cold", "Cold tier memory storage (60+ days old, if MySQL)"),
+        ("lyric_unified", "Main unified database (directives, governance, metrics, test logs, chaos experiments)"),
+        ("lyric_thinking_hot", "Hot tier memory storage (last 60 days)"),
+        ("lyric_memory_cold", "Cold tier memory storage (60+ days old, if MySQL)"),
     ]
 
     for db_name, description in databases:
@@ -150,7 +150,7 @@ async def check_all_databases():
     print("Expected Tables:")
     print("-" * 80)
 
-    # torinai_unified expected tables
+    # lyric_unified expected tables
     unified_expected = [
         "governance_laws",
         "internal_directives",
@@ -168,15 +168,15 @@ async def check_all_databases():
         "notifications"  # For notifications dashboard
     ]
 
-    # torinai_thinking_hot expected tables
+    # lyric_thinking_hot expected tables
     hot_expected = [
         "memories",
         "memory_tags",
         "archive_log"
     ]
 
-    # Check torinai_unified
-    unified_tables = await get_tables_in_database("torinai_unified")
+    # Check lyric_unified
+    unified_tables = await get_tables_in_database("lyric_unified")
     print("\ntorinai_unified:")
     if unified_tables is not None:
         for expected in unified_expected:
@@ -186,14 +186,14 @@ async def check_all_databases():
         # Check for unexpected tables
         unexpected = set(unified_tables) - set(unified_expected)
         if unexpected:
-            print(f"\n  ⚠️  Unexpected tables in torinai_unified:")
+            print(f"\n  ⚠️  Unexpected tables in lyric_unified:")
             for table in unexpected:
                 print(f"      - {table}")
     else:
         print("  ❌ Database does not exist")
 
-    # Check torinai_thinking_hot
-    hot_tables = await get_tables_in_database("torinai_thinking_hot")
+    # Check lyric_thinking_hot
+    hot_tables = await get_tables_in_database("lyric_thinking_hot")
     print("\ntorinai_thinking_hot:")
     if hot_tables is not None:
         for expected in hot_expected:
@@ -203,7 +203,7 @@ async def check_all_databases():
         # Check for unexpected tables
         unexpected = set(hot_tables) - set(hot_expected)
         if unexpected:
-            print(f"\n  ⚠️  Unexpected tables in torinai_thinking_hot:")
+            print(f"\n  ⚠️  Unexpected tables in lyric_thinking_hot:")
             for table in unexpected:
                 print(f"      - {table}")
     else:
@@ -213,10 +213,10 @@ async def check_all_databases():
     if unified_tables and hot_tables:
         misplaced_in_hot = set(unified_expected) & set(hot_tables)
         if misplaced_in_hot:
-            print(f"\n❌ ERROR: Tables that belong in torinai_unified found in torinai_thinking_hot:")
+            print(f"\n❌ ERROR: Tables that belong in lyric_unified found in lyric_thinking_hot:")
             for table in misplaced_in_hot:
                 print(f"      - {table}")
-            print("\n   These tables should be DROPPED from torinai_thinking_hot and exist only in torinai_unified")
+            print("\n   These tables should be DROPPED from lyric_thinking_hot and exist only in lyric_unified")
 
     print("\n" + "=" * 80)
     print("END OF DIAGNOSTIC REPORT")

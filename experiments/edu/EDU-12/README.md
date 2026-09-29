@@ -1,15 +1,15 @@
 # EDU-12 — Open-Domain Autonomous Competence Acquisition
 
 > **During the frozen educational phase, failures may repair the EXPERIMENT but
-> may not expand Torin's cognitive implementation.**
+> may not expand Lyric's cognitive implementation.**
 >
 > Repair: an exam that leaks an answer, a harness that bypasses the production
 > ingress, a metric that cannot report failure, state that does not reset.
 >
-> Do not repair: Torin cannot learn percentages, cannot synthesise programs,
+> Do not repair: Lyric cannot learn percentages, cannot synthesise programs,
 > cannot parse a legitimate held-out construction, cannot transfer a concept.
 > Those stay as the result until EDU-12 is over — otherwise the distinction
-> between *Torin learned* and *we upgraded Torin while teaching it* is lost.
+> between *Lyric learned* and *we upgraded Lyric while teaching it* is lost.
 >
 > This is enforced, not promised: the substrate is frozen at
 > `EDU-12_S0_ADMISSIBLE` (`FROZEN.json`) and every run checks the fingerprint
@@ -22,13 +22,13 @@ signal the rest of this ladder was built to catch.
 
 ## Central hypothesis
 
-A single persistent Torin instance, with no architecture or code changes
+A single persistent Lyric instance, with no architecture or code changes
 between subjects, can acquire usable competence in multiple previously
 untrained domains through instruction and experience, determine what it does
 not know, seek the information it needs, learn persistent representations and
 procedures, and solve novel held-out tasks after the teacher is removed.
 
-The headline is not a mechanism. It is: **can Torin go to school and come out
+The headline is not a mechanism. It is: **can Lyric go to school and come out
 broadly more capable?**
 
 ## The generality invariant, enforced three ways
@@ -100,7 +100,7 @@ which result.
 
 | record | why it is inadmissible |
 |---|---|
-| `S0_INVALID_01.json` | the harness drove `ProbabilisticVersionSpace` directly and returned UNKNOWN for everything else — it measured its own wiring, not Torin |
+| `S0_INVALID_01.json` | the harness drove `ProbabilisticVersionSpace` directly and returned UNKNOWN for everything else — it measured its own wiring, not Lyric |
 | `S0_ENCODING_LIMITED.json` | exam items stated their own content in forms nothing could read: `facts` in an invented `"robin is_a bird"` notation, and prompts fusing a preamble with the question so no goal could be parsed |
 
 Both are kept. A failed baseline is part of the audit trail.
@@ -135,7 +135,7 @@ scale-free question is whether the stated answer leads the runner-up.
 ## Method
 
 ```
-./venv_torin/bin/python3 experiments/edu/EDU-12/school.py
+./venv_lyric/bin/python3 experiments/edu/EDU-12/school.py
 ```
 
 Invariants also run in the suite: `tests/test_edu12_generality_invariants.py`
@@ -148,12 +148,12 @@ The permitted chain, and the only one:
 ```
 teacher instruction -> Contribution(PROPOSAL) -> SubstrateLearning
    -> CANDIDATE, evidence_roots = 0
-   -> Torin practices / reasons / experiments
+   -> Lyric practices / reasons / experiments
    -> independent outcome -> evidence -> authority
 ```
 
 A teacher may teach anything a human teacher could communicate. It may not
-modify Torin, invoke a capability owner on Torin's behalf, attest to truth, or
+modify Lyric, invoke a capability owner on Lyric's behalf, attest to truth, or
 write validated knowledge. *"25% means 25 out of 100"* is not an evidentiary
 root because a teacher said it.
 
@@ -163,7 +163,7 @@ root because a teacher said it.
 |---|---|---|
 | cold retrieval | **detached** | lesson-level S0; catches spontaneous transfer from earlier classes |
 | instruction | attached | explanations, worked examples, contrasts, counterexamples |
-| guided practice | attached | Torin commits **before** feedback — the reverse order measures copying |
+| guided practice | attached | Lyric commits **before** feedback — the reverse order measures copying |
 | examination | **detached** | held-out items absent from instruction and practice |
 | transfer | **detached** | one problem structurally beyond what was taught |
 
@@ -181,7 +181,7 @@ the lesson** rather than scoring it — an improvement whose route ends in
 
 ### The curriculum targets what S0 actually exposed
 
-Not a re-teaching of what Torin already does. S0 located the frontier:
+Not a re-teaching of what Lyric already does. S0 located the frontier:
 
 | subject | S0 competence | Stage-2 curriculum |
 |---|---|---|
@@ -192,7 +192,7 @@ Not a re-teaching of what Torin already does. S0 located the frontier:
 
 **Programming is the most revealing block**, because it starts at 0% correct,
 100% UNKNOWN, 0% false confidence — an unusually clean educational control. If
-Torin can synthesise an untaught program from acquired concepts with the teacher
+Lyric can synthesise an untaught program from acquired concepts with the teacher
 absent, that is a genuine gain from zero. If it cannot because the substrate has
 no mechanism for constructing programs, that is recorded as *instruction
 understood, substrate unable to operationalise* — and **not fixed during the
@@ -202,7 +202,7 @@ experiment**.
 
 `SEALED_EXAMS.json` — 40 items, each with an item hash, target capability,
 required cognitive operations, difficulty, expected result and timestamp, sealed
-before instruction advanced. Torin never sees them during instruction, and the
+before instruction advanced. Lyric never sees them during instruction, and the
 teacher never receives them: a teacher shown the questions can train to them
 without anyone intending it. A test re-hashes the subject files and fails if any
 sealed exam has since changed.
@@ -210,7 +210,7 @@ sealed exam has since changed.
 ## Remaining stages
 
 2. **Instruction** — lessons, with Qwen permitted as teacher; teacher assertions never admissible as evidence
-3. **Self-directed curriculum** — Torin detects its own competence gaps and chooses ASK / EXAMPLE / COUNTEREXAMPLE / EXPERIMENT / PRACTICE / REVIEW
+3. **Self-directed curriculum** — Lyric detects its own competence gaps and chooses ASK / EXAMPLE / COUNTEREXAMPLE / EXPERIMENT / PRACTICE / REVIEW
 4. **Ablations A–D** — educated / fresh+Qwen / selectively ablated / model unavailable, plus delayed retention
 5. **Fifth unseen domain and the Novel Mission** — learning-to-learn measured against an uneducated baseline
 
@@ -265,7 +265,7 @@ formalizer. The S0 zeros were **not** an absence of capability.
 
 `attempt.py` as first written was a sidecar. It called
 `ProbabilisticVersionSpace` directly and returned UNKNOWN for everything else,
-so it measured what one harness had been connected to — not what Torin can do.
+so it measured what one harness had been connected to — not what Lyric can do.
 That is the same defect the companion had, and the same one this repository
 keeps finding.
 

@@ -12,7 +12,7 @@ Provides:
 - Constitutional oversight
 - Governance integration
 
-Author: Torin AI Team
+Author: Lyric AI Team
 """
 
 from core.capability import raise_if_structural
@@ -361,7 +361,7 @@ _ERROR_CATEGORIES = [
   2. Confirm the test file path is correct and single-quoted (paths on this machine contain spaces).
   3. Run only the specific test file — never the whole tests/ directory.
   4. Verify the test file imports correctly:
-     run_python("import sys; sys.path.insert(0,'<torinai_root>'); import <module>; print('OK')").
+     run_python("import sys; sys.path.insert(0,'<lyric_root>'); import <module>; print('OK')").
   5. If the test expects behaviour the source does not yet implement (e.g. a warning never raised),
      fix the SOURCE file to add the missing behaviour, then re-run the test.""",
     ),
@@ -2489,7 +2489,7 @@ class ToolRegistry:
                     "error_type": "TOOL_NOT_FOUND",
                     "requested_tool": tool_name,
                     "suggestions": suggestions,
-                    "hint": "Use list_tools() or the Torin tools API to discover valid tool names, or pick one of the suggested tools."
+                    "hint": "Use list_tools() or the Lyric tools API to discover valid tool names, or pick one of the suggested tools."
                 }
             )
         
@@ -2758,7 +2758,7 @@ class ToolRegistry:
     async def project_capabilities(self) -> Dict[str, int]:
         """Project every registered tool into the concept layer as an operator.
 
-        The concept graph knew about operators Torin had LEARNED and nothing
+        The concept graph knew about operators Lyric had LEARNED and nothing
         about the ones it could already perform, so cross-domain grounding could
         recognise an unfamiliar situation as a learned rule but never as
         something there was already a tool for. A tool's parameter list is a

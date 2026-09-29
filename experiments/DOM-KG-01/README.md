@@ -11,10 +11,10 @@
 
 Paper: `docs/design/TR-2026-09_domain_knowledge_gaps.md`.
 
-**Run** (from the TorinAI folder):
+**Run** (from the Lyric folder):
 
 ```
-./venv_torin/bin/python3 experiments/DOM-KG-01/experiment.py
+./venv_lyric/bin/python3 experiments/DOM-KG-01/experiment.py
 ```
 
 **Results.** `result.json`, which each run overwrites. Latest: 2026-09-13, all 16 checks pass

@@ -150,8 +150,8 @@ During Phase 6 verification testing, **7 critical import errors** were discovere
 
 ### 1. Slack Notifier Import Path
 **File**: `core/utils/notification_publisher.py:23`
-**Error**: `cannot import name 'send_slack_notification' from 'TorinAI.core.integration.slack_notifier'`
-**Fix**: Changed `TorinAI.core.integration` → `core.integration`
+**Error**: `cannot import name 'send_slack_notification' from 'Lyric.core.integration.slack_notifier'`
+**Fix**: Changed `Lyric.core.integration` → `core.integration`
 **Impact**: Notification system would fail silently
 
 ### 2. Security System Import
@@ -215,7 +215,7 @@ Total Phase 6:            17/17 tests passing
 - `UnifiedLearningSystem import deferred: cannot import name 'MetaLearningSystem'`
 - `Neural-symbolic reasoning not available: MemoryAgent import failed`
 - `Security system not available`
-- `WARNING:root:Slack notifier not available: No module named 'TorinAI'`
+- `WARNING:root:Slack notifier not available: No module named 'Lyric'`
 
 **After Fixes:**
 - Zero import errors

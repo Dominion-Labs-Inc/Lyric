@@ -22,7 +22,7 @@ Each is exercised here with two instances' worth of separate objects against the
 
 Everything written is removed by id.
 
-Run: ./venv_torin/bin/python3 experiments/INSTANCES-01/experiment.py
+Run: ./venv_lyric/bin/python3 experiments/INSTANCES-01/experiment.py
 """
 from __future__ import annotations
 

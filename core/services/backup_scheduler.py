@@ -2,7 +2,7 @@
 """
 Backup Scheduler
 ================
-Automated backup scheduling and management for TorinAI
+Automated backup scheduling and management for Lyric
 
 Features:
 - Scheduled database backups
@@ -123,7 +123,7 @@ class BackupScheduler:
         # Paths — must be durable; /tmp is purged by the OS
         self.backup_dir = self.config.get(
             'backup_dir',
-            os.getenv('TORIN_BACKUP_DIR', str(Path(__file__).resolve().parents[2] / 'data' / 'backups'))
+            os.getenv('LYRIC_BACKUP_DIR', str(Path(__file__).resolve().parents[2] / 'data' / 'backups'))
         )
         self.data_dir = self.config.get('data_dir', './data')
 

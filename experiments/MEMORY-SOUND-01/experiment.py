@@ -29,7 +29,7 @@ by the sound, whether it was heard before (`MemoryAgent.retrieve`, strategy
 Recordings: GTZAN clips, a real room recorded from this Mac's microphone
 (LIVE-01). Excerpts are built into `stimuli/` on first run.
 
-Run (sandbox store): ./venv_torin/bin/python3 experiments/MEMORY-SOUND-01/experiment.py
+Run (sandbox store): ./venv_lyric/bin/python3 experiments/MEMORY-SOUND-01/experiment.py
 """
 from __future__ import annotations
 
@@ -45,7 +45,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO))
-os.environ.setdefault("POSTGRES_DATABASE", "torinai_dev")
+os.environ.setdefault("POSTGRES_DATABASE", "lyric_dev")
 
 from experiments._evidence import RunRecord  # noqa: E402
 
@@ -271,9 +271,11 @@ async def main() -> int:
               pursuit_id and heard_in_id == pursuit_id and seen_in_id == pursuit_id,
               f"pursuit {pursuit_id}, heard {heard_in_id}, seen {seen_in_id}")
         media = await get_media_store().media_for_memory(str(pursuit_id)) if pursuit_id else []
-        check("its memory keeps the sound's trace and the picture",
-              sorted(m["mime"].split("/")[0] for m in media) == ["application", "image"],
-              str([m["mime"] for m in media]))
+        kinds = sorted(str((m["perceived"] or {}).get("kind")) for m in media)
+        check("its memory keeps the sound's trace and the picture's, never the photograph",
+              kinds == ["sight_trace", "sound_trace"]
+              and not any(str(m["mime"]).startswith("image/") for m in media),
+              str([(m["mime"], (m["perceived"] or {}).get("kind")) for m in media]))
         row = await db.execute_query("SELECT content FROM memory_hot.memory_hot WHERE memory_id = $1",
                                      (str(pursuit_id),), fetch_one=True)
         said = str(row["content"]) if row else ""

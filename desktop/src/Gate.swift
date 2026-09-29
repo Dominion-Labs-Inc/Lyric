@@ -39,7 +39,7 @@ final class Gate: ObservableObject {
 
         state = .authenticating
         context.evaluatePolicy(policy,
-                               localizedReason: "unlock the TorinAI dashboard") {
+                               localizedReason: "unlock the Lyric dashboard") {
             ok, evalError in
             Task { @MainActor in
                 if ok {

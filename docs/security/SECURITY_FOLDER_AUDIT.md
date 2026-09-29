@@ -6,7 +6,7 @@
 
 ## 📁 **Security Folder Structure**
 
-Located at: `/Users/stefan/Dominion Labs/TorinAI/core/security/`
+Located at: `/Users/stefan/Dominion Labs/Lyric/core/security/`
 
 **Total Files**: 17 Python modules
 
@@ -218,7 +218,7 @@ The integrated security system is defined in [security/__init__.py](../core/secu
 | Active Defense | 5 | 0 | 0% ❌ |
 
 ### **Active Defense Gap**
-TorinAI has a **COMPLETE ACTIVE DEFENSE GAP**:
+Lyric has a **COMPLETE ACTIVE DEFENSE GAP**:
 - ✅ Tools for input validation and sanitization work
 - ✅ Reactive security (audit worker) is operational
 - ❌ **Proactive threat intelligence is dormant**
@@ -228,7 +228,7 @@ TorinAI has a **COMPLETE ACTIVE DEFENSE GAP**:
 - ❌ **Central security controller is inactive**
 
 ### **Risk Assessment**
-**Current State**: TorinAI can sanitize inputs and audit vulnerabilities, but cannot:
+**Current State**: Lyric can sanitize inputs and audit vulnerabilities, but cannot:
 1. Query IP reputation databases
 2. Automatically block malicious IPs
 3. Leverage Cloudflare WAF for DDoS protection

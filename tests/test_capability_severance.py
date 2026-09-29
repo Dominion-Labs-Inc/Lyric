@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Severance: proving a capability CAUSALLY OWNS the answer it appears to give.
 
-"Torin got the right answer" is a much weaker claim than "this mechanism
+"Lyric got the right answer" is a much weaker claim than "this mechanism
 produced the right answer". The difference is only visible when the mechanism
 is removed: if the answer survives, something else was doing the work.
 

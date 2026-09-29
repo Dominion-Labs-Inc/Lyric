@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Security — TorinAI.
+"""Security — Lyric.
 
 What governs the substrate is the Constitution, and what the substrate knows
 about the attacks it meets is ThreatSense — both in `core/agents/autonomous/`.

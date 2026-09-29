@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """Empty the sandbox line, so a build or test run starts from nothing.
 
-The sandbox line is everything named from `torinai_dev`:
-  torinai_dev                                      its development database
-  torinai_dev_{staging,production}_{runtime,user_context,learning}
+The sandbox line is everything named from `lyric_dev`:
+  lyric_dev                                      its development database
+  lyric_dev_{staging,production}_{runtime,user_context,learning}
                                                    the databases of its frozen environments
-  torinai_dev_model_v<N>, torinai_dev_model_registry
+  lyric_dev_model_v<N>, lyric_dev_model_registry
                                                    the releases its runs cut, and their registry
 
 Each database is emptied: every table truncated and its sequences restarted. The releases and the registry are
@@ -15,10 +15,10 @@ main store can answer only once.
 
 It can only touch the sandbox. The names are fixed here rather than read from the environment or a `.env`
 file, and for each database the server is asked which database the connection reached before anything is
-removed; any other answer refuses that database. The main line (`torinai_db`, and everything named from it) is
+removed; any other answer refuses that database. The main line (`lyric_db`, and everything named from it) is
 never touched.
 
-Run:  ./venv_torin/bin/python3 scripts/reset_dev_store.py
+Run:  ./venv_lyric/bin/python3 scripts/reset_dev_store.py
 """
 from __future__ import annotations
 
@@ -28,7 +28,7 @@ import sys
 
 import asyncpg
 
-SANDBOX = "torinai_dev"
+SANDBOX = "lyric_dev"
 ENVIRONMENT_DATABASES = tuple(f"{SANDBOX}_{environment}_{store}"
                               for environment in ("staging", "production")
                               for store in ("runtime", "user_context", "learning"))

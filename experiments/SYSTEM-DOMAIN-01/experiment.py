@@ -6,7 +6,7 @@ One authority (`UniversalDomainMaster`, reached through
 evidence moves its progress, a gap is detected against what it holds, and the
 domain is removed afterwards.
 
-Run: ./venv_torin/bin/python3 experiments/SYSTEM-DOMAIN-01/experiment.py
+Run: ./venv_lyric/bin/python3 experiments/SYSTEM-DOMAIN-01/experiment.py
 """
 from __future__ import annotations
 

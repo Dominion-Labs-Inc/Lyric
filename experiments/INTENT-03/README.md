@@ -16,10 +16,10 @@ matters. This drives the whole chain on the real substrate and checks the **worl
 Success is the re-observed world, never a tool's own report. Self-cleaning: it deletes the intent it
 recorded and its sandbox.
 
-**Run** (from the TorinAI folder):
+**Run** (from the Lyric folder):
 
 ```
-./venv_torin/bin/python3 experiments/INTENT-03/experiment.py
+./venv_lyric/bin/python3 experiments/INTENT-03/experiment.py
 ```
 
 **What it plans over.** A `MOVE_FILE` operator the substrate learned from its own acts, in the domain

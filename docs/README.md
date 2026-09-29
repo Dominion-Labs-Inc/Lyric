@@ -1,8 +1,8 @@
-# TorinAI Documentation
+# Lyric Documentation
 
 ## Overview
 
-TorinAI is an AGI system with reasoning, memory, learning, security, and autonomous capabilities. This doc folder contains practical guides for the main systems.
+Lyric is an AGI system with reasoning, memory, learning, security, and autonomous capabilities. This doc folder contains practical guides for the main systems.
 
 ## Core Systems
 
@@ -39,7 +39,7 @@ TorinAI is an AGI system with reasoning, memory, learning, security, and autonom
 ## File Structure
 
 ```
-TorinAI/
+Lyric/
 ├── core/
 │   ├── agents/          # Autonomous agents (memory, planning, task execution)
 │   ├── reasoning/       # Reasoning engines (abstract, neural, hypothesis)

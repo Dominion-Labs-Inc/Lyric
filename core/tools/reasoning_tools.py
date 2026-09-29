@@ -2,7 +2,7 @@
 """Reasoning, Simulation, and Optimization Tools
 ================================================
 
-High-level tools that expose Torin's industrial-grade reasoning engines
+High-level tools that expose Lyric's industrial-grade reasoning engines
 to agents in a robust, JSON-friendly way.
 
 These tools are thin, fully implemented adapters over the underlying
@@ -85,7 +85,7 @@ class ProveTheoremTool(Tool):
         super().__init__()
         self.name = "prove_theorem"
         self.description = (
-            "Prove a logical theorem given premises using Torin's Advanced "
+            "Prove a logical theorem given premises using Lyric's Advanced "
             "Proof Engine (SMT-backed when available)."
         )
         self.category = ToolCategory.REASONING
@@ -1167,7 +1167,7 @@ class RunMonteCarloTool(Tool):
         self.name = "run_monte_carlo"
         self.description = (
             "Run Monte Carlo simulations for simple distributions (normal, "
-            "uniform, lognormal) using Torin's Monte Carlo engine."
+            "uniform, lognormal) using Lyric's Monte Carlo engine."
         )
         self.category = ToolCategory.REASONING
         self.safety_level = ToolSafety.SAFE

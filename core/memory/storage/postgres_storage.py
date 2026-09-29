@@ -36,7 +36,7 @@ from typing import Dict, Any, List, Optional, Set, Tuple
 from datetime import datetime, timedelta
 from dataclasses import asdict
 
-from core.database.unified_database_postgres import TorinUnifiedDatabasePostgres
+from core.database.unified_database_postgres import LyricUnifiedDatabasePostgres
 from core.memory.utils.interfaces import (
     MemoryItem,
     MemoryType,
@@ -105,7 +105,7 @@ class PostgresStorage:
 
     def __init__(
         self,
-        db: Optional[TorinUnifiedDatabasePostgres] = None,
+        db: Optional[LyricUnifiedDatabasePostgres] = None,
         retention_days: int = 60
     ):
         """
@@ -115,7 +115,7 @@ class PostgresStorage:
             db: Database instance (creates new if None)
             retention_days: Days to retain in hot tier (default 60)
         """
-        self.db = db or TorinUnifiedDatabasePostgres()
+        self.db = db or LyricUnifiedDatabasePostgres()
         self.retention_days = retention_days
         self.initialized = False
 

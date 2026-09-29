@@ -22,8 +22,8 @@ Three categories, four labelled images each, six held-out images each. Every nam
 
 ## Run
 
-    PYTHONPATH="$PWD" TORIN_NO_WATCHDOG=1 \
-    ./venv_torin/bin/python3 experiments/systems/PERCEIVE-SEE-01/experiment.py
+    PYTHONPATH="$PWD" LYRIC_NO_WATCHDOG=1 \
+    ./venv_lyric/bin/python3 experiments/systems/PERCEIVE-SEE-01/experiment.py
 
 Writes `manifest.json`: per image what was drawn, what the faculty measured, which individual was
 admitted and what it holds; then per category the induced rule, recall, abstention and false namings.

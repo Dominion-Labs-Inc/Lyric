@@ -34,7 +34,7 @@ it never hands it the knowledge.
   E  IT IS THE CHOKEPOINT    attestation hangs on the method every caller
                              actually uses, not only the public entry.
 
-Run: PYTHONPATH="$PWD" ./venv_torin/bin/python3 experiments/ATTEST-01/experiment.py
+Run: PYTHONPATH="$PWD" ./venv_lyric/bin/python3 experiments/ATTEST-01/experiment.py
 """
 import sys
 import tempfile

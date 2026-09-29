@@ -23,7 +23,7 @@ defaults. A plain file where the directory was is a destination the tool genuine
 **Run** (sandbox store, boots the full system):
 
 ```
-POSTGRES_DATABASE=torinai_dev ./venv_torin/bin/python3 experiments/REPLAN-03/experiment.py
+POSTGRES_DATABASE=lyric_dev ./venv_lyric/bin/python3 experiments/REPLAN-03/experiment.py
 ```
 
 The domain id `replan03_workspace` is this experiment's alone. Everything it holds is removed at the start,

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-TorinAI Baseline Experiment Scripts
+Lyric Baseline Experiment Scripts
 
-Scripts for running empirical baseline experiments on TorinAI systems.
+Scripts for running empirical baseline experiments on Lyric systems.
 """

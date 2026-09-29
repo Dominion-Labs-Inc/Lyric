@@ -13,13 +13,13 @@ should name and negatives it should decline. We measure:
 
 Every image is a real file with real pixels; no answers are given to the reasoner.
 
-    PYTHONPATH="$PWD" POSTGRES_PORT=5433 POSTGRES_USER=stefan TORIN_NO_WATCHDOG=1 \
-    ./venv_torin/bin/python3 experiments/systems/PERCEIVE-EVAL/experiment.py
+    PYTHONPATH="$PWD" POSTGRES_PORT=5433 POSTGRES_USER=stefan LYRIC_NO_WATCHDOG=1 \
+    ./venv_lyric/bin/python3 experiments/systems/PERCEIVE-EVAL/experiment.py
 """
 from __future__ import annotations
 import os
 for k, v in {"POSTGRES_PORT": "5433", "POSTGRES_USER": "stefan",
-             "POSTGRES_DATABASE": "torinai_db", "TORIN_NO_WATCHDOG": "1"}.items():
+             "POSTGRES_DATABASE": "lyric_db", "LYRIC_NO_WATCHDOG": "1"}.items():
     os.environ.setdefault(k, v)
 import asyncio, contextlib, io, json, sys
 from uuid import uuid4

@@ -118,8 +118,8 @@ update, model-free), while the belief store stays free of duplicates.
 ## How to run a session
 
 ```
-PYTHONPATH="$PWD" POSTGRES_PORT=5433 POSTGRES_USER=stefan TORIN_NO_WATCHDOG=1 \
-  ./venv_torin/bin/python3 scripts/teach_session.py --limit 2000 --label <name>
+PYTHONPATH="$PWD" POSTGRES_PORT=5433 POSTGRES_USER=stefan LYRIC_NO_WATCHDOG=1 \
+  ./venv_lyric/bin/python3 scripts/teach_session.py --limit 2000 --label <name>
 ```
 
 Omit `--limit` to teach the full WordNet English taxonomy. Every run snapshots the

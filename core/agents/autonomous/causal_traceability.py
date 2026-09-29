@@ -183,7 +183,7 @@ class CausalTraceabilityGate:
         proposal.claimed_outputs : Dict[str, Any]
     """
 
-    def __init__(self, workspace_root: str = "/Users/stefan/Dominion Labs/TorinAI"):
+    def __init__(self, workspace_root: str = "/Users/stefan/Dominion Labs/Lyric"):
         self.workspace_root = workspace_root
 
     # =========================================================================

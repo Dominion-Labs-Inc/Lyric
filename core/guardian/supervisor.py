@@ -247,13 +247,13 @@ async def main() -> int:
     # infrastructure, the observability apparatus) and never the substrate's
     # cognition. Ownership is the boundary the health system was missing.
     import os
-    os.environ["TORINAI_HEALTH_SCOPE"] = "system"
+    os.environ["LYRIC_HEALTH_SCOPE"] = "system"
 
     # Load the Dominion Labs environment FIRST, before any security system reads
-    # os.getenv. The master .env lives one level above TorinAI and holds the
+    # os.getenv. The master .env lives one level above Lyric and holds the
     # shared credentials the guardian needs -- notably the threat-intelligence
     # keys (ABUSEIPDB/VIRUSTOTAL/OTX) and Cloudflare token. Without this the
-    # guardian ran with only TorinAI's partial local env and threat_intel had
+    # guardian ran with only Lyric's partial local env and threat_intel had
     # zero sources.
     try:
         from core.utils.env_loader import load_global_env, resolve_env_files

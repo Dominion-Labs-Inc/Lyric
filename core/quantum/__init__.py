@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Quantum Computing Module for Torin ASI
+Quantum Computing Module for Lyric ASI
 Provides quantum computing capabilities including IBM Quantum integration
 """
 

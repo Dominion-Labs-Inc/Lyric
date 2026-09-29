@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Teach the substrate. THE teaching entry point, and it teaches a LIVE substrate.
 
-Every teaching script before this one called `TorinAISystem.initialize()` and
+Every teaching script before this one called `LyricSystem.initialize()` and
 never `start()`. That constructs every first-class module -- appraisal,
 motivation, the domain authority, perception, the coordinator -- and starts none
 of them. The modules were present and inert: they are woken by events, and the
@@ -36,7 +36,7 @@ So this starts the substrate and teaches it while it is running:
   --head     take the source's first N instead of a sample
 
 Run: PYTHONPATH="$PWD" POSTGRES_PORT=5433 POSTGRES_USER=stefan \
-     TORIN_NO_WATCHDOG=1 ./venv_torin/bin/python3 scripts/teach.py --source wordnet
+     LYRIC_NO_WATCHDOG=1 ./venv_lyric/bin/python3 scripts/teach.py --source wordnet
 """
 import argparse
 import asyncio
@@ -50,7 +50,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 for _k, _v in {"POSTGRES_PORT": "5433", "POSTGRES_USER": "stefan",
-               "POSTGRES_DATABASE": "torinai_db", "TORIN_NO_WATCHDOG": "1",
+               "POSTGRES_DATABASE": "lyric_db", "LYRIC_NO_WATCHDOG": "1",
                "TQDM_DISABLE": "1"}.items():
     os.environ.setdefault(_k, _v)
 sys.path.insert(0, str(ROOT))

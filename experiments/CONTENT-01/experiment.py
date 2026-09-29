@@ -24,7 +24,7 @@ four channels that are allowed to move differently:
   E  INTENT                            what it did to what would be pursued.
   F  PERMISSION                        what it did to what is allowed: nothing.
 
-Run: ./venv_torin/bin/python3 experiments/CONTENT-01/experiment.py
+Run: ./venv_lyric/bin/python3 experiments/CONTENT-01/experiment.py
 """
 from __future__ import annotations
 

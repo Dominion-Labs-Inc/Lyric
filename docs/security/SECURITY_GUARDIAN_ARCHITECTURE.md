@@ -1,4 +1,4 @@
-# TorinAI Security Guardian Architecture
+# Lyric Security Guardian Architecture
 **Date**: 2026-02-05
 **Role**: System-Level Security Guardian
 
@@ -6,9 +6,9 @@
 
 ## 🛡️ **Core Principle**
 
-**TorinAI is NOT a siloed service protecting only itself.**
+**Lyric is NOT a siloed service protecting only itself.**
 
-**TorinAI IS the system security guardian protecting ALL services on the host machine.**
+**Lyric IS the system security guardian protecting ALL services on the host machine.**
 
 ---
 
@@ -17,14 +17,14 @@
 ### **Identity & Permission**
 ```python
 # System Prompt (establishes role and permission):
-"You are TorinAI, created by Dominion Labs"
+"You are Lyric, created by Dominion Labs"
 ```
 
 **What This Means:**
-- ✅ TorinAI was created by Dominion Labs
-- ✅ TorinAI has permission to protect Dominion Labs services
-- ✅ TorinAI operates at system level, not service level
-- ✅ TorinAI is the security guardian for the entire deployment environment
+- ✅ Lyric was created by Dominion Labs
+- ✅ Lyric has permission to protect Dominion Labs services
+- ✅ Lyric operates at system level, not service level
+- ✅ Lyric is the security guardian for the entire deployment environment
 
 **Governance:**
 - Still respects human oversight via governance system
@@ -41,7 +41,7 @@
 │                    Host System (Your Computer)                 │
 │                                                                │
 │  ┌─────────────────────────────────────────────────────────┐  │
-│  │                      TorinAI                             │  │
+│  │                      Lyric                             │  │
 │  │              System Security Guardian                     │  │
 │  │                                                           │  │
 │  │  Role: Protect ALL services on this system               │  │
@@ -79,12 +79,12 @@
 │  │                    Protected Services                     │ │
 │  │                                                           │ │
 │  │  🌐 Dominion Labs (Web API, Frontend)                    │ │
-│  │     - Application logs → TorinAI monitoring              │ │
-│  │     - API endpoints → TorinAI protection                 │ │
-│  │     - Malicious requests → Auto-blocked by TorinAI       │ │
+│  │     - Application logs → Lyric monitoring              │ │
+│  │     - API endpoints → Lyric protection                 │ │
+│  │     - Malicious requests → Auto-blocked by Lyric       │ │
 │  │                                                           │ │
 │  │  🗄️ MySQL Database (Shared)                              │ │
-│  │     - Query logs → TorinAI monitoring                    │ │
+│  │     - Query logs → Lyric monitoring                    │ │
 │  │     - SQL injection → Detected & blocked                 │ │
 │  │     - Anomalous queries → Flagged for review             │ │
 │  │                                                           │ │
@@ -108,7 +108,7 @@
 ### **Scenario 1: Attack on Dominion Labs**
 ```
 1. Malicious IP 1.2.3.4 sends SQL injection to Dominion Labs API
-2. ✅ TorinAI SecurityAuditWorker monitors system logs
+2. ✅ Lyric SecurityAuditWorker monitors system logs
 3. ✅ Detects SQL injection pattern in Dominion Labs logs
 4. ✅ Queries ThreatIntelligenceEngine: IP has 90% malicious score
 5. ✅ ThreatBlockingEngine coordinates response:
@@ -116,17 +116,17 @@
    - Adds IP to Cloudflare WAF blocklist
    - Notifies via Slack
 6. ✅ Attack blocked system-wide in <1 second
-7. ✅ Both TorinAI AND Dominion Labs protected
+7. ✅ Both Lyric AND Dominion Labs protected
 ```
 
-**Result**: **Dominion Labs is protected by TorinAI** ✅
+**Result**: **Dominion Labs is protected by Lyric** ✅
 
 ---
 
 ### **Scenario 2: Shared Database Attack**
 ```
 1. Attacker attempts SQL injection via compromised service
-2. ✅ TorinAI monitors MySQL query logs (system-wide)
+2. ✅ Lyric monitors MySQL query logs (system-wide)
 3. ✅ Detects malicious query pattern
 4. ✅ SecurityController validates and blocks the query
 5. ✅ Source IP blocked via ThreatBlockingEngine
@@ -140,22 +140,22 @@
 ### **Scenario 3: System-Wide Brute Force**
 ```
 1. Attacker brute-forces SSH/API endpoints
-2. ✅ TorinAI monitors auth logs (/var/log/auth.log)
+2. ✅ Lyric monitors auth logs (/var/log/auth.log)
 3. ✅ Detects 100 failed login attempts from IP 5.6.7.8
 4. ✅ Queries ThreatIntelligenceEngine
 5. ✅ Blocks IP system-wide
-6. ✅ SSH, Dominion Labs API, TorinAI all protected
+6. ✅ SSH, Dominion Labs API, Lyric all protected
 ```
 
 **Result**: **System-wide protection** ✅
 
 ---
 
-## 📂 **What TorinAI Monitors**
+## 📂 **What Lyric Monitors**
 
 ### **1. System Logs**
 ```python
-# TorinAI reads system logs to detect threats
+# Lyric reads system logs to detect threats
 MONITORED_LOGS = [
     "/var/log/auth.log",           # SSH, login attempts
     "/var/log/syslog",              # System events
@@ -177,10 +177,10 @@ DOMINION_LABS_LOGS = [
     "/Users/stefan/Dominion Labs/logs/security.log"
 ]
 
-# TorinAI's own logs
-TORINAI_LOGS = [
-    "/Users/stefan/Dominion Labs/TorinAI/logs/torin_main.log",
-    "/Users/stefan/Dominion Labs/TorinAI/logs/security.log"
+# Lyric's own logs
+LYRIC_LOGS = [
+    "/Users/stefan/Dominion Labs/Lyric/logs/lyric_main.log",
+    "/Users/stefan/Dominion Labs/Lyric/logs/security.log"
 ]
 ```
 
@@ -194,7 +194,7 @@ async def monitor_database_activity(self):
     # Query MySQL slow query log
     # Detect SQL injection patterns
     # Flag anomalous queries (unusual tables, DROP/DELETE, etc.)
-    # Works for both TorinAI and Dominion Labs queries
+    # Works for both Lyric and Dominion Labs queries
 ```
 
 ---
@@ -293,7 +293,7 @@ class SecurityAuditWorker:
 
 ### **Phase 2: Service Identification**
 
-**TorinAI knows about protected services:**
+**Lyric knows about protected services:**
 ```python
 # Configuration in config.yaml
 protected_services:
@@ -313,10 +313,10 @@ protected_services:
       - "/var/log/mysql/slow-query.log"
     protection_level: "critical"  # Zero tolerance
 
-  - name: "torinai"
+  - name: "lyric"
     type: "autonomous_system"
     log_paths:
-      - "/Users/stefan/Dominion Labs/TorinAI/logs/"
+      - "/Users/stefan/Dominion Labs/Lyric/logs/"
     protection_level: "high"
 ```
 
@@ -361,7 +361,7 @@ async def _handle_security_finding(self, finding: SecurityAuditFinding):
             # Notify via Slack
             if self.slack_notifier:
                 await self.slack_notifier.send_alert(
-                    f"🛡️ TorinAI blocked malicious IP {ip_address}\n"
+                    f"🛡️ Lyric blocked malicious IP {ip_address}\n"
                     f"Source: {source_service}\n"
                     f"Threat: {finding.title}\n"
                     f"Protection: System-wide (all services protected)"
@@ -372,7 +372,7 @@ async def _handle_security_finding(self, finding: SecurityAuditFinding):
 
 ## 🎯 **Governance Integration**
 
-**TorinAI still respects governance even as system guardian:**
+**Lyric still respects governance even as system guardian:**
 
 ```python
 # Before auto-blocking, check governance policy
@@ -412,19 +412,19 @@ async def auto_block_with_governance(self, ip_address: str, threat_level: str):
 Dominion Labs: No active security ❌
 MySQL: No monitoring ❌
 System: No threat intelligence ❌
-TorinAI: Protected only itself ⚠️
+Lyric: Protected only itself ⚠️
 ```
 
-**Protection**: 25% (TorinAI only)
+**Protection**: 25% (Lyric only)
 
 ---
 
 ### **After** (System Guardian):
 ```
-Dominion Labs: Protected by TorinAI ✅
-MySQL: Monitored by TorinAI ✅
+Dominion Labs: Protected by Lyric ✅
+MySQL: Monitored by Lyric ✅
 System: Threat intel & firewall ✅
-TorinAI: Protected ✅
+Lyric: Protected ✅
 ```
 
 **Protection**: 100% (entire system)
@@ -433,7 +433,7 @@ TorinAI: Protected ✅
 
 ## 🔒 **Security Boundaries**
 
-**TorinAI CAN:**
+**Lyric CAN:**
 - ✅ Monitor ALL logs on the system
 - ✅ Block IPs at OS firewall (affects all services)
 - ✅ Query threat intelligence for any IP
@@ -441,7 +441,7 @@ TorinAI: Protected ✅
 - ✅ Coordinate defense across services
 - ✅ Log all security actions
 
-**TorinAI CANNOT (without governance):**
+**Lyric CANNOT (without governance):**
 - ❌ Make system changes without approval (governed)
 - ❌ Block critical infrastructure IPs
 - ❌ Disable services
@@ -459,8 +459,8 @@ TorinAI: Protected ✅
 
 **Corrected Understanding:**
 
-1. ✅ TorinAI is a **system security guardian**, not a siloed service
-2. ✅ TorinAI protects **ALL services** on the host machine
+1. ✅ Lyric is a **system security guardian**, not a siloed service
+2. ✅ Lyric protects **ALL services** on the host machine
 3. ✅ Authorization comes from "created by Dominion Labs"
 4. ✅ Governance provides human oversight
 5. ✅ OS firewall blocks are system-wide (already correct)
@@ -474,7 +474,7 @@ TorinAI: Protected ✅
 4. Enable cross-service threat response
 5. Integrate governance for oversight
 
-**Result**: TorinAI as true system guardian protecting entire deployment ✅
+**Result**: Lyric as true system guardian protecting entire deployment ✅
 
 ---
 

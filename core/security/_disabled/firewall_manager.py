@@ -49,7 +49,7 @@ class RealTimeFirewallManager:
         self.block_expirations: Dict[str, Optional[float]] = {}
 
         # Persistence (best-effort). Disabled in test mode unless explicitly enabled.
-        persistence_env = os.getenv("TORINAI_FIREWALL_PERSISTENCE", "true").strip().lower()
+        persistence_env = os.getenv("LYRIC_FIREWALL_PERSISTENCE", "true").strip().lower()
         self._persistence_enabled = (
             persistence_env not in {"0", "false", "no", "off"} and not self.test_mode
         )
@@ -182,7 +182,7 @@ class RealTimeFirewallManager:
         """Get current rules from OS firewall"""
         if self.test_mode:
             # In test mode, pretend all rules exist
-            return [f"TorinAI: {r.rule_id}" for r in self.active_rules.values()]
+            return [f"Lyric: {r.rule_id}" for r in self.active_rules.values()]
         
         try:
             if self.firewall_type == "iptables":
@@ -204,7 +204,7 @@ class RealTimeFirewallManager:
                 result = await asyncio.get_event_loop().run_in_executor(
                     None,
                     lambda: subprocess.run(
-                        ["pfctl", "-a", "torin_defense", "-sr"],
+                        ["pfctl", "-a", "lyric_defense", "-sr"],
                         capture_output=True,
                         text=True,
                         timeout=10
@@ -220,9 +220,9 @@ class RealTimeFirewallManager:
     
     def _rule_exists_in_os(self, rule: FirewallRule, os_rules: List[str]) -> bool:
         """Check if a rule exists in the OS firewall output"""
-        # Look for TorinAI comment or the source IP in rules
+        # Look for Lyric comment or the source IP in rules
         rule_markers = [
-            f"TorinAI:",
+            f"Lyric:",
             rule.source_ip if rule.source_ip else "",
             rule.rule_id
         ]
@@ -335,7 +335,7 @@ class RealTimeFirewallManager:
             action=FirewallRuleAction.DROP,
             protocol=protocol if protocol != "all" else None,
             source_ip=ip_address,
-            comment=f"TorinAI: {reason}"
+            comment=f"Lyric: {reason}"
         )
         
         # Apply rule based on firewall type
@@ -614,7 +614,7 @@ class RealTimeFirewallManager:
             pf_rule += f" proto {rule.protocol} port {port_str}"
         
         # Write rule to temp file
-        rule_file = f"/tmp/torin_pf_rule_{rule.rule_id}.conf"
+        rule_file = f"/tmp/lyric_pf_rule_{rule.rule_id}.conf"
         
         try:
             with open(rule_file, "w") as f:
@@ -622,7 +622,7 @@ class RealTimeFirewallManager:
                 f.write(f"{pf_rule}\n")
             
             # Add rule to pf
-            cmd = ["pfctl", "-a", "torin_defense", "-f", rule_file]
+            cmd = ["pfctl", "-a", "lyric_defense", "-f", rule_file]
             success = await self._run_firewall_command(cmd)
             
             # Cleanup
@@ -636,7 +636,7 @@ class RealTimeFirewallManager:
     async def _remove_pf_rule(self, rule: FirewallRule) -> bool:
         """Remove pf rule"""
         # Flush the anchor to remove rules
-        cmd = ["pfctl", "-a", "torin_defense", "-F", "rules"]
+        cmd = ["pfctl", "-a", "lyric_defense", "-F", "rules"]
         return await self._run_firewall_command(cmd)
     
     async def _run_firewall_command(self, cmd: List[str]) -> bool:
@@ -688,7 +688,7 @@ class RealTimeFirewallManager:
             protocol=protocol,
             dest_port=port,
             interface=interface,
-            comment=f"TorinAI: Block {protocol}/{port}"
+            comment=f"Lyric: Block {protocol}/{port}"
         )
         
         if self.firewall_type == "iptables":
@@ -699,13 +699,13 @@ class RealTimeFirewallManager:
             success = await self._run_firewall_command(cmd)
         elif self.firewall_type == "pf":
             pf_rule = f"block drop in proto {protocol} to any port {port}"
-            rule_file = f"/tmp/torin_pf_port_{rule_id}.conf"
+            rule_file = f"/tmp/lyric_pf_port_{rule_id}.conf"
             
             try:
                 with open(rule_file, "w") as f:
                     f.write(f"{pf_rule}\n")
                 
-                cmd = ["pfctl", "-a", "torin_defense", "-f", rule_file]
+                cmd = ["pfctl", "-a", "lyric_defense", "-f", rule_file]
                 success = await self._run_firewall_command(cmd)
                 os.remove(rule_file)
             except Exception as e:
@@ -735,7 +735,7 @@ class RealTimeFirewallManager:
             chain=FirewallChain.INPUT,
             action=FirewallRuleAction.ACCEPT,
             source_ip=ip_address,
-            comment=f"TorinAI: {reason}",
+            comment=f"Lyric: {reason}",
             priority=10  # High priority for whitelists
         )
         
@@ -746,13 +746,13 @@ class RealTimeFirewallManager:
             success = await self._run_firewall_command(cmd)
         elif self.firewall_type == "pf":
             pf_rule = f"pass in quick from {ip_address} to any"
-            rule_file = f"/tmp/torin_pf_allow_{rule_id}.conf"
+            rule_file = f"/tmp/lyric_pf_allow_{rule_id}.conf"
             
             try:
                 with open(rule_file, "w") as f:
                     f.write(f"{pf_rule}\n")
                 
-                cmd = ["pfctl", "-a", "torin_defense", "-f", rule_file]
+                cmd = ["pfctl", "-a", "lyric_defense", "-f", rule_file]
                 success = await self._run_firewall_command(cmd)
                 os.remove(rule_file)
             except Exception as e:
@@ -777,18 +777,18 @@ class RealTimeFirewallManager:
         return list(self.active_rules.values())
     
     async def flush_all_rules(self) -> bool:
-        """Remove all TorinAI firewall rules (DANGEROUS)"""
-        self.logger.warning("Flushing all TorinAI firewall rules")
+        """Remove all Lyric firewall rules (DANGEROUS)"""
+        self.logger.warning("Flushing all Lyric firewall rules")
         
         if self.firewall_type == "iptables":
-            # Remove all rules with TorinAI comment
+            # Remove all rules with Lyric comment
             cmd = ["iptables", "-S"]
             result = await self._run_firewall_command(cmd)
             # Would need to parse output and remove matching rules
             # For safety, not implementing full flush
             pass
         elif self.firewall_type == "pf":
-            cmd = ["pfctl", "-a", "torin_defense", "-F", "all"]
+            cmd = ["pfctl", "-a", "lyric_defense", "-F", "all"]
             await self._run_firewall_command(cmd)
         
         self.active_rules.clear()

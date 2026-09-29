@@ -10,7 +10,7 @@ run), and the SUBSTRATE's own work is exempt from the per-user cap (bounded only
   3. The coordinator caps USERS at per_actor_max but never the substrate (its autonomous work is exempt).
   4. Reap releases a user's slots, so a finished task frees capacity for that user's next one.
 
-Run: ./venv_torin/bin/python3 experiments/PER-USER-CONCURRENCY-01/experiment.py
+Run: ./venv_lyric/bin/python3 experiments/PER-USER-CONCURRENCY-01/experiment.py
 """
 from __future__ import annotations
 import asyncio

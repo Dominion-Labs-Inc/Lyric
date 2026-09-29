@@ -27,7 +27,7 @@ residue from one run would otherwise make the next "already present".
 ## Run
 
 ```
-./venv_torin/bin/python3 experiments/SYSTEM-PERCEPTION-01/experiment.py
+./venv_lyric/bin/python3 experiments/SYSTEM-PERCEPTION-01/experiment.py
 ```
 
 Section F removes its perception row, memory, retained picture, envelope, every graph row citing it, the concepts only it made, its beliefs, and the experience the seeing handed to the memory agent's pool (added 2026-09-28: since the pool existed, the seeing's pool item had been left behind unseen). Each run writes `results/<UTC timestamp>.json` with a `.md` beside it. The run reports three things apart (`experiments/_isolation.py`): **behaviour** checks, which alone decide pass/fail; **wiring** findings (a public method nothing in `core/` calls — split into ones only experiments/tests exercise and ones nothing calls); and **completeness** findings (a body that raises `NotImplementedError`, returns a literal, or is empty).

@@ -29,7 +29,7 @@ The live-pursuit checks in A and C, and all of B, are the negative controls: the
 gate must refuse no work whose pursuit is live, and must not manufacture an intent
 for work that has none.
 
-Run: ./venv_torin/bin/python3 experiments/TASK-GATE-02/experiment.py
+Run: ./venv_lyric/bin/python3 experiments/TASK-GATE-02/experiment.py
 """
 import asyncio
 import contextlib

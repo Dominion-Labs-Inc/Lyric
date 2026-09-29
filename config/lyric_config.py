@@ -1,5 +1,5 @@
 """
-TorinAI Configuration
+Lyric Configuration
 """
 
 # System configuration

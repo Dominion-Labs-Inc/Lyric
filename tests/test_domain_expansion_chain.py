@@ -11,7 +11,7 @@ Every component of this chain existed and none of them were joined:
             field, or a category) into the populated FIELDS it names
   consumer  UnifiedLearningSystem.learn_with_domain_context, the only method
             that puts a domain onto learn_from_example
-  tier      _idle_domain_expansion_work, documented at TORINAI_REFERENCE.md:3114
+  tier      _idle_domain_expansion_work, documented at LYRIC_REFERENCE.md:3114
             and never registered
 
 Four defects found while joining them are locked here. Each returned a
@@ -355,7 +355,7 @@ async def test_universal_projection_is_derived_not_persisted():
         "module away")
 
     # Authority is encoded by PROVENANCE, not by forbidding the abstract domain
-    # to hold anything. Torin may legitimately learn a concept that belongs to
+    # to hold anything. Lyric may legitimately learn a concept that belongs to
     # the abstract level later; what must never happen is the ONTOLOGY's
     # concepts being copied into unified.concepts, which would give the
     # universal level two owners that can disagree.

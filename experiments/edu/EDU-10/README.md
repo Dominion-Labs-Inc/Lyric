@@ -2,7 +2,7 @@
 
 ## Claim
 
-Across deterministic, stochastic, and partially observable conditions, Torin
+Across deterministic, stochastic, and partially observable conditions, Lyric
 recovered the true polarized causal structure in every evaluated seed while
 maintaining zero false structural refutations. Stochasticity increased median
 evidence requirements from 25 to 32 observations, and partial observation to
@@ -16,7 +16,7 @@ leak successes were insufficient to corrupt the true structural hypothesis.**
 ## In plain terms
 
 Every earlier lesson lived in a world where the same setup always gave the same
-result. If Torin expected the forklift to move a pallet and it didn't, that was
+result. If Lyric expected the forklift to move a pallet and it didn't, that was
 proof its rule was wrong.
 
 Real machinery isn't like that. A correct procedure fails sometimes. A wrong
@@ -24,7 +24,7 @@ one occasionally works anyway. And sometimes nobody can tell what happened.
 
 A learner that treats one disappointment as proof will throw away a perfectly
 good rule the first time reality misbehaves. A learner that ignores
-disappointments will never fix a rule that is genuinely wrong. Torin has to
+disappointments will never fix a rule that is genuinely wrong. Lyric has to
 tell those two apart, and the only way is to keep two separate books:
 
 - **the structure** — which conditions the action needs, and which must be absent
@@ -34,7 +34,7 @@ A failure with everything in place is news about *reliability*. It is news
 about *structure* only if some other structure explains the whole record
 better. Here the action works 90% of the time when its preconditions hold, 2%
 of the time when they don't, and in one condition 10% of attempts come back
-"couldn't tell". Torin gets the observation. It never gets the truth.
+"couldn't tell". Lyric gets the observation. It never gets the truth.
 
 ## Result
 
@@ -87,7 +87,7 @@ weighed.
 ## Method
 
 ```
-EDU10_SEEDS=30 ./venv_torin/bin/python3 experiments/edu/EDU-10/experiment.py
+EDU10_SEEDS=30 ./venv_lyric/bin/python3 experiments/edu/EDU-10/experiment.py
 ```
 
 No language model is involved. The learner is

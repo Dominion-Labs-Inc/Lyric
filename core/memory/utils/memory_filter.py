@@ -72,7 +72,7 @@ class MemoryFilter:
 
     def __init__(self, config_path: Optional[str] = None):
         """Initialize filter with policy configuration"""
-        self.config_path = config_path or "/Users/stefan/Dominion Labs/TorinAI/config/memory_filtering_policy.json"
+        self.config_path = config_path or "/Users/stefan/Dominion Labs/Lyric/config/memory_filtering_policy.json"
         self.policy = self._load_policy()
         self.metrics = FilterMetrics()
 

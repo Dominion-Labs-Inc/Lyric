@@ -9,7 +9,7 @@ The invariant:
 Placement legitimately differs — task-start injection and reasoning-call
 injection happen at different lifecycle points. Relevance must not.
 
-Torin had THREE independent answers to "should prior context enter cognition":
+Lyric had THREE independent answers to "should prior context enter cognition":
 
   1. MemoryInjectionPolicy.decide()          consulted only by the coordinator
   2. MemoryInjector._should_search_memories() its own keyword/complexity gate
@@ -21,7 +21,7 @@ POSTGRES_PASSWORD_FINDING below. Keep that case permanently: it is the concrete
 proof that three independent relevance decisions were untenable, and the
 regression fixture for anyone tempted to add a fourth.
 
-Run:  venv_torin/bin/python tests/test_memory_injection_authority.py
+Run:  venv_lyric/bin/python tests/test_memory_injection_authority.py
 """
 
 import sys

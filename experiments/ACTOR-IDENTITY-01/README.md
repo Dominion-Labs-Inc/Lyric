@@ -10,10 +10,10 @@ under the session string.
 
 Uses the real learning authority and the real scoped store.
 
-**Run** (from the TorinAI folder):
+**Run** (from the Lyric folder):
 
 ```
-./venv_torin/bin/python3 experiments/ACTOR-IDENTITY-01/experiment.py
+./venv_lyric/bin/python3 experiments/ACTOR-IDENTITY-01/experiment.py
 ```
 
 **Results.** Printed to the terminal only; no run is saved.

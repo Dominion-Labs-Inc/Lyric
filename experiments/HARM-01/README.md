@@ -17,7 +17,7 @@ informed authorisation. Every judgement comes from the real constitution the coo
 **Run:**
 
 ```
-POSTGRES_DATABASE=torinai_dev ./venv_torin/bin/python3 experiments/HARM-01/experiment.py
+POSTGRES_DATABASE=lyric_dev ./venv_lyric/bin/python3 experiments/HARM-01/experiment.py
 ```
 
 **Results.** Every run is saved in `results/` through `_evidence.py`.

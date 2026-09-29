@@ -39,7 +39,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from experiments._evidence import RunRecord  # noqa: E402
-os.environ.setdefault("TORIN_SHADOW_MODE", "1")
+os.environ.setdefault("LYRIC_SHADOW_MODE", "1")
 
 PASS = FAIL = 0
 EV = RunRecord("GOVERNANCE-ABSORPTION-01",

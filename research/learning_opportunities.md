@@ -20,7 +20,7 @@ This report outlines potential new domains or problem classes identified by anal
 
 ## Sources
 
-- Logs and configuration files in `/Users/stefan/Dominion Labs/TorinAI` directory
+- Logs and configuration files in `/Users/stefan/Dominion Labs/Lyric` directory
 
 ## Key Findings
 

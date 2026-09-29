@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""TorinAI dashboard — Torin's activity, separated from the machinery's.
+"""Lyric dashboard — Lyric's activity, separated from the machinery's.
 
 Reads the per-channel logs that core.observability.channels writes. It is a
 SEPARATE PROCESS on purpose: attaching or closing a viewer must never affect the
@@ -60,11 +60,11 @@ def _load_isolated(name: str, relative: str):
     return module
 
 
-_channels = _load_isolated("torin_channels", "core/observability/channels.py")
+_channels = _load_isolated("lyric_channels", "core/observability/channels.py")
 ALL_CHANNELS = _channels.ALL_CHANNELS
 channel_for = _channels.channel_for
 
-HOME = Path(os.getenv("TORIN_HOME", Path(__file__).resolve().parent))
+HOME = Path(os.getenv("LYRIC_HOME", Path(__file__).resolve().parent))
 CHANNEL_DIR = HOME / "logs" / "channels"
 
 TITLES = {
@@ -80,7 +80,7 @@ LEVEL_STYLE = {
 }
 
 
-MAIN_LOG = HOME / "logs" / "torin_main.log"
+MAIN_LOG = HOME / "logs" / "lyric_main.log"
 BACKFILL_BYTES = 400_000
 
 #: `2026-08-18 20:22:55,874 - core.agents.memory_agent - INFO - message`
@@ -91,13 +91,13 @@ _MAIN_LINE = re.compile(
 def backfill(channel: str, limit: int) -> list:
     """This channel's recent history, recovered from the combined log.
 
-    Channel files only start filling when TorinAI next runs, so on a stopped
+    Channel files only start filling when Lyric next runs, so on a stopped
     system every pane except SUBSTRATE read as empty -- which looks identical to
     a broken channel. The combined log already holds the same records with the
     logger name intact, and the channel is derivable from that name, so the
     history can be routed after the fact instead of being lost.
 
-    Only the tail is read: torin_main.log is 36MB and this is a viewer.
+    Only the tail is read: lyric_main.log is 36MB and this is a viewer.
     """
     if not MAIN_LOG.exists():
         return []
@@ -168,7 +168,7 @@ class Tail:
 
 
 class SubstrateFeed:
-    """Torin's own record, read from where the coordinator already writes it.
+    """Lyric's own record, read from where the coordinator already writes it.
 
     NOT the substrate log channel. AutonomousCoordinator.store_memory keeps the
     structured event verbatim at thinking_state["raw_event"] and renders a
@@ -200,7 +200,7 @@ class SubstrateFeed:
             # imports only the stdlib and dotenv, but reaching it through the
             # `core.database` package would execute core/__init__.py and
             # initialise the system this viewer is only meant to observe.
-            cfg = _load_isolated("torin_pgconfig",
+            cfg = _load_isolated("lyric_pgconfig",
                                  "core/database/postgres_config.py").PostgresConfig.resolve()
             self.conn = await asyncpg.connect(
                 host=cfg.host, port=cfg.port, user=cfg.user,
@@ -288,20 +288,20 @@ def render_line(raw: str) -> Text:
 def panel_for(name: str, tail: Tail, height: int) -> Panel:
     title, colour, subtitle = TITLES[name]
     # LINES FIRST. Checking path existence first hid recovered history: the
-    # channel file legitimately does not exist until TorinAI next runs, so a
+    # channel file legitimately does not exist until Lyric next runs, so a
     # pane holding 500 backfilled records still reported itself empty.
     if tail.lines:
         body = Group(*[render_line(l) for l in list(tail.lines)[-height:]])
     else:
         body = Text("no records for this channel", style="grey42")
-    origin = " · from torin_main.log" if tail.from_history else ""
+    origin = " · from lyric_main.log" if tail.from_history else ""
     return Panel(body, title=f"[{colour}]{title}[/]",
                  subtitle=f"[grey37]{subtitle} · {tail.total}{origin}[/]",
                  border_style=colour, padding=(0, 1))
 
 
 def header() -> Panel:
-    pid_file = HOME / "runtime" / "torin_main.pid"
+    pid_file = HOME / "runtime" / "lyric_main.pid"
     running, pid = False, None
     if pid_file.exists():
         try:
@@ -316,13 +316,13 @@ def header() -> Panel:
     grid.add_column(justify="right")
     state = (Text(f"running · PID {pid}", style="bright_green") if running
              else Text("stopped", style="grey50"))
-    left = Text("TorinAI ", style="bold bright_yellow") + Text("dashboard", style="grey50")
+    left = Text("Lyric ", style="bold bright_yellow") + Text("dashboard", style="grey50")
     grid.add_row(left, state)
     return Panel(grid, border_style="grey30", padding=(0, 1))
 
 
 async def run() -> int:
-    ap = argparse.ArgumentParser(description="TorinAI channel dashboard")
+    ap = argparse.ArgumentParser(description="Lyric channel dashboard")
     ap.add_argument("--focus", choices=ALL_CHANNELS,
                     help="show a single channel full-screen")
     ap.add_argument("--interval", type=float, default=0.5)

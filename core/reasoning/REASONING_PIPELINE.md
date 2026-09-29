@@ -1,4 +1,4 @@
-# The TorinAI Reasoning Pipeline
+# The Lyric Reasoning Pipeline
 
 **Dominion Labs — Cognitive Substrate Series · Engineering & Architecture Reference**
 
@@ -159,7 +159,7 @@ enters a model call graph. In order:
 
 1. **Arithmetic first.** `read_equation(query)` (`arithmetic_reading.py`) reads a
    linear equation; if present, `_solve_equation` (`neural_bridge.py:1826`) hands it
-   to the **constraint solver** (Z3). "Torin can do algebra" is therefore a
+   to the **constraint solver** (Z3). "Lyric can do algebra" is therefore a
    substrate claim — the solver *produces* the answer at confidence 1.0, and there
    is deliberately **no fallback**: if the solver is absent this reports
    `capability_unavailable`, never a model guess.

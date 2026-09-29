@@ -31,7 +31,7 @@ nothing tells it what to do at any step. The one hand-driven call is the dispatc
 ## Run
 
 ```
-./venv_torin/bin/python3 experiments/REPLAN-02/experiment.py
+./venv_lyric/bin/python3 experiments/REPLAN-02/experiment.py
 ```
 
 Works in a temporary sandbox, and removes its domain's rules, plans and goals afterwards. Each run

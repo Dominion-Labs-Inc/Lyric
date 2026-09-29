@@ -62,7 +62,7 @@ counts support.
 ## Method
 
 ```
-SESSION01_CALLS=8 ./venv_torin/bin/python3 experiments/systems/SESSION-01/experiment.py
+SESSION01_CALLS=8 ./venv_lyric/bin/python3 experiments/systems/SESSION-01/experiment.py
 ```
 
 Requires the Qwen3.6-35B llama-server on port 8099. Unlike everything on the EDU

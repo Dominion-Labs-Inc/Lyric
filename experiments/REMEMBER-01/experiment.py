@@ -27,7 +27,7 @@ The flag's two stated defences, both examined before removing it:
                                which is the behaviour only conversation-taught
                                facts had before.
 
-Run: PYTHONPATH="$PWD" ./venv_torin/bin/python3 experiments/REMEMBER-01/experiment.py
+Run: PYTHONPATH="$PWD" ./venv_lyric/bin/python3 experiments/REMEMBER-01/experiment.py
 """
 import asyncio
 import contextlib
@@ -39,8 +39,8 @@ import time
 from pathlib import Path
 
 for _k, _v in {"POSTGRES_PORT": "5433", "POSTGRES_USER": "stefan",
-               "POSTGRES_DATABASE": "torinai_db", "TORIN_NO_WATCHDOG": "1",
-               "TORIN_SHADOW_MODE": "1"}.items():
+               "POSTGRES_DATABASE": "lyric_db", "LYRIC_NO_WATCHDOG": "1",
+               "LYRIC_SHADOW_MODE": "1"}.items():
     os.environ.setdefault(_k, _v)
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 

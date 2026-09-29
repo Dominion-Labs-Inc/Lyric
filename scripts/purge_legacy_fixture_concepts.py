@@ -8,7 +8,7 @@ absent.
 THIS SCRIPT REFUSES TO RUN unless the database still looks like the pre-state it
 was written for. An earlier version of this cleanup was a sequence of individual
 DELETEs with no precondition; rerunning it six months from now would silently
-erase everything Torin had learned. The guard below is the difference between a
+erase everything Lyric had learned. The guard below is the difference between a
 one-time migration and a loaded gun.
 
 Ordering and atomicity:

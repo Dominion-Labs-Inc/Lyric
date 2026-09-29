@@ -1,5 +1,5 @@
 """
-Drift Monitoring System for TorinAI
+Drift Monitoring System for Lyric
 Data drift detection and monitoring using Evidently
 """
 

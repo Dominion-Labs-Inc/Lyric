@@ -14,7 +14,7 @@ rather than against memory of it.
                 strings, one of them a core English word) and every regex holding an alternation
                 of core English words, across `core/`
 
-Run:  ./venv_torin/bin/python3 scripts/language_map.py [--section importers|reader|english]
+Run:  ./venv_lyric/bin/python3 scripts/language_map.py [--section importers|reader|english]
 """
 from __future__ import annotations
 

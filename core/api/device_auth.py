@@ -60,7 +60,7 @@ logger = logging.getLogger(__name__)
 # State lives on the host filesystem, not in the database: binding the device
 # must not depend on a service that can be down or reachable over the network.
 _STATE_PATH = Path(
-    os.getenv("TORIN_DEVICE_BINDING_PATH")
+    os.getenv("LYRIC_DEVICE_BINDING_PATH")
     or Path(__file__).resolve().parents[2] / "data" / "device_binding.json"
 )
 

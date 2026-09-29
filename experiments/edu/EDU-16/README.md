@@ -6,7 +6,7 @@ verb + object. A class counts only if sentences that depend on it read, and a wr
 read (see `world.py`). As in EDU-15, pretest, assisted, substrate (teacher blocked) and transfer are
 measured separately. `scaled_session.py` is a sustained 30-minute reading run.
 
-**Run:** `./venv_torin/bin/python3 experiments/edu/EDU-16/session.py` or `scaled_session.py`
+**Run:** `./venv_lyric/bin/python3 experiments/edu/EDU-16/session.py` or `scaled_session.py`
 
 **Results.**
 - `result.json` (2026-08-21):

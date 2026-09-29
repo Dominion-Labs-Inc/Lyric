@@ -10,10 +10,10 @@ experiment then checks the store:
 - the substrate believes the observations;
 - each observation carries perception provenance.
 
-**Run** (from the TorinAI folder):
+**Run** (from the Lyric folder):
 
 ```
-PYTHONPATH="$PWD" POSTGRES_PORT=5433 POSTGRES_USER=stefan TORIN_NO_WATCHDOG=1 ./venv_torin/bin/python3 experiments/systems/PERCEIVE-01/experiment.py
+PYTHONPATH="$PWD" POSTGRES_PORT=5433 POSTGRES_USER=stefan LYRIC_NO_WATCHDOG=1 ./venv_lyric/bin/python3 experiments/systems/PERCEIVE-01/experiment.py
 ```
 
 **Results.** `manifest.json` (2026-09-13; each run overwrites it): all five checks pass.

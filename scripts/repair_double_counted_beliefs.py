@@ -29,7 +29,7 @@ touch more confident than a faithful replay, never less.
 Dry run by default. `--apply` writes.
 
 Run: PYTHONPATH="$PWD" POSTGRES_PORT=5433 POSTGRES_USER=stefan \
-     TORIN_NO_WATCHDOG=1 ./venv_torin/bin/python3 \
+     LYRIC_NO_WATCHDOG=1 ./venv_lyric/bin/python3 \
      scripts/repair_double_counted_beliefs.py [--apply]
 """
 import asyncio
@@ -39,8 +39,8 @@ import sys
 from pathlib import Path
 
 for _k, _v in {"POSTGRES_PORT": "5433", "POSTGRES_USER": "stefan",
-               "POSTGRES_DATABASE": "torinai_db", "TORIN_NO_WATCHDOG": "1",
-               "TORIN_SHADOW_MODE": "1"}.items():
+               "POSTGRES_DATABASE": "lyric_db", "LYRIC_NO_WATCHDOG": "1",
+               "LYRIC_SHADOW_MODE": "1"}.items():
     os.environ.setdefault(_k, _v)
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 

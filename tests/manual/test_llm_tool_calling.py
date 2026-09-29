@@ -88,7 +88,7 @@ async def main():
 AVAILABLE TOOLS:
 {tool_list}
 
-TASK: List all files in the /Users/stefan/Dominion Labs/TorinAI/data directory
+TASK: List all files in the /Users/stefan/Dominion Labs/Lyric/data directory
 
 To use a tool, respond with JSON in EXACTLY this format (no other text):
 {{
@@ -161,7 +161,7 @@ AVAILABLE TOOLS:
 - ReadFileTool: Read file contents
 - WriteFileTool: Write content to a file
 
-TASK: List files in /Users/stefan/Dominion Labs/TorinAI/data
+TASK: List files in /Users/stefan/Dominion Labs/Lyric/data
 
 CRITICAL INSTRUCTION: You MUST respond with ONLY valid JSON. No other text. No markdown. Just JSON.
 
@@ -169,7 +169,7 @@ REQUIRED JSON FORMAT:
 {
     "reasoning": "I need to list files in the directory",
     "tool_calls": [
-        {"tool": "ListDirectoryTool", "parameters": {"path": "/Users/stefan/Dominion Labs/TorinAI/data"}}
+        {"tool": "ListDirectoryTool", "parameters": {"path": "/Users/stefan/Dominion Labs/Lyric/data"}}
     ]
 }
 

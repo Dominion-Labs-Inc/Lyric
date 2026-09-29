@@ -1,9 +1,9 @@
 #!/bin/bash
 #
-# TorinAI Ecosystem Startup Script
-# Starts the entire TorinAI autonomous system
+# Lyric Ecosystem Startup Script
+# Starts the entire Lyric autonomous system
 #
-# Usage: ./torin
+# Usage: ./lyric
 #
 
 set -e  # Exit on error
@@ -30,10 +30,10 @@ mkdir -p "$RUNTIME_DIR"
 mkdir -p "$LOGS_DIR"
 
 # PID files
-MAIN_PID_FILE="$PID_DIR/torin_main.pid"
+MAIN_PID_FILE="$PID_DIR/lyric_main.pid"
 
 # Log files
-MAIN_LOG_FILE="$LOGS_DIR/torin_main.log"
+MAIN_LOG_FILE="$LOGS_DIR/lyric_main.log"
 
 # Banner
 echo ""
@@ -56,9 +56,9 @@ check_running() {
     if [ -f "$MAIN_PID_FILE" ]; then
         PID=$(cat "$MAIN_PID_FILE")
         if ps -p "$PID" > /dev/null 2>&1; then
-            echo -e "${ORANGE}⚠️  TorinAI is already running (PID: $PID)${NC}"
-            echo -e "${RED}Use './torin-status' to check status${NC}"
-            echo -e "${RED}Use './torin-stop' to stop the system${NC}"
+            echo -e "${ORANGE}⚠️  Lyric is already running (PID: $PID)${NC}"
+            echo -e "${RED}Use './lyric-status' to check status${NC}"
+            echo -e "${RED}Use './lyric-stop' to stop the system${NC}"
             exit 1
         else
             echo -e "${YELLOW}Removing stale PID file${NC}"
@@ -78,14 +78,14 @@ check_python() {
 
 # Activate virtual environment if exists
 activate_venv() {
-    if [ -d "$SCRIPT_DIR/venv_torin" ]; then
+    if [ -d "$SCRIPT_DIR/venv_lyric" ]; then
         echo -e "${BLUE}→${NC} Activating virtual environment..."
-        source "$SCRIPT_DIR/venv_torin/bin/activate"
+        source "$SCRIPT_DIR/venv_lyric/bin/activate"
         # Show the VENV Python version, not system Python
-        PYTHON_VERSION=$("$SCRIPT_DIR/venv_torin/bin/python3" --version 2>&1 | cut -d' ' -f2)
+        PYTHON_VERSION=$("$SCRIPT_DIR/venv_lyric/bin/python3" --version 2>&1 | cut -d' ' -f2)
         echo -e "${GREEN}✓${NC} Virtual environment activated (Python ${CYAN}$PYTHON_VERSION${NC})"
     else
-        echo -e "${YELLOW}⚠${NC}  Virtual environment not found at ${CYAN}venv_torin/${NC}"
+        echo -e "${YELLOW}⚠${NC}  Virtual environment not found at ${CYAN}venv_lyric/${NC}"
         PYTHON_VERSION=$(python3 --version 2>&1 | cut -d' ' -f2 | cut -d'.' -f1-2)
         echo -e "${GRAY}  Running with system Python ${PYTHON_VERSION}${NC}"
     fi
@@ -121,15 +121,15 @@ check_postgres() {
     # "running on port 5432" without ever having connected.
     export PATH="/opt/homebrew/opt/postgresql@16/bin:$PATH"
 
-    # THE PORT COMES FROM CONFIG, NOT FROM A CONSTANT. TorinAI moved to its own
+    # THE PORT COMES FROM CONFIG, NOT FROM A CONSTANT. Lyric moved to its own
     # instance on 5433; checking 5432 would have passed preflight against the
     # shared instance and then failed to connect to the one it actually uses.
-    TORIN_PGPORT=$(grep -E "^POSTGRES_PORT=" "$SCRIPT_DIR/.env.postgres" 2>/dev/null | cut -d= -f2 | tr -d ' ')
-    TORIN_PGPORT=${TORIN_PGPORT:-5432}
+    LYRIC_PGPORT=$(grep -E "^POSTGRES_PORT=" "$SCRIPT_DIR/.env.postgres" 2>/dev/null | cut -d= -f2 | tr -d ' ')
+    LYRIC_PGPORT=${LYRIC_PGPORT:-5432}
 
-    if ! netstat -an 2>/dev/null | grep -q "[\.\:]${TORIN_PGPORT}.*LISTEN"; then
-        echo -e "${RED}❌ PostgreSQL is not running on port ${TORIN_PGPORT}${NC}"
-        echo -e "${GRAY}   Start it: pg_ctl -D /opt/homebrew/var/torinai-pg16 -l logs/torinai_pg.log start${NC}"
+    if ! netstat -an 2>/dev/null | grep -q "[\.\:]${LYRIC_PGPORT}.*LISTEN"; then
+        echo -e "${RED}❌ PostgreSQL is not running on port ${LYRIC_PGPORT}${NC}"
+        echo -e "${GRAY}   Start it: pg_ctl -D /opt/homebrew/var/torinai-pg16 -l logs/lyric_pg.log start${NC}"
         exit 1
     fi
 
@@ -137,23 +137,23 @@ check_postgres() {
     if command -v psql &> /dev/null; then
         # Try to get credentials from .env.postgres or .env
         POSTGRES_USER="stefan"
-        POSTGRES_DB="torinai_db"
+        POSTGRES_DB="lyric_db"
 
         if [ -f "$SCRIPT_DIR/.env.postgres" ]; then
             POSTGRES_USER=$(grep "^POSTGRES_USER=" "$SCRIPT_DIR/.env.postgres" | cut -d'=' -f2)
             POSTGRES_DB=$(grep "^POSTGRES_DATABASE=" "$SCRIPT_DIR/.env.postgres" | cut -d'=' -f2)
         fi
 
-        if psql -h 127.0.0.1 -p "$TORIN_PGPORT" -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT 1" &>/dev/null; then
+        if psql -h 127.0.0.1 -p "$LYRIC_PGPORT" -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT 1" &>/dev/null; then
             # Get memory count
-            MEMORY_COUNT=$(psql -h 127.0.0.1 -p "$TORIN_PGPORT" -U "$POSTGRES_USER" -d "$POSTGRES_DB" -t -c "SELECT COUNT(*) FROM memory_hot.memory_hot WHERE embedding IS NOT NULL" 2>/dev/null | xargs)
+            MEMORY_COUNT=$(psql -h 127.0.0.1 -p "$LYRIC_PGPORT" -U "$POSTGRES_USER" -d "$POSTGRES_DB" -t -c "SELECT COUNT(*) FROM memory_hot.memory_hot WHERE embedding IS NOT NULL" 2>/dev/null | xargs)
             echo -e "${GREEN}✓${NC} PostgreSQL connected ${GRAY}(database: $POSTGRES_DB, memories: $MEMORY_COUNT)${NC}"
         else
             echo -e "${YELLOW}⚠${NC}  PostgreSQL running but connection failed"
-            echo -e "${GRAY}   TorinAI will attempt to connect anyway${NC}"
+            echo -e "${GRAY}   Lyric will attempt to connect anyway${NC}"
         fi
     else
-        echo -e "${GREEN}✓${NC} PostgreSQL running on port ${TORIN_PGPORT}${NC}"
+        echo -e "${GREEN}✓${NC} PostgreSQL running on port ${LYRIC_PGPORT}${NC}"
     fi
 }
 
@@ -161,18 +161,18 @@ check_postgres() {
 export PYTHONUNBUFFERED=1
 export NO_COLOR=0
 
-# Start TorinAI system
-start_torin() {
+# Start Lyric system
+start_lyric() {
     echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo -e "${MAGENTA}▶${NC} Starting ${MAGENTA}TorinAI${NC} Autonomous System"
+    echo -e "${MAGENTA}▶${NC} Starting ${MAGENTA}Lyric${NC} Autonomous System"
     echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     echo ""
     echo -e "${GRAY}Log output: ${CYAN}$MAIN_LOG_FILE${NC}"
     echo ""
 
     # Run in foreground - use venv python if available
-    if [ -f "$SCRIPT_DIR/venv_torin/bin/python3" ]; then
-        exec "$SCRIPT_DIR/venv_torin/bin/python3" -u "$SCRIPT_DIR/core/main.py" 2>&1 | while IFS= read -r line; do
+    if [ -f "$SCRIPT_DIR/venv_lyric/bin/python3" ]; then
+        exec "$SCRIPT_DIR/venv_lyric/bin/python3" -u "$SCRIPT_DIR/core/main.py" 2>&1 | while IFS= read -r line; do
             # Filter and colorize output - remove white text, add colors
             echo "$line" | sed \
                 -e 's/ERROR/\x1b[38;5;196mERROR\x1b[0m/g' \
@@ -205,8 +205,8 @@ main() {
     check_postgres
     activate_venv
 
-    # Start TorinAI
-    start_torin
+    # Start Lyric
+    start_lyric
 }
 
 # Run main

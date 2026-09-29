@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Cross-domain grounding — what Torin has grounds to believe, not what it can say.
+"""Cross-domain grounding — what Lyric has grounds to believe, not what it can say.
 
     Cross-domain reasoning is the substrate-grounded recognition and transfer of
     structural knowledge from a previously learned domain to a new or
@@ -10,9 +10,9 @@ The model and the substrate have different jobs and must not share an output:
 
     LLM        expands the hypothesis space — may notice a correspondence no
                deterministic search would find
-    SUBSTRATE  determines what Torin actually has grounds to reuse
+    SUBSTRATE  determines what Lyric actually has grounds to reuse
 
-Both can produce the same sentence. Only the second is Torin knowing something,
+Both can produce the same sentence. Only the second is Lyric knowing something,
 and a design where they are indistinguishable downstream is the wrapper problem
 one level up from extraction.
 
@@ -157,7 +157,7 @@ class GroundingResult:
 
 
 class CrossDomainGrounder:
-    """Searches Torin's LEARNED structure for something the observation fits."""
+    """Searches Lyric's LEARNED structure for something the observation fits."""
 
     #: Fraction of observed relations that must be matched by one learned
     #: structure. A POLICY threshold, not a measured error rate.
@@ -178,7 +178,7 @@ class CrossDomainGrounder:
 
         A 'structure' is a concept together with its outgoing canonical edges.
         Only edges with a RESOLVED endpoint participate: a dangling edge names
-        something Torin has not learned, so it cannot support a claim that a
+        something Lyric has not learned, so it cannot support a claim that a
         learned structure applies.
         """
         rows = await self.db.execute_query(
@@ -298,7 +298,7 @@ class CrossDomainGrounder:
                     epistemic_gap=gap,
                     note=("a correspondence was proposed but the substrate holds no "
                           "structure supporting it; this is a hypothesis, not "
-                          "knowledge Torin may reuse"))
+                          "knowledge Lyric may reuse"))
             return GroundingResult(
                 searched_domains=scope,
                 outcome=GroundingOutcome.NO_MATCH,

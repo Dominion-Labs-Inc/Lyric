@@ -1,1 +1,1 @@
-"""Separating what Torin is doing from what the machinery is doing."""
+"""Separating what Lyric is doing from what the machinery is doing."""

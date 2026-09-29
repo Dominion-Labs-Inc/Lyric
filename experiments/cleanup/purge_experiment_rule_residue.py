@@ -35,8 +35,8 @@ A census runs first, and every rule is printed with its id, domain and formula
 before anything is removed. Nothing in the repository references these ids (a
 sweep of every .json and .md found zero), so no recorded result depends on them.
 
-    ./venv_torin/bin/python3 experiments/cleanup/purge_experiment_rule_residue.py
-    ./venv_torin/bin/python3 experiments/cleanup/purge_experiment_rule_residue.py --yes
+    ./venv_lyric/bin/python3 experiments/cleanup/purge_experiment_rule_residue.py
+    ./venv_lyric/bin/python3 experiments/cleanup/purge_experiment_rule_residue.py --yes
 """
 from __future__ import annotations
 
@@ -49,7 +49,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 for _k, _v in {"POSTGRES_PORT": "5433", "POSTGRES_USER": "stefan",
-               "POSTGRES_DATABASE": "torinai_db", "TORIN_NO_WATCHDOG": "1"}.items():
+               "POSTGRES_DATABASE": "lyric_db", "LYRIC_NO_WATCHDOG": "1"}.items():
     os.environ.setdefault(_k, _v)
 
 HERE = Path(__file__).resolve().parent

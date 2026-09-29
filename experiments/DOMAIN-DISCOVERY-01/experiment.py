@@ -40,7 +40,7 @@ caller typed into `domain=`.
 H is the control: a guard that rejects funnels by rejecting everything would
 "fix" the mega-bucket by making discovery produce nothing at all.
 
-Run: ./venv_torin/bin/python3 experiments/DOMAIN-DISCOVERY-01/experiment.py
+Run: ./venv_lyric/bin/python3 experiments/DOMAIN-DISCOVERY-01/experiment.py
 """
 import asyncio
 import contextlib

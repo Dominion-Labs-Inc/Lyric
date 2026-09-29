@@ -23,64 +23,64 @@ def generate_prompt_for_tool(tool_name: str, tool) -> str:
 
     # File operations
     if "read" in name_lower and "file" in name_lower:
-        return f"Read the file /Users/stefan/Dominion Labs/TorinAI/test_tool_execution.py"
+        return f"Read the file /Users/stefan/Dominion Labs/Lyric/test_tool_execution.py"
     if "write" in name_lower and "file" in name_lower:
-        return f"Write 'test content' to /Users/stefan/Dominion Labs/TorinAI/data/test_{tool_name}.txt"
+        return f"Write 'test content' to /Users/stefan/Dominion Labs/Lyric/data/test_{tool_name}.txt"
     if "append" in name_lower:
-        return f"Append 'new line' to /Users/stefan/Dominion Labs/TorinAI/data/test_{tool_name}.txt"
+        return f"Append 'new line' to /Users/stefan/Dominion Labs/Lyric/data/test_{tool_name}.txt"
     if "delete" in name_lower and "file" in name_lower:
-        return f"Delete /Users/stefan/Dominion Labs/TorinAI/data/test_delete.txt (set confirm to false)"
+        return f"Delete /Users/stefan/Dominion Labs/Lyric/data/test_delete.txt (set confirm to false)"
     if "move" in name_lower or "rename" in name_lower:
-        return f"Move /Users/stefan/Dominion Labs/TorinAI/data/src.txt to /Users/stefan/Dominion Labs/TorinAI/data/dst.txt"
+        return f"Move /Users/stefan/Dominion Labs/Lyric/data/src.txt to /Users/stefan/Dominion Labs/Lyric/data/dst.txt"
     if "copy" in name_lower:
-        return f"Copy /Users/stefan/Dominion Labs/TorinAI/data/src.txt to /Users/stefan/Dominion Labs/TorinAI/data/copy.txt"
+        return f"Copy /Users/stefan/Dominion Labs/Lyric/data/src.txt to /Users/stefan/Dominion Labs/Lyric/data/copy.txt"
 
     # Directory operations
     if "list" in name_lower and "dir" in name_lower:
-        return f"List all files in /Users/stefan/Dominion Labs/TorinAI/data"
+        return f"List all files in /Users/stefan/Dominion Labs/Lyric/data"
     if "create" in name_lower and "dir" in name_lower:
-        return f"Create directory /Users/stefan/Dominion Labs/TorinAI/data/test_dir_{tool_name}"
+        return f"Create directory /Users/stefan/Dominion Labs/Lyric/data/test_dir_{tool_name}"
     if "delete" in name_lower and "dir" in name_lower:
-        return f"Delete directory /Users/stefan/Dominion Labs/TorinAI/data/test_del (set confirm to false)"
+        return f"Delete directory /Users/stefan/Dominion Labs/Lyric/data/test_del (set confirm to false)"
 
     # Search operations
     if "search" in name_lower or "find" in name_lower:
-        return f"Search for .py files in /Users/stefan/Dominion Labs/TorinAI"
+        return f"Search for .py files in /Users/stefan/Dominion Labs/Lyric"
     if "grep" in name_lower:
-        return f"Search for 'test' in files in /Users/stefan/Dominion Labs/TorinAI"
+        return f"Search for 'test' in files in /Users/stefan/Dominion Labs/Lyric"
 
     # Path operations
     if "validate" in name_lower and "path" in name_lower:
-        return f"Validate the path /Users/stefan/Dominion Labs/TorinAI/data"
+        return f"Validate the path /Users/stefan/Dominion Labs/Lyric/data"
     if "check" in name_lower and "exist" in name_lower:
-        return f"Check if /Users/stefan/Dominion Labs/TorinAI exists"
+        return f"Check if /Users/stefan/Dominion Labs/Lyric exists"
     if "info" in name_lower or "stat" in name_lower:
-        return f"Get information about /Users/stefan/Dominion Labs/TorinAI/test_tool_execution.py"
+        return f"Get information about /Users/stefan/Dominion Labs/Lyric/test_tool_execution.py"
 
     # JSON operations
     if "json" in name_lower:
         if "read" in name_lower or "parse" in name_lower:
-            return f"Read JSON from /Users/stefan/Dominion Labs/TorinAI/data/diagnostic_results.json"
+            return f"Read JSON from /Users/stefan/Dominion Labs/Lyric/data/diagnostic_results.json"
         if "write" in name_lower:
-            return f"Write {{\"test\": \"data\"}} to /Users/stefan/Dominion Labs/TorinAI/data/test_{tool_name}.json"
+            return f"Write {{\"test\": \"data\"}} to /Users/stefan/Dominion Labs/Lyric/data/test_{tool_name}.json"
 
     # Compression
     if "compress" in name_lower or "zip" in name_lower or "archive" in name_lower:
-        return f"Create a zip archive of /Users/stefan/Dominion Labs/TorinAI/data at /Users/stefan/Dominion Labs/TorinAI/data/test.zip"
+        return f"Create a zip archive of /Users/stefan/Dominion Labs/Lyric/data at /Users/stefan/Dominion Labs/Lyric/data/test.zip"
     if "decompress" in name_lower or "extract" in name_lower or "unzip" in name_lower:
-        return f"Extract /Users/stefan/Dominion Labs/TorinAI/data/test.zip to /Users/stefan/Dominion Labs/TorinAI/data/extracted"
+        return f"Extract /Users/stefan/Dominion Labs/Lyric/data/test.zip to /Users/stefan/Dominion Labs/Lyric/data/extracted"
 
     # Checksum/hash
     if "checksum" in name_lower or "hash" in name_lower or "sha" in name_lower or "md5" in name_lower:
-        return f"Calculate checksum of /Users/stefan/Dominion Labs/TorinAI/test_tool_execution.py"
+        return f"Calculate checksum of /Users/stefan/Dominion Labs/Lyric/test_tool_execution.py"
 
     # Duplicate detection
     if "duplicate" in name_lower:
-        return f"Find duplicate files in /Users/stefan/Dominion Labs/TorinAI/data"
+        return f"Find duplicate files in /Users/stefan/Dominion Labs/Lyric/data"
 
     # Sync
     if "sync" in name_lower:
-        return f"Sync /Users/stefan/Dominion Labs/TorinAI/data to /Users/stefan/Dominion Labs/TorinAI/data_backup"
+        return f"Sync /Users/stefan/Dominion Labs/Lyric/data to /Users/stefan/Dominion Labs/Lyric/data_backup"
 
     # Network/HTTP
     if "http" in name_lower or "request" in name_lower or "fetch" in name_lower or "download" in name_lower:
@@ -296,7 +296,7 @@ async def main():
             print(f"✗ {d['tool']}: Used {', '.join(d.get('tools_used', []))}")
 
     # Save
-    output = Path("/Users/stefan/Dominion Labs/TorinAI/data/all_tools_test_results.json")
+    output = Path("/Users/stefan/Dominion Labs/Lyric/data/all_tools_test_results.json")
     output.parent.mkdir(parents=True, exist_ok=True)
     with open(output, 'w') as f:
         json.dump(results, f, indent=2, default=str)

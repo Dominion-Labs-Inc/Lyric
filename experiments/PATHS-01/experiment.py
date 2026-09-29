@@ -21,7 +21,7 @@ it can answer: that the one path actually reaches every system it claims to.
      for both doors, the same sentence renders to the same atom whichever door it
      comes through, and the kind hierarchy invariant holds at admission.
 
-Run: ./venv_torin/bin/python3 experiments/PATHS-01/experiment.py
+Run: ./venv_lyric/bin/python3 experiments/PATHS-01/experiment.py
 """
 from __future__ import annotations
 import asyncio

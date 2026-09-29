@@ -300,7 +300,7 @@
       "DeterministicExtractor could not represent a subject carrying an article, so language items never reached a solver",
       "the Z3 constraint solver, proof engine, unification, Bayesian uncertainty and hypothesis testing were never on the measured path"
     ],
-    "what_it_does_not_mean": "the scores are NOT evidence about Torin's reasoning capability; they measure harness connectivity only",
+    "what_it_does_not_mean": "the scores are NOT evidence about Lyric's reasoning capability; they measure harness connectivity only",
     "superseded_by": "pending: EDU-12 S0 retaken through the production path"
   }
 }

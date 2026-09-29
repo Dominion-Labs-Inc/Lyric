@@ -2,12 +2,12 @@
 
 ## Claim
 
-Torin detects its own failure against the world and withdraws a validated rule's authority, unprompted.
+Lyric detects its own failure against the world and withdraws a validated rule's authority, unprompted.
 
 ## In plain terms
 
-Torin believed a rule, made a plan from it, and acted on a real filesystem. The
-world did not do what the rule predicted. Nothing told Torin the rule was wrong --
+Lyric believed a rule, made a plan from it, and acted on a real filesystem. The
+world did not do what the rule predicted. Nothing told Lyric the rule was wrong --
 it worked that out from what actually happened, marked the rule refuted, and
 stopped being allowed to use it.
 
@@ -23,7 +23,7 @@ VALIDATED -> REFUTED via RUNTIME_CONTRADICTION; transition and originating obser
 Run from the repository root:
 
 ```
-TORIN_MODEL_POLICY=strict_model_free ./venv_torin/bin/python3 experiments/edu/EDU-02/experiment.py
+LYRIC_MODEL_POLICY=strict_model_free ./venv_lyric/bin/python3 experiments/edu/EDU-02/experiment.py
 ```
 
 `manifest.json` in this folder is the frozen result. Every run records

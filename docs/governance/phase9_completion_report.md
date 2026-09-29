@@ -11,7 +11,7 @@
 
 ## Executive Summary
 
-Phase 9 governance successfully validated complete TorinAI system integration for **Full Deployment (Week 11)**. All governance components are operational, integrated, and ready for production rollout with phased enforcement.
+Phase 9 governance successfully validated complete Lyric system integration for **Full Deployment (Week 11)**. All governance components are operational, integrated, and ready for production rollout with phased enforcement.
 
 **Validation Status**:
 - ✅ All governance triggers loaded (30 triggers across 8 action categories)
@@ -251,7 +251,7 @@ All four core components successfully integrated and operational.
 **Purpose**: Establish baseline metrics for production monitoring
 
 ### Baseline Metrics Saved:
-**File**: `/Users/stefan/Dominion Labs/TorinAI/data/system/phase9_baseline_metrics.json`
+**File**: `/Users/stefan/Dominion Labs/Lyric/data/system/phase9_baseline_metrics.json`
 
 **Baseline Data**:
 ```json
@@ -351,7 +351,7 @@ From `planfile.md` - **These are production monitoring targets, not test require
 **Current State**: ALL categories in LOG_ONLY mode
 
 **Action Items**:
-1. ✅ Deploy TorinAI with current configuration
+1. ✅ Deploy Lyric with current configuration
 2. ⏳ Monitor trigger events without blocking
 3. ⏳ Collect metrics: FPR, FNR, queue times
 4. ⏳ Validate trigger accuracy

@@ -29,23 +29,23 @@ from core.tools.tool_registry import get_tool_registry
 # Simple test parameters for each tool
 SIMPLE_TEST_PARAMS = {
     # ===== FILESYSTEM (17 tools) =====
-    'write_file': {'file_path': '/tmp/torin_test.txt', 'content': 'test'},
-    'read_file': {'file_path': '/tmp/torin_atomic.txt'},  # Use atomic file that persists
+    'write_file': {'file_path': '/tmp/lyric_test.txt', 'content': 'test'},
+    'read_file': {'file_path': '/tmp/lyric_atomic.txt'},  # Use atomic file that persists
     'list_directory': {'directory_path': '/tmp'},
-    'delete_file': {'path': '/private/tmp/torin_delete_test.txt', 'confirm': True},  # Created by setup_test_env
-    'create_directory': {'directory_path': '/tmp/torin_test_dir_' + str(datetime.now().timestamp())},
-    'copy_file': {'source_path': '/tmp/torin_atomic.txt', 'destination_path': '/tmp/torin_test_copy_' + str(datetime.now().timestamp()) + '.txt'},
-    'move_file': {'source_path': '/tmp/torin_test.txt', 'destination_path': '/tmp/torin_test_moved_' + str(datetime.now().timestamp()) + '.txt'},
+    'delete_file': {'path': '/private/tmp/lyric_delete_test.txt', 'confirm': True},  # Created by setup_test_env
+    'create_directory': {'directory_path': '/tmp/lyric_test_dir_' + str(datetime.now().timestamp())},
+    'copy_file': {'source_path': '/tmp/lyric_atomic.txt', 'destination_path': '/tmp/lyric_test_copy_' + str(datetime.now().timestamp()) + '.txt'},
+    'move_file': {'source_path': '/tmp/lyric_test.txt', 'destination_path': '/tmp/lyric_test_moved_' + str(datetime.now().timestamp()) + '.txt'},
     'search_files': {'pattern': '*.txt', 'base_path': '/tmp'},
-    'atomic_write_file': {'file_path': '/tmp/torin_atomic.txt', 'content': 'atomic'},
+    'atomic_write_file': {'file_path': '/tmp/lyric_atomic.txt', 'content': 'atomic'},
     'validate_path': {'path': '/tmp', 'allowed_roots': ['/tmp'], 'must_exist': True},
-    'get_file_info': {'file_path': '/tmp/torin_atomic.txt'},
-    'calculate_checksum': {'file_path': '/tmp/torin_atomic.txt'},
-    'compress_file': {'source_path': '/tmp/torin_atomic.txt', 'archive_path': '/tmp/test_' + str(datetime.now().timestamp()) + '.zip'},
+    'get_file_info': {'file_path': '/tmp/lyric_atomic.txt'},
+    'calculate_checksum': {'file_path': '/tmp/lyric_atomic.txt'},
+    'compress_file': {'source_path': '/tmp/lyric_atomic.txt', 'archive_path': '/tmp/test_' + str(datetime.now().timestamp()) + '.zip'},
     'decompress_file': {'archive_path': '/tmp/test.zip', 'destination_path': '/tmp/extracted_' + str(datetime.now().timestamp())},
-    'find_duplicate_files': {'directory_path': '/tmp/torin_tool_tests'},  # Use safer test directory
-    'sync_directory': {'source_path': '/tmp/torin_tool_tests', 'destination_path': '/tmp/sync_dest_' + str(datetime.now().timestamp())},
-    'file_watcher': {'file_paths': ['/tmp/torin_atomic.txt']},
+    'find_duplicate_files': {'directory_path': '/tmp/lyric_tool_tests'},  # Use safer test directory
+    'sync_directory': {'source_path': '/tmp/lyric_tool_tests', 'destination_path': '/tmp/sync_dest_' + str(datetime.now().timestamp())},
+    'file_watcher': {'file_paths': ['/tmp/lyric_atomic.txt']},
 
     # ===== EXECUTION (17 tools) =====
     'run_python': {'code': 'print("test")'},
@@ -58,7 +58,7 @@ SIMPLE_TEST_PARAMS = {
     'restart_service': {'service_name': 'test_service'},
     'get_process_info': {'pid': os.getpid()},  # Use current process
     'run_background_task': {'command': 'sleep 1'},
-    'schedule_cron_job': {'command': f'echo torin_test_{int(datetime.now().timestamp())}', 'schedule': '0 0 * * *'},
+    'schedule_cron_job': {'command': f'echo lyric_test_{int(datetime.now().timestamp())}', 'schedule': '0 0 * * *'},
     'install_python_package': {'package_name': 'requests'},
     'execute_with_timeout': {'command': 'echo test', 'hard_timeout': 5},
     'execute_with_resource_limits': {'command': 'print("test")', 'language': 'python'},
@@ -73,7 +73,7 @@ SIMPLE_TEST_PARAMS = {
     'mysql_restore': {'table_name': 'test_results', 'backup_path': '/tmp/backup.json'},
     'redis_get': {'key': 'test_key'},
     'redis_set': {'key': 'test_key', 'value': 'test_value'},
-    'r2_upload': {'file_path': '/tmp/torin_test.txt', 'object_key': 'test_object'},
+    'r2_upload': {'file_path': '/tmp/lyric_test.txt', 'object_key': 'test_object'},
     'r2_download': {'object_key': 'test_object', 'file_path': '/tmp/downloaded.txt'},
     'connection_pool_manager': {'operation': 'check_health'},
     'transaction_wrapper': {'queries': ['SELECT 1']},
@@ -87,7 +87,7 @@ SIMPLE_TEST_PARAMS = {
     # ===== NETWORK (18 tools) =====
     'http_request': {'url': 'https://httpbin.org/get', 'method': 'GET'},
     'download_file': {'url': 'https://httpbin.org/robots.txt', 'destination_path': '/tmp/robots.txt'},
-    'upload_file': {'url': 'https://httpbin.org/post', 'file_path': '/tmp/torin_atomic.txt'},
+    'upload_file': {'url': 'https://httpbin.org/post', 'file_path': '/tmp/lyric_atomic.txt'},
     'parse_html': {'html': '<html><body><h1>Test</h1></body></html>', 'selector': 'h1'},
     'extract_links': {'html': '<html><body><a href="http://test.com">Link</a></body></html>'},
     'check_url_status': {'url': 'https://httpbin.org'},
@@ -105,7 +105,7 @@ SIMPLE_TEST_PARAMS = {
     'fetch_paper_by_arxiv': {'arxiv_id': '2301.00000'},
 
     # ===== SECURITY (25 tools) =====
-    'encrypt_file': {'input_file': '/tmp/torin_atomic.txt', 'output_file': '/tmp/encrypted.txt', 'password': 'test123'},
+    'encrypt_file': {'input_file': '/tmp/lyric_atomic.txt', 'output_file': '/tmp/encrypted.txt', 'password': 'test123'},
     'decrypt_file': {'input_file': '/tmp/encrypted.txt', 'output_file': '/tmp/decrypted.txt', 'password': 'test123'},
     'generate_password': {},
     'hash_data': {'data': 'test data'},
@@ -181,8 +181,8 @@ SIMPLE_TEST_PARAMS = {
     'load_test': {'url': 'https://httpbin.org/get', 'requests': 10},
     'integration_test_runner': {'test_suite': 'test'},
     'test_data_generator': {'schema': {'type': 'object'}},
-    'fuzz_testing': {'target_file': '/tmp/torin_atomic.txt', 'target_function': 'test'},
-    'mutation_testing': {'source_file': '/tmp/torin_atomic.txt', 'test_file': '/tmp/torin_atomic.txt'},
+    'fuzz_testing': {'target_file': '/tmp/lyric_atomic.txt', 'target_function': 'test'},
+    'mutation_testing': {'source_file': '/tmp/lyric_atomic.txt', 'test_file': '/tmp/lyric_atomic.txt'},
     'static_security_analysis': {'code': 'def test(): pass'},
     'golden_test_harness': {'test_file': '/tmp/test.txt', 'golden_dir': '/tmp'},
     'chaos_testing': {'chaos_type': 'latency', 'target': 'test'},
@@ -243,7 +243,7 @@ SIMPLE_TEST_PARAMS = {
     'get_disk_usage': {},
     'get_network_stats': {},
     'get_service_status': {'service_name': 'test'},
-    'parse_logs': {'log_file': '/private/tmp/torin_atomic.txt'},
+    'parse_logs': {'log_file': '/private/tmp/lyric_atomic.txt'},
     'get_performance_profile': {},
     'distributed_tracing': {'operation': 'create_trace'},
     'slo_sli_tooling': {'operation': 'list_slos'},
@@ -253,19 +253,19 @@ SIMPLE_TEST_PARAMS = {
     # ===== SEARCH (20 tools) =====
     'semantic_search': {'query': 'test query', 'workspace_path': '/tmp'},
     'grep_search': {'pattern': 'test', 'path': '/tmp'},
-    'analyze_code': {'file_path': '/tmp/torin_test.txt'},
-    'analyze_code_quality': {'file_path': '/tmp/torin_test.txt'},
+    'analyze_code': {'file_path': '/tmp/lyric_test.txt'},
+    'analyze_code_quality': {'file_path': '/tmp/lyric_test.txt'},
     'analyze_dependencies': {'project_path': '/tmp'},
     'find_dead_code': {'directory_path': '/tmp'},
-    'security_scan': {'file_path': '/tmp/torin_test.txt'},
+    'security_scan': {'file_path': '/tmp/lyric_test.txt'},
     'find_todos': {'directory_path': '/tmp'},
     'count_lines': {'directory_path': '/tmp'},
-    'analyze_complexity': {'file_path': '/private/tmp/torin_test.txt'},
-    'detect_code_smells': {'file_path': '/private/tmp/torin_test.txt'},
+    'analyze_complexity': {'file_path': '/private/tmp/lyric_test.txt'},
+    'detect_code_smells': {'file_path': '/private/tmp/lyric_test.txt'},
     'trace_dependencies': {'project_path': '/tmp'},
     'find_circular_imports': {'project_path': '/tmp'},
     'analyze_test_coverage_report': {'coverage_file': '/private/tmp/coverage.xml'},
-    'find_performance_issues': {'file_path': '/private/tmp/torin_test.txt'},
+    'find_performance_issues': {'file_path': '/private/tmp/lyric_test.txt'},
     'check_code_style_consistency': {'directory_path': '/tmp'},
     'ast_search': {'directory_path': '/tmp', 'search_type': 'function_def', 'symbol_name': 'test'},
     'build_dependency_graph': {'project_path': '/tmp'},
@@ -275,15 +275,15 @@ SIMPLE_TEST_PARAMS = {
     # ===== DATA PROCESSING (17 tools) =====
     'parse_json': {'input': '{"test": true}'},
     'parse_yaml': {'input': 'test: true'},
-    'parse_csv': {'file_path': '/private/tmp/torin_test.csv'},
-    'convert_format': {'input_file': '/private/tmp/torin_test.json', 'output_file': '/private/tmp/torin_output.yaml', 'output_format': 'yaml'},
+    'parse_csv': {'file_path': '/private/tmp/lyric_test.csv'},
+    'convert_format': {'input_file': '/private/tmp/lyric_test.json', 'output_file': '/private/tmp/lyric_output.yaml', 'output_format': 'yaml'},
     'transform_data': {'data': [{'name': 'test', 'value': 1}], 'select_fields': ['name']},
     'aggregate_data': {'data': [{'category': 'A', 'value': 10}], 'group_by': 'category'},
     'merge_datasets': {'dataset1': [{'id': 1, 'name': 'A'}], 'dataset2': [{'id': 1, 'score': 100}], 'key_field': 'id'},
     'filter_data': {'data': [{'status': 'active', 'value': 10}], 'field': 'status', 'value': 'active'},
     'sort_data': {'data': [{'name': 'B', 'score': 10}, {'name': 'A', 'score': 20}], 'sort_by': 'score'},
     'deduplicate_data': {'data': [{'id': 1}, {'id': 2}, {'id': 1}]},
-    'parse_jsonl': {'file_path': '/private/tmp/torin_test.jsonl'},
+    'parse_jsonl': {'file_path': '/private/tmp/lyric_test.jsonl'},
     'schema_inference': {'data': [{'a': 1}]},
     'pii_scrubbing': {'data': {'text': 'John Doe 555-1234', 'email': 'test@example.com'}},
     'dataset_profiling': {'data': [{'value': 10}, {'value': 20}]},
@@ -291,7 +291,7 @@ SIMPLE_TEST_PARAMS = {
     'create_research_graph': {'data': {'x': [1, 2, 3, 4], 'y': [10, 20, 15, 25]}, 'graph_type': 'line', 'title': 'Test Graph'},
 
     # ===== COMMUNICATION (2 tools) =====
-    'send_slack_message': {'channel': 'torin-activity', 'message': 'test'},
+    'send_slack_message': {'channel': 'lyric-activity', 'message': 'test'},
     'post_to_webhook': {'webhook_url': 'https://httpbin.org/post', 'data': {'test': True}},
 
     # ===== AI/ML (2 tools) - already covered above =====
@@ -307,7 +307,7 @@ async def setup_test_env():
     import json
 
     # Create dedicated test directory
-    test_dir = os.path.join(tempfile.gettempdir(), 'torin_tool_tests')
+    test_dir = os.path.join(tempfile.gettempdir(), 'lyric_tool_tests')
     os.makedirs(test_dir, exist_ok=True)
 
     # Create test file
@@ -316,36 +316,36 @@ async def setup_test_env():
         f.write('test content')
 
     # Create file for delete test (always recreate in case previous test deleted it)
-    delete_test_file = '/private/tmp/torin_delete_test.txt'
+    delete_test_file = '/private/tmp/lyric_delete_test.txt'
     with open(delete_test_file, 'w') as f:
         f.write('delete me')
 
     # Also ensure atomic test file exists
-    atomic_test_file = '/private/tmp/torin_atomic.txt'
+    atomic_test_file = '/private/tmp/lyric_atomic.txt'
     if not os.path.exists(atomic_test_file):
         with open(atomic_test_file, 'w') as f:
             f.write('atomic test content')
 
     # Create test CSV file for data processing (use /private/tmp for macOS compatibility)
-    csv_test_file = '/private/tmp/torin_test.csv'
+    csv_test_file = '/private/tmp/lyric_test.csv'
     with open(csv_test_file, 'w') as f:
         f.write('name,value,category\n')
         f.write('A,10,cat1\n')
         f.write('B,20,cat2\n')
 
     # Create test JSON file for format conversion
-    json_test_file = '/private/tmp/torin_test.json'
+    json_test_file = '/private/tmp/lyric_test.json'
     with open(json_test_file, 'w') as f:
         json.dump({'test': 'data', 'value': 123}, f)
 
     # Create test JSONL file
-    jsonl_test_file = '/private/tmp/torin_test.jsonl'
+    jsonl_test_file = '/private/tmp/lyric_test.jsonl'
     with open(jsonl_test_file, 'w') as f:
         f.write('{"id": 1, "name": "A"}\n')
         f.write('{"id": 2, "name": "B"}\n')
 
     # Create test Python file for search/analysis tools
-    py_test_file = '/private/tmp/torin_test.txt'
+    py_test_file = '/private/tmp/lyric_test.txt'
     with open(py_test_file, 'w') as f:
         f.write('#!/usr/bin/env python3\n')
         f.write('"""Test module"""\n\n')

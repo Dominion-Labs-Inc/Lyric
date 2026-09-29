@@ -6,7 +6,7 @@ the learning authority's belief calls and the store's own return the same
 object. A belief moves with evidence, survives a flush, an unknown id is None,
 a known unknown is registered and resolved. Everything written is removed by id.
 
-Run: ./venv_torin/bin/python3 experiments/SYSTEM-BELIEFS-01/experiment.py
+Run: ./venv_lyric/bin/python3 experiments/SYSTEM-BELIEFS-01/experiment.py
 """
 from __future__ import annotations
 

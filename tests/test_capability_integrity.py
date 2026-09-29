@@ -27,7 +27,7 @@ itself that its own contents deny:
                                callable, so `is not None` guards pass and the
                                ImportError is deferred to call time
 
-Run:  venv_torin/bin/python tests/test_capability_integrity.py
+Run:  venv_lyric/bin/python tests/test_capability_integrity.py
 """
 
 from __future__ import annotations

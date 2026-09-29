@@ -7,16 +7,16 @@ motivation, cross-domain) and records what each ACTUALLY does today — not what
 archived experiment froze. Every probe is defensive: it captures the real result
 or the real error, so the manifest is an honest snapshot of the current system.
 
-    PYTHONPATH="$PWD" POSTGRES_PORT=5433 POSTGRES_USER=stefan TORIN_NO_WATCHDOG=1 \
-    ./venv_torin/bin/python3 experiments/systems/VERIFY-01/experiment.py
+    PYTHONPATH="$PWD" POSTGRES_PORT=5433 POSTGRES_USER=stefan LYRIC_NO_WATCHDOG=1 \
+    ./venv_lyric/bin/python3 experiments/systems/VERIFY-01/experiment.py
 """
 from __future__ import annotations
 
 import os
 os.environ.setdefault("POSTGRES_PORT", "5433")
 os.environ.setdefault("POSTGRES_USER", "stefan")
-os.environ.setdefault("POSTGRES_DATABASE", "torinai_db")
-os.environ.setdefault("TORIN_NO_WATCHDOG", "1")
+os.environ.setdefault("POSTGRES_DATABASE", "lyric_db")
+os.environ.setdefault("LYRIC_NO_WATCHDOG", "1")
 
 import asyncio, contextlib, io, json, sys, traceback
 from datetime import datetime, timezone

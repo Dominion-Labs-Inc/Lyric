@@ -16,7 +16,7 @@ Tools:
 - sort_data: Sort data
 - deduplicate_data: Remove duplicates
 
-Author: Torin AI Team
+Author: Lyric AI Team
 """
 
 import logging

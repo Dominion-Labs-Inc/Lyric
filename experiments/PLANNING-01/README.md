@@ -18,10 +18,10 @@ Real coordinator, real rule store, real learned operators, real Postgres. Nothin
 | G · Hierarchical planning | the absorbed abstraction-and-memory method runs against the real pipeline, records what it found as real ids, and emits **no prose steps** |
 | H · Declared inputs | each **kind** of plan declares the inputs it needs, each is obtained **through the authority that owns it**, and anything missing is reported with a reason |
 
-**Run** (from the TorinAI folder):
+**Run** (from the Lyric folder):
 
 ```
-./venv_torin/bin/python3 experiments/PLANNING-01/experiment.py
+./venv_lyric/bin/python3 experiments/PLANNING-01/experiment.py
 ```
 
 **Results.** Every run is saved in `results/` (JSON + `.md`). Latest: 2026-09-16, **20/20**

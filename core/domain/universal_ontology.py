@@ -514,7 +514,7 @@ class UniversalOntology:
         This is a PROJECTION, not a copy into a second store. The ontology
         stays the authority: the registry rebuilds this view on every load and
         never persists it to unified.concepts, so the two cannot drift and the
-        universal level never appears in the record as something Torin learned.
+        universal level never appears in the record as something Lyric learned.
 
         Only structure the ontology actually records is emitted. Where a
         concept has no recorded relations, none are invented -- an abstract

@@ -7,7 +7,7 @@ Integration tests for three architectural enhancements:
 2. Capability dependencies and execution planning
 3. Improved inference with confidence scoring
 
-Author: Torin AI Team
+Author: Lyric AI Team
 """
 
 import asyncio

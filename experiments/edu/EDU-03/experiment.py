@@ -8,7 +8,7 @@ Nothing is taught in the new domain. Two questions, asked separately:
   B. can the substrate ground the STRUCTURE?    (analogy transfer)
 """
 import asyncio, sys
-sys.path.insert(0, '/Users/stefan/Dominion Labs/TorinAI')
+sys.path.insert(0, '/Users/stefan/Dominion Labs/Lyric')
 from core.database.unified_database_postgres import get_unified_database
 from core.learning.rule_store import get_rule_store
 from core.learning.rule_grounding import ground_for_problem

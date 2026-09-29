@@ -98,7 +98,7 @@ written shapes, and its question reader parses the "Is the …?" forms.
 ## Run
 
 ```
-./venv_torin/bin/python3 experiments/SHAPES-LEARN-02/experiment.py
+./venv_lyric/bin/python3 experiments/SHAPES-LEARN-02/experiment.py
 ```
 
 It empties the sandbox first (`scripts/reset_dev_store.py`) and starts the substrate before teaching.

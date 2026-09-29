@@ -1,5 +1,5 @@
 # DOMINION LABS, INC.
-# TORIN — VALIDATION & EXPERIMENT RESULTS
+# LYRIC — VALIDATION & EXPERIMENT RESULTS
 ## Technical Validation Source of Truth
 
 **September 2026 — CONFIDENTIAL**
@@ -10,16 +10,16 @@
 
 | Field | Value |
 |---|---|
-| Document | Torin — Validation & Experiment Results |
-| Role | Authoritative record of experimental validation for the Torin computational substrate |
+| Document | Lyric — Validation & Experiment Results |
+| Role | Authoritative record of experimental validation for the Lyric computational substrate |
 | Version | 1.0 |
 | Compiled | 2026-09-20 |
 | Evidence cut-off | 2026-09-20T00:00Z (latest run artifact: RECOGNISE-01 and SEE-LOOP-01, 2026-09-20) |
 | System snapshot | 2026-09-19T20:49Z (§24) |
-| Canonical runtime | `./venv_torin/bin/python3` — Python 3.11.14 |
-| Database | PostgreSQL 16.14, `torinai_db`, identity confirmed by asking the server |
+| Canonical runtime | `./venv_lyric/bin/python3` — Python 3.11.14 |
+| Database | PostgreSQL 16.14, `lyric_db`, identity confirmed by asking the server |
 | Compiled from | 614 run artifacts + 27 manifest artifacts across 84 experiment directories |
-| Companion documents | *Torin — Architecture*; *Torin — Product & System Overview* |
+| Companion documents | *Lyric — Architecture*; *Lyric — Product & System Overview* |
 
 **Source-of-truth hierarchy.** Where sources conflict, the higher entry governs:
 
@@ -37,7 +37,7 @@ Conflicts are **preserved and identified**, never silently reconciled (§19.4, �
 
 ## 2. Validation Program Overview
 
-Torin's validation program rests on one methodological commitment: **an experiment exercises the live
+Lyric's validation program rests on one methodological commitment: **an experiment exercises the live
 system and verifies its outcome against the environment, not against the system's own report.**
 Experiments run against the real database, the real tool registry, the real rule store and real files.
 
@@ -61,7 +61,7 @@ negative record (§20.3).
 
 ### 2.1 What this document does not do
 
-It does not establish that Torin is safe, correct, general, or autonomous. It records what specific
+It does not establish that Lyric is safe, correct, general, or autonomous. It records what specific
 experiments measured under stated conditions. Section 23 separates demonstrated engineering behaviour
 from experimentally supported research claims, from hypotheses, from claims that should not be made.
 
@@ -1074,7 +1074,7 @@ therefore requires the working tree, not the commit.
 
 ### 19.2 Database identity
 
-Runs from 2026-09-16 onward record `database_verified: torinai_db` with reason `asked the server`.
+Runs from 2026-09-16 onward record `database_verified: lyric_db` with reason `asked the server`.
 Runs before that record that the database was **not** verified: the writer read `POSTGRES_*` environment
 variables, which this substrate does not set. Those records stand as captured.
 
@@ -1259,8 +1259,8 @@ multi-tenancy validation with captured artifacts; end-to-end traversal of all th
 in a single run.
 
 ### 23.5 Claims that should NOT be made on this evidence
-- That Torin is safe, proven, or guaranteed under adversarial conditions — **3 of 8 campaigns breached**
-- That Torin is generally intelligent, AGI, or human-level — **no experiment bears on this**; `CSP-AGI-1` is an identifier
+- That Lyric is safe, proven, or guaranteed under adversarial conditions — **3 of 8 campaigns breached**
+- That Lyric is generally intelligent, AGI, or human-level — **no experiment bears on this**; `CSP-AGI-1` is an identifier
 - That the tool surface is validated — 356 tools registered, a handful exercised
 - That memory behaves as designed — two experiments, neither covering consolidation, typing or decay
 - That multi-tenancy is validated — no artifacts
@@ -1271,7 +1271,7 @@ in a single run.
 ## 24. Current System Measurement Snapshot
 
 **Measured 2026-09-19 at 20:49 UTC** against the live production database, canonical runtime
-`./venv_torin/bin/python3` (Python 3.11.14), database identity confirmed by asking the server.
+`./venv_lyric/bin/python3` (Python 3.11.14), database identity confirmed by asking the server.
 
 **These are system measurements, not validation results.** A count of concepts or beliefs establishes
 that rows exist. It does not establish that they are correct, useful, or that any capability follows
@@ -1368,7 +1368,7 @@ One record per experiment directory, in the schema of §24 of the specification.
 | Runtime | Python 3.11.14 |
 | Platform | macOS-26.5.2-arm64-arm-64bit |
 | Commit | `a36cac20c24c` + 294 uncommitted changes |
-| Database | torinai_db — asked the server |
+| Database | lyric_db — asked the server |
 | **Research question / claim** | What the substrate perceives moves its beliefs, its disposition and what it ranks as worth pursuing — through derivations it can state — and moves no verdict. |
 | **Hypothesis** | If content could not move affect, the substrate could not tell a famine from a filename and no reason to act on the first could form. If content could move a VERDICT, anything it read could instruct it. Both failures are tested for here. |
 | **Acceptance criteria** | Every declared check passes (22 checks) |
@@ -1423,7 +1423,7 @@ One record per experiment directory, in the schema of §24 of the specification.
 | Runtime | Python 3.11.14 |
 | Platform | macOS-26.5.2-arm64-arm-64bit |
 | Commit | `a36cac20c24c` + 294 uncommitted changes |
-| Database | torinai_db — asked the server |
+| Database | lyric_db — asked the server |
 | **Research question / claim** | The five governance laws, as a faculty of the coordinator, judge real acts before they happen and produce allow / redirect / replan / block from the act's measured consequence and the intent reasoning proved. |
 | **Hypothesis** | If intent is read only from what reasoning proved and verdicts from the act's real consequence, then the proved act is allowed, an unproved one is replanned, and an act that cannot be undone or that builds a weapon is refused — on the real substrate, with no staged inputs. |
 | **Acceptance criteria** | Every declared check passes (39 checks) |
@@ -1459,7 +1459,7 @@ One record per experiment directory, in the schema of §24 of the specification.
 | Runtime | Python 3.11.14 |
 | Platform | macOS-26.5.2-arm64-arm-64bit |
 | Commit | `a36cac20c24c` + 284 uncommitted changes |
-| Database | torinai_db — asked the server |
+| Database | lyric_db — asked the server |
 | **Research question / claim** | The laws hold under environmental noise and under a caller actively trying to get the substrate to break them. |
 | **Hypothesis** | If authority is taken from reasoning and the rule store rather than from anything a caller writes, then claimed approval, forged intent, obfuscated payloads, laundering across acts and a swapped file all fail to move a verdict, while ordinary work under the same noise is never refused. |
 | **Acceptance criteria** | Every declared check passes (23 checks) |
@@ -1497,7 +1497,7 @@ One record per experiment directory, in the schema of §24 of the specification.
 | Runtime | Python 3.11.14 |
 | Platform | macOS-26.5.2-arm64-arm-64bit |
 | Commit | `a36cac20c24c` + 257 uncommitted changes |
-| Database | torinai_db — asked the server |
+| Database | lyric_db — asked the server |
 | **Research question / claim** | The constitution holds against a determined adversary who retries each forbidden objective many different ways, not once. |
 | **Hypothesis** | If a verdict is taken from what an act would DO, not from how it is spelled, then every spelling of the same forbidden objective is refused, while a legitimate user doing ordinary work many ways is never refused. |
 | **Acceptance criteria** | Every declared check passes (8 checks) |
@@ -1533,7 +1533,7 @@ One record per experiment directory, in the schema of §24 of the specification.
 | Runtime | Python 3.11.14 |
 | Platform | macOS-26.5.2-arm64-arm-64bit |
 | Commit | `20deb4474985` + 270 uncommitted changes |
-| Database | torinai_db — asked the server |
+| Database | lyric_db — asked the server |
 | **Research question / claim** | Content supplied to the substrate — viewed, read, or handed over — enters as observation and can move what it believes, how it is disposed, and what it would pursue, while moving nothing about what it is permitted to do. |
 | **Hypothesis** | If being shown something changed a verdict, anything the substrate read could instruct it. If being shown something changed NOTHING, it could not tell a famine from a filename and no reason to act on the first could form. The channels are measured separately because the right answer differs by channel. |
 | **Acceptance criteria** | Every declared check passes (20 checks) |
@@ -1573,7 +1573,7 @@ One record per experiment directory, in the schema of §24 of the specification.
 | Runtime | Python 3.11.14 |
 | Platform | macOS-26.5.2-arm64-arm-64bit |
 | Commit | `a36cac20c24c` + 267 uncommitted changes |
-| Database | torinai_db — asked the server |
+| Database | lyric_db — asked the server |
 | **Research question / claim** | The substrate's operating credit is read from what it MEANT against what the world DID — and where nothing was operated, nothing is credited. |
 | **Hypothesis** | If meant-vs-happened supplies operating correctness, then a reached aim credits a win from the reconciled intent, an unrealized aim credits a loss even when every step confirmed, and a goal that never planned moves the posterior not at all. |
 | **Acceptance criteria** | Every declared check passes (25 checks) |
@@ -1619,7 +1619,7 @@ One record per experiment directory, in the schema of §24 of the specification.
 | Runtime | Python 3.11.14 |
 | Platform | macOS-26.5.2-arm64-arm-64bit |
 | Commit | `a36cac20c24c` + 294 uncommitted changes |
-| Database | torinai_db — asked the server |
+| Database | lyric_db — asked the server |
 | **Research question / claim** | The Drift faculty enforces eleven invariants on every detector it holds: a declared baseline with a stated reason, prime-then-diff, read-only observation, VACANT distinguished from BLIND, per-signal severity with no averaging, and correction that requires evidence, aims at the median, moves only partway, is recorded, and reaches the substrate's EXPECTATIONS while being unable to reach its LAWS. |
 | **Hypothesis** | If the vessel did not enforce these, an absorbed detector could opt out of them one at a time — which is exactly how the existing detectors came to disagree: each gets one thing right and the rest wrong. A cold start would read as drift, an unmeasurable guard would read as healthy, and a baseline could be moved on two data points. |
 | **Acceptance criteria** | Every declared check passes (25 checks) |
@@ -2008,7 +2008,7 @@ One record per experiment directory, in the schema of §24 of the specification.
 | Runtime | Python 3.11.14 |
 | Platform | macOS-26.5.2-arm64-arm-64bit |
 | Commit | `a36cac20c24c` + 285 uncommitted changes |
-| Database | torinai_db — asked the server |
+| Database | lyric_db — asked the server |
 | **Research question / claim** | The constitution is the live gate on every tool call the substrate makes: it refuses acts outside the five laws before they happen, it does not refuse ordinary work, and it fails closed. |
 | **Hypothesis** | If the constitution governs the acting path, then a forbidden act leaves no trace in the world, an ordinary act runs, a gate that cannot judge refuses rather than passes, and nothing carried inside the act can change the verdict. |
 | **Acceptance criteria** | Every declared check passes (25 checks) |
@@ -2119,7 +2119,7 @@ One record per experiment directory, in the schema of §24 of the specification.
 | Runtime | Python 3.11.14 |
 | Platform | macOS-26.5.2-arm64-arm-64bit |
 | Commit | `a36cac20c24c` + 285 uncommitted changes |
-| Database | torinai_db — asked the server |
+| Database | lyric_db — asked the server |
 | **Research question / claim** | Law 3 refuses acts that reach a person's body, autonomy, truth, protections, or what they depend on — and does NOT refuse acts that merely cannot be undone. Where a safer route reaches the same goal, it is preferred over both the destructive form and a flat refusal. |
 | **Hypothesis** | If harm is undefined, the law either paralyses (refusing every irreversible act, which is what produced a recovery directory for ordinary deletes) or permits (missing manipulation and deception entirely). A defined harm model should refuse the five interests and allow scoped ordinary work, and the two must be distinguishable by evidence the substrate actually holds. |
 | **Acceptance criteria** | Every declared check passes (19 checks) |
@@ -2149,7 +2149,7 @@ One record per experiment directory, in the schema of §24 of the specification.
 | Runtime | Python 3.11.14 |
 | Platform | macOS-26.5.2-arm64-arm-64bit |
 | Commit | `a36cac20c24c` + 284 uncommitted changes |
-| Database | torinai_db — asked the server |
+| Database | lyric_db — asked the server |
 | **Research question / claim** | The harm model holds on the LIVE ACTING PATH under adversarial pressure: disguised forms of a refused act are still refused, a weapon assembled across several permitted acts is caught on the act that completes it, a justification does not buy permission, and the world is verifiably unchanged after every refusal — while ordinary work still runs. |
 | **Hypothesis** | A gate that matches literal text is defeated by spelling. A gate that judges one act at a time is defeated by splitting the act. A gate that reads stated reasons is defeated by stating a better one. And a gate that holds against all three by refusing everything is defeated by being useless — so the false-refusal rate is measured alongside the hold rate. |
 | **Acceptance criteria** | Every declared check passes (34 checks) |
@@ -2191,7 +2191,7 @@ One record per experiment directory, in the schema of §24 of the specification.
 | Runtime | Python 3.11.14 |
 | Platform | macOS-26.5.2-arm64-arm-64bit |
 | Commit | `a36cac20c24c` + 283 uncommitted changes |
-| Database | torinai_db — asked the server |
+| Database | lyric_db — asked the server |
 | **Research question / claim** | The full KNOW -> DO -> frontier loop runs through the REAL coordinator: a real grounded-operator task acts on a real FilesystemWorld, the outcome is verified by an INDEPENDENT filesystem oracle rather than the tool's own return, that outcome persists, earned reliability moves, and the operability bar shifts with it. |
 | **Hypothesis** | If any link were stubbed, the chain would still report success while the filesystem oracle disagreed — so the oracle, not the tool, decides. |
 | **Acceptance criteria** | Every declared check passes (6 checks) |
@@ -2249,7 +2249,7 @@ One record per experiment directory, in the schema of §24 of the specification.
 | Runtime | Python 3.11.14 |
 | Platform | macOS-26.5.2-arm64-arm-64bit |
 | Commit | `a36cac20c24c` + 283 uncommitted changes |
-| Database | torinai_db — asked the server |
+| Database | lyric_db — asked the server |
 | **Research question / claim** | Intent is a first-class, durable, reasoning-owned entity: formed on engagement, refreshed not rebuilt, tree-structured so a goal never collapses into its thread, split into substrate-wide shape and actor-scoped content, and surviving a restart. |
 | **Hypothesis** | If the reasoning authority owns intent and persists it split by shape/content, then a return refreshes the same node, a goal raised in a thread is a distinct parented intent, the outcome reconciles onto it, it survives a fresh process, and forgetting the actor leaves the anonymous shape behind. |
 | **Acceptance criteria** | Every declared check passes (14 checks) |
@@ -2279,7 +2279,7 @@ One record per experiment directory, in the schema of §24 of the specification.
 | Runtime | Python 3.11.14 |
 | Platform | macOS-26.5.2-arm64-arm-64bit |
 | Commit | `a36cac20c24c` + 283 uncommitted changes |
-| Database | torinai_db — asked the server |
+| Database | lyric_db — asked the server |
 | **Research question / claim** | A real reasoning pass through the bridge forms and refreshes the substrate's intent where reasoning starts, keyed so turns refresh and goals stay distinct, split into shape and content, and durable. |
 | **Hypothesis** | If the bridge opens intent at the start of reason(), then every reasoning carries an intent id, a return refreshes rather than rebuilds, concurrent passes on one thread make one intent, the query never leaks into substrate-wide shape, and it survives a fresh process. |
 | **Acceptance criteria** | Every declared check passes (15 checks) |
@@ -2309,7 +2309,7 @@ One record per experiment directory, in the schema of §24 of the specification.
 | Runtime | Python 3.11.14 |
 | Platform | macOS-26.5.2-arm64-arm-64bit |
 | Commit | `a36cac20c24c` + 283 uncommitted changes |
-| Database | torinai_db — asked the server |
+| Database | lyric_db — asked the server |
 | **Research question / claim** | A judgement made from a recorded intent is correct when the act runs: what it allows achieves what the intent was for, what it refuses does not happen, and an intent that was never recorded licenses nothing. |
 | **Hypothesis** | If the constitution reads intent from the authority rather than accepting one, then the allowed act's effect is visible in the re-observed world, a genuine intent cannot be repurposed, a forged id changes nothing, and the outcome reconciles onto the intent. |
 | **Acceptance criteria** | Every declared check passes (13 checks) |
@@ -2340,7 +2340,7 @@ One record per experiment directory, in the schema of §24 of the specification.
 | Runtime | Python 3.11.14 |
 | Platform | macOS-26.5.2-arm64-arm-64bit |
 | Commit | `a36cac20c24c` + 283 uncommitted changes |
-| Database | torinai_db — asked the server |
+| Database | lyric_db — asked the server |
 | **Research question / claim** | The substrate records what it meant, reconciles it against the world it re-observes, and its disposition reads that pairing — so 'did I do what I meant' is answerable and consequential. |
 | **Hypothesis** | If the execution path reconciles intent automatically, then a reached goal lands as fulfilled and a failed one as missed, and integrity's action-outcome link is read from the reconciled intent rather than inferred from a success label. |
 | **Acceptance criteria** | Every declared check passes (15 checks) |
@@ -2369,7 +2369,7 @@ One record per experiment directory, in the schema of §24 of the specification.
 | Runtime | Python 3.11.14 |
 | Platform | macOS-26.5.2-arm64-arm-64bit |
 | Commit | `a36cac20c24c` + 280 uncommitted changes |
-| Database | torinai_db — asked the server |
+| Database | lyric_db — asked the server |
 | **Research question / claim** | Intrinsic pursuit is EVENT-DRIVEN, not polled: a state-changing event fires one coalesced selection cycle, which reads the frontier from `_intrinsic_pursuits` and routes each frontier kind to its real closer — knowledge to the understand loop, capability to a competence drive goal, environment to its own reaction. No timer, no stub routes. |
 | **Hypothesis** | If selection were polled or stubbed, a burst of events would produce more than one cycle and a seeded not-knowing would not reach the frontier the cycle actually reads. |
 | **Acceptance criteria** | Every declared check passes (9 checks) |
@@ -2423,7 +2423,7 @@ One record per experiment directory, in the schema of §24 of the specification.
 | Runtime | Python 3.11.14 |
 | Platform | macOS-26.5.2-arm64-arm-64bit |
 | Commit | `a36cac20c24c` + 294 uncommitted changes |
-| Database | torinai_db — asked the server |
+| Database | lyric_db — asked the server |
 | **Research question / claim** | An episode is recorded with the pursuit it belonged to — by id and by the intent version current at the time — so the substrate can ask both 'what was I trying to do when this happened' and 'what happened while I pursued that', and a later refinement of the goal cannot re-describe a past act. |
 | **Hypothesis** | If the link were a COPY of the intent's shape, refreshing the intent would leave two diverging accounts of what was meant. If it were the id ALONE, hindsight would silently re-describe past acts under a goal the substrate only later refined into. Only id PLUS version answers 'at the time' honestly. |
 | **Acceptance criteria** | Every declared check passes (15 checks) |
@@ -2458,7 +2458,7 @@ One record per experiment directory, in the schema of §24 of the specification.
 | Runtime | Python 3.11.14 |
 | Platform | macOS-26.5.2-arm64-arm-64bit |
 | Commit | `20deb4474985` + 223 uncommitted changes |
-| Database | torinai_db — asked the server |
+| Database | lyric_db — asked the server |
 | **Research question / claim** | A memory of something perceived carries a reference to the percept that recorded the perceiving, so recall of what was seen resolves to a record with the digest of the exact bytes rather than resting on the substrate's word. |
 | **Hypothesis** | If the link were by recency, a memory would claim to be of whatever happened to be in view nearby — weakest precisely when several things were seen close together. If it were written but not read back, it would render to no reader. Both are checked. |
 | **Acceptance criteria** | Every declared check passes (15 checks) |
@@ -2486,7 +2486,7 @@ One record per experiment directory, in the schema of §24 of the specification.
 | Runtime | Python 3.11.14 |
 | Platform | macOS-26.5.2-arm64-arm-64bit |
 | Commit | `a36cac20c24c` + 280 uncommitted changes |
-| Database | torinai_db — asked the server |
+| Database | lyric_db — asked the server |
 | **Research question / claim** | The motivation loop CLOSES: an unknown becomes a ranked frontier pursuit, acting on it moves the underlying belief, and the moved belief changes the ranking on the next pass. The decision is deterministic — the same self state yields the same ranking, with no RNG anywhere in it. |
 | **Hypothesis** | If the loop were open, resolving an unknown would leave the frontier unchanged and the substrate would keep pursuing what it had already learned. |
 | **Acceptance criteria** | Every declared check passes (11 checks) |
@@ -2525,7 +2525,7 @@ One record per experiment directory, in the schema of §24 of the specification.
 | Runtime | Python 3.11.14 |
 | Platform | macOS-26.5.2-arm64-arm-64bit |
 | Commit | `a36cac20c24c` + 284 uncommitted changes |
-| Database | torinai_db — asked the server |
+| Database | lyric_db — asked the server |
 | **Research question / claim** | The substrate acquires an irreversible operator from real execution — demonstrations, induction, independent validation — and its constitution then redirects the proved act to a recoverable form. |
 | **Hypothesis** | If an operator is learned only from what the world did, then removal becomes plannable and the constitution answers a PROVED irreversible act with a named recoverable alternative rather than a refusal. |
 | **Acceptance criteria** | Every declared check passes (21 checks) |
@@ -2696,7 +2696,7 @@ One record per experiment directory, in the schema of §24 of the specification.
 | Runtime | Python 3.11.14 |
 | Platform | macOS-26.5.2-arm64-arm-64bit |
 | Commit | `a36cac20c24c` + 280 uncommitted changes |
-| Database | torinai_db — asked the server |
+| Database | lyric_db — asked the server |
 | **Research question / claim** | The substrate has exactly one planning authority, and every planning path reports honestly: a proved plan is really proved, an unreachable goal yields no plan, and a template plan is never presented as proved. |
 | **Hypothesis** | If planning is routed by goal type through one engine, then a state goal either proves a grounded operator route or reports why it could not, never falling through to a plausible template; and what a plan claims about itself is read from what the substrate measures rather than invented. |
 | **Acceptance criteria** | Every declared check passes (39 checks) |
@@ -2802,7 +2802,7 @@ One record per experiment directory, in the schema of §24 of the specification.
 | Runtime | Python 3.11.14 |
 | Platform | macOS-26.5.2-arm64-arm-64bit |
 | Commit | `a36cac20c24c` + 284 uncommitted changes |
-| Database | torinai_db — asked the server |
+| Database | lyric_db — asked the server |
 | **Research question / claim** | Every execution path that owns a pursuit reconciles its intent exactly once, from the re-observed world; a step that does not own the pursuit leaves it open for its owner. |
 | **Hypothesis** | If ownership is the rule, then a planned route closes once after its last step, a standalone operator and a declared-tool operation each close their own intent (including when refused), a plan step closes nothing, and the verdict follows the world rather than the step's own success. |
 | **Acceptance criteria** | Every declared check passes (27 checks) |
@@ -2835,7 +2835,7 @@ One record per experiment directory, in the schema of §24 of the specification.
 | Runtime | Python 3.11.14 |
 | Platform | macOS-26.5.2-arm64-arm-64bit |
 | Commit | `20deb4474985` + 272 uncommitted changes |
-| Database | torinai_db — asked the server |
+| Database | lyric_db — asked the server |
 | **Research question / claim** | One act of sight carries through the live substrate intact: what was seen is held at the standing its evidence warrants, judged by the same band that judges a recognition and a finished task, recorded so the memory of it resolves to the bytes, read through the law that governs the substrate — and changes nothing about what it may do. |
 | **Hypothesis** | Each stage of this path passes its own test. The defects found today all lived in the SEAMS — a value computed by one stage and dropped before the next could read it — and no single-stage test can see one. This exercises the whole chain in one run. |
 | **Acceptance criteria** | Every declared check passes (23 checks) |
@@ -2885,7 +2885,7 @@ One record per experiment directory, in the schema of §24 of the specification.
 | Runtime | Python 3.11.14 |
 | Platform | macOS-26.5.2-arm64-arm-64bit |
 | Commit | `a36cac20c24c` + 280 uncommitted changes |
-| Database | torinai_db — asked the server |
+| Database | lyric_db — asked the server |
 | **Research question / claim** | The task loop is fully wired AND scoped to who asked: a job entering the one front door is queued as a Task owned by the verified requester, returns a task_id acknowledgement immediately, and its result is retrievable only by that requester. |
 | **Hypothesis** | If scoping were cosmetic, another identity could poll the handle and read the result, or the Task would be attributed to the substrate itself. |
 | **Acceptance criteria** | Every declared check passes (9 checks) |
@@ -3076,8 +3076,8 @@ preserved as the experiment recorded it, with the current equivalent noted inlin
 
 ### B. How to reproduce any run in this document
 
-1. Use the canonical runtime: `./venv_torin/bin/python3` (Python 3.11.14)
-2. Run from the TorinAI folder: `./venv_torin/bin/python3 experiments/<NAME>/experiment.py`
+1. Use the canonical runtime: `./venv_lyric/bin/python3` (Python 3.11.14)
+2. Run from the Lyric folder: `./venv_lyric/bin/python3 experiments/<NAME>/experiment.py`
 3. A new artifact is written to `experiments/<NAME>/results/<UTC timestamp>.json`; no existing run is
    overwritten
 4. Compare against the artifact cited in §26

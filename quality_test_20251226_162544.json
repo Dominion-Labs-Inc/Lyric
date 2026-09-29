@@ -1,7 +1,7 @@
 [
   {
     "query": "What is the capital of France?",
-    "torinai": {
+    "lyric": {
       "response": null,
       "latency": 0.01250314712524414,
       "error": "HTTP 500"
@@ -14,7 +14,7 @@
   },
   {
     "query": "If I have 5 apples and give away 2, then buy 3 more, how many do I have?",
-    "torinai": {
+    "lyric": {
       "response": null,
       "latency": 0.006810903549194336,
       "error": "HTTP 500"
@@ -27,7 +27,7 @@
   },
   {
     "query": "Explain photosynthesis and why it's important for life on Earth",
-    "torinai": {
+    "lyric": {
       "response": null,
       "latency": 0.008400201797485352,
       "error": "HTTP 500"

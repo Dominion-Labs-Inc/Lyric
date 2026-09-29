@@ -26,7 +26,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 
-from core.database import TorinUnifiedDatabase
+from core.database import LyricUnifiedDatabase
 
 logger = logging.getLogger(__name__)
 
@@ -208,7 +208,7 @@ class HypothesisTestingSystem:
 
     def __init__(self, uncertainty_system=None):
         # Use unified PostgreSQL database
-        self.db = None  # Will be set to TorinUnifiedDatabase in initialize()
+        self.db = None  # Will be set to LyricUnifiedDatabase in initialize()
         self.uncertainty = uncertainty_system
 
         # Memory agent for persisting hypothesis testing traces

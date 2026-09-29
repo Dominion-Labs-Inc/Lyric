@@ -13,7 +13,7 @@ Two parts, both on REAL machinery, no stubs:
       no domain has operating history yet -- earned differentiation is earned from
       runtime, not asserted from a cold snapshot.
 
-Run: ./venv_torin/bin/python3 scratchpad/bench_operability.py
+Run: ./venv_lyric/bin/python3 scratchpad/bench_operability.py
 """
 import asyncio, os, sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))

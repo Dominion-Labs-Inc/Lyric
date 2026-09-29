@@ -148,8 +148,8 @@ class FreezeViolation:
             f"({self.frozen_fingerprint[:16]}… -> {self.current_fingerprint[:16]}…, "
             f"{self.frozen_files} -> {self.current_files} files). Stage 2 measures "
             f"whether a FROZEN system can be educated; a substrate edited during "
-            f"the experiment cannot distinguish 'Torin learned' from 'we upgraded "
-            f"Torin while teaching it'. Repair the experiment, not the learner."
+            f"the experiment cannot distinguish 'Lyric learned' from 'we upgraded "
+            f"Lyric while teaching it'. Repair the experiment, not the learner."
         )
 
 

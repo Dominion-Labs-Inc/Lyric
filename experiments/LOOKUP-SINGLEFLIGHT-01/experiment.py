@@ -6,7 +6,7 @@ Proves: N concurrent callers for the same phrase → exactly ONE research call, 
 same result; distinct phrases are NOT deduped; after it drains, a later call researches
 again (not a cross-time cache). Also proves case/whitespace normalisation collapses to one.
 
-Run: ./venv_torin/bin/python3 scratchpad/bench_lookup_singleflight.py
+Run: ./venv_lyric/bin/python3 scratchpad/bench_lookup_singleflight.py
 """
 import asyncio, os, sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))

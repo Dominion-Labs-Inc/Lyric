@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Quantum Reasoning Hardware Bridge
-Connects real quantum hardware with Torin's quantum reasoning system
+Connects real quantum hardware with Lyric's quantum reasoning system
 """
 
 import asyncio
@@ -13,7 +13,7 @@ from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
 
-# Import Torin's reasoning system
+# Import Lyric's reasoning system
 try:
     from core.reasoning.unified_quantum_reasoning_system import UnifiedQuantumReasoningSystem as QuantumReasoningEngine
     from core.reasoning.reasoning_interfaces import ReasoningTask

@@ -18,7 +18,7 @@ foundation, against real Postgres, nothing mocked:
   7. forgetting the actor removes content and continuity while the anonymous
      shape (the lesson) survives.
 
-The restart check spawns a fresh `./venv_torin/bin/python3`, so persistence is
+The restart check spawns a fresh `./venv_lyric/bin/python3`, so persistence is
 proven across a real process boundary, not asserted.
 """
 import asyncio
@@ -36,7 +36,7 @@ from experiments._evidence import RunRecord  # noqa: E402
 from core.reasoning.intent_authority import (  # noqa: E402
     get_intent_authority, continuity_thread, continuity_goal)
 
-os.environ.setdefault("TORIN_SHADOW_MODE", "1")
+os.environ.setdefault("LYRIC_SHADOW_MODE", "1")
 
 PASS = FAIL = 0
 EV = RunRecord(

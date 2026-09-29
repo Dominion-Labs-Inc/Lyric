@@ -20,13 +20,13 @@ then inspect the store directly:
   4. the substrate now BELIEVES the observations, with posteriors (unified.beliefs),
   5. every observation carries PERCEPTION provenance (unified.evidence_envelopes).
 
-    PYTHONPATH="$PWD" POSTGRES_PORT=5433 POSTGRES_USER=stefan TORIN_NO_WATCHDOG=1 \
-    ./venv_torin/bin/python3 experiments/systems/PERCEIVE-01/experiment.py
+    PYTHONPATH="$PWD" POSTGRES_PORT=5433 POSTGRES_USER=stefan LYRIC_NO_WATCHDOG=1 \
+    ./venv_lyric/bin/python3 experiments/systems/PERCEIVE-01/experiment.py
 """
 from __future__ import annotations
 import os
 for k, v in {"POSTGRES_PORT": "5433", "POSTGRES_USER": "stefan",
-             "POSTGRES_DATABASE": "torinai_db", "TORIN_NO_WATCHDOG": "1"}.items():
+             "POSTGRES_DATABASE": "lyric_db", "LYRIC_NO_WATCHDOG": "1"}.items():
     os.environ.setdefault(k, v)
 import asyncio, contextlib, io, json, sys
 from datetime import datetime, timezone

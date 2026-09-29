@@ -99,7 +99,7 @@ person's image is in the substrate's own memory or knowledge, and it is held in 
 ## Run
 
 ```
-./venv_torin/bin/python3 experiments/CANARY-01/experiment.py
+./venv_lyric/bin/python3 experiments/CANARY-01/experiment.py
 ```
 
 It empties the sandbox first (`scripts/reset_dev_store.py`) and starts the substrate.

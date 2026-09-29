@@ -11,16 +11,16 @@ and staging served it:
   its checksum.
 - **Untouched:** development received nothing from staging, and the main line had no new rows and no release.
 
-The model is taught in development: the sandbox, `torinai_dev`, runs the development phase in `experiments/_develop.py`.
+The model is taught in development: the sandbox, `lyric_dev`, runs the development phase in `experiments/_develop.py`.
 It is then cut into release 1 and staged. The experiment process itself is staging, serving release 1. Where each row
 landed is read over a separate connection to each database, never through the database manager being tested.
 
 | Database | What it holds after the run |
 |---|---|
-| `torinai_dev_model_v1` (the release, read-only) | the lesson's pattern memories, the model's facts, beliefs and ledger, and the memory development made |
-| `torinai_dev_staging_user_context` | each person's told fact and their memory |
-| `torinai_dev_staging_learning` | the substrate's own memory made while serving, never read back while serving |
-| `torinai_dev_staging_runtime` | the running records, and no memory at all |
+| `lyric_dev_model_v1` (the release, read-only) | the lesson's pattern memories, the model's facts, beliefs and ledger, and the memory development made |
+| `lyric_dev_staging_user_context` | each person's told fact and their memory |
+| `lyric_dev_staging_learning` | the substrate's own memory made while serving, never read back while serving |
+| `lyric_dev_staging_runtime` | the running records, and no memory at all |
 
 ## What it checks
 
@@ -51,7 +51,7 @@ refusals (`db.frozen_refusals`).
 ## Run
 
 ```
-./venv_torin/bin/python3 experiments/SEPARATION-01/experiment.py
+./venv_lyric/bin/python3 experiments/SEPARATION-01/experiment.py
 ```
 
 It empties the sandbox line first (`scripts/reset_dev_store.py`). The version that ran the world copy (28/28, run

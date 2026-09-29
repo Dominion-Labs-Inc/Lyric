@@ -34,7 +34,7 @@ Two gaps in alleviation, closed together because the second needs the first.
   G  NO OBJECT ⇒ NO QUESTION                    counted as lost, never invented
   H  THE OBJECT IS NOT ERASED BY A PARTIAL UPDATE
 
-Run: ./venv_torin/bin/python3 experiments/FEELING-OBJECT-01/experiment.py
+Run: ./venv_lyric/bin/python3 experiments/FEELING-OBJECT-01/experiment.py
 """
 import asyncio
 import contextlib

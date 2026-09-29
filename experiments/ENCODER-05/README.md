@@ -4,5 +4,5 @@ Part of the ENCODER series. See `experiments/ENCODER-01/README.md` for the quest
 the full results table and the decision.
 
 ```
-./venv_torin/bin/python3 experiments/ENCODER-05/experiment.py
+./venv_lyric/bin/python3 experiments/ENCODER-05/experiment.py
 ```

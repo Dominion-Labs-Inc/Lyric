@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """EDU-05 — real execution becomes evidence.
 
-Torin acts on the world through a learned rule, observes the result, and the
+Lyric acts on the world through a learned rule, observes the result, and the
 observed state transition is recorded as a ROOT observation in the semantic
 layer. Model-free end to end.
 

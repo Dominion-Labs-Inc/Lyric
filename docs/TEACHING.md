@@ -527,7 +527,7 @@ fixed rather than worked around:**
 
 ## 11 · Teaching a LIVE substrate
 
-**Every teaching script before 2026-09-20 called `TorinAISystem.initialize()`
+**Every teaching script before 2026-09-20 called `LyricSystem.initialize()`
 and never `start()`.** That constructs every first-class module — appraisal,
 motivation, the domain authority, perception, the coordinator — and starts none
 of them. They are woken by events, and the reactive drain worker that runs
@@ -540,7 +540,7 @@ off. The modules were not bypassed; they were present and inert.
 `scripts/teach.py` is the one teaching entry point and it starts the substrate:
 
 ```
-PYTHONPATH="$PWD" ./venv_torin/bin/python3 scripts/teach.py --source wordnet --domain lexical
+PYTHONPATH="$PWD" ./venv_lyric/bin/python3 scripts/teach.py --source wordnet --domain lexical
 ```
 
 - `start()`, not `initialize()` — and it **refuses to teach** if the reactive

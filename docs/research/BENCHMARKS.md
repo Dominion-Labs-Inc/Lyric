@@ -1,4 +1,4 @@
-# TorinAI Benchmarks
+# Lyric Benchmarks
 
 A standing record of what has been MEASURED, run against the real substrate. One
 section per capability under test; each run appends a dated row rather than
@@ -11,7 +11,7 @@ Rules for this file:
   that is no longer reproducible.
 - A benchmark that could not be exercised says so and names what is missing. It
   is never filled in with a staged substitute.
-- Runtime: `./venv_torin/bin/python3`, real PostgreSQL, real tool registry, real
+- Runtime: `./venv_lyric/bin/python3`, real PostgreSQL, real tool registry, real
   rule store.
 - Every run is saved to its experiment's `results/` folder as a NEW
   `<UTC timestamp>.json`, never over an earlier one. Beside it is a short `.md`
@@ -41,7 +41,7 @@ record that names the database it actually used. Earlier records were not edited
 | INTENT-02 | 15/15 | `20260916T230259Z` |
 | PLANNING-01 | 31/31 | `20260916T225846Z` |
 
-Seven of the eight verified their database by asking the server (`torinai_db`). GOVERNANCE-ABSORPTION-01
+Seven of the eight verified their database by asking the server (`lyric_db`). GOVERNANCE-ABSORPTION-01
 reports resolved configuration plus the reason it could not verify — it runs without an initialized
 connection, which is also why the old gate cannot persist its assessments in that run. An honest
 "not verified, and here is why" is the point of keeping the two separate.
@@ -73,7 +73,7 @@ The correctness, pressure and parity results below (§1.1–1.3) stand as measur
 
 ### 1.1 Correctness on real acts — `experiments/CONSTITUTION-01`
 
-`./venv_torin/bin/python3 experiments/CONSTITUTION-01/experiment.py`
+`./venv_lyric/bin/python3 experiments/CONSTITUTION-01/experiment.py`
 
 | Date | Checks | Notes | Run record |
 |---|---|---|---|
@@ -98,7 +98,7 @@ What it establishes, on acts that really ran:
 
 ### 1.2 Pressure and noise — `experiments/CONSTITUTION-02`
 
-`./venv_torin/bin/python3 experiments/CONSTITUTION-02/experiment.py`
+`./venv_lyric/bin/python3 experiments/CONSTITUTION-02/experiment.py`
 
 | Date | Checks | Hold rate | False refusals | Latency (mean / max) | Noise | Run record |
 |---|---|---|---|---|---|---|
@@ -199,7 +199,7 @@ to be. Still open, before this capability can be called done:
 
 ### 1.5 The gate is live — `experiments/GATE-01`
 
-`./venv_torin/bin/python3 experiments/GATE-01/experiment.py`
+`./venv_lyric/bin/python3 experiments/GATE-01/experiment.py`
 
 | Date | Checks | Gate cost | Run record |
 |---|---|---|---|
@@ -256,7 +256,7 @@ requires. Law 2 already carried that exemption; Law 4 now does too.
 and Law 3 **redirects every irreversible delete** to a recoverable form. As bound (`REMOVE_FILE` →
 `delete_file`) the operator can neither be taught nor executed. The redirect's named alternative now
 travels back with the refusal and onto the reconciled intent, so planning can use it — but nothing yet
-re-plans into it, and the named destination (`RECOVERABLE_PATH = ".torin_recoverable"`) is a **relative**
+re-plans into it, and the named destination (`RECOVERABLE_PATH = ".lyric_recoverable"`) is a **relative**
 path, so it would not land inside a sandboxed domain. Rebinding the operator to the recoverable form is the
 open question.
 
@@ -282,7 +282,7 @@ open question.
 
 ### 1.4 A determined adversary — `experiments/CONSTITUTION-03`
 
-`./venv_torin/bin/python3 experiments/CONSTITUTION-03/experiment.py`
+`./venv_lyric/bin/python3 experiments/CONSTITUTION-03/experiment.py`
 
 Not one attempt per weapon, but a **campaign**: each forbidden objective retried many ways until one
 gets through. A campaign holds only if every strategy is refused. Real substrate, nothing executed.
@@ -310,7 +310,7 @@ refused.
 
 ### 1.6 One authority, and what it absorbed works — `experiments/CONSOLIDATION-01`
 
-`./venv_torin/bin/python3 experiments/CONSOLIDATION-01/experiment.py`
+`./venv_lyric/bin/python3 experiments/CONSOLIDATION-01/experiment.py`
 
 | Date | Checks | Run record |
 |---|---|---|
@@ -332,7 +332,7 @@ id (3 this run).
 
 ### 1.7 Self-defense — `experiments/THREAT-SENSE-02`
 
-`./venv_torin/bin/python3 experiments/THREAT-SENSE-02/experiment.py`
+`./venv_lyric/bin/python3 experiments/THREAT-SENSE-02/experiment.py`
 
 | Date | Checks | Run record |
 |---|---|---|
@@ -361,7 +361,7 @@ behalf count.
 
 ### 2.1 Removal, taught by induction — `experiments/OPERATOR-REMOVAL-01`
 
-`./venv_torin/bin/python3 experiments/OPERATOR-REMOVAL-01/experiment.py`
+`./venv_lyric/bin/python3 experiments/OPERATOR-REMOVAL-01/experiment.py`
 
 | Date | Checks | Rule | Status | Run record |
 |---|---|---|---|---|
@@ -379,7 +379,7 @@ behalf count.
 | Induction | `rule_learned` |
 | Validation against held-out observations | confirmed by 4 independent observations |
 | Planning a removal (negative goal `¬FILE_IN(...)`) | `plan_found`, 1 step |
-| Constitution's verdict on the proved removal | **redirect** (Law 3) → `move_file` into `.torin_recoverable/` |
+| Constitution's verdict on the proved removal | **redirect** (Law 3) → `move_file` into `.lyric_recoverable/` |
 
 Why it matters for §1: until this operator existed, no domain bound an operator
 to a destructive tool, so REDIRECT — the verdict reserved for a proved
@@ -409,7 +409,7 @@ contradict it.
 
 ### 3.1 Capability on the full frozen suite
 
-`./venv_torin/bin/python3 experiments/CAPABILITY-BENCHMARK-01/full_suite.py`
+`./venv_lyric/bin/python3 experiments/CAPABILITY-BENCHMARK-01/full_suite.py`
 
 Every frozen case, no sampling. The substrate answers through the neural bridge
 (substrate-first, not a model) and a frozen grader scores it.
@@ -450,7 +450,7 @@ old `Intent.from_task` reconstruction. Design: `docs/design/INTENT_AUTHORITY.md`
 
 ### 5.1 The authority — `experiments/INTENT-01`
 
-`./venv_torin/bin/python3 experiments/INTENT-01/experiment.py`
+`./venv_lyric/bin/python3 experiments/INTENT-01/experiment.py`
 
 Phase 1: the intent entity, its two-table store (`unified.intents` shape, `unified.scoped_intents`
 content), and the reasoning authority's lifecycle — all against real Postgres, nothing mocked.
@@ -468,7 +468,7 @@ What it establishes:
 | Tree identity (no flat-key collision) | a goal raised in a thread is its own intent, parented, resolved by its own key |
 | Content vs shape split | the substrate-wide view carries no actor and no content |
 | Outcome reconciled | the outcome attaches to the intent, substrate-wide (for learning) |
-| Restart survival | a separate `./venv_torin/bin/python3` process reloads everything |
+| Restart survival | a separate `./venv_lyric/bin/python3` process reloads everything |
 | Actor deletion | forgetting the actor removes content + continuity; the anonymous shape (the lesson) survives |
 
 **Scope.** This is the foundation only. Phase 2 (live reasoning forming intent) is §5.2. Not yet proven:
@@ -477,7 +477,7 @@ learning reading from it (phases 5–6, incl. the meant-vs-happened credit signa
 
 ### 5.4 The loop closes — `experiments/INTENT-04`
 
-`./venv_torin/bin/python3 experiments/INTENT-04/experiment.py`
+`./venv_lyric/bin/python3 experiments/INTENT-04/experiment.py`
 
 **Intent-governed execution with automatic post-action reconciliation and downstream appraisal.**
 
@@ -504,7 +504,7 @@ closed in §7.
 
 ### 5.3 The judgment is correct under execution — `experiments/INTENT-03`
 
-`./venv_torin/bin/python3 experiments/INTENT-03/experiment.py`
+`./venv_lyric/bin/python3 experiments/INTENT-03/experiment.py`
 
 Phases 1–4 proved intent is owned, recorded, and read by the constitution. That is integration coverage.
 This checks that the resulting **judgments are correct once acts run**, answerable only by the world.
@@ -522,7 +522,7 @@ This checks that the resulting **judgments are correct once acts run**, answerab
 
 ### 5.2 Reasoning forms intent — `experiments/INTENT-02`
 
-`./venv_torin/bin/python3 experiments/INTENT-02/experiment.py`
+`./venv_lyric/bin/python3 experiments/INTENT-02/experiment.py`
 
 Phase 2: the bridge opens/refreshes intent at the start of every `reason()`, keyed from the request's
 engagement (goal, thread, or the query itself), and stamps the `intent_id` onto the result. Driven
@@ -561,7 +561,7 @@ wiring intent into a divergent planner would record the wrong thing.
 
 ### 6.1 One authority, every step verified — `experiments/PLANNING-01`
 
-`./venv_torin/bin/python3 experiments/PLANNING-01/experiment.py`
+`./venv_lyric/bin/python3 experiments/PLANNING-01/experiment.py`
 
 | Date | Checks | State goal | Unreachable goal | Template plan | Run record |
 |---|---|---|---|---|---|
@@ -678,7 +678,7 @@ this came from claimed "episodic" while querying every memory type.
 
 ### 7.1 The one credit that governs behaviour — `experiments/CREDIT-01`
 
-`./venv_torin/bin/python3 experiments/CREDIT-01/experiment.py`
+`./venv_lyric/bin/python3 experiments/CREDIT-01/experiment.py`
 
 | Date | Checks | Run record |
 |---|---|---|
@@ -758,7 +758,7 @@ makes it a belief rather than a copy.
 
 ## 8. System isolation — each core system on its own
 
-`./venv_torin/bin/python3 experiments/SYSTEM-<NAME>-01/experiment.py` (one per system; `_isolation.py` harness)
+`./venv_lyric/bin/python3 experiments/SYSTEM-<NAME>-01/experiment.py` (one per system; `_isolation.py` harness)
 
 Each core system is tested alone on the live substrate, through its own authority. Three kinds of result are
 kept apart. **Behaviour** is a check of what the system does through its real path, and it alone decides
@@ -803,7 +803,7 @@ Health were re-run after the instance-safety fixes below.
 
 ### Many instances, one store
 
-`./venv_torin/bin/python3 experiments/INSTANCES-01/experiment.py` — **11/11** (`20260926T185144Z`). Two
+`./venv_lyric/bin/python3 experiments/INSTANCES-01/experiment.py` — **11/11** (`20260926T185144Z`). Two
 instances' worth of objects against the live store: both instances' evidence lands in one belief, 3 + 2
 strategy outcomes store as 5, a resolved unknown stays resolved against a stale writer, attempts from both
 count, a living instance's job is not claimed, and of two instances racing for one job exactly one gets it.
@@ -812,7 +812,7 @@ phase-5 task governance 5/5, `tests/test_belief_indexes.py` 3/3.
 
 ### A small lesson, then real work on it
 
-`./venv_torin/bin/python3 experiments/TEACH-AND-DO-01/experiment.py` — **17/18** (`20260926T223406Z`). Six pump facts and one
+`./venv_lyric/bin/python3 experiments/TEACH-AND-DO-01/experiment.py` — **17/18** (`20260926T223406Z`). Six pump facts and one
 rule through the one teaching path (a re-teach moves nothing and is ledgered `unchanged`); "Is a centrifugal pump
 a machine?" answered through the chain; "What is a peristaltic pump?" looked up on the web, read ("is a positive
 displacement pump") and learned as world knowledge with the page as its source, nothing of it in the asker's

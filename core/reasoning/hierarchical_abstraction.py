@@ -9,7 +9,7 @@ Active abstraction with FULL architectural fixes:
 4. Counterfactual stress testing (anticipatory volatility)
 5. Planning integration (principles shape strategy)
 
-Author: TorinAI System
+Author: Lyric System
 Version: 2.0 - Production Ready
 """
 

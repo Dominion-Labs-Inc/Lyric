@@ -21,7 +21,7 @@ fabricated-signal failure the rest of this ladder was built to catch.
 THE FIRST ADMISSIBLE BASELINE. The previous one (`S0_INVALID_01.json`) is
 preserved and permanently marked invalid: its harness drove
 `ProbabilisticVersionSpace` directly and returned UNKNOWN for everything else,
-so it measured its own wiring rather than Torin. Every item now goes through
+so it measured its own wiring rather than Lyric. Every item now goes through
 the production ingress -- `AutonomousCoordinator.reason_about` for reasoning,
 `SubstrateLearning` for induction -- and the teacher model is DETACHED, so a
 correct answer cannot be Qwen quietly supplying it.

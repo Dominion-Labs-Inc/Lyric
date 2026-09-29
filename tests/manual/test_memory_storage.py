@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 from datetime import datetime
 
-# Add TorinAI to path
+# Add Lyric to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # Import TestBase
@@ -52,7 +52,7 @@ class MemoryStorageTests(TestBase):
             port=self.mysql_port,
             user=self.mysql_user,
             password=self.mysql_password,
-            db="torinai_thinking_hot"
+            db="lyric_thinking_hot"
         )
 
         async with conn.cursor() as cursor:
@@ -194,7 +194,7 @@ class MemoryStorageTests(TestBase):
             port=self.mysql_port,
             user=self.mysql_user,
             password=self.mysql_password,
-            db="torinai_thinking_hot"
+            db="lyric_thinking_hot"
         )
 
         async with conn.cursor() as cursor:
@@ -261,7 +261,7 @@ class MemoryStorageTests(TestBase):
     async def run_all_tests(self):
         """Run all memory storage tests"""
         print("="*80)
-        print("TorinAI Memory Storage Verification Test")
+        print("Lyric Memory Storage Verification Test")
         print("="*80)
         print(f"Started: {datetime.now().isoformat()}\n")
 

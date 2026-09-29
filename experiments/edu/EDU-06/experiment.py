@@ -86,7 +86,7 @@ async def main() -> int:
     await db.initialize()
     grounder = CrossDomainGrounder(db)
 
-    # The rule Torin INDUCED from demonstrations, model-free (EDU-01).
+    # The rule Lyric INDUCED from demonstrations, model-free (EDU-01).
     source_hub = "kite17:move"
     source_domain = source_hub.split(":", 1)[0]
     edges = await structure_of(db, source_hub)

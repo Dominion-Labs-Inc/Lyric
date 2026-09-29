@@ -1,6 +1,6 @@
 """What a task's memory says, and that no memory is ever merged into another.
 
-The store test runs against the database it is pointed at (the sandbox, `POSTGRES_DATABASE=torinai_dev`) and removes
+The store test runs against the database it is pointed at (the sandbox, `POSTGRES_DATABASE=lyric_dev`) and removes
 every row it writes by id.
 """
 import asyncio
@@ -46,7 +46,7 @@ def test_a_record_reads_back_as_its_occurrences():
 
 def test_the_same_thing_on_two_days_is_two_memories(monkeypatch):
     """The memory agent merges nothing: two memories that read alike are two memories."""
-    monkeypatch.setenv("TORIN_SHADOW_MODE", "1")
+    monkeypatch.setenv("LYRIC_SHADOW_MODE", "1")
     nonce = uuid4().hex[:8]
 
     async def run():

@@ -12,10 +12,10 @@ It covers:
   keylogger, persistence, privilege escalation, obfuscated `exec`, deleting a log;
 - ordinary code and an ordinary fetch are not blocked.
 
-**Run** (from the TorinAI folder):
+**Run** (from the Lyric folder):
 
 ```
-./venv_torin/bin/python3 experiments/CONSTITUTION-01/experiment.py
+./venv_lyric/bin/python3 experiments/CONSTITUTION-01/experiment.py
 ```
 
 **Results.** Every run is saved in `results/` (JSON plus a `.md` summary). Latest: 2026-09-16, 39/39

@@ -65,11 +65,11 @@ if _ROOT not in sys.path:
 # The env var is checked at the top of infer_capability_from_task() in
 # capabilities.py and returns {} immediately when set.
 import os as _os
-_os.environ["TORIN_FAST_INIT"] = "1"
+_os.environ["LYRIC_FAST_INIT"] = "1"
 
 # ── suppress noisy startup logs ─────────────────────────────────────────────
 import logging
-logging.getLogger("TorinAI").setLevel(logging.ERROR)
+logging.getLogger("Lyric").setLevel(logging.ERROR)
 logging.getLogger("core").setLevel(logging.ERROR)
 logging.getLogger("uvicorn").setLevel(logging.CRITICAL)
 logging.getLogger("asyncio").setLevel(logging.CRITICAL)
@@ -95,7 +95,7 @@ DIM   = lambda t: _c("2",    t)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 # Temp workspace for probes that need real files
-_TMP = tempfile.mkdtemp(prefix="torin_toolverify_")
+_TMP = tempfile.mkdtemp(prefix="lyric_toolverify_")
 _TMP_FILE = os.path.join(_TMP, "probe.txt")
 with open(_TMP_FILE, "w") as _f:
     _f.write("tool verification probe file\nline 2\nline 3\n")
@@ -697,7 +697,7 @@ def _print_summary(results: List[ToolVerifyResult], layers_run: Set[int]) -> int
 
 async def main():
     parser = argparse.ArgumentParser(
-        description="Verify all registered Torin tools across instantiation, schema, validation, and live-probe layers."
+        description="Verify all registered Lyric tools across instantiation, schema, validation, and live-probe layers."
     )
     parser.add_argument("--category",  help="Filter to a single category (e.g. filesystem)")
     parser.add_argument("--tool",      help="Verify a single tool by name")

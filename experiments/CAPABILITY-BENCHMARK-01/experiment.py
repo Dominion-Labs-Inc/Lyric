@@ -11,7 +11,7 @@ Real Postgres, real reasoning, no stubs, no fabricated numbers.
   4. The measured scores are tracked as long-term capability baselines (`learning_benchmark`).
   5. The substrate-facing tool (benchmarkcapability) runs the same path and returns the report.
 
-Run: ./venv_torin/bin/python3 experiments/CAPABILITY-BENCHMARK-01/experiment.py
+Run: ./venv_lyric/bin/python3 experiments/CAPABILITY-BENCHMARK-01/experiment.py
 Aggressive full run: call benchmark_capability() with no sample_size (all frozen cases).
 """
 from __future__ import annotations

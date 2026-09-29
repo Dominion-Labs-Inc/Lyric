@@ -5,7 +5,7 @@ Database & Storage Tools
 Tools for database operations and cloud storage
 
 Tools:
-- mysql_query: Execute SQL queries on TorinAI MySQL databases
+- mysql_query: Execute SQL queries on Lyric MySQL databases
 - mysql_table_info: Get MySQL table schema and metadata
 - mysql_backup: Backup MySQL database tables
 - mysql_restore: Restore MySQL database from backup
@@ -16,7 +16,7 @@ Tools:
 - r2_upload: Upload file to Cloudflare R2 storage
 - r2_download: Download file from R2 storage
 
-Author: Torin AI Team
+Author: Lyric AI Team
 """
 
 import logging
@@ -43,7 +43,7 @@ class MySQLQueryTool(Tool):
     def __init__(self):
         super().__init__()
         self.name = "mysql_query"
-        self.description = "Execute SQL queries on TorinAI databases (SELECT, INSERT, UPDATE, DELETE)"
+        self.description = "Execute SQL queries on Lyric databases (SELECT, INSERT, UPDATE, DELETE)"
         self.category = ToolCategory.DATABASE
         self.safety_level = ToolSafety.DANGEROUS
         self.parameters = [
@@ -58,8 +58,8 @@ class MySQLQueryTool(Tool):
                 type="string",
                 description="Database name",
                 required=False,
-                default="torinai_unified",
-                enum=["torinai_unified", "torinai_thinking_hot", "torinai_memory_cold"]
+                default="lyric_unified",
+                enum=["lyric_unified", "lyric_thinking_hot", "lyric_memory_cold"]
             ),
             ToolParameter(
                 name="params",
@@ -91,7 +91,7 @@ class MySQLQueryTool(Tool):
             ]
         )
 
-    async def execute(self, query: str, database: str = "torinai_unified", params: List = None) -> ToolResult:
+    async def execute(self, query: str, database: str = "lyric_unified", params: List = None) -> ToolResult:
         try:
             from core.database import get_database_manager as get_unified_database
 
@@ -157,7 +157,7 @@ class MySQLTableInfoTool(Tool):
                 type="string",
                 description="Database name",
                 required=False,
-                default="torinai_unified"
+                default="lyric_unified"
             )
         ]
 
@@ -172,7 +172,7 @@ class MySQLTableInfoTool(Tool):
             ]
         )
 
-    async def execute(self, table_name: str, database: str = "torinai_unified") -> ToolResult:
+    async def execute(self, table_name: str, database: str = "lyric_unified") -> ToolResult:
         try:
             from core.database import get_database_manager as get_unified_database
 
@@ -240,7 +240,7 @@ class MySQLBackupTool(Tool):
                 type="string",
                 description="Database name",
                 required=False,
-                default="torinai_unified"
+                default="lyric_unified"
             )
         ]
 
@@ -255,7 +255,7 @@ class MySQLBackupTool(Tool):
             ]
         )
 
-    async def execute(self, table_name: str, output_path: str, database: str = "torinai_unified") -> ToolResult:
+    async def execute(self, table_name: str, output_path: str, database: str = "lyric_unified") -> ToolResult:
         try:
             from core.database import get_database_manager as get_unified_database
 
@@ -320,7 +320,7 @@ class MySQLRestoreTool(Tool):
                 type="string",
                 description="Database name",
                 required=False,
-                default="torinai_unified"
+                default="lyric_unified"
             )
         ]
 
@@ -336,7 +336,7 @@ class MySQLRestoreTool(Tool):
         )
 
     async def execute(self, table_name: str, backup_path: str, truncate_first: bool = True,
-                     database: str = "torinai_unified") -> ToolResult:
+                     database: str = "lyric_unified") -> ToolResult:
         try:
             from core.database import get_database_manager as get_unified_database
 
@@ -696,8 +696,8 @@ class ConnectionPoolManagerTool(Tool):
                 type="string",
                 description="Database name",
                 required=False,
-                default="torinai_unified",
-                enum=["torinai_unified", "torinai_thinking_hot", "torinai_memory_cold"]
+                default="lyric_unified",
+                enum=["lyric_unified", "lyric_thinking_hot", "lyric_memory_cold"]
             ),
             ToolParameter(
                 name="query",
@@ -732,7 +732,7 @@ class ConnectionPoolManagerTool(Tool):
             ]
         )
 
-    async def execute(self, operation: str, database: str = "torinai_unified",
+    async def execute(self, operation: str, database: str = "lyric_unified",
                      query: str = None, max_retries: int = 3, retry_delay: float = 1.0) -> ToolResult:
         try:
             from core.database import get_database_manager as get_unified_database
@@ -884,8 +884,8 @@ class TransactionWrapperTool(Tool):
                 type="string",
                 description="Database name",
                 required=False,
-                default="torinai_unified",
-                enum=["torinai_unified", "torinai_thinking_hot", "torinai_memory_cold"]
+                default="lyric_unified",
+                enum=["lyric_unified", "lyric_thinking_hot", "lyric_memory_cold"]
             ),
             ToolParameter(
                 name="isolation_level",
@@ -908,7 +908,7 @@ class TransactionWrapperTool(Tool):
             ]
         )
 
-    async def execute(self, queries: List[str], database: str = "torinai_unified",
+    async def execute(self, queries: List[str], database: str = "lyric_unified",
                      isolation_level: str = "READ COMMITTED") -> ToolResult:
         try:
             from core.database import get_database_manager as get_unified_database
@@ -1009,8 +1009,8 @@ class MigrationRunnerTool(Tool):
                 type="string",
                 description="Database name",
                 required=False,
-                default="torinai_unified",
-                enum=["torinai_unified", "torinai_thinking_hot", "torinai_memory_cold"]
+                default="lyric_unified",
+                enum=["lyric_unified", "lyric_thinking_hot", "lyric_memory_cold"]
             ),
             ToolParameter(
                 name="expected_schema_hash",
@@ -1032,7 +1032,7 @@ class MigrationRunnerTool(Tool):
         )
 
     async def execute(self, operation: str, migration_file: str = None, migration_name: str = None,
-                     database: str = "torinai_unified", expected_schema_hash: str = None) -> ToolResult:
+                     database: str = "lyric_unified", expected_schema_hash: str = None) -> ToolResult:
         try:
             from core.database import get_database_manager as get_unified_database
 
@@ -1246,8 +1246,8 @@ class RowLevelAccessControlTool(Tool):
                 type="string",
                 description="Database name",
                 required=False,
-                default="torinai_unified",
-                enum=["torinai_unified", "torinai_thinking_hot", "torinai_memory_cold"]
+                default="lyric_unified",
+                enum=["lyric_unified", "lyric_thinking_hot", "lyric_memory_cold"]
             )
         ]
 
@@ -1264,7 +1264,7 @@ class RowLevelAccessControlTool(Tool):
 
     async def execute(self, operation: str, table_name: str = None, service_user: str = None,
                      owner_column: str = "user_id", allowed_owners: List = None,
-                     database: str = "torinai_unified") -> ToolResult:
+                     database: str = "lyric_unified") -> ToolResult:
         try:
             from core.database import get_database_manager as get_unified_database
 
@@ -1477,8 +1477,8 @@ class SafeQueryExecutorTool(Tool):
                 type="string",
                 description="Database name",
                 required=False,
-                default="torinai_unified",
-                enum=["torinai_unified", "torinai_thinking_hot", "torinai_memory_cold"]
+                default="lyric_unified",
+                enum=["lyric_unified", "lyric_thinking_hot", "lyric_memory_cold"]
             ),
             ToolParameter(
                 name="read_only",
@@ -1520,7 +1520,7 @@ class SafeQueryExecutorTool(Tool):
             ]
         )
 
-    async def execute(self, query: str, database: str = "torinai_unified", read_only: bool = True,
+    async def execute(self, query: str, database: str = "lyric_unified", read_only: bool = True,
                      max_rows: int = 1000, timeout_seconds: float = 30.0, params: List = None) -> ToolResult:
         try:
             from core.database import get_database_manager as get_unified_database

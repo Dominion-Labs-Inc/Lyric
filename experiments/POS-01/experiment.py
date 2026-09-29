@@ -35,7 +35,7 @@ honest gap rather than a guess.
   D  THE BULK PATH IS CLEAN      teaching a taxonomy through `learn_facts`
                                  proposes no ADJECTIVE at all.
 
-Run: PYTHONPATH="$PWD" ./venv_torin/bin/python3 experiments/POS-01/experiment.py
+Run: PYTHONPATH="$PWD" ./venv_lyric/bin/python3 experiments/POS-01/experiment.py
 """
 import sys
 import tempfile

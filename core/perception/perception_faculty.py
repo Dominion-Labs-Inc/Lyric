@@ -293,14 +293,22 @@ class PerceptionFaculty:
         hearing that was a lesson, with the example kept in its trace."""
         from core.memory import get_memory_agent
         agent = await get_memory_agent()
-        words = await agent.taught_by_hearing(agent.SPOKEN_WORD_TAG, "word")
-        voices = await agent.taught_by_hearing(agent.VOICE_TAG, "person")
-        songs = await agent.taught_by_hearing(agent.SONG_TAG, "song")
+        words = await agent.lessons_taught(agent.SPOKEN_WORD_TAG, "word")
+        voices = await agent.lessons_taught(agent.VOICE_TAG, "person")
+        songs = await agent.lessons_taught(agent.SONG_TAG, "song")
+        things = await agent.lessons_taught(agent.THING_TAG, "thing")
         kept = lambda archives: [e for e in (speech.unpack(b) for b in archives) if e is not None]
         self._words = {w: kept(archives) for w, archives in words.items() if kept(archives)}
         self._voices = {p: kept(archives) for p, archives in voices.items() if kept(archives)}
         self._songs = {t: [e.astype("int32") for e in kept(archives)]
                        for t, archives in songs.items() if kept(archives)}
+        # THINGS SHOWN are known by their keypoints, beside the references
+        # learned as instances: the latest showing of each name is the one held.
+        for name, archives in things.items():
+            for data in archives:
+                features = vision.sight_trace(data)
+                if features is not None and len(features["descriptors"]):
+                    self._instances[_term(name)] = features["descriptors"]
         self._voice_reach = speech.voice_reach(self._voices)
         self._taught_version += 1
 
@@ -453,9 +461,10 @@ class PerceptionFaculty:
         label = source or p.stem
         modality = self.modality_of(str(p))
         taught = self.lesson_of(lesson)
-        if taught is not None and modality != "audio":
-            raise ValueError(f"a lesson about what is heard is taught by a recording; {p.name} "
-                             f"is {modality or 'no kind of file the substrate reads'}")
+        needs = "image" if taught is not None and taught[0] == "thing" else "audio"
+        if taught is not None and modality != needs:
+            raise ValueError(f"a lesson about {'what is seen is taught by a picture' if needs == 'image' else 'what is heard is taught by a recording'}; "
+                             f"{p.name} is {modality or 'no kind of file the substrate reads'}")
         if modality == "document":
             return "document", self._document_content(
                 await self._sight.run(senses.read_document, str(p)), p, label)
@@ -488,6 +497,16 @@ class PerceptionFaculty:
         content = self._image_content(looked["desc"], subject)
         # What memory keeps of the seeing to know it again: its sight trace.
         content["trace"] = _encode(looked["trace"])
+        if taught is not None:
+            # A THING SHOWN, told what it is: known again by its keypoints, so a
+            # picture with too few can never be known again, and is refused.
+            shown = vision.sight_trace(looked["trace"])
+            if shown is None or len(shown["descriptors"]) < 2 * self.THING_MIN_KEYPOINTS:
+                raise ValueError(f"{p.name} has {0 if shown is None else len(shown['descriptors'])} "
+                                 f"keypoint(s); a thing is known again by at least "
+                                 f"{2 * self.THING_MIN_KEYPOINTS}")
+            content["lesson"] = {taught[0]: taught[1]}
+            content["caption"] = f'{content.get("caption", "")}; taught: what "{taught[1]}" looks like'
         if looked["known"]:
             content.setdefault("detections", [])
             content["detections"].extend(
@@ -565,7 +584,11 @@ class PerceptionFaculty:
     #: What a lesson taught by hearing can be: which word was said, whose voice
     #: it was, or which song it is, with the memory tag that marks a hearing as
     #: that lesson and the memory agent's name for it.
-    LESSONS = {"word": "SPOKEN_WORD_TAG", "person": "VOICE_TAG", "song": "SONG_TAG"}
+    LESSONS = {"word": "SPOKEN_WORD_TAG", "person": "VOICE_TAG", "song": "SONG_TAG",
+               "thing": "THING_TAG"}
+    #: A thing shown is known again when this many of its keypoints agree on one
+    #: geometry (`MemoryAgent.SIGHT_MIN_AGREE`); it must have twice as many.
+    THING_MIN_KEYPOINTS = 20
 
     @classmethod
     def lesson_of(cls, lesson: Optional[Dict[str, Any]]) -> Optional[tuple]:
@@ -576,9 +599,9 @@ class PerceptionFaculty:
             return None
         keys = [k for k in cls.LESSONS if str(lesson.get(k) or "").strip()]
         if len(keys) != 1:
-            raise ValueError("a lesson taught by hearing says which word was said (`word`), "
-                             "whose voice it was (`person`) or which song it is (`song`), "
-                             "one of them")
+            raise ValueError("a lesson says which word was said (`word`), whose voice it was "
+                             "(`person`), which song it is (`song`) or which thing is shown "
+                             "(`thing`), one of them")
         key = keys[0]
         label = " ".join(str(lesson[key]).split())
         return key, (label.lower() if key == "word" else label)
@@ -589,10 +612,19 @@ class PerceptionFaculty:
         against. Called once the memory is kept, so this copy never holds a
         lesson memory does not. False when the content was no lesson."""
         lesson = self.lesson_of(content.get("lesson"))
-        example = speech.unpack(decode_trace(content["trace"])) if content.get("trace") else None
-        if lesson is None or example is None:
+        if lesson is None or not content.get("trace"):
             return False
         key, label = lesson
+        if key == "thing":
+            shown = vision.sight_trace(decode_trace(content["trace"]))
+            if shown is None:
+                return False
+            self._instances[_term(label)] = shown["descriptors"]
+            self._taught_version += 1
+            return True
+        example = speech.unpack(decode_trace(content["trace"]))
+        if example is None:
+            return False
         if key == "word":
             self._words.setdefault(label, []).append(example)
         elif key == "song":

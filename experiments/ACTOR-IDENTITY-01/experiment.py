@@ -14,7 +14,7 @@ the one owner, `actor_for`), not the ephemeral session string. This proves:
 
 Real learning authority + real scoped store. No stubs.
 
-Run: ./venv_torin/bin/python3 experiments/ACTOR-IDENTITY-01/experiment.py
+Run: ./venv_lyric/bin/python3 experiments/ACTOR-IDENTITY-01/experiment.py
 """
 from __future__ import annotations
 import asyncio

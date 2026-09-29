@@ -66,7 +66,7 @@ exactly when the fade branch runs. It does not stub the clock or reach into the 
 ## Run
 
 ```
-./venv_torin/bin/python3 experiments/FEELING-OBJECT-01/experiment.py
+./venv_lyric/bin/python3 experiments/FEELING-OBJECT-01/experiment.py
 ```
 
 Runs a LIVE substrate. Every belief and known-unknown it creates is removed before it

@@ -2,18 +2,18 @@
 """Cut, stage, promote, roll back, verify and list releases of the model; take into development what a frozen
 environment kept (core/database/releases.py).
 
-Run from development (`TORINAI_ENVIRONMENT` unset or `development`). The line is `POSTGRES_DATABASE`:
-torinai_db for the main line, torinai_dev for the sandbox.
+Run from development (`LYRIC_ENVIRONMENT` unset or `development`). The line is `POSTGRES_DATABASE`:
+lyric_db for the main line, lyric_dev for the sandbox.
 
-  ./venv_torin/bin/python3 scripts/release.py list
-  ./venv_torin/bin/python3 scripts/release.py cut [--notes TEXT]
-  ./venv_torin/bin/python3 scripts/release.py verify N
-  ./venv_torin/bin/python3 scripts/release.py stage N
-  ./venv_torin/bin/python3 scripts/release.py promote N
-  ./venv_torin/bin/python3 scripts/release.py rollback [--to N]
-  ./venv_torin/bin/python3 scripts/release.py take {staging,production}
+  ./venv_lyric/bin/python3 scripts/release.py list
+  ./venv_lyric/bin/python3 scripts/release.py cut [--notes TEXT]
+  ./venv_lyric/bin/python3 scripts/release.py verify N
+  ./venv_lyric/bin/python3 scripts/release.py stage N
+  ./venv_lyric/bin/python3 scripts/release.py promote N
+  ./venv_lyric/bin/python3 scripts/release.py rollback [--to N]
+  ./venv_lyric/bin/python3 scripts/release.py take {staging,production}
 
-A process serving a release is started with TORINAI_ENVIRONMENT=staging|production and TORINAI_RELEASE=N; it
+A process serving a release is started with LYRIC_ENVIRONMENT=staging|production and LYRIC_RELEASE=N; it
 checks its release before it serves. Promoting or rolling back changes the registry: the serving process is
 then restarted on the release now registered for it.
 """

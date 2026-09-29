@@ -130,7 +130,7 @@ class PlanningEngine:
             if not getattr(self.unified_db, "initialized", False):
                 await self.unified_db.initialize()
 
-            # TorinUnifiedDatabase uses connection pools, not direct connection
+            # LyricUnifiedDatabase uses connection pools, not direct connection
             self.connection = self.unified_db  # Store database instance for queries
 
             # Create tables in unified PostgreSQL database
@@ -309,7 +309,7 @@ class PlanningEngine:
 
         # An exhausted search only proves impossibility if the search was given
         # every operator. With a truncated grounding, "no plan" is ignorance
-        # about Torin's own learned repertoire, not a fact about the world.
+        # about Lyric's own learned repertoire, not a fact about the world.
         status = result.status
         reason = result.reason
         if status is PlanningStatus.UNREACHABLE and not grounding.complete:

@@ -10,8 +10,8 @@ import SwiftUI
 /// list, because an empty bell reads as "you are not needed".
 ///
 /// The queries live in `core.governance.approval_requests` and are reached
-/// through `torin-approvals`, for the same reason `Feed` shells out to
-/// `torin-feed` — a Swift copy of the decision rules would be a second opinion
+/// through `lyric-approvals`, for the same reason `Feed` shells out to
+/// `lyric-feed` — a Swift copy of the decision rules would be a second opinion
 /// about what an approval means.
 struct Approval: Identifiable, Equatable {
     let id: Int
@@ -46,7 +46,7 @@ final class Approvals: ObservableObject {
 
     init(home: URL) {
         self.home = home
-        self.python = home.appendingPathComponent("venv_torin/bin/python3")
+        self.python = home.appendingPathComponent("venv_lyric/bin/python3")
     }
 
     func start() {
@@ -159,7 +159,7 @@ final class Approvals: ObservableObject {
             return
         }
         context.evaluatePolicy(.deviceOwnerAuthentication,
-                               localizedReason: "approve a TorinAI self-modification") {
+                               localizedReason: "approve a Lyric self-modification") {
             ok, _ in
             Task { @MainActor in
                 if ok {
@@ -180,13 +180,13 @@ final class Approvals: ObservableObject {
         let pythonPath = await python.path
         let root = await home
         guard FileManager.default.isExecutableFile(atPath: pythonPath) else {
-            await MainActor.run { self.lastError = "venv_torin python not found at \(pythonPath)" }
+            await MainActor.run { self.lastError = "venv_lyric python not found at \(pythonPath)" }
             return nil
         }
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: pythonPath)
-        process.arguments = [root.appendingPathComponent("torin-approvals").path] + args
+        process.arguments = [root.appendingPathComponent("lyric-approvals").path] + args
         process.currentDirectoryURL = root
         let pipe = Pipe()
         process.standardOutput = pipe
@@ -211,7 +211,7 @@ final class Approvals: ObservableObject {
         if process.isRunning {
             process.terminate()
             await MainActor.run {
-                self.lastError = "torin-approvals did not answer within 20s"
+                self.lastError = "lyric-approvals did not answer within 20s"
             }
             return nil
         }

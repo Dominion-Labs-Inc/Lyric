@@ -65,7 +65,7 @@ treated as "unreadable".
 ## Run
 
 ```
-./venv_torin/bin/python3 experiments/TASK-GATE-02/experiment.py
+./venv_lyric/bin/python3 experiments/TASK-GATE-02/experiment.py
 ```
 
 Runs a LIVE substrate, halts it on purpose and resumes it, and removes every intent it

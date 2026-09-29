@@ -7,7 +7,7 @@ import asyncio
 import sys
 from pathlib import Path
 
-# Add TorinAI to path
+# Add Lyric to path
 sys.path.insert(0, str(Path(__file__).parent))
 
 from core.reasoning.neural_bridge import NeuralSymbolicBridge, ReasoningRequest, ReasoningMode
@@ -24,7 +24,7 @@ async def test_simple_vision():
     await bridge.initialize()
 
     # Test with simple vision query
-    test_image = "/Users/stefan/Dominion Labs/TorinAI/test_data/vision_test.png"
+    test_image = "/Users/stefan/Dominion Labs/Lyric/test_data/vision_test.png"
 
     request = ReasoningRequest(
         query="What color is the circle?",  # Simple query - should skip THE BRAIN
@@ -65,7 +65,7 @@ async def test_complex_vision():
     bridge = NeuralSymbolicBridge()
     await bridge.initialize()
 
-    test_image = "/Users/stefan/Dominion Labs/TorinAI/test_data/vision_test.png"
+    test_image = "/Users/stefan/Dominion Labs/Lyric/test_data/vision_test.png"
 
     request = ReasoningRequest(
         query="Analyze this image and explain what it tests",  # Complex - should use THE BRAIN

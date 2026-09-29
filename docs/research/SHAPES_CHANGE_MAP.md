@@ -189,7 +189,7 @@ capability behind it is deleted outright. Status as of Step 0 (2026-09-27):
 | `submit_research_result` (`evidence_producers.py`), the only producer of statements evidence | no caller anywhere (checked across core, scripts, tests, experiments) | **wire it in the research phase**, not delete: it is the path that gives research findings their own provenance |
 | `synonym_of` did not resolve to itself: `classify("synonym_of")` gave `related_to` | measured | **fixed**: `classify` resolves a kind's own name first; a test checks every kind |
 | 5 tests in `test_relation_types_and_algebra.py` called `derived_reader.read_typed`, removed 2026-09-04 | failing since then | **fixed**: the 3 algebra tests take typed edges directly; the 2 reading tests' seven constructions are step-3 acceptance cases. 21/21 |
-| `tests/test_conversation.py` talks to the live store with web look-ups on | on 2026-09-27 it wrote 104 rows over 20 tables into the lesson-only store, including the wrong fact `load balancer isa replaced` | **removed by creation time**, snapshot `data/snapshots/test_conversation_rows_20260927.json`; not revertible: one lesson memory's `last_accessed`, the `reasoning_meta` strategy's trial counts. The test is rewritten at step 3 and must not run against `torinai_db` |
+| `tests/test_conversation.py` talks to the live store with web look-ups on | on 2026-09-27 it wrote 104 rows over 20 tables into the lesson-only store, including the wrong fact `load balancer isa replaced` | **removed by creation time**, snapshot `data/snapshots/test_conversation_rows_20260927.json`; not revertible: one lesson memory's `last_accessed`, the `reasoning_meta` strategy's trial counts. The test is rewritten at step 3 and must not run against `lyric_db` |
 | 4 experiments import the deleted `core.semantics.lexicon` | ATTEST-01, POS-01, `edu/EDU-16/session.py`, `edu/EDU-16/scaled_session.py` | **marked retired** in `experiments/README.md`; the files stay as records |
 | `_ENDINGS` (`autonomous_coordinator.py`) | used nowhere; junk | **deleted** |
 | `core/semantics/genericity.py.bak` | an old 225-line copy of `genericity.py` inside the package; junk (git keeps its history) | **deleted** |
@@ -239,7 +239,7 @@ capability behind it is deleted outright. Status as of Step 0 (2026-09-27):
 
 ## 11. Build order, so nothing is left half done
 
-Every verification run writes to the sandbox `torinai_dev` (same structure as the main store, emptied with `scripts/reset_dev_store.py`); the main store `torinai_db` receives a lesson only after it has been verified there.
+Every verification run writes to the sandbox `lyric_dev` (same structure as the main store, emptied with `scripts/reset_dev_store.py`); the main store `lyric_db` receives a lesson only after it has been verified there.
 
 The rule: a step is finished only when the new piece works end to end, every caller it replaces has switched,
 the old piece is deleted, the tests and experiments listed for it are updated and re-run, and
@@ -936,6 +936,54 @@ fly." taught "All birds" as a name of `bird` through "?slot0 can ?slot1.", so "a
 ?slot1." form. The five earlier lessons still read in full, and the checks of SHAPES-LEARN-04, -06 and -07 still
 hold in memory.
 
+**Saying a word never held as it is used (2026-09-29).** SHAPES-LEARN-08 showed two faults in English said for new
+words: "A paleoanthropology is a vertebrate paleontology." and "A fire tongs is a tongs." for words that take no
+"a", and "A Thiosulfil is a sulfa drug." for a name. A word never held was said under its concept's name in any
+slot, so it took the "a" of the only frame that said the fact.
+- **How held words are used** (`PatternInventory._use_model`, `used_as`), from what they are linked to:
+  - `name`: written with a capital inside a sentence;
+  - `plural`: in a slot that takes a shape;
+  - `count`: in a slot right after the word with shapes of its own, "a" (`counted_slot`, found as `variants_of`
+    finds it, never listed);
+  - `mass`: held alone, as named, where a sentence begins ("Water is cold.", "Biology is hard."), and never counted.
+  A word only ever held after "the" or "my" has none of these.
+- **How a word never held is used** (`use_of`):
+  - a `name` when its source writes it with a capital;
+  - as its last word is used, when that is held ("fire tongs" as "tongs");
+  - else by its ending, the longest that decides, with two conditions:
+    - by the elsewhere condition, "kindness" is "ness"'s and no evidence for "s";
+    - an ending other than counted must be more reliable than counting is over every word held (Albright & Hayes:
+      the more reliable rule wins). Without that, three "-ing" words made "g" decide, and "sulfa drug" lost its "a".
+  - else `count`.
+
+  A plural is never guessed from an ending: "bus" and "lens" end as plurals do.
+- **Saying** (`_said_fillers`): a concept no filler names goes, under its own name, only where words of its use are
+  held (`slot_admits`): a name never after "a", a plural as it is where plurals go, and a counted word after "a" or
+  in the slot's shape. A held word used only as a plural is already in the plural shape ("tongs", never
+  "tongses").
+- **`english_07`**, 58 pairs:
+  - names, met first in known sentences ("Tom is tall.") and then said to be kinds of things ("Tom is a boy.");
+  - words without "a", met the same way;
+  - "is a kind of", with counted and uncounted words;
+  - "Ice is water.";
+  - plural-only words ("Scissors are tools.").
+
+  Met first in known sentences, the new words let the general frames form. Taught in the other order, each object
+  became a frame of its own ("?slot0 is a science.").
+- **The teaching pass** asks only the words a pair teaches, the concepts not held yet, to be written as the source
+  writes them. A held concept is said as it is held ("Fire tongs are tools." for `tool`).
+
+In memory with the seven lessons:
+- all pairs are learned, none refused, and every sentence reads;
+- "Thiosulfil is a sulfa drug.", "Cyanocitta is a bird genus.", "Mississippi is a river.";
+- "Paleoanthropology is a kind of vertebrate paleontology.", "Brightness is a kind of quality.";
+- "Fire tongs are tongs.", "Fire tongs are tools.";
+- "A lens is an optical device.", "A bus is a vehicle.";
+- the checks of SHAPES-LEARN-04, -06 and -07 and english_06's 15 probes still hold.
+
+The test `test_a_word_never_held_is_said_as_the_words_used_like_it_are` is written. The sandbox run waits for the
+rename's database cut-over.
+
 **Order.** Part 1, then part 2's lessons for what the meaning language holds already, then part 3 in the sandbox on
 a sample and then whole, then part 2's remaining meanings, then part 4 and part 5. The main model is taught only on
 the owner's word.
@@ -962,5 +1010,5 @@ SYSTEM-SEMANTICS-01.
 
 **Living docs to update:** `docs/design/MEMORY_SEMANTICS_CONVERSATION.md`, `docs/TEACHING.md`,
 `docs/architecture/reasoning.md`, `memory.md`, `learning.md`, `coordinator.md`,
-`docs/architecture/SUBSTRATE_SYSTEMS_MAP.md`, `docs/TORIN_ARCHITECTURE_DOCUMENT.md`,
+`docs/architecture/SUBSTRATE_SYSTEMS_MAP.md`, `docs/LYRIC_ARCHITECTURE_DOCUMENT.md`,
 `docs/research/COMPREHENSION_SCOPE.md`. The lab notebook and teaching-session logs are records and are not edited.

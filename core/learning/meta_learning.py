@@ -3,7 +3,7 @@
 
 Learns which learning strategies work best for different task families.
 
-This module implements the core MetaLearner used across TorinAI:
+This module implements the core MetaLearner used across Lyric:
 - Tracks strategy outcomes (success/failure, latency, effectiveness)
 - Uses a bandit layer (Thompson sampling) for exploration vs exploitation
 - Applies an exploration-aware HARD GATE for production safety
@@ -556,7 +556,7 @@ class MetaLearner(IStrategySelection):
             # with no strategies is an AttributeError, not a graceful skip.
             # CONTROL was missing, and CONTROL is the family that matters most:
             # execution and planning map to it, so it is the family of
-            # essentially every task Torin actually executes. With no strategies registered,
+            # essentially every task Lyric actually executes. With no strategies registered,
             # evaluate_strategies(CONTROL) returned {'total_strategies': 0} and
             # select_strategy(CONTROL) returned None -- meta-learning had nothing
             # to choose between and nothing to update for the ONLY work being

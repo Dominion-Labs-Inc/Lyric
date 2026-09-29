@@ -33,7 +33,7 @@ from enum import Enum
 from pathlib import Path
 from collections import defaultdict, deque
 
-from core.database import TorinUnifiedDatabase
+from core.database import LyricUnifiedDatabase
 
 logger = logging.getLogger(__name__)
 
@@ -258,7 +258,7 @@ class TemporalReasoningSystem:
         # Temporal knowledge is persisted to the unified PostgreSQL database
         # like the rest of the system -- no separate SQLite file. The parameter
         # is kept for signature compatibility and ignored.
-        self.unified_db = TorinUnifiedDatabase()
+        self.unified_db = LyricUnifiedDatabase()
         
         # Temporal knowledge
         self.propositions: Dict[str, TemporalProposition] = {}

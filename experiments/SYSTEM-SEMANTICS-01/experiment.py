@@ -6,7 +6,7 @@ reached through `get_cognitive_ingress`). A relation is admitted once, a repeat
 is already present, an unrepresentable term is refused, a conditional becomes a
 held rule that the store returns. Everything written is removed by id.
 
-Run: ./venv_torin/bin/python3 experiments/SYSTEM-SEMANTICS-01/experiment.py
+Run: ./venv_lyric/bin/python3 experiments/SYSTEM-SEMANTICS-01/experiment.py
 """
 from __future__ import annotations
 

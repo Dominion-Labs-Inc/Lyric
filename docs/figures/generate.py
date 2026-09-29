@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Architecture figures for the Torin Architecture document.
+"""Architecture figures for the Lyric Architecture document.
 
 Every box is a component that exists in the current tree; every arrow is a
 path that exists in the current source. Nothing here is decorative.

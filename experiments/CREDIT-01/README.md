@@ -31,10 +31,10 @@ the substrate less free to act there. The remedy for a knowledge deficit was clo
 | D · conflict | belief and world disagreeing is **denied**, not resolved in favour of either — and the guard is checked not to be swallowing the real runs |
 | C · consumed | earned reliability, the KNOW→DO bar, and the planner's declared input all carry the corrected number |
 
-**Run** (from the TorinAI folder):
+**Run** (from the Lyric folder):
 
 ```
-./venv_torin/bin/python3 experiments/CREDIT-01/experiment.py
+./venv_lyric/bin/python3 experiments/CREDIT-01/experiment.py
 ```
 
 **Results.** Every run is saved in `results/` (JSON + `.md`). Latest: 2026-09-17, **25/25**

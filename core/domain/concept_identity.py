@@ -212,7 +212,7 @@ class ConceptIdentityService:
         The head need not already exist: `accumulator` is not a learned concept,
         but `hydraulic_accumulator` SAME_AS it is still a true statement about
         naming, and it is what lets a query for `accumulator` reach the concept
-        Torin actually holds.
+        Lyric actually holds.
         """
         rows = await self.db.execute_query(
             "SELECT concept_id, name, domain FROM unified.concepts ORDER BY concept_id",

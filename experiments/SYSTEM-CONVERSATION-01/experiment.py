@@ -21,7 +21,7 @@ told lands in that speaker's scoped context, never the shared mind:
 Every run uses fresh nonce words and removes everything it wrote, so no run can
 corroborate or answer from an earlier one.
 
-Run: ./venv_torin/bin/python3 experiments/SYSTEM-CONVERSATION-01/experiment.py
+Run: ./venv_lyric/bin/python3 experiments/SYSTEM-CONVERSATION-01/experiment.py
 """
 from __future__ import annotations
 

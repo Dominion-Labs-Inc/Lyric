@@ -59,7 +59,7 @@ def generate_capability_profile(tool_name, capabilities, descriptions):
 """
 
 # Read file
-file_path = "/Users/stefan/Dominion Labs/TorinAI/core/tools/filesystem_tools.py"
+file_path = "/Users/stefan/Dominion Labs/Lyric/core/tools/filesystem_tools.py"
 with open(file_path, 'r') as f:
     lines = f.readlines()
 

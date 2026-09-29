@@ -1,6 +1,6 @@
 # The world image rebuilds the Linux environment from requirements — it must NOT
 # carry the macOS venv, caches, logs, VCS, or large local data into the build.
-venv_torin/
+venv_lyric/
 pyenv/
 **/__pycache__/
 *.pyc

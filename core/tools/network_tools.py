@@ -18,7 +18,7 @@ Tools:
 - graphql_query: Execute GraphQL queries
 - api_call: Generic REST API caller
 
-Author: Torin AI Team
+Author: Lyric AI Team
 """
 
 import logging

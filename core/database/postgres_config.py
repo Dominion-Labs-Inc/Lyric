@@ -10,8 +10,8 @@ The defect this replaces: the database class called
 *then* read ``os.getenv('POSTGRES_DATABASE')``. Because ``override=True``
 rewrites the process environment, the file always won and the environment read
 on the next line could never see an externally-supplied value. A subprocess
-launched with ``POSTGRES_DATABASE=torinai_abl_blank`` connected to
-``torinai_db`` and said nothing.
+launched with ``POSTGRES_DATABASE=lyric_abl_blank`` connected to
+``lyric_db`` and said nothing.
 
 That was found by an ablation in which every condition -- including the ones
 whose learned rules had been deleted -- loaded identical rules and passed
@@ -31,7 +31,7 @@ configured for, and who decided that" is available rather than inferred.
 ENVIRONMENTS AND RELEASES. The model is taught in DEVELOPMENT and served, frozen, in STAGING and
 PRODUCTION from a numbered RELEASE. Every database of a model's line is named
 from its development database, `POSTGRES_DATABASE` (the root), so a sandbox line
-(`torinai_dev`) never reaches the main line's releases or registry.
+(`lyric_dev`) never reaches the main line's releases or registry.
 """
 
 from __future__ import annotations
@@ -55,8 +55,8 @@ DEFAULT_ENV_FILES: Sequence[Path] = (
     _ROOT / ".env.production",
 )
 
-#: TorinAI's OWN PostgreSQL instance. 5432 is the shared Homebrew instance that
-#: also holds agentso's tenant databases, and TorinAI connected there as a
+#: Lyric's OWN PostgreSQL instance. 5432 is the shared Homebrew instance that
+#: also holds agentso's tenant databases, and Lyric connected there as a
 #: superuser with BypassRLS -- no boundary at all between the substrate and that
 #: data. The instances were separated for that reason: separate port, separate
 #: data directory, separate process.
@@ -65,7 +65,7 @@ DEFAULT_ENV_FILES: Sequence[Path] = (
 #: env file and no environment variable is found -- a container, a different
 #: working directory, a copied deployment. Defaulting to 5432 means the
 #: fallback path silently lands on agentso's instance, which is both the wrong
-#: data and a boundary violation. A missing config should fail toward TorinAI's
+#: data and a boundary violation. A missing config should fail toward Lyric's
 #: own database, never toward somebody else's.
 #:
 #: Imported by every other module that needs a port, so this is the one place
@@ -90,7 +90,7 @@ STORES = ("runtime", "model", "user_context", "learning")
 DEFAULTS: Dict[str, Any] = {
     "host": "localhost",
     "port": DEFAULT_PORT,
-    "database": "torinai_db",
+    "database": "lyric_db",
     "user": "postgres",
     "password": "",
     "pool_min_size": 5,
@@ -107,14 +107,14 @@ ENV_KEYS: Dict[str, str] = {
     "password": "POSTGRES_PASSWORD",
     "pool_min_size": "POSTGRES_POOL_MIN_SIZE",
     "pool_max_size": "POSTGRES_POOL_MAX_SIZE",
-    "environment": "TORINAI_ENVIRONMENT",
-    "release": "TORINAI_RELEASE",
+    "environment": "LYRIC_ENVIRONMENT",
+    "release": "LYRIC_RELEASE",
 }
 
 #: Settings that no longer exist. Set anyway, they would be ignored without a word, so they are refused.
 RETIRED_KEYS: Dict[str, str] = {
-    "TORINAI_COPY": "TORINAI_COPY was replaced by TORINAI_ENVIRONMENT (development, staging, production) and "
-                    "TORINAI_RELEASE",
+    "LYRIC_COPY": "LYRIC_COPY was replaced by LYRIC_ENVIRONMENT (development, staging, production) and "
+                    "LYRIC_RELEASE",
 }
 
 
@@ -492,17 +492,17 @@ class PostgresConfig:
             provenance[name] = source
 
         if values["environment"] not in ENVIRONMENTS:
-            raise ValueError(f"TORINAI_ENVIRONMENT={values['environment']!r} ({provenance['environment']}) is not "
+            raise ValueError(f"LYRIC_ENVIRONMENT={values['environment']!r} ({provenance['environment']}) is not "
                              f"an environment; the environments are {', '.join(ENVIRONMENTS)}")
         release = values["release"]
         if values["environment"] == "development":
             if release:
-                raise ValueError(f"TORINAI_RELEASE={release!r} ({provenance['release']}) names a release, but "
+                raise ValueError(f"LYRIC_RELEASE={release!r} ({provenance['release']}) names a release, but "
                                  f"development serves none: it is where the model is taught")
             values["release"] = None
         else:
             if not re.fullmatch(r"[1-9][0-9]*", release):
-                raise ValueError(f"{values['environment']} serves a release: set TORINAI_RELEASE to its number "
+                raise ValueError(f"{values['environment']} serves a release: set LYRIC_RELEASE to its number "
                                  f"(got {release!r}, {provenance['release']})")
             values["release"] = int(release)
         return cls(**values, provenance=provenance)

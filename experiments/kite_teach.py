@@ -10,7 +10,7 @@ Nothing here is asserted by the teacher. The teacher supplies before / action /
 after triples; every generalization is the learner's, and every promotion to
 executable is the store's, on evidence the learner never saw.
 
-Run:  POSTGRES_DATABASE=torinai_dev ./venv_torin/bin/python3 experiments/kite_teach.py
+Run:  POSTGRES_DATABASE=lyric_dev ./venv_lyric/bin/python3 experiments/kite_teach.py
 """
 
 from __future__ import annotations

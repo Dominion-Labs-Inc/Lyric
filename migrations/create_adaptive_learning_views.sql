@@ -5,7 +5,7 @@
 -- These views enable the adaptive learning system to query historical success rates
 -- ============================================================================
 
-USE torinai_unified;
+USE lyric_unified;
 
 -- View: Tool category affinity by intent type
 -- Shows success rates for each (intent_type, tool_category) pair

@@ -2,7 +2,7 @@ import Foundation
 import SwiftUI
 
 // One system as the dashboard sees it. Every field comes from the substrate's
-// own status table via `torin-systems --status`; nothing here is invented.
+// own status table via `lyric-systems --status`; nothing here is invented.
 struct SystemRow: Identifiable, Equatable {
     let name: String
     let kind: String            // "monitoring" or "security"
@@ -28,7 +28,7 @@ final class Systems: ObservableObject {
 
     init(home: URL) {
         self.home = home
-        self.python = home.appendingPathComponent("venv_torin/bin/python3")
+        self.python = home.appendingPathComponent("venv_lyric/bin/python3")
     }
 
     func start() {
@@ -105,7 +105,7 @@ final class Systems: ObservableObject {
         guard FileManager.default.isExecutableFile(atPath: python.path) else { return nil }
         let process = Process()
         process.executableURL = python
-        process.arguments = [home.appendingPathComponent("torin-systems").path] + args
+        process.arguments = [home.appendingPathComponent("lyric-systems").path] + args
         process.currentDirectoryURL = home
         let pipe = Pipe()
         process.standardOutput = pipe
@@ -215,7 +215,7 @@ final class Components: ObservableObject {
 
     init(home: URL) {
         self.home = home
-        self.python = home.appendingPathComponent("venv_torin/bin/python3")
+        self.python = home.appendingPathComponent("venv_lyric/bin/python3")
     }
 
     func start() {

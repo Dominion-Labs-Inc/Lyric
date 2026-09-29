@@ -49,6 +49,6 @@ and working grammar, and the substrate arrives with neither.
 ## Run
 
 ```
-./venv_torin/bin/python3 experiments/ENGLISH-LESSON-01/experiment.py
+./venv_lyric/bin/python3 experiments/ENGLISH-LESSON-01/experiment.py
 ```
 Run on an empty store to repeat the first lesson; on a store that has been taught, it measures that store.

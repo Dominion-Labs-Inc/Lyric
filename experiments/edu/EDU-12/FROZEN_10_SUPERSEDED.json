@@ -4,7 +4,7 @@
   "architecture_fingerprint": "625d955a2912e993eff53728ce0a5e122cf89244c2d3fa4eaac8776c20ee16dd",
   "substrate_files": 285,
   "baseline": "manifest.json (first admissible S0)",
-  "rule": "During the frozen educational phase, failures may repair the EXPERIMENT but may not expand Torin's cognitive implementation.",
+  "rule": "During the frozen educational phase, failures may repair the EXPERIMENT but may not expand Lyric's cognitive implementation.",
   "may_be_repaired": [
     "an exam that leaks an answer",
     "a harness that bypasses the production ingress",
@@ -12,12 +12,12 @@
     "a database or process state that does not reset"
   ],
   "may_not_be_repaired": [
-    "Torin cannot learn percentages",
-    "Torin cannot synthesise programs",
-    "Torin cannot parse a legitimate held-out construction",
-    "Torin cannot transfer a concept"
+    "Lyric cannot learn percentages",
+    "Lyric cannot synthesise programs",
+    "Lyric cannot parse a legitimate held-out construction",
+    "Lyric cannot transfer a concept"
   ],
-  "why": "Repairing a cognitive capability mid-experiment destroys the distinction between 'Torin learned' and 'we upgraded Torin while teaching it'. A capability Torin cannot acquire through education IS the result.",
+  "why": "Repairing a cognitive capability mid-experiment destroys the distinction between 'Lyric learned' and 'we upgraded Lyric while teaching it'. A capability Lyric cannot acquire through education IS the result.",
   "supersedes": {
     "freeze_id": "EDU-12_S0_ADMISSIBLE_09",
     "fingerprint": "18ee0bcbcda572202b01d33ab4ded496fd5e5d4f42201b8ba39660fb320ffd47",

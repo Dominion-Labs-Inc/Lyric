@@ -11,7 +11,7 @@ FilesystemWorld, and we read the chain the user drew end-to-end WITHOUT hand-cal
 Uses the kite17 experiment domain (a learned, executable MOVE operator). Non-polluting: kite17's
 operating counters are snapshotted and restored at the end, so the benchmark is repeatable.
 
-Run: ./venv_torin/bin/python3 scratchpad/bench_integration_loop.py
+Run: ./venv_lyric/bin/python3 scratchpad/bench_integration_loop.py
 """
 from __future__ import annotations
 import asyncio, os, sys

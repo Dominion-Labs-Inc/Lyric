@@ -1,4 +1,4 @@
-# TorinAI Clean Requirements - Python 3.11+
+# Lyric Clean Requirements - Python 3.11+
 # Compatible versions resolved for all dependencies
 # Generated: 2025-10-17
 

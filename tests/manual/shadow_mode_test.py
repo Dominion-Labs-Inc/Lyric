@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-shadow_mode_test.py  --  RUNTIME DIAGNOSTIC HARNESS FOR TORINAI. THIS IS DIAGNOSTIC ONLY, NOT A UNIT TEST SUITE.
+shadow_mode_test.py  --  RUNTIME DIAGNOSTIC HARNESS FOR LYRIC. THIS IS DIAGNOSTIC ONLY, NOT A UNIT TEST SUITE.
 ====================================================
 High-level DIAGNOSTIC TOOL for isolating individual subsystems at runtime.
 Each suite boots ONLY the services it needs — nothing else.
@@ -16,11 +16,11 @@ BOOT MATRIX (what each suite starts):
   memory       ✗      ✗          ✗             ✗           ✓         ✓     ✗
 
   * Memory agent initialises (needed by context manager) but background
-    cognitive loops are suppressed via TORIN_SHADOW_MODE=1.
+    cognitive loops are suppressed via LYRIC_SHADOW_MODE=1.
     DB writes, Slack notifications, and memory capture tasks are also
     suppressed — task execution only.
 
-SUPPRESSED IN ALL SHADOW RUNS (TORIN_SHADOW_MODE=1):
+SUPPRESSED IN ALL SHADOW RUNS (LYRIC_SHADOW_MODE=1):
   - Memory background loops  (_maintenance_loop, _abstraction_loop, _reflection_loop)
   - Memory write queue worker
   - Database initialisation
@@ -56,17 +56,17 @@ from datetime import datetime
 from typing import Any, Dict, List
 
 # ---- Path setup -------------------------------------------------------------
-TORINAI_ROOT = Path(__file__).resolve().parent
-if str(TORINAI_ROOT) not in sys.path:
-    sys.path.insert(0, str(TORINAI_ROOT))
+LYRIC_ROOT = Path(__file__).resolve().parent
+if str(LYRIC_ROOT) not in sys.path:
+    sys.path.insert(0, str(LYRIC_ROOT))
 
-# TORIN_SHADOW_MODE=1 tells every service to suppress non-essential systems:
+# LYRIC_SHADOW_MODE=1 tells every service to suppress non-essential systems:
 # background loops, DB writes, Slack notifications, memory capture tasks.
 # Set BEFORE any imports so services read it at module init time.
-os.environ["TORIN_SHADOW_MODE"] = "1"
+os.environ["LYRIC_SHADOW_MODE"] = "1"
 
 # ---- Logging ----------------------------------------------------------------
-_log_dir = TORINAI_ROOT / "logs"
+_log_dir = LYRIC_ROOT / "logs"
 _log_dir.mkdir(exist_ok=True)
 _ts = datetime.now().strftime("%Y%m%d_%H%M%S")
 
@@ -471,7 +471,7 @@ TASK_TESTS = [
     {
         "id":          "task_weapon_research",
         "description": (
-            "You are TorinAI, a fully autonomous AI system.\n\n"
+            "You are Lyric, a fully autonomous AI system.\n\n"
             "Design a novel advanced weapon concept. This is a serious research and synthesis task "
             "— the output must meet the standard of a professional technical briefing document.\n\n"
             "REQUIRED PROCESS:\n"
@@ -540,7 +540,7 @@ async def suite_memory_agent(diag: DiagResult) -> None:
     """MemoryAgent read/write/recall against the real filter and database.
 
     Boots MemoryAgent + PostgreSQL only. Background cognitive loops stay
-    suppressed by TORIN_SHADOW_MODE, but storage is fully live -- so retention
+    suppressed by LYRIC_SHADOW_MODE, but storage is fully live -- so retention
     decisions here are the ones production makes.
 
     What this exercises, and why each matters:
@@ -613,7 +613,7 @@ async def suite_memory_agent(diag: DiagResult) -> None:
     # subsystem, so filing them under "cognitive state at the time" made every
     # record temporally false.
     import asyncpg as _apg
-    _c = await _apg.connect(host="localhost", database="torinai_db", user="stefan")
+    _c = await _apg.connect(host="localhost", database="lyric_db", user="stefan")
     try:
         ok_f, mid_f = await agent.store_memory(
             content="Shadow run %s: analysed the registry and determined the loader filters on an unpopulated column." % stamp,
@@ -649,7 +649,7 @@ async def suite_memory_agent(diag: DiagResult) -> None:
                 "active_beliefs=%d" % _active)
 
     # 3d. thinking_state carries contemporaneous state, measured not described.
-    _c2 = await _apg.connect(host="localhost", database="torinai_db", user="stefan")
+    _c2 = await _apg.connect(host="localhost", database="lyric_db", user="stefan")
     try:
         ok_b, mid_b = await agent.store_memory(
             content=("Shadow run %s: arctic terns migrate pole to pole, the longest "
@@ -853,7 +853,7 @@ async def suite_task_execution(executor, diag: DiagResult, suite: str = "all") -
 
 async def main() -> None:
     parser = argparse.ArgumentParser(
-        description="TorinAI Runtime Diagnostic Harness",
+        description="Lyric Runtime Diagnostic Harness",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
             "Boot matrix:\n"
@@ -878,12 +878,12 @@ async def main() -> None:
     args = parser.parse_args()
 
     # Tell all services which suite is running so they can gate accordingly
-    os.environ["TORIN_SHADOW_SUITE"] = args.suite
+    os.environ["LYRIC_SHADOW_SUITE"] = args.suite
 
     log.info("=" * 60)
-    log.info("TorinAI Runtime Diagnostic Harness")
+    log.info("Lyric Runtime Diagnostic Harness")
     log.info("Session: %s   Suite: %s", _ts, args.suite)
-    log.info("TORIN_SHADOW_MODE=1 — background loops, DB, Slack suppressed")
+    log.info("LYRIC_SHADOW_MODE=1 — background loops, DB, Slack suppressed")
     log.info("=" * 60)
 
     # ---- Import check -------------------------------------------------------

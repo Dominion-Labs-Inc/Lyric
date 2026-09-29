@@ -120,7 +120,7 @@ class ActiveDiscovery:
         return {
             # Web services
             80, 443, 8000, 8080, 8443, 8888, 3000, 3001, 5000,
-            # Databases. 5433 is TorinAI's own PostgreSQL instance; without it
+            # Databases. 5433 is Lyric's own PostgreSQL instance; without it
             # discovery scanned the shared 5432 and reported not finding the
             # database this system actually runs on.
             3306, 5432, 5433, 6379, 27017, 9200, 9300,
@@ -160,7 +160,7 @@ class ActiveDiscovery:
         # Fingerprint each open port. PER-PORT failure boundary: one service that
         # disconnects rudely (httpx.RemoteProtocolError from a non-HTTP listener
         # on an HTTP probe) used to abort the ENTIRE scan, leaving self.services
-        # empty. That made Torin's self-knowledge silently absent — and the
+        # empty. That made Lyric's self-knowledge silently absent — and the
         # security audit, which asks "is this port mine?", then classified its own
         # services as unidentified public listeners. A scan that learns about 45
         # of 49 ports is vastly better than one that learns nothing.
@@ -474,7 +474,7 @@ class ActiveDiscovery:
 
 
 # Module-level singleton. Without an accessor, the only ActiveDiscovery instance
-# lived on the coordinator, so peers that needed Torin's self-knowledge (e.g. the
+# lived on the coordinator, so peers that needed Lyric's self-knowledge (e.g. the
 # security audit deciding whether a listening port is OUR OWN service) had no way
 # to reach it and re-derived the answer — or, in the audit's case, could not, and
 # reported its own services as unidentified public listeners.

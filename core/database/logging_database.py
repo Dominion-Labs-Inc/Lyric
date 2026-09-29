@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Logging Database for TorinAI
+Logging Database for Lyric
 Logs all test results, test sessions, and system operations to PostgreSQL.
 
 Integration:
@@ -45,7 +45,7 @@ import json
 from typing import Dict, Any, List, Optional
 from datetime import datetime
 
-from .unified_database_postgres import TorinUnifiedDatabasePostgres as TorinUnifiedDatabase
+from .unified_database_postgres import LyricUnifiedDatabasePostgres as LyricUnifiedDatabase
 
 
 #: The chaos_severity enum's members, plus the aliases callers actually pass
@@ -86,7 +86,7 @@ class LoggingDatabase:
 
     def __init__(self):
         """Initialize logging database using unified PostgreSQL database"""
-        self.db = TorinUnifiedDatabase()
+        self.db = LyricUnifiedDatabase()
         self.initialized = False
 
         # Metrics

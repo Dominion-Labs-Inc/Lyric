@@ -93,8 +93,8 @@ authority and keeps the competent one.
 ## Method (run)
 
 ```
-PYTHONPATH="$PWD" POSTGRES_PORT=5433 POSTGRES_USER=stefan TORIN_NO_WATCHDOG=1 \
-  ./venv_torin/bin/python3 experiments/systems/GOV-ABLATION-01/experiment.py
+PYTHONPATH="$PWD" POSTGRES_PORT=5433 POSTGRES_USER=stefan LYRIC_NO_WATCHDOG=1 \
+  ./venv_lyric/bin/python3 experiments/systems/GOV-ABLATION-01/experiment.py
 ```
 
 Add-only and self-cleaning: it teaches a scratch domain (`gov_ablation`) into the

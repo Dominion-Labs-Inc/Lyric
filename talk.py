@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Talk to the substrate. Everything it says comes out of what it holds.
 
-    ./venv_torin/bin/python3 talk.py                 (interactive)
-    ./venv_torin/bin/python3 talk.py "what causes pressure loss"
+    ./venv_lyric/bin/python3 talk.py                 (interactive)
+    ./venv_lyric/bin/python3 talk.py "what causes pressure loss"
 """
 import asyncio
 import logging
@@ -33,7 +33,7 @@ async def main() -> int:
         if not said:
             continue
         understanding = await conversation.understand(said)
-        print("torin>", understanding.reply.replace("\n", "\n       "), "\n")
+        print("lyric>", understanding.reply.replace("\n", "\n       "), "\n")
 
 
 if __name__ == "__main__":

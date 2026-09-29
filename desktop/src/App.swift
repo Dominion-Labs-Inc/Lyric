@@ -1,18 +1,18 @@
 import SwiftUI
 
-let torinHome = URL(fileURLWithPath: "/Users/stefan/Dominion Labs/TorinAI")
+let lyricHome = URL(fileURLWithPath: "/Users/stefan/Dominion Labs/Lyric")
 
 @main
-struct TorinDashboardApp: App {
+struct LyricDashboardApp: App {
     @StateObject private var gate = Gate()
-    @StateObject private var feed = Feed(home: torinHome)
-    @StateObject private var control = Control(home: torinHome)
-    @StateObject private var approvals = Approvals(home: torinHome)
-    @StateObject private var systems = Systems(home: torinHome)
-    @StateObject private var components = Components(home: torinHome)
+    @StateObject private var feed = Feed(home: lyricHome)
+    @StateObject private var control = Control(home: lyricHome)
+    @StateObject private var approvals = Approvals(home: lyricHome)
+    @StateObject private var systems = Systems(home: lyricHome)
+    @StateObject private var components = Components(home: lyricHome)
 
     var body: some Scene {
-        WindowGroup("TorinAI") {
+        WindowGroup("Lyric") {
             Group {
                 if gate.state == .unlocked {
                     DashboardView(feed: feed, gate: gate, control: control,
@@ -40,7 +40,7 @@ struct LockView: View {
             Image(systemName: "touchid")
                 .font(.system(size: 54, weight: .light))
                 .foregroundStyle(Color(red: 1.0, green: 0.54, blue: 0.10))
-            Text("TorinAI").font(.system(size: 26, weight: .semibold, design: .rounded))
+            Text("Lyric").font(.system(size: 26, weight: .semibold, design: .rounded))
             Text("Touch ID required").font(.callout).foregroundStyle(.secondary)
 
             if case .failed(let why) = gate.state {
@@ -92,7 +92,7 @@ struct DashboardView: View {
     var body: some View {
         VStack(spacing: 12) {
             HStack {
-                Text("TorinAI").font(.system(size: 15, weight: .bold, design: .rounded))
+                Text("Lyric").font(.system(size: 15, weight: .bold, design: .rounded))
                     .foregroundStyle(Color(red: 1.0, green: 0.54, blue: 0.10))
                 Text("dashboard").foregroundStyle(.secondary).font(.system(size: 13))
                 Spacer()
@@ -209,7 +209,7 @@ struct PaneView: View {
                 Text(channel.title).font(.system(size: 11, weight: .bold, design: .monospaced))
                     .foregroundStyle(accent)
                 Spacer()
-                Text("\(entries.count)\(origin == "torin_main.log" ? " · from torin_main.log" : "")")
+                Text("\(entries.count)\(origin == "lyric_main.log" ? " · from lyric_main.log" : "")")
                     .font(.system(size: 10, design: .monospaced)).foregroundStyle(.tertiary)
             }
             .padding(.horizontal, 10).padding(.vertical, 7)

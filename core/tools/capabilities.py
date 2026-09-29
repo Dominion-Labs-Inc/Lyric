@@ -15,7 +15,7 @@ Benefits:
 - Flexibility: Multiple tools can provide same capability
 - Composability: Chain capabilities together intelligently
 
-Author: Torin AI Team
+Author: Lyric AI Team
 """
 
 from dataclasses import dataclass, field
@@ -780,9 +780,9 @@ def infer_capability_from_task(task_description: str, threshold: float = 1.0) ->
         # Note: Lower scores for ambiguous cases
     """
     import os
-    # Fast-init bypass: set TORIN_FAST_INIT=1 to skip regex during tool registration
+    # Fast-init bypass: set LYRIC_FAST_INIT=1 to skip regex during tool registration
     # (used by the tool verifier and any context where capability metadata isn't needed)
-    if os.environ.get("TORIN_FAST_INIT"):
+    if os.environ.get("LYRIC_FAST_INIT"):
         return {}
 
     import re

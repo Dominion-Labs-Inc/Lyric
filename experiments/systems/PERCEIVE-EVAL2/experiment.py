@@ -22,13 +22,13 @@ earlier result. Four studies, all on the real substrate, no model anywhere:
 Everything is written to manifest.json. Domain `perceval2`, cleaned before and
 after, so no other domain's learned state is touched.
 
-    PYTHONPATH="$PWD" TORIN_NO_WATCHDOG=1 \
-    ./venv_torin/bin/python3 experiments/systems/PERCEIVE-EVAL2/experiment.py
+    PYTHONPATH="$PWD" LYRIC_NO_WATCHDOG=1 \
+    ./venv_lyric/bin/python3 experiments/systems/PERCEIVE-EVAL2/experiment.py
 """
 from __future__ import annotations
 import os
 for k, v in {"POSTGRES_PORT": "5433", "POSTGRES_USER": "stefan",
-             "POSTGRES_DATABASE": "torinai_db", "TORIN_NO_WATCHDOG": "1"}.items():
+             "POSTGRES_DATABASE": "lyric_db", "LYRIC_NO_WATCHDOG": "1"}.items():
     os.environ.setdefault(k, v)
 import asyncio, contextlib, io, json, sys, time
 from uuid import uuid4

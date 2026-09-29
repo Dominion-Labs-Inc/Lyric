@@ -14,7 +14,7 @@
 **Run** (sandbox store, boots the full system):
 
 ```
-POSTGRES_DATABASE=torinai_dev ./venv_torin/bin/python3 experiments/TOOLDOMAIN-01/experiment.py
+POSTGRES_DATABASE=lyric_dev ./venv_lyric/bin/python3 experiments/TOOLDOMAIN-01/experiment.py
 ```
 
 **Results.**

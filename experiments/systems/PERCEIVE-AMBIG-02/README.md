@@ -29,8 +29,8 @@ were taught. Every induction is `coordinator.learning.induce_category`.
 
 ## Run
 
-    PYTHONPATH="$PWD" TORIN_NO_WATCHDOG=1 \
-    ./venv_torin/bin/python3 experiments/systems/PERCEIVE-AMBIG-02/experiment.py
+    PYTHONPATH="$PWD" LYRIC_NO_WATCHDOG=1 \
+    ./venv_lyric/bin/python3 experiments/systems/PERCEIVE-AMBIG-02/experiment.py
 
 Writes `manifest.json`: per-case round logs (what was supplied, what it was labelled, which hypotheses
 stood afterwards, and the request at each round).

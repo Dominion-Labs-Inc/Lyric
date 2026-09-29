@@ -373,7 +373,7 @@ class LiveSenses:
         self._ear = self._eye = None
         self._tasks: List[asyncio.Task] = []
         self._eye_lock = asyncio.Lock()
-        self._dir = Path(tempfile.mkdtemp(prefix="torin_live_"))
+        self._dir = Path(tempfile.mkdtemp(prefix="lyric_live_"))
         self._taught_version = None
 
     async def _program(self, which: str, source: str):
@@ -559,10 +559,10 @@ class LiveSenses:
 
 def sources_from_environment() -> Tuple[Optional[str], Optional[str]]:
     """Which microphone and camera the running substrate uses:
-    `TORINAI_MICROPHONE` / `TORINAI_CAMERA` (a device name or index, or "off"),
+    `LYRIC_MICROPHONE` / `LYRIC_CAMERA` (a device name or index, or "off"),
     the system's default microphone and the first camera when unset."""
-    mic = os.environ.get("TORINAI_MICROPHONE", "default").strip()
-    cam = os.environ.get("TORINAI_CAMERA", "0").strip()
+    mic = os.environ.get("LYRIC_MICROPHONE", "default").strip()
+    cam = os.environ.get("LYRIC_CAMERA", "0").strip()
     return (None if mic.lower() == "off" else f"mic:{mic}",
             None if cam.lower() == "off" else f"cam:{cam}")
 

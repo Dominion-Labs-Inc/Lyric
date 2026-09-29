@@ -6,7 +6,7 @@ substrate, serves one person, stores a memory of its own, recalls a memory of th
 and idles for `--idle` seconds, counting every refusal as it happens. Then it tries, on purpose, to learn a fact
 of its own and to move a belief, and reports what was refused. The report is the JSON on its last line.
 
-Run by RELEASE-01 with TORINAI_ENVIRONMENT, TORINAI_RELEASE and POSTGRES_DATABASE set.
+Run by RELEASE-01 with LYRIC_ENVIRONMENT, LYRIC_RELEASE and POSTGRES_DATABASE set.
 """
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ import os
 import sys
 from pathlib import Path
 
-for k, v in {"POSTGRES_PORT": "5433", "POSTGRES_USER": "stefan", "TORIN_NO_WATCHDOG": "1"}.items():
+for k, v in {"POSTGRES_PORT": "5433", "POSTGRES_USER": "stefan", "LYRIC_NO_WATCHDOG": "1"}.items():
     os.environ.setdefault(k, v)
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))

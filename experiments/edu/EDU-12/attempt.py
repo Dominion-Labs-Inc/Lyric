@@ -4,7 +4,7 @@
 The first version of this file WAS a sidecar. It imported
 `ProbabilisticVersionSpace` and drove it directly, returning UNKNOWN for
 everything else -- so it measured what the harness had been wired to rather
-than what Torin can do when asked. Every number it produced is preserved in
+than what Lyric can do when asked. Every number it produced is preserved in
 `S0_INVALID_01.json` and none of them are evidence about the substrate.
 
 Each item now goes to the real owner of its question:
@@ -159,7 +159,7 @@ async def _attempt_program(coordinator, item) -> Attempt:
     a program is not something the substrate does without a model" -- an
     absence claim baked into the harness and never checked. The whole
     programming column was therefore my harness declining to try, not a
-    measurement of Torin, which is exactly what made the first baseline
+    measurement of Lyric, which is exactly what made the first baseline
     inadmissible.
 
     Now the tool registry is asked and whatever it reports is the result. When
@@ -204,7 +204,7 @@ def _program_request(item, entry):
     version sent it to `optimize_code`, which takes `code` and an optimisation
     level and is an OPTIMISER -- optimising `sum(values) / 0` does not make it
     compute an average, and the item failed on a parameter error rather than on
-    anything about Torin.
+    anything about Lyric.
 
     There is no model-free repair capability in this substrate: the tools that
     need no model (`refactor_code`, `format_code`, `apply_patch`,

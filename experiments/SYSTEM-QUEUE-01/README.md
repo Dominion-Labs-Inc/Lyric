@@ -33,11 +33,11 @@ queue. Section B puts a job on the queue first, so an empty answer is a failure 
 Every probe queue is built with `persist: False` except section F's two instances, whose rows and
 heartbeats are removed by id; the run compares the durable queue's pending count before and after.
 
-**Run** (from the TorinAI folder; boots the full system, so check that
+**Run** (from the Lyric folder; boots the full system, so check that
 `pgrep -fl "experiments/.*/experiment.py"` is empty first):
 
 ```
-./venv_torin/bin/python3 experiments/SYSTEM-QUEUE-01/experiment.py
+./venv_lyric/bin/python3 experiments/SYSTEM-QUEUE-01/experiment.py
 ```
 
 **Results.** Each run writes `results/<UTC timestamp>.json` and a `.md` summary beside it.

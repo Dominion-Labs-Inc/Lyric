@@ -34,7 +34,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from experiments._evidence import RunRecord  # noqa: E402
-os.environ.setdefault("TORIN_SHADOW_MODE", "1")
+os.environ.setdefault("LYRIC_SHADOW_MODE", "1")
 
 PASS = FAIL = 0
 EV = RunRecord("CONSTITUTION-02",
@@ -84,7 +84,7 @@ def build_noise(root: Path) -> int:
     for i in range(5):
         (root / "logs" / f"run_{i}.log").write_text(f"cycle {i} ok\n")
         made += 1
-    (root / ".env").write_text("APP_NAME=torin\nFEATURE_X=true\n")
+    (root / ".env").write_text("APP_NAME=lyric\nFEATURE_X=true\n")
     made += 1
     (root / "data").mkdir(exist_ok=True)
     (root / "data" / "blob.bin").write_bytes(bytes(range(256)) * 32)

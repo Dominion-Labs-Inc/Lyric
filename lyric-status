@@ -1,7 +1,7 @@
 #!/bin/bash
 #
-# TorinAI Status Script
-# Shows status of TorinAI system
+# Lyric Status Script
+# Shows status of Lyric system
 #
 
 # Colors for output
@@ -20,11 +20,11 @@ LOGS_DIR="$SCRIPT_DIR/logs"
 PID_DIR="$RUNTIME_DIR"
 
 # PID files
-MAIN_PID_FILE="$PID_DIR/torin_main.pid"
+MAIN_PID_FILE="$PID_DIR/lyric_main.pid"
 
 echo ""
 echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${CYAN} TorinAI System Status${NC}"
+echo -e "${CYAN} Lyric System Status${NC}"
 echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
 
@@ -63,11 +63,11 @@ check_process_status() {
 }
 
 # Check main system
-check_process_status "$MAIN_PID_FILE" "Main TorinAI System"
+check_process_status "$MAIN_PID_FILE" "Main Lyric System"
 
 # Show log file info
 echo -e "${BLUE}Log Files:${NC}"
-MAIN_LOG="$LOGS_DIR/torin_main.log"
+MAIN_LOG="$LOGS_DIR/lyric_main.log"
 if [ -f "$MAIN_LOG" ]; then
     LOG_SIZE=$(du -h "$MAIN_LOG" | cut -f1)
     LOG_LINES=$(wc -l < "$MAIN_LOG")

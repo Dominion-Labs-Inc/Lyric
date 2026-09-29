@@ -11,10 +11,10 @@ getting the result back:
 - a failed job reports that it failed, and why;
 - another user polling the same ID gets `not_found`.
 
-**Run** (from the TorinAI folder):
+**Run** (from the Lyric folder):
 
 ```
-./venv_torin/bin/python3 experiments/TASK-RESULT-01/experiment.py
+./venv_lyric/bin/python3 experiments/TASK-RESULT-01/experiment.py
 ```
 
 **Results.** Printed to the terminal only; no run is saved.

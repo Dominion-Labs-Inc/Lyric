@@ -8,10 +8,10 @@ taught, and it is given only the question. For each one the run shows:
 
 The expected answers are used only to score the run afterwards.
 
-**Run** (from the TorinAI folder):
+**Run** (from the Lyric folder):
 
 ```
-PYTHONPATH="$PWD" POSTGRES_PORT=5433 POSTGRES_USER=stefan TORIN_NO_WATCHDOG=1 ./venv_torin/bin/python3 experiments/systems/KNOW-50/experiment.py
+PYTHONPATH="$PWD" POSTGRES_PORT=5433 POSTGRES_USER=stefan LYRIC_NO_WATCHDOG=1 ./venv_lyric/bin/python3 experiments/systems/KNOW-50/experiment.py
 ```
 
 **Results.** `manifest.json` (2026-09-13; each run overwrites it):

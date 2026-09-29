@@ -5,7 +5,7 @@ Numbers were excluded from `Fact` on purpose while relational induction was
 proved -- admitting typed terms early would have given a failed induction test
 several possible explanations instead of one. That proof is done, so the
 restriction is lifted IN THE INDUCTION OWNER rather than by standing a second
-numeric pattern-learner beside it: "what has Torin generalized" keeps one
+numeric pattern-learner beside it: "what has Lyric generalized" keeps one
 answer.
 
 The language stays FUNCTION-FREE. A number is a constant term, arithmetic

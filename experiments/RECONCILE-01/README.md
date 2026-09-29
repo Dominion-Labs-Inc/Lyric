@@ -18,10 +18,10 @@ the real dispatcher, `execute_task`.
 Throughout, the `MOVE_FILE` rule stays validated. `_reconcile_intent` is wrapped only to count calls.
 The experiment deletes every intent it forms.
 
-**Run** (from the TorinAI folder):
+**Run** (from the Lyric folder):
 
 ```
-./venv_torin/bin/python3 experiments/RECONCILE-01/experiment.py
+./venv_lyric/bin/python3 experiments/RECONCILE-01/experiment.py
 ```
 
 **Results.** Every run is saved in `results/` (JSON + `.md`). Latest: 2026-09-17, **27/27**.

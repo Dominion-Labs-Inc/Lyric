@@ -3,7 +3,7 @@
 Memory Agent
 ============
 
-Primary memory coordination interface for TorinAI AGI system.
+Primary memory coordination interface for Lyric AGI system.
 Coordinates hot tier (PostgreSQL), cold tier, and semantic search (embeddings).
 
 Architecture:
@@ -21,7 +21,7 @@ Integration:
 - Single entry point exported from core/memory/__init__.py
 - Constitutional constraints enforcement
 
-Author: TorinAI System
+Author: Lyric System
 Version: 8.0
 """
 
@@ -65,7 +65,7 @@ class MemoryAgent(IMemoryConsolidation):
     Memory Agent - Primary Memory Coordination Interface
 
     Coordinates hot tier (PostgreSQL 0-60 days), cold tier (PostgreSQL 60+ days),
-    and semantic search capabilities for TorinAI memory system.
+    and semantic search capabilities for Lyric memory system.
 
     Architecture:
         - PostgreSQL Hot: Fast hot tier storage for recent memories (memory_hot schema)
@@ -203,7 +203,7 @@ class MemoryAgent(IMemoryConsolidation):
         if self.initialized:
             return True
 
-        # Shadow mode suppresses background cognitive loops (see TORIN_SHADOW_MODE
+        # Shadow mode suppresses background cognitive loops (see LYRIC_SHADOW_MODE
         # check further below) but memory storage is fully operational — PostgreSQL
         # initialises normally so memories are persisted during shadow runs.
         try:
@@ -294,8 +294,8 @@ class MemoryAgent(IMemoryConsolidation):
             # These are only needed for persistent long-running cognition, not
             # for single-task diagnostic runs.
             import os as _ma_os
-            if _ma_os.environ.get("TORIN_SHADOW_MODE"):
-                logger.info("⚡ Shadow mode: cognitive background loops suppressed (TORIN_SHADOW_MODE=1)")
+            if _ma_os.environ.get("LYRIC_SHADOW_MODE"):
+                logger.info("⚡ Shadow mode: cognitive background loops suppressed (LYRIC_SHADOW_MODE=1)")
             else:
                 # Start autonomous background loops (persistent cognition)
                 await self.start_memory_loops()
@@ -1894,12 +1894,60 @@ class MemoryAgent(IMemoryConsolidation):
             found[item.memory_id] = item
         return sorted(found.values(), key=lambda m: -m.similarity_score)[:limit]
 
+    #: SEEN BEFORE. Measured on UKBench (the first 400 objects, 4 photographs
+    #: each, taken from very different angles and distances): with the 100
+    #: seeings sharing most keys checked, a thing was known again when at least
+    #: 20 of its matched keypoints agreed on one geometry. That recalled half of
+    #: the other views of the same object, and at least one for two in three,
+    #: while a wrong object was confirmed in 0.016% of checks. The same picture
+    #: resized or re-encoded kept its difference hash within 3 of 64 bits, and
+    #: no two different objects came within 9, so within 8 it is the same
+    #: picture whatever its keypoints say.
+    SIGHT_CANDIDATES = 100
+    SIGHT_MIN_AGREE = 20
+    SIGHT_SAME_PICTURE = 8
+
+    async def _recall_by_sight(self, seen: Dict[str, Any], *, limit: int,
+                               actor: Optional[str]) -> List[MemoryItem]:
+        """The seeings of the same thing as `seen` (sight features), found by
+        the keys they share through the media store's index and decided in
+        sight's own process: the same picture by its difference hash, the same
+        thing by its keypoints agreeing on one geometry. Only memories `actor`
+        may see."""
+        from core.memory.media_store import get_media_store
+        from core.perception.vision import keypoint_hashes
+        from core.perception.perception_faculty import get_perception_faculty
+        from core.agents.autonomous.shared_types import visible_to
+        candidates, held = [], set()
+        for media in await get_media_store().similar(
+                keypoint_hashes(seen["descriptors"]), kind="sight_trace",
+                limit=max(limit, self.SIGHT_CANDIDATES)):
+            if media["memory_id"] not in held:
+                held.add(media["memory_id"])
+                candidates.append(media)
+        agreed = await get_perception_faculty().agreements(
+            "sight", seen, [m["bytes"] for m in candidates])
+        found: Dict[str, MemoryItem] = {}
+        for media, got in zip(candidates, agreed):
+            same_picture = got["hash_distance"] <= self.SIGHT_SAME_PICTURE
+            if not same_picture and got["agreeing"] < self.SIGHT_MIN_AGREE:
+                continue
+            item = await self.postgres_storage.get_memory(media["memory_id"])
+            if item is None or not visible_to(item.user_id or None, actor):
+                continue
+            resolution = 1.0 if same_picture else min(
+                1.0, got["agreeing"] / self.SIGHT_MIN_AGREE - 1.0)
+            item.similarity_score = round(float(resolution), 4)
+            item.seen_match = {**got, "same_picture": same_picture}
+            found[item.memory_id] = item
+        return sorted(found.values(), key=lambda m: -m.similarity_score)[:limit]
+
     #: The retrieval strategies that compose one recall. Each is a distinct
     #: storage primitive, so "specialise the agents" is a property of the
     #: design rather than a TODO: semantic finds paraphrase, keyword finds
     #: literal strings an embedding smooths away, tags find curation, and sound
     #: finds a hearing by the sound itself (when the caller has one).
-    RETRIEVAL_STRATEGIES = ("semantic", "keyword", "tags", "sound")
+    RETRIEVAL_STRATEGIES = ("semantic", "keyword", "tags", "sound", "sight")
 
     async def retrieve(
         self,
@@ -1917,6 +1965,7 @@ class MemoryAgent(IMemoryConsolidation):
         require_named_match: bool = False,
         actor: Optional[str] = None,
         heard: Optional[Any] = None,
+        seen: Optional[Dict[str, Any]] = None,
     ) -> List[MemoryItem]:
         """Recall memories by running every applicable strategy CONCURRENTLY.
 
@@ -1929,6 +1978,11 @@ class MemoryAgent(IMemoryConsolidation):
         heard again, through a room, a codec, over other sound -- each with how
         much of what was heard agreed with it (`similarity_score`, and
         `heard_match`: agreeing, share, at).
+
+        `seen` is a picture's sight features (`vision.sight_features`): given
+        them, the `sight` strategy recalls the seeings of THE SAME THING -- the
+        same picture again, or the same thing in another picture -- each with
+        how firmly it agreed (`similarity_score`, and `seen_match`).
 
         This is the composition layer the swarm search was: several retrieval
         strategies at once, merged. It is worth having for RECALL, not speed --
@@ -2012,8 +2066,13 @@ class MemoryAgent(IMemoryConsolidation):
                 return []
             return await self._recall_by_sound(heard, limit=per_strategy, actor=actor)
 
+        async def _sight() -> List[MemoryItem]:
+            if not seen or not len(seen.get("descriptors", [])):
+                return []
+            return await self._recall_by_sight(seen, limit=per_strategy, actor=actor)
+
         runners = {"semantic": _semantic, "keyword": _keyword, "tags": _tags,
-                   "sound": _sound}
+                   "sound": _sound, "sight": _sight}
         unknown = [name for name in selected if name not in runners]
         if unknown:
             raise ValueError(
@@ -2093,7 +2152,7 @@ class MemoryAgent(IMemoryConsolidation):
         #
         # OFF BY DEFAULT, because it costs a real case: a memory answering
         # about a named thing WITHOUT naming it ("the system has been up four
-        # days" for "what is Torin's uptime") is dropped. Recall accepts that
+        # days" for "what is Lyric's uptime") is dropped. Recall accepts that
         # trade -- a miss is better than confidently reporting another
         # entity's fact -- and the subsystems reading their own records, where
         # the name is always present, are left alone.
@@ -4177,16 +4236,18 @@ class MemoryAgent(IMemoryConsolidation):
     SPOKEN_WORD_TAG = "spoken_word"
     VOICE_TAG = "voice"
     SONG_TAG = "song"
-    #: How many lessons `taught_by_hearing` reads. Named, because a silent cap
+    #: A seeing that was a lesson: a thing shown, told what it is.
+    THING_TAG = "thing"
+    #: How many lessons `lessons_taught` reads. Named, because a silent cap
     #: here reads as "that word was never taught".
     TAUGHT_BY_HEARING_LIMIT = 20000
 
-    async def taught_by_hearing(self, tag: str, key: str) -> Dict[str, List[bytes]]:
-        """Every hearing that taught under `tag` (`SPOKEN_WORD_TAG`,
-        `VOICE_TAG` or `SONG_TAG`), as memory holds it: what it taught (the
-        word, whose voice, or which song, read from `key` in the memory's own
-        record) -> the archives kept with those hearings. A view over memories,
-        not a store beside them."""
+    async def lessons_taught(self, tag: str, key: str) -> Dict[str, List[bytes]]:
+        """Every hearing or seeing that taught under `tag` (`SPOKEN_WORD_TAG`,
+        `VOICE_TAG`, `SONG_TAG` or `THING_TAG`), as memory holds it: what it
+        taught (the word, whose voice, which song, which thing, read from `key`
+        in the lesson's own record) -> the traces kept with those lessons. A
+        view over memories, not a store beside them."""
         from core.memory.media_store import get_media_store
         rows = await self.search_memories(
             tags={tag}, limit=self.TAUGHT_BY_HEARING_LIMIT) or []

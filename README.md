@@ -1,11 +1,11 @@
-# TorinAI
+# Lyric
 
 **A persistent cognitive substrate — a system that maintains and develops
 knowledge, memory, beliefs, learned operators, competence, and goals over time,
 and *derives* answers from evidence it holds instead of *generating* text that
 looks like answers.**
 
-TorinAI is a research codebase. It is large, so this README is written to get you
+Lyric is a research codebase. It is large, so this README is written to get you
 oriented fast: what it is, how the pieces fit, which files matter, and how to run
 it. The deeper theory lives in linked docs — start here, go deep later.
 
@@ -14,7 +14,7 @@ it. The deeper theory lives in linked docs — start here, go deep later.
 ## In one minute
 
 Most AI systems produce an answer for every input and attach a confidence they
-simply assert. TorinAI is built the other way around:
+simply assert. Lyric is built the other way around:
 
 - It **reasons over facts it actually holds** and keeps the derivation — you can
   always ask *why* it believes something.
@@ -187,7 +187,7 @@ it has become sure (or unsure) of survives a restart.
 
 ## Cross-domain transfer
 
-A central research aim of TorinAI is whether structure learned in one domain can
+A central research aim of Lyric is whether structure learned in one domain can
 make a *different* domain easier — whether breadth **compounds**. It's implemented
 as an evidence-gated pipeline, not a blind copy:
 
@@ -236,16 +236,16 @@ proposal. Remove it entirely and the substrate is unchanged.
 
 **Requirements**
 
-- **Python 3.11** (this repo uses a `venv_torin` virtualenv on 3.11.x).
-- **PostgreSQL** with the **pgvector** extension (default local DB: `torinai_db`
+- **Python 3.11** (this repo uses a `venv_lyric` virtualenv on 3.11.x).
+- **PostgreSQL** with the **pgvector** extension (default local DB: `lyric_db`
   on port `5433`).
 - *Optional:* a local LLM endpoint for the teacher role.
 
 **Install**
 
 ```bash
-python3.11 -m venv venv_torin
-./venv_torin/bin/pip install -r requirements.txt
+python3.11 -m venv venv_lyric
+./venv_lyric/bin/pip install -r requirements.txt
 ```
 
 **Configure** — environment is loaded from `.env.production`, then `.env` (local
@@ -254,7 +254,7 @@ overrides):
 ```
 POSTGRES_HOST=localhost
 POSTGRES_PORT=5433
-POSTGRES_DATABASE=torinai_db
+POSTGRES_DATABASE=lyric_db
 POSTGRES_USER=...
 POSTGRES_PASSWORD=...
 LLM_SERVER_URL=http://localhost:8099   # optional teacher; omit to run model-free
@@ -263,7 +263,7 @@ LLM_SERVER_URL=http://localhost:8099   # optional teacher; omit to run model-fre
 **Run** — the system is orchestrated by `core/main.py`:
 
 ```bash
-PYTHONPATH="$PWD" ./venv_torin/bin/python3 -m core.main
+PYTHONPATH="$PWD" ./venv_lyric/bin/python3 -m core.main
 ```
 
 **Or bring it up programmatically:**
@@ -285,7 +285,7 @@ against **real backends** — nothing is stubbed. Example (the eleven reasoning
 paths, verified end-to-end):
 
 ```bash
-PYTHONPATH="$PWD" ./venv_torin/bin/python3 tests/reasoning/test_eleven_paths_real.py
+PYTHONPATH="$PWD" ./venv_lyric/bin/python3 tests/reasoning/test_eleven_paths_real.py
 ```
 
 ---
@@ -335,7 +335,7 @@ archive/                      # superseded / model-era modules kept for provenan
 
 ## Status & honest limitations
 
-TorinAI is an **experimental research architecture**, not a product. Stated at the
+Lyric is an **experimental research architecture**, not a product. Stated at the
 same resolution as the capabilities:
 
 - **Reading is the main constraint.** The system reasons well over its own

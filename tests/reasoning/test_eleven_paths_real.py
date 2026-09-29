@@ -24,7 +24,7 @@ Run in the sandbox against the real DB + llama-server:
     docker run --rm --add-host=host.docker.internal:host-gateway \
       -e DOMINION_ENV_LOADED=true \
       -e POSTGRES_HOST=host.docker.internal -e POSTGRES_PORT=5433 \
-      -e POSTGRES_DATABASE=torinai_db -e POSTGRES_USER=stefan -e POSTGRES_PASSWORD= \
+      -e POSTGRES_DATABASE=lyric_db -e POSTGRES_USER=stefan -e POSTGRES_PASSWORD= \
       -e LLM_SERVER_URL=http://host.docker.internal:8099 \
       -e HF_HOME=/root/.cache/huggingface -e TRANSFORMERS_OFFLINE=1 -e HF_HUB_OFFLINE=1 \
       -e PYTHONPATH=/repo -w /repo \

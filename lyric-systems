@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Systems status and control for the desktop app. Real, DB-backed, LIGHTWEIGHT.
 
-    torin-systems --status            every system + live status, as JSON
-    torin-systems --control S ACTION  enqueue a real stop/start/restart
+    lyric-systems --status            every system + live status, as JSON
+    lyric-systems --control S ACTION  enqueue a real stop/start/restart
 
 DIRECT asyncpg, NOT `core.database`. Importing the substrate's DB package pulls
 in the whole cognitive stack -- torch, transformers, the model runtime -- and
@@ -30,7 +30,7 @@ HERE = Path(__file__).resolve().parent
 # invoking account (stefan), so a "postgres" default fails password auth where
 # the substrate succeeds. The env still overrides when POSTGRES_USER is set.
 import getpass
-_DEFAULTS = {"host": "localhost", "port": 5433, "database": "torinai_db",
+_DEFAULTS = {"host": "localhost", "port": 5433, "database": "lyric_db",
              "user": getpass.getuser(), "password": ""}
 _ENV = {"host": "POSTGRES_HOST", "port": "POSTGRES_PORT",
         "database": "POSTGRES_DATABASE", "user": "POSTGRES_USER",
@@ -77,17 +77,17 @@ def _registry():
     """The system registry, loaded in ISOLATION so the whole `core` package
     (torch, transformers, ~9.8s) is not imported for a fallback list. Its
     module-level imports are stdlib only, so loading the file directly is safe
-    and fast -- the same trick torin-dash uses for channels.py.
+    and fast -- the same trick lyric-dash uses for channels.py.
     """
     import importlib.machinery, importlib.util
     path = HERE / "core" / "health" / "system_control.py"
     spec = importlib.util.spec_from_loader(
-        "torin_system_control",
-        importlib.machinery.SourceFileLoader("torin_system_control", str(path)))
+        "lyric_system_control",
+        importlib.machinery.SourceFileLoader("lyric_system_control", str(path)))
     mod = importlib.util.module_from_spec(spec)
     # Register before exec: the frozen dataclass in the module resolves its
     # fields through sys.modules, and omitting this leaves it a NoneType.
-    sys.modules["torin_system_control"] = mod
+    sys.modules["lyric_system_control"] = mod
     spec.loader.exec_module(mod)
     return mod.REGISTRY
 
@@ -209,7 +209,7 @@ def main() -> int:
         elif len(args) == 3 and args[0] == "--control":
             out = asyncio.run(_control(args[1], args[2]))
         else:
-            print("usage: torin-systems --status | --components | "
+            print("usage: lyric-systems --status | --components | "
                   "--control <system> <start|stop|restart>", file=sys.stderr)
             return 2
         print(json.dumps(out, default=str))

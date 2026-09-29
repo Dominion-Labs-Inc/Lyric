@@ -2,7 +2,7 @@
 """
 Recovery Manager
 ================
-System recovery and failure handling for TorinAI
+System recovery and failure handling for Lyric
 
 Purpose:
 - Detect and handle system failures

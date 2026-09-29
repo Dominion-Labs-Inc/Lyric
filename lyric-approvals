@@ -16,7 +16,7 @@ WHY THE OWNER IS LOADED BY PATH. `from core.governance import approval_requests`
 executes `core/__init__.py`, which builds the tool registry and every service
 behind it: measured at 19.5 SECONDS per invocation. The dashboard polls this,
 so that cost was paid on a repeating timer and the window locked up — the same
-trap `torin-dash` documents ("a viewer must not initialise the system it is
+trap `lyric-dash` documents ("a viewer must not initialise the system it is
 viewing"). Loading the one module by path costs about a tenth of a second.
 
 The owner takes a `db_manager`, so the connection can come from here without
@@ -77,7 +77,7 @@ class _Conn:
 
 
 async def run() -> int:
-    ap = argparse.ArgumentParser(description="TorinAI approval requests")
+    ap = argparse.ArgumentParser(description="Lyric approval requests")
     ap.add_argument("--json", action="store_true", help="print pending + recent")
     ap.add_argument("--approve", type=int, metavar="ID")
     ap.add_argument("--decline", type=int, metavar="ID")
@@ -92,9 +92,9 @@ async def run() -> int:
     try:
         import asyncpg
 
-        config = _load_isolated("torin_pgconfig",
+        config = _load_isolated("lyric_pgconfig",
                                 "core/database/postgres_config.py").PostgresConfig.resolve()
-        approvals = _load_isolated("torin_approval_requests",
+        approvals = _load_isolated("lyric_approval_requests",
                                    "core/governance/approval_requests.py")
 
         connection = await asyncpg.connect(

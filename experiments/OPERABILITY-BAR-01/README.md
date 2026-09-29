@@ -11,10 +11,10 @@
   When this was written, the bar sat flat at the stakes base, because no domain had any operating
   history yet.
 
-**Run** (from the TorinAI folder):
+**Run** (from the Lyric folder):
 
 ```
-./venv_torin/bin/python3 experiments/OPERABILITY-BAR-01/experiment.py
+./venv_lyric/bin/python3 experiments/OPERABILITY-BAR-01/experiment.py
 ```
 
 The docstring's `scratchpad/bench_operability.py` is an old path.

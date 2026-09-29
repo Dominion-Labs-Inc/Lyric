@@ -12,10 +12,10 @@ Nothing is written to the database.
 **Scope.** This shows that the loop responds to a real competence update. It does not show the substrate
 carrying out a task that produces that evidence; a direct evidence update stands in for that step.
 
-**Run** (from the TorinAI folder):
+**Run** (from the Lyric folder):
 
 ```
-./venv_torin/bin/python3 experiments/MOTIVATION-CLOSEDLOOP-01/experiment.py
+./venv_lyric/bin/python3 experiments/MOTIVATION-CLOSEDLOOP-01/experiment.py
 ```
 
 **Results.** Printed to the terminal only; no run is saved.

@@ -1,6 +1,6 @@
 {
   "services": {
-    "torinai_server": {
+    "lyric_server": {
       "command": [
         "/usr/bin/python3",
         "server.py"

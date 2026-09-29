@@ -10,10 +10,10 @@ against the five laws, instead of gating them beforehand.
 - The snapshot is a real forensic record and is saved to the database.
 - A user-context provider (the World Auth seam) stamps who was acting on the snapshot.
 
-**Run** (from the TorinAI folder):
+**Run** (from the Lyric folder):
 
 ```
-./venv_torin/bin/python3 experiments/GOVERNANCE-MONITOR-01/experiment.py
+./venv_lyric/bin/python3 experiments/GOVERNANCE-MONITOR-01/experiment.py
 ```
 
 **Results.** Printed to the terminal only; no run is saved.

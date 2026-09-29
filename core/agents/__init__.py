@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-TorinAI Agents Module
+Lyric Agents Module
 
 Two things live here now: the autonomous coordinator (the substrate SELF) and
 the agent factory (`agents.py`). There is no "logical agent" and no

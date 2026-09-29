@@ -36,8 +36,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 # Both policies are set before any substrate module is imported, so no import
 # side effect can perform the work these forbid.
-os.environ.setdefault("TORIN_MODEL_POLICY", "strict_model_free")
-os.environ.setdefault("TORIN_LEARNING_POLICY", "frozen")
+os.environ.setdefault("LYRIC_MODEL_POLICY", "strict_model_free")
+os.environ.setdefault("LYRIC_LEARNING_POLICY", "frozen")
 
 from core.learning.learning_policy import (  # noqa: E402
     LearningPolicy, get_learning_policy,
@@ -140,14 +140,14 @@ async def main() -> int:
     logging.getLogger().setLevel(logging.ERROR)
 
     # The database is passed to the constructor, not left to the environment.
-    # TorinUnifiedDatabasePostgres loads .env.postgres with override=True BEFORE
+    # LyricUnifiedDatabasePostgres loads .env.postgres with override=True BEFORE
     # reading POSTGRES_DATABASE, so an externally-set value is clobbered by the
     # file and every condition would silently evaluate the live substrate --
     # which is exactly the null result that first came back from this harness.
-    from core.database.unified_database_postgres import TorinUnifiedDatabasePostgres
+    from core.database.unified_database_postgres import LyricUnifiedDatabasePostgres
 
     requested = os.environ["POSTGRES_DATABASE"]
-    manager = TorinUnifiedDatabasePostgres(database=requested)
+    manager = LyricUnifiedDatabasePostgres(database=requested)
 
     # Asked of the server, before a single case runs. Configuration agreeing
     # with itself is not evidence: the first run of this experiment had every

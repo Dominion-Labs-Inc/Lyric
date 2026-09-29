@@ -29,7 +29,7 @@ that content moves it in THREE channels and not in a FOURTH:
   H  LEGIBLE               appraisal is a first-class faculty that can say what
                  it is made of and where each dimension came from.
 
-Run: ./venv_torin/bin/python3 experiments/BEARING-01/experiment.py
+Run: ./venv_lyric/bin/python3 experiments/BEARING-01/experiment.py
 """
 from __future__ import annotations
 

@@ -7,7 +7,7 @@ coordinator holds. Appraisal turns measured signals into a disposition it can
 account for, the arbiter decides from that disposition and real capacity, and
 motivation has a mood, a valence and a state it can report.
 
-Run: ./venv_torin/bin/python3 experiments/SYSTEM-SELF-01/experiment.py
+Run: ./venv_lyric/bin/python3 experiments/SYSTEM-SELF-01/experiment.py
 """
 from __future__ import annotations
 

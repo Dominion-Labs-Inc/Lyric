@@ -24,7 +24,7 @@ replacement does that, in the substrate's own terms:
   F  TAMPERING OUTWEIGHS ALL       the judging machinery changing is the worst case
   G  IT NEVER DECIDES              feeling informs behaviour; a law is not moved by it
 
-Run: ./venv_torin/bin/python3 experiments/THREAT-SENSE-01/experiment.py
+Run: ./venv_lyric/bin/python3 experiments/THREAT-SENSE-01/experiment.py
 """
 import asyncio
 import contextlib

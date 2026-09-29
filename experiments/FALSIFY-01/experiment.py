@@ -59,7 +59,7 @@ fishing trip:
 
 Staged by design — start small, confirm the harness, then scale:
 
-    ./venv_torin/bin/python3 experiments/FALSIFY-01/experiment.py \
+    ./venv_lyric/bin/python3 experiments/FALSIFY-01/experiment.py \
         --stimuli 6 --images 6 --mags 2
 """
 from __future__ import annotations
@@ -78,8 +78,8 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 for _k, _v in {"POSTGRES_PORT": "5433", "POSTGRES_USER": "stefan",
-               "POSTGRES_DATABASE": "torinai_db", "TORIN_NO_WATCHDOG": "1",
-               "TORIN_SHADOW_MODE": "1"}.items():
+               "POSTGRES_DATABASE": "lyric_db", "LYRIC_NO_WATCHDOG": "1",
+               "LYRIC_SHADOW_MODE": "1"}.items():
     os.environ.setdefault(_k, _v)
 
 REPO = Path(__file__).resolve().parents[2]

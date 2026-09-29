@@ -1,4 +1,4 @@
-# TorinAI Digital Footprint Scrubber - Complete Production Dependencies
+# Lyric Digital Footprint Scrubber - Complete Production Dependencies
 # Core web scraping and HTTP
 aiohttp>=3.9.0
 beautifulsoup4>=4.12.0

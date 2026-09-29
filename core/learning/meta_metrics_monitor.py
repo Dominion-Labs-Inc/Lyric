@@ -22,7 +22,7 @@ from typing import Dict, Any, List, Optional, Tuple
 from pathlib import Path
 from dotenv import load_dotenv
 
-from core.database import TorinUnifiedDatabase, get_unified_db
+from core.database import LyricUnifiedDatabase, get_unified_db
 
 # Load environment variables
 env_file = Path(__file__).parent.parent.parent / ".env.production"
@@ -153,11 +153,11 @@ class MetaMetricsMonitor:
         # execute_query" -- and all three public methods swallowed it. The
         # monitor that exists to watch for meta-learner degradation could not
         # read a single row. Resolved lazily instead, in an async context.
-        self.db: Optional[TorinUnifiedDatabase] = None
+        self.db: Optional[LyricUnifiedDatabase] = None
 
         logger.info("Meta-metrics monitor initialized on unified PostgreSQL - guarding the meta-learner")
 
-    async def _get_db(self) -> TorinUnifiedDatabase:
+    async def _get_db(self) -> LyricUnifiedDatabase:
         """Resolve the shared pool on first use."""
         if self.db is None:
             self.db = await get_unified_db()

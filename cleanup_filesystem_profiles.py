@@ -3,7 +3,7 @@
 
 import re
 
-file_path = "/Users/stefan/Dominion Labs/TorinAI/core/tools/filesystem_tools.py"
+file_path = "/Users/stefan/Dominion Labs/Lyric/core/tools/filesystem_tools.py"
 
 with open(file_path, 'r') as f:
     content = f.read()

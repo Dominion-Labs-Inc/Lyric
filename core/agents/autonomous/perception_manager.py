@@ -11,7 +11,7 @@ from datetime import datetime
 from collections import deque
 
 from .shared_types import PerceptionData, Task, TaskType, TaskStatus, Priority
-from core.database import TorinUnifiedDatabase
+from core.database import LyricUnifiedDatabase
 
 logger = logging.getLogger(__name__)
 
@@ -74,7 +74,7 @@ class PerceptionManager:
         self.processed_perceptions: Dict[str, PerceptionData] = {}
         
         # Use unified database instead of separate perception.db
-        self.unified_db = TorinUnifiedDatabase()
+        self.unified_db = LyricUnifiedDatabase()
         self.connection = None  # For backwards compatibility
         
         # Processing statistics
@@ -95,7 +95,7 @@ class PerceptionManager:
         """Initialize the perception system"""
         try:
             await self.unified_db.initialize()
-            # TorinUnifiedDatabase uses connection pools, not direct connection
+            # LyricUnifiedDatabase uses connection pools, not direct connection
             self.connection = self.unified_db  # Store database instance for queries
 
             # The table this module writes to is created HERE, by the module
@@ -435,7 +435,7 @@ class PerceptionManager:
 import contextvars as _contextvars
 
 _acting_percept: "_contextvars.ContextVar[Optional[Dict[str, Any]]]" = \
-    _contextvars.ContextVar("torin_acting_percept", default=None)
+    _contextvars.ContextVar("lyric_acting_percept", default=None)
 
 
 def set_acting_percept(percept_id: Optional[str],

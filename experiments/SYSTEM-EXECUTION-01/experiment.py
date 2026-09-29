@@ -7,7 +7,7 @@ status, an unknown id is None; a binding is registered, found and cleared; a
 tool call passes the one gate, carries its judgement, and really does what it
 says; a tool that does not exist is refused, not invented.
 
-Run: ./venv_torin/bin/python3 experiments/SYSTEM-EXECUTION-01/experiment.py
+Run: ./venv_lyric/bin/python3 experiments/SYSTEM-EXECUTION-01/experiment.py
 """
 from __future__ import annotations
 

@@ -47,7 +47,7 @@ class DirectiveSafetyMonitor:
     """
     Monitors directive system for failure modes and safety violations.
 
-    Integrates with existing TorinAI systems:
+    Integrates with existing Lyric systems:
     - SystemSecurityManager: Validate telemetry data integrity
     - Drift Monitoring: Detect behavioral drift patterns
 

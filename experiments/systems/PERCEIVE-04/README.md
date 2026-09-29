@@ -8,10 +8,10 @@ keeping the image bytes with it. The experiment checks that:
 - `recall_image` finds the image by memory ID;
 - the memory's text describes the picture.
 
-**Run** (from the TorinAI folder):
+**Run** (from the Lyric folder):
 
 ```
-PYTHONPATH="$PWD" POSTGRES_PORT=5433 POSTGRES_USER=stefan TORIN_NO_WATCHDOG=1 ./venv_torin/bin/python3 experiments/systems/PERCEIVE-04/experiment.py
+PYTHONPATH="$PWD" POSTGRES_PORT=5433 POSTGRES_USER=stefan LYRIC_NO_WATCHDOG=1 ./venv_lyric/bin/python3 experiments/systems/PERCEIVE-04/experiment.py
 ```
 
 **Results.** `manifest.json` (2026-09-13; each run overwrites it): all six checks pass.

@@ -12,8 +12,8 @@ Two scripts that make two different claims:
   substrate answers through the neural bridge (not a model), and a frozen grader scores the answers.
 
 ```
-./venv_torin/bin/python3 experiments/CAPABILITY-BENCHMARK-01/experiment.py
-./venv_torin/bin/python3 experiments/CAPABILITY-BENCHMARK-01/full_suite.py
+./venv_lyric/bin/python3 experiments/CAPABILITY-BENCHMARK-01/experiment.py
+./venv_lyric/bin/python3 experiments/CAPABILITY-BENCHMARK-01/full_suite.py
 ```
 
 **Results.** `full_suite.py` saves every run in `results/` (JSON plus a `.md` summary). Latest:

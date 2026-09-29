@@ -27,7 +27,7 @@ Logs all metrics to MySQL via TestBase.
 Usage:
     python3 tests/test_reasoning_systems.py
 
-Author: Torin AI Team
+Author: Lyric AI Team
 Date: January 14, 2026
 """
 

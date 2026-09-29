@@ -206,7 +206,7 @@ def retrain_model(current_csv: str, output_dir: str) -> str:
 
 class AutonomousMonitoringSystem:
     """
-    Fully autonomous monitoring system integrated into the TorinAI architecture.
+    Fully autonomous monitoring system integrated into the Lyric architecture.
     Handles drift detection, alerting, and automated responses.
     """
     

@@ -560,7 +560,7 @@ def dashboard():
         </div>
 
         <div style='margin-top: 30px; text-align: center; color: #555;'>
-            TorinAI Governance Dashboard - Last updated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+            Lyric Governance Dashboard - Last updated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
         </div>
     </div>
 

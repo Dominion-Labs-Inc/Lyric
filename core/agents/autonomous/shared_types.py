@@ -133,8 +133,8 @@ class TaskSource(Enum):
 #: The actor a task belongs to when it is the SUBSTRATE'S OWN work.
 #:
 #: Not a user, and deliberately not a string a user could ever hold. Health
-#: monitoring, the idle loops -- this is Torin's own
-#: cognition, and its memories and learned evidence belong to Torin, never to
+#: monitoring, the idle loops -- this is Lyric's own
+#: cognition, and its memories and learned evidence belong to Lyric, never to
 #: whoever happened to be connected when a loop fired. Scoping the substrate's
 #: health knowledge to a passing user would be as wrong as leaking that user's
 #: context into the substrate's learning.
@@ -228,7 +228,7 @@ class Task:
     #: How this task came to exist. For a state plan: the goal and plan it
     #: belongs to, the planning mode and verdict, the grounded operator, and the
     #: learned rule that authorised it. Kept so the record answers not only what
-    #: Torin did but which acquired experience gave it authority to do it.
+    #: Lyric did but which acquired experience gave it authority to do it.
     provenance: Optional[Dict[str, Any]] = None
 
     # Phase 5A: Task source tracking for governance

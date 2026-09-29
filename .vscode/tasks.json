@@ -4,7 +4,7 @@
 		{
 			"label": "Shadow Run #14 (upgrade)",
 			"type": "shell",
-			"command": "/Users/stefan/Dominion Labs/TorinAI/venv_torin/bin/python -u /Users/stefan/Dominion Labs/TorinAI/shadow_mode_test.py --suite upgrade",
+			"command": "/Users/stefan/Dominion Labs/Lyric/venv_lyric/bin/python -u /Users/stefan/Dominion Labs/Lyric/shadow_mode_test.py --suite upgrade",
 			"isBackground": true,
 			"problemMatcher": []
 		}

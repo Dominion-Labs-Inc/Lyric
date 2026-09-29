@@ -12,7 +12,7 @@ honest without one. Real law-scoring + real Postgres snapshot, no stubs.
   4. The snapshot is a real forensic record (violated laws, scores) and persists to the database.
   5. A wired user-context provider stamps WHO was acting onto the snapshot (the World Auth seam).
 
-Run: ./venv_torin/bin/python3 experiments/GOVERNANCE-MONITOR-01/experiment.py
+Run: ./venv_lyric/bin/python3 experiments/GOVERNANCE-MONITOR-01/experiment.py
 """
 from __future__ import annotations
 import asyncio

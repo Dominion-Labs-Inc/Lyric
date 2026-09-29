@@ -7,10 +7,10 @@ async def check_memory():
     conn = await asyncpg.connect(
         host='localhost',
         port=5432,
-        user='torin',
+        user='lyric',
         import os
-password = os.getenv("TORIN_PASSWORD"),
-        database='torin_memory'
+password = os.getenv("LYRIC_PASSWORD"),
+        database='lyric_memory'
     )
     
     # Check table structure

@@ -21,7 +21,7 @@ what the substrate does to itself.
   D  SELF-STATE MOVES BEHAVIOUR           -> the directive the loop consumes
   E  WHAT NEEDS A TASK STAYS UNMEASURED   no fabricated competence/progress
 
-Run: ./venv_torin/bin/python3 experiments/SELFSTATE-01/experiment.py
+Run: ./venv_lyric/bin/python3 experiments/SELFSTATE-01/experiment.py
 """
 import asyncio
 import contextlib

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-TorinAI Memory Module - Centralized Memory Management
+Lyric Memory Module - Centralized Memory Management
 
 Single Entry Point: MemoryAgent
 Storage: PostgreSQL (hot tier + cold tier for 60+ day old memories)

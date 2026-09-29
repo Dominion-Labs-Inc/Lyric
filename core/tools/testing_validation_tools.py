@@ -2,7 +2,7 @@
 """
 Testing & Validation Tools
 ===========================
-Comprehensive testing and validation utilities for TorinAI
+Comprehensive testing and validation utilities for Lyric
 
 Features:
 - Test execution and orchestration

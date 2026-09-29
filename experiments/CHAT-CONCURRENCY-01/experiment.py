@@ -5,7 +5,7 @@ users through the real front door (`handle_user_request`), measuring wall time, 
 latency, error rate, and answer correctness at rising concurrency. This is the real-capacity answer for
 chat/Q&A (distinct from the work-job concurrency cap).
 
-Run: ./venv_torin/bin/python3 experiments/CHAT-CONCURRENCY-01/experiment.py
+Run: ./venv_lyric/bin/python3 experiments/CHAT-CONCURRENCY-01/experiment.py
 """
 from __future__ import annotations
 import asyncio

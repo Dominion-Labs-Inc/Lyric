@@ -51,4 +51,4 @@ G injected (1), H whose (3), I a pursuit (5).
 **Before section I, 18/18** twice (`20260929T132833Z`, `20260929T132927Z`). The first showed the caption's
 time as epoch seconds, which was fixed.
 
-Run (sandbox store): `./venv_torin/bin/python3 experiments/MEMORY-SOUND-01/experiment.py`
+Run (sandbox store): `./venv_lyric/bin/python3 experiments/MEMORY-SOUND-01/experiment.py`

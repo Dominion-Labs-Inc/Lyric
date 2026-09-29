@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Unit tests for Torin's reasoning / simulation / optimization stack.
+"""Unit tests for Lyric's reasoning / simulation / optimization stack.
 
 These tests exercise the new engines and tools directly (no LLM), to
 ensure they behave correctly and are wired into the ToolRegistry.

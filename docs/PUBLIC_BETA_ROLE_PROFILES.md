@@ -2,17 +2,17 @@
 
 Status: reasoning record, written 2026-09-22 against the system as it runs today. Every capability
 statement below was read in the source, in a dated experiment artifact, or measured against the live
-`torinai_db` on the date given. Nothing here is a plan for what Torin will be able to do; it is a
+`lyric_db` on the date given. Nothing here is a plan for what Lyric will be able to do; it is a
 statement of what a subscriber would receive if they paid this week.
 
 Companion to `DHCM/TET.md` (editions, packs, build order) and
-`docs/TORIN_VALIDATION_AND_EXPERIMENT_RESULTS.md` (the evidence corpus).
+`docs/LYRIC_VALIDATION_AND_EXPERIMENT_RESULTS.md` (the evidence corpus).
 
 ---
 
 ## 1. The question, and the answer
 
-**Question.** Three public Torin instances — SOC analyst, researcher, general assistant — sold as
+**Question.** Three public Lyric instances — SOC analyst, researcher, general assistant — sold as
 autonomous subscriptions, beta first, to bring in revenue before SBIR.
 
 **Answer.** The three-role shape is right, but not as three public autonomous subscriptions, and not
@@ -22,7 +22,7 @@ in this order. On today's measurements:
 |---|---|
 | **Researcher** | **Ship a beta** — as a per-lab isolated deployment, supervised, not a shared public world |
 | **SOC analyst** | **Do not ship publicly.** Design partner only, inside the customer's own stack, advisory-only |
-| **General assistant** | **Do not ship.** Torin's own frozen benchmark scores it 0.0 on comprehension and 0.0 on coding |
+| **General assistant** | **Do not ship.** Lyric's own frozen benchmark scores it 0.0 on comprehension and 0.0 on coding |
 
 The reason is not conservatism. It is that three specific measurements, taken this week, decide the
 question before product design gets a vote.
@@ -33,7 +33,7 @@ question before product design gets a vote.
 
 ### 2.1 The executable repertoire is five operators, in two experimental domains
 
-Measured against live `torinai_db`, 2026-09-22:
+Measured against live `lyric_db`, 2026-09-22:
 
 | `epistemic_status` | domain | count |
 |---|---|---|
@@ -44,11 +44,11 @@ Measured against live `torinai_db`, 2026-09-22:
 | invalid_artifact | `syllogism` | 1 |
 
 **Five validated rules, both domains synthetic experiment worlds.** A learned rule is what licenses
-a plan step; a plan step is what lets Torin act. There is no validated operator in any domain a
+a plan step; a plan step is what lets Lyric act. There is no validated operator in any domain a
 customer would recognise — not incident response, not literature search, not file management for a
 real workspace.
 
-This is the single most important fact for pricing an *autonomous* subscription. What Torin can
+This is the single most important fact for pricing an *autonomous* subscription. What Lyric can
 autonomously *do* today is: move and remove files in a directory it has practised in, and act in two
 experimental worlds. Everything else it can reason, remember, judge and refuse — but not execute.
 
@@ -62,9 +62,9 @@ reading is the finding:
 [LIVE] 336 real domains — earned=0.5 (neutral) in every one
 ```
 
-Torin gates action on *earned* operating history. It has none, so it abstains everywhere. This is
+Lyric gates action on *earned* operating history. It has none, so it abstains everywhere. This is
 the system working as designed and it is also, verbatim, a statement that autonomous action is
-currently switched off by Torin's own judgement. A subscriber buying "autonomy" this week buys a
+currently switched off by Lyric's own judgement. A subscriber buying "autonomy" this week buys a
 system that correctly declines to act.
 
 Earned trust is accumulated by operating. That is a runtime process measured in weeks of supervised
@@ -101,7 +101,7 @@ breaches will not survive the first technical review a buyer runs.
 
 ## 3. What a subscriber is actually buying
 
-The instinct is to sell Torin as a capable assistant. The measurements say that framing loses.
+The instinct is to sell Lyric as a capable assistant. The measurements say that framing loses.
 `CAPABILITY-BENCHMARK-01`, full frozen suite, 2026-09-16, graded by a frozen grader with an honest
 0.0 for any case the substrate cannot represent:
 
@@ -113,10 +113,10 @@ The instinct is to sell Torin as a capable assistant. The measurements say that 
 | comprehension | **0.000** |
 | **overall** | **0.243** (12 passed / 26 failed) |
 
-Against a frontier model on general tasks, Torin loses on every axis a general user tests first.
+Against a frontier model on general tasks, Lyric loses on every axis a general user tests first.
 Selling capability invites exactly that comparison.
 
-What Torin has that a frontier model structurally does not:
+What Lyric has that a frontier model structurally does not:
 
 - **It does not make things up.** `KNOW-50`, 2026-09-18: 37 answered, **37 correct, 0 false
   assertions**; 13 refused. Accuracy over answered 1.0; over all 0.74. It abstains instead of
@@ -173,12 +173,12 @@ needs to know where every claim came from.
 
 ### What a beta subscriber gets
 
-A private, isolated Torin that their team teaches in English, which accumulates their lab's
+A private, isolated Lyric that their team teaches in English, which accumulates their lab's
 knowledge permanently, answers only what it can support, cites the evidence for every claim, and
 writes research artefacts to their workspace on request — with a readable record of what it intended,
 what it did, and what actually resulted, verified against the filesystem rather than self-reported.
 
-Supervised. A human asks; Torin researches, writes, and reports. Idle autonomy is not in the beta.
+Supervised. A human asks; Lyric researches, writes, and reports. Idle autonomy is not in the beta.
 
 ### What must be true to ship
 
@@ -223,7 +223,7 @@ closed, field off the database network.
   include `block_ip_address`, `create_waf_rule`, `apply_rate_limit`, `block_country`,
   `check_ip_threat_intelligence`. The validation corpus states plainly that a handful have been
   exercised. Every one of those is a *mutating* action on a customer's production edge.
-- **No validated operator in any security domain** (§2.1). Torin cannot plan an incident response,
+- **No validated operator in any security domain** (§2.1). Lyric cannot plan an incident response,
   because it has learned no operator that an incident-response plan could be proved over.
 - **Analysis scores 0.4, comprehension 0.0.** Triage is comprehension work.
 - **A public SOC breaks the differentiator.** Ingesting customer telemetry requires exactly the
@@ -232,7 +232,7 @@ closed, field off the database network.
 
 ### What a design-partner engagement could be — later
 
-Advisory only, inside the customer's own stack, no mutating actions: Torin observes their alert
+Advisory only, inside the customer's own stack, no mutating actions: Lyric observes their alert
 stream, states what it can support and abstains on the rest, and produces a governance verdict with a
 named law and reason for every recommended action — which a human executes. The value is the audit
 trail and the refusal to guess, not the triage.
@@ -246,18 +246,18 @@ after the security tool surface has a validation record.
 
 **For:** nobody, on current measurements.
 
-A general assistant is defined by the breadth of what a stranger can ask it. Torin's own frozen
+A general assistant is defined by the breadth of what a stranger can ask it. Lyric's own frozen
 suite, honestly graded: **overall 0.243, comprehension 0.0, coding 0.0, 12 passed / 26 failed.** A
 public subscriber will compare it, within one session, to a free frontier model, and will be right.
 
-There is no framing that survives this. The properties Torin genuinely has — abstention, persistent
+There is no framing that survives this. The properties Lyric genuinely has — abstention, persistent
 memory, governed action, no vendor — are worth paying for only where a *specific* accumulated body
 of knowledge and a *specific* audit requirement exist. A general assistant has neither by
-definition; it is the one role where Torin's differentiators do not apply and its weaknesses are
+definition; it is the one role where Lyric's differentiators do not apply and its weaknesses are
 exactly what gets tested first.
 
 **Recommendation: cut it.** Its budget belongs in the researcher role. If a broad entry tier is
-wanted later, make it "teach Torin your own domain, then ask it about that" — which is the
+wanted later, make it "teach Lyric your own domain, then ask it about that" — which is the
 researcher role with a smaller corpus, not a general assistant.
 
 ---
@@ -290,7 +290,7 @@ runtime again. The schema was fixed; the defect class was not.
   is cheaper to reach than multi-tenancy — `TET.md` §11 steps 1–3 deliver it and Sovereign needs
   nothing after them — and it removes blockers 4 and 2 from the critical path, because there is no
   public signup form and no shared world to leak across.
-- **Autonomy:** supervised. Torin researches, writes and verifies on request. Idle autonomy is not
+- **Autonomy:** supervised. Lyric researches, writes and verifies on request. Idle autonomy is not
   sold until metering exists (blocker 3) and until earned operating history exists in a real domain
   (blocker 6).
 - **The promise:** *"It will tell you what it does not know. Everything it does tell you, you can
@@ -324,7 +324,7 @@ be packs, not three separately-built products.
 
 | | |
 |---|---|
-| What is installed | One complete Torin stack on the customer's own hardware or their cloud account — field, world, substrate, Postgres, all on internal networks with no egress |
+| What is installed | One complete Lyric stack on the customer's own hardware or their cloud account — field, world, substrate, Postgres, all on internal networks with no egress |
 | What the customer does | Teaches it their domain in English; asks it questions; asks it to research and write artefacts |
 | What they get back | Answers it can support with cited evidence, abstention on everything else, permanent retention across restarts, and a readable record of what it intended, did and verified |
 | Who operates it | Dominion Labs, hands-on, for the whole term |
@@ -374,17 +374,17 @@ authenticated chat endpoint over a faculty that already works.
 
 ### 9.4 An unresolved question first: what does the pilot actually install?
 
-The only hardened, containerized deployment of TorinAI that exists today is
-`DHCM/deploy/docker-compose.yml`, which brings up field + world + torinai + worlddb **together**.
+The only hardened, containerized deployment of Lyric that exists today is
+`DHCM/deploy/docker-compose.yml`, which brings up field + world + lyric + worlddb **together**.
 That is a fact about where the deployment is defined, not a decision about what to sell. Two
 different products come out of it and they should be chosen deliberately:
 
-| | **A — Torin alone** | **B — Torin inside the shield** |
+| | **A — Lyric alone** | **B — Lyric inside the shield** |
 |---|---|---|
 | Installs | substrate + Postgres | field, world, substrate, Postgres, three networks |
 | The claim | persistent, auditable, abstaining knowledge, no model vendor | the above, plus every crossing judged and no egress path |
 | Install burden | ordinary | a security review of the whole membrane |
-| Evidence needed | the TorinAI corpus (§2, §4) | that corpus **plus** a persisted shield record, which does not exist today |
+| Evidence needed | the Lyric corpus (§2, §4) | that corpus **plus** a persisted shield record, which does not exist today |
 
 **Default is A** unless the first customer's requirement is containment specifically. It is the
 smaller claim, needs no evidence that is not already written, and is what a research lab is buying.
@@ -396,7 +396,7 @@ This is a real decision with a real cost difference, and §9.5 changes depending
 ### 9.5 Sequence (assuming A)
 
 **Now — correct the record (no new capability).**
-- Correct `TORIN_VALIDATION_AND_EXPERIMENT_RESULTS.md` §21.2 and §22: multi-tenancy now has
+- Correct `LYRIC_VALIDATION_AND_EXPERIMENT_RESULTS.md` §21.2 and §22: multi-tenancy now has
   artifacts (§3), and the doc still records the gap as open.
 
 **Next — make the stack a product.**

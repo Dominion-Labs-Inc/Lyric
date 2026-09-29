@@ -14,7 +14,7 @@ This proves the OTHER half — retrieving the result — is wired and isolated:
 
 Real coordinator, real queue authority. No stubs.
 
-Run: ./venv_torin/bin/python3 experiments/TASK-RESULT-01/experiment.py
+Run: ./venv_lyric/bin/python3 experiments/TASK-RESULT-01/experiment.py
 """
 from __future__ import annotations
 import asyncio

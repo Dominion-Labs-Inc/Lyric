@@ -1,6 +1,6 @@
 # The Eleven Reasoning Paths — Verified Against the Real System
 
-This document describes each of TorinAI's eleven kinds of thinking, states what a
+This document describes each of Lyric's eleven kinds of thinking, states what a
 correct test of each one must show, and records the result of testing all eleven
 **through the reasoning authority, against the real running system** — real
 PostgreSQL, real llama-server, executed inside the sandbox container.
@@ -76,7 +76,7 @@ always falls through to the kinds regardless of any model.)
 The test runs in the `torinai-sandbox` container with the real host services:
 
 ```
-POSTGRES_HOST=host.docker.internal   → the real torinai_db on :5433
+POSTGRES_HOST=host.docker.internal   → the real lyric_db on :5433
 LLM_SERVER_URL=…host.docker.internal:8099 → the real llama-server
 ```
 
@@ -260,7 +260,7 @@ changes whether the substrate reasons. The entire test now passes model-free.
 docker run --rm --add-host=host.docker.internal:host-gateway \
   -e DOMINION_ENV_LOADED=true \
   -e POSTGRES_HOST=host.docker.internal -e POSTGRES_PORT=5433 \
-  -e POSTGRES_DATABASE=torinai_db -e POSTGRES_USER=stefan -e POSTGRES_PASSWORD= \
+  -e POSTGRES_DATABASE=lyric_db -e POSTGRES_USER=stefan -e POSTGRES_PASSWORD= \
   -e LLM_SERVER_URL=http://host.docker.internal:8099 \
   -e HF_HOME=/root/.cache/huggingface -e TRANSFORMERS_OFFLINE=1 -e HF_HUB_OFFLINE=1 \
   -e PYTHONPATH=/repo -w /repo \

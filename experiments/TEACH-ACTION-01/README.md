@@ -11,7 +11,7 @@ arguments and differ only in whether the source survives.
 **Run** (sandbox store, boots the full system):
 
 ```
-POSTGRES_DATABASE=torinai_dev ./venv_torin/bin/python3 experiments/TEACH-ACTION-01/experiment.py
+POSTGRES_DATABASE=lyric_dev ./venv_lyric/bin/python3 experiments/TEACH-ACTION-01/experiment.py
 ```
 
 **Results.**

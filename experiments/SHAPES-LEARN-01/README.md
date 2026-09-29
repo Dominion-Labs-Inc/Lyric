@@ -93,7 +93,7 @@ research.
 
 ## The trap in measuring it
 
-The run happens in the sandbox (`torinai_dev`), emptied first by `scripts/reset_dev_store.py`, so every run
+The run happens in the sandbox (`lyric_dev`), emptied first by `scripts/reset_dev_store.py`, so every run
 starts from nothing. The same lesson taught into a store that already held it would count "already", not
 "learned". The check that the main store is untouched counts its rows over a separate connection. A teaching
 record's own knowledge (the lesson facts) and its language knowledge (the patterns) are checked separately,
@@ -102,10 +102,10 @@ because they go to different owners: the facts to the lesson's domain, the patte
 ## Run
 
 ```
-./venv_torin/bin/python3 experiments/SHAPES-LEARN-01/experiment.py
+./venv_lyric/bin/python3 experiments/SHAPES-LEARN-01/experiment.py
 ```
-It empties `torinai_dev` first, starts the substrate there, teaches, waits for the domain judgments (up to 120 s),
-checks, and shuts the substrate down. It never writes to `torinai_db`.
+It empties `lyric_dev` first, starts the substrate there, teaches, waits for the domain judgments (up to 120 s),
+checks, and shuts the substrate down. It never writes to `lyric_db`.
 
 **Step 3 (2026-09-29, run `20260929T013752Z`, 36/36).** "this is my shoe." (lowercase) now reads loosely, by
 design: heard speech and chat arrive without capitals. The reading says it was loose. The teaching report counts two

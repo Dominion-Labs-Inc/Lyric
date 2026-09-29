@@ -70,5 +70,5 @@ Real prose needs far more English than three short lessons.
   split off "'s".
 - **Small lessons leave kinds apart.** "That is your red book." does not read yet.
 
-Run: `./venv_torin/bin/python3 experiments/SHAPES-LEARN-05/experiment.py` (empties the sandbox first, and leaves the
+Run: `./venv_lyric/bin/python3 experiments/SHAPES-LEARN-05/experiment.py` (empties the sandbox first, and leaves the
 three lessons taught).

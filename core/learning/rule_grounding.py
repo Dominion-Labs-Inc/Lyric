@@ -3,8 +3,8 @@
 
 Learned rules are lifted -- MOVE(?X0,?X2,?X1) with variables. The planner is
 propositional: its actions carry ground condition strings. Bridging them is
-grounding, and it is the only thing standing between "Torin learned a
-transition rule" and "Torin can compose learned transitions toward a goal".
+grounding, and it is the only thing standing between "Lyric learned a
+transition rule" and "Lyric can compose learned transitions toward a goal".
 
 Two admissibility rules, both consequences of work already done rather than new
 policy:

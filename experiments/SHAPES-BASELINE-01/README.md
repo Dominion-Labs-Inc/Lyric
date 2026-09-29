@@ -50,6 +50,6 @@ them.
 ## Run
 
 ```
-./venv_torin/bin/python3 experiments/SHAPES-BASELINE-01/experiment.py
+./venv_lyric/bin/python3 experiments/SHAPES-BASELINE-01/experiment.py
 ```
 Opens no database and writes nothing but its own run record and transcript.

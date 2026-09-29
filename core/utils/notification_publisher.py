@@ -1,7 +1,7 @@
 
 #!/usr/bin/env python3
 """
-Notification Publisher for TorinAI
+Notification Publisher for Lyric
 Sends notifications to Slack channels for immediate visibility.
 
 Also publishes to API Gateway (for notification dashboard/governance sessions).

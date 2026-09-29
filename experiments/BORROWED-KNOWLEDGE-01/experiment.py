@@ -6,7 +6,7 @@
     and a high-stakes domain can NOT be cleared by borrowing alone. One hop (neighbor's OWN sat only).
 (B) LIVE: real `similar_domains` over the real DB — honest about how much transfer is available now.
 
-Run: ./venv_torin/bin/python3 scratchpad/bench_borrowed.py
+Run: ./venv_lyric/bin/python3 scratchpad/bench_borrowed.py
 """
 import asyncio, os, sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))

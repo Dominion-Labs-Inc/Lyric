@@ -28,7 +28,7 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 ROOT = Path(__file__).resolve().parents[2]
 for _k, _v in {"POSTGRES_PORT": "5433", "POSTGRES_USER": "stefan",
-               "POSTGRES_DATABASE": "torinai_db", "TORIN_NO_WATCHDOG": "1",
+               "POSTGRES_DATABASE": "lyric_db", "LYRIC_NO_WATCHDOG": "1",
                "TQDM_DISABLE": "1"}.items():
     os.environ.setdefault(_k, _v)
 if str(ROOT) not in sys.path:

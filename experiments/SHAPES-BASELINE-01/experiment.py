@@ -17,7 +17,7 @@ word-class lookup answers "never observed", which is exactly what an empty store
 (`genericity._word_class` and `_word_classes` return None / empty when there is no memory agent).
 So this measures the code's shapes alone.
 
-Run: ./venv_torin/bin/python3 experiments/SHAPES-BASELINE-01/experiment.py
+Run: ./venv_lyric/bin/python3 experiments/SHAPES-BASELINE-01/experiment.py
 """
 from __future__ import annotations
 

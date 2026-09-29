@@ -32,6 +32,6 @@ The lesson and its beliefs, the rule, and the fixture user's context (`learned-w
 ## Run
 
 ```
-./venv_torin/bin/python3 experiments/LEARNED-WORK-01/experiment.py
+./venv_lyric/bin/python3 experiments/LEARNED-WORK-01/experiment.py
 ```
 Boots the whole system, alone.

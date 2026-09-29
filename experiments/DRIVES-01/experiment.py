@@ -25,7 +25,7 @@ Three defects, measured in the live tree before this, and closed here.
 
 Real measurement sources, real appraisal, real store. No stubs.
 
-Run: ./venv_torin/bin/python3 experiments/DRIVES-01/experiment.py
+Run: ./venv_lyric/bin/python3 experiments/DRIVES-01/experiment.py
 """
 from __future__ import annotations
 import asyncio

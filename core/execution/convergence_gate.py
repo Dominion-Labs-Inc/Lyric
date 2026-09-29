@@ -267,7 +267,7 @@ class ConvergenceGate:
         # It was also the wrong state to preserve. What it held was
         # {tool_results, epistemic_mutations}: iteration state of the model's
         # tool-use loop, with no rules, concepts, bindings or reasoning record
-        # in it. Restoring one would not have restored Torin to anything.
+        # in it. Restoring one would not have restored Lyric to anything.
         #
         # The 100 files and the module are in
         # backups/checkpoints_retired_20260824/.

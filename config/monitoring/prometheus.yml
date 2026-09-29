@@ -5,7 +5,7 @@ global:
   scrape_interval: 15s
   evaluation_interval: 15s
   external_labels:
-    cluster: 'torin-drift-monitoring'
+    cluster: 'lyric-drift-monitoring'
     environment: 'production'
 
 # Alertmanager configuration (optional)

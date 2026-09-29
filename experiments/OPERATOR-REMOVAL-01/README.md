@@ -17,10 +17,10 @@ at all, because under `FILE_IN` nothing could contradict an unguarded removal. T
 states each file's `SIZE`, and a rule that takes a size away has to read it from somewhere, so the check
 is now "it requires nothing but what it removes": every precondition is a fact the removal deletes.
 
-**Run** (from the TorinAI folder):
+**Run** (from the Lyric folder):
 
 ```
-./venv_torin/bin/python3 experiments/OPERATOR-REMOVAL-01/experiment.py
+./venv_lyric/bin/python3 experiments/OPERATOR-REMOVAL-01/experiment.py
 ```
 
 **Results.** Every run is saved in `results/`. Record: `docs/research/BENCHMARKS.md` §2.1. The run

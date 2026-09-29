@@ -26,7 +26,7 @@ Tools:
 - generate_rebuttal_document: Generate rebuttal document for peer review
 - format_for_venue: Format paper for specific conference/journal requirements
 
-Author: Torin AI Team
+Author: Lyric AI Team
 """
 
 import logging

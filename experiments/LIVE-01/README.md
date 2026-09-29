@@ -74,4 +74,4 @@ Results (record `20260929T011204Z`, 17/17):
 E remembered (3); F looked (1); G answered (6); H stopped (1). See `experiment.py`.
 
 Run (sandbox store; the system is initialised, not started, so a queued task is never run):
-`./venv_torin/bin/python3 experiments/LIVE-01/experiment.py`
+`./venv_lyric/bin/python3 experiments/LIVE-01/experiment.py`

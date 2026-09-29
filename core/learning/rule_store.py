@@ -241,7 +241,7 @@ class StoredRule:
 #: read off the object the acting path just loaded, never a claim assembled by
 #: the act about itself.
 _acting_rule: "contextvars.ContextVar[Optional['ActingRule']]" = contextvars.ContextVar(
-    "torin_acting_rule", default=None)
+    "lyric_acting_rule", default=None)
 
 
 @dataclass(frozen=True)
