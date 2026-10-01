@@ -142,6 +142,10 @@ class _ScheduledJob:
     runs: int = 0
     errors: int = 0
     last_error: Optional[str] = None
+    #: The run in flight, so the job is never started again on top of itself.
+    running: Optional["asyncio.Future"] = None
+    #: Times it came due while its last run was still going, and so did not start.
+    skipped: int = 0
 
 
 class QueueAuthority:
@@ -235,7 +239,7 @@ class QueueAuthority:
         #: Real counters — a fire is counted when the loop actually dispatches a
         #: due job; an error is counted when that job's coroutine raised. Never
         #: incremented optimistically, so the health monitor reads the truth.
-        self._scheduler_metrics = {"fired": 0, "errors": 0, "cancelled": 0}
+        self._scheduler_metrics = {"fired": 0, "errors": 0, "cancelled": 0, "skipped": 0}
 
         # ── PERSISTENCE ─────────────────────────────────────────────────────
         # Accepted-but-unfinished work must survive a restart. Every lifecycle
@@ -1157,12 +1161,25 @@ class QueueAuthority:
                 for job in list(self._scheduled.values()):
                     if now < job.next_due:
                         continue
+                    # ONE RUN OF A JOB AT A TIME. A run still going when the job
+                    # comes due again is not started twice: two runs of one job
+                    # act on the same state at once (two resolved the same
+                    # prediction, and the second had nothing left to resolve).
+                    # The skipped run is counted, and the next falls due one
+                    # interval on.
+                    if job.running is not None and not job.running.done():
+                        job.skipped += 1
+                        self._scheduler_metrics["skipped"] += 1
+                        job.next_due = now + job.interval_s
+                        logger.info("scheduled job %s is still running from its last run; "
+                                    "this run not started (%d so far)", job.name, job.skipped)
+                        continue
                     # Fire on the BACKGROUND budget: a scheduled job is maintenance
                     # nobody awaits, so it must NOT enter the await-job map (which
                     # only holds results a caller will collect). Bounded by the bg
                     # semaphore; a slow one cannot stall the loop. Dispatched via
                     # the wrapper so its outcome is recorded, not orphaned.
-                    asyncio.ensure_future(self._fire_scheduled(job))
+                    job.running = asyncio.ensure_future(self._fire_scheduled(job))
                     self._scheduler_metrics["fired"] += 1
                     job.last_run = now
                     job.next_due = now + job.interval_s
@@ -1234,6 +1251,7 @@ class QueueAuthority:
             "scheduler_fired": self._scheduler_metrics["fired"],
             "scheduler_errors": self._scheduler_metrics["errors"],
             "scheduler_cancelled": self._scheduler_metrics["cancelled"],
+            "scheduler_skipped": self._scheduler_metrics["skipped"],
             # persistence (durability of the backlog)
             "persist_enabled": self._persist_enabled,
             "persist_writes": self._persist_metrics["writes"],
@@ -1253,6 +1271,7 @@ class QueueAuthority:
                 "interval_s": job.interval_s,
                 "runs": job.runs,
                 "errors": job.errors,
+                "skipped": job.skipped,
                 "last_error": job.last_error,
             })
         return out

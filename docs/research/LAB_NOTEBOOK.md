@@ -12503,8 +12503,7 @@ words: opposites 0/80, members 1/80. Those facts are taught as facts alone.
 
 **SENSE-01 written, not run.** It needs the sandbox emptied first, and that needs the owner's word.
 
-**Then the owner: "you said it's weaker than an LLM, so why move on?"** Nothing moves on until the listener meets an
-LLM's bar on a measured test. Built the same day:
+**The order: nothing moves on until the listener meets an LLM's bar on a measured test.** Built the same day:
 - **Knowledge on every side.** A fact counts as held of what its things are kinds of, on either side, and an event
   counts as its kind (`listening_facts`).
 - **The conversation as context.** It keeps the last 24 things talked of; a sense connected to them, or to the rest
@@ -12532,45 +12531,167 @@ LLM's bar on a measured test. Built the same day:
 SENSE-01 gained the bar (K): 16 sentences and 2 heard pairs. Two of the sentences need knowledge that only the
 definitions' meanings will give. Not run: the sandbox reset needs the owner's word.
 
-## 2026-10-01 (1) — SENSE-01 stopped; every error of its run traced
+## 2026-10-01 (1) — SENSE-01 stopped; every error of its run traced; fixes begun
 
-The run (sandbox, 07:59 to 09:32) was stopped during the WordNet records: english_01–27 and about 20,000 of 75,834
-word classes were taught. Main is untouched. No WordNet into main until the errors below are fixed.
+### Where the work stands
 
-**Errors in the run, by cause** (read-only analysis of the log and lyric_dev):
+- **The order:** nothing moves on until the listener (`derived_reader.meant`, `heard`, `listening`) meets an LLM's bar
+  on a measured test (SENSE-01 section K, 16 sentences and 2 heard pairs). Not yet measured.
+- **The plan for the main model:**
+  1. Back up lyric_db (pg_dump to `backups/`).
+  2. Teach all of WordNet into main ONCE, without definitions: 199,763 records plus SemCor usage (33,151 word–sense
+     pairs, 240,754 uses).
+     `POSTGRES_DATABASE=lyric_db ./venv_lyric/bin/python3 scripts/teach.py --source wordnet --domain english`
+  3. Read-only checks.
+  4. Later: definitions and examples, taught with their meanings.
+- **A full sandbox rehearsal was dropped:** it doubles the work for no information.
+- **The SENSE-01 run** (lyric_dev, 07:59 to 09:32) was stopped during the WordNet records. lyric_dev holds
+  english_01–27 and about 20,000 of 75,834 word classes. **Main is untouched.**
+- **Main** still holds english_01–27 from 09-30.
+- **No WordNet into main until the errors below are fixed.** That run would lose knowledge the same way.
+- Lessons, sandbox against main:
+  - english_01: 5/5 keys differ;
+  - english_04: 1/1 differs;
+  - english_13: one missing.
+  Not yet told apart: lost or timed-out stores, or the 09-30 reader changes (e.g. `_written_as`).
 
-1. **The event loop was blocked for minutes.** Silences of 252 s, 151 s, 131 s, 100 s and 51 s, all while learning ONE
-   english_21 pair, "Rex doesn't have a hat." (main learned all of english_21 in 3 s on 09-30). Each falls between two
-   of that pair's stores, so the synchronous steps of `learn_patterns` — `dr.readings_of`, the `dr.REPAIRS` steps,
-   and the re-read after a repair (`unified_learning_system.py` ~3302–3345) — are the suspects. Not yet profiled.
-   A sixth, 134 s, sits between english_27 and the first WordNet record: WordNetSource works out its word classes
-   and sense names on the event loop.
-   Consequences: five DB queries timed out (empty error text), one construction was LOST ("There was a ?slot0.",
-   english_21), a language-pattern search failed, and six scheduled jobs timed out after 300 s.
-2. **The scheduler overlaps a job with itself.** `queue_authority._scheduler_loop` fires a due job while its last
-   run is still going. After a stall, the system-awareness job ran several times at once and resolved the same
-   prediction twice.
-3. **A failed prediction check is reported as a measurement.** `validate_prediction` returns accuracy 0.0 when the
-   prediction is gone; the coordinator logged 20 such as "resolved … accuracy=0.000". The stored record kept the
-   real first result (`ON CONFLICT DO NOTHING`).
-4. **Reasoning graded degraded while idle.** `_probe_subcomponents` blanks the rates of a sub-component with no
-   activity but does not declare them not applicable, so they count as missing evidence (coverage 0.4). The
-   reasoning playbook then ran `verify_reasoning_output` every 30 s: 84 errors.
-5. **Memory graded degraded for the rest of the process** by a lifetime count of failed operations (the 2 from item 1).
-   Its playbook (`gc_collect`, `reduce_cache_size`, `track_memory_trend`) maps all three to a garbage collection that
-   reports False by design and cannot fix a failed store: 62 + 62 + 4 errors.
-6. **Learning graded degraded** by memory's and agents' drops, counted as its own regressions.
-7. **Constitutional drift.** Law 3 at 0.00: `error_rate` is failed/finished tasks over the whole process, and the only
-   task, "Strengthen my operators in domain reading", failed. Every domain gets a competence belief at maximum
-   uncertainty, so exploration chose a domain with no operator signatures and no proposer: a goal that can only fail.
-   Law 1 at 0.67: `set_user_settings_provider` has no caller anywhere, so "human authority reachable" fails in every
-   process. The drift then graded agents degraded.
-8. **`novelty_detections.novelty_id` does not exist** (4): `_store_goal_hypothesis_mapping` writes four columns the
-   table does not have, with a goal id that is always None, and nothing reads the mapping.
-9. **WordNet word-class records say "a adjective" / "a adverb"**: wrong English that would be taught into memory.
+### The errors of the run, by cause
 
-Lesson differences, sandbox against main: english_01 5/5 keys differ, english_04 1/1, english_13 one missing (the
-lost or timed-out stores, or the 09-30 reader changes; not yet told apart).
+Read-only analysis of `logs/lyric_main.log` (07:59 to 09:33) and lyric_dev's `unified.component_health`. Counts are
+log lines.
 
-**Next:** profile the english_21 pair against lyric_dev; move WordNet's harvest off the event loop; then fix 2–9 at
-their causes; then the single main run (backup, WordNet without definitions, read-only checks).
+**1. The event loop was blocked for minutes: the root of the timeouts and the lost knowledge.**
+- **Five silences while learning ONE english_21 pair**, "Rex doesn't have a hat.":
+  - 252 s, from 08:07:57 to 08:12:09;
+  - 51 s;
+  - 151 s;
+  - 131 s;
+  - 100 s, ending 08:20:53.
+
+  Main learned all of english_21 in 3 s on 09-30.
+- **Where they fall:** each silence sits between two stores of that pair's items:
+  - `"?slot0 does not have a ?slot1." ?slot1 takes "car"`;
+  - `?slot0 doesn't have a ?slot1.`;
+  - `… ?slot0 takes "Rex"`;
+  - `… ?slot1 takes "hat"`.
+- **Suspects:** the synchronous steps of `learn_patterns` (`core/learning/unified_learning_system.py` ~3302–3345):
+  - `dr.readings_of(words, meaning, view)`;
+  - the `dr.REPAIRS` steps;
+  - the re-read after a repair;
+  - possibly `agent.note_pattern` or `observe` after each store.
+- **A sixth silence, 134 s** (08:29:33 to 08:31:47), sits between the end of english_27 and the first WordNet record.
+  `TeachingPass._harvest` (`core/learning/teaching.py:299`, called from async `run`) works out WordNet's word classes
+  and sense names synchronously on the event loop.
+- **Consequences:**
+  - 5 DB queries "failed" with EMPTY error text: a TimeoutError, whose `str()` is empty;
+  - ONE CONSTRUCTION LOST: "There was a ?slot0." (english_21, `store_memory` failed at 08:20:54);
+  - a language-pattern search failed (08:25:55), and so did the storage statistics;
+  - a `meta_learning_strategies` update failed;
+  - 9 scheduled jobs timed out after 300 s (idle_health_check, motivation_refresh, affect_refresh ×2 each;
+    reasoning_telemetry_flush, idle_meta_learning, epistemic_affect);
+  - health checks took up to 258 s.
+
+**2. The scheduler ran a job on top of itself.** `QueueAuthority._scheduler_loop` fired a due job while its last
+run was still going. After a stall, the system-awareness job ran several times at once.
+
+**3. A failed prediction check was reported as a measurement (20).**
+- The overlapping runs resolved the same prediction twice.
+- On the second, `validate_prediction` (`core/intelligence/predictive_intelligence_system.py:974–1025`) found it
+  gone and RETURNED accuracy 0.0 instead of failing.
+- The coordinator logged "resolved … accuracy=0.000".
+- The durable record kept the real first result (`ON CONFLICT DO NOTHING`).
+
+**4. Reasoning graded degraded while idle (84 × `verify_reasoning_output` failed).**
+- reasoning scored 1.0 at coverage 0.4.
+- `_probe_subcomponents` (`core/health/health_monitor.py` ~1689–1698) blanks the `*_rate` of a sub-component with no
+  activity, but does not declare it not applicable (`_record_rate` does that through `_not_applicable`).
+- So proof_engine, abstract_reasoning and formal_argumentation rates count as missing evidence.
+- Also: `metrics.update(probed_metrics)` (~798–800) would overwrite the check's own `_not_applicable` list.
+- The reasoning playbook then re-verified every 30 s and failed every time.
+
+**5. Memory graded degraded for the rest of the process (62 `gc_collect`, 62 `track_memory_trend`, 4
+`reduce_cache_size`).**
+- `_check_memory_health` (~2044, ~2053) issues "N failed memory operations" from a LIFETIME count. The 2 failures
+  of cause 1 kept memory degraded until the process ended.
+- The memory playbook (`core/agents/autonomous/idle_work_playbook.py:185–189`) acts on process RAM, not on the
+  memory system.
+- `recovery_manager.py:462–464` maps all three steps to CLEANUP = `gc.collect()`, which returns False by design
+  (`_cleanup_component`, "not a recovery"). Each is logged as "❌ Recovery action failed" at ERROR.
+- `reduce_cache_size` and `track_memory_trend` have NO implementation of their own.
+
+**6. Learning graded degraded.** `_check_learning_health` counts other components' drops (memory to 90, agents to 65)
+as learning's own capability regressions. It follows from causes 4, 5 and 7.
+
+**7. Constitutional drift (3 × "significant", alignment 73%). It graded agents degraded ("Constitutional alignment low").**
+- **Law 3 at 0.00, "100% of recent work failed":**
+  - `_update_system_state` (`autonomous_coordinator.py` ~18069–18080) sets `error_rate` to failed ÷ finished over the
+    WHOLE process, from ONE task.
+  - That task was intrinsic: "Strengthen my operators in domain reading" (08:28:59).
+  - Every domain gets a competence belief at maximum uncertainty (`universal_domain_master.ensure_competence_belief`),
+    so exploration chose a CAPABILITY pursuit (`_frontier_of` ~10543, `_pursuit_to_goal` ~10733–10781) in a domain
+    with no operator signatures and no proposer.
+  - `_execute_drive_goal` (~13495–13532) can only fail there: "domain reading has no operator signatures to sharpen".
+  - Law 3's other measurement, `health_not_degraded`, failed because of causes 4–6.
+- **Law 1 at 0.67:**
+  - `human_authority_reachable` is False in every process: `set_user_settings_provider` (~3301) has no caller anywhere.
+  - The governance consolidation doc keeps the hook "until World Auth supplies settings".
+
+**8. `column "novelty_id" of relation "novelty_detections" does not exist` (4).**
+- `IntrinsicMotivation._store_goal_hypothesis_mapping` (`intrinsic_motivation.py` ~3697–3730; called ~3621–3622)
+  writes 4 columns the table does not have, in either store.
+- The goal id it writes is always None.
+- Nothing reads the mapping. It has never stored anything.
+
+**9. Wrong English in the WordNet records:** "'able' is used as a adjective.", "'scarce' is used as a adverb." These
+would be taught into memory.
+
+**Not yet looked at:**
+- restart_component failed for domain (1);
+- security graded critical once;
+- domain graded degraded twice;
+- 54,600 beliefs refused as "resting on no remembered evidence" (e.g. "generate_module accepts description"), a
+  warning;
+- the escalations for reasoning, memory, learning and agents (these follow from 4–7).
+
+### Fixes
+
+**Done:**
+- **(2) The scheduler runs one run of a job at a time.**
+  - `_ScheduledJob` gained `running` and `skipped`.
+  - `_scheduler_loop` skips a job whose last run is still going, counts it, and sets its next run one interval on.
+  - `scheduler_skipped` is reported in `get_statistics`; `skipped` in `scheduled_job_status`.
+  - Compiles. Not yet tested: run its targeted test once.
+
+**To do, at each cause:**
+1. **Stall.**
+   - Replay english_01–21 through `dr.readings_of` + `dr.REPAIRS` with a fresh `PatternInventory` (`add` per created
+     item), in memory with no database. Time each pair, find the step that explodes on "Rex doesn't have a hat.",
+     and fix it there.
+   - Run `TeachingPass._harvest` (and WordNetSource's harvest) off the event loop (`asyncio.to_thread`), after
+     checking it touches nothing bound to the loop.
+   - Make `unified_database_postgres` log the exception's type, so a timeout no longer reads as an empty error.
+2. ~~Scheduler~~: done.
+3. **Predictions.** `validate_prediction` raises when the prediction is gone, and its except no longer returns a 0.0
+   result. The coordinator already catches the error and logs "Could not resolve prediction".
+4. **Idle reasoning.**
+   - In `_probe_subcomponents`, declare blanked rates in `_not_applicable`.
+   - Merge `_not_applicable` lists in `check_component_health` instead of overwriting them.
+5. **Memory.**
+   - Grade on failed operations SINCE THE LAST CHECK, not the lifetime count.
+   - **Decision needed:** what the memory playbook's steps should be, since two have no implementation and gc cannot
+     repair the memory system.
+6. **Learning:** re-check after 4, 5 and 7. Expected to clear with its causes.
+7. **Constitution.**
+   - `error_rate` over recent finished tasks, with a minimum number before it is measured. The agents health check
+     already needs at least 10 finished.
+   - Make a capability pursuit only in a domain that holds operator signatures (demonstration store) or is
+     explorable (`explorable_domains()`).
+   - **Law 1 needs a decision:** what supplies user settings (World Auth).
+8. **Novelty mapping:** delete `_store_goal_hypothesis_mapping` and its call (dead, never stored, no reader).
+9. **Article:** "an adjective", "an adverb" in WordNetSource's word-class sentence.
+
+**Then:** one targeted check per fix, and the single main run (backup, WordNet without definitions, read-only
+checks), with the owner's go.
+
+**Repo:** one branch, `main`. test_data's datasets are committed. The 4 archives over GitHub's 100 MB limit are in
+`.gitignore`, because their unpacked folders are committed.
