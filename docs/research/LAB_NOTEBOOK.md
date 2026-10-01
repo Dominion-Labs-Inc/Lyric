@@ -12531,3 +12531,46 @@ LLM's bar on a measured test. Built the same day:
 
 SENSE-01 gained the bar (K): 16 sentences and 2 heard pairs. Two of the sentences need knowledge that only the
 definitions' meanings will give. Not run: the sandbox reset needs the owner's word.
+
+## 2026-10-01 (1) — SENSE-01 stopped; every error of its run traced
+
+The run (sandbox, 07:59 to 09:32) was stopped during the WordNet records: english_01–27 and about 20,000 of 75,834
+word classes were taught. Main is untouched. No WordNet into main until the errors below are fixed.
+
+**Errors in the run, by cause** (read-only analysis of the log and lyric_dev):
+
+1. **The event loop was blocked for minutes.** Silences of 252 s, 151 s, 131 s, 100 s and 51 s, all while learning ONE
+   english_21 pair, "Rex doesn't have a hat." (main learned all of english_21 in 3 s on 09-30). Each falls between two
+   of that pair's stores, so the synchronous steps of `learn_patterns` — `dr.readings_of`, the `dr.REPAIRS` steps,
+   and the re-read after a repair (`unified_learning_system.py` ~3302–3345) — are the suspects. Not yet profiled.
+   A sixth, 134 s, sits between english_27 and the first WordNet record: WordNetSource works out its word classes
+   and sense names on the event loop.
+   Consequences: five DB queries timed out (empty error text), one construction was LOST ("There was a ?slot0.",
+   english_21), a language-pattern search failed, and six scheduled jobs timed out after 300 s.
+2. **The scheduler overlaps a job with itself.** `queue_authority._scheduler_loop` fires a due job while its last
+   run is still going. After a stall, the system-awareness job ran several times at once and resolved the same
+   prediction twice.
+3. **A failed prediction check is reported as a measurement.** `validate_prediction` returns accuracy 0.0 when the
+   prediction is gone; the coordinator logged 20 such as "resolved … accuracy=0.000". The stored record kept the
+   real first result (`ON CONFLICT DO NOTHING`).
+4. **Reasoning graded degraded while idle.** `_probe_subcomponents` blanks the rates of a sub-component with no
+   activity but does not declare them not applicable, so they count as missing evidence (coverage 0.4). The
+   reasoning playbook then ran `verify_reasoning_output` every 30 s: 84 errors.
+5. **Memory graded degraded for the rest of the process** by a lifetime count of failed operations (the 2 from item 1).
+   Its playbook (`gc_collect`, `reduce_cache_size`, `track_memory_trend`) maps all three to a garbage collection that
+   reports False by design and cannot fix a failed store: 62 + 62 + 4 errors.
+6. **Learning graded degraded** by memory's and agents' drops, counted as its own regressions.
+7. **Constitutional drift.** Law 3 at 0.00: `error_rate` is failed/finished tasks over the whole process, and the only
+   task, "Strengthen my operators in domain reading", failed. Every domain gets a competence belief at maximum
+   uncertainty, so exploration chose a domain with no operator signatures and no proposer: a goal that can only fail.
+   Law 1 at 0.67: `set_user_settings_provider` has no caller anywhere, so "human authority reachable" fails in every
+   process. The drift then graded agents degraded.
+8. **`novelty_detections.novelty_id` does not exist** (4): `_store_goal_hypothesis_mapping` writes four columns the
+   table does not have, with a goal id that is always None, and nothing reads the mapping.
+9. **WordNet word-class records say "a adjective" / "a adverb"**: wrong English that would be taught into memory.
+
+Lesson differences, sandbox against main: english_01 5/5 keys differ, english_04 1/1, english_13 one missing (the
+lost or timed-out stores, or the 09-30 reader changes; not yet told apart).
+
+**Next:** profile the english_21 pair against lyric_dev; move WordNet's harvest off the event loop; then fix 2–9 at
+their causes; then the single main run (backup, WordNet without definitions, read-only checks).
