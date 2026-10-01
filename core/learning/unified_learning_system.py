@@ -1389,69 +1389,6 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
         del self.active_learning_tasks[:-self._max_queued_events]
         return True
 
-    
-    #: The waits a retry can choose among, in seconds -- the ACTION SPACE of the
-    #: retry learner (roughly doubling, 15 s to an hour). Which of them is
-    #: best for a context is what is learned; nothing here says so.
-    RETRY_DELAYS_S: Tuple[float, ...] = (15.0, 30.0, 60.0, 120.0, 300.0, 600.0,
-                                         1800.0, 3600.0)
-    _RETRY_NS = "retry:"
-
-    @staticmethod
-    def _retry_context(context: Dict[str, Any]) -> str:
-        key = (context or {}).get("component")
-        if not (isinstance(key, str) and key.strip()):
-            raise ValueError("a retry is learned per component; context['component'] is required")
-        return key.strip()
-
-    def _retry_arm(self, key: str, delay_s: float) -> str:
-        return f"{self._RETRY_NS}{key}:{int(delay_s)}"
-
-    async def predict_optimal_retry_delay(self, context: Dict[str, Any]) -> float:
-        """How long to wait before the next retry for `context["component"]`,
-        LEARNED from how retries after each wait have turned out for it.
-
-        Each wait in `RETRY_DELAYS_S` is an arm of the meta-learner
-        (`retry:<component>:<seconds>`), its posterior Beta(successes+1,
-        failures+1) moved by `record_retry_outcome` and persisted like every
-        strategy's. The choice is Thompson sampling on the EXPECTED TIME TO
-        RECOVERY, delay / P(the retry after that delay succeeds): a component
-        with no history tries short waits first, and waits that keep failing
-        give way to longer ones -- a backoff the evidence builds, per component.
-
-        (This raised NotImplementedError, after returning a hardcoded 3.0; the
-        health tier's fixed backoff table stood in for it.)"""
-        import random
-        from core.learning.meta_learning import TaskFamily
-        key = self._retry_context(context)
-        arms = {str(a.strategy_type): a
-                for a in self._arms(TaskFamily.CONTROL, f"{self._RETRY_NS}{key}:")}
-        best, best_cost = None, None
-        for delay in self.RETRY_DELAYS_S:
-            arm = arms.get(self._retry_arm(key, delay))
-            p = random.betavariate((arm.successes if arm else 0) + 1,
-                                   (arm.failures if arm else 0) + 1)
-            cost = delay / max(p, 1e-9)
-            if best_cost is None or cost < best_cost:
-                best, best_cost = delay, cost
-        return best
-
-    async def record_retry_outcome(self, context: Dict[str, Any], delay_s: float, *,
-                                   recovered: bool) -> Any:
-        """Record whether the retry made after waiting `delay_s` recovered
-        `context["component"]` -- the evidence `predict_optimal_retry_delay`
-        learns from, recorded through `update_strategy_effectiveness`."""
-        from core.learning.meta_learning import OutcomeClass, TaskFamily
-        key = self._retry_context(context)
-        if float(delay_s) not in self.RETRY_DELAYS_S:
-            raise ValueError(f"{delay_s!r} is not one of the waits a retry chooses among")
-        return await self.update_strategy_effectiveness(
-            TaskFamily.CONTROL, self._retry_arm(key, delay_s),
-            success=bool(recovered), performance_score=1.0 if recovered else 0.0,
-            time_ms=float(delay_s) * 1000.0,
-            outcome_class=OutcomeClass.SUCCESS if recovered else OutcomeClass.STRATEGY_FAILURE,
-            context={"retry_context": key, "delay_s": float(delay_s), "source": "retry"})
-
     async def process_experience(self, experience: Dict[str, Any]) -> Dict[str, Any]:
         """Process experience data for learning"""
         result = await self.learn_from_example(experience)
@@ -3159,6 +3096,7 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
         """
         from core.memory import get_memory_agent
         from core.memory.utils.interfaces import MemoryType, Origin
+        from core.learning.teaching_sources import _article
 
         counts = {"told": 0, "skipped": 0, "total": 0, "already": 0}
         classes = list(classes)
@@ -3195,7 +3133,7 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
             known.add((word, word_class))
             stored, _memory_id = await agent.store_memory(
                 origin=Origin.own("teaching"),
-                content=f"{word!r} is used as a {word_class.lower()}.",
+                content=f"{word!r} is used as {_article(word_class)} {word_class.lower()}.",
                 memory_type=MemoryType.SEMANTIC,
                 importance_score=0.75,
                 confidence_score=float(quality),

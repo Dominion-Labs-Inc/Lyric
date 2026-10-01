@@ -972,57 +972,50 @@ class PredictiveIntelligenceSystem(IOutcomePrediction):
             }
     
     async def validate_prediction(self, prediction_id: str, actual_value: Any) -> PredictionResult:
-        """Validate a prediction against actual outcome"""
-        try:
-            if prediction_id not in self.active_predictions:
-                raise ValueError(f"Prediction {prediction_id} not found")
-            
-            prediction = self.active_predictions[prediction_id]
-            
-            # Calculate accuracy
-            if isinstance(prediction.predicted_value, (int, float)) and isinstance(actual_value, (int, float)):
-                error = abs(prediction.predicted_value - actual_value)
-                accuracy = max(0.0, 1.0 - error)
-            else:
-                accuracy = 1.0 if prediction.predicted_value == actual_value else 0.0
-            
-            # Calculate confidence calibration
-            confidence_error = abs(prediction.confidence - accuracy)
-            calibration = max(0.0, 1.0 - confidence_error)
-            
-            # Create result
-            result = PredictionResult(
-                prediction_id=prediction_id,
-                actual_value=actual_value,
-                accuracy=accuracy,
-                confidence_calibration=calibration,
-                learnings={
-                    'prediction_domain': prediction.domain.value,
-                    'horizon': prediction.horizon.value,
-                    'quantum_effective': prediction.quantum_insights.get('quantum_confidence', 0.0) > 0.5,
-                    'meta_learning_effective': prediction.meta_learning_inputs.get('meta_confidence', 0.0) > 0.5
-                }
-            )
-            
-            # Update accuracy metrics
-            self.accuracy_metrics[prediction.domain.value].append(accuracy)
-            
-            # Remove from active predictions
-            del self.active_predictions[prediction_id]
-            
-            self.logger.info(f"Validated prediction {prediction_id}: accuracy={accuracy:.3f}")
-            
-            return result
-            
-        except Exception as e:
-            self.logger.error(f"Error validating prediction: {e}")
-            return PredictionResult(
-                prediction_id=prediction_id,
-                actual_value=actual_value,
-                accuracy=0.0,
-                confidence_calibration=0.0
-            )
-    
+        """Validate a prediction against actual outcome.
+
+        Raises when it cannot: a prediction not held (already resolved, or never made) has no accuracy, and
+        returning 0.0 for it reported a prediction that was all wrong."""
+        if prediction_id not in self.active_predictions:
+            raise ValueError(f"Prediction {prediction_id} not found")
+        
+        prediction = self.active_predictions[prediction_id]
+        
+        # Calculate accuracy
+        if isinstance(prediction.predicted_value, (int, float)) and isinstance(actual_value, (int, float)):
+            error = abs(prediction.predicted_value - actual_value)
+            accuracy = max(0.0, 1.0 - error)
+        else:
+            accuracy = 1.0 if prediction.predicted_value == actual_value else 0.0
+        
+        # Calculate confidence calibration
+        confidence_error = abs(prediction.confidence - accuracy)
+        calibration = max(0.0, 1.0 - confidence_error)
+        
+        # Create result
+        result = PredictionResult(
+            prediction_id=prediction_id,
+            actual_value=actual_value,
+            accuracy=accuracy,
+            confidence_calibration=calibration,
+            learnings={
+                'prediction_domain': prediction.domain.value,
+                'horizon': prediction.horizon.value,
+                'quantum_effective': prediction.quantum_insights.get('quantum_confidence', 0.0) > 0.5,
+                'meta_learning_effective': prediction.meta_learning_inputs.get('meta_confidence', 0.0) > 0.5
+            }
+        )
+        
+        # Update accuracy metrics
+        self.accuracy_metrics[prediction.domain.value].append(accuracy)
+        
+        # Remove from active predictions
+        del self.active_predictions[prediction_id]
+        
+        self.logger.info(f"Validated prediction {prediction_id}: accuracy={accuracy:.3f}")
+        
+        return result
+
     async def get_prediction_insights(self) -> Dict[str, Any]:
         """Get insights about prediction performance"""
         insights = {

@@ -214,9 +214,10 @@ async def main() -> int:
     # ── 6. Every drive is consumed ────────────────────────────────────────────
     print("\n== 6. No drive is left unread ==")
     shell = SimpleNamespace(
-        _current_motivation=fed, _idle_last_health_snapshot={},
+        _current_motivation=fed, health_monitor=SimpleNamespace(component_health={}),
         system_state=None, task_queue=None, _idle_count=0,
         _permanently_failed_fps=set(), _started_at_ts=0)
+    shell._health_counts = lambda: AutonomousCoordinator._health_counts(shell)
     features = await AutonomousCoordinator._decision_context(shell, "a task")
     check("all seven drives condition what the substrate concludes about itself",
           all(d in features for d in DRIVES),

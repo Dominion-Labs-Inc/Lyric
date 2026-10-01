@@ -49,7 +49,6 @@ class CoordinatorConfig:
     # Memory consolidation guards (Tier 5)
     llm_consolidation_max_tokens: int = 512  # max tokens per consolidation cycle
     llm_consolidation_timeout_s: float = 30.0  # abort if exceeds timeout
-    memory_consolidation_max_items: int = 50  # max memory items to scan per cycle
 
     # Circuit breaker (for external modules)
     circuit_failure_threshold: int = 5  # failures before opening circuit
@@ -103,7 +102,6 @@ class CoordinatorConfig:
             "llm_max_tokens_long": self.llm_max_tokens_long,
             "llm_consolidation_max_tokens": self.llm_consolidation_max_tokens,
             "llm_consolidation_timeout_s": self.llm_consolidation_timeout_s,
-            "memory_consolidation_max_items": self.memory_consolidation_max_items,
             "circuit_failure_threshold": self.circuit_failure_threshold,
             "circuit_success_threshold": self.circuit_success_threshold,
             "circuit_timeout_seconds": self.circuit_timeout_seconds,

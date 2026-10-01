@@ -190,7 +190,7 @@ audited. Runs report **behaviour** (pass/fail) apart from **wiring** findings (p
 | Experiment | What it tests | Saved runs |
 |---|---|---|
 | [SYSTEM-REASONING-01](SYSTEM-REASONING-01/) | Reasoning answers what it holds with no model and refuses what it cannot ground | `results/` + `.md` |
-| [SYSTEM-LEARNING-01](SYSTEM-LEARNING-01/) | One learning door; demonstrations become a rule; strategy outcomes, predictions and retry waits are real learning | `results/` + `.md` |
+| [SYSTEM-LEARNING-01](SYSTEM-LEARNING-01/) | One learning door; demonstrations become a rule; strategy outcomes and predictions are real learning | `results/` + `.md` |
 | [SYSTEM-BELIEFS-01](SYSTEM-BELIEFS-01/) | Beliefs move with evidence and must be grounded; known unknowns survive restart and resolve only when learned | `results/` + `.md` |
 | [SYSTEM-MEMORY-01](SYSTEM-MEMORY-01/) | Stored, found, superseded, forgotten on request, never merged; a user's memory is theirs by meaning, wording and tag | `results/` + `.md` |
 | [SYSTEM-DOMAIN-01](SYSTEM-DOMAIN-01/) | A domain exists once, competence moves progress, a gap is detected | `results/` + `.md` |
@@ -198,7 +198,7 @@ audited. Runs report **behaviour** (pass/fail) apart from **wiring** findings (p
 | [SYSTEM-INTENT-01](SYSTEM-INTENT-01/) | A pursuit formed once per key, refreshed, reconciled, forgotten | `results/` + `.md` |
 | [SYSTEM-PERCEPTION-01](SYSTEM-PERCEPTION-01/) | Sensing, and sight end to end on a real photograph | `results/` + `.md` |
 | [SYSTEM-SELF-01](SYSTEM-SELF-01/) | Appraisal, the arbiter and motivation, each one authority | `results/` + `.md` |
-| [SYSTEM-HEALTH-01](SYSTEM-HEALTH-01/) | One health and one recovery authority; an unknown component refused; recovery waits learned | `results/` + `.md` |
+| [SYSTEM-HEALTH-01](SYSTEM-HEALTH-01/) | One health and one recovery authority; an unknown component refused; a failure and its history recorded | `results/` + `.md` |
 | [SYSTEM-EXECUTION-01](SYSTEM-EXECUTION-01/) | Rules, bindings and tools: judged, then done; the unknown refused | `results/` + `.md` |
 | [SYSTEM-CONVERSATION-01](SYSTEM-CONVERSATION-01/) | What a speaker tells is theirs: held in their context, answered back to them only, remembered as theirs | `results/` + `.md` |
 | [INSTANCES-01](INSTANCES-01/) | Many instances of the model, one store: no lost belief evidence or strategy outcome, a resolution is final, a job runs once | `results/` + `.md` |

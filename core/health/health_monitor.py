@@ -373,6 +373,10 @@ class HealthMonitor:
         # Metrics a subsystem normalized itself, keyed by component.
         self._declared_metrics: Dict[str, List[HealthMetric]] = {}
 
+        # Memory storage's count of failed operations as the last check read it:
+        # memory is graded on the failures since then (`_check_memory_health`).
+        self._memory_failures_seen = 0
+
         # Health tracking
         self.component_health: Dict[str, ComponentHealth] = {}
         self.health_history: List[SystemMetrics] = []
@@ -796,7 +800,13 @@ class HealthMonitor:
             # is derived, so a failing part degrades its subsystem rather than
             # being invisible to it.
             probed_metrics, probed_issues = await self._probe_subcomponents(component)
+            # The rates each side declares not applicable are kept together; an
+            # update would replace the check's own list with the probe's.
+            not_applicable = (list(metrics.get('_not_applicable') or ())
+                              + list(probed_metrics.pop('_not_applicable', None) or ()))
             metrics.update(probed_metrics)
+            if not_applicable:
+                metrics['_not_applicable'] = not_applicable
             issues.extend(probed_issues)
 
             issues.extend(self._failures_reported_as_metrics(component, metrics))
@@ -1694,7 +1704,12 @@ class HealthMonitor:
 
                 for key, value in stats.items():
                     if no_activity and key.endswith('_rate'):
+                        # Undefined, not unread: declared so, as `_record_rate` declares
+                        # its own. Left undeclared, an idle part's rates counted as
+                        # missing evidence, and its subsystem could never reach full
+                        # coverage while idle.
                         metrics[f"{sub}_{key}"] = None
+                        metrics.setdefault('_not_applicable', []).append(f"{sub}_{key}")
                         continue
                     if isinstance(value, (int, float, bool, str)) or value is None:
                         metrics[f"{sub}_{key}"] = value
@@ -2041,7 +2056,16 @@ class HealthMonitor:
             metrics['storage_total_memories'] = stats['total_memories']
             metrics['storage_by_type'] = stats.get('by_type', {})
             metrics['storage_avg_importance'] = round(float(stats.get('avg_importance') or 0.0), 4)
-            metrics['storage_failed_operations'] = stats.get('metrics', {}).get('failed_operations', 0)
+            # FAILURES SINCE THE LAST CHECK, not since the process began. Storage
+            # counts its failures for its whole life, and graded on that count,
+            # two writes lost once kept memory degraded until the process ended,
+            # however well it ran afterwards. A count lower than the last one read
+            # is a storage begun again: all of it is new.
+            failed_total = int(stats.get('metrics', {}).get('failed_operations', 0) or 0)
+            seen = self._memory_failures_seen if failed_total >= self._memory_failures_seen else 0
+            self._memory_failures_seen = failed_total
+            metrics['storage_failed_operations'] = failed_total - seen
+            metrics['storage_failed_operations_total'] = failed_total
 
             metrics['cache_size'] = agent_metrics['cache_size']
             metrics['cache_hits'] = agent_metrics['cache_hits']
@@ -2051,7 +2075,8 @@ class HealthMonitor:
             metrics['write_queue'] = agent_metrics.get('write_queue_size', 0)
 
             if metrics['storage_failed_operations'] > 0:
-                issues.append(f"{metrics['storage_failed_operations']} failed memory operations")
+                issues.append(f"{metrics['storage_failed_operations']} failed memory operations "
+                              f"since the last check")
 
             if metrics['write_queue'] > 500:
                 issues.append('Memory write queue backlogged')

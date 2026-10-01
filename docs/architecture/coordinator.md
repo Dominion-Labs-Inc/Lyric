@@ -14,7 +14,7 @@ Authorities held: `self.learning` (355, the one `UnifiedLearningSystem`), `self.
 Accessor: `get_autonomous_coordinator(config, teacher_model)` (L12095, async singleton; returns a coordinator with OR without a model — the "LLM is mandatory" rule was removed).
 
 ### 2. State
-**Held authorities/subsystems** (`self.X = get_Y()`): `coordinator_config` (307), `circuit_breakers` (311), `perception` (340), `vision` (345), `planning` (346), **`learning` (355)**, `intrinsic_motivation` (377), `directive_system` (534), awareness layers (540-550), `constitution` (557), `threat` (ThreatSense), **`task_queue` = `get_queue_authority()` (576, the shared QueueAuthority — backlog, concurrency pool, await-jobs, idle scheduling)**, `db` (584), reasoning toolkit (691-700), `neural_bridge` (707→1048), `intelligence`/`watchdog` (721-722), cognitive toolkit (730-765), `domain_registry` (772), `universal_domain_master` (773→1049), `health_monitor` (782), `recovery_manager` (800), `log_db` (817), `security_controller` (836), `monitoring_coordinator` (840, wires `singleton_callback=self._receive_health_event` at 846), `slack_notifier` (852); injected by main.py: `memory_injector` (681), `asi_self_improvement` (713), `agent_coordinator` (858); `tool_registry` (585→11012), `memory` (672/675→946).
+**Held authorities/subsystems** (`self.X = get_Y()`): `coordinator_config` (307), `circuit_breakers` (311), `perception` (340), `vision` (345), `planning` (346), **`learning` (355)**, `intrinsic_motivation` (377), `directive_system` (534), awareness layers (540-550), `constitution` (557), `threat` (ThreatSense), **`task_queue` = `get_queue_authority()` (576, the shared QueueAuthority — backlog, concurrency pool, await-jobs, idle scheduling)**, `db` (584), reasoning toolkit (691-700), `neural_bridge` (707→1048), `intelligence`/`watchdog` (721-722), cognitive toolkit (730-765), `domain_registry` (772), `universal_domain_master` (773→1049), `health_monitor` (782), `log_db` (817), `security_controller` (836), `monitoring_coordinator` (840, wires `singleton_callback=self._receive_health_event` at 846), `slack_notifier` (852); injected by main.py: `memory_injector` (681), `asi_self_improvement` (713), `agent_coordinator` (858); `tool_registry` (585→11012), `memory` (672/675→946).
 **Own self-state:** `system_state` (336), `stats` (865-895, honest counters incl. reactive), `reply_debug` (359), `_started_at_ts` (289), `teacher_model` (304). The self is **derived, not stored** — assembled on demand by `state()`.
 **Event registries:** `_completion_callbacks` (410), `_reactions`/`_reactive_queue`/`_work_ready`/`_reactive_worker`/`_emit_depth`+`_max_emit_depth=8` (418-423), coalescing (`_motivation_dirty`/`_motivation_refresh_task` 430-431), integrity watcher (438).
 **Task/execution state:** `_inflight_tasks`; `_max_parallel_tasks`=60 (the acting budget, everyone's together; given to the queue authority, which holds it: `QueueAuthority.configure` puts it in force even when another faculty made the authority first) and `_per_actor_max`=3 (how many one person may hold at once); directive caps (a directive may hold the budget lower on measured failure, never above it) (628-637); exploration state (588-622); `_idle_subsystems_registered` (623); per-tier timestamps/snapshots (646-919); `_step_execution_log` (641); `_component_recovery_state` (667).
@@ -72,12 +72,10 @@ Accessor: `get_autonomous_coordinator(config, teacher_model)` (L12095, async sin
 
 | Tier | Method | Priority / interval | Line |
 |---|---|---|---|
-| `idle_health_check` | `_idle_health_work` | high/30s | 4891 |
 | `idle_system_review` | `_idle_system_review_work` | high/180s | 5118 |
 | `idle_knowledge_refresh` | `_idle_knowledge_refresh_work` | medium/6h | 5253 |
 | `idle_self_improvement` | `_idle_self_improvement_work` | medium/900s | 5602 |
 | `idle_meta_learning` | `_idle_meta_learning_work` | medium/300s | 6401 |
-| `idle_memory_consolidation` | `_idle_memory_work` | low/600s | 6594 |
 | `idle_learning` | `_learning_phase` | medium/600s | 9731 |
 | `idle_domain_expansion` | `_idle_domain_expansion_work` | medium/900s | 5723 |
 | `idle_domain_discovery` | `_idle_domain_discovery_work` | medium/900s | 5897 |
@@ -85,7 +83,6 @@ Accessor: `get_autonomous_coordinator(config, teacher_model)` (L12095, async sin
 | `idle_operator_exploration` | `_idle_operator_exploration_work` | medium/300s | 5929 |
 | `idle_operator_induction` | `_idle_operator_induction_work` | medium/300s | 5998 |
 | `idle_self_optimization` | `_idle_self_optimization_work` | low/120s | 6963 |
-| `idle_step_log_prune` | `_prune_step_execution_log` | low/600s | 4589 |
 | `idle_system_state_refresh` | `_update_system_state` | low/60s | 10401 |
 | `motivation_refresh` | `_refresh_motivation_signals` | high/10s | 4212 |
 | `system_awareness` | `_run_system_awareness_cycle` | medium/60s | 4256 |
@@ -103,7 +100,7 @@ Accessor: `get_autonomous_coordinator(config, teacher_model)` (L12095, async sin
 
 #### H — Health integration
 - **`_receive_health_event(health_event)`** (10549) — the callback wired into `MonitoringCoordinator.singleton_callback` (846): analyze (startup grace) → diagnose → recover. Support: `_diagnose_health` (10765), `_health_action_risk` (10823), `_execute_recovery` (10836), `_verify_recovery` (10973), `_create_recovery_goal_from_health_event` (9666), `_report_failure` (1277).
-- `_idle_health_work` is the periodic health backstop. (The security audit worker, its 120s tier, `handle_security_finding`, the remediation callback and the integrity watcher were REMOVED 2026-09-14; world security is the Tet world factory's security-audit agent.)
+- Health is the health monitor's alone: it checks every component every 30 s. The idle health tier, the idle work playbook it ran, its step log and the coordinator's recovery-manager handle were REMOVED 2026-10-01. (The security audit worker, its 120s tier, `handle_security_finding`, the remediation callback and the integrity watcher were REMOVED 2026-09-14; world security is the Tet world factory's security-audit agent.)
 - Constitution: `_check_constitutional_alignment` (9516, idle tier) · `_check_constitutional_alignment_quick` (9653, **VESTIGIAL: 0 callers** — the every-cycle quick check left dead when the poll loop was retired).
 
 #### I — Conversation / teach

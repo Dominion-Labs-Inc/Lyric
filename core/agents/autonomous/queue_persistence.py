@@ -363,6 +363,16 @@ class QueuePersistence:
             (task_id, at), fetch_all=True)
         return bool(rows)
 
+    async def recent_finished(self, limit: int) -> List[str]:
+        """The statuses of the newest `limit` finished work jobs, completed or failed, newest first, across every
+        instance sharing the store: the substrate's recent work, as it stood before any restart too."""
+        await self.ensure_schema()
+        rows = await self.db().execute_query(
+            "SELECT status FROM unified.task_queue WHERE status IN ($1, $2)"
+            " ORDER BY updated_at DESC LIMIT $3",
+            (TaskStatus.COMPLETED.value, TaskStatus.FAILED.value, int(limit)), fetch_all=True)
+        return [str(row["status"]) for row in rows or ()]
+
     async def prune_terminal(self, keep_last: int = 500) -> int:
         """Bound the history: keep the most recent `keep_last` terminal rows,
         delete older ones. Returns how many were deleted. Prevents the table from

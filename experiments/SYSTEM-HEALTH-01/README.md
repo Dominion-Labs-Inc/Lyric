@@ -3,8 +3,11 @@
 **Finding (2026-09-26): behaviour 18/18; six wiring findings.** One health authority (`HealthMonitor`) and one
 recovery authority (`RecoveryManager`), each the instance its accessor returns. Health grades only from
 evidence (no signals: no score, UNKNOWN), grades the Constitution through its own surfaces (`safety`,
-`governance`), and REFUSES a name it does not know. Recovery records a failure and its history. The wait
-before each recovery retry is learned.
+`governance`), and REFUSES a name it does not know. Recovery records a failure and its history.
+
+**2026-10-01: section D is gone.** The coordinator's health tier (the idle work playbook's recovery loop, the
+only thing that retried recoveries) was deleted with the playbook, and the learned retry wait with it. The
+coordinator no longer holds a recovery manager; section A checks the one the system holds.
 
 **Fixed on the way:**
 - **Two monitors.** The coordinator built its own `HealthMonitor()` / `RecoveryManager()` whenever it was not
@@ -29,19 +32,12 @@ before each recovery retry is learned.
 | **A** | one health and one recovery authority, each the accessor's instance, constructed once |
 | **B** | no signals → no score, UNKNOWN; the Constitution graded through `safety`; an unknown name refused and not registered; system health readable |
 | **C** | a failure is handled and in the history; the tool throttle is a number; statistics readable |
-| **D** | the real health tier, fed one probe component: first attempt immediate with a learned next wait; no retry before it; a retry after it; an `unknown` reading credits nothing; seen healthy, the wait before the recovering retry is credited |
 
 **Wiring findings (called by nothing in `core/`):** health `get_component_health`, `get_health_history`,
 `clear_component_health`, `reset_statistics`; recovery `register_snapshot_handler`, `clear_failure_history`.
 
-**The trap in measuring it.** Section D feeds the tier a probe READING only; everything after it — plans, the
-recovery manager, the learner — is the real path, so the probe component's retry arms are removed from the
-meta-learner (memory and table) afterwards. And "the Constitution" is not a health component name: health
-grades it as `safety` and `governance`.
-
-**Open:** an escalation after five failed recoveries reaches no one — Slack is deleted, and the
-queue call it makes (`add_task(description=…)`) raises TypeError, swallowed. Which channel should carry it is
-undecided.
+**The trap in measuring it.** "The Constitution" is not a health component name: health grades it as `safety`
+and `governance`.
 
 ## Run
 

@@ -1463,14 +1463,14 @@ class UniversalDomainMaster:
     async def operating_reliability(self, domain_id: str) -> Dict[str, Any]:
         """How reliably the substrate operates CORRECTLY in a domain, as the
         lower bound of the Wilson 95% interval on its operating win-rate -- the
-        conservative, sample-size-aware estimate the StrategyAdaptationGate uses.
+        conservative, sample-size-aware estimate meta-learning's adaptation gate uses.
 
         `earned` in [0,1] is the shift signal: the Wilson lower bound once enough
         outcomes have accrued, else a NEUTRAL 0.5 (optimism withheld BOTH ways
         until earned -- too few outcomes neither lowers nor raises the bar). The
         lower bound is the right statistic: a handful of wins does not yet earn a
         bar drop (wide interval, low floor), while a consistent record does."""
-        from core.agents.autonomous.idle_work_playbook import StrategyAdaptationGate
+        from core.learning.meta_learning import wilson_interval
         attempts = wins = 0
         if self.db:
             await self._ensure_controllability_table()
@@ -1481,7 +1481,7 @@ class UniversalDomainMaster:
             if rows:
                 attempts = rows[0]["operating_attempts"] or 0
                 wins = rows[0]["operating_wins"] or 0
-        lo, hi = StrategyAdaptationGate._wilson_ci(wins, attempts) if attempts else (0.0, 1.0)
+        lo, hi = wilson_interval(wins, attempts)
         enough = attempts >= self.OPERATING_MIN_SAMPLE
         earned = round(lo, 4) if enough else 0.5
         return {"domain": domain_id, "attempts": int(attempts), "wins": int(wins),

@@ -596,6 +596,16 @@ class QueueAuthority:
             **self.metrics,
         }
 
+    async def recent_outcomes(self, limit: int) -> Optional[Tuple[int, int]]:
+        """How the newest `limit` finished work jobs ended, as (finished, failed), read from the durable history so
+        a restart does not forget them. None with no durable store: there is no recent history to read, and this
+        process's own counts are not it. A store error raises."""
+        p = self._persistence_or_none()
+        if p is None:
+            return None
+        statuses = await p.recent_finished(limit)
+        return len(statuses), sum(1 for status in statuses if status == TaskStatus.FAILED.value)
+
     def _priority_to_task_priority(self, priority: Priority) -> TaskPriority:
         mapping = {
             Priority.CRITICAL: TaskPriority.CRITICAL, Priority.HIGH: TaskPriority.HIGH,

@@ -4,6 +4,7 @@ Shared types and enums for the autonomous system
 Essential data structures
 """
 
+import hashlib
 from enum import Enum
 from dataclasses import dataclass, field
 from typing import Dict, Any, List, Optional, Set
@@ -197,6 +198,13 @@ def store_for_owner(owner: Optional[str], substrate_store: str = "model") -> str
     if not owner or owner == SUBSTRATE_ACTOR:
         return substrate_store
     return "user_context"
+
+
+def description_fingerprint(description: str) -> str:
+    """A stable 12-character fingerprint of a task's description, case and spacing set aside: what keeps the same
+    goal from being queued twice, and a goal that failed for good from being queued again."""
+    normalized = " ".join(description.lower().split())[:120]
+    return hashlib.md5(normalized.encode()).hexdigest()[:12]
 
 
 # ============================================================================

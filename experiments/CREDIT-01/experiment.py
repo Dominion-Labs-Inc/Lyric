@@ -449,8 +449,8 @@ async def main():
 
         # What the same record WOULD have said if the two unplannable goals had
         # been credited as losses, as they were before this change.
-        from core.agents.autonomous.idle_work_playbook import StrategyAdaptationGate
-        polluted_lo, _ = StrategyAdaptationGate._wilson_ci(win3, att3 + 2)
+        from core.learning.meta_learning import wilson_interval
+        polluted_lo, _ = wilson_interval(win3, att3 + 2)
         check("crediting the never-operated goals would have LOWERED earned "
               "reliability on work the substrate never did",
               round(polluted_lo, 4) < rel["earned"],

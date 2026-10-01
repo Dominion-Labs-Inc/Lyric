@@ -12695,3 +12695,93 @@ checks), with the owner's go.
 
 **Repo:** one branch, `main`. test_data's datasets are committed. The 4 archives over GitHub's 100 MB limit are in
 `.gitignore`, because their unpacked folders are committed.
+
+## 2026-10-01 (2) — SENSE-01's errors fixed at their causes; the idle work playbook deleted
+
+### Cause 1, corrected: the stall was the file sense reading prose, not a lesson
+
+- **Entry (1) was wrong about where the silences fall.** An in-memory replay of english_01–21 through
+  `dr.readings_of` and every `dr.REPAIRS` step took 15 s in all; english_21 took 0.39 s.
+- **What the store shows.** lyric_dev's memories carry their times. The file sense stored
+  `arxiv_diffusion_models_latest.xml isa file` at 08:07:22, and the document's episode ("1 page(s), 2390
+  word(s), xml document") at 08:21:23.5, the moment the stall ended. Every silence sits inside one document read.
+- **The path.** `_understand_words` reads each line of a document with `heard_stated`, yielding only between lines.
+  That file's lines are whole abstracts, 135–223 words. Against the english_01–21 view, `read_text` took 286 s for
+  the file, 7–47 s per line, all CPU.
+- **Two defects in the reader:**
+  1. `_slot_fillings` was not kept in the chart. Each way a frame covers the words re-derived the same slot over
+     the same span: line 49 made 1,987,077 calls for about 94,709 distinct ones.
+  2. `read_text` searched stretches across up to three sentence ends. A reading goes on past a mark only where a
+     held construction holds that mark with more after it: no filler takes in a mark that parts words, and a loose
+     reading sets aside only the last. After english_01–27 that is only `,` and `-`.
+- **Fixes (`core/semantics/derived_reader.py`):**
+  - `_Chart` keeps phrase fillings and slot fillings per span; a slot filling over a span still being read is not
+    kept.
+  - `PatternInventory.reads_past` and `_inner_marks`; `_read_pieces` declines pieces with a mark nothing reads
+    past. A hyphen joining two words is exempt, as `_parted` has it.
+- **Verified:**
+  - The file reads in 6.6 s (was 286 s); the longest line takes 1.3 s.
+  - Every utterance and reading of the file's 275 lines and of all 2,563 lesson sentences is identical before and
+    after: meanings, constructions, links, proposed links, new fillers, suppositions, scores.
+  - `tests/test_derived_reading.py` 93/93. Its first run caught the joining hyphen ("A Klein four-group is a bird.").
+- **The 134 s silence before WordNet** cannot be attributed from the log: SENSE-01 itself runs analysis on the
+  substrate's loop there. On the teaching path, `TeachingPass.run` now walks the harvest (WordNet: 9.8 s) and the
+  usage counts (3.6 s) in a worker thread. Not exercised end to end: that teaches into a store.
+- **Errors name their type:** `Query execution failed: TimeoutError: …` (`unified_database_postgres`), and storage's
+  store and statistics failures (`postgres_storage`).
+
+### The other causes
+
+| # | Fix | Check |
+|---|---|---|
+| 2 | Scheduler (done in (1)) | `tests/test_queue_authority_scheduler.py` (new) 1/1 |
+| 3 | `validate_prediction` raises for a prediction not held; no 0.0 result | `tests/test_prediction_validation.py` (new) 1/1 |
+| 4 | `_probe_subcomponents` declares blanked rates not applicable; `check_component_health` keeps both lists | `tests/test_health_evaluator_evidence.py` 18/18, one test new |
+| 5 | Memory graded on failed operations since the last check; the lifetime count kept as `storage_failed_operations_total` | new test in the same file, 1/1 |
+| 5 | The memory playbook: deleted with the whole playbook (below) | — |
+| 6 | Learning: no change; re-checked only in a run | — |
+| 7 | Law 3's `error_rate` is failed ÷ finished over the newest 50 finished work jobs in `unified.task_queue` (survives a restart), measured only from 10 finished; capability pursuits only in domains holding operator signatures (`DemonstrationStore.domains_with_signatures`) or a proposer | `tests/test_law3_measurements.py` (new) 2/2; both queries run read-only on lyric_dev: 1 finished row and 0 domains with signatures, so SENSE-01's "reading" pursuit and its "100%" would not have happened |
+| 7 | Law 1: what supplies user settings | **decision pending** |
+| 8 | `_store_goal_hypothesis_mapping` and its call deleted | no reference left; compiles |
+| 9 | `learn_word_classes` writes "an adjective", "an adverb" (`teaching_sources._article`) | `tests/test_word_class_sentences.py` (new) 1/1. lyric_dev holds 18,983 of the old sentences (SENSE-01); main holds none |
+
+### The idle work playbook, deleted
+
+- `core/agents/autonomous/idle_work_playbook.py` is gone: decision tables from the model-driven design (its memory
+  strategies still offered `LLM_AUTONOMOUS`).
+- **Moved to their owners:**
+  - `StrategyAdaptationGate`, with one `wilson_interval`, to `core/learning/meta_learning.py`. The meta-learner, the
+    gate and the domain master share the interval.
+  - `description_fingerprint` to `shared_types.py`.
+  - Exploration reads the arbiter's directive directly, at the same breadth.
+- **Deleted with it:**
+  - The idle health tier. It re-ran the health check the health monitor runs every 30 s, then ran playbook steps:
+    most were unknown actions or a garbage collection reported as failed.
+  - Its step log and prune job, and the coordinator's recovery-manager handle (`main.py` keeps its own).
+  - The memory tier: it counted memories as "promoted" and promoted none.
+  - The learned retry wait (`predict_optimal_retry_delay`, `record_retry_outcome`); the health tier was its only
+    caller.
+- `_health_counts` reads the health monitor's own record for the decision context and the system review.
+- **Experiments:** SYSTEM-HEALTH-01 loses section D and SYSTEM-LEARNING-01 its retry checks; CREDIT-01,
+  INTEGRATION-LOOP-01 and DRIVES-01 are repointed. Their READMEs, the experiments index and
+  `docs/architecture/{coordinator,domain,SUBSTRATE_SYSTEMS_MAP}.md` are updated.
+- **Verified:** a pure check against the deleted file from git: 2,583 gate decisions, the Wilson interval and the
+  fingerprint are identical; the coordinator imports.
+
+### Open
+
+- Law 1: what supplies user settings.
+- `RecoveryManager.execute_recovery_action` and its playbook aliases now have no caller.
+- Nothing has been run on a live substrate yet. Nothing is committed.
+
+### Later the same session
+
+- **Law 1, settled:** user settings will come from the Tet UI (tet.dmnlabs.org), which is being built and has no
+  user settings yet. Nothing is wired until it does; the constitution's `set_user_settings_provider` hook stays, and
+  Law 1's `human_authority_reachable` reads false until then.
+- **The recovery manager's playbook path, deleted:** `RecoveryManager.execute_recovery_action` and its action-name
+  aliases, `FailureType.COMPONENT_FAILURE` (used only there), the `VERIFY` action and `_verify_component` (reached
+  only through the playbook's `verify_*` aliases), and `IRecoveryManager` in `core/health/health_interfaces.py` (no
+  implementer, no user). `handle_failure` and its strategies are unchanged. Stored failures hold no
+  `component_failure` row in either store. `tests/test_recovery_path_taxonomy.py` 3/3.
+- `core/health/health_interfaces.py` has no importer at all (`IHealthMonitor`, `IHealthManager` remain).

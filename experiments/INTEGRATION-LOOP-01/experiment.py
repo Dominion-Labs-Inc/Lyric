@@ -83,8 +83,8 @@ async def main() -> int:
     # clear any stale permanent-fail block on this operator (a buggy earlier run
     # could have recorded one — a verified-successful op must not stay blocked).
     try:
-        from core.agents.autonomous.idle_work_playbook import IdleWorkPlaybook as _IWP
-        _opfp = _IWP.description_fingerprint(OPERATOR)
+        from core.agents.autonomous.shared_types import description_fingerprint
+        _opfp = description_fingerprint(OPERATOR)
         coord._permanently_failed_fps.discard(_opfp)
         from core.database import get_database_manager as _gdm
         await _gdm().execute_query(

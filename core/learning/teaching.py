@@ -338,11 +338,15 @@ class TeachingPass:
         ordinary claims -- teaching the tags first means a real lexical tag is
         never contradicted by a weaker guess about the same word.
         """
+        import asyncio
         import time
 
         started = time.time()
         report = Report(source=self.source.name, domain=self.domain)
-        records = self._harvest(report)
+        # THE HARVEST IS WALKED OFF THE LOOP. A source is its files and its corpus, and nothing in it awaits:
+        # WordNet's 199,763 records take ten seconds, and walked on the loop, every job the substrate runs waits
+        # for them.
+        records = await asyncio.to_thread(self._harvest, report)
         self._guard_reasoning_edges(records)
 
         # A SOURCE'S POS TAGS ARE TAUGHT, INTO MEMORY, LIKE EVERYTHING ELSE.
@@ -388,8 +392,10 @@ class TeachingPass:
         # HOW OFTEN EACH WORD NAMES EACH THING, after the words are learned: a source that counted its words in real
         # use (`usage()`) says so, and the count lands on the construction that says the word names the thing.
         if records and hasattr(self.source, "usage"):
+            # Counted off the loop too, as the harvest is: all of WordNet's senses are walked for it.
+            usage = await asyncio.to_thread(list, self.source.usage())
             report.usage = await learning.learn_usage(
-                self.source.usage(), provenance=self.source.provenance(),
+                usage, provenance=self.source.provenance(),
                 quality=float(self.source.quality))
             await self._flush()
 

@@ -254,6 +254,18 @@ class DemonstrationStore:
         ) or []
         return [(row["predicate"], row["arity"]) for row in rows]
 
+    async def domains_with_signatures(self) -> set:
+        """The domains holding demonstrations of at least one operator signature, contrastive ones aside: where
+        there is an operator to sharpen."""
+        await self.ensure_schema()
+        predicate, arity = self.CONTRASTIVE
+        rows = await self.db().execute_query(
+            "SELECT DISTINCT domain_id FROM unified.operator_demonstrations"
+            " WHERE NOT (predicate = $1 AND arity = $2)",
+            (predicate, arity), fetch_all=True,
+        ) or []
+        return {row["domain_id"] for row in rows}
+
 
 _store: Optional[DemonstrationStore] = None
 

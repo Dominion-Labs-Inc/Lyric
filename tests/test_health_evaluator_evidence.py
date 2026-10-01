@@ -215,6 +215,76 @@ def test_record_rate_separates_undefined_from_unread(hm):
     assert m["real_rate"] == 0.75
 
 
+@pytest.mark.asyncio
+async def test_an_idle_parts_rates_are_declared_undefined_and_kept_beside_the_checks_own(monkeypatch):
+    """`reasoning` graded degraded while idle, at coverage 0.4: the probe blanked an idle part's rates without
+    declaring them not applicable, so they counted as missing evidence; and the probe's metrics replaced the list
+    the check had declared itself. Nothing is stored or sent: the verdict's write and notice are stubbed."""
+    import sys
+    import types
+    from core.health.health_monitor import get_health_monitor
+    monitor = get_health_monitor()
+
+    class IdlePart:
+        initialized = True
+
+        def get_stats(self):
+            return {"total_proofs": 0, "success_rate": 0.0}
+
+    async def own_check():
+        return {"engine_initialized": True, "own_rate": None, "_not_applicable": ["own_rate"]}, []
+
+    async def nothing(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setitem(sys.modules, "idle_part_for_health_test", types.SimpleNamespace(part=IdlePart))
+    monkeypatch.setattr(type(monitor), "_PROBED_SUBCOMPONENTS",
+                        {"reasoning": {"prover": ("idle_part_for_health_test", "part", "get_stats")}})
+    monkeypatch.setattr(monitor, "_check_reasoning_health", own_check)
+    monkeypatch.setattr(monitor, "_persist_assessment", nothing)
+    monkeypatch.setattr(monitor, "_notify_status", nothing)
+
+    health = await monitor.check_component_health("reasoning")
+
+    assert health.metrics["prover_success_rate"] is None
+    assert {"own_rate", "prover_success_rate"} <= set(health.metrics["_not_applicable"])
+    assert health.metrics["_evidence_coverage"] == 1.0
+    assert health.status is HealthStatus.HEALTHY
+
+
+@pytest.mark.asyncio
+async def test_memory_is_graded_on_the_failures_since_the_last_check(hm, monkeypatch):
+    """Two writes lost once kept memory degraded until the process ended: the check graded storage's lifetime count
+    of failed operations. A stand-in agent; nothing is read from a store."""
+    failed = {"n": 2}
+
+    class Storage:
+        async def get_statistics(self):
+            return {"total_memories": 10, "metrics": {"failed_operations": failed["n"]}}
+
+    class Agent:
+        initialized = True
+        postgres_storage = Storage()
+
+        def get_metrics(self):
+            return {"postgres_available": True, "cache_size": 0, "cache_hits": 0, "embedding_available": True}
+
+    hm._memory_failures_seen = 0
+    monkeypatch.setattr(hm, "_live_singleton", lambda *_args: Agent())
+
+    metrics, issues = await hm._check_memory_health()
+    assert metrics["storage_failed_operations"] == 2 and any("2 failed memory operations" in i for i in issues)
+    metrics, issues = await hm._check_memory_health()
+    assert metrics["storage_failed_operations"] == 0 and not issues, "no failure since the last check"
+    assert metrics["storage_failed_operations_total"] == 2
+    failed["n"] = 3
+    metrics, issues = await hm._check_memory_health()
+    assert metrics["storage_failed_operations"] == 1 and any("1 failed memory operations" in i for i in issues)
+    failed["n"] = 1
+    metrics, _ = await hm._check_memory_health()
+    assert metrics["storage_failed_operations"] == 1, "a count that fell is a storage begun again: all of it is new"
+
+
 def test_topology_matches_services_by_port_not_name():
     """The scanner reports one `postgresql`; the topology models the two logical
     databases sharing that instance as postgresql-lyric/-agentso. Neither name

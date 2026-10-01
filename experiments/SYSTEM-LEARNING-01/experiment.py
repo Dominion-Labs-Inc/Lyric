@@ -112,7 +112,7 @@ async def main() -> int:
               f"{len(rules)} rule(s): {[str(r.rule)[:60] for r in rules][:2]} status={kinds}")
         EV.metric("rules_induced", len(rules), "count")
 
-        print("\n== F. Strategy learning, prediction and retry waits are real learning ==")
+        print("\n== F. Strategy learning and prediction are real learning ==")
         from core.learning.meta_learning import OutcomeClass, TaskFamily
         ARM = "isoprobe_arm:"
         before = await L.predict_outcome({"task_family": TaskFamily.CONTROL,
@@ -148,33 +148,6 @@ async def main() -> int:
             refused = str(error)
         check("an unknown task family is refused", refused is not None, (refused or "")[:70])
 
-        comp = "isoprobe_component"
-        waits = {await L.predict_optimal_retry_delay({"component": comp}) for _ in range(20)}
-        check("a retry wait is one the learner chooses among",
-              waits <= set(L.RETRY_DELAYS_S), f"{sorted(waits)}")
-        for _ in range(12):
-            for short in (15.0, 30.0, 60.0):
-                await L.record_retry_outcome({"component": comp}, short, recovered=False)
-            await L.record_retry_outcome({"component": comp}, 120.0, recovered=True)
-        # Thompson sampling on the EXPECTED TIME TO RECOVERY (delay / P(success)):
-        # a 15 s wait that failed 12 times still has ~7% chance, i.e. ~211 s
-        # expected against ~129 s for 120 s -- so it is still tried now and then,
-        # and correctly. What the evidence settles is which wait is chosen MOST,
-        # and that long waits nothing supports are not chosen at all.
-        chosen = [await L.predict_optimal_retry_delay({"component": comp}) for _ in range(60)]
-        most = max(set(chosen), key=chosen.count)
-        check("after short waits keep failing and 120 s keeps recovering, 120 s is chosen most",
-              most == 120.0 and chosen.count(120.0) > len(chosen) / 2,
-              f"{ {w: chosen.count(w) for w in sorted(set(chosen))} }")
-        check("and long waits no evidence supports are not chosen",
-              not any(w >= 300.0 for w in chosen), f"{sorted(set(chosen))}")
-        bad = None
-        try:
-            await L.record_retry_outcome({"component": comp}, 7.0, recovered=True)
-        except ValueError as error:
-            bad = str(error)
-        check("a wait it does not choose among is refused as evidence", bad is not None)
-
         report = await L.consolidate_learning()
         check("consolidation settles unknowns, closes abandoned decisions, persists classifiers",
               set(report) == {"refreshed", "known_unknowns", "abandoned_decisions_closed",
@@ -188,10 +161,10 @@ async def main() -> int:
     finally:
         # ── cleanup, by id and by the probe's own domain ─────────────────────
         try:
-            # The probe's strategy and retry arms: in memory and persisted.
+            # The probe's strategy arms: in memory and persisted.
             ml = L.meta_learning
             for sid in [sid for sid, st in ml.strategies.items()
-                        if str(st.strategy_type).startswith(("isoprobe_arm:", "retry:isoprobe_component:"))]:
+                        if str(st.strategy_type).startswith("isoprobe_arm:")]:
                 st = ml.strategies.pop(sid)
                 ml.task_strategy_map.get(st.task_type, []).remove(sid) \
                     if sid in ml.task_strategy_map.get(st.task_type, []) else None

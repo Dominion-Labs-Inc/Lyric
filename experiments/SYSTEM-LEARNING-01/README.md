@@ -15,7 +15,10 @@ authority; half-implemented code and stubs are never approved. Five methods rais
 | `update_strategy_effectiveness` | records a strategy's outcome with the meta-learner (credit gate, persisted posterior) and checks the prediction made at decision time (calibration) | the coordinator's adaptive task-type outcome |
 | `recommend_strategies` | ranks a family's arms by the Wilson lower bound of their measured success | the coordinator's idle meta-learning evaluation |
 | `predict_outcome` | the Beta(successes+1, failures+1) posterior mean the bandit samples from, with its interval and evidence; None with no evidence | made when the coordinator chooses a task type, carried to the outcome |
-| `predict_optimal_retry_delay` | Thompson sampling over waits on expected time to recovery (delay / P(success)), each wait an arm of the meta-learner per component | the health tier's recovery retries (replacing a fixed table) |
+
+The fifth, `predict_optimal_retry_delay` (with `record_retry_outcome`), was deleted on 2026-10-01 with the
+coordinator's health tier, the idle work playbook's recovery loop, whose retries it timed and which was its
+only caller.
 
 It also owns **resolving known unknowns** (`resolve_known_unknown`, `resolve_open_unknowns`): resolved only when
 the knowledge is held, the belief is settled and grounded, and the domain holds it — see SYSTEM-BELIEFS-01.
@@ -28,17 +31,14 @@ the knowledge is held, the belief is settled and grounded, and the domain holds 
 | **B** | a told fact enters once, moves a belief, is in the graph; a repeat is not admitted twice |
 | **C** | a malformed fact (empty subject) is refused |
 | **D** | demonstrations are recorded, the pending induction drains, a rule is induced |
-| **F** | no evidence → no prediction; six outcomes move it to (5+1)/(6+2); the winning arm is recommended over the losing one; a decision-time prediction is checked against the outcome; an unknown family is refused; retry waits are from the learner's set, and after short waits keep failing and 120 s keeps recovering, 120 s is chosen most and unsupported long waits never; a wait outside the set is refused as evidence; consolidation reports all three steps |
+| **F** | no evidence → no prediction; six outcomes move it to (5+1)/(6+2); the winning arm is recommended over the losing one; a decision-time prediction is checked against the outcome; an unknown family is refused; consolidation reports all three steps |
 | **E** | metrics readable |
 
 **Wiring findings:** `process_interaction` is called by nothing; `train_clause_classifier` (the clause-population
 recognizer) and `induce_causal_structure` are exercised only by experiments (FALSIFY-01, RECOGNISE-02, EDU-12) —
 real capabilities not yet wired into the substrate.
 
-**The trap in measuring it.** A retry learner that optimises expected time to recovery keeps trying a cheap
-wait with a poor record now and then — a 15 s wait that failed 12 times still has ~7% chance, ~211 s expected
-against ~129 s for a 120 s wait that recovered 12 of 12 — so "the learner always waits 120 s" is the wrong
-expectation; "120 s is chosen most" is the right one. And consolidation is global: it sweeps every open known
+**The trap in measuring it.** Consolidation is global: it sweeps every open known
 unknown and reaps abandoned decisions on the live store (the first run closed 1,870 abandoned decision rows) —
 a sweep checks without counting a resolution attempt.
 
@@ -48,6 +48,6 @@ a sweep checks without counting a resolution attempt.
 ./venv_lyric/bin/python3 experiments/SYSTEM-LEARNING-01/experiment.py
 ```
 
-Its probe facts, demonstrations, rules, domain, and strategy/retry arms are removed by id. Each run writes
+Its probe facts, demonstrations, rules, domain, and strategy arms are removed by id. Each run writes
 `results/<UTC timestamp>.json` with a `.md` beside it, reporting **behaviour** (pass/fail), **wiring** and
 **completeness** findings apart (`experiments/_isolation.py`).

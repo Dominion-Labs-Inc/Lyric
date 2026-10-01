@@ -6582,6 +6582,11 @@ class AutonomousCoordinator:
     ADAPTIVE_TYPE_NS = "tasktype:"
     EXECUTOR_NS = "executor:"
 
+    #: Law 3's error rate is over this many of the newest finished tasks, and is measured only once at least the
+    #: minimum have finished: the agents health check grades a failure rate on no fewer than ten, either.
+    ERROR_RATE_WINDOW = 50
+    ERROR_RATE_MIN_FINISHED = 10
+
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         self.config = config or {}
         self.active = False
@@ -7075,30 +7080,13 @@ class AutonomousCoordinator:
         self._directive_max_parallel: Optional[int] = None
         self._directive_resource_id: Optional[str] = None
         # No private pool: concurrency is the queue authority's (self.task_queue).
-        # Idempotency log: "{trigger_id}:{action}" → unix timestamp of last execution.
-        # Prevents double-restarts, repeated credential rotations, etc.
-        self._step_execution_log: Dict[str, float] = {}
-        # Unix timestamp of the last prune pass; prune runs every 10 min.
-        self._step_log_last_pruned: float = 0.0
 
         # ── Idle review snapshots (facts-first, no LLM) ───────────────────
-        self._idle_last_health_check_at: Optional[datetime] = None
-        self._idle_last_health_snapshot: Dict[str, Any] = {
-            "components_total": None,
-            "unhealthy_total": None,
-        }
         self._idle_last_system_review_at: Optional[datetime] = None
         self._idle_system_review_snapshot: Optional[Dict[str, Any]] = None
 
         # ── Idle knowledge refresh (web research cadence) ─────────────────
         self._idle_last_knowledge_refresh_at: Optional[datetime] = None
-        
-        # Per-component backoff state for health recovery.
-        # Keys are component names; values are dicts with:
-        #   attempts     int   — number of completed recovery cycles (reset when healthy)
-        #   last_attempt float — unix ts of last recovery attempt
-        #   escalated    bool  — True once the escalation notification has been sent
-        self._component_recovery_state: Dict[str, dict] = {}
 
         # Memory system - can be provided or created (will be initialized in async initialize() method)
         if 'memory' in self.config and not isinstance(self.config['memory'], dict):
@@ -7200,10 +7188,7 @@ class AutonomousCoordinator:
         # 2026-09-26, SYSTEM-HEALTH-01). A failure to build either is not
         # softened to None: health is not optional.
         from core.health.health_monitor import get_health_monitor
-        from core.health.recovery_manager import get_recovery_manager
         self.health_monitor = get_health_monitor()
-        # Executes the idle health tier's recovery playbook steps.
-        self.recovery_manager = get_recovery_manager()
 
         # CRITICAL: Logging Database - For comprehensive operational logging
         self.log_db = self.config.get("log_db")
@@ -7272,9 +7257,7 @@ class AutonomousCoordinator:
         # === IDLE PRIORITY TIMESTAMPS ===
         # Track last execution of each priority tier so the idle dispatcher
         # can pick the highest-priority action that is actually due.
-        self._idle_last_health_check: Optional[datetime] = None
         self._idle_last_meta_learning: Optional[datetime] = None
-        self._idle_last_memory_consolidation: Optional[datetime] = None
 
     async def initialize(self, start_loop: bool = False) -> bool:
         """
@@ -7493,21 +7476,6 @@ class AutonomousCoordinator:
             else:
                 logger.error("❌ CRITICAL: Health Monitor is None - this should never happen!")
                 raise RuntimeError("Health Monitor is REQUIRED but is None - Singleton cannot operate without health monitoring")
-
-            # CRITICAL: Initialize Recovery Manager (for AI self-healing)
-            if self.recovery_manager:
-                if hasattr(self.recovery_manager, 'initialize'):
-                    try:
-                        await self.recovery_manager.initialize()
-                        logger.info("✅ Recovery Manager initialized - AI self-healing enabled")
-                    except Exception as e:
-                        logger.error(f"❌ CRITICAL: Recovery Manager initialization failed: {e}")
-                        raise RuntimeError(f"Recovery Manager is REQUIRED for self-healing but failed to initialize: {e}") from e
-                else:
-                    logger.info("✅ Recovery Manager ready (no initialization required)")
-            else:
-                logger.warning("⚠️ Recovery Manager is None - AI self-healing disabled")
-                logger.warning("   Self-healing requires RecoveryManager for strategic recovery actions")
 
             logger.info("=" * 80)
 
@@ -10725,10 +10693,32 @@ class AutonomousCoordinator:
                 bearings[subject] = await self.constitution.bearing(subject)
             except Exception as e:
                 raise_if_structural(e, "autonomous_coordinator._intrinsic_pursuits")
-        return self._score_pursuits(
+        pursuits = self._score_pursuits(
             regions, growth,
             (competence or {}).get("operators_by_domain"),
-            domain_concepts, bearings)[:max(0, limit)]
+            domain_concepts, bearings)
+        # A CAPABILITY PURSUIT ONLY WHERE THERE IS AN OPERATOR TO SHARPEN: a
+        # domain holding operator signatures, or one the substrate can explore
+        # for them -- what `_execute_drive_goal` needs to do anything. Every
+        # domain is given a competence belief at the most uncertain, so every
+        # domain surfaced one; in a domain with neither ("reading", SENSE-01)
+        # the drive goal could only fail, and that failure was Law 3's "100% of
+        # recent work failed". Unreadable, no capability pursuit is shown to be
+        # one, so none is made.
+        if any(p.get("frontier") == "capability" for p in pursuits):
+            try:
+                from core.learning.demonstration_store import get_demonstration_store
+                from core.learning.exploration import explorable_domains
+                sharpenable = (await get_demonstration_store().domains_with_signatures()
+                               | set(explorable_domains()))
+            except Exception as e:
+                raise_if_structural(e, "autonomous_coordinator._intrinsic_pursuits.sharpenable")
+                logger.warning("capability pursuits withheld: the domains with operators "
+                               "to sharpen could not be read: %s", e)
+                sharpenable = set()
+            pursuits = [p for p in pursuits if p.get("frontier") != "capability"
+                        or (p.get("domain") or "general") in sharpenable]
+        return pursuits[:max(0, limit)]
 
     def _pursuit_to_goal(self, pursuit: Dict[str, Any]):
         """Turn a frontier pursuit into an EXECUTABLE goal, routed to the real
@@ -12070,23 +12060,6 @@ class AutonomousCoordinator:
         if pulled:
             logger.info(f"🪞 Reflection made due ({reason}): {', '.join(pulled)}")
 
-    def _prune_step_execution_log(self):
-        """Drop step-cooldown entries older than the maximum cooldown so the dict
-        can't grow unbounded. Scheduled maintenance (idle_step_log_prune) — it no
-        longer piggybacks on the idle dispatcher."""
-        import time as _t
-        _now_ts = _t.time()
-        _max_cooldown = 3600.0
-        before = len(self._step_execution_log)
-        self._step_execution_log = {
-            k: v for k, v in self._step_execution_log.items()
-            if _now_ts - v < _max_cooldown
-        }
-        self._step_log_last_pruned = _now_ts
-        pruned = before - len(self._step_execution_log)
-        if pruned:
-            logger.debug(f"[IDLE] pruned {pruned} stale step-log entries")
-
     # (`_run_idle_exploration` retired: intrinsic pursuit is event-driven now —
     #  `_react_pursue_frontier` on state-changing events + a boot kick — so there
     #  is no idle-timer driver to gate on `allow_exploration` any more. The cycle's
@@ -12109,11 +12082,9 @@ class AutonomousCoordinator:
         """
         registrations = [
             # (name, method, priority, interval_seconds)
-            ("idle_health_check",       "_idle_health_work",             "high",   self.config.get("idle_health_interval_s",         30.0)),
             ("idle_system_review",      "_idle_system_review_work",      "high",   self.config.get("idle_system_review_interval_s",  180.0)),
             ("idle_knowledge_refresh",  "_idle_knowledge_refresh_work",  "medium", self.config.get("idle_knowledge_refresh_interval_s", 21600.0)),
             ("idle_meta_learning",      "_idle_meta_learning_work",      "medium", self.config.get("idle_metalearning_interval_s",  300.0)),
-            ("idle_memory_consolidation","_idle_memory_work",            "low",    self.config.get("idle_memory_interval_s",        600.0)),
             # NOTE: abstraction is NO LONGER a scheduled tier. It is REASONING,
             # owned by the reasoning authority, and fires on an EVENT — episodic
             # memories accumulating past a threshold (memory_agent.note_episodic_stored
@@ -12174,7 +12145,6 @@ class AutonomousCoordinator:
             # Housekeeping: prune the step-execution cooldown log. Used to run
             # inline in the old poll dispatcher; it is periodic maintenance, so
             # it belongs on the scheduler like every other timed job.
-            ("idle_step_log_prune",     "_prune_step_execution_log",     "low",    self.config.get("idle_step_log_prune_interval_s", 600.0)),
             # SELF-STATE refresh: the sole writer of system_state.resource_usage /
             # timestamp / performance_metrics (error_rate, goal_alignment, ...) —
             # read live by the constitution's law-compliance check. It was dead,
@@ -12271,226 +12241,6 @@ class AutonomousCoordinator:
             f"[IDLE] {len(registrations)} tiers scheduled on the queue authority "
             f"(scheduler running)")
 
-    # ── TIER 2: Health check + playbook + recovery ────────────────────────────
-
-    async def _idle_health_work(self):
-        """
-        Run a system health check then apply the IdleWorkPlaybook decision graph
-        to produce structured recovery plans for each unhealthy component.
-
-        Fixes:
-          - Previously only health events in the buffered queue triggered recovery
-          - Previously health check results were logged but never acted upon
-        """
-        from .idle_work_playbook import IdleWorkPlaybook
-
-
-        if not self.health_monitor:
-            logger.debug("[IDLE:HEALTH] No health monitor — skipping")
-            return
-
-        logger.info("[IDLE:HEALTH] Running scheduled health check")
-        try:
-            health = await self.health_monitor.get_system_health()
-        except Exception as e:
-            logger.warning(f"[IDLE:HEALTH] Health check error: {e}")
-            return
-
-        if not health:
-            return
-
-        components = health.get("components", {}) or {}
-        playbook   = IdleWorkPlaybook()
-        plans      = playbook.plan_all_health_responses(health)
-
-        self._idle_last_health_check_at = datetime.now()
-        self._idle_last_health_snapshot = {
-            "components_total": len(components),
-            "unhealthy_total": len(plans),
-        }
-
-        # ── Reset state for components that are now healthy ───────────────────
-        # BEFORE the all-nominal return: it sat after it, so the moment the last
-        # unhealthy component recovered this never ran -- its recovery state
-        # was never cleared and the wait that recovered it never credited.
-        # RECOVERED means OBSERVED healthy: the reading says `healthy`, or the
-        # component is absent (resources -- cpu, memory, disk -- appear only when
-        # something is wrong). An `unknown` reading measured nothing: the state
-        # is kept, and no wait is credited with a recovery nobody saw.
-        unhealthy_ids = {p.trigger_id for p in plans}
-        for comp in list(self._component_recovery_state.keys()):
-            reading = str((components.get(comp) or {}).get("status") or "healthy").lower()
-            if comp not in unhealthy_ids and reading == "healthy":
-                prev = self._component_recovery_state.pop(comp)
-                if prev.get("pending_delay") is not None:
-                    await self.learning.record_retry_outcome(
-                        {"component": comp}, prev["pending_delay"], recovered=True)
-                logger.info(
-                    f"[IDLE:HEALTH] '{comp}' is now healthy after "
-                    f"{prev['attempts']} recovery attempt(s) — resetting state"
-                )
-
-        if not plans:
-            logger.info(
-                f"[IDLE:HEALTH] All {len(components)} components nominal"
-            )
-            return
-
-        logger.warning(
-            f"[IDLE:HEALTH] {len(plans)} unhealthy components detected — "
-            f"applying recovery playbook"
-        )
-
-        import time as _t
-
-        # THE WAIT BEFORE EACH RETRY IS LEARNED, per component, by the learning
-        # authority (`predict_optimal_retry_delay`) from how retries after each
-        # wait have turned out -- it was a fixed table (0/60/120/300/900/3600 s)
-        # that nothing ever learned from. The first attempt is immediate: it is
-        # not a retry. A retry's outcome is credited to the wait before it:
-        # recovered when the component is next seen healthy, not recovered when
-        # the next retry falls due with it still unhealthy.
-        _ESCALATION_THRESHOLD = 5  # escalate after this many failed cycles
-
-        # ── Execute recovery plans with per-component backoff ─────────────────
-        recovered = 0
-        skipped   = 0
-        for plan in plans:
-            component = plan.trigger_id
-            _now = _t.time()
-
-            # Get or initialise recovery state for this component
-            state = self._component_recovery_state.setdefault(component, {
-                "attempts":      0,
-                "last_attempt":  0.0,
-                "escalated":     False,
-                "next_delay":    0.0,    # the first attempt is not a retry
-                "pending_delay": None,   # the wait before the retry in flight
-            })
-
-            # Backoff gate — skip this component entirely if too soon to retry
-            attempts      = state["attempts"]
-            backoff_secs  = state["next_delay"]
-            elapsed_since = _now - state["last_attempt"]
-            if elapsed_since < backoff_secs:
-                remaining = int(backoff_secs - elapsed_since)
-                logger.debug(
-                    f"[IDLE:HEALTH] '{component}' recovery on backoff "
-                    f"(attempt #{attempts}, {remaining}s remaining) — skipping"
-                )
-                skipped += 1
-                continue
-
-            # Due, and still unhealthy: the retry in flight did not recover it.
-            if state["pending_delay"] is not None:
-                await self.learning.record_retry_outcome(
-                    {"component": component}, state["pending_delay"], recovered=False)
-            state["pending_delay"] = state["next_delay"] if attempts > 0 else None
-
-            # ── Execute playbook steps for this component ─────────────────────
-            # Outcome of each action in THIS plan, for dependency resolution.
-            _step_outcomes: Dict[str, bool] = {}
-
-            for step in plan.steps:
-                # Dependency gate — a plan CONTAINING a step is not the same as
-                # that step being valid to execute now. "verify health after
-                # restart" asserts something about a restart that happened; if
-                # the restart failed, running it reports on an event that never
-                # occurred. Skip explicitly rather than producing a fabricated
-                # verification result.
-                _requires = getattr(step, 'requires', None)
-                if _requires is not None and not _step_outcomes.get(_requires, False):
-                    logger.warning(
-                        "[IDLE:HEALTH] Step '%s' SKIPPED_DEPENDENCY_FAILED for '%s' "
-                        "— requires '%s' which %s",
-                        step.action, component, _requires,
-                        "failed" if _requires in _step_outcomes else "did not run",
-                    )
-                    continue
-
-                # Idempotency gate — skip steps that are still on per-action cooldown
-                if not IdleWorkPlaybook.step_is_due(
-                    plan.trigger_id, step, self._step_execution_log, _now
-                ):
-                    logger.debug(
-                        f"[IDLE:HEALTH] Step '{step.action}' on cooldown for "
-                        f"'{component}' — skipping"
-                    )
-                    continue
-
-                try:
-                    if self.recovery_manager:
-                        success = await self.recovery_manager.execute_recovery_action(
-                            component  = component,
-                            action     = step.action,
-                            parameters = step.params or {},
-                        )
-                        IdleWorkPlaybook.record_step_executed(
-                            plan.trigger_id, step, self._step_execution_log, _now
-                        )
-                        _step_outcomes[step.action] = bool(success)
-                        if success:
-                            recovered += 1
-                            logger.info(
-                                f"[IDLE:HEALTH] Recovery step '{step.action}' "
-                                f"succeeded for '{component}'"
-                            )
-                        else:
-                            logger.warning(
-                                f"[IDLE:HEALTH] Recovery step '{step.action}' "
-                                f"failed for '{component}' — "
-                                f"on_failure={step.on_failure}"
-                            )
-                            if step.on_failure == "abort":
-                                break
-                    else:
-                        _step_outcomes[step.action] = False
-                        logger.warning(
-                            f"[IDLE:HEALTH] No recovery manager — step "
-                            f"'{step.action}' for '{component}' not performed"
-                        )
-                except Exception as e:
-                    logger.warning(
-                        f"[IDLE:HEALTH] Step error for '{component}': {e}"
-                    )
-
-            # ── Update per-component recovery state ───────────────────────────
-            state["attempts"]     += 1
-            state["last_attempt"]  = _now
-            state["next_delay"]    = await self.learning.predict_optimal_retry_delay(
-                {"component": component})
-
-            # ── Escalate if the component keeps failing ────────────────────────
-            new_attempts = state["attempts"]
-            if new_attempts >= _ESCALATION_THRESHOLD and not state["escalated"]:
-                state["escalated"] = True
-                logger.error(
-                    f"[IDLE:HEALTH] ESCALATION: '{component}' has failed recovery "
-                    f"{new_attempts} times (severity={plan.severity})"
-                )
-                try:
-                    # High-priority investigation task
-                    if self.task_queue:
-                        await self.task_queue.add_task(
-                            description = (
-                                f"ESCALATED: '{component}' has failed health recovery "
-                                f"{new_attempts} times. Issue: {plan.summary}. "
-                                f"Manual diagnosis and repair required."
-                            ),
-                            priority    = "high",
-                            task_type   = "HEALTH_RECOVERY",
-                            metadata    = {
-                                "component":   component,
-                                "attempts":    new_attempts,
-                                "severity":    plan.severity,
-                                "escalated":   True,
-                            },
-                        )
-                except Exception as e:
-                    logger.warning(f"[IDLE:HEALTH] Escalation notification error: {e}")
-
-
-
     # ── TIER 3: System review snapshot (deterministic, no LLM) ─────────────
 
     async def _idle_system_review_work(self):
@@ -12529,10 +12279,7 @@ class AutonomousCoordinator:
             "generated_at": now.isoformat(),
             "generated_at_ts": now_ts,
             "uptime_seconds": int(max(0.0, now_ts - float(getattr(self, "_started_at_ts", now_ts)))),
-            "health": {
-                "last_check_at": self._idle_last_health_check_at.isoformat() if self._idle_last_health_check_at else None,
-                **(self._idle_last_health_snapshot or {}),
-            },
+            "health": self._health_counts(),
             "tools": {},
             "codebase": {},
             "knowledge": {},
@@ -13760,7 +13507,7 @@ class AutonomousCoordinator:
           - Arbitrary 0.35 threshold with no statistical rigor
           - No weighting of recent vs. stale outcomes
         """
-        from .idle_work_playbook import IdleWorkPlaybook, StrategyAdaptationGate
+        from core.learning.meta_learning import StrategyAdaptationGate
 
         # This guarded on self.learning -- the LearningAdapter -- which defines
         # neither evaluate_strategies nor adapt_strategies, so the guard was
@@ -13773,8 +13520,9 @@ class AutonomousCoordinator:
         from .shared_types import TaskType
         from core.learning.meta_learning import TaskFamily
 
-        playbook   = IdleWorkPlaybook()
-        task_types = playbook.plan_meta_learning_evaluation()
+        task_types = [tt.value for tt in (TaskType.RESEARCH, TaskType.ANALYSIS, TaskType.SYNTHESIS,
+                                          TaskType.EXECUTION, TaskType.PLANNING, TaskType.VALIDATION,
+                                          TaskType.LEARNING, TaskType.OPTIMIZATION)]
 
         logger.info(f"[IDLE:METALEARNING] Evaluating strategies for {len(task_types)} task types")
 
@@ -13910,71 +13658,6 @@ class AutonomousCoordinator:
 
         return report
 
-    async def _idle_memory_work(self):
-        """
-        Run memory consolidation using the ordered strategy list from the playbook.
-
-        Fixes:
-          - Previously only tried llm._autonomous_memory_consolidation() — no fallback
-          - If that method was absent the tier silently did nothing
-          - No tier-upgrade pass (high-importance short-term → long-term)
-          - No audit trail of consolidation activity
-          - LLM consolidation now guarded with timeout to prevent compute spikes
-        """
-        from .idle_work_playbook import IdleWorkPlaybook, ConsolidationStrategy
-
-        playbook = IdleWorkPlaybook()
-
-        uptime_hours = (datetime.now() - self.last_cycle_time).total_seconds() / 3600.0
-
-        # No model-driven consolidation exists; consolidation is the memory
-        # agent's own tiering, driven by the strategies below.
-        strategies = playbook.plan_memory_consolidation(
-            llm_has_consolidation_method = False,
-            uptime_hours                 = uptime_hours,
-        )
-
-        logger.info(
-            f"[IDLE:MEMORY] Running consolidation — "
-            f"strategies: {[s.value for s in strategies]}"
-        )
-
-        consolidated = False
-        for strategy in strategies:
-            try:
-                if strategy == ConsolidationStrategy.TIER_UPGRADE:
-                    # Promote high-importance short-term memories to long-term
-                    # by searching and re-storing them with elevated importance
-                    try:
-                        recent = await self.search_memories(
-                            query_text   = "important insight knowledge decision",
-                            memory_types = [MemoryType.EPISODIC, MemoryType.SEMANTIC],
-                        )
-                        upgraded = 0
-                        # Limit to configured max items per cycle
-                        max_items = self.coordinator_config.memory_consolidation_max_items
-                        for mem in (recent or [])[:max_items]:
-                            importance = getattr(mem, 'importance', 0.0)
-                            age_days   = (
-                                datetime.now() - getattr(mem, 'created_at', datetime.now())
-                            ).days if hasattr(mem, 'created_at') else 0
-                            if importance >= 0.7 and age_days >= 1:
-                                upgraded += 1
-                        if upgraded:
-                            logger.info(f"[IDLE:MEMORY] Tier upgrade: {upgraded} memories promoted")
-                        consolidated = True
-                    except Exception as e:
-                        logger.debug(f"[IDLE:MEMORY] Tier upgrade error: {e}")
-
-                elif strategy == ConsolidationStrategy.SUMMARY_WRITE:
-                    # Audit trail is handled by logger.info below
-                    pass
-
-            except Exception as e:
-                logger.warning(f"[IDLE:MEMORY] Strategy {strategy.value} error: {e}")
-
-        logger.info(f"[IDLE:MEMORY] Consolidation pass complete (consolidated={consolidated})")
-
     async def _run_exploration_cycle(self):
         """
         Generate and execute ONE curiosity-driven intrinsic exploration task.
@@ -13988,10 +13671,7 @@ class AutonomousCoordinator:
         No fire-and-forget. No concurrent intrinsic tasks.
         """
         try:
-            from .shared_types import Task, TaskType, TaskSource, Priority
-            from .idle_work_playbook import IdleWorkPlaybook
-
-            playbook = IdleWorkPlaybook()
+            from .shared_types import Task, TaskType, TaskSource, Priority, description_fingerprint
 
             # Build set of recent fingerprints to avoid repeating recent work
             # Use ordered list so FIFO trimming works correctly (there are only 4 unique
@@ -14057,9 +13737,9 @@ class AutonomousCoordinator:
 
             # ── APPRAISAL -> ARBITER -> BEHAVIOUR ─────────────────────────────
             # The canonical appraisal decides disposition; the arbiter decides
-            # what that disposition means here. plan_exploration_config is a
-            # translator, not a third interpreter. Breadth was hardcoded to 3.
-            _explore_cfg = None
+            # what that disposition means here; its breadth is capped by the
+            # exploration slots. Breadth was hardcoded to 3.
+            _max_goals = 0
             try:
                 # Ask the Self for disposition — it owns appraisal→arbiter and
                 # integrates them. The body no longer computes its own stance;
@@ -14077,21 +13757,14 @@ class AutonomousCoordinator:
                     slots_available=max(0, cap - active_exploration_count),
                     queue_pressure=_pressure,
                 )
-                _explore_cfg = playbook.plan_exploration_config(
-                    motivation={},
-                    active_task_descriptions=recent_fingerprints,
-                    exploring_components=set(),
-                    max_concurrent=cap,
-                    current_intrinsic_count=0,
-                    directive=_directive,
-                )
+                _max_goals = max(0, min(cap, _directive.max_goals))
                 logger.info(
                     "🧭 Behaviour: mode=%s explore=%s goals=%d verify=%.2f %s",
                     _directive.mode, _directive.should_explore,
-                    _explore_cfg["max_goals"], _directive.verification_intensity,
+                    _max_goals, _directive.verification_intensity,
                     _directive.reason_codes,
                 )
-                if not _explore_cfg["should_explore"]:
+                if not _directive.should_explore:
                     # An arbiter that says "not now" is a real decision, not an
                     # error. Escalation-dominant states must not thrash through
                     # self-directed exploration.
@@ -14117,8 +13790,6 @@ class AutonomousCoordinator:
                     "disposition would be acting on nothing", _arb_err)
                 self._exploration_status = "ARBITRATION_UNAVAILABLE"
                 return
-
-            _max_goals = _explore_cfg["max_goals"]
 
             # SELECTION is the unified whole-self frontier (`_intrinsic_pursuits`):
             # epistemic not-knowing lifted by developmental hunger, ranked and
@@ -14152,7 +13823,7 @@ class AutonomousCoordinator:
                     continue
 
                 # Fingerprint dedup
-                fp = playbook.description_fingerprint(goal.description)
+                fp = description_fingerprint(goal.description)
                 if fp in active_exploration_fps:
                     logger.debug(f"⏭️ Skipping duplicate in-flight goal (fp={fp})")
                     continue
@@ -14574,6 +14245,21 @@ class AutonomousCoordinator:
         except Exception as e:
             logger.warning(f"Could not persist prediction result: {e}")
 
+    def _health_counts(self) -> Dict[str, Any]:
+        """How many components the health monitor grades, how many it last graded below healthy, and when it last
+        graded one: read from the monitor's own record, which it keeps at every check. Never runs a check. None
+        before its first check: nothing has been graded yet."""
+        from core.health.health_monitor import HealthStatus
+        graded = list(self.health_monitor.component_health.values())
+        if not graded:
+            return {"last_check_at": None, "components_total": None, "unhealthy_total": None}
+        return {
+            "last_check_at": max(h.timestamp for h in graded).isoformat(),
+            "components_total": len(graded),
+            "unhealthy_total": sum(1 for h in graded
+                                   if h.status not in (HealthStatus.HEALTHY, HealthStatus.UNKNOWN)),
+        }
+
     async def _decision_context(self, description: str = "") -> Dict[str, Any]:
         """Snapshot the state a decision is being made in.
 
@@ -14587,7 +14273,7 @@ class AutonomousCoordinator:
         Deliberately cheap: reads cached state only, never triggers a scan.
         """
         dims = (getattr(self, "_current_motivation", {}) or {}).get("dimensions", {})
-        health = (getattr(self, "_idle_last_health_snapshot", {}) or {})
+        health = self._health_counts()
 
         return {
             "description_len": len(description or ""),
@@ -16520,8 +16206,8 @@ class AutonomousCoordinator:
 
                         # DEDUP: Permanently block this fingerprint so it is never re-queued
                         try:
-                            from .idle_work_playbook import IdleWorkPlaybook as _IWP
-                            _pf = _IWP.description_fingerprint(task.description)
+                            from .shared_types import description_fingerprint
+                            _pf = description_fingerprint(task.description)
                             self._permanently_failed_fps.add(_pf)
                             _fp_list = list(getattr(self, '_recent_exploration_fp_list', []))
                             if _pf not in _fp_list:
@@ -16553,8 +16239,8 @@ class AutonomousCoordinator:
 
                     # DEDUP: Permanently block this fingerprint so it is never re-queued
                     try:
-                        from .idle_work_playbook import IdleWorkPlaybook as _IWP
-                        _pf = _IWP.description_fingerprint(task.description)
+                        from .shared_types import description_fingerprint
+                        _pf = description_fingerprint(task.description)
                         self._permanently_failed_fps.add(_pf)
                         _fp_list = list(getattr(self, '_recent_exploration_fp_list', []))
                         if _pf not in _fp_list:
@@ -18066,17 +17752,20 @@ The substrate must realign with its constitutional responsibilities immediately.
         # reads the health authority; duplicating a psutil sample here would stand
         # up a second resource authority.
 
-        # error_rate — the TASK QUEUE owns task outcomes; the honest rate is
-        # failed / (completed + failed). Written only once tasks have actually
-        # finished, so a fresh system is never scored flawless on zero evidence.
+        # error_rate — the TASK QUEUE owns task outcomes; the rate is failed /
+        # finished over its RECENT finished work, from the durable history, and
+        # only once enough has finished to say anything. It was failed / finished
+        # over the whole process, so one failed task was "100% of recent work
+        # failed" and Law 3 read 0.00 (SENSE-01). Absent until then, and absent
+        # when unreadable, so a stale value never stands in for a measurement.
         try:
-            qm = self.task_queue.get_metrics()
-            completed = int(qm.get("tasks_completed", 0))
-            failed = int(qm.get("tasks_failed", 0))
-            finished = completed + failed
-            if finished > 0:
-                metrics["error_rate"] = failed / finished
+            recent = await self.task_queue.recent_outcomes(self.ERROR_RATE_WINDOW)
+            if recent is not None and recent[0] >= self.ERROR_RATE_MIN_FINISHED:
+                metrics["error_rate"] = recent[1] / recent[0]
+            else:
+                metrics.pop("error_rate", None)
         except Exception as e:
+            metrics.pop("error_rate", None)
             logger.warning("system_state: error_rate unreadable: %s", e)
 
         # goal_alignment — the APPRAISAL system owns goal congruence (derived from

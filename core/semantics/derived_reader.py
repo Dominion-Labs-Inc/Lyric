@@ -871,6 +871,9 @@ class PatternInventory:
         self._proper: set = set()
         self._needs: Dict[str, Tuple[FrozenSet[str], FrozenSet[str]]] = {}
         self._ends: set = set()
+        # The marks held where more can follow them: in a phrase or a lexical, or in a construction before its last
+        # piece (`reads_past`).
+        self._inner_marks: set = set()
         self._pattern_keys: List[str] = []
         self._holophrase_keys: List[str] = []
         self._lexical_keys: List[str] = []
@@ -995,6 +998,9 @@ class PatternInventory:
             # A number or a formula names itself, whole: "a + b" does not make "a" a word that names something.
             self._named.update(_fold(w) for concept in concepts if not _quantity(str(concept))
                                for w in str(concept).replace("_", " ").split())
+            # A construction's own last piece meets only the last piece said; a phrase's or a lexical's may meet any.
+            inner = item.form[:-1] if isinstance(item, Pattern) else item.form
+            self._inner_marks.update(_fold(e.text) for e in inner if isinstance(e, Piece) and _is_mark(e.text))
         if isinstance(item, (Pattern, Phrase)):
             self._use_touched.update((key, slot) for slot in item.slots)
         if isinstance(item, Pattern):
@@ -1346,6 +1352,14 @@ class PatternInventory:
     def ends(self) -> FrozenSet[str]:
         """The pieces held constructions end on: where an utterance can end, as far as anything taught says."""
         return frozenset(self._ends)
+
+    def reads_past(self, pieces: Sequence[Piece]) -> bool:
+        """Whether a reading can go on past every mark before the last of these pieces: each is a mark some held
+        construction holds where more follows it, or a hyphen joining two words into one ("four-group"). No filler
+        takes in a mark that parts words (`_parted`), and such a mark said is met only by the same mark in a
+        construction, so past one nothing holds so, nothing held reads on."""
+        return all(_fold(p.text) in self._inner_marks for k, p in enumerate(pieces[:-1])
+                   if _is_mark(p.text) and not _joins(pieces, k))
 
     def is_proper(self, word: str) -> bool:
         """Whether this word has been written with a capital where no sentence begins ("Monday" in "Tuesday follows
@@ -2678,12 +2692,30 @@ def _composed_meaning(meaning: Meaning, fillings: Mapping[str, _Filling]) -> Opt
         return None
 
 
+class _Chart:
+    """What one reading of one run of pieces has read so far, so nothing in it is read twice: the phrases read over
+    each span (`_phrase_fillings`), and what may stand in each frame's slot over each span (`_slot_fillings`).
+
+    A frame's ways of covering the words share their spans -- the first slot of "?slot0 ?slot1 ?slot2." covers the
+    same words for every place the second can end -- so without the second, a long run of words read each slot over
+    each span as many times as there are ways to cover the rest: twenty times over on a paragraph of prose, for
+    minutes. What stands in a slot over a span whose phrases are being read now (`reading`) is not final until that
+    reading ends, and is not kept."""
+
+    def __init__(self):
+        self.phrases: Dict[Tuple[int, int], List[_Filling]] = {}
+        self.slots: Dict[Tuple[str, str, int, int], List[_Filling]] = {}
+        self.reading: set = set()
+
+
 def _slot_fillings(view: PatternInventory, frame: Union[Pattern, Phrase], slot: str, pieces: Tuple[Piece, ...],
-                   start: int, end: int, chart: Dict[Tuple[int, int], List[_Filling]], *,
-                   extend: bool, loose: bool) -> List[_Filling]:
+                   start: int, end: int, chart: _Chart, *, extend: bool, loose: bool) -> List[_Filling]:
     """Everything that may stand in one slot for `pieces[start:end]`: the lexical fillers `_fillers` finds, and the
     phrases read over those pieces (`_phrase_fillings`) that fill this slot through a held link or, with `extend`, a
-    proposed link to a phrase of the slot's kind."""
+    proposed link to a phrase of the slot's kind. Read once per chart."""
+    kept = (frame.key, slot, start, end)
+    if kept in chart.slots:
+        return chart.slots[kept]
     out: List[_Filling] = []
     alike = _alike(view, frame, slot)
 
@@ -2709,23 +2741,26 @@ def _slot_fillings(view: PatternInventory, frame: Union[Pattern, Phrase], slot: 
             out.append(_Filling(filling.anchor, filling.facts, filling.constructions,
                                 filling.links, filling.proposed + (link(frame, slot, top),), filling.new,
                                 apart=apart))
+    if (start, end) not in chart.reading:
+        chart.slots[kept] = out
     return out
 
 
 def _phrase_fillings(view: PatternInventory, pieces: Tuple[Piece, ...], start: int, end: int,
-                     chart: Dict[Tuple[int, int], List[_Filling]], *, extend: bool, loose: bool) -> List[_Filling]:
+                     chart: _Chart, *, extend: bool, loose: bool) -> List[_Filling]:
     """Every phrase that reads `pieces[start:end]`, read once and kept in `chart` for every slot that could take it:
     a phrase with no slots whose form is those words, or one whose slots hold fillers of their own, phrases
     included, so phrases nest."""
     key = (start, end)
-    if key in chart:
-        return chart[key]
-    chart[key] = []                      # read once; a phrase reading itself finds nothing
+    if key in chart.phrases:
+        return chart.phrases[key]
+    chart.phrases[key] = []              # read once; a phrase reading itself finds nothing
     span = pieces[start:end]
     words = tuple(_fold(p.text) for p in span) if loose else tuple(p.text for p in span)
     if not words or (loose and _parted(span)):
         return []
-    same = (lambda word, text: word == _fold(text)) if loose else str.__eq__
+    chart.reading.add(key)
+    same =(lambda word, text: word == _fold(text)) if loose else str.__eq__
     missing = (lambda piece: _is_mark(piece.text)) if loose else (lambda piece: False)
     shaped, stood = _written_shapes(view, words, pieces[end].text if end < len(pieces) else "", loose=loose)
     have = frozenset(words) | stood
@@ -2793,7 +2828,8 @@ def _phrase_fillings(view: PatternInventory, pieces: Tuple[Piece, ...], start: i
         if said not in kept or len(filling.constructions) < len(kept[said].constructions):
             kept[said] = filling
     out = list(kept.values())
-    chart[key] = out
+    chart.reading.discard(key)
+    chart.phrases[key] = out
     return out
 
 
@@ -2838,7 +2874,7 @@ def _analyses(words: Tuple[str, ...], view: PatternInventory, *, pieces: Optiona
                         out.append(view.reading((holophrase,), (), holophrase.meaning, said_for=1))
     shaped, stood = _written_shapes(view, words, loose=loose)
     have = frozenset(words) | stood
-    chart: Dict[Tuple[int, int], List[_Filling]] = {}
+    chart = _Chart()
     for pattern in view.item_based():
         if not view.may_read(pattern.key, have, loose) or not view.counts(pattern):
             continue
@@ -2915,7 +2951,13 @@ def readings_of(words: Tuple[str, ...], meaning: Meaning, view: PatternInventory
 
 def _read_pieces(pieces: Tuple[Piece, ...], view: PatternInventory) -> Tuple[Reading, ...]:
     """The meanings these pieces read to, best reading of each first, from the readings that had to suppose the
-    least: none that had to suppose more is reported beside one that supposed less."""
+    least: none that had to suppose more is reported beside one that supposed less.
+
+    Pieces with a mark before their last that no reading goes on past (`reads_past`) have no reading, and none is
+    searched for: a loose reading sets aside only the last mark. Searched, three sentences of prose taken as one,
+    through ends nothing taught runs past, cost minutes."""
+    if not view.reads_past(pieces):
+        return ()
     words = tuple(p.text for p in pieces)
     found = (_analyses(words, view, pieces=pieces, extend=True)
              or _analyses(words, view, pieces=pieces, extend=True, loose=True))
@@ -4000,12 +4042,12 @@ def _phrase_repair(form: Tuple[Piece, ...], anchor: str, facts: Tuple[MeaningFac
     learned only as held phrases compose it, links and all; none, when they do not: "had barked", a barking and a time
     before now, is the sentence's to learn, not a phrase held whole."""
     target = _phrase_canonical(anchor, facts)
-    for filling in _phrase_fillings(view, form, 0, len(form), {}, extend=False, loose=False):
+    for filling in _phrase_fillings(view, form, 0, len(form), _Chart(), extend=False, loose=False):
         if _phrase_canonical(filling.anchor, filling.facts) == target:
             return filling.constructions[0], (), ()                  # type: ignore[return-value]
     # Held phrases read it, and only their links are missing (`add_links`, at a phrase's scale): "two hundred and
     # six", where "?slot0 and ?slot1" has held "a hundred" in its first slot and "?slot0 ?slot1" reads "two hundred".
-    linked = [filling for filling in _phrase_fillings(view, form, 0, len(form), {}, extend=True, loose=False)
+    linked = [filling for filling in _phrase_fillings(view, form, 0, len(form), _Chart(), extend=True, loose=False)
               if filling.proposed and not filling.new and all(c.key in view for c in filling.constructions)
               and _phrase_canonical(filling.anchor, filling.facts) == target]
     if linked:
@@ -4019,7 +4061,7 @@ def _phrase_repair(form: Tuple[Piece, ...], anchor: str, facts: Tuple[MeaningFac
     # `snowing`.
     from core.semantics.cognitive_ingress import MAX_TERM_WORDS
     wanted = _phrase_constants(anchor, facts)
-    for filling in _phrase_fillings(view, form, 0, len(form), {}, extend=True, loose=False):
+    for filling in _phrase_fillings(view, form, 0, len(form), _Chart(), extend=True, loose=False):
         if len(filling.new) > 1 or filling.constructions[0].key not in view:
             continue
         have = _phrase_constants(filling.anchor, filling.facts)
@@ -4122,7 +4164,7 @@ def _joined(form: Tuple[Piece, ...], anchor: str, facts: Tuple[MeaningFact, ...]
     gives the pair's meaning back, composed with the parts' held readings; a part is read strictly, as held, and at
     least one is a phrase of held phrases, so single words are left to the covering fillers."""
     n = len(form)
-    chart: Dict[Tuple[int, int], List[_Filling]] = {}
+    chart = _Chart()
     values, _ = _valued(facts)
 
     def readings(a: int, b: int) -> List[_Filling]:

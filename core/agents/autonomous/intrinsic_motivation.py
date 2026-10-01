@@ -3617,10 +3617,6 @@ class IntrinsicMotivationSystem:
 
             logger.info(f"✓ Created hypothesis {hypothesis_id} from goal: {description[:60]}...")
 
-            # Store mapping between goal and hypothesis
-            if hasattr(goal, 'get') and 'id' in goal:
-                await self._store_goal_hypothesis_mapping(goal['id'], hypothesis_id)
-
             return hypothesis_id
 
         except Exception as e:
@@ -3693,41 +3689,6 @@ class IntrinsicMotivationSystem:
             f"Random exploration would yield equivalent results",
             f"The observed effects are due to other system changes, not {component}",
         ]
-
-    async def _store_goal_hypothesis_mapping(
-        self,
-        goal_id: str,
-        hypothesis_id: str
-    ) -> None:
-        """Store mapping between goal and hypothesis for tracking"""
-        if not self.db:
-            return
-
-        try:
-            await self.db.execute_query(
-                """
-                INSERT INTO unified.novelty_detections
-                (novelty_id, goal_description, theme, component, metadata)
-                VALUES ($1, $2, 'hypothesis_mapping', 'intrinsic_motivation', $3)
-                ON CONFLICT (novelty_id) DO UPDATE SET
-                    metadata = EXCLUDED.metadata
-                """,
-                (
-                    f"goal_hyp_map_{goal_id}",
-                    f"Goal-Hypothesis mapping: {goal_id} -> {hypothesis_id}",
-                    json.dumps({
-                        'goal_id': goal_id,
-                        'hypothesis_id': hypothesis_id,
-                        'created_at': datetime.now().isoformat()
-                    })
-                ),
-                commit=True
-            )
-
-            logger.debug(f"Stored goal-hypothesis mapping: {goal_id} -> {hypothesis_id}")
-
-        except Exception as e:
-            logger.error(f"Failed to store goal-hypothesis mapping: {e}")
 
 
 

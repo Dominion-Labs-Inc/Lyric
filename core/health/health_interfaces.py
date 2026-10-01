@@ -71,30 +71,6 @@ class IHealthMonitor(ABC):
         pass
 
 
-class IRecoveryManager(ABC):
-    """Interface for system recovery management"""
-    
-    @abstractmethod
-    async def assess_recovery_options(self, issue: str) -> List[str]:
-        """Assess available recovery options for an issue"""
-        pass
-    
-    @abstractmethod
-    async def execute_recovery_action(self, action: str, parameters: Dict[str, Any]) -> bool:
-        """Execute a recovery action"""
-        pass
-    
-    @abstractmethod
-    async def verify_recovery(self, component: str) -> bool:
-        """Verify that recovery was successful"""
-        pass
-    
-    @abstractmethod
-    async def rollback_recovery(self, action_id: str) -> bool:
-        """Rollback a recovery action if it failed"""
-        pass
-
-
 class IHealthManager(ABC):
     """Main health manager interface"""
     

@@ -385,7 +385,7 @@ class PostgresStorage:
             return True
 
         except Exception as e:
-            logger.error(f"Failed to store memory: {e}")
+            logger.error(f"Failed to store memory: {type(e).__name__}: {e}")
             self.metrics['failed_operations'] += 1
 
             # Send notification for memory storage failure
@@ -1512,8 +1512,8 @@ class PostgresStorage:
             }
 
         except Exception as e:
-            logger.error(f"Failed to get statistics: {e}")
-            return {'error': str(e), 'metrics': self.metrics.copy()}
+            logger.error(f"Failed to get statistics: {type(e).__name__}: {e}")
+            return {'error': f"{type(e).__name__}: {e}", 'metrics': self.metrics.copy()}
 
     @staticmethod
     def _rows_affected(status) -> int:

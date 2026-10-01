@@ -220,6 +220,209 @@ STRATEGY_MIN_TRIALS = 5
 ADAPTATION_THRESHOLD = 0.7
 
 
+def wilson_interval(successes: int, trials: int, confidence_level: float = 0.95) -> Tuple[float, float]:
+    """Wilson score confidence interval for a Bernoulli success rate: (lower, upper). Over no trials nothing is
+    known, (0.0, 1.0). The one interval meta-learning, its adaptation gate and the domain authority judge rates by."""
+    if trials <= 0:
+        return 0.0, 1.0
+    import math
+    p = successes / trials
+    z = {0.90: 1.645, 0.95: 1.96, 0.99: 2.576}.get(confidence_level, 1.96)
+    denominator = 1.0 + (z ** 2) / trials
+    centre = (p + (z ** 2) / (2.0 * trials)) / denominator
+    margin = z * math.sqrt((p * (1.0 - p) + (z ** 2) / (4.0 * trials)) / trials) / denominator
+    return max(0.0, centre - margin), min(1.0, centre + margin)
+
+
+class StrategyAdaptationGate:
+    """
+    Validates whether strategy adaptation should trigger based on:
+    1. Minimum sample count (avoid noise)
+    2. Binomial confidence interval (statistical rigor)
+    3. Decay-weighted win rate (favor recent performance)
+    4. Variance stability check (distinguish low-performance from oscillation)
+
+    Prevents chaotic strategy thrashing while remaining sensitive to real degradation.
+    """
+
+    # Minimum executions before considering adaptation
+    MIN_EXECUTIONS = 10
+
+    # Binomial confidence level (95%)
+    CONFIDENCE_LEVEL = 0.95
+
+    # Decay factor for old data (exponential, α=0.2)
+    DECAY_ALPHA = 0.2
+
+    # Threshold: adapt if decay_weighted_win_rate < this
+    ADAPT_WIN_RATE_THRESHOLD = 0.40
+
+    # Threshold: adapt if variance > this (indicates instability, may need reset)
+    ADAPT_VARIANCE_THRESHOLD = 0.25
+
+    @staticmethod
+    def should_adapt(
+        task_type: str,
+        executions: int,
+        wins: int,
+        recent_outcomes: Optional[List[bool]] = None,
+    ) -> tuple[bool, Dict[str, Any]]:
+        """
+        Determine if strategy adaptation should trigger.
+
+        Args:
+            task_type: TaskType.value for logging
+            executions: Total execution count
+            wins: Total win count
+            recent_outcomes: Last N boolean outcomes [True=win, False=loss]
+
+        Returns:
+            (should_adapt, reason_dict) where reason_dict explains the decision
+        """
+        if recent_outcomes is None:
+            recent_outcomes = []
+
+        reason = {
+            "task_type": task_type,
+            "total_executions": executions,
+            "total_wins": wins,
+            "basic_win_rate": wins / max(executions, 1),
+            "checks_passed": [],
+            "checks_failed": [],
+        }
+
+        # ──── Check 1: Minimum sample size ────
+        if executions < StrategyAdaptationGate.MIN_EXECUTIONS:
+            reason["checks_failed"].append(
+                f"sample_size: {executions} < {StrategyAdaptationGate.MIN_EXECUTIONS}"
+            )
+            reason["decision"] = "HOLD_INSUFFICIENT_SAMPLE"
+            return False, reason
+
+        reason["checks_passed"].append(
+            f"sample_size: {executions} ≥ {StrategyAdaptationGate.MIN_EXECUTIONS}"
+        )
+
+        # ──── Check 2: Binomial confidence interval ────
+        # Wilson score interval (more robust than Agresti-Coull for small n)
+        ci_lower, ci_upper = wilson_interval(
+            wins, executions, StrategyAdaptationGate.CONFIDENCE_LEVEL
+        )
+
+        reason["confidence_interval_95"] = {
+            "lower": round(ci_lower, 3),
+            "upper": round(ci_upper, 3),
+        }
+
+        # Adapt if lower bound is significantly below threshold
+        adapt_threshold = StrategyAdaptationGate.ADAPT_WIN_RATE_THRESHOLD
+        if ci_lower < adapt_threshold:
+            reason["checks_passed"].append(
+                f"ci_lower: {ci_lower:.3f} < {adapt_threshold} (statistically low)"
+            )
+        else:
+            reason["checks_failed"].append(
+                f"ci_lower: {ci_lower:.3f} ≥ {adapt_threshold} (not statistically low)"
+            )
+            reason["decision"] = "HOLD_NOT_STATISTICALLY_LOW"
+            return False, reason
+
+        # ──── Check 3: Decay-weighted win rate (favor recent) ────
+        if recent_outcomes and len(recent_outcomes) > 0:
+            decay_weight = StrategyAdaptationGate._calculate_decay_weights(len(recent_outcomes))
+            recent_wins = sum(
+                outcome * weight
+                for outcome, weight in zip(recent_outcomes, decay_weight)
+            )
+            recent_total = sum(decay_weight)
+            decay_win_rate = recent_wins / recent_total if recent_total > 0 else 0
+
+            reason["decay_weighted_win_rate"] = round(decay_win_rate, 3)
+            reason["recent_outcomes"] = recent_outcomes
+
+            # Adapt if decay-weighted rate is also low
+            if decay_win_rate >= adapt_threshold * 0.9:  # 90% of threshold
+                reason["checks_failed"].append(
+                    f"decay_win_rate: {decay_win_rate:.3f} ≥ {adapt_threshold * 0.9:.3f} "
+                    f"(recent performance improving)"
+                )
+                reason["decision"] = "HOLD_RECENT_IMPROVING"
+                return False, reason
+
+            reason["checks_passed"].append(
+                f"decay_win_rate: {decay_win_rate:.3f} < {adapt_threshold * 0.9:.3f} "
+                f"(recent performance low)"
+            )
+
+        # ──── Check 4: Variance stability ────
+        if recent_outcomes and len(recent_outcomes) > 2:
+            variance = StrategyAdaptationGate._calculate_outcome_variance(recent_outcomes)
+            reason["outcome_variance"] = round(variance, 3)
+
+            # High variance = unstable, may need reset; low variance = consistently bad
+            if variance > StrategyAdaptationGate.ADAPT_VARIANCE_THRESHOLD:
+                reason["adaptation_reason"] = "high_variance_instability"
+                reason["checks_passed"].append(
+                    f"variance: {variance:.3f} > {StrategyAdaptationGate.ADAPT_VARIANCE_THRESHOLD} "
+                    f"(oscillating, needs reset)"
+                )
+            else:
+                reason["adaptation_reason"] = "consistent_low_performance"
+                reason["checks_passed"].append(
+                    f"variance: {variance:.3f} ≤ {StrategyAdaptationGate.ADAPT_VARIANCE_THRESHOLD} "
+                    f"(consistently bad, needs improvement)"
+                )
+
+        # All checks passed → adapt
+        reason["decision"] = "ADAPT"
+        return True, reason
+
+    @staticmethod
+    def _calculate_decay_weights(n: int) -> List[float]:
+        """
+        Calculate exponential decay weights for last n outcomes.
+
+        Most recent gets highest weight; older outcomes decay exponentially.
+        Formula: weight[i] = exp(-decay_alpha * (n - i))
+
+        Args:
+            n: Number of outcomes
+
+        Returns:
+            List of n weights summing to ~n (for averaging)
+        """
+        import math
+
+        alpha = StrategyAdaptationGate.DECAY_ALPHA
+        weights = [math.exp(-alpha * (n - 1 - i)) for i in range(n)]
+
+        # Normalize so sum ≈ n (for intuitive averaging)
+        total = sum(weights)
+        return [w * n / total for w in weights]
+
+    @staticmethod
+    def _calculate_outcome_variance(outcomes: List[bool]) -> float:
+        """
+        Calculate variance of outcome sequence (higher = more oscillation).
+
+        Variance = mean((outcome - mean)^2)
+
+        Args:
+            outcomes: List of boolean outcomes
+
+        Returns:
+            Variance in range [0, 0.25] (max variance for binary data)
+        """
+        if len(outcomes) < 2:
+            return 0.0
+
+        numeric = [float(o) for o in outcomes]
+        mean = sum(numeric) / len(numeric)
+        variance = sum((x - mean) ** 2 for x in numeric) / len(numeric)
+
+        return variance
+
+
 class MetaLearner(IStrategySelection):
     """
     DECLARES `IStrategySelection`. It already did all three of these -- select
@@ -773,27 +976,12 @@ class MetaLearner(IStrategySelection):
         trials: int,
         confidence_level: float = 0.95,
     ) -> Tuple[float, float]:
-        """Wilson score confidence interval for a Bernoulli success rate."""
+        """Wilson score confidence interval for a Bernoulli success rate (`wilson_interval`); (0.0, 0.0) over
+        no trials, which the production gate reads as nothing established."""
 
         if trials == 0:
             return (0.0, 0.0)
-
-        import math
-
-        p = successes / trials
-        z = {0.90: 1.645, 0.95: 1.96, 0.99: 2.576}.get(confidence_level, 1.96)
-
-        denominator = 1.0 + (z**2) / trials
-        centre = (p + (z**2) / (2.0 * trials)) / denominator
-        margin = (
-            z
-            * math.sqrt((p * (1.0 - p) + (z**2) / (4.0 * trials)) / trials)
-            / denominator
-        )
-
-        lower = max(0.0, centre - margin)
-        upper = min(1.0, centre + margin)
-        return (lower, upper)
+        return wilson_interval(successes, trials, confidence_level)
 
     def validate_strategy_for_production(
         self,

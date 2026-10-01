@@ -938,7 +938,7 @@ class LyricUnifiedDatabasePostgres:
                 return result
 
         except Exception as e:
-            logger.error(f"Query execution failed: {e}")
+            logger.error(f"Query execution failed: {type(e).__name__}: {e}")
             logger.error(f"Query: {query}")
             logger.error(f"Params: {params}")
             self.metrics['failed_queries'] += 1

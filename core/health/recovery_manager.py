@@ -26,7 +26,6 @@ logger = logging.getLogger(__name__)
 class FailureType(Enum):
     """Types of system failures"""
     SERVICE_CRASH = "service_crash"
-    COMPONENT_FAILURE = "component_failure"  # Generic catch-all used by execute_recovery_action()
     DATABASE_ERROR = "database_error"
     RESOURCE_EXHAUSTION = "resource_exhaustion"
     NETWORK_ERROR = "network_error"
@@ -45,10 +44,6 @@ class RecoveryAction(Enum):
     ESCALATE = "escalate"
     THROTTLE = "throttle"
     ALERT = "alert"
-    # Read-only re-check. Verification is NOT a repair: mapping verify_* onto
-    # CLEANUP made "confirm the database is intact" perform a mutation, the same
-    # action-semantics confusion as treating a file read as a write.
-    VERIFY = "verify"
 
 
 @dataclass
@@ -360,30 +355,6 @@ class RecoveryManager:
             logger.error(f"Failed to initialize recovery manager: {e}")
             return False
 
-    async def _verify_component(self, component: str) -> bool:
-        """Re-check a component's health. Read-only, never repairs.
-
-        True  = component is healthy now
-        False = still unhealthy, OR health could not be determined
-        The caller must not read False as "the repair failed" — it means the
-        post-condition is not established, which is the honest answer either way.
-        """
-        try:
-            from core.health.health_monitor import get_health_monitor
-            monitor = get_health_monitor()
-            if monitor is None:
-                logger.warning("VERIFY %s: no health monitor available", component)
-                return False
-            status = await monitor.check_component_health(component)
-            state = getattr(status, "status", status)
-            state = str(getattr(state, "value", state)).lower()
-            healthy = state == "healthy"
-            logger.info("🔎 VERIFY %s -> %s", component, state)
-            return healthy
-        except Exception as e:
-            logger.warning("VERIFY %s failed to determine health: %s", component, e)
-            return False
-
     def can_restart(self, component: str) -> bool:
         """Whether a restart PATH exists for this component — a registered handler
         or a built-in branch. Read-only: attempts nothing.
@@ -394,103 +365,6 @@ class RecoveryManager:
         `_restart_component` will act on."""
         key = (component or "").strip().lower()
         return key in self._restart_handlers or key in self._BUILTIN_RESTART_KEYS
-
-    async def execute_recovery_action(
-        self,
-        component: str,
-        action: str,
-        parameters: Dict[str, Any] = None
-    ) -> bool:
-        """
-        Execute a specific recovery action (IRecoveryManager interface implementation)
-
-        This method provides a direct interface for executing recovery actions,
-        used by autonomous_coordinator's AI self-healing system.
-
-        Args:
-            component: Component to recover
-            action: Action name (reconnect_database, restart_component, clear_cache, etc.)
-            parameters: Additional parameters for the action
-
-        Returns:
-            True if action succeeded, False otherwise
-        """
-        if not self.initialized:
-            # The result is CHECKED. Discarding it meant a failed initialize was
-            # followed by the work it was meant to enable, and the real failure
-            # resurfaced later disguised as something else.
-            if await self.initialize() is False:
-                raise RuntimeError(
-                    type(self).__name__ + ' could not initialize; refusing to '
-                    'continue as though it had')
-
-        try:
-            params = parameters or {}
-            logger.info(f"🔧 Executing recovery action '{action}' on {component}")
-
-            # Map action names to recovery action enums
-            action_map = {
-                'reconnect_database': RecoveryAction.RESTART,
-                'restart_component': RecoveryAction.RESTART,
-                'clear_cache': RecoveryAction.CLEANUP,
-                'clear_component_cache': RecoveryAction.CLEANUP,
-                'reset_state': RecoveryAction.ROLLBACK,
-                'reset_component_state': RecoveryAction.ROLLBACK,
-                'rollback': RecoveryAction.ROLLBACK,
-                'restart': RecoveryAction.RESTART,
-                'cleanup': RecoveryAction.CLEANUP,
-                'throttle': RecoveryAction.THROTTLE,
-                'backup': RecoveryAction.BACKUP,
-                # Playbook-defined aliases
-                'backup_before_repair': RecoveryAction.BACKUP,
-                # Verification is read-only — never CLEANUP, which mutates.
-                'verify_db_integrity': RecoveryAction.VERIFY,
-                'verify_after_restart': RecoveryAction.VERIFY,
-                'verify_api_connectivity': RecoveryAction.VERIFY,
-                'verify_network': RecoveryAction.VERIFY,
-                'verify_dns_resolution': RecoveryAction.VERIFY,
-                'verify_reasoning_output': RecoveryAction.VERIFY,
-                'track_storage_health': RecoveryAction.VERIFY,
-                # Alerts notify; they do not clean up.
-                'alert_db_recovery': RecoveryAction.ALERT,
-                'alert_quantum_degraded': RecoveryAction.ALERT,
-                'alert_network_issue': RecoveryAction.ALERT,
-                'alert_security_degraded': RecoveryAction.ALERT,
-                'alert_health_system_degraded': RecoveryAction.ALERT,
-                # Restarts
-                'restart_api_connections': RecoveryAction.RESTART,
-                'gc_collect': RecoveryAction.CLEANUP,
-                'reduce_cache_size': RecoveryAction.CLEANUP,
-                'track_memory_trend': RecoveryAction.CLEANUP,
-            }
-
-            recovery_action = action_map.get(action.lower())
-            if not recovery_action:
-                logger.warning(f"Unknown recovery action: {action}")
-                return False
-
-            # Execute the recovery action directly
-            success = await self._execute_recovery_action(
-                recovery_action,
-                component,
-                FailureType.COMPONENT_FAILURE,  # Generic failure type
-                params
-            )
-
-            if success:
-                logger.info(f"✅ Recovery action '{action}' succeeded for {component}")
-                self.statistics['successful_recoveries'] += 1
-            else:
-                logger.error(f"❌ Recovery action '{action}' failed for {component}")
-                self.statistics['failed_recoveries'] += 1
-
-            return success
-
-        except Exception as e:
-            logger.error(f"Error executing recovery action: {e}")
-            import traceback
-            traceback.print_exc()
-            return False
 
     async def handle_failure(
         self,
@@ -670,13 +544,6 @@ class RecoveryManager:
                 # Send alert to monitoring systems
                 await self._send_alert(component, failure_type, metadata)
                 return True
-
-            elif action == RecoveryAction.VERIFY:
-                # Read-only: re-check the component against the health monitor.
-                # Returns the ACTUAL health, so a verification that finds the
-                # component still unhealthy correctly reports failure rather
-                # than reporting success for having looked.
-                return await self._verify_component(component)
 
             else:
                 logger.warning(f"Unknown recovery action: {action}")
