@@ -247,3 +247,9 @@ data/bulk/
 # experiment script, its stimuli, findings and results are all tracked.
 experiments/*/work/
 experiments/*/*/work/
+
+# Dataset archives: the unpacked folders beside them are committed, and GitHub refuses files over 100 MB
+test_data/vision/ukbench.zip
+test_data/music/giantsteps_audio.zip
+test_data/music/gtzan_genres.tar.gz
+test_data/speech/dev-clean.tar.gz
