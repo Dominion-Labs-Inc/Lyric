@@ -96,8 +96,8 @@ def test_importance_still_separates_equally_good_matches():
 
 def test_event_records_are_held_back_from_recall_when_asked():
     items = [
-        _memory("event", "Governance block on run 41",
-                similarity=0.9, importance=0.9, tags=["governance_block"]),
+        _memory("event", "Task outcome on run 41",
+                similarity=0.9, importance=0.9, tags=["task_outcome"]),
         _memory("knowledge", "pressure loss is caused by friction",
                 similarity=0.6, importance=0.5),
     ]
@@ -112,13 +112,13 @@ def test_event_records_are_reachable_by_default():
     their multiplicity is the signal. Excluding them by default would silently
     empty performance history."""
     items = [
-        _memory("event", "Governance block on run 41",
-                similarity=0.9, importance=0.9, tags=["governance_block"]),
+        _memory("event", "Task outcome on run 41",
+                similarity=0.9, importance=0.9, tags=["task_outcome"]),
         _memory("knowledge", "pressure loss is caused by friction",
                 similarity=0.6, importance=0.5),
     ]
     everything = asyncio.run(
-        _agent(items).retrieve("governance", limit=5, min_similarity=0.15))
+        _agent(items).retrieve("run 41", limit=5, min_similarity=0.15))
     assert {m.memory_id for m in everything} == {"event", "knowledge"}
 
 

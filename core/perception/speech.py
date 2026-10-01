@@ -55,6 +55,9 @@ _NFFT, _HOP, _BANDS, _CEPSTRA = 512, 220, 26, 12      # 23 ms windows every 10 m
 RATIO = 0.85
 #: Fully resolved at this ratio: below it no untaught word was accepted.
 _RATIO_RESOLVED = 0.70
+#: At most this many taught words may sound alike enough to be handed on together: English's sets of words that
+#: sound the same are two or three ("to", "two", "too").
+_CLOSE_MOST = 3
 _EPS = 1e-10
 
 
@@ -287,15 +290,13 @@ def _standing(ratio: float) -> float:
     return float(np.clip((RATIO - ratio) / (RATIO - _RATIO_RESOLVED), 0.0, 1.0))
 
 
-def name_word(heard: np.ndarray, taught: Dict[str, Sequence[np.ndarray]]
-              ) -> Optional[Dict[str, Any]]:
-    """Which taught word a stretch of speech is, or None when none clearly is.
-    Each word's distance is its nearest taught example's."""
-    if len(taught) < 2:
-        # A ratio needs a rival. With one word taught there is nothing to beat,
-        # and a distance alone accepted a fifth of the words never taught.
-        return None
-    distance = {w: min(warp(heard, e) for e in examples) for w, examples in taught.items() if examples}
+def _distances(heard: np.ndarray, taught: Dict[str, Sequence[np.ndarray]]) -> Dict[str, float]:
+    """How far a stretch of speech lies from each taught word: its nearest taught example's distance."""
+    return {w: min(warp(heard, e) for e in examples) for w, examples in taught.items() if examples}
+
+
+def _named(distance: Dict[str, float]) -> Optional[Dict[str, Any]]:
+    """The taught word the distances clearly name, or None (the ratio test)."""
     order = sorted(distance, key=distance.get)
     ratio = distance[order[0]] / max(distance[order[1]], _EPS)
     if ratio > RATIO:
@@ -304,11 +305,35 @@ def name_word(heard: np.ndarray, taught: Dict[str, Sequence[np.ndarray]]
             "ratio": round(ratio, 3), "standing": round(_standing(ratio), 3)}
 
 
+def _alike(distance: Dict[str, float]) -> List[str]:
+    """The taught words a stretch the ratio test could not name sounds like, nearest first: every word as near as
+    the ratio test cannot separate from the nearest. Words that sound alike ("to", "two", "too") lie as near one
+    another as their own examples do, and no distance tells them apart; a person tells them apart by which one
+    makes sense of what is said, so they are handed on for the listener to choose among
+    (`derived_reader.heard_which`). More than `_CLOSE_MOST` is not a word sounding like another but a sound like
+    many, and is handed on as nothing."""
+    order = sorted(distance, key=distance.get)
+    close = [w for w in order if distance[w] <= distance[order[0]] / RATIO]
+    return close if 2 <= len(close) <= _CLOSE_MOST else []
+
+
+def name_word(heard: np.ndarray, taught: Dict[str, Sequence[np.ndarray]]
+              ) -> Optional[Dict[str, Any]]:
+    """Which taught word a stretch of speech is, or None when none clearly is.
+    Each word's distance is its nearest taught example's."""
+    if len(taught) < 2:
+        # A ratio needs a rival. With one word taught there is nothing to beat,
+        # and a distance alone accepted a fifth of the words never taught.
+        return None
+    return _named(_distances(heard, taught))
+
+
 def find_words(y: np.ndarray, taught: Dict[str, Sequence[np.ndarray]]) -> List[Dict[str, Any]]:
     """What was said in a stretch of speech, in order: every span the stretch
     divides into, each with when it starts and ends (seconds into the stretch)
     and the taught word it clearly is, or `word` None when it is speech but not
-    clearly any taught word.
+    clearly any taught word. A span that sounds like a few taught words alike
+    and clearly none of them carries them as `close` (`_alike`).
 
     The stretch is divided into words by `_decode`, with pauses wherever hearing
     hears no sound. Each span is then measured on its own (`_measure`), exactly
@@ -325,11 +350,35 @@ def find_words(y: np.ndarray, taught: Dict[str, Sequence[np.ndarray]]) -> List[D
     spans: List[Dict[str, Any]] = []
     for first, last in _decode(heard, ~inside, examples):
         alone = _measure(y, cep, lo + first, lo + last + 1)
-        named = name_word(alone, taught) if len(alone) >= 3 else None
-        spans.append({"word": None, **(named or {}),
-                      "starts_at": round((lo + first) * _HOP / SR, 3),
-                      "ends_at": round((lo + last + 1) * _HOP / SR, 3)})
+        distance = _distances(alone, taught) if len(alone) >= 3 else {}
+        named = _named(distance) if distance else None
+        span = {"word": None, **(named or {}),
+                "starts_at": round((lo + first) * _HOP / SR, 3),
+                "ends_at": round((lo + last + 1) * _HOP / SR, 3)}
+        close = _alike(distance) if distance and not named else []
+        if close:
+            span["close"] = close
+        spans.append(span)
     return spans
+
+
+#: At most this many ways a stretch of speech can be heard, when words in it sound alike: past it the listener is
+#: not asked to choose, and what was said is not all understood.
+_HEARD_WAYS = 27
+
+
+def heard_texts(spans: Sequence[Dict[str, Any]]) -> List[str]:
+    """Every way what was said can be heard as text, when words in it sound like other taught words: each span
+    named as the word it clearly is, or as each of the words it sounds alike to (`close`), with "..." where it is
+    speech but no taught word. One way when nothing sounded alike; none past `_HEARD_WAYS`."""
+    import itertools
+    options = [[span["word"]] if span.get("word") else list(span.get("close") or ["..."]) for span in spans]
+    ways = 1
+    for option in options:
+        ways *= len(option)
+    if ways > _HEARD_WAYS:
+        return []
+    return list(dict.fromkeys(said_text([{"word": w} for w in combo]) for combo in itertools.product(*options)))
 
 
 def said_text(spans: Sequence[Dict[str, Any]]) -> str:
@@ -464,6 +513,9 @@ def recognise(y: np.ndarray, sounds: Sequence[Dict[str, Any]],
         if said:
             out["said"] = said
             out["heard_text"] = said_text(spans)
+        if any(w.get("close") for w in spans):
+            # Words that sound alike are heard every way they can be; which was said is the listener's to choose.
+            out["heard_texts"] = heard_texts(spans)
     if reach is not None:
         voiced = []
         for k, sound in enumerate(sounds):

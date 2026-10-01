@@ -69,7 +69,7 @@ def _blob(value: Any) -> Any:
 #:
 #: Nothing noticed while nothing consumed the answer. The moment ownership became
 #: load-bearing in Law 3 (the substrate may risk its own things, not a user's),
-#: the split became a governance fault: the substrate would treat its own work as
+#: the split became a constitutional fault: the substrate would treat its own work as
 #: a stranger's and refuse acts it has every right to take.
 #:
 #: `shared_types` is the owner because that is where `actor_for` lives — the
@@ -464,7 +464,7 @@ class IntentStore:
 
         This is the read a per-act view cannot give. An intent is a standing
         thing with a lifecycle and a parent; a gate that fetches one by id and
-        asks "is this act its operator" sees a permit. What governance needs is
+        asks "is this act its operator" sees a permit. What the Constitution needs is
         the SET: how many goals are live, how many have a proved route, how many
         concluded without anyone recording what happened, and how many have sat
         untouched long enough that nothing is really pursuing them.

@@ -1,0 +1,153 @@
+{
+  "experiment": "RULE-AUTHORITY-01",
+  "claim": "A learned operator gains the authority to act only when independent evidence has seen it work and nothing it applies to contradicts it.",
+  "hypothesis": "Across 1,000 hidden worlds with demonstrations arriving one at a time and the learner judging after each, no executable rule stands against the evidence, none lacks a held-out success, none follows from 2 successes, and determined worlds yield safe, correct operators at least 95% of the time.",
+  "started_at": "2026-10-01T00:47:08.238208+00:00",
+  "duration_seconds": 4.292,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/Lyric/venv_lyric/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/Lyric",
+    "shadow_mode": null,
+    "git_commit": "4079045ffdac8d282649a9a829e3060eb736139f",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "lyric_dev",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "lyric_dev",
+        "model": "lyric_dev",
+        "user_context": "lyric_dev",
+        "learning": "lyric_dev"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "dotenv:.env.postgres",
+        "database": "environment",
+        "user": "dotenv:.env.postgres",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "pool_idle_seconds": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 345,
+    "database_verified": "lyric_dev",
+    "database_verified_reason": "asked the server"
+  },
+  "summary": {
+    "checks": 6,
+    "passed": 5,
+    "failed": 1,
+    "outcome": "FAIL"
+  },
+  "metrics": [
+    {
+      "name": "worlds",
+      "value": 20,
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "demonstrations_shown",
+      "value": 110,
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "authority_judgements",
+      "value": 110,
+      "unit": "",
+      "note": "one after every arrival"
+    },
+    {
+      "name": "executable_rules",
+      "value": 2,
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "determined_worlds",
+      "value": 9,
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "determined_with_executable_rule",
+      "value": 1,
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "two_success_worlds",
+      "value": 6,
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "rules_refuted_after_validation",
+      "value": 0,
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "underdetermined_worlds_with_overbroad_authority",
+      "value": 1,
+      "unit": "",
+      "note": "licensed by the evidence shown; measured, not a failure"
+    },
+    {
+      "name": "elapsed_s",
+      "value": 1.7,
+      "unit": "",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "C1 no executable rule is contradicted by a demonstration of its act",
+      "passed": true,
+      "detail": "0 of 2",
+      "at": "2026-10-01T00:47:12.529643+00:00"
+    },
+    {
+      "label": "C2 every executable rule was validated on a held-out success",
+      "passed": true,
+      "detail": "0 without",
+      "at": "2026-10-01T00:47:12.529653+00:00"
+    },
+    {
+      "label": "C3 no executable rule from only 2 successes",
+      "passed": true,
+      "detail": "0 in 6 worlds",
+      "at": "2026-10-01T00:47:12.529655+00:00"
+    },
+    {
+      "label": "C4 determined worlds: no act authorized that the world refuses",
+      "passed": true,
+      "detail": "0 unsafe situation(s)",
+      "at": "2026-10-01T00:47:12.529656+00:00"
+    },
+    {
+      "label": "C5 determined worlds: no wrong predicted effect",
+      "passed": true,
+      "detail": "0 situation(s)",
+      "at": "2026-10-01T00:47:12.529658+00:00"
+    },
+    {
+      "label": "C6 determined worlds end with an executable rule >= 95%",
+      "passed": false,
+      "detail": "1/9 = 0.111",
+      "at": "2026-10-01T00:47:12.529659+00:00"
+    }
+  ],
+  "notes": [
+    "run tag 26356c; seed 20260930; every world's domain forgotten after it ran"
+  ]
+}

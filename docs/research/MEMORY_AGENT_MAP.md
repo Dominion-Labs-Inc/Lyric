@@ -101,7 +101,7 @@ Every statement in `core/` was read, the way `scripts/separation_map.py` reads t
 | Coordinator (`_learn_about_user`, 1) | beliefs about the speaker | nothing | the same, as the person's context |
 | Knowledge ledger (`learning/knowledge_ledger.py`, 4) | what was learned, what used it, whether behaviour changed | nothing | folded into the memory agent's record of every write |
 | Reasoning (argumentation 3, temporal 2, hypotheses 3, abstraction 2, analogy 2) | arguments, temporal propositions and causal links, hypotheses and experiments, schemas, analogies | the reasoning | what it produced. What was produced for a person goes through the pool. Abstraction clusters episodes, so it reads only what the split has made the substrate's |
-| Perception (`perception/perception_faculty.py`, 2; `agents/autonomous/perception_manager.py`, 1) | known image instances, perceptions | seeing | the pool: a percept is an experience. A learned instance is written only once it passes |
+| Perception (`perception/perception_faculty.py`, 2) | known image instances | seeing | the pool: a percept is an experience. A learned instance is written only once it passes |
 | Clause classifiers (`learning/unified_learning_system.py` `save_classifiers`, 1) | trained recognisers | training | the trained recogniser |
 | Sense taxonomy (`reasoning/sense_taxonomy.py`, 2, run by a script) | the taxonomy | nothing | through the memory agent, as teaching |
 | Security training (`security/security_training_pipeline.py`, 1) | training examples | nothing | no caller found; still to be decided |
@@ -565,7 +565,8 @@ Its memory, its picture and its pool item were already theirs. Sensing adds noth
   too.
 - **The row is theirs.** `unified.perceptions` is per-owner (`PER_OWNER_TABLES`), has an `owner` column, and is
   created in every store its rows are kept in. `hold_perception` writes a person's to their context.
-  `search_perceptions` reads the substrate's own unless a person's are asked for.
+  `search_perceptions` reads the substrate's own unless a person's are asked for. (Retired 2026-09-29 with the
+  perception manager: the percept is the memory of perceiving, which is already its owner's.)
 - **What it shows goes to their context** (`_admit_perceived`). Each edge of the observation goes through the
   learning authority's router (`learn_fact(actor=…)`) to their context, as a told fact does. Nothing enters the
   shared graph, its beliefs or the vocabulary.

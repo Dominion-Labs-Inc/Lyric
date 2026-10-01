@@ -207,11 +207,13 @@ def memory_writes(path, rel):
 #: whose it is (`user_id=`); the memory agent decides that.
 HAND_OFFS = {"store_memory", "enqueue_memory"}
 
-#: The doors a perception comes in by, and what each must be told: whose image `see` is looking at and whose
-#: recording `hear` is listening to (`actor_identity=`, None for the substrate's own), and where a perception came
-#: from (`origin=`).
-PERCEPTION_DOORS = {"see": "actor_identity", "hear": "actor_identity", "process_input": "origin",
-                    "note_perception": "origin"}
+#: The doors a perception comes in by, and what each must be told: whose image `see` is looking at, whose
+#: recording `hear` is listening to and whose moment `perceive_moment` takes in (`actor_identity=`, None for the
+#: substrate's own), and where a perception came from (`origin=`). `read` is the same door for a document; its
+#: name is every file object's too, so it cannot be found by name here.
+PERCEPTION_DOORS = {"see": "actor_identity", "hear": "actor_identity", "take_in": "actor_identity",
+                    "perceive_moment": "actor_identity", "process_input": "origin",
+                    "admit_percept": "origin", "note_percept": "origin", "remember_met": "origin"}
 
 
 def hand_offs_without_origin(path, rel):

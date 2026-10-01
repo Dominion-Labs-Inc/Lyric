@@ -7,7 +7,7 @@ import asyncio
 from datetime import datetime
 from uuid import uuid4
 
-from core.agents.autonomous.governance_block_schema import (
+from core.memory.utils.interfaces import (
     task_occurrences, task_outcome_account, task_outcomes_from_memory)
 
 

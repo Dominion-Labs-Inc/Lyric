@@ -568,6 +568,27 @@ def contradicted_by(rule: CandidateRule, example: TrainingExample) -> bool:
     return False
 
 
+def judged_by(rule: CandidateRule, example: TrainingExample) -> Optional[bool]:
+    """What one demonstration says about a rule, decided once for everyone who asks.
+
+    True when the rule applied and the world bore it out, False when it applied
+    and the world did not, None when the rule asserts nothing about this case.
+
+    A CASE THE RULE DOES NOT APPLY TO TESTS NOTHING ABOUT IT. `contradicted_by`
+    is False when nothing is asserted, and validation used to read that as a
+    confirmation. Measured: the MOVE and COPY rules were each "confirmed by 2
+    independent observation(s)" that were both failures their bodies did not
+    match, so no file operator had been shown, independently, to produce its
+    effect. A positive the rule does not cover is not against it either: the rule
+    claims what follows when its body holds, and says nothing where it does not.
+    """
+    if not applies(rule, example):
+        return None
+    if example.positive:
+        return derives(rule, example)
+    return not contradicted_by(rule, example)
+
+
 def applies(rule: CandidateRule, example: TrainingExample) -> List[RuleEffects]:
     """The effect instances this rule asserts for the example's antecedent."""
     instances = []

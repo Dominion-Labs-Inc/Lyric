@@ -210,66 +210,29 @@ class MemorySystemAdapter(TargetSystemAdapter):
 
     async def get_reasoning_trace_metrics(self) -> Dict[str, Any]:
         """
-        Get reasoning trace capture quality metrics.
+        Get reasoning trace capture quality metrics, from the memory agent.
 
-        Queries the memory database to validate chain of thought capture.
+        The memory agent is the one reader of memory: this asks it rather than
+        querying the memory tables. It used to query them itself, through a
+        method the storage does not have and with an array test on the thinking
+        state (an object), so it always failed, and returned zeros as though it
+        had measured them. A failure now raises.
 
         Returns:
             Dict with reasoning trace quality metrics
         """
-        try:
-            from core.memory import get_memory_agent
+        from core.memory import get_memory_agent
 
-            memory_agent = await get_memory_agent()
-
-            # Query PostgreSQL for reasoning trace statistics
-            # This queries the memory_hot schema
-            query = """
-                SELECT
-                    COUNT(*) as total_memories,
-                    SUM(CASE WHEN reasoning_trace IS NOT NULL AND jsonb_array_length(reasoning_trace) > 0 THEN 1 ELSE 0 END) as with_reasoning_trace,
-                    SUM(CASE WHEN thinking_state IS NOT NULL AND jsonb_array_length(thinking_state) > 0 THEN 1 ELSE 0 END) as with_thinking_state,
-                    SUM(CASE WHEN decision_factors IS NOT NULL AND jsonb_array_length(decision_factors) > 0 THEN 1 ELSE 0 END) as with_decision_factors,
-                    AVG(CASE WHEN reasoning_trace IS NOT NULL THEN jsonb_array_length(reasoning_trace) ELSE 0 END) as avg_reasoning_trace_length
-                FROM memory_hot
-                WHERE created_at > NOW() - INTERVAL '1 hour'
-            """
-
-            # Execute query via PostgreSQL storage
-            if memory_agent.postgres_storage:
-                result = await memory_agent.postgres_storage.execute_query(query)
-
-                if result and len(result) > 0:
-                    row = result[0]
-                    total = row.get('total_memories', 1)  # Avoid division by zero
-
-                    return {
-                        "total_memories_last_hour": total,
-                        "reasoning_trace_completeness_rate": row.get('with_reasoning_trace', 0) / total if total > 0 else 0.0,
-                        "reasoning_trace_avg_length": row.get('avg_reasoning_trace_length', 0),
-                        "thinking_state_capture_rate": row.get('with_thinking_state', 0) / total if total > 0 else 0.0,
-                        "decision_factors_population_rate": row.get('with_decision_factors', 0) / total if total > 0 else 0.0
-                    }
-
-            # Return empty metrics if database unavailable
-            logger.debug("Memory database unavailable, returning empty reasoning trace metrics")
-            return {
-                "total_memories_last_hour": 0,
-                "reasoning_trace_completeness_rate": 0.0,
-                "reasoning_trace_avg_length": 0,
-                "thinking_state_capture_rate": 0.0,
-                "decision_factors_population_rate": 0.0
-            }
-
-        except Exception as e:
-            logger.error(f"Failed to get reasoning trace metrics: {e}")
-            return {
-                "total_memories_last_hour": 0,
-                "reasoning_trace_completeness_rate": 0.0,
-                "reasoning_trace_avg_length": 0,
-                "thinking_state_capture_rate": 0.0,
-                "decision_factors_population_rate": 0.0
-            }
+        memory_agent = await get_memory_agent()
+        row = await memory_agent.capture_statistics(within_s=3600.0)
+        total = int(row["total"])
+        return {
+            "total_memories_last_hour": total,
+            "reasoning_trace_completeness_rate": row["with_reasoning_trace"] / total if total else 0.0,
+            "reasoning_trace_avg_length": float(row["avg_reasoning_trace_length"]),
+            "thinking_state_capture_rate": row["with_thinking_state"] / total if total else 0.0,
+            "decision_factors_population_rate": row["with_decision_factors"] / total if total else 0.0,
+        }
 
     async def get_health_metrics(self) -> Dict[str, Any]:
         """

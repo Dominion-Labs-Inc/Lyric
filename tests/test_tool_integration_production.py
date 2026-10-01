@@ -202,22 +202,6 @@ class ToolIntegrationTests(TestBase):
     # DATABASE TOOLS (16 tools)
     # =========================================================================
 
-    async def test_mysql_query(self):
-        result = await self.registry.execute_tool("mysql_query", {"query": "SELECT 1 as test", "database": "lyric_unified"})
-        assert result.success
-
-    async def test_mysql_table_info(self):
-        result = await self.registry.execute_tool("mysql_table_info", {"table": "test_sessions", "database": "lyric_unified"})
-        assert result.success
-
-    async def test_check_mysql_health(self):
-        result = await self.registry.execute_tool("check_mysql_health", {})
-        assert result.success
-
-    # =========================================================================
-    # SEARCH TOOLS (20 tools)
-    # =========================================================================
-
     async def test_analyze_code(self):
         code_sample = "def test(): return 42"
         result = await self.registry.execute_tool("analyze_code", {"code": code_sample})
@@ -514,10 +498,6 @@ class ToolIntegrationTests(TestBase):
         result = await self.registry.execute_tool("build_dependency_graph", {"project_path": self.test_output_dir})
         assert result.success
 
-    async def test_chaos_testing(self):
-        result = await self.registry.execute_tool("chaos_testing", {"chaos_type": "test", "target": "test"})
-        assert result.success
-
     async def test_check_code_style_consistency(self):
         result = await self.registry.execute_tool("check_code_style_consistency", {"directory_path": self.test_output_dir})
         assert result.success
@@ -542,24 +522,8 @@ class ToolIntegrationTests(TestBase):
         result = await self.registry.execute_tool("conduct_research", {"topic": "test"})
         assert result.success
 
-    async def test_connection_pool_manager(self):
-        result = await self.registry.execute_tool("connection_pool_manager", {"operation": "test"})
-        assert result.success
-
     async def test_convert_to_async(self):
         result = await self.registry.execute_tool("convert_to_async", {"code": "def test(): pass"})
-        assert result.success
-
-    async def test_create_alert(self):
-        result = await self.registry.execute_tool("create_alert", {"alert_type": "test", "message": "test"})
-        assert result.success
-
-    async def test_create_chaos_experiment(self):
-        result = await self.registry.execute_tool("create_chaos_experiment", {})
-        assert result.success
-
-    async def test_create_chaos_experiment_from_scenario(self):
-        result = await self.registry.execute_tool("create_chaos_experiment_from_scenario", {})
         assert result.success
 
     async def test_create_flowchart(self):
@@ -770,10 +734,6 @@ class ToolIntegrationTests(TestBase):
         result = await self.registry.execute_tool("get_block_history", {"ip_address": "127.0.0.1"})
         assert result.success
 
-    async def test_get_chaos_experiment_status(self):
-        result = await self.registry.execute_tool("get_chaos_experiment_status", {})
-        assert result.success
-
     async def test_get_performance_profile(self):
         result = await self.registry.execute_tool("get_performance_profile", {"process_name": "test_name"})
         assert result.success
@@ -834,10 +794,6 @@ class ToolIntegrationTests(TestBase):
         result = await self.registry.execute_tool("lint_python", {"code": "def test(): pass"})
         assert result.success
 
-    async def test_list_chaos_scenarios(self):
-        result = await self.registry.execute_tool("list_chaos_scenarios", {})
-        assert result.success
-
     async def test_manage_docker(self):
         result = await self.registry.execute_tool("manage_docker", {"action": "test"})
         assert result.success
@@ -850,10 +806,6 @@ class ToolIntegrationTests(TestBase):
         result = await self.registry.execute_tool("migrate_code", {"code": "def test(): pass", "migration_type": "test"})
         assert result.success
 
-    async def test_migration_runner(self):
-        result = await self.registry.execute_tool("migration_runner", {"operation": "test"})
-        assert result.success
-
     async def test_modify_config_file(self):
         result = await self.registry.execute_tool("modify_config_file", {"config_file": self._get_test_file_path("test.txt"), "key_path": self.test_output_dir, "value": "test"})
         assert result.success
@@ -864,14 +816,6 @@ class ToolIntegrationTests(TestBase):
 
     async def test_mutation_testing(self):
         result = await self.registry.execute_tool("mutation_testing", {"source_file": self._get_test_file_path("test.txt")})
-        assert result.success
-
-    async def test_mysql_backup(self):
-        result = await self.registry.execute_tool("mysql_backup", {"table_name": "test_name", "output_path": self.test_output_dir})
-        assert result.success
-
-    async def test_mysql_restore(self):
-        result = await self.registry.execute_tool("mysql_restore", {"table_name": "test_name", "backup_path": self.test_output_dir})
         assert result.success
 
     async def test_notification(self):
@@ -896,14 +840,6 @@ class ToolIntegrationTests(TestBase):
 
     async def test_port_scan(self):
         result = await self.registry.execute_tool("port_scan", {"host": "test", "ports": []})
-        assert result.success
-
-    async def test_query_memory(self):
-        result = await self.registry.execute_tool("query_memory", {"query": "test"})
-        assert result.success
-
-    async def test_query_metrics(self):
-        result = await self.registry.execute_tool("query_metrics", {"metric_type": "test"})
         assert result.success
 
     async def test_r2_download(self):
@@ -942,20 +878,8 @@ class ToolIntegrationTests(TestBase):
         result = await self.registry.execute_tool("restart_service", {"service_name": "test_name"})
         assert result.success
 
-    async def test_rollback_chaos_experiment(self):
-        result = await self.registry.execute_tool("rollback_chaos_experiment", {})
-        assert result.success
-
-    async def test_row_level_access_control(self):
-        result = await self.registry.execute_tool("row_level_access_control", {"operation": "test"})
-        assert result.success
-
     async def test_run_background_task(self):
         result = await self.registry.execute_tool("run_background_task", {"command": "test"})
-        assert result.success
-
-    async def test_run_chaos_experiment(self):
-        result = await self.registry.execute_tool("run_chaos_experiment", {})
         assert result.success
 
     async def test_run_inference(self):
@@ -968,10 +892,6 @@ class ToolIntegrationTests(TestBase):
 
     async def test_run_unittest(self):
         result = await self.registry.execute_tool("run_unittest", {"test_path": self.test_output_dir})
-        assert result.success
-
-    async def test_safe_query_executor(self):
-        result = await self.registry.execute_tool("safe_query_executor", {"query": "test"})
         assert result.success
 
     async def test_sanitize_input(self):
@@ -1060,10 +980,6 @@ class ToolIntegrationTests(TestBase):
 
     async def test_trace_dependencies(self):
         result = await self.registry.execute_tool("trace_dependencies", {"project_path": self.test_output_dir})
-        assert result.success
-
-    async def test_transaction_wrapper(self):
-        result = await self.registry.execute_tool("transaction_wrapper", {"queries": []})
         assert result.success
 
     async def test_transform_data(self):
@@ -1211,10 +1127,7 @@ class ToolIntegrationTests(TestBase):
             await self.run_test("exec_list_processes", self.test_list_processes)
             await self.run_test("exec_with_timeout", self.test_execute_with_timeout)
 
-            # Database (16 tools)
-            await self.run_test("db_mysql_query", self.test_mysql_query)
-            await self.run_test("db_table_info", self.test_mysql_table_info)
-            await self.run_test("db_health_check", self.test_check_mysql_health)
+            # Database: postgres_query and mysql_query are checked by experiments/OUTSIDE-DB-01
 
             # Search (20 tools)
             await self.run_test("search_analyze_code", self.test_analyze_code)
@@ -1295,18 +1208,13 @@ class ToolIntegrationTests(TestBase):
             await self.run_test("block_country", self.test_block_country)
             await self.run_test("block_ip_address", self.test_block_ip_address)
             await self.run_test("build_dependency_graph", self.test_build_dependency_graph)
-            await self.run_test("chaos_testing", self.test_chaos_testing)
             await self.run_test("check_code_style_consistency", self.test_check_code_style_consistency)
             await self.run_test("check_dependencies", self.test_check_dependencies)
             await self.run_test("clipboard", self.test_clipboard)
             await self.run_test("compile_typecheck_gate", self.test_compile_typecheck_gate)
             await self.run_test("compress_file", self.test_compress_file)
             await self.run_test("conduct_research", self.test_conduct_research)
-            await self.run_test("connection_pool_manager", self.test_connection_pool_manager)
             await self.run_test("convert_to_async", self.test_convert_to_async)
-            await self.run_test("create_alert", self.test_create_alert)
-            await self.run_test("create_chaos_experiment", self.test_create_chaos_experiment)
-            await self.run_test("create_chaos_experiment_from_scenario", self.test_create_chaos_experiment_from_scenario)
             await self.run_test("create_flowchart", self.test_create_flowchart)
             await self.run_test("create_research_graph", self.test_create_research_graph)
             await self.run_test("create_waf_rule", self.test_create_waf_rule)
@@ -1359,7 +1267,6 @@ class ToolIntegrationTests(TestBase):
             await self.run_test("generate_test", self.test_generate_test)
             await self.run_test("get_active_blocks", self.test_get_active_blocks)
             await self.run_test("get_block_history", self.test_get_block_history)
-            await self.run_test("get_chaos_experiment_status", self.test_get_chaos_experiment_status)
             await self.run_test("get_performance_profile", self.test_get_performance_profile)
             await self.run_test("get_security_metrics", self.test_get_security_metrics)
             await self.run_test("get_service_status", self.test_get_service_status)
@@ -1375,24 +1282,18 @@ class ToolIntegrationTests(TestBase):
             await self.run_test("license_attribution_check", self.test_license_attribution_check)
             await self.run_test("link_claim_to_evidence", self.test_link_claim_to_evidence)
             await self.run_test("lint_python", self.test_lint_python)
-            await self.run_test("list_chaos_scenarios", self.test_list_chaos_scenarios)
             await self.run_test("manage_docker", self.test_manage_docker)
             await self.run_test("merge_datasets", self.test_merge_datasets)
             await self.run_test("migrate_code", self.test_migrate_code)
-            await self.run_test("migration_runner", self.test_migration_runner)
             await self.run_test("modify_config_file", self.test_modify_config_file)
             await self.run_test("monitor_logs", self.test_monitor_logs)
             await self.run_test("mutation_testing", self.test_mutation_testing)
-            await self.run_test("mysql_backup", self.test_mysql_backup)
-            await self.run_test("mysql_restore", self.test_mysql_restore)
             await self.run_test("notification", self.test_notification)
             await self.run_test("optimize_code", self.test_optimize_code)
             await self.run_test("parse_html", self.test_parse_html)
             await self.run_test("parse_jsonl", self.test_parse_jsonl)
             await self.run_test("pii_scrubbing", self.test_pii_scrubbing)
             await self.run_test("port_scan", self.test_port_scan)
-            await self.run_test("query_memory", self.test_query_memory)
-            await self.run_test("query_metrics", self.test_query_metrics)
             await self.run_test("r2_download", self.test_r2_download)
             await self.run_test("r2_upload", self.test_r2_upload)
             await self.run_test("redis_get", self.test_redis_get)
@@ -1402,14 +1303,10 @@ class ToolIntegrationTests(TestBase):
             await self.run_test("rename_symbol", self.test_rename_symbol)
             await self.run_test("repository_refactor", self.test_repository_refactor)
             await self.run_test("restart_service", self.test_restart_service)
-            await self.run_test("rollback_chaos_experiment", self.test_rollback_chaos_experiment)
-            await self.run_test("row_level_access_control", self.test_row_level_access_control)
             await self.run_test("run_background_task", self.test_run_background_task)
-            await self.run_test("run_chaos_experiment", self.test_run_chaos_experiment)
             await self.run_test("run_inference", self.test_run_inference)
             await self.run_test("run_pytest", self.test_run_pytest)
             await self.run_test("run_unittest", self.test_run_unittest)
-            await self.run_test("safe_query_executor", self.test_safe_query_executor)
             await self.run_test("sanitize_input", self.test_sanitize_input)
             await self.run_test("scaffold_application", self.test_scaffold_application)
             await self.run_test("scan_secrets", self.test_scan_secrets)
@@ -1428,12 +1325,10 @@ class ToolIntegrationTests(TestBase):
             await self.run_test("start_service", self.test_start_service)
             await self.run_test("static_security_analysis", self.test_static_security_analysis)
             await self.run_test("stop_service", self.test_stop_service)
-            await self.run_test("store_memory", self.test_store_memory)
             await self.run_test("sync_directory", self.test_sync_directory)
             await self.run_test("synthesize_from_examples", self.test_synthesize_from_examples)
             await self.run_test("system_info", self.test_system_info)
             await self.run_test("trace_dependencies", self.test_trace_dependencies)
-            await self.run_test("transaction_wrapper", self.test_transaction_wrapper)
             await self.run_test("transform_data", self.test_transform_data)
             await self.run_test("type_check", self.test_type_check)
             await self.run_test("unblock_ip_address", self.test_unblock_ip_address)

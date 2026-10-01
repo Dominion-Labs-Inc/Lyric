@@ -937,10 +937,11 @@ async def _submit_perceived(
     memory_id: Optional[str] = None,
     origin: "Origin",
 ) -> Optional["IngestionResult"]:
-    """Shared body for image, video and audio: an observer that perceived some
-    individuals and recognised some things, admitted where its owner's words go
-    (`_admit_perceived`). One body, because a sound heard and a thing seen are
-    stated on one contract and must reach belief the same way.
+    """Shared body for image, video, audio and reading: an observer that
+    perceived some individuals and recognised some things, admitted where its
+    owner's words go (`_admit_perceived`). One body, because a sound heard, a
+    thing seen and a page read are stated on one contract and must reach belief
+    the same way.
 
     `extra_edges` is a list of (relation, surface, concept_dicts) the caller adds
     on top of the recognised-label edges (e.g. a video's duration). Returns None
@@ -970,8 +971,8 @@ async def _submit_perceived(
     # What was heard said, sung or played is something recognised too, and a
     # hearing named only by that -- a song taught now, said of a recording
     # heard before -- is a real observation of it.
-    heard = any(payload.get(k) for k in ("said", "spoken_by", "in_key", "tempo", "plays",
-                                         "heard_before", "seen_before"))
+    heard = any(payload.get(k) for k in ("said", "spoken_by", "in_key", "tempo", "plays", "has_tune_of",
+                                         "heard_before", "seen_before", "read_before", "stated"))
     if not observer or (not detections and not properties and not extra and not blobs
                         and not heard):
         return None
@@ -1120,18 +1121,24 @@ async def _submit_perceived(
                         else ["has_tempo", bpm_surface, "positive",
                               quality_from_resolution(float(sup))])
             concepts.append(bpm_concept)
-    for played in (payload.get("plays") or []):
-        title = _term_like(played.get("song") or "") if isinstance(played, dict) else ""
-        if not title:
-            continue
-        sup = played.get("support")
-        rels.append(["plays", title] if sup is None
-                    else ["plays", title, "positive", quality_from_resolution(float(sup))])
-        concepts.append({"label": title, "kind": "entity", "domains": [domain], "is_name": True})
+    # A RECORDING PLAYS a song when it is a hearing of the recording that taught
+    # it; it HAS THE TUNE OF a song when its single line goes the way the song
+    # was taught to go -- someone else humming or singing it.
+    for key in ("plays", "has_tune_of"):
+        for played in (payload.get(key) or []):
+            title = _term_like(played.get("song") or "") if isinstance(played, dict) else ""
+            if not title:
+                continue
+            sup = played.get("support")
+            rels.append([key, title] if sup is None
+                        else [key, title, "positive", quality_from_resolution(float(sup))])
+            concepts.append({"label": title, "kind": "entity", "domains": [domain],
+                             "is_name": True})
     # HEARD OR SEEN BEFORE: the same sound, the same thing, as a memory already
     # holds, found by the sound or the picture itself, with the support its
     # agreement earned.
-    for key, relation in (("heard_before", "same_sound_as"), ("seen_before", "same_thing_as")):
+    for key, relation in (("heard_before", "same_sound_as"), ("seen_before", "same_thing_as"),
+                          ("read_before", "same_text_as")):
         for earlier in (payload.get(key) or []):
             other = _term_like(earlier.get("subject") or "") if isinstance(earlier, dict) else ""
             if not other or other == _term_like(observer):
@@ -1139,6 +1146,32 @@ async def _submit_perceived(
             sup = earlier.get("support")
             rels.append([relation, other] if sup is None
                         else [relation, other, "positive", quality_from_resolution(float(sup))])
+
+    # WHAT THE WORDS MET SAY, as the substrate's reader read them: each fact a
+    # page states (or a recording says) between named things. It is held as
+    # what was SAID there, an observation at the door's floor (`_stated_quality`)
+    # -- the file's claim, not a truth the substrate asserts -- and the observer
+    # `mentions` each thing it is about, so what it said can be found by what it
+    # is about.
+    said_of: Dict[str, List[List[Any]]] = {}
+    for fact in (payload.get("stated") or []):
+        if not isinstance(fact, dict):
+            continue
+        subject_ = str(fact.get("subject") or "").strip()
+        relation = str(fact.get("relation") or "").strip()
+        obj = str(fact.get("object") or "").strip()
+        if not subject_ or not relation or not obj:
+            continue
+        said_of.setdefault(subject_, []).append(
+            [relation, obj, "positive" if fact.get("positive", True) else "negative",
+             _stated_quality()])
+        said_of.setdefault(obj, [])
+    mentioned = [label for label, edges in said_of.items() if edges]
+    for label, edges in said_of.items():
+        concepts.append({"label": label, "kind": "entity", "domains": [domain],
+                         "relationships": edges})
+    for label in mentioned:
+        rels.append(["mentions", label])
 
     for relation, surface, concept_dicts in extra:
         rels.append([relation, surface])
@@ -1155,6 +1188,8 @@ async def _submit_perceived(
     seen = ", ".join([label for label, _ in detections]
                      + [" ".join(b.get("isa") or []) for b in blobs])
     rendered = f"{observer} observed {seen} via {source}"
+    if mentioned:
+        rendered += f"; it says of {', '.join(mentioned[:5])}"
 
     service = get_concept_ingestion_service()
     await service._ready()
@@ -1176,6 +1211,36 @@ async def _submit_perceived(
     # already use it, and a detection stating its own confidence is strictly
     # more precise than dragging every measured property to meet it.
     ), origin=origin, domain=domain, quality=PRODUCED_EVIDENCE_QUALITY, memory_id=memory_id)
+
+
+def _stated_quality() -> float:
+    """What a page or a recording SAYS is held at the learning door's own floor
+    (`MIN_ADMIT_QUALITY`): the least that is held at all -- said, with nothing
+    yet for or against it -- so what corroborates it raises it and what
+    contradicts it lowers it. Below the floor the door does not open, on the
+    shared path or a person's alike: the substrate once read its own files'
+    statements at 0.3, and the door refused every one of them."""
+    from core.semantics.cognitive_ingress import MIN_ADMIT_QUALITY
+    return MIN_ADMIT_QUALITY
+
+
+async def submit_reading(
+    source: str,
+    content: Dict[str, Any],
+    *,
+    domain: str = "reading",
+    memory_id: Optional[str] = None,
+    origin: "Origin",
+) -> Optional["IngestionResult"]:
+    """Record what was read in one document, where its owner's words go: the
+    same contract as what is seen or heard. `properties` measured off the file
+    (its format, its pages), the facts its words state as the substrate's reader
+    read them under `stated` (each held as what the document said, and the
+    document `mentions` what each is about), and the readings of the same text
+    remembered under `read_before`. Returns None when nothing was read and
+    nothing measured. No file is opened here."""
+    return await _submit_perceived(source, content, data_type="reading", domain=domain,
+                                   memory_id=memory_id, origin=origin)
 
 
 async def submit_image(
@@ -1255,8 +1320,8 @@ async def submit_audio(
     stand to one another under `blob_relations`, known sounds recognised under
     `detections`, the taught words heard under `said` and whose voice said
     them under `spoken_by`, and the music: the key it is in (`in_key`), its
-    tempo (`has_tempo`, beats a minute) and the taught songs it plays
-    (`plays`). A numeric `duration` is held as a typed quantity, as a video's
+    tempo (`has_tempo`, beats a minute), the taught songs it plays (`plays`)
+    and the taught song whose tune its single line carries (`has_tune_of`). A numeric `duration` is held as a typed quantity, as a video's
     is. Returns None when nothing was heard and nothing measured. No samples
     are decoded here."""
     payload = content or {}

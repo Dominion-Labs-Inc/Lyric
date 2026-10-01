@@ -460,7 +460,6 @@ async def main() -> int:
         # ── cleanup: everything this run wrote, by exact id and by its nonce ─
         _tagged = ("SELECT (SELECT count(*) FROM unified.concepts WHERE name LIKE $1) + "
                    "(SELECT count(*) FROM unified.beliefs WHERE belief_text LIKE $1) + "
-                   "(SELECT count(*) FROM unified.perceptions WHERE source LIKE $1) + "
                    "(SELECT count(*) FROM memory_hot.memory_hot WHERE content::text LIKE $1) AS n")
         try:
             written = await db.execute_query(_tagged, (f"%{tag}%",), fetch_one=True)
@@ -482,8 +481,6 @@ async def main() -> int:
                                    (like,), commit=True)
             await db.execute_query("DELETE FROM unified.evidence_envelopes "
                                    "WHERE producer LIKE $1 OR source_id LIKE $1",
-                                   (like,), commit=True)
-            await db.execute_query("DELETE FROM unified.perceptions WHERE source LIKE $1",
                                    (like,), commit=True)
             tagged = await db.execute_query(
                 "SELECT memory_id FROM memory_hot.memory_hot WHERE content::text LIKE $1",

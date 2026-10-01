@@ -1,0 +1,200 @@
+{
+  "experiment": "READ-01",
+  "claim": "The substrate reads a document by its own sense, in the one act of perceiving: its words go to the substrate's one reader, what they state is held as what the document said (a person's in their context), the reading is remembered and recorded as a reading, the same text is known again by its runs of words, each door takes in only what its sense can, and a text and a picture met at one moment are one experience.",
+  "hypothesis": "A document read as a picture is seen (by sight's process, its words never read), a reading that forms no memory or no ledger entry, a person's document entering the shared graph, a text read twice not known again or a changed text taken for the same, a door that opens a thing its sense cannot take in, a moment remembered as two memories, or a write to the main store would each show here.",
+  "started_at": "2026-09-30T15:00:41.679802+00:00",
+  "duration_seconds": 67.139,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/Lyric/venv_lyric/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/Lyric",
+    "shadow_mode": null,
+    "git_commit": "4079045ffdac8d282649a9a829e3060eb736139f",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "lyric_dev",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "lyric_dev",
+        "model": "lyric_dev",
+        "user_context": "lyric_dev",
+        "learning": "lyric_dev"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "environment",
+        "database": "environment",
+        "user": "environment",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 296,
+    "database_verified": "lyric_dev",
+    "database_verified_reason": "asked the server"
+  },
+  "summary": {
+    "checks": 22,
+    "passed": 22,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [
+    {
+      "name": "belief in what the document said",
+      "value": null,
+      "unit": "",
+      "note": "held at the stated quality, an observation"
+    },
+    {
+      "name": "share a new version agreed with",
+      "value": 0.6364,
+      "unit": "",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "it is read by reading alone",
+      "passed": true,
+      "detail": "['reading']",
+      "at": "2026-09-30T15:01:19.739596+00:00"
+    },
+    {
+      "label": "what its lines state is read by the substrate's reader",
+      "passed": true,
+      "detail": "[('robin', 'isa', 'bird'), ('zorbf6f188', 'isa', 'bird'), ('snake', 'isa', 'reptile')]",
+      "at": "2026-09-30T15:01:19.739629+00:00"
+    },
+    {
+      "label": "each fact is kept with the line it was read from",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-30T15:01:19.739636+00:00"
+    },
+    {
+      "label": "the reading forms a memory, keeping the runs of words it is known again by",
+      "passed": true,
+      "detail": "['text_trace']",
+      "at": "2026-09-30T15:01:19.825480+00:00"
+    },
+    {
+      "label": "the file itself is not kept",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-30T15:01:19.825516+00:00"
+    },
+    {
+      "label": "the reading ledger holds it as read now",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-30T15:01:19.825737+00:00"
+    },
+    {
+      "label": "what it states is in the shared graph",
+      "passed": true,
+      "detail": "[('read01x673f1b8ca4', 'mentions', 'zorbf6f188'), ('zorbf6f188', 'isa', 'bird')]",
+      "at": "2026-09-30T15:01:19.836869+00:00"
+    },
+    {
+      "label": "the document mentions what it is about",
+      "passed": true,
+      "detail": "[('read01x673f1b8ca4', 'mentions', 'zorbf6f188'), ('zorbf6f188', 'isa', 'bird')]",
+      "at": "2026-09-30T15:01:19.836889+00:00"
+    },
+    {
+      "label": "its memory is theirs",
+      "passed": true,
+      "detail": "read01_f6f188",
+      "at": "2026-09-30T15:01:21.348662+00:00"
+    },
+    {
+      "label": "what it says is held in their context",
+      "passed": true,
+      "detail": "{'n': 1}",
+      "at": "2026-09-30T15:01:21.351593+00:00"
+    },
+    {
+      "label": "nothing of it enters the shared graph",
+      "passed": true,
+      "detail": "{'n': 0}",
+      "at": "2026-09-30T15:01:21.351602+00:00"
+    },
+    {
+      "label": "read again, it is known as the same text",
+      "passed": true,
+      "detail": "[('read01x673f1b8ca4', 1.0, True)]",
+      "at": "2026-09-30T15:01:28.589815+00:00"
+    },
+    {
+      "label": "a new version is known as that text, changed",
+      "passed": true,
+      "detail": "[('read01x673f1b8ca4', 0.6364, False), ('read01x673f1b8ca4', 0.6364, False)]",
+      "at": "2026-09-30T15:01:32.571213+00:00"
+    },
+    {
+      "label": "a different text is not known",
+      "passed": true,
+      "detail": "None",
+      "at": "2026-09-30T15:01:35.724372+00:00"
+    },
+    {
+      "label": "a Word file is read, paragraph by paragraph",
+      "passed": true,
+      "detail": "2 page(s), 10 word(s), docx document; read before, 2 time(s), last on 2026-09-30 11:01; [('robin', 'isa', 'bird'), ('snake', 'isa', 'reptile')]",
+      "at": "2026-09-30T15:01:39.705207+00:00"
+    },
+    {
+      "label": "a file with no extension is read as the text it is",
+      "passed": true,
+      "detail": "[('cat', 'isa', 'mammal')]",
+      "at": "2026-09-30T15:01:40.283284+00:00"
+    },
+    {
+      "label": "`see` refuses a text and names `read`",
+      "passed": true,
+      "detail": "see takes in what sight can; /var/folders/0y/66ltqc9s0xs5h7yhj_vv5ct80000gn/T/read01_1pbp44u2/note.txt is document, taken in by reading \u2014 use read",
+      "at": "2026-09-30T15:01:40.283353+00:00"
+    },
+    {
+      "label": "`read` refuses a picture and names `see`",
+      "passed": true,
+      "detail": "read takes in what reading can; /Users/stefan/Dominion Labs/Lyric/test_data/vision_test.png is image, taken in by sight \u2014 use see",
+      "at": "2026-09-30T15:01:40.283361+00:00"
+    },
+    {
+      "label": "both are taken in, each by its own sense",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-30T15:01:48.432778+00:00"
+    },
+    {
+      "label": "they are one memory",
+      "passed": true,
+      "detail": "['mem_3d7f3196ef374190a75c469419331583', 'mem_3d7f3196ef374190a75c469419331583']",
+      "at": "2026-09-30T15:01:48.432792+00:00"
+    },
+    {
+      "label": "it keeps what each sense keeps",
+      "passed": true,
+      "detail": "['sight_trace', 'text_trace']",
+      "at": "2026-09-30T15:01:48.432798+00:00"
+    },
+    {
+      "label": "the main model's store is untouched",
+      "passed": true,
+      "detail": "289277 rows before, 289277 after",
+      "at": "2026-09-30T15:01:48.817027+00:00"
+    }
+  ],
+  "notes": [
+    "nonce f6f188: left in the sandbox, the word zorbf6f188 (a weak observation from the substrate's own document) and person read01_f6f188's context"
+  ]
+}

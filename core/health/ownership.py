@@ -7,7 +7,7 @@ substrate's cognition as failed the moment the operator stopped the substrate.
 Ownership is the boundary: a component belongs to exactly one process --
 
     'substrate'  runs and is graded WITH the substrate (cognition, the
-                 request-validation/safety/governance that gates the substrate's
+                 request-validation/safety/the Constitution that gates the substrate's
                  own actions, its tools and surface). Off when the substrate is.
 
     'system'     always-on, owned by the guardian (active defense, database,
@@ -29,7 +29,7 @@ SUBSTRATE_OWNED_COMPONENTS = frozenset({
     "memory", "learning", "reasoning", "agents", "llm", "quantum",
     "execution", "intelligence", "domain",
     # Security/policy that gates the substrate's OWN actions
-    "security", "safety", "governance",
+    "security", "safety", "constitution",
     # Substrate capabilities and its own surface
     "tools", "api_surface", "simulation", "optimization", "chaos",
 })

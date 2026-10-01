@@ -256,8 +256,7 @@ async def main() -> int:
         shutil.rmtree(work, ignore_errors=True)
         like = f"%{tag}%"
         tagged = ("SELECT (SELECT count(*) FROM unified.concepts WHERE name LIKE $1) + "
-                  "(SELECT count(*) FROM unified.beliefs WHERE belief_text LIKE $1) + "
-                  "(SELECT count(*) FROM unified.perceptions WHERE source LIKE $1) AS n")
+                  "(SELECT count(*) FROM unified.beliefs WHERE belief_text LIKE $1) AS n")
         try:
             written = await db.execute_query(tagged, (like,), fetch_one=True)
             await db.execute_query(
@@ -273,8 +272,6 @@ async def main() -> int:
                                    (like,), commit=True)
             await db.execute_query("DELETE FROM unified.evidence_envelopes "
                                    "WHERE producer LIKE $1 OR source_id LIKE $1",
-                                   (like,), commit=True)
-            await db.execute_query("DELETE FROM unified.perceptions WHERE source LIKE $1",
                                    (like,), commit=True)
             for mid in set(memory_ids):
                 await db.execute_query("DELETE FROM unified.memory_media WHERE memory_id = $1",

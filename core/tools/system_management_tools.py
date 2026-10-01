@@ -5,10 +5,10 @@ System Management Tools
 Tools for system configuration and management
 
 Tools:
-- set_environment_variable: Set environment variable
-- get_environment_variable: Get environment variable value
+- set_environment_variable: Set a variable in a project's .env file
+- get_environment_variable: Read a variable from a project's .env file
 - modify_config_file: Modify configuration files
-- reload_config: Reload application configuration
+- reload_config: Have a running service reread its configuration (SIGHUP)
 - check_dependencies: Check project dependencies status
 - update_system: Update system packages
 - manage_docker: Manage Docker containers
@@ -29,6 +29,29 @@ from .capabilities import Capability, ToolCapabilityProfile, CapabilityMetadata,
 
 logger = logging.getLogger(__name__)
 
+#: The substrate's own folder. These tools work on a user's project, never on the
+#: substrate's own settings: its env files hold its passwords.
+_SUBSTRATE_ROOT = Path(__file__).resolve().parents[2]
+
+
+def _is_substrates_own(path: Path) -> bool:
+    """Whether `path` is inside the substrate's own folder."""
+    try:
+        Path(path).expanduser().resolve().relative_to(_SUBSTRATE_ROOT)
+        return True
+    except ValueError:
+        return False
+
+
+def _substrates_own_processes() -> set:
+    """This process, the processes it was started by, and the ones it started."""
+    import psutil
+    me = psutil.Process(os.getpid())
+    own = {me.pid}
+    own.update(p.pid for p in me.parents())
+    own.update(p.pid for p in me.children(recursive=True))
+    return own
+
 
 class SetEnvironmentVariableTool(Tool):
     """Set environment variable"""
@@ -36,7 +59,7 @@ class SetEnvironmentVariableTool(Tool):
     def __init__(self):
         super().__init__()
         self.name = "set_environment_variable"
-        self.description = "Set an environment variable in .env file"
+        self.description = "Set an environment variable in a project's .env file"
         self.category = ToolCategory.SYSTEM
         self.safety_level = ToolSafety.DANGEROUS
         self.parameters = [
@@ -55,9 +78,8 @@ class SetEnvironmentVariableTool(Tool):
             ToolParameter(
                 name="env_file",
                 type="string",
-                description="Path to .env file",
-                required=False,
-                default=".env"
+                description="Path to the project's .env file",
+                required=True
             )
         ]
 
@@ -72,9 +94,12 @@ class SetEnvironmentVariableTool(Tool):
             ]
         )
 
-    async def execute(self, key: str, value: str, env_file: str = ".env") -> ToolResult:
+    async def execute(self, key: str, value: str, env_file: str) -> ToolResult:
         try:
             env_path = Path(env_file).expanduser().resolve()
+            if _is_substrates_own(env_path):
+                return ToolResult(success=False, output=None,
+                                  error="that is the substrate's own settings file; this tool works on a user's project")
 
             # Read existing .env or create new
             if env_path.exists():
@@ -105,9 +130,6 @@ class SetEnvironmentVariableTool(Tool):
             with open(env_path, 'w') as f:
                 f.writelines(new_lines)
 
-            # Also set in current process
-            os.environ[key] = value
-
             return ToolResult(
                 success=True,
                 output={
@@ -123,12 +145,12 @@ class SetEnvironmentVariableTool(Tool):
 
 
 class GetEnvironmentVariableTool(Tool):
-    """Get environment variable value"""
+    """Read a variable from a project's .env file."""
 
     def __init__(self):
         super().__init__()
         self.name = "get_environment_variable"
-        self.description = "Get the value of an environment variable"
+        self.description = "Get the value of an environment variable from a project's .env file"
         self.category = ToolCategory.SYSTEM
         self.safety_level = ToolSafety.SAFE
         self.parameters = [
@@ -136,6 +158,12 @@ class GetEnvironmentVariableTool(Tool):
                 name="key",
                 type="string",
                 description="Environment variable name",
+                required=True
+            ),
+            ToolParameter(
+                name="env_file",
+                type="string",
+                description="Path to the project's .env file",
                 required=True
             ),
             ToolParameter(
@@ -157,17 +185,28 @@ class GetEnvironmentVariableTool(Tool):
             ]
         )
 
-    async def execute(self, key: str, default: str = None) -> ToolResult:
+    async def execute(self, key: str, env_file: str, default: str = None) -> ToolResult:
+        """Read from the project's file, never the substrate's own environment: that
+        holds the substrate's passwords, and this used to hand them to whoever asked."""
         try:
-            value = os.getenv(key, default)
+            env_path = Path(env_file).expanduser().resolve()
+            if _is_substrates_own(env_path):
+                return ToolResult(success=False, output=None,
+                                  error="that is the substrate's own settings file; this tool works on a user's project")
+            if not env_path.is_file():
+                return ToolResult(success=False, output=None, error=f"No such .env file: {env_path}")
+            from dotenv import dotenv_values
+            values = dotenv_values(env_path)
+            value = values.get(key, default)
 
             return ToolResult(
                 success=True,
                 output={
                     'key': key,
+                    'env_file': str(env_path),
                     'value': value,
-                    'exists': value is not None,
-                    'is_default': value == default
+                    'exists': key in values,
+                    'is_default': key not in values
                 }
             )
 
@@ -285,15 +324,23 @@ class ModifyConfigFileTool(Tool):
 
 
 class ReloadConfigTool(Tool):
-    """Reload application configuration"""
+    """Have a running service reread its configuration."""
 
     def __init__(self):
         super().__init__()
         self.name = "reload_config"
-        self.description = "Reload Lyric configuration from files"
+        self.description = ("Have a running service reread its configuration files, by sending it the reload "
+                            "signal (SIGHUP) the way most servers expect")
         self.category = ToolCategory.SYSTEM
         self.safety_level = ToolSafety.MODERATE
-        self.parameters = []
+        self.parameters = [
+            ToolParameter(
+                name="pid",
+                type="integer",
+                description="Process ID of the service to reload",
+                required=True
+            )
+        ]
 
         # Capability profile
         self.capability_profile = ToolCapabilityProfile(
@@ -301,51 +348,26 @@ class ReloadConfigTool(Tool):
             capabilities=[
                 CapabilityMetadata(
                     capability=Capability.MANAGE_PROCESS,
-                    description="Reload application configuration"
+                    description="Reload a service's configuration"
                 )
             ]
         )
 
-    async def execute(self) -> ToolResult:
+    async def execute(self, pid: int) -> ToolResult:
+        """Signal the service it is given. It used to reload the substrate's own
+        configuration module in place, which served no user."""
         try:
-            import sys
-            import importlib
-
-            # Import and capture old values
-            try:
-                from config import lyric_config
-                old_system_config = dict(lyric_config.SYSTEM_CONFIG) if hasattr(lyric_config, 'SYSTEM_CONFIG') else {}
-                old_agent_config = dict(lyric_config.AGENT_CONFIG) if hasattr(lyric_config, 'AGENT_CONFIG') else {}
-            except:
-                old_system_config = {}
-                old_agent_config = {}
-
-            # Reload the config module
-            config_modules = [name for name in sys.modules.keys() if 'config.lyric_config' in name or name == 'config']
-            for module_name in config_modules:
-                if module_name in sys.modules:
-                    importlib.reload(sys.modules[module_name])
-
-            # Re-import to get new values
-            from config import lyric_config
-            importlib.reload(lyric_config)
-
-            new_system_config = dict(lyric_config.SYSTEM_CONFIG) if hasattr(lyric_config, 'SYSTEM_CONFIG') else {}
-            new_agent_config = dict(lyric_config.AGENT_CONFIG) if hasattr(lyric_config, 'AGENT_CONFIG') else {}
-
-            return ToolResult(
-                success=True,
-                output={
-                    'reloaded': True,
-                    'old_system_config': old_system_config,
-                    'new_system_config': new_system_config,
-                    'old_agent_config': old_agent_config,
-                    'new_agent_config': new_agent_config,
-                    'system_changed': old_system_config != new_system_config,
-                    'agent_changed': old_agent_config != new_agent_config
-                }
-            )
-
+            import psutil
+            import signal
+            pid = int(pid)
+            if pid in _substrates_own_processes():
+                return ToolResult(success=False, output=None,
+                                  error="that is the substrate's own process; this tool works on a user's service")
+            proc = psutil.Process(pid)
+            name = proc.name()
+            proc.send_signal(signal.SIGHUP)
+            return ToolResult(success=True, output={'pid': pid, 'name': name, 'signal': 'SIGHUP',
+                                                    'reloaded': True})
         except Exception as e:
             return ToolResult(success=False, output=None, error=str(e))
 
@@ -364,8 +386,13 @@ class CheckDependenciesTool(Tool):
                 name="requirements_file",
                 type="string",
                 description="Path to requirements.txt",
-                required=False,
-                default="requirements.txt"
+                required=True
+            ),
+            ToolParameter(
+                name="python",
+                type="string",
+                description="The project's Python interpreter (e.g. its venv's bin/python)",
+                required=True
             )
         ]
 
@@ -391,7 +418,9 @@ class CheckDependenciesTool(Tool):
             ]
         )
 
-    async def execute(self, requirements_file: str = "requirements.txt") -> ToolResult:
+    async def execute(self, requirements_file: str, python: str) -> ToolResult:
+        """Checked against the project's own interpreter. It ran whichever `pip3` came
+        first on the path, which is the substrate's own environment."""
         try:
             req_file = Path(requirements_file).expanduser().resolve()
             if not req_file.exists():
@@ -417,7 +446,7 @@ class CheckDependenciesTool(Tool):
 
                 # Check if installed
                 result = subprocess.run(
-                    ['pip3', 'show', package_name],
+                    [python, '-m', 'pip', 'show', package_name],
                     capture_output=True,
                     text=True
                 )

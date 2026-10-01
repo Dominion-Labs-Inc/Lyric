@@ -981,8 +981,543 @@ In memory with the seven lessons:
 - "A lens is an optical device.", "A bus is a vehicle.";
 - the checks of SHAPES-LEARN-04, -06 and -07 and english_06's 15 probes still hold.
 
-The test `test_a_word_never_held_is_said_as_the_words_used_like_it_are` is written. The sandbox run waits for the
-rename's database cut-over.
+Refined after a dry run on WordNet (2026-09-29, same day):
+- **Confidence, not rate.** An ending overrides counting only where Albright & Hayes's confidence in it (the lower
+  limit of a 75% interval on its adjusted reliability) is above their confidence in counting (`_confidence`). Two
+  words ending "eat" ("heat", "meat") no longer make "feat" uncounted.
+- **Twins.** Frames that are one construction written in either shape of "a" ("?slot0 is a ?slot1." and "?slot0
+  is an ?slot1.") admit the same words (`twins_of`). A twin learned from "Singing is an art." had admitted anything,
+  and counted words went bare through it.
+- **Sentences, not phrases.** Only a sentence's first slot shows a word used bare. A phrase's first slot follows
+  the sentence's own words ("The book on the table"), and had made "book" uncounted.
+- **The head word.** A name is a word whose last word, the one the rest describe, has a capital: "Golden Horde"
+  and "Thiosulfil", but "A Roman arch is a round arch.".
+- **`english_07` grew to 76 pairs**, with five or more words for each common ending of words used without "a"
+  ("-ness", "-ology", "-ism", "-ing"), since confidence asks for more words than a rate does.
+
+In memory, on 3,000 WordNet records:
+- no name and no word used without "a" is said after "a";
+- the 60 words used without "a" include "Sectarianism is narrow-mindedness." and "Food poisoning is illness.";
+- names are said as "Golden Horde is a horde.", "Reptilia is a class.".
+
+Left to data:
+- uncounted words with no telling ending take "a" ("A betrayal is a treason.");
+- counted words ending "-ing" are taken as uncounted ("String is a sequence.");
+- a held word with another sense is said as that sense was taught ("Bark is a sailing vessel.").
+
+The test `test_a_word_never_held_is_said_as_the_words_used_like_it_are` passes (66/66).
+
+**SHAPES-LEARN-09's first run** (16/16, sandbox) showed a fault its checks did not cover: a capitalized word for a
+kind of people was a name, so "Asian is an inhabitant." and "Slav is a person." were said. The same fault left
+names unsaid whose parent is such a word ("Bostonian is an American."). Fixed, with three faults the fix exposed:
+- **A capital after "a" is a kind's** (`_use_model`): a word written with a capital and held in a counted slot is
+  counted ("An American is a person."). A name is a capitalized word that is never counted.
+- **Capitals end apart** (`_use_model`, `use_of`): capitalized words have their own endings, where a name is the
+  rule an ending overrides by Albright & Hayes's confidence. With "Canadian", "Italian", "Indian", "Russian" and
+  "Christian" counted, "-ian" decides: "Bostonian", "Asian", "Slovenian" are counted, while "Cyanocitta",
+  "Thiosulfil" and "Pakistan" stay names. "-an" alone decides nothing, since "Japan" is a name. A held last word
+  decides only when written as it is held: "Latin American" as "American", but "Golden Horde" is no "horde".
+- **The learner makes only names reading could take as new** (`item_based_lexical` asks `_may_be_new`). "An
+  ocelot" holds "an", a word that builds sentences, so the name is "ocelot", in the frame as written. Before, "An
+  American", "An eel" and "A painting" were learned as names. Six english_04 sentences are now held whole ("A
+  painting is pretty.") and two as frames around their nouns ("A cake is ?slot0."); all still read.
+- **A word's shapes share out the letters among them all** (`variants_of`, `_shapes_with`, `_told_apart`). Once
+  "An ?slot0 is a ?slot1." was held as written, "every" alternated with "an" before other letters, and was taken
+  for a third shape: "An peludo is an armadillo.". A shape is kept only if the letters tell it apart from each
+  shape kept before it, most alternating first, and only if each word says so of the other. "every" also
+  alternates with "a" before the same letters, so it is no shape of theirs.
+- **Capitals in shapes** (`_rendered`, `_said_fillers`): a held word is shaped as its own name is written
+  ("American" is "Americans"), and a shape of a word held with a capital keeps it ("All Germans are persons.").
+
+`english_07` grew to 101 pairs with five country names (big, a country, asked) and eight kinds of people written with
+a capital. Tests 67/67 (a new one: `test_a_new_name_is_one_reading_could_take_and_a_word_s_shapes_share_out_the_letters`),
+`tests/test_conversation.py` 15/15.
+
+**Verified in the sandbox: SHAPES-LEARN-09, 18/18** (run `20260929T202704Z`):
+- the seven lessons are learned, none refused, and every taught sentence reads;
+- never-taught sentences read: 15/15 with function words, 9/9 with names, words without "a" and kinds of people;
+- of the sample's 1,401 WordNet nouns, 1,274 are said. None has a name or uncounted word after "a", none has a
+  counted word bare, and none has "a"/"an" against the next letter;
+- the five faults are said rightly;
+- nothing is written by reading or saying, and the main store is untouched.
+
+Left to data, besides the three above:
+- kinds of people whose ending no lesson decides are said as names ("Montanan is an American.", "Alcaic is a
+  poem.");
+- a word held only after "an" is of another kind than the words after "a" in the same place, so "A Bostonian is an
+  American." goes unsaid.
+
+**In the main model (2026-09-29, the owner's word).** english_01 to english_07 were taught into `lyric_db` through
+`scripts/teach.py`, none refused (`docs/teaching_sessions/README.md`). english_01 and english_02 were already held,
+learned that morning by an earlier learner, and were kept as learned. Checked read-only against the main model's own
+view, warmed from memory, the check found two faults the sandbox run could not show. Both are fixed:
+- **A view warmed from memory knows its names** (`_note_proper`). A capital in a slot where no sentence begins was
+  noted only when a link arrived after both its frame and its filler. Warmed from memory, links come in the store's
+  order, so "Tom" and "Paris" were not names: they were taken as words used without "a", names went unsaid, and
+  "Tomes are boys." was offered. The capital is now noted once frame, link and filler are all held, whichever comes
+  last. Test: `test_a_view_warmed_in_any_order_knows_the_same_names_and_uses`.
+- **A word never held is written as the slot's fillers are** (`_said_fillers`). The main model holds "Every ?slot0 is
+  ?slot1." with "a bird" in its second slot, from the earlier learner. A held word that does not begin as the slot's
+  fillers do was already kept out, but a word never held went in bare: "Every flowering quince is shrub.". Now
+  neither does. Test: `test_a_word_never_held_is_written_as_the_slot_s_fillers_are`.
+
+SHAPES-LEARN-09's check of a counted word said bare now covers the object after "is" as well as the subject. Then,
+in the main model:
+- all 578 taught sentences read;
+- never-taught sentences read 15/15 and 9/9;
+- on the WordNet sample, about 1,300 of 1,400 nouns are said, with no "a" wrong, no counted word bare and no
+  "a"/"an" against the letter;
+- all five faults are said rightly.
+
+The sample's size changes from run to run (1,368 to 1,436 nouns): the harvest is not reproducible from its seed
+alone. Tests 69/69.
+
+**Two faults SYSTEM-CONVERSATION-01 found in the sandbox (35/38), both from this work, both fixed:**
+- **A kind statement names a kind in each place** (`_composed`; the owner chose it). Since english_03's phrases, "a
+  glintbsrtp heron is a glintbsrtp bird" read "a glintbsrtp bird" as some bird that is glintbsrtp, since that
+  supposes one new word to the name's two. That gave `isa(glintbsrtp heron, ?v0)`, which could not be held. A slot a
+  kind is said of (`isa`) now takes a kind, never a filling that stands for a thing. So "glintbsrtp bird" there,
+  like WordNet's "mythical monster" or "optical device", is a kind of its own, while phrases still describe things
+  ("The red ball is big."). "A lens is an optical device." now reads as the kind before it is taught.
+- **Saying counts shapes over the concepts said in them** (`said_shapes`, used by `shape_of_slot`). english_07's
+  "kindness", "grass" and "scissors" end as plurals do, and held against `s` in the reading direction (words ending
+  alike) they sank it below Yang's threshold, so a bare `es` said "Vexbsrtpes". Yang counts a rule over the stems it
+  applies to. In saying, a change is now scored over the concepts whose word in a shape is held, the longer name side
+  first, so `s` is productive and a bare `es` is not ("Vexbsrtps", "Vexduwhjxes"). Reading still scores over words
+  ending alike (`word_shapes`).
+
+Tests 70/70 (`test_a_kind_is_said_of_a_kind_and_a_new_word_takes_the_plural_most_concepts_show`; the order test's
+reference now counts saying's shapes too). SHAPES-LEARN-09 18/18 in the sandbox (run `20260929T215535Z`),
+`tests/test_conversation.py` 15/15, SYSTEM-CONVERSATION-01 38/38.
+
+**The main model cleared and taught again (the owner's word).** The seven lessons' English was archived, removed
+through the memory agent, and taught again in order. `lyric_db`'s constructions and links are now identical by key
+to the sandbox's (1,417), and the SHAPES-LEARN-09 checks pass against its own view.
+
+**Scale, before all of WordNet: done (2026-09-29).** The word-use model is now kept as items arrive (`_uses_now`):
+- each filler's use, the uses each slot and each word holds;
+- each kind's counted and bare fillers, with kinds merged as they join;
+- the endings as a tree, where each ending passes its tally to the ending one letter shorter while it decides
+  nothing, re-decided longest first.
+
+It is found whole again only when a slot changes what it is (counted, taking a shape, where a sentence begins), as a
+view warmed from memory does once. It is asked for again only after something is added. The concepts saying counts
+over are kept per slot (`_slot_stems`). Test: `test_the_uses_of_words_are_kept_as_items_arrive` compares the kept
+model with the whole found again after every item, in the order taught and in random orders.
+
+At 55,000 fillers, saying a sentence after one addition fell from 0.56 s to about 0.015 s, and the rest does not
+grow with the vocabulary.
+
+**Part 2's remaining meanings: all of English grammar, designed here, taught by lessons 08–11 (2026-09-29, the
+owner's order "English, everything").** New link kinds, each with its logic and no English (which English says them
+is learned):
+- **Where:** `above`/`below`, `left_of`/`right_of`, `in_front_of`/`behind` (inverse pairs), and `between` (a thing
+  between the members of a group). `above` and `left_of` are the names sight already gives them.
+- **How many:** `has_count`, a group and its number ("three dogs": a group of dogs, and 3).
+- **Events:** `done_with` (what an event was done with); `state_of` (a state and whose it is, for a state with a
+  time); `during` (at the same time as).
+- **Time:** the situation variable `?now`, when a sentence is said. "ran" is an event before it (`precedes`), "will
+  run" after it (`follows`), "is running" during it.
+- **Degrees:** `has_degree`, `exceeds`, `greatest_of` (comparison: "bigger than" is one degree of big exceeding
+  another; "the biggest dog" a degree greatest among dogs'; "as big as" the other's not exceeding it).
+- **By existing kinds:**
+  - "must", "should" and "might" say an event is necessary, advisable or possible (`has_property` on the event);
+  - "we", "our" and "us" are a group the speaker is in (`has_member`);
+  - "but" and "although" state both clauses;
+  - "because", "when", "before" and "after" join two situations (`causes`, `during`, `precedes`, `follows`);
+  - "why" and "when" ask for the cause and the time.
+- **Actions are named by the plain verb,** as abilities and WordNet name them (`capable_of(fish, swim)`, an event of
+  kind `swim`). The request lessons' `closing`, `opening`, `tying`, `waving` and `helping` became `close`, `open`,
+  `tie`, `wave` and `help`.
+
+The lessons:
+- **english_08** (135 pairs): positions, numbers (met first as words, "Two is a number."), groups, contrast;
+- **english_09** (120): events in the present, past, future and "is …ing"; done to and with; questions; states with
+  a time; "must"/"should"/"might"; weather;
+- **english_10** (49): clauses joined by "because", "when", "before", "after"; "why" and "when";
+- **english_11** (40): comparatives, "as … as", "more … than", superlatives. "more" is met first with amounts ("Tom
+  owns more balls than Rex."), so it is structure before it meets an adjective.
+
+english_07 gained compound nouns ("house cat", "motor vehicle"). A kind reads a new name of as many words as its
+longest held filler, and junk two-word fillers the cleaner learner no longer makes had been letting compounds
+through.
+
+Engine changes the lessons showed were needed:
+- **Each slot's own writing** (`_slot_changes`, `slot_writing`). "The dog ?slot1." holds "barks" in one frame and
+  "barked" in another, and the kind holds both. A reading ranks, after new words, by how many fillers it puts where
+  they are written otherwise than the slot's own (`written_against`, `Reading.supposed`). A word never held, in a
+  slot whose fillers are written in a shape, is also read undone by it ("jumps" is `jump`, `unshaped_in`).
+- **Saying's shapes counted where they are written** (`said_shapes`): over the concepts in the slots whose own
+  fillers show the change, so a verb seen only as "barked" says nothing of "barks". A word held only as its name, only
+  in shaped slots ("scissors"), is none of a change's business: it has no form to make it from.
+- **Shapes that say more** (`_note_shape_phrase`, `shaped_phrases`). Taught past forms are one-word phrases
+  ("barked": an event of barking, before now). The phrases saying the same more are grouped. A word nothing holds is
+  read as the phrase its shape would make, with the change Albright & Hayes's confidence ranks first over the group's
+  words ("jumped" is `jump` before now: taking off "ed" is right for more of them than "d"). It stands where its group
+  stands.
+- **Substitution from a held frame** (`_frame_substitution`). The paper's substitution, from a held construction
+  that has slots already: "The ?slot0 is bigger than the ?slot1." and "The bird is smaller than the dog." give "The
+  ?slot0 is ?slot1 than the ?slot2.". It reuses held fillers, and like every repair makes only names reading could
+  take as new, never a held name with other words (`_names_within`, "All birds").
+- **A word's shapes need two occurrences each where the next letter decides** (`_told_apart`), as productivity needs
+  two words. With too few, "every", or "it" beside "she", passed for a shape of "a".
+
+In memory, with all eleven lessons:
+- every taught sentence reads;
+- never-taught sentences read:
+  - SHAPES-LEARN-09's 15/15 and 9/9;
+  - positions, numbers, groups and contrast 20/20;
+  - events and tense 19/19 ("The dog jumped.", "It hails.", "Rex opened the box with a key.");
+  - clauses 6/6;
+  - comparison 10/10 ("The tree is greener than the grass.", "Rex is more beautiful than Tom.");
+- WordNet's sample is said with no "a" wrong, no counted word bare and no "a"/"an" against the letter;
+- the five faults are said rightly.
+
+Tests 95/95.
+
+Open in part 2:
+- binding `?now` in conversation (a fact with `?now` names the situation, as `?speaker` does, and is held in the
+  speaker's context until it is bound to a time);
+- perfect tenses ("has run"), the passive, relative clauses on events, "who"/"what" questions of every kind, and
+  numbers beyond ten (the number words are one lesson);
+- reading these meanings in sight ("above", "left_of" are sight's own).
+
+**The rest of the grammar, stages 5–9 (2026-09-29, the owner's "finish the rest of the grammar").**
+
+New link kinds, 72 in all (all with specs, none with English):
+- motion paths: `moves_to`, `moves_into`, `moves_onto`, `moves_from`, `moves_out_of`, `moves_through`,
+  `moves_across`, `moves_over`, `moves_around`, `moves_toward`, `moves_up`, `moves_down`;
+- time: `lasts_until`, `lasts_since`, `lasts_for`;
+- other roles: `done_for`, `has_purpose`;
+- `about` and `similar_to` (symmetric).
+
+How the rest of English grammar is meant:
+- **Tense:**
+  - perfect: before now; "had …" before a time before now; "will have …" before a time after now;
+  - "was/will be …ing": during a time before or after now;
+  - "going to": after now.
+- **Voice, negation, questions:**
+  - the passive: the same event, its doer said with "by", or not said;
+  - "not" / "n't": the event is false, as "It is not true that…" is (`has_property(e, false)`), in requests too
+    ("Don't close the door.");
+  - "does/do": a question in the present.
+- **Adverbs and degree:**
+  - manner ("slowly"): a property of the event;
+  - frequency (always, often, sometimes, usually): a property of the event;
+  - days: `during`;
+  - "very"/"too": a degree, high or excessive;
+  - comparing actions ("runs faster than"): the two events' degrees.
+- **Modality and speech acts:**
+  - "could you", "would you", "please": requests;
+  - "has to": necessary; "could": possible; "would", and counterfactual "if it had": hypothetical;
+  - "let's": a request of a group with speaker and listener;
+  - greetings, thanks, goodbyes: an event from the speaker to the listener;
+  - "yes"/"no": a verdict on what was just said.
+- **The noun phrase:**
+  - I, you, mine/yours/hers/ours/theirs, and reflexives (done to the doer);
+  - someone (a person), something, everyone (every person), nothing (none);
+  - some, each, both, several, most, much, little; either/neither (alternatives, or both denied);
+  - numbers to ninety, a hundred, a thousand, as words, and figures of any size;
+  - "of": a part of a thing, or a thing holding another;
+  - "whose".
+- **Clauses:**
+  - "that": the clause is what knowing, thinking or saying is of (`done_to` a situation); "if"/"whether" likewise;
+  - "want/like/try to", and "like …ing": the event wanted, done by the one who wants it;
+  - relative clauses on events;
+  - while, until, since;
+  - if and unless (conditions);
+  - "so": the first caused the second; "to"/"so that": what the event is for;
+  - "how" (manner, "how big", "how much");
+  - tags ask what was said; clefts say it again.
+- **Also:** what kind of; here and there; ellipsis ("and so can Rex", "but Tom cannot"); too and also.
+
+Naming: an action is named by its plain verb, unless that name is already a concept of another sort in the lessons.
+Then it takes its "-ing" name, the English noun for the act: `opening` beside the property `open`, `snowing` beside
+the substance `snow`. The weather events are all named so (`raining`, `snowing`, and a new "hails" is `hailing`). The
+insect is `insect fly`, qualifier first, as WordNet names a contested noun sense. A concept's name is the stem its
+words are written from, so two sorts of concept under one name had joined their kinds ("The ball was red." read as a
+passive).
+
+Lessons 12–16: english_12 (128 pairs), 13 (126), 14 (87), 15 (91), 16 (67).
+
+Engine changes these lessons showed were needed:
+- **One-word phrases count in their slot's writing** (`_written_as`, `_count_writing`), and are judged against it.
+  "barking" is a phrase, and "was ?slot1" must tell it from "kicked".
+- **A doubled last letter agrees with the slot's change.** "swimming" is written with `ing`, as "barking" is.
+- **Substitution at a phrase's scale** (`_phrase_substitution`): "?slot0 slowly" and "?slot0 loudly" give "?slot0
+  ?slot1".
+- **Misfits rank after proposed links.** A reading that proposed two more links is not better for putting one filler
+  fewer against its slot.
+- **Synonyms** (`synonyms_of`): words said in each other's place in frames with the same meaning, in two pairs or
+  more, and not told apart by the letter after them ("could"/"would", "it"/"he"/"she", "a"/"every"/"each").
+  - Reading takes one for the other in a frame or a holophrase ("Would you help me?", "Yes, she did.");
+  - each such word is supposed as a link is (`Reading.said_for`);
+  - holophrases now record alternation too.
+- **Words that say more than their concept** (`says_more`, `_saying_words`): "ran" (a running, before now) or
+  "closed" (written as the phrases saying more are). Such a word stands for its bare concept only where it was taught
+  to, never by kind, and never by a shape guess. The substitution repairs had made plain fillers of them from frames
+  that held the tense themselves.
+- **A shaped phrase is offered** for a word whose held fillers all say more (`_phrase_fillings`).
+- **A word written in a change from a concept a meaning names is no structure word** (`names_nothing`): "jumped",
+  held only inside "The ?slot0 jumped onto the ?slot1.", names `jump`.
+- **Telling shapes apart by the letter also needs better than even Albright & Hayes confidence** (`_told_apart`).
+  "he", written four times, twice before the "i" of "is", passed Yang's tolerance, which degenerates at such small
+  numbers. It became a shape of "it", every slot after "it" became counted, and "-ing" nouns lost their bare use.
+
+In memory, with all sixteen lessons, never-taught sentences read:
+
+| Probe set | Read |
+|---|---|
+| SHAPES-LEARN-09's function words / names | 15/15, 9/9 |
+| english_08 positions, numbers, groups, contrast | 20/20 |
+| english_09 events and tense | 19/19 |
+| english_10 clauses | 6/6 |
+| english_11 comparison | 10/10 |
+| english_12 the verb | 16/16 |
+| english_13 the noun phrase | 20/20 |
+| english_14 prepositions | 16/16 |
+| english_15 clauses | 16/16 |
+| english_16 answers, exclamations, what would be | 11/11 |
+
+Also in memory:
+- WordNet's sample is said with no "a" wrong, no counted word bare and no "a"/"an" against the letter;
+- the five faults are said rightly.
+
+Tests 98/98.
+
+Open after lesson 16, each closed by lessons 17 and 18 below: compound number words, "only"/"even", "ago", reported
+speech's tense shift, and binding `?now` and "here"/"there" in conversation.
+
+**Stages 10 and 11: english_17 (164 pairs) and english_18 (131)** (2026-09-29).
+
+english_17: numbers, order, amounts, time and focus.
+- **Numbers built of number words.** "twenty-one" is the number whose addends are 20 and 1 (`has_addend`), "two
+  hundred" the one whose factors are 2 and 100 (`has_factor`), "two hundred and six" a sum with a product in it. A
+  meaning is written with each such number as its value (`Meaning.evaluated`, used by `canonical`), so "twenty-one
+  dogs" and "21 dogs" are one meaning, and the teaching path holds "Twenty-one is a number." as `21`'s.
+- **A place in an order** (`has_rank`): first to tenth, and last.
+- **How much a degree measures** (`has_measure`): "ten years old", "two meters long".
+- **"ago"**: a span of the amount, from the event until now (`lasts_since`, `lasts_until`).
+- **Words said of an event**, as "often" and "always" are: soon, recently/just, again, already, still, yet (with
+  "not"). "now" is the event during `?now`; "ever" adds nothing to the question; "then" is one event after another.
+- **"only"** is the thing, and nothing other than it (`other_than`, denied of an unknown as "Nothing is in the box."
+  denies it); for an event, no such event by another. **"else", "other", "another"**: other than what was spoken of.
+  **"even"**: the event unexpected.
+- **Amounts**: "a lot of", "none of", "all of", "some of", "half of", "fewer"/"less" than, "once", "twice", "three
+  times" (a count of the event).
+- **"here" and "there"** are the situation's (`?here`, `?there`), in english_16's sentences too.
+
+english_18: two objects, what was said, and the rest of the verb.
+- **Who receives what an event passes** (`received_by`), either way English says it: "Tom gave Rex the ball.", "Tom
+  gave the ball to Rex.".
+- **Reported speech, from the time it was said**: "said that the dog was barking" (during the saying), "had barked"
+  (before it), "would bark" (after it); "told Rex that"; "asked whether"; a question inside another ("asked where the
+  dog ran", "knows who opened the door": what is asked or known is what the question asks for); "told/asked Rex to
+  run".
+- **"each other"**: each event, both ways. **"one"**: the kind said before.
+- **"used to"** (past and usual), **"shall"**, **"It is easy to …"**, **"does/did" said to affirm**, **verbs of two
+  words** ("picked up the ball", "picked the ball up"), **making and letting** an event (`causes`, `enables`), **who
+  is spoken to** ("Tom, open the door."), **"which"/"whose" of an event**, **"the most"**.
+
+New meaning kinds (78 now): `has_addend`, `has_factor`, `has_rank`, `has_measure`, `other_than` (symmetric),
+`received_by`. Situation variables: `?here`, `?there`.
+
+Engine changes these lessons showed were needed:
+- **A hyphen between two letters is a piece of its own**, glued to both words (`form_of`), so "twenty-one" is built
+  from "twenty" and "one". Looked up, and counted as a name's words, the words it joins are one word (`_loose`,
+  `_written_words`, `_may_be_new`), so WordNet's hyphenated names ("x-ray", "give-and-take") are held as before. A
+  hyphen between digits still joins ("2026-09-29").
+- **A filling's number stands for its value** (`_composed`, `_phrase_canonical`): a kind slot takes "twenty-one" as
+  it takes "21".
+- **A phrase that says something of a second thing** ("two hundred and six": a number with a number in it, `_tied`)
+  is learned only as held phrases compose it, with the links missing added (`add_links` at a phrase's scale); never
+  held whole. A phrase reaches only through unknowns of its own, never what the rest of the sentence names.
+- **`item_based_lexical` at a phrase's scale**: a held phrase reads it but for one slot's word, which is created ("has
+  flown": `flown` is `fly`), or given the pair's concept where it is held as another ("will snow": `snowing`).
+- **What stood beside the slot's own fillers** (`stood_beside`, by concept, `Reading.apart`, ranked last in
+  `supposed`). A slot's kind is everything any slot ever joined, 583 fillers wide after 17 lessons, so it could not
+  tell "snow" the stuff from "snow" for `snowing` in "It will ?slot0 soon.". In a construction with no word of its own
+  ("?slot0 ?slot1"), a proposed filler must have stood beside the slot's own (`_alike`): "walked carefully" had read as
+  a count.
+- **A thing is never a kind**: a filling standing for a thing does not go where a construction takes the slot as the
+  kind of several things ("Only ?slot0 ?slot1.").
+- **A word that says more than its concept** ("walked") stands for its concept where the frame itself says the rest
+  (`_frame_says`, `said_by`): "Only ?slot0 ?slot1." says its events were before now.
+- **Writing**: a word written in a change one of the slot's own fillers is written in is not against the slot ("snow"
+  for `snowing` where "rain" stands for `raining`); saying scores a change only over slots written in it, so "recently",
+  held beside "red" and "big", no longer sank "-ly".
+- **Saying**: a held word none of whose uses was counted is used as a word never held would be (`use_of`): "Shell
+  plating is a plate.", not "is plate.".
+
+Conversation: `?now` is the moment of the turn, to the second in UTC (a new literal kind, `moment`), and `?there` the
+last place a turn named outright (`place_spoken_of`). `?here` stays unbound: nothing in words alone says where the
+speaker is.
+
+In memory, with all eighteen lessons, never-taught sentences read:
+
+| Probe set | Read |
+|---|---|
+| SHAPES-LEARN-09's function words / names | 15/15, 9/9 |
+| english_08 to english_16, as above | 20/20, 19/19, 6/6, 10/10, 16/16, 20/20, 16/16, 16/16, 11/11 |
+| english_17 numbers, order, measures, time, focus, amounts | 33/33 |
+| english_18 two objects, reported speech, and the rest | 30/30 |
+
+Every taught sentence of the eighteen lessons still reads, each right after the repair that learned it. WordNet's
+sample (seeded) is said with no "a" wrong, no counted word bare and no "a"/"an" against the letter; the five faults
+are said rightly. Tests 107/107 (`test_derived_reading.py`, `test_relation_types_and_algebra.py`).
+
+A limit since seven lessons: words ending "-ity" and "-ics" ("serendipity", "credulity", "bionics") had no ending the
+lessons taught as used without "a", so they were judged counted and would be said with "a". On one seeded sample,
+lessons 1–7, 1–16 and 1–18 judge the same 55 nouns used without "a"; SHAPES-LEARN-09's 94 was another sample.
+
+**english_19 (58 pairs): words used without "a", by ending**, as english_07 taught "-ness", "-ology", "-ism" and "-ing":
+"-ity" ("Curiosity is a quality."), "-ics" ("Physics is a science."), "-ence"/"-ance" ("Patience is a virtue."), and
+"-dom" words, beside counted words ending so ("A city is a place.", "A fence is a barrier.", "A kingdom is a
+country."). In memory, never-taught words ending so are used without "a" ("serendipity", "bionics", "insolence"), and
+counted words stay counted. "-dom" stays undecided: four uncounted words against "kingdom", and WordNet's "-dom" nouns
+are mixed ("dukedom", "earldom"). On the seeded sample: 63 nouns used without "a" (was 55), 1,247 said (was 1,238),
+nothing wrong, bare or against the letter; its test passes. Left: a word with no telling ending on the object side
+("Serendipity is a good luck.": "luck").
+
+**english_20 (75 pairs): what lessons 17–18 still left.**
+- "although", "though", "even though": both events, the one held though the other was against it (unexpected).
+- Where a thing is: "near" (a kind of its own, `near`, symmetric: close, not touching), "inside" (`located_in`),
+  "outside" (not `located_in`), "under" (`below`), "over" (`above`). english_06 and english_07 had taught "near" as
+  "next to" (`adjacent_to`), since there was no kind for it; their seven sentences now say `near`, and SHAPES-LEARN-09's
+  probe too.
+- "without" (not done by or with it), "except" ("Everyone except Tom can swim."), "because of" (`causes`), "during".
+- "too hot to hold" (the degree prevents it) and "old enough to drive" (the degree enables it).
+- "should/might/must/could have gone": the modal, before now.
+- "one of the dogs", "two of the cats"; months and years ("in June", "in 1990").
+
+In memory, with all twenty lessons, lesson 20's never-taught sentences read 17/17 with no engine change beyond the new
+kind.
+
+**english_21 (57 pairs): having, needing, leave, and who an event was done to.**
+- "Tom has a dog." (`owns`), beside lesson 1's "A spider has legs." (`has_part`); "Does Tom have …?"; "does not have".
+- "There was a dog.", "There were two dogs.": things there before now.
+- Starting, stopping, finishing and keeping on: "started to bark", "began walking", "stopped running", "kept barking"
+  (an event done to the event, as "tried to" is).
+- "needs a pen" (`requires`), "needs to go" (necessary).
+- Leave: "Can I go?", "May I close the box?", "You can go." (the event allowed).
+- "Who did the dog chase?", "What did Tom open?".
+
+**english_22 (53 pairs): what was still unread in plain sentences.**
+- A thing said with "a" doing an event, or done to ("A dog barked.", "Tom saw a dog.").
+- A kind doing what it does ("Dogs bark.", "Birds sing."), taught in pairs that differ in one word, so the frame is
+  learned and not each sentence whole.
+- "her", "him", "them", "me", "you" and "us" done to in a statement ("Tom saw her."), and "than me".
+- "How are you?", "How is the cat?", "I am fine."
+- "which" and "whose" in a description ("The boy whose dog barked is tall.").
+
+In memory, lessons 21 and 22 read their never-taught sentences 14/14 and 12/12, with no engine change.
+
+**english_23 (40 pairs): names, where from, and how one event follows another.** "My name is Tom.", "What is your
+name?", "The dog's name is Rex." (`named`, a new kind); "I am from Paris.", "Where are you from?" (`comes_from`, a new
+kind); "so tired that it slept" (the high degree causes it); "as soon as" (follows at once); "whenever" (during, always);
+"instead of" (the other event not done); "where" in a description (the event in the place). In memory 11/11, no
+engine change. Kinds now 81.
+
+With all twenty-three lessons in memory, every probe set still passes (SHAPES-LEARN-09 15/15 and 9/9; english_08 to
+16 as above; 17: 33/33, 18: 30/30, 20: 17/17, 21: 14/14, 22: 12/12, 23: 11/11; english_19's endings 11/13 uncounted and
+7/7 counted, the two misses the "-dom" words), every taught sentence reads, WordNet's seeded sample is said with nothing
+wrong, bare or against the letter, and tests pass 111/111.
+
+**Mathematics: english_24–26, and what reads and works them (built 2026-09-30).** Numbers to the trillions and
+beyond, arithmetic said in words, and any formula written as mathematics writes it, read by what was taught and
+worked by the symbolic mathematics faculty.
+
+- **Written mathematics is a writing of its own.** `arithmetic_reading.read_formula` reads any formula by its rules
+  (numbers of any size and in groups of three, letters, + - × ÷ ^ and their ASCII spellings, brackets, |x|, √, n!,
+  n%, mod, sin/log/ln/sqrt and the rest, log_2, d/dx, ∫ … dx, lim, and = ≠ < > ≤ ≥ between sides) into a `Term` tree:
+  a precedence parser, nothing evaluated as code. `form_of` makes a formula written in a sentence one piece
+  ("What is 2x + 3?"), joins "1,000,000" and two-character signs ("<="), and leaves "=", "<", ">" as pieces between
+  formulas. `literals` holds a formula as a term of its own (`expression`), one thing however spaced ("2+3" is "2 + 3").
+- **Kinds for arithmetic said in words** (now 92): `equals`, and each operation's numbers in their own places, so "two
+  plus two" is two facts and "seven minus four" is not "four minus seven" -- `has_augend`/`has_addend`,
+  `has_minuend`/`has_subtrahend`, `has_multiplicand`/`has_factor`, `has_dividend`/`has_divisor`,
+  `has_base`/`has_exponent`, `has_radicand`/`has_index`, and `has_argument` for a function. Numbers compare by `exceeds`.
+- **english_24 (164 pairs):** every number word, zero, a million/billion/trillion, how many of each, groups joined
+  ("three million two thousand and four"), numbers at every scale built by one function that follows English's grammar,
+  groups of three digits, halves, thirds and quarters, and negatives.
+- **english_25 (172 pairs):** plus, minus, times, divided by, to the power of, squared, cubed, square and cube roots,
+  the sum/difference/product/quotient of, half of, twice, percent of, parts of; one operation inside another ("two plus
+  three times four", times first); more, less, equal; prime, even, odd; sine, logarithm, factorial, absolute value; an
+  unknown ("If x plus three is seven, what is x?"); "Add two and three.".
+- **english_26 (137 pairs):** what a formula comes to, told and asked ("2 + 3 = 5.", "Is 2 + 2 = 5?", "Is 7 > 5?");
+  "Calculate", "Simplify", "Expand", "Factor", "Differentiate", "Integrate", "Break down"; "Solve …", "Solve … for y",
+  "Solve … and …", inequalities; "If 2x + 3 = 7, what is x?"; the derivative and the integral of; the factors of.
+
+What the lessons needed of the reader, each a rule of the engine and not of mathematics:
+- *Joining held phrases.* A composed phrase whose parts held constructions read and nothing held joins ("two thousand
+  | five hundred") is learned as the phrase that joins them, with a slot for each part (`_joined`); before, it fell to a
+  flat frame that nothing else could use.
+- *A span's readings, as they suppose least.* The chart keeps, for each span and each phrase reading it, only the
+  readings that suppose least (ties kept, one per meaning): what a reading supposes is the sum of its parts'. A 16-word
+  numeral took 129 s and now takes under a second.
+- *Sizes.* A number phrase's slot whose linked words are all whole numbers learns their sizes (groups of three
+  digits); a number of another size there stands apart. The words a scale word multiplies were all under a thousand,
+  so "seven trillion three hundred and twelve" never stands before "billion".
+- *Numbers and formulas are alike, and are fillers.* A word written as a number or a formula names its value
+  (`_named_as`: "5,000,000" is 5000000), is of one kind with the numbers and formulas a slot holds, becomes a slot when
+  a frame is made (never a word of it: "?slot0 = ?slot1.", not "1 + 5 = ?slot0."), and is said as it is written (never
+  "56s", never "tenth" for 10). The signs of mathematics' relations are words, not marks.
+- *Two rules of the meaning language:* a group has one count; a number is neither a kind nor a quality.
+
+**Worked, not recalled.** The faculty (`core/tools/symbolic_math_faculty.py`, which already held SymPy) calculates
+exactly at any size in the order of operations, one operation a step; solves the way each kind is solved (gathered and
+divided; factored or by the quadratic formula; squared for a root, with a root that does not check said to be none; the
+logarithm for an exponent; over one denominator; by substitution for several unknowns; inequalities turned when divided
+by a negative; periodic solutions; a numeric root, labelled, where there is no closed form); breaks a formula down
+(what it is, its terms, then worked); checks what it is told ("2 + 2 = 5." is answered "No. 2 + 2 is 4."). Its entry
+from a meaning is `mathematics_of`; the reasoning bridge runs it first (`_mathematics`), and the conversation answers
+through it (`_worked`), saying one value as it was taught to say the question, with the working under it.
+
+In memory, with all twenty-six lessons: lessons 24–26's never-taught sentences 73/73, every taught sentence reads.
+
+**Taught (2026-09-30):** all twenty-six lessons into an emptied sandbox, then into the main model after its lesson
+English was cleared (`docs/teaching_sessions/README.md`), none refused, 6,077 constructions and links in each. From
+each store's own view: 2,485/2,485 taught sentences read; every never-taught set passes but "The cat walked
+carefully."; 73/73 of lessons 24–26; eleven questions worked through the faculty, all right. Asked through the
+sandbox substrate's own conversation, math is answered through the bridge and `say()` in about a tenth of a second
+("7 multiplied by 8 is 56.", "No. Two plus two is four.", "x = 2 or x = 3." with its working).
+
+**"-ly", from the store.** The store's teaching, ranked by beliefs' scores where memory's ranks by one score, linked
+a few modal words to the adjective slot of "red ball" ("could" for `possible`): words written otherwise than their
+concepts' names by no change. With one "recently" there, the slot counted as written in "-ly", and its other words
+broke the change's tolerance, so "carefully" stopped being `careful`. A slot is now evidence of its changes only
+when most of what stands there written otherwise is written by a change (`changed_writing`, for `said_shapes` and
+`unshaped_in`): an irregular form among regular ones is an exception to "-ed", other words for a concept are no
+writing in a change. They still say the slot is written otherwise than by name (`slot_writing`, for
+`written_against`): "third" and "quarter" stand for 3 and 4, and "25%" stands against them -- a first version that
+dropped this too read "What is 25% of 360?" also as a division. Learning is unchanged by it.
+
+**What SHAPES-LEARN-10's fourth run found, and what was done** (its README has the table). Only 723 of 1,208
+WordNet nouns read in "What is a/an <word>?". Four causes, each found in memory on the gate's own samples:
+- *english_24 taught "a" as the number 1* ("Two and three quarters" beside "Three and a half"); "a" then named
+  something and WordNet's nouns were learned with it ("A quoin"). The sentence is gone; the lesson test asserts "a"
+  and "an" build sentences only.
+- *A formula's letters counted as named words*: english_26's "a + b" made "a" a word some meaning names, so "A is a
+  blood group." made "a" a filler in the middle of the pass. A number or formula now names itself whole; the lesson
+  uses m and n.
+- *A frame learned as written in another shape stood apart*: "Every betrayal is a treason.", said through "Every
+  ?slot0 is an ?slot1." and learned as "… is a ?slot1.", put its nouns in a kind of their own, which "What is a
+  ?slot0?" never took. Twin frames' slots are now one kind (`_join_twins`).
+- *English words read as formulas*: "a pip" as a·π·p, "a cost accounting" as a·cos t, "a T cell" as a·T. A word is
+  split into a function's name and a letter only in a text given as a formula, and a run of pieces in a sentence is a
+  formula only with an operation's sign or a function's name. Beside it, "What is ?slot0?" -- taught for
+  quantities and now for "What is water?" -- takes only mathematics where it has held only mathematics, and no
+  number where it has held only words (`admits_there`).
+In memory, three seeded samples then read 1,218/1,240, 1,231/1,241 and 1,273/1,287; every miss is a word the lessons
+hold in another sense ("What is a bark?" read to the lessons' `bark`, not WordNet's sailing vessel), the known limit,
+larger now the lessons hold more words.
+
+**Gaps the stores showed**, for the lessons to come: a name doing a past event in a manner ("Tom walked quietly."
+reads nowhere; lesson 12 taught "The cat walked slowly."), and irregular pasts never taught ("The bird sang
+beautifully.": "sang").
+
+Left for later lessons: clock times ("at three o'clock"), becoming ("Tom got tired", "The water became ice"), "not
+only … but also", "as if", "how often", "how far".
 
 **Order.** Part 1, then part 2's lessons for what the meaning language holds already, then part 3 in the sandbox on
 a sample and then whole, then part 2's remaining meanings, then part 4 and part 5. The main model is taught only on

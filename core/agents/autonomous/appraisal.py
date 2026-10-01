@@ -467,7 +467,7 @@ def build_appraisal(
     if mood_valence is None:
         unmeasured.append("mood")
 
-    # ── RISK: cost of being wrong. Governance/task criticality owns the level.
+    # ── RISK: cost of being wrong. The Constitution/task criticality owns the level.
     _RISK = {"low": 0.2, "medium": 0.5, "high": 0.8, "critical": 0.95}
     risk = _RISK.get(str(risk_level).lower()) if risk_level is not None else None
     if risk is None:

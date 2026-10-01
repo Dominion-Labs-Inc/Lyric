@@ -5,6 +5,14 @@
 - A song's key and tempo are heard as people annotated them.
 - A sung melody is heard as its notes, remembered in words, and recalled as the same notes.
 - Speech is heard as no music.
+- A song taught by one person humming it is known when another person hums it, in their own key and pace
+  (`has_tune_of`), and a hum of a song never taught is not named.
+
+**Fourth run: 25/25** (record `20260929T233853Z`; cleanup by nonce, 1,091 rows written, 0 left). New section J
+(HumTrans VALID, one segment of each of three songs taught from F01's hum): the lesson's trace keeps the tune
+(255 points); F02 humming the first song has its tune (ratio 0.325, support 1.0), its memory says 'the tune of
+"…"', the graph and the beliefs hold `has_tune_of`, and F02 humming a song never taught has no song's tune. The
+measure behind it is TUNES-01.
 
 **Third run: 20/20** (record `20260929T131355Z`; cleanup by nonce, 875 rows written, 0 left). The two
 defects the first run found are fixed at the root, and the second run (19/20) found where the second fix was

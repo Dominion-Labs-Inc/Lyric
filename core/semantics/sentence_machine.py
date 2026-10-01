@@ -186,8 +186,14 @@ class Piece(NamedTuple):
 
 
 #: Joins two letters or digits into one piece when it sits BETWEEN them:
-#: `U.S`, `four-group`, `3.5`. At the edge of a word it is a mark of its own.
+#: `U.S`, `2026-09-29`, `3.5`. At the edge of a word it is a mark of its own.
 _JOINERS = frozenset(".-")
+
+#: BETWEEN two letters, a hyphen is a piece of its own, glued to the words on
+#: either side: `twenty-one` is `twenty` + `-` + `one`, and `x-ray` is `x` +
+#: `-` + `ray`. The words a hyphen joins are words English has, and what they
+#: build is learned, as any other words' is; the writing only says they join.
+_HYPHENS = frozenset("-")
 
 #: BETWEEN two letters, an apostrophe begins a piece of its own, glued to the
 #: one before: `teacher's` is `teacher` + `'s`, `it's` is `it` + `'s`, `don't`
@@ -196,10 +202,21 @@ _JOINERS = frozenset(".-")
 _APOSTROPHES = frozenset("'\u2019")
 
 
-def form_of(text: str) -> Tuple[Piece, ...]:
-    """The pieces of `text`, in order, with nothing lost or changed."""
-    pieces: List[Piece] = []
-    text = str(text or "")
+#: Marks written as one, two characters that are one sign: `<=` is ≤, `!=` is ≠.
+_TWO_MARKS = frozenset({"<=", ">=", "==", "!=", "->", "**"})
+
+#: What written mathematics is made of besides numbers and letters: the signs of its operations and brackets.
+_MATH_MARKS = frozenset("+-−–*×·⋅/÷^!%√∛()[]|∫_²³⁰¹⁴⁵⁶⁷⁸⁹⁻")
+_MATH_NAMES = frozenset({"sin", "cos", "tan", "cot", "sec", "csc", "arcsin", "arccos", "arctan", "asin", "acos",
+                         "atan", "sinh", "cosh", "tanh", "log", "ln", "lg", "exp", "sqrt", "cbrt", "abs", "floor",
+                         "ceil", "ceiling", "max", "min", "gcd", "lcm", "sgn", "pi", "π", "∞", "mod", "lim"})
+
+
+def _spans(text: str) -> List[Tuple[int, int]]:
+    """Where each piece of `text` begins and ends: a run of letters and digits, joined through an apostrophe, a
+    full stop or a hyphen between two of them, or any other character that is not a space; a number written in
+    groups of three (`1,000,000`) is one piece, and so is a two-character sign (`<=`)."""
+    spans: List[Tuple[int, int]] = []
     i, n = 0, len(text)
     while i < n:
         ch = text[i]
@@ -214,15 +231,94 @@ def form_of(text: str) -> Tuple[Piece, ...]:
             while i < n:
                 if text[i].isalnum():
                     i += 1
+                elif (text[i] in _HYPHENS and i + 1 < n and text[i + 1].isalpha()
+                      and text[i - 1].isalpha()):
+                    break
                 elif (text[i] in _JOINERS and i + 1 < n and text[i + 1].isalnum()
                       and text[i - 1].isalnum()):
                     i += 1
+                elif (text[i] == "," and text[i - 1].isdigit() and text[i + 1:i + 4].isdigit()
+                      and len(text[i + 1:i + 4]) == 3 and not text[i + 4:i + 5].isdigit()
+                      and text[start:i].replace(",", "").isdigit()):
+                    i += 4
                 else:
                     break
+        elif text[i:i + 2] in _TWO_MARKS:
+            i += 2
         else:
             i += 1
-        pieces.append(Piece(text[start:i], i < n and text[i].isspace()))
-    return tuple(pieces)
+        spans.append((start, i))
+    return spans
+
+
+#: What makes a run of pieces a formula and not words side by side: a sign of an operation, or a function's name
+#: ("sin x"). "a T" and "x y" are letters in a sentence; "a + b" and "2x - 1" do something.
+_OPERATES = re.compile(r"[-+*/^×÷·⋅−–√∛!%|∫]|\b(?:mod|sin|cos|tan|cot|sec|csc|log|ln|lg|exp|sqrt|cbrt|abs|lim|max|min"
+                       r"|gcd|lcm|floor|ceil|sinh|cosh|tanh|arcsin|arccos|arctan|asin|acos|atan)\b|d/d", re.IGNORECASE)
+
+
+def _mathematical(text: str) -> bool:
+    """Whether a piece may be part of a written formula: a sign of mathematics, a function's name, a number, a
+    letter, or letters and digits that mathematics reads (`2x`, `x2`)."""
+    if text in _MATH_MARKS or text.lower() in _MATH_NAMES:
+        return True
+    if len(text) == 2 and text[0] == "d" and text[1].isalpha():
+        return True                  # the dx of d/dx and of an integral
+    from core.reasoning.arithmetic_reading import read_formula
+    return read_formula(text) is not None and not any(r in text for r in "=<>≤≥≠")
+
+
+def _formulas(text: str, spans: List[Tuple[int, int]]) -> List[Tuple[int, int]]:
+    """The pieces with each written formula in them made one piece: `2x + 3`, `(x + 1)^2`, `5!`, `15%`.
+
+    Mathematics has its own writing, and a formula written in a sentence is one thing the sentence speaks of,
+    the way a date is. A run of pieces that are all mathematics' is made one where it reads, by that writing's
+    rules (`arithmetic_reading.read_expression`), as an expression that does something -- a number alone or a
+    letter alone stays the piece it is. The relations (=, <, >) are not part of it: they are what a sentence
+    says of its formulas, read as words are. A last `!` is the sentence's."""
+    from core.reasoning.arithmetic_reading import read_expression
+    from core.semantics.literals import classify_literal
+    out: List[Tuple[int, int]] = []
+    k, n = 0, len(spans)
+    while k < n:
+        end = k
+        depth = 0
+        while end < n:
+            piece = text[spans[end][0]:spans[end][1]]
+            if piece == "," and depth > 0:
+                end += 1
+                continue
+            if piece == "!" and end == n - 1:
+                break
+            if not _mathematical(piece):
+                break
+            depth += piece in "([" and 1 or 0
+            depth -= piece in ")]" and 1 or 0
+            end += 1
+        taken = None
+        for last in range(end, k + 1, -1):
+            written = text[spans[k][0]:spans[last - 1][1]]
+            literal = classify_literal(written)
+            if literal is not None and literal.kind in ("date", "moment"):
+                continue
+            if read_expression(written) is not None and _OPERATES.search(written):
+                taken = last
+                break
+        if taken is None:
+            out.append(spans[k])
+            k += 1
+            continue
+        out.append((spans[k][0], spans[taken - 1][1]))
+        k = taken
+    return out
+
+
+def form_of(text: str) -> Tuple[Piece, ...]:
+    """The pieces of `text`, in order, with nothing lost or changed."""
+    text = str(text or "")
+    n = len(text)
+    return tuple(Piece(text[start:end], end < n and text[end].isspace())
+                 for start, end in _formulas(text, _spans(text)))
 
 
 def surface_of(pieces) -> str:

@@ -3,16 +3,20 @@
 
 Part 2's first lesson and the fix to saying new words, in `docs/research/SHAPES_CHANGE_MAP.md` (§11f). `english_06`
 teaches function words the meaning language already holds; `english_07` teaches names, words used without "a", "is a
-kind of", and plural-only words. A word never held is said only where words used as it is used stand: a name never
-after "a", a word without "a" bare, a plural-only word as a plural (`PatternInventory.use_of`, `slot_admits`).
+kind of", plural-only words, and kinds of people written with a capital ("An American is a person.") beside names
+that end as they do ("Japan"). A word never held is said only where words used as it is used stand: a name never
+after "a", a word without "a" bare, a plural-only word as a plural, a counted word never bare
+(`PatternInventory.use_of`, `slot_admits`).
 
   A  TEACH      the seven lessons (english_01 to english_07) through the one teaching path, none refused
   B  TAUGHT     every taught sentence of the seven still reads to its meaning
   C  FUNCTION   sentences with english_06's words, never taught, read to the meaning they have
-  D  NAMES      sentences with names and words without "a", never taught, read to the meaning they have
+  D  NAMES      sentences with names, words without "a" and kinds of people, never taught, read to the meaning
+                they have
   E  SAID       WordNet's nouns, said through the teaching pass's own saying: no name after "a", no word the view
-                takes to go without "a" after one, plural-only words as plurals (measured and checked)
-  F  FAULTS     the three sentences SHAPES-LEARN-08 said wrongly are said rightly
+                takes to go without "a" after one, no counted word bare, "a" and "an" as the letter after them
+                asks, plural-only words as plurals (measured and checked)
+  F  FAULTS     the sentences SHAPES-LEARN-08, and this experiment's first run, said wrongly are said rightly
   G  NOTHING    reading and saying wrote nothing
   H  MAIN       the main model's store is untouched
 
@@ -57,7 +61,7 @@ def _ask(facts, asked=()):
 
 #: Sentences with english_06's words, never taught, and what each means.
 FUNCTION = [
-    ("The ball is near the table.", _tell(("adjacent_to", "ball", "table"))),
+    ("The ball is near the table.", _tell(("near", "ball", "table"))),
     ("Is the book inside the bag?", _ask([("located_in", "book", "bag")])),
     ("The dog is at the table.", _tell(("located_at", "dog", "table"))),
     ("Noon is before morning.", _tell(("precedes", "noon", "morning"))),
@@ -83,24 +87,31 @@ NAMES = [
     ("Is milk a food?", _ask([("isa", "milk", "food")])),
     ("Mississippi is a river.", _tell(("isa", "mississippi", "river"))),
     ("Hydrology is a kind of geology.", _tell(("isa", "hydrology", "geology"))),
+    ("Is Rex a German?", _ask([("isa", "rex", "german")])),
+    ("A Bostonian is a person.", _tell(("isa", "bostonian", "person"))),
 ]
-#: What SHAPES-LEARN-08 said wrongly, and what is said now.
+#: What SHAPES-LEARN-08, and this experiment's first run, said wrongly, and the English ways of saying it: a kind
+#: said of every one of its kind is said of "a" or of "every" one.
 FAULTS = [
-    (("thiosulfil", "sulfa drug", (("thiosulfil", "Thiosulfil"),)), "Thiosulfil is a sulfa drug."),
-    (("paleoanthropology", "vertebrate paleontology", ()), "Paleoanthropology is a kind of vertebrate paleontology."),
-    (("fire tongs", "tongs", ()), "Fire tongs are tongs."),
+    (("thiosulfil", "sulfa drug", (("thiosulfil", "Thiosulfil"),)), ("Thiosulfil is a sulfa drug.",)),
+    (("paleoanthropology", "vertebrate paleontology", ()),
+     ("Paleoanthropology is a kind of vertebrate paleontology.",)),
+    (("fire tongs", "tongs", ()), ("Fire tongs are tongs.",)),
+    (("asian", "inhabitant", (("asian", "Asian"),)), ("An Asian is an inhabitant.", "Every Asian is an inhabitant.")),
+    (("slovenian", "person", (("slovenian", "Slovenian"),)), ("A Slovenian is a person.", "Every Slovenian is a person.")),
 ]
 
 EV = RunRecord(
     "SHAPES-LEARN-09",
-    claim=("Taught function words, names and words used without 'a' by example through its one teaching path, the "
-           "substrate reads sentences with them it was never taught, and says a word it never held only where words "
-           "used as it is used stand: WordNet's names without 'a', its words used without 'a' bare, its plural-only "
-           "words as plurals."),
+    claim=("Taught function words, names, words used without 'a' and kinds of people written with a capital by "
+           "example through its one teaching path, the substrate reads sentences with them it was never taught, and "
+           "says a word it never held only where words used as it is used stand: WordNet's names without 'a', its "
+           "words used without 'a' bare, its counted words, capital or not, after 'a' or 'an' as the next letter "
+           "asks, its plural-only words as plurals."),
     hypothesis=("A lesson pair refused; a taught sentence that no longer reads; a never-taught probe unread or misread; "
-                "a name said after 'a', or a word the view takes to go without 'a' said after one; one of SHAPES-LEARN-"
-                "08's faults said again; a reading or saying that writes; or a write to the main store would each "
-                "show here."))
+                "a name said after 'a', a word the view takes to go without 'a' said after one, a counted word said "
+                "bare, or 'a' and 'an' against the letter after them; a fault said again; a reading or saying that "
+                "writes; or a write to the main store would each show here."))
 TRANSCRIPT = []
 
 
@@ -167,6 +178,26 @@ def _after_a(sentence: str, word: str) -> bool:
                for i in range(len(pieces) - len(written)))
 
 
+def _bare(sentence: str, word: str, *, at_start: bool = True) -> bool:
+    """Whether the sentence has this word right after "is", nothing before it, or, `at_start`, begins with it."""
+    from core.semantics.sentence_machine import form_of
+    written = [p.text.lower() for p in form_of(word)]
+    pieces = [p.text.lower() for p in form_of(sentence)]
+    return (at_start and pieces[:len(written)] == written) or any(
+        pieces[i] == "is" and pieces[i + 1:i + 1 + len(written)] == written for i in range(len(pieces)))
+
+
+def _against_the_letter(sentence: str) -> list:
+    """Where "a" or "an" is written against the letter after it, as the checker reads English spelling: "an" before
+    a consonant, "a" before a, e, i or o. A word beginning with "h" or "u" goes either way ("an hour", "a unit") and
+    is not judged."""
+    from core.semantics.sentence_machine import form_of
+    pieces = [p.text for p in form_of(sentence)]
+    return [f"{one} {two}" for one, two in zip(pieces, pieces[1:]) if two[:1].isalpha() and two[:1].lower() not in "hu"
+            and ((one.lower() == "an" and two[:1].lower() not in "aeio")
+                 or (one.lower() == "a" and two[:1].lower() in "aeio"))]
+
+
 async def _run(main_before: int) -> int:
     from core.learning import get_learning_authority
     from core.learning.teaching import Report, TaughtRecord, TeachingPass
@@ -212,12 +243,14 @@ async def _run(main_before: int) -> int:
     nouns = [r for r in wordnet._harvest(Report(source="wordnet", domain=DOMAIN)) if r.meaning is not None]
     uses = collections.Counter()
     examples = collections.defaultdict(list)
-    wrong = []
+    wrong, bare, lettered = [], [], []
     said = 0
     for record in nouns:
         sentence = TeachingPass._said(record)
         word = dict(record.words).get(record.subject, record.subject)
-        use = view.use_of(word)
+        # A word held already is said as it was taught; the use found from its writing governs a word never held.
+        use = "held" if view.lexicals_with_value(record.subject) or view.lexicals_with_value(word) \
+            or view.lexicals_with_words((word.lower(),), loose=True) else view.use_of(word)
         uses[use] += 1
         if not sentence:
             continue
@@ -226,21 +259,29 @@ async def _run(main_before: int) -> int:
             examples[use].append(sentence)
         if use in ("name", "mass") and _after_a(sentence, word):
             wrong.append(sentence)
-    for use in ("count", "name", "mass", "plural"):
+        parent = dict(record.words).get(record.obj, record.obj)
+        if (use == "count" and _bare(sentence, word)) \
+                or (view.use_of(parent) == "count" and _bare(sentence, parent, at_start=False)):
+            bare.append(sentence)
+        if _against_the_letter(sentence):
+            lettered.append(sentence)
+    for use in ("count", "name", "mass", "plural", "held"):
         say_line(f"    {use:7} {uses[use]:5} words, e.g. {examples[use][:6]}")
     say_line(f"    said {said} of {len(nouns)}")
     check("no name, and no word taken to go without 'a', is said after 'a'", not wrong, f"{wrong[:5]}")
+    check("no word taken to be counted is said bare", not bare, f"{bare[:5]}")
+    check("'a' and 'an' are written as the letter after them asks", not lettered, f"{lettered[:5]}")
     EV.metric("WordNet nouns said", f"{said}/{len(nouns)}")
     EV.metric("uses found for WordNet's nouns", dict(uses))
 
-    say_line("\n== F. What SHAPES-LEARN-08 said wrongly ==")
+    say_line("\n== F. What SHAPES-LEARN-08, and this experiment's first run, said wrongly ==")
     fixed = 0
     for (child, parent, words), wanted in FAULTS:
         record = TaughtRecord(child, "isa", parent, 0.9, meaning=Meaning("tell", (F("isa", child, parent),)),
                               words=words)
         got = TeachingPass._said(record)
-        fixed += got == wanted
-        say_line(f"    {'ok ' if got == wanted else 'BAD'} isa({child}, {parent}) -> {got!r}")
+        fixed += got in wanted
+        say_line(f"    {'ok ' if got in wanted else 'BAD'} isa({child}, {parent}) -> {got!r}")
     check("each is said as English says it", fixed == len(FAULTS), f"{fixed}/{len(FAULTS)}")
 
     say_line("\n== G. Reading and saying wrote nothing ==")

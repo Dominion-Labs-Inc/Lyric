@@ -1,8 +1,11 @@
-"""ENV-INVESTIGATE-01 — environment investigation is ROBUST: recursive scan + file CONTENT read into
-knowledge (as observations), images perceived, binaries recorded by metadata only.
+"""ENV-INVESTIGATE-01 — environment investigation is ROBUST: recursive scan, each file's structure
+held, what it HOLDS taken in by every sense that can (a picture seen, a recording heard, a text read by the
+substrate's own reading), binaries and over-long texts recorded by metadata only.
 
-Uses the REAL `_scan_environment` / `_read_text_bounded` / `_ingest_environment_entry` bound to a
-recording stand-in learning faculty (so we see exactly what is turned into knowledge, no DB writes).
+Uses the REAL `_scan_environment` / `_ingest_environment_entry` and the real senses' judgement of what
+each file can give (`PerceptionFaculty.senses_of`), bound to a stand-in that records the structural facts
+learned and what is handed to the one act of perceiving (`take_in`), so no DB writes. What the one act
+does with a text it reads is READ-01's to show.
 
 Run: ./venv_lyric/bin/python3 scratchpad/bench_envscan.py
 """
@@ -17,14 +20,14 @@ EV = RunRecord(
     "ENV-INVESTIGATE-01",
     claim=("Environment investigation is ROBUST and BOUNDED: the substrate scans "
            "its world recursively, records what each thing IS structurally, and "
-           "reads textual CONTENT into observations linked to what the file is "
-           "about — while never decoding a binary as text, and never exceeding its "
-           "scan/depth/size bounds."),
+           "takes what each file holds in through its one act of perceiving, by "
+           "every sense that can — while never handing a binary to reading, and "
+           "never exceeding its scan/depth/size bounds."),
     hypothesis=("A naive scanner either stays shallow (missing nested content), or "
                 "decodes everything (turning binary bytes into fabricated 'facts'). "
                 "Both failures are visible here: nested content must be found, and "
-                "a NUL-containing file must yield structural metadata with ZERO "
-                "content facts."))
+                "a NUL-containing file must yield structural metadata and never be "
+                "taken in."))
 
 results = []
 def check(n, ok, d=""):
@@ -44,30 +47,20 @@ async def main() -> int:
                                "src": getattr(provenance, "source_id", None)})
             return SimpleNamespace(admitted=True)
 
+    from core.perception.perception_faculty import PerceptionFaculty
+
     class _Env:
         _ENV_SCAN_MAX_ENTRIES = C._ENV_SCAN_MAX_ENTRIES
         _ENV_SCAN_MAX_DEPTH = C._ENV_SCAN_MAX_DEPTH
         _ENV_READ_MAX_BYTES = C._ENV_READ_MAX_BYTES
-        _ENV_CONTENT_MAX_FACTS = C._ENV_CONTENT_MAX_FACTS
-        _ENV_TEXT_EXTS = C._ENV_TEXT_EXTS
-        _ENV_IMAGE_EXTS = C._ENV_IMAGE_EXTS
-        _ENV_SOUND_EXTS = C._ENV_SOUND_EXTS
         _scan_environment = C._scan_environment
-        _read_text_bounded = C._read_text_bounded
         _ingest_environment_entry = C._ingest_environment_entry
-        saw = []
-        heard = []
-        async def see(self, path, *, source=None, actor_identity=None):
-            self.saw.append(path)
-        async def hear(self, path, *, source=None, actor_identity=None):
-            self.heard.append(path)
+        # The REAL senses' judgement of what a file can give.
+        vision = PerceptionFaculty
+        taken = []
+        async def take_in(self, path, *, actor_identity, source=None, domain=None, within=None):
+            self.taken.append({"path": path, "actor_identity": actor_identity, "source": source})
     me = _Env(); me.learning = _Rec()
-    # A REAL reading ledger. `_read_text_bounded` records what it read and of
-    # which version — reading a file IS a reading, and Law 2 consults the ledger
-    # before the substrate acts on anything it has only remembered. The stand-in
-    # has to carry the real one or it stops exercising the real method.
-    from core.agents.autonomous.autonomous_coordinator import ReadingLedger
-    me.reading = ReadingLedger()
 
     # build a temp world: nested dirs, text with parseable sentences, a binary, an image-by-ext
     root = tempfile.mkdtemp(prefix="envscan_")
@@ -79,6 +72,10 @@ async def main() -> int:
             f.write("A memristor is a component.\n")
         with open(os.path.join(root, "bin.dat"), "wb") as f:
             f.write(b"\x00\x01\x02\x03binarynottext")
+        with open(os.path.join(root, "notes"), "w") as f:
+            f.write("A robin is a bird.\n")
+        with open(os.path.join(root, "long.txt"), "w") as f:
+            f.write("A robin is a bird.\n" * (C._ENV_READ_MAX_BYTES // 19 + 10))
         os.mkdir(os.path.join(root, "empty"))
 
         print("\n== recursive, bounded scan ==")
@@ -92,37 +89,38 @@ async def main() -> int:
         check("directories are recorded too", names.get("sub", {}).get("kind") == "dir"
               and names.get("empty", {}).get("kind") == "dir")
 
-        print("\n== binary sniff ==")
-        check("a NUL-containing file reads as None (binary, never decoded)",
-              me._read_text_bounded(os.path.join(root, "bin.dat")) is None)
-        check("a real text file reads its content",
-              "cat" in (me._read_text_bounded(os.path.join(root, "a.txt")) or ""))
+        print("\n== what each file can give, as its bytes say ==")
+        check("a NUL-containing file gives no sense anything (binary, never decoded)",
+              PerceptionFaculty.senses_of(os.path.join(root, "bin.dat")) == ())
+        check("a text file is taken in by reading",
+              PerceptionFaculty.senses_of(os.path.join(root, "a.txt")) == ("reading",))
+        check("a text file with no name for its kind is read by what its bytes are",
+              PerceptionFaculty.senses_of(os.path.join(root, "notes")) == ("reading",))
 
-        print("\n== CONTENT is read into knowledge (as PERCEPTION observations) ==")
-        me.learning.calls.clear()
-        # ingest the text file
+        print("\n== what a text HOLDS is taken in by the one act, as its own perceiving ==")
+        prov = SimpleNamespace(producer="perception", source_id="environment", source_type="PERCEPTION")
+        me.learning.calls.clear(); me.taken.clear()
         a_entry = names["a.txt"]
-        n = await me._ingest_environment_entry(a_entry, "environment_test", SimpleNamespace(
-            producer="perception", source_id="environment", source_type="PERCEPTION"))
+        await me._ingest_environment_entry(a_entry, "environment_test", prov)
         calls = me.learning.calls
         struct = [c for c in calls if c["r"] in ("contains", "isa", "has_extension", "has_size_bytes")]
-        content = [c for c in calls if c["prov"] == "PERCEPTION" and c["src"] == a_entry["path"]]
-        mentions = [c for c in calls if c["r"] == "mentions"]
         check("structural facts held (contains / isa / extension / size)", len(struct) >= 3,
               f"{len(struct)} structural")
-        check("file CONTENT read into observations (PERCEPTION prov, source=the file, low quality)",
-              len(content) >= 1 and all(c["q"] == 0.3 for c in content),
-              f"{len(content)} content observations: {[(c['s'],c['r'],c['o']) for c in content][:3]}")
-        check("the file is linked to what it is ABOUT (mentions)", len(mentions) >= 1,
-              f"{[c['o'] for c in mentions]}")
+        check("the text is handed to the one act of perceiving, as the substrate's own",
+              [t["path"] for t in me.taken] == [a_entry["path"]]
+              and all(t["actor_identity"] is None for t in me.taken), f"{me.taken}")
 
-        print("\n== binary file: metadata only, never read as content ==")
-        me.learning.calls.clear()
-        await me._ingest_environment_entry(names["bin.dat"], "environment_test", SimpleNamespace(
-            producer="perception", source_id="environment", source_type="PERCEPTION"))
-        bin_content = [c for c in me.learning.calls if c["src"] == names["bin.dat"]["path"]]
-        check("binary file yields structural metadata but NO decoded content", len(bin_content) == 0,
-              f"{len(bin_content)} content facts (want 0)")
+        print("\n== binary file and over-long text: metadata only, never taken in ==")
+        me.learning.calls.clear(); me.taken.clear()
+        await me._ingest_environment_entry(names["bin.dat"], "environment_test", prov)
+        bin_struct = [c for c in me.learning.calls if c["r"] in ("contains", "isa")]
+        check("binary file yields structural metadata and is never taken in",
+              len(bin_struct) >= 2 and not me.taken, f"taken: {me.taken}")
+        bin_content = list(me.taken)
+        me.taken.clear()
+        await me._ingest_environment_entry(names["long.txt"], "environment_test", prov)
+        check("a text past the read bound is recorded by its metadata, not read",
+              not me.taken, f"{names['long.txt']['size']} bytes; taken: {me.taken}")
     finally:
         shutil.rmtree(root, ignore_errors=True)
 
@@ -136,20 +134,15 @@ async def main() -> int:
               "no file is read past this — investigation cannot become ingestion")
     EV.metric("structural_facts", len(struct), "count",
               "what the thing IS: contains / isa / extension / size")
-    EV.metric("content_observations", len(content), "count",
-              "sentences read from real text, held as PERCEPTION-provenance "
-              "observations at low quality — observations, not knowledge")
-    EV.metric("binary_content_facts", len(bin_content), "count",
+    EV.metric("binary_taken_in", len(bin_content), "count",
               "MUST be 0: a NUL-containing file yields metadata only. Any other "
               "value means the substrate decoded bytes into invented facts")
-    EV.metric("files_recorded_in_ledger", len(me.reading.authored_paths()) + 
-              me.reading.status()["files_read"], "count",
-              "every content read is recorded as a READING, so Law 2 can later tell "
-              "whether what the substrate holds is still what is on disk")
-    EV.note("Uses the REAL _scan_environment / _read_text_bounded / "
-            "_ingest_environment_entry bound to a minimal stand-in carrying a real "
-            "ReadingLedger, so the reading-ledger side effect is exercised rather "
-            "than stubbed out.")
+    EV.note("Uses the REAL _scan_environment / _ingest_environment_entry and the "
+            "real senses' judgement (PerceptionFaculty.senses_of), bound to a "
+            "stand-in that records what is handed to the one act of perceiving. "
+            "What that act does with a text it reads -- its words through the "
+            "substrate's reader, held as what the file said, the reading recorded "
+            "in the reading ledger -- is READ-01's to show.")
     await EV.verify_database()
     EV.write()
     return 0 if passed == total else 1

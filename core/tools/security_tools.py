@@ -47,6 +47,7 @@ import string
 import re
 import time
 import os
+from contextlib import asynccontextmanager
 from typing import Any, Dict, List, Optional, Tuple
 from pathlib import Path
 from urllib.parse import quote
@@ -2188,16 +2189,97 @@ class ValidateSQLInputTool(Tool):
 
 # ---- rate limits: one count, shared by every instance ------------------------
 
+# ══════════════════════════════════════════════════════════════════════════
+# WHOSE SECURITY LOGS
+# ══════════════════════════════════════════════════════════════════════════
+#
+# A security tool reads the security logs of the system it defends, always named,
+# never assumed: the substrate's own (`logs_of="lyric"`) -- these are the one kind
+# of tool that may look at the substrate itself, for its own defence -- or an
+# outside PostgreSQL log database given by address and login (`logs_of="outside"`).
+# An outside source that is the substrate's own server is refused: to read the
+# substrate's own logs, name it.
+
+
+def _log_source_parameters() -> List[ToolParameter]:
+    return [
+        ToolParameter(name="logs_of", type="string", required=True, enum=["lyric", "outside"],
+                      description=("Whose security logs: 'lyric' (the substrate's own, for its own "
+                                   "defence) or 'outside' (the log database given by host, database, user)")),
+        ToolParameter(name="host", type="string", required=False, description="Outside log database host"),
+        ToolParameter(name="port", type="integer", required=False, default=5432,
+                      description="Outside log database port"),
+        ToolParameter(name="database", type="string", required=False, description="Outside log database name"),
+        ToolParameter(name="user", type="string", required=False, description="Outside log database login user"),
+        ToolParameter(name="password", type="string", required=False, default="",
+                      description="Outside log database login password"),
+    ]
+
+
+def _log_source_refusal(logs_of: Optional[str], host: Optional[str], port: Any,
+                        database: Optional[str], user: Optional[str]) -> Optional[str]:
+    """Why these logs cannot be read, or None when they can."""
+    if logs_of == "lyric":
+        return None
+    if logs_of != "outside":
+        return ("logs_of is required: 'lyric' (the substrate's own security logs) or 'outside' "
+                "(a log database given by host, database and user)")
+    if not (host and database and user):
+        return "an outside log database needs host, database and user"
+    from .database_tools import _is_own_server
+    if _is_own_server(host, port):
+        return ("that is the substrate's own database server; to read the substrate's own "
+                "security logs, name them: logs_of='lyric'")
+    return None
+
+
+class _LogSource:
+    """The security logs of one system: the substrate's own, through its database
+    manager, or an outside PostgreSQL log database, a connection per use."""
+
+    def __init__(self, logs_of: str, host: Optional[str] = None, port: int = 5432,
+                 database: Optional[str] = None, user: Optional[str] = None, password: str = ""):
+        self.logs_of = logs_of
+        self._outside = (host, port, database, user, password)
+        #: Where a table a tool keeps for itself goes (the rate limiter's counts).
+        self.schema = "unified." if logs_of == "lyric" else ""
+
+    @asynccontextmanager
+    async def connection(self):
+        if self.logs_of == "lyric":
+            from core.database import get_database_manager
+            db = get_database_manager()
+            if not getattr(db, "initialized", False):
+                await db.initialize()
+            async with db.get_connection() as conn:
+                yield conn
+            return
+        from .database_tools import _outside_postgres
+        conn = await _outside_postgres(*self._outside)
+        try:
+            yield conn
+        finally:
+            await conn.close()
+
+    async def query(self, sql: str, params: Optional[Tuple] = None) -> List[Dict[str, Any]]:
+        async with self.connection() as conn:
+            return [dict(row) for row in await conn.fetch(sql, *(params or ()))]
+
+
+#: The rate limiter's counts, kept in the database of the system it protects
+#: (`{schema}` is `unified.` for the substrate's own, nothing for an outside one).
 _RATE_LIMIT_DDL = [
-    """CREATE TABLE IF NOT EXISTS unified.rate_limit_events (
+    """CREATE TABLE IF NOT EXISTS {schema}rate_limit_events (
            identifier TEXT NOT NULL,
            at         TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
            expires_at TIMESTAMPTZ NOT NULL)""",
     "CREATE INDEX IF NOT EXISTS ix_rate_limit_identifier "
-    "ON unified.rate_limit_events (identifier, at)",
+    "ON {schema}rate_limit_events (identifier, at)",
     "CREATE INDEX IF NOT EXISTS ix_rate_limit_expires "
-    "ON unified.rate_limit_events (expires_at)",
+    "ON {schema}rate_limit_events (expires_at)",
 ]
+#: The databases this process has already made the rate limiter's table in.
+_RATE_LIMIT_READY: set = set()
 
 
 class CheckRateLimitTool(Tool):
@@ -2207,7 +2289,8 @@ class CheckRateLimitTool(Tool):
         super().__init__()
         self.name = "check_rate_limit"
         self.description = ("Count a request for an identifier (IP, user ID) and check it against "
-                            "a rate limit shared by every running instance")
+                            "a rate limit shared by every running instance, counted in the database "
+                            "of the system it protects")
         self.category = ToolCategory.SECURITY
         self.safety_level = ToolSafety.SAFE
         self.parameters = [
@@ -2232,6 +2315,7 @@ class CheckRateLimitTool(Tool):
                 default=60
             )
         ]
+        self.parameters += _log_source_parameters()
 
         self.capability_profile = ToolCapabilityProfile(
             tool_name="check_rate_limit",
@@ -2256,12 +2340,17 @@ class CheckRateLimitTool(Tool):
         )
 
     async def execute(self, identifier: str, max_requests: int = 100,
-                      window_seconds: float = 60) -> ToolResult:
+                      window_seconds: float = 60, logs_of: str = None, host: str = None, port: int = 5432,
+                      database: str = None, user: str = None, password: str = "") -> ToolResult:
         """A sliding window kept IN THE STORE. It was a dict in one process, so each
         running instance -- and each restart -- counted from zero, and a client spread
         over instances had every limit multiplied by their number. The count for one
         identifier is taken under a transaction lock on that identifier, so two
-        instances counting the same client at once cannot both see room for one."""
+        instances counting the same client at once cannot both see room for one. The
+        counts live in the database of the system being protected, named by `logs_of`."""
+        refused = _log_source_refusal(logs_of, host, port, database, user)
+        if refused:
+            return ToolResult(success=False, output=None, error=refused, tool_name=self.name)
         try:
             if not isinstance(identifier, str) or not identifier:
                 raise ValueError("identifier must be a non-empty string")
@@ -2270,28 +2359,32 @@ class CheckRateLimitTool(Tool):
             if limit < 1 or window <= 0:
                 raise ValueError("max_requests must be at least 1 and window_seconds above 0")
 
-            from core.database import get_database_manager
-            db = get_database_manager()
-            await db.ensure_schema("rate_limit_events", _RATE_LIMIT_DDL)
-            async with db.get_connection() as conn:
+            source = _LogSource(logs_of, host, port, database, user, password)
+            table = f"{source.schema}rate_limit_events"
+            async with source.connection() as conn:
+                ready = (logs_of, host, port, database)
+                if ready not in _RATE_LIMIT_READY:
+                    for statement in _RATE_LIMIT_DDL:
+                        await conn.execute(statement.format(schema=source.schema))
+                    _RATE_LIMIT_READY.add(ready)
                 async with conn.transaction():
                     await conn.execute("SELECT pg_advisory_xact_lock(hashtext($1))",
                                        f"rate_limit:{identifier}")
                     row = await conn.fetchrow(
                         "SELECT count(*) AS n, min(at) AS oldest, clock_timestamp() AS now "
-                        "FROM unified.rate_limit_events "
+                        f"FROM {table} "
                         "WHERE identifier = $1 AND at > clock_timestamp() - make_interval(secs => $2)",
                         identifier, window)
                     counted = int(row["n"])
                     allowed = counted < limit
                     if allowed:
                         await conn.execute(
-                            "INSERT INTO unified.rate_limit_events (identifier, expires_at) "
+                            f"INSERT INTO {table} (identifier, expires_at) "
                             "VALUES ($1, clock_timestamp() + make_interval(secs => $2))",
                             identifier, window)
                 # Rows past their own window count for nobody.
                 await conn.execute(
-                    "DELETE FROM unified.rate_limit_events WHERE expires_at < clock_timestamp()")
+                    f"DELETE FROM {table} WHERE expires_at < clock_timestamp()")
 
             retry_after = None
             if not allowed and row["oldest"] is not None:
@@ -2355,6 +2448,7 @@ class DetectIntrusionTool(Tool):
                 default="medium"
             )
         ]
+        self.parameters += _log_source_parameters()
 
         self.capability_profile = ToolCapabilityProfile(
             tool_name="detect_intrusion",
@@ -2385,7 +2479,11 @@ class DetectIntrusionTool(Tool):
         )
 
     async def execute(self, source_ip: str = None, time_window_minutes: int = 15,
-                     detection_sensitivity: str = "medium") -> ToolResult:
+                     detection_sensitivity: str = "medium", logs_of: str = None, host: str = None, port: int = 5432, database: str = None,
+                      user: str = None, password: str = "") -> ToolResult:
+        refused = _log_source_refusal(logs_of, host, port, database, user)
+        if refused:
+            return ToolResult(success=False, output=None, error=refused)
         try:
             from datetime import datetime, timedelta
 
@@ -2402,8 +2500,7 @@ class DetectIntrusionTool(Tool):
             detections = []
 
             # Query actual system logs and database
-            from core.database import get_database_manager
-            db = get_database_manager()
+            db = _LogSource(logs_of, host, port, database, user, password)
 
             # Pattern 1: Brute force detection from auth logs (PostgreSQL syntax)
             failed_login_query = """
@@ -2529,6 +2626,7 @@ class AnalyzeAnomalyTool(Tool):
                 required=False
             )
         ]
+        self.parameters += _log_source_parameters()
 
         self.capability_profile = ToolCapabilityProfile(
             tool_name="analyze_anomaly",
@@ -2553,7 +2651,11 @@ class AnalyzeAnomalyTool(Tool):
         )
 
     async def execute(self, entity_id: str, baseline_days: int = 7,
-                     anomaly_types: List[str] = None) -> ToolResult:
+                     anomaly_types: List[str] = None, logs_of: str = None, host: str = None, port: int = 5432, database: str = None,
+                      user: str = None, password: str = "") -> ToolResult:
+        refused = _log_source_refusal(logs_of, host, port, database, user)
+        if refused:
+            return ToolResult(success=False, output=None, error=refused)
         try:
             from datetime import datetime
             import statistics
@@ -2563,8 +2665,7 @@ class AnalyzeAnomalyTool(Tool):
 
             anomalies = []
 
-            from core.database import get_database_manager
-            db = get_database_manager()
+            db = _LogSource(logs_of, host, port, database, user, password)
 
             # Traffic volume anomaly
             if "traffic_volume" in anomaly_types:
@@ -2741,6 +2842,7 @@ class MonitorLogsTool(Tool):
                 required=False
             )
         ]
+        self.parameters += _log_source_parameters()
 
         self.capability_profile = ToolCapabilityProfile(
             tool_name="monitor_logs",
@@ -2765,7 +2867,11 @@ class MonitorLogsTool(Tool):
         )
 
     async def execute(self, log_source: str, time_range_minutes: int = 30,
-                     pattern_matching: List[str] = None) -> ToolResult:
+                     pattern_matching: List[str] = None, logs_of: str = None, host: str = None, port: int = 5432, database: str = None,
+                      user: str = None, password: str = "") -> ToolResult:
+        refused = _log_source_refusal(logs_of, host, port, database, user)
+        if refused:
+            return ToolResult(success=False, output=None, error=refused)
         try:
             from datetime import datetime, timedelta
 
@@ -2797,8 +2903,7 @@ class MonitorLogsTool(Tool):
 
             findings = []
 
-            from core.database import get_database_manager
-            db = get_database_manager()
+            db = _LogSource(logs_of, host, port, database, user, password)
 
             # Analyze auth logs for failed login patterns
             if log_source in ["auth", "all"]:
@@ -2909,6 +3014,7 @@ class DetectBruteForceTool(Tool):
 
     def __init__(self):
         super().__init__()
+        # DISABLED 2026-09-30 by the owner's word: kept, not registered (tool_registry.py).
         self.name = "detect_brute_force"
         self.description = "Detect brute force attacks by analyzing authentication failure patterns"
         self.category = ToolCategory.SECURITY
@@ -2939,6 +3045,7 @@ class DetectBruteForceTool(Tool):
                 max_value=100
             )
         ]
+        self.parameters += _log_source_parameters()
 
         self.capability_profile = ToolCapabilityProfile(
             tool_name="detect_brute_force",
@@ -2963,15 +3070,18 @@ class DetectBruteForceTool(Tool):
         )
 
     async def execute(self, endpoint: str = None, time_window_minutes: int = 10,
-                     failure_threshold: int = 5) -> ToolResult:
+                     failure_threshold: int = 5, logs_of: str = None, host: str = None, port: int = 5432, database: str = None,
+                      user: str = None, password: str = "") -> ToolResult:
+        refused = _log_source_refusal(logs_of, host, port, database, user)
+        if refused:
+            return ToolResult(success=False, output=None, error=refused)
         try:
             from datetime import datetime, timedelta
             from collections import defaultdict
 
             # Query auth failure logs from database
             try:
-                from core.database import get_database_manager
-                db = get_database_manager()
+                db = _LogSource(logs_of, host, port, database, user, password)
 
                 query = """
                     SELECT source_ip,
@@ -3000,23 +3110,9 @@ class DetectBruteForceTool(Tool):
                     }
 
             except Exception as e:
-                logger.error(f"Failed to query auth logs: {e}")
-                auth_failures = {
-                    "192.168.1.100": {
-                        "attempts": 15,
-                        "usernames_tried": ["admin", "root", "user", "test"],
-                        "first_attempt": (datetime.now() - timedelta(minutes=8)).isoformat(),
-                        "last_attempt": datetime.now().isoformat(),
-                        "endpoints": ["/login", "/api/auth"]
-                    },
-                    "10.0.0.50": {
-                        "attempts": 3,
-                        "usernames_tried": ["admin"],
-                        "first_attempt": (datetime.now() - timedelta(minutes=2)).isoformat(),
-                        "last_attempt": datetime.now().isoformat(),
-                        "endpoints": ["/login"]
-                    }
-                }
+                # A failed read is a failure, never an invented attack: this used to fill in
+                # a made-up source with fifteen attempts and report it as found.
+                raise RuntimeError(f"could not read the auth logs: {e}") from e
 
             # Detect brute force patterns
             detected_attacks = []
@@ -3090,6 +3186,7 @@ class AnalyzeTrafficPatternTool(Tool):
                 max_value=1440
             )
         ]
+        self.parameters += _log_source_parameters()
 
         self.capability_profile = ToolCapabilityProfile(
             tool_name="analyze_traffic_pattern",
@@ -3113,14 +3210,17 @@ class AnalyzeTrafficPatternTool(Tool):
             is_idempotent=True
         )
 
-    async def execute(self, analysis_type: str = "all", time_window_minutes: int = 15) -> ToolResult:
+    async def execute(self, analysis_type: str = "all", time_window_minutes: int = 15, logs_of: str = None, host: str = None, port: int = 5432, database: str = None,
+                      user: str = None, password: str = "") -> ToolResult:
+        refused = _log_source_refusal(logs_of, host, port, database, user)
+        if refused:
+            return ToolResult(success=False, output=None, error=refused)
         try:
             from datetime import datetime
 
             threats_detected = []
 
-            from core.database import get_database_manager
-            db = get_database_manager()
+            db = _LogSource(logs_of, host, port, database, user, password)
 
             # DDoS Detection
             if analysis_type in ["ddos", "all"]:
@@ -3395,6 +3495,7 @@ class HuntThreatsTool(Tool):
                 max_value=720
             )
         ]
+        self.parameters += _log_source_parameters()
 
         self.capability_profile = ToolCapabilityProfile(
             tool_name="hunt_threats",
@@ -3430,14 +3531,17 @@ class HuntThreatsTool(Tool):
         )
 
     async def execute(self, hunt_type: str, iocs: List[str] = None,
-                     time_range_hours: int = 24) -> ToolResult:
+                     time_range_hours: int = 24, logs_of: str = None, host: str = None, port: int = 5432, database: str = None,
+                      user: str = None, password: str = "") -> ToolResult:
+        refused = _log_source_refusal(logs_of, host, port, database, user)
+        if refused:
+            return ToolResult(success=False, output=None, error=refused)
         try:
             from datetime import datetime, timedelta
 
             findings = []
 
-            from core.database import get_database_manager
-            db = get_database_manager()
+            db = _LogSource(logs_of, host, port, database, user, password)
 
             # IOC-based hunting
             if hunt_type in ["ioc_based", "comprehensive"] and iocs:
@@ -3792,6 +3896,7 @@ class DetectZeroDayTool(Tool):
                 required=False
             )
         ]
+        self.parameters += _log_source_parameters()
 
         self.capability_profile = ToolCapabilityProfile(
             tool_name="detect_zero_day",
@@ -3815,11 +3920,17 @@ class DetectZeroDayTool(Tool):
             is_idempotent=True
         )
 
-    async def execute(self, analysis_scope: str = "comprehensive", sensitivity: str = "medium", target_file: str = None) -> ToolResult:
+    async def execute(self, analysis_scope: str = "comprehensive", sensitivity: str = "medium", target_file: str = None, logs_of: str = None, host: str = None, port: int = 5432, database: str = None,
+                      user: str = None, password: str = "") -> ToolResult:
+        refused = _log_source_refusal(logs_of, host, port, database, user)
+        if refused:
+            return ToolResult(success=False, output=None, error=refused)
         try:
             from datetime import datetime
 
             detections = []
+            #: Checks asked for that could not be made, and why: never read as "nothing found".
+            not_checked = []
 
             # Heuristic patterns for zero-day detection
             heuristics = {
@@ -3867,8 +3978,7 @@ class DetectZeroDayTool(Tool):
             if analysis_scope in ["network_traffic", "comprehensive"]:
                 # Network traffic analysis for zero-day indicators
                 try:
-                    from core.database import get_database_manager
-                    db = get_database_manager()
+                    db = _LogSource(logs_of, host, port, database, user, password)
 
                     # Look for unusual protocol usage
                     unusual_protocol_query = """
@@ -3900,13 +4010,12 @@ class DetectZeroDayTool(Tool):
                         })
 
                 except Exception as e:
-                    logger.debug(f"Network traffic analysis skipped: {e}")
+                    not_checked.append({"scope": "network_traffic", "error": str(e)})
 
             if analysis_scope in ["memory_patterns", "comprehensive"]:
                 # Memory pattern analysis for exploit indicators
                 try:
-                    from core.database import get_database_manager
-                    db = get_database_manager()
+                    db = _LogSource(logs_of, host, port, database, user, password)
 
                     # Look for suspicious memory operations
                     memory_query = """
@@ -3937,16 +4046,19 @@ class DetectZeroDayTool(Tool):
                         })
 
                 except Exception as e:
-                    logger.debug(f"Memory pattern analysis skipped: {e}")
+                    not_checked.append({"scope": "memory_patterns", "error": str(e)})
 
             zero_day_suspected = len(detections) > 0
             critical_detections = len([d for d in detections if d.get("severity") == "CRITICAL"])
             avg_confidence = sum(d.get("confidence", 0) for d in detections) / len(detections) if detections else 0
 
             return ToolResult(
-                success=True,
+                success=not not_checked,
+                error=("could not check: " + "; ".join(f"{n['scope']} ({n['error']})" for n in not_checked)
+                       if not_checked else None),
                 output={
                     "zero_day_suspected": zero_day_suspected,
+                    "not_checked": not_checked,
                     "detection_count": len(detections),
                     "critical_detections": critical_detections,
                     "average_confidence": avg_confidence,

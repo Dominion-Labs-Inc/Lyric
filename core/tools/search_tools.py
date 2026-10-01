@@ -49,8 +49,7 @@ class SemanticSearchTool(Tool):
                 name="workspace_path",
                 type="string",
                 description="Path to workspace to search",
-                required=False,
-                default="."
+                required=True
             ),
             ToolParameter(
                 name="max_results",
@@ -77,7 +76,7 @@ class SemanticSearchTool(Tool):
     async def execute(
         self,
         query: str,
-        workspace_path: str = ".",
+        workspace_path: str,
         max_results: int = 10
     ) -> ToolResult:
         """Perform semantic search"""
@@ -182,8 +181,7 @@ class GrepSearchTool(Tool):
                 name="path",
                 type="string",
                 description="Path to search in",
-                required=False,
-                default="."
+                required=True
             ),
             ToolParameter(
                 name="is_regex",
@@ -223,7 +221,7 @@ class GrepSearchTool(Tool):
     async def execute(
         self,
         pattern: str,
-        path: str = ".",
+        path: str,
         is_regex: bool = False,
         file_pattern: Optional[str] = None,
         max_results: int = 100

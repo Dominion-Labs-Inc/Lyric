@@ -358,11 +358,12 @@ class Goal:
 
 @dataclass
 class PerceptionData:
-    """Simplified perception information"""
+    """One percept: what was perceived, of what, and whose."""
     source: str
     data_type: str
     content: Dict[str, Any]
-    confidence: float = 1.0
+    #: What was measured of it (a recognition's posterior), or None when nothing was.
+    confidence: Optional[float] = None
     timestamp: float = field(default_factory=lambda: datetime.now().timestamp())
     metadata: Dict[str, Any] = field(default_factory=dict)
     #: Whose perception this is, as a `core.memory.Origin`: a person's image is

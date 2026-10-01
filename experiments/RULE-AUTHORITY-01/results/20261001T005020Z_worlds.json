@@ -1,0 +1,1293 @@
+[
+ {
+  "world": 0,
+  "hidden": [
+   "SUN",
+   "PIR"
+  ],
+  "evidence": "ambiguous",
+  "determined": false,
+  "consumes": null,
+  "successes": 2,
+  "coverage": 0.5,
+  "covered": 2,
+  "n_hidden": 2,
+  "late": true,
+  "generator_covered_all": false,
+  "shown": 4,
+  "statuses": [
+   "insufficient_evidence",
+   "insufficient_evidence",
+   "multiple_hypotheses",
+   "multiple_hypotheses"
+  ],
+  "executable": [],
+  "rules_total": 0,
+  "refuted_after_validation": 0
+ },
+ {
+  "world": 1,
+  "hidden": [
+   "PIR"
+  ],
+  "evidence": "ambiguous",
+  "determined": false,
+  "consumes": null,
+  "successes": 3,
+  "coverage": 1.0,
+  "covered": 1,
+  "n_hidden": 1,
+  "late": false,
+  "generator_covered_all": true,
+  "shown": 6,
+  "statuses": [
+   "insufficient_evidence",
+   "insufficient_evidence",
+   "insufficient_evidence",
+   "insufficient_evidence",
+   "multiple_hypotheses",
+   "multiple_hypotheses"
+  ],
+  "executable": [],
+  "rules_total": 0,
+  "refuted_after_validation": 0
+ },
+ {
+  "world": 2,
+  "hidden": [
+   "MOR",
+   "TEL",
+   "PIR",
+   "DOV"
+  ],
+  "evidence": "determined",
+  "determined": true,
+  "consumes": "MOR",
+  "successes": 3,
+  "coverage": 1.0,
+  "covered": 4,
+  "n_hidden": 4,
+  "late": false,
+  "generator_covered_all": true,
+  "shown": 7,
+  "statuses": [
+   "insufficient_evidence",
+   "insufficient_evidence",
+   "operator_candidate",
+   "operator_candidate",
+   "operator_candidate",
+   "operator_executable",
+   "operator_executable"
+  ],
+  "executable": [
+   {
+    "rule_id": "rule_1956ae8fd53c",
+    "formula": "DOV(?X1, ?X0) \u2227 MOR(?X0) \u2227 PIR(?X0, ?X1) \u2227 TEL(?X1) \u2227 ZIM(?X0, ?X1) \u2192 RAN(?X0, ?X1) \u2296 MOR(?X0)",
+    "contradicted_by_shown": 0,
+    "validated_on_success": true,
+    "unsafe_situations": 0,
+    "wrong_effect_situations": 0
+   }
+  ],
+  "rules_total": 4,
+  "refuted_after_validation": 1
+ },
+ {
+  "world": 3,
+  "hidden": [
+   "MOR",
+   "DOV"
+  ],
+  "evidence": "ambiguous",
+  "determined": false,
+  "consumes": "MOR",
+  "successes": 3,
+  "coverage": 0.0,
+  "covered": 0,
+  "n_hidden": 2,
+  "late": false,
+  "generator_covered_all": false,
+  "shown": 4,
+  "statuses": [
+   "insufficient_evidence",
+   "operator_candidate",
+   "operator_executable",
+   "multiple_hypotheses"
+  ],
+  "executable": [],
+  "rules_total": 1,
+  "refuted_after_validation": 1
+ },
+ {
+  "world": 4,
+  "hidden": [
+   "DOV"
+  ],
+  "evidence": "determined",
+  "determined": true,
+  "consumes": null,
+  "successes": 4,
+  "coverage": 1.0,
+  "covered": 1,
+  "n_hidden": 1,
+  "late": false,
+  "generator_covered_all": true,
+  "shown": 5,
+  "statuses": [
+   "insufficient_evidence",
+   "insufficient_evidence",
+   "multiple_hypotheses",
+   "multiple_hypotheses",
+   "operator_executable"
+  ],
+  "executable": [
+   {
+    "rule_id": "rule_212c34fd8e72",
+    "formula": "DOV(?X1, ?X0) \u2227 ZIM(?X0, ?X1) \u2192 RAN(?X0, ?X1)",
+    "contradicted_by_shown": 0,
+    "validated_on_success": true,
+    "unsafe_situations": 0,
+    "wrong_effect_situations": 0
+   }
+  ],
+  "rules_total": 1,
+  "refuted_after_validation": 0
+ },
+ {
+  "world": 5,
+  "hidden": [
+   "KAV",
+   "TEL"
+  ],
+  "evidence": "ambiguous",
+  "determined": false,
+  "consumes": null,
+  "successes": 3,
+  "coverage": 1.0,
+  "covered": 2,
+  "n_hidden": 2,
+  "late": false,
+  "generator_covered_all": true,
+  "shown": 7,
+  "statuses": [
+   "insufficient_evidence",
+   "insufficient_evidence",
+   "multiple_hypotheses",
+   "multiple_hypotheses",
+   "multiple_hypotheses",
+   "multiple_hypotheses",
+   "multiple_hypotheses"
+  ],
+  "executable": [],
+  "rules_total": 0,
+  "refuted_after_validation": 0
+ },
+ {
+  "world": 6,
+  "hidden": [
+   "TEL",
+   "DOV"
+  ],
+  "evidence": "ambiguous",
+  "determined": false,
+  "consumes": null,
+  "successes": 3,
+  "coverage": 0.0,
+  "covered": 0,
+  "n_hidden": 2,
+  "late": false,
+  "generator_covered_all": false,
+  "shown": 5,
+  "statuses": [
+   "insufficient_evidence",
+   "insufficient_evidence",
+   "insufficient_evidence",
+   "multiple_hypotheses",
+   "multiple_hypotheses"
+  ],
+  "executable": [],
+  "rules_total": 0,
+  "refuted_after_validation": 0
+ },
+ {
+  "world": 7,
+  "hidden": [
+   "KAV",
+   "TEL",
+   "SUN",
+   "PIR"
+  ],
+  "evidence": "determined_unvalidatable",
+  "determined": false,
+  "consumes": "KAV",
+  "successes": 2,
+  "coverage": 0.5,
+  "covered": 4,
+  "n_hidden": 4,
+  "late": false,
+  "generator_covered_all": false,
+  "shown": 8,
+  "statuses": [
+   "insufficient_evidence",
+   "insufficient_evidence",
+   "insufficient_evidence",
+   "insufficient_evidence",
+   "insufficient_evidence",
+   "insufficient_evidence",
+   "insufficient_evidence",
+   "operator_candidate"
+  ],
+  "executable": [],
+  "rules_total": 1,
+  "refuted_after_validation": 0
+ },
+ {
+  "world": 8,
+  "hidden": [
+   "SUN"
+  ],
+  "evidence": "determined_unvalidatable",
+  "determined": false,
+  "consumes": null,
+  "successes": 2,
+  "coverage": 0.5,
+  "covered": 1,
+  "n_hidden": 1,
+  "late": false,
+  "generator_covered_all": false,
+  "shown": 3,
+  "statuses": [
+   "insufficient_evidence",
+   "insufficient_evidence",
+   "operator_candidate"
+  ],
+  "executable": [],
+  "rules_total": 1,
+  "refuted_after_validation": 0
+ },
+ {
+  "world": 9,
+  "hidden": [
+   "KAV",
+   "MOR",
+   "TEL",
+   "PIR"
+  ],
+  "evidence": "pins_other_rule",
+  "determined": false,
+  "consumes": "KAV",
+  "successes": 2,
+  "coverage": 0.5,
+  "covered": 2,
+  "n_hidden": 4,
+  "late": false,
+  "generator_covered_all": false,
+  "shown": 5,
+  "statuses": [
+   "insufficient_evidence",
+   "operator_candidate",
+   "multiple_hypotheses",
+   "operator_candidate",
+   "operator_candidate"
+  ],
+  "executable": [],
+  "rules_total": 3,
+  "refuted_after_validation": 0
+ },
+ {
+  "world": 10,
+  "hidden": [
+   "SUN",
+   "PIR",
+   "DOV"
+  ],
+  "evidence": "ambiguous",
+  "determined": false,
+  "consumes": null,
+  "successes": 2,
+  "coverage": 0.0,
+  "covered": 0,
+  "n_hidden": 3,
+  "late": false,
+  "generator_covered_all": false,
+  "shown": 3,
+  "statuses": [
+   "insufficient_evidence",
+   "operator_candidate",
+   "multiple_hypotheses"
+  ],
+  "executable": [],
+  "rules_total": 1,
+  "refuted_after_validation": 0
+ },
+ {
+  "world": 11,
+  "hidden": [
+   "PIR"
+  ],
+  "evidence": "determined",
+  "determined": true,
+  "consumes": null,
+  "successes": 3,
+  "coverage": 1.0,
+  "covered": 1,
+  "n_hidden": 1,
+  "late": false,
+  "generator_covered_all": true,
+  "shown": 6,
+  "statuses": [
+   "insufficient_evidence",
+   "operator_candidate",
+   "operator_executable",
+   "operator_executable",
+   "operator_executable",
+   "operator_executable"
+  ],
+  "executable": [
+   {
+    "rule_id": "rule_a21e7dd8f033",
+    "formula": "PIR(?X0, ?X1) \u2227 ZIM(?X0, ?X1) \u2192 RAN(?X0, ?X1)",
+    "contradicted_by_shown": 0,
+    "validated_on_success": true,
+    "unsafe_situations": 0,
+    "wrong_effect_situations": 0
+   }
+  ],
+  "rules_total": 2,
+  "refuted_after_validation": 1
+ },
+ {
+  "world": 12,
+  "hidden": [
+   "KAV",
+   "MOR",
+   "DOV"
+  ],
+  "evidence": "ambiguous",
+  "determined": false,
+  "consumes": null,
+  "successes": 4,
+  "coverage": 1.0,
+  "covered": 3,
+  "n_hidden": 3,
+  "late": false,
+  "generator_covered_all": true,
+  "shown": 8,
+  "statuses": [
+   "insufficient_evidence",
+   "insufficient_evidence",
+   "insufficient_evidence",
+   "insufficient_evidence",
+   "multiple_hypotheses",
+   "multiple_hypotheses",
+   "multiple_hypotheses",
+   "multiple_hypotheses"
+  ],
+  "executable": [],
+  "rules_total": 0,
+  "refuted_after_validation": 0
+ },
+ {
+  "world": 13,
+  "hidden": [
+   "MOR",
+   "TEL",
+   "PIR",
+   "DOV"
+  ],
+  "evidence": "ambiguous",
+  "determined": false,
+  "consumes": null,
+  "successes": 3,
+  "coverage": 1.0,
+  "covered": 4,
+  "n_hidden": 4,
+  "late": false,
+  "generator_covered_all": true,
+  "shown": 8,
+  "statuses": [
+   "insufficient_evidence",
+   "insufficient_evidence",
+   "insufficient_evidence",
+   "multiple_hypotheses",
+   "multiple_hypotheses",
+   "multiple_hypotheses",
+   "multiple_hypotheses",
+   "multiple_hypotheses"
+  ],
+  "executable": [],
+  "rules_total": 0,
+  "refuted_after_validation": 0
+ },
+ {
+  "world": 14,
+  "hidden": [
+   "TEL"
+  ],
+  "evidence": "ambiguous",
+  "determined": false,
+  "consumes": null,
+  "successes": 3,
+  "coverage": 1.0,
+  "covered": 1,
+  "n_hidden": 1,
+  "late": false,
+  "generator_covered_all": true,
+  "shown": 4,
+  "statuses": [
+   "insufficient_evidence",
+   "multiple_hypotheses",
+   "multiple_hypotheses",
+   "multiple_hypotheses"
+  ],
+  "executable": [],
+  "rules_total": 0,
+  "refuted_after_validation": 0
+ },
+ {
+  "world": 15,
+  "hidden": [
+   "MOR",
+   "PIR"
+  ],
+  "evidence": "pins_other_rule",
+  "determined": false,
+  "consumes": "MOR",
+  "successes": 5,
+  "coverage": 0.5,
+  "covered": 1,
+  "n_hidden": 2,
+  "late": true,
+  "generator_covered_all": false,
+  "shown": 6,
+  "statuses": [
+   "insufficient_evidence",
+   "multiple_hypotheses",
+   "multiple_hypotheses",
+   "multiple_hypotheses",
+   "operator_executable",
+   "operator_executable"
+  ],
+  "executable": [
+   {
+    "rule_id": "rule_71e1c099a3da",
+    "formula": "PIR(?X0, ?X1) \u2227 ZIM(?X0, ?X1) \u2192 RAN(?X0, ?X1) \u2296 MOR(?X0)",
+    "contradicted_by_shown": 0,
+    "validated_on_success": true,
+    "unsafe_situations": 16,
+    "wrong_effect_situations": 0
+   }
+  ],
+  "rules_total": 2,
+  "refuted_after_validation": 1
+ },
+ {
+  "world": 16,
+  "hidden": [
+   "KAV",
+   "MOR",
+   "PIR"
+  ],
+  "evidence": "ambiguous",
+  "determined": false,
+  "consumes": null,
+  "successes": 3,
+  "coverage": 1.0,
+  "covered": 3,
+  "n_hidden": 3,
+  "late": false,
+  "generator_covered_all": true,
+  "shown": 6,
+  "statuses": [
+   "insufficient_evidence",
+   "insufficient_evidence",
+   "insufficient_evidence",
+   "insufficient_evidence",
+   "multiple_hypotheses",
+   "multiple_hypotheses"
+  ],
+  "executable": [],
+  "rules_total": 0,
+  "refuted_after_validation": 0
+ },
+ {
+  "world": 17,
+  "hidden": [
+   "KAV"
+  ],
+  "evidence": "ambiguous",
+  "determined": false,
+  "consumes": "KAV",
+  "successes": 4,
+  "coverage": 0.5,
+  "covered": 1,
+  "n_hidden": 1,
+  "late": true,
+  "generator_covered_all": false,
+  "shown": 6,
+  "statuses": [
+   "insufficient_evidence",
+   "insufficient_evidence",
+   "multiple_hypotheses",
+   "multiple_hypotheses",
+   "multiple_hypotheses",
+   "multiple_hypotheses"
+  ],
+  "executable": [],
+  "rules_total": 0,
+  "refuted_after_validation": 0
+ },
+ {
+  "world": 18,
+  "hidden": [
+   "TEL",
+   "DOV"
+  ],
+  "evidence": "determined_unvalidatable",
+  "determined": false,
+  "consumes": null,
+  "successes": 2,
+  "coverage": 1.0,
+  "covered": 2,
+  "n_hidden": 2,
+  "late": false,
+  "generator_covered_all": false,
+  "shown": 4,
+  "statuses": [
+   "insufficient_evidence",
+   "operator_candidate",
+   "operator_candidate",
+   "operator_candidate"
+  ],
+  "executable": [],
+  "rules_total": 3,
+  "refuted_after_validation": 0
+ },
+ {
+  "world": 19,
+  "hidden": [
+   "KAV",
+   "SUN",
+   "PIR"
+  ],
+  "evidence": "pins_other_rule",
+  "determined": false,
+  "consumes": null,
+  "successes": 5,
+  "coverage": 0.0,
+  "covered": 0,
+  "n_hidden": 3,
+  "late": false,
+  "generator_covered_all": false,
+  "shown": 5,
+  "statuses": [
+   "insufficient_evidence",
+   "operator_candidate",
+   "operator_executable",
+   "operator_executable",
+   "operator_executable"
+  ],
+  "executable": [
+   {
+    "rule_id": "rule_d2f9afcd445b",
+    "formula": "ZIM(?X0, ?X1) \u2192 RAN(?X0, ?X1)",
+    "contradicted_by_shown": 0,
+    "validated_on_success": true,
+    "unsafe_situations": 56,
+    "wrong_effect_situations": 0
+   }
+  ],
+  "rules_total": 1,
+  "refuted_after_validation": 0
+ },
+ {
+  "world": 20,
+  "hidden": [
+   "MOR",
+   "TEL",
+   "SUN",
+   "PIR"
+  ],
+  "evidence": "ambiguous",
+  "determined": false,
+  "consumes": "MOR",
+  "successes": 2,
+  "coverage": 0.5,
+  "covered": 3,
+  "n_hidden": 4,
+  "late": false,
+  "generator_covered_all": false,
+  "shown": 7,
+  "statuses": [
+   "insufficient_evidence",
+   "insufficient_evidence",
+   "insufficient_evidence",
+   "insufficient_evidence",
+   "insufficient_evidence",
+   "multiple_hypotheses",
+   "multiple_hypotheses"
+  ],
+  "executable": [],
+  "rules_total": 0,
+  "refuted_after_validation": 0
+ },
+ {
+  "world": 21,
+  "hidden": [
+   "MOR",
+   "SUN",
+   "PIR"
+  ],
+  "evidence": "determined",
+  "determined": true,
+  "consumes": "MOR",
+  "successes": 5,
+  "coverage": 1.0,
+  "covered": 3,
+  "n_hidden": 3,
+  "late": false,
+  "generator_covered_all": true,
+  "shown": 9,
+  "statuses": [
+   "insufficient_evidence",
+   "insufficient_evidence",
+   "insufficient_evidence",
+   "operator_candidate",
+   "operator_candidate",
+   "operator_executable",
+   "operator_executable",
+   "operator_executable",
+   "operator_executable"
+  ],
+  "executable": [
+   {
+    "rule_id": "rule_7e492bfd7bba",
+    "formula": "MOR(?X0) \u2227 PIR(?X0, ?X1) \u2227 SUN(?X1) \u2227 ZIM(?X0, ?X1) \u2192 RAN(?X0, ?X1) \u2296 MOR(?X0)",
+    "contradicted_by_shown": 0,
+    "validated_on_success": true,
+    "unsafe_situations": 0,
+    "wrong_effect_situations": 0
+   }
+  ],
+  "rules_total": 2,
+  "refuted_after_validation": 1
+ },
+ {
+  "world": 22,
+  "hidden": [
+   "KAV",
+   "MOR",
+   "TEL",
+   "PIR"
+  ],
+  "evidence": "determined",
+  "determined": true,
+  "consumes": null,
+  "successes": 4,
+  "coverage": 1.0,
+  "covered": 4,
+  "n_hidden": 4,
+  "late": false,
+  "generator_covered_all": true,
+  "shown": 10,
+  "statuses": [
+   "insufficient_evidence",
+   "operator_candidate",
+   "operator_executable",
+   "operator_executable",
+   "operator_executable",
+   "operator_executable",
+   "operator_executable",
+   "operator_executable",
+   "operator_executable",
+   "operator_executable"
+  ],
+  "executable": [
+   {
+    "rule_id": "rule_1390497cd4d0",
+    "formula": "KAV(?X0) \u2227 MOR(?X0) \u2227 PIR(?X0, ?X1) \u2227 TEL(?X1) \u2227 ZIM(?X0, ?X1) \u2192 RAN(?X0, ?X1)",
+    "contradicted_by_shown": 0,
+    "validated_on_success": true,
+    "unsafe_situations": 0,
+    "wrong_effect_situations": 0
+   }
+  ],
+  "rules_total": 5,
+  "refuted_after_validation": 4
+ },
+ {
+  "world": 23,
+  "hidden": [
+   "KAV"
+  ],
+  "evidence": "determined",
+  "determined": true,
+  "consumes": null,
+  "successes": 4,
+  "coverage": 0.0,
+  "covered": 1,
+  "n_hidden": 1,
+  "late": true,
+  "generator_covered_all": false,
+  "shown": 6,
+  "statuses": [
+   "insufficient_evidence",
+   "insufficient_evidence",
+   "operator_candidate",
+   "operator_executable",
+   "operator_executable",
+   "operator_executable"
+  ],
+  "executable": [
+   {
+    "rule_id": "rule_2fc58249bed3",
+    "formula": "KAV(?X0) \u2227 ZIM(?X0, ?X1) \u2192 RAN(?X0, ?X1)",
+    "contradicted_by_shown": 0,
+    "validated_on_success": true,
+    "unsafe_situations": 0,
+    "wrong_effect_situations": 0
+   }
+  ],
+  "rules_total": 1,
+  "refuted_after_validation": 0
+ },
+ {
+  "world": 24,
+  "hidden": [
+   "MOR"
+  ],
+  "evidence": "determined",
+  "determined": true,
+  "consumes": "MOR",
+  "successes": 4,
+  "coverage": 0.0,
+  "covered": 0,
+  "n_hidden": 1,
+  "late": false,
+  "generator_covered_all": false,
+  "shown": 6,
+  "statuses": [
+   "insufficient_evidence",
+   "operator_candidate",
+   "operator_candidate",
+   "operator_candidate",
+   "operator_executable",
+   "operator_executable"
+  ],
+  "executable": [
+   {
+    "rule_id": "rule_45951d409be6",
+    "formula": "MOR(?X0) \u2227 ZIM(?X0, ?X1) \u2192 RAN(?X0, ?X1) \u2296 MOR(?X0)",
+    "contradicted_by_shown": 0,
+    "validated_on_success": true,
+    "unsafe_situations": 0,
+    "wrong_effect_situations": 0
+   }
+  ],
+  "rules_total": 2,
+  "refuted_after_validation": 0
+ },
+ {
+  "world": 25,
+  "hidden": [
+   "KAV"
+  ],
+  "evidence": "determined",
+  "determined": true,
+  "consumes": null,
+  "successes": 3,
+  "coverage": 1.0,
+  "covered": 1,
+  "n_hidden": 1,
+  "late": false,
+  "generator_covered_all": true,
+  "shown": 4,
+  "statuses": [
+   "insufficient_evidence",
+   "insufficient_evidence",
+   "operator_candidate",
+   "operator_executable"
+  ],
+  "executable": [
+   {
+    "rule_id": "rule_e24292cf1f96",
+    "formula": "KAV(?X0) \u2227 ZIM(?X0, ?X1) \u2192 RAN(?X0, ?X1)",
+    "contradicted_by_shown": 0,
+    "validated_on_success": true,
+    "unsafe_situations": 0,
+    "wrong_effect_situations": 0
+   }
+  ],
+  "rules_total": 1,
+  "refuted_after_validation": 0
+ },
+ {
+  "world": 26,
+  "hidden": [
+   "MOR",
+   "PIR",
+   "DOV"
+  ],
+  "evidence": "pins_other_rule",
+  "determined": false,
+  "consumes": "MOR",
+  "successes": 5,
+  "coverage": 0.5,
+  "covered": 2,
+  "n_hidden": 3,
+  "late": true,
+  "generator_covered_all": false,
+  "shown": 8,
+  "statuses": [
+   "insufficient_evidence",
+   "multiple_hypotheses",
+   "multiple_hypotheses",
+   "operator_executable",
+   "operator_executable",
+   "multiple_hypotheses",
+   "operator_executable",
+   "operator_executable"
+  ],
+  "executable": [
+   {
+    "rule_id": "rule_11eaed0cb945",
+    "formula": "DOV(?X1, ?X0) \u2227 MOR(?X0) \u2227 ZIM(?X0, ?X1) \u2192 RAN(?X0, ?X1) \u2296 MOR(?X0)",
+    "contradicted_by_shown": 0,
+    "validated_on_success": true,
+    "unsafe_situations": 8,
+    "wrong_effect_situations": 0
+   }
+  ],
+  "rules_total": 3,
+  "refuted_after_validation": 2
+ },
+ {
+  "world": 27,
+  "hidden": [
+   "TEL",
+   "SUN"
+  ],
+  "evidence": "pins_other_rule",
+  "determined": false,
+  "consumes": null,
+  "successes": 2,
+  "coverage": 0.0,
+  "covered": 0,
+  "n_hidden": 2,
+  "late": false,
+  "generator_covered_all": false,
+  "shown": 2,
+  "statuses": [
+   "insufficient_evidence",
+   "operator_candidate"
+  ],
+  "executable": [],
+  "rules_total": 1,
+  "refuted_after_validation": 0
+ },
+ {
+  "world": 28,
+  "hidden": [
+   "PIR"
+  ],
+  "evidence": "determined",
+  "determined": true,
+  "consumes": null,
+  "successes": 4,
+  "coverage": 1.0,
+  "covered": 1,
+  "n_hidden": 1,
+  "late": false,
+  "generator_covered_all": true,
+  "shown": 5,
+  "statuses": [
+   "insufficient_evidence",
+   "operator_candidate",
+   "operator_executable",
+   "operator_executable",
+   "operator_executable"
+  ],
+  "executable": [
+   {
+    "rule_id": "rule_ebab85960666",
+    "formula": "PIR(?X0, ?X1) \u2227 ZIM(?X0, ?X1) \u2192 RAN(?X0, ?X1)",
+    "contradicted_by_shown": 0,
+    "validated_on_success": true,
+    "unsafe_situations": 0,
+    "wrong_effect_situations": 0
+   }
+  ],
+  "rules_total": 2,
+  "refuted_after_validation": 1
+ },
+ {
+  "world": 29,
+  "hidden": [
+   "KAV",
+   "MOR",
+   "SUN",
+   "DOV"
+  ],
+  "evidence": "ambiguous",
+  "determined": false,
+  "consumes": null,
+  "successes": 5,
+  "coverage": 0.0,
+  "covered": 0,
+  "n_hidden": 4,
+  "late": false,
+  "generator_covered_all": false,
+  "shown": 6,
+  "statuses": [
+   "insufficient_evidence",
+   "operator_candidate",
+   "operator_executable",
+   "multiple_hypotheses",
+   "multiple_hypotheses",
+   "multiple_hypotheses"
+  ],
+  "executable": [],
+  "rules_total": 1,
+  "refuted_after_validation": 1
+ },
+ {
+  "world": 30,
+  "hidden": [
+   "TEL"
+  ],
+  "evidence": "determined",
+  "determined": true,
+  "consumes": null,
+  "successes": 5,
+  "coverage": 0.0,
+  "covered": 0,
+  "n_hidden": 1,
+  "late": false,
+  "generator_covered_all": false,
+  "shown": 7,
+  "statuses": [
+   "insufficient_evidence",
+   "operator_candidate",
+   "operator_executable",
+   "multiple_hypotheses",
+   "operator_executable",
+   "operator_executable",
+   "operator_executable"
+  ],
+  "executable": [
+   {
+    "rule_id": "rule_36c48eff6f04",
+    "formula": "TEL(?X1) \u2227 ZIM(?X0, ?X1) \u2192 RAN(?X0, ?X1)",
+    "contradicted_by_shown": 0,
+    "validated_on_success": true,
+    "unsafe_situations": 0,
+    "wrong_effect_situations": 0
+   }
+  ],
+  "rules_total": 2,
+  "refuted_after_validation": 1
+ },
+ {
+  "world": 31,
+  "hidden": [
+   "SUN"
+  ],
+  "evidence": "determined_unvalidatable",
+  "determined": false,
+  "consumes": null,
+  "successes": 2,
+  "coverage": 0.0,
+  "covered": 0,
+  "n_hidden": 1,
+  "late": false,
+  "generator_covered_all": false,
+  "shown": 4,
+  "statuses": [
+   "insufficient_evidence",
+   "insufficient_evidence",
+   "insufficient_evidence",
+   "operator_candidate"
+  ],
+  "executable": [],
+  "rules_total": 1,
+  "refuted_after_validation": 0
+ },
+ {
+  "world": 32,
+  "hidden": [
+   "TEL",
+   "DOV"
+  ],
+  "evidence": "ambiguous",
+  "determined": false,
+  "consumes": null,
+  "successes": 5,
+  "coverage": 0.0,
+  "covered": 0,
+  "n_hidden": 2,
+  "late": false,
+  "generator_covered_all": false,
+  "shown": 7,
+  "statuses": [
+   "insufficient_evidence",
+   "insufficient_evidence",
+   "multiple_hypotheses",
+   "multiple_hypotheses",
+   "multiple_hypotheses",
+   "multiple_hypotheses",
+   "multiple_hypotheses"
+  ],
+  "executable": [],
+  "rules_total": 0,
+  "refuted_after_validation": 0
+ },
+ {
+  "world": 33,
+  "hidden": [
+   "KAV"
+  ],
+  "evidence": "determined",
+  "determined": true,
+  "consumes": null,
+  "successes": 4,
+  "coverage": 0.5,
+  "covered": 1,
+  "n_hidden": 1,
+  "late": false,
+  "generator_covered_all": true,
+  "shown": 7,
+  "statuses": [
+   "insufficient_evidence",
+   "insufficient_evidence",
+   "operator_candidate",
+   "operator_candidate",
+   "operator_executable",
+   "operator_executable",
+   "operator_executable"
+  ],
+  "executable": [
+   {
+    "rule_id": "rule_2d8545a5f56e",
+    "formula": "KAV(?X0) \u2227 ZIM(?X0, ?X1) \u2192 RAN(?X0, ?X1)",
+    "contradicted_by_shown": 0,
+    "validated_on_success": true,
+    "unsafe_situations": 0,
+    "wrong_effect_situations": 0
+   }
+  ],
+  "rules_total": 1,
+  "refuted_after_validation": 0
+ },
+ {
+  "world": 34,
+  "hidden": [
+   "SUN"
+  ],
+  "evidence": "ambiguous",
+  "determined": false,
+  "consumes": null,
+  "successes": 4,
+  "coverage": 1.0,
+  "covered": 1,
+  "n_hidden": 1,
+  "late": false,
+  "generator_covered_all": true,
+  "shown": 6,
+  "statuses": [
+   "insufficient_evidence",
+   "insufficient_evidence",
+   "multiple_hypotheses",
+   "multiple_hypotheses",
+   "multiple_hypotheses",
+   "multiple_hypotheses"
+  ],
+  "executable": [],
+  "rules_total": 0,
+  "refuted_after_validation": 0
+ },
+ {
+  "world": 35,
+  "hidden": [
+   "KAV",
+   "TEL",
+   "PIR",
+   "DOV"
+  ],
+  "evidence": "pins_other_rule",
+  "determined": false,
+  "consumes": "KAV",
+  "successes": 5,
+  "coverage": 0.0,
+  "covered": 1,
+  "n_hidden": 4,
+  "late": true,
+  "generator_covered_all": false,
+  "shown": 8,
+  "statuses": [
+   "insufficient_evidence",
+   "operator_candidate",
+   "operator_executable",
+   "multiple_hypotheses",
+   "multiple_hypotheses",
+   "multiple_hypotheses",
+   "multiple_hypotheses",
+   "operator_executable"
+  ],
+  "executable": [
+   {
+    "rule_id": "rule_42ec04e3c7e0",
+    "formula": "TEL(?X1) \u2227 ZIM(?X0, ?X1) \u2192 RAN(?X0, ?X1) \u2296 KAV(?X0)",
+    "contradicted_by_shown": 0,
+    "validated_on_success": true,
+    "unsafe_situations": 28,
+    "wrong_effect_situations": 0
+   }
+  ],
+  "rules_total": 2,
+  "refuted_after_validation": 1
+ },
+ {
+  "world": 36,
+  "hidden": [
+   "SUN",
+   "PIR",
+   "DOV"
+  ],
+  "evidence": "pins_other_rule",
+  "determined": false,
+  "consumes": null,
+  "successes": 3,
+  "coverage": 0.0,
+  "covered": 0,
+  "n_hidden": 3,
+  "late": false,
+  "generator_covered_all": false,
+  "shown": 3,
+  "statuses": [
+   "insufficient_evidence",
+   "operator_candidate",
+   "operator_executable"
+  ],
+  "executable": [
+   {
+    "rule_id": "rule_0fe089b30ebd",
+    "formula": "ZIM(?X0, ?X1) \u2192 RAN(?X0, ?X1)",
+    "contradicted_by_shown": 0,
+    "validated_on_success": true,
+    "unsafe_situations": 56,
+    "wrong_effect_situations": 0
+   }
+  ],
+  "rules_total": 1,
+  "refuted_after_validation": 0
+ },
+ {
+  "world": 37,
+  "hidden": [
+   "MOR",
+   "SUN",
+   "PIR"
+  ],
+  "evidence": "ambiguous",
+  "determined": false,
+  "consumes": null,
+  "successes": 4,
+  "coverage": 0.5,
+  "covered": 1,
+  "n_hidden": 3,
+  "late": false,
+  "generator_covered_all": false,
+  "shown": 6,
+  "statuses": [
+   "insufficient_evidence",
+   "multiple_hypotheses",
+   "multiple_hypotheses",
+   "multiple_hypotheses",
+   "multiple_hypotheses",
+   "multiple_hypotheses"
+  ],
+  "executable": [],
+  "rules_total": 0,
+  "refuted_after_validation": 0
+ },
+ {
+  "world": 38,
+  "hidden": [
+   "SUN",
+   "PIR",
+   "DOV"
+  ],
+  "evidence": "determined",
+  "determined": true,
+  "consumes": null,
+  "successes": 4,
+  "coverage": 1.0,
+  "covered": 3,
+  "n_hidden": 3,
+  "late": false,
+  "generator_covered_all": true,
+  "shown": 9,
+  "statuses": [
+   "insufficient_evidence",
+   "insufficient_evidence",
+   "insufficient_evidence",
+   "insufficient_evidence",
+   "operator_candidate",
+   "multiple_hypotheses",
+   "multiple_hypotheses",
+   "operator_executable",
+   "operator_executable"
+  ],
+  "executable": [
+   {
+    "rule_id": "rule_637c9d681c42",
+    "formula": "DOV(?X1, ?X0) \u2227 PIR(?X0, ?X1) \u2227 SUN(?X1) \u2227 ZIM(?X0, ?X1) \u2192 RAN(?X0, ?X1)",
+    "contradicted_by_shown": 0,
+    "validated_on_success": true,
+    "unsafe_situations": 0,
+    "wrong_effect_situations": 0
+   }
+  ],
+  "rules_total": 2,
+  "refuted_after_validation": 0
+ },
+ {
+  "world": 39,
+  "hidden": [
+   "KAV",
+   "TEL"
+  ],
+  "evidence": "determined",
+  "determined": true,
+  "consumes": null,
+  "successes": 5,
+  "coverage": 0.5,
+  "covered": 2,
+  "n_hidden": 2,
+  "late": true,
+  "generator_covered_all": false,
+  "shown": 8,
+  "statuses": [
+   "insufficient_evidence",
+   "insufficient_evidence",
+   "multiple_hypotheses",
+   "multiple_hypotheses",
+   "multiple_hypotheses",
+   "multiple_hypotheses",
+   "operator_executable",
+   "operator_executable"
+  ],
+  "executable": [
+   {
+    "rule_id": "rule_97f0b3d764a7",
+    "formula": "KAV(?X0) \u2227 TEL(?X1) \u2227 ZIM(?X0, ?X1) \u2192 RAN(?X0, ?X1)",
+    "contradicted_by_shown": 0,
+    "validated_on_success": true,
+    "unsafe_situations": 0,
+    "wrong_effect_situations": 0
+   }
+  ],
+  "rules_total": 2,
+  "refuted_after_validation": 1
+ }
+]

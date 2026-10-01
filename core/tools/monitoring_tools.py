@@ -9,13 +9,13 @@ Tools:
 - get_memory_usage: Current memory usage
 - get_disk_usage: Disk space usage
 - get_network_stats: Network traffic stats
-- check_mysql_health: MySQL connection pool and slow queries
-- check_postgresql_health: PostgreSQL connection pool and query statistics
 - get_service_status: Check if service is running
 - parse_logs: Parse log files for errors
-- query_metrics: Query stored metrics
-- create_alert: Create system alert
-- get_performance_profile: Profile code execution
+- get_performance_profile: Performance data for a running process
+
+The MySQL and PostgreSQL health checks, query_metrics and create_alert read and wrote the
+substrate's own database and were archived 2026-09-30:
+archive/superseded_database_tools_2026-09-30/.
 
 Author: Lyric AI Team
 """
@@ -25,7 +25,7 @@ import psutil
 import uuid
 import json
 import statistics
-from typing import Any, Dict, List, Optional
+from typing import Dict, List
 from pathlib import Path
 from datetime import datetime, timedelta
 from collections import defaultdict
@@ -222,169 +222,6 @@ class GetNetworkStatsTool(Tool):
             return ToolResult(success=False, output=None, error=str(e))
 
 
-class CheckMySQLHealthTool(Tool):
-    """Check MySQL health"""
-
-    def __init__(self):
-        super().__init__()
-        self.name = "check_mysql_health"
-        self.description = "Check MySQL connection pool, active connections, and slow queries"
-        self.category = ToolCategory.DATABASE
-        self.safety_level = ToolSafety.SAFE
-        self.parameters = []
-
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
-            tool_name="check_mysql_health",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.CHECK_CONNECTIVITY,
-                    description="Check MySQL database health"
-                ),
-                CapabilityMetadata(
-                    capability=Capability.MONITOR_HEALTH,
-                    description="Monitor MySQL database health",
-                    input_types=[],
-                    output_types=["health_status"],
-                    latency="low",
-                    cost="low",
-                    reliability="high",
-                    risk_level=RiskLevel.LOW,
-                    priority=9
-                )
-            ]
-        )
-
-    async def execute(self) -> ToolResult:
-        try:
-            from core.database import get_database_manager
-            db = get_database_manager()
-
-            conn_stats = await db.execute_query("""
-                SELECT
-                    COUNT(*) as total_connections,
-                    SUM(CASE WHEN state = 'active' THEN 1 ELSE 0 END) as active_connections,
-                    SUM(CASE WHEN state = 'idle' THEN 1 ELSE 0 END) as idle_connections
-                FROM pg_stat_activity
-                WHERE datname = current_database()
-            """, fetch_one=True) or {}
-
-            slow_count = await db.execute_query("""
-                SELECT COUNT(*) as slow_queries
-                FROM pg_stat_activity
-                WHERE state = 'active' AND query_start < NOW() - INTERVAL '1 second'
-            """, fetch_one=True) or {'slow_queries': 0}
-
-            return ToolResult(
-                success=True,
-                output={
-                    'total_connections': conn_stats.get('total_connections', 0),
-                    'active_connections': conn_stats.get('active_connections', 0),
-                    'idle_connections': conn_stats.get('idle_connections', 0),
-                    'slow_queries': slow_count.get('slow_queries', 0),
-                }
-            )
-
-        except Exception as e:
-            return ToolResult(success=False, output=None, error=str(e))
-
-
-class CheckPostgreSQLHealthTool(Tool):
-    """Check PostgreSQL health"""
-
-    def __init__(self):
-        super().__init__()
-        self.name = "check_postgresql_health"
-        self.description = "Check PostgreSQL connection pool, active connections, and query statistics"
-        self.category = ToolCategory.DATABASE
-        self.safety_level = ToolSafety.SAFE
-        self.parameters = []
-
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
-            tool_name="check_postgresql_health",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.CHECK_CONNECTIVITY,
-                    description="Check PostgreSQL database health"
-                ),
-                CapabilityMetadata(
-                    capability=Capability.MONITOR_HEALTH,
-                    description="Monitor PostgreSQL database health",
-                    input_types=[],
-                    output_types=["health_status"],
-                    latency="low",
-                    cost="low",
-                    reliability="high",
-                    risk_level=RiskLevel.LOW,
-                    priority=9
-                )
-            ]
-        )
-
-    async def execute(self) -> ToolResult:
-        try:
-            from core.database import LyricUnifiedDatabase
-
-            db = LyricUnifiedDatabase()
-            await db.initialize()
-
-            # Get connection stats
-            stats_query = """
-            SELECT
-                COUNT(*) as total_connections,
-                SUM(CASE WHEN state = 'active' THEN 1 ELSE 0 END) as active_connections,
-                SUM(CASE WHEN state = 'idle' THEN 1 ELSE 0 END) as idle_connections,
-                SUM(CASE WHEN state = 'idle in transaction' THEN 1 ELSE 0 END) as idle_in_transaction
-            FROM pg_stat_activity
-            WHERE datname = current_database()
-            """
-
-            conn_stats = await db.execute_query(stats_query, fetch_one=True)
-
-            # Get database size
-            size_query = "SELECT pg_size_pretty(pg_database_size(current_database())) as db_size"
-            size_result = await db.execute_query(size_query, fetch_one=True)
-
-            # Get slow query stats (queries > 1 second)
-            slow_query = """
-            SELECT COUNT(*) as slow_queries
-            FROM pg_stat_statements
-            WHERE mean_exec_time > 1000
-            """
-            slow_result = await db.execute_query(slow_query, fetch_one=True) or {'slow_queries': 0}
-
-            # Get table counts for key schemas
-            table_counts = {}
-            for schema in ['unified', 'memory_hot', 'memory_cold']:
-                count_query = f"""
-                SELECT COUNT(*) as table_count
-                FROM information_schema.tables
-                WHERE table_schema = '{schema}'
-                """
-                result = await db.execute_query(count_query, fetch_one=True)
-                table_counts[schema] = result['table_count'] if result else 0
-
-            await db.close()
-
-            return ToolResult(
-                success=True,
-                output={
-                    'pool_size': db.pool_max_size if hasattr(db, 'pool_max_size') else 'N/A',
-                    'total_connections': conn_stats['total_connections'],
-                    'active_connections': conn_stats['active_connections'],
-                    'idle_connections': conn_stats['idle_connections'],
-                    'idle_in_transaction': conn_stats['idle_in_transaction'],
-                    'database_size': size_result['db_size'],
-                    'slow_queries': slow_result.get('slow_queries', 0),
-                    'schemas': table_counts
-                }
-            )
-
-        except Exception as e:
-            return ToolResult(success=False, output=None, error=str(e))
-
-
 class GetServiceStatusTool(Tool):
     """Check service status"""
 
@@ -534,180 +371,26 @@ class ParseLogsTool(Tool):
             return ToolResult(success=False, output=None, error=str(e))
 
 
-class QueryMetricsTool(Tool):
-    """Query stored metrics"""
-
-    def __init__(self):
-        super().__init__()
-        self.name = "query_metrics"
-        self.description = "Query stored system metrics from database"
-        self.category = ToolCategory.DATABASE
-        self.safety_level = ToolSafety.SAFE
-        self.parameters = [
-            ToolParameter(
-                name="metric_type",
-                type="string",
-                description="Type of metric to query",
-                required=True,
-                enum=["health", "performance", "security", "api", "llm"]
-            ),
-            ToolParameter(
-                name="hours_ago",
-                type="number",
-                description="How many hours of data to retrieve",
-                required=False,
-                default=24,
-                min_value=1,
-                max_value=168
-            )
-        ]
-
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
-            tool_name="query_metrics",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.READ_DATA,
-                    description="Query system metrics"
-                )
-            ]
-        )
-
-    async def execute(self, metric_type: str, hours_ago: int = 24) -> ToolResult:
-        try:
-            from core.database import get_database_manager
-            db = get_database_manager()
-            cutoff_time = datetime.now() - timedelta(hours=hours_ago)
-
-            table_map = {
-                'health': 'health_metrics',
-                'performance': 'performance_logs',
-                'security': 'security_logs',
-                'api': 'api_logs',
-                'llm': 'llm_logs'
-            }
-
-            table = table_map.get(metric_type)
-            if not table:
-                return ToolResult(success=False, output=None, error=f"Unknown metric type: {metric_type}")
-
-            results = await db.execute_query(
-                f"SELECT * FROM {table} WHERE timestamp >= $1 ORDER BY timestamp DESC LIMIT 100",
-                (cutoff_time,),
-                fetch_all=True
-            ) or []
-
-            return ToolResult(
-                success=True,
-                output={
-                    'metric_type': metric_type,
-                    'hours': hours_ago,
-                    'count': len(results),
-                    'metrics': results
-                }
-            )
-
-        except Exception as e:
-            return ToolResult(success=False, output=None, error=str(e))
-
-
-class CreateAlertTool(Tool):
-    """Create system alert"""
-
-    def __init__(self):
-        super().__init__()
-        self.name = "create_alert"
-        self.description = "Create a system alert in the database"
-        self.category = ToolCategory.DATABASE
-        self.safety_level = ToolSafety.MODERATE
-        self.parameters = [
-            ToolParameter(
-                name="alert_type",
-                type="string",
-                description="Type of alert",
-                required=True,
-                enum=["health", "security", "performance", "error"]
-            ),
-            ToolParameter(
-                name="message",
-                type="string",
-                description="Alert message",
-                required=True
-            ),
-            ToolParameter(
-                name="severity",
-                type="string",
-                description="Alert severity",
-                required=False,
-                default="medium",
-                enum=["low", "medium", "high", "critical"]
-            )
-        ]
-
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
-            tool_name="create_alert",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.NOTIFY,
-                    description="Create monitoring alerts"
-                ),
-                CapabilityMetadata(
-                    capability=Capability.CREATE_ALERT,
-                    description="Create monitoring alerts for threshold violations",
-                    input_types=["alert_config"],
-                    output_types=["alert_id"],
-                    latency="low",
-                    cost="low",
-                    reliability="high",
-                    risk_level=RiskLevel.LOW,
-                    priority=9
-                )
-            ]
-        )
-
-    async def execute(self, alert_type: str, message: str, severity: str = "medium") -> ToolResult:
-        try:
-            from core.database import get_database_manager
-
-            db = get_database_manager()
-
-            await db.execute_query(
-                """
-                INSERT INTO system_alerts (source, message, severity, timestamp)
-                VALUES ($1, $2, $3, $4)
-                """,
-                params=(alert_type, message, severity, datetime.now()),
-                commit=True,
-            )
-
-            return ToolResult(
-                success=True,
-                output={
-                    'alert_created': True,
-                    'type': alert_type,
-                    'severity': severity,
-                },
-            )
-
-        except Exception as e:
-            return ToolResult(success=False, output=None, error=str(e))
-
-
 class GetPerformanceProfileTool(Tool):
-    """Profile code execution"""
+    """Performance data for a running process."""
 
     def __init__(self):
         super().__init__()
         self.name = "get_performance_profile"
-        self.description = "Get performance profiling data for Lyric processes"
+        self.description = "Get performance data (CPU, memory, threads) for a running process"
         self.category = ToolCategory.MONITORING
         self.safety_level = ToolSafety.SAFE
         self.parameters = [
             ToolParameter(
+                name="pid",
+                type="integer",
+                description="Process ID to profile (or give process_name)",
+                required=False
+            ),
+            ToolParameter(
                 name="process_name",
                 type="string",
-                description="Process name to profile (optional)",
+                description="Process name to profile (or give pid)",
                 required=False
             )
         ]
@@ -723,26 +406,32 @@ class GetPerformanceProfileTool(Tool):
             ]
         )
 
-    async def execute(self, process_name: str = None) -> ToolResult:
+    async def execute(self, pid: int = None, process_name: str = None) -> ToolResult:
+        """The process it is asked about. It ignored `process_name` and always
+        reported the substrate's own process."""
         try:
-            import os
-
-            # Get current process info
-            current_proc = psutil.Process(os.getpid())
-
-            with current_proc.oneshot():
-                info = {
-                    'pid': current_proc.pid,
-                    'name': current_proc.name(),
-                    'cpu_percent': current_proc.cpu_percent(interval=0.1),
-                    'memory_mb': round(current_proc.memory_info().rss / (1024**2), 2),
-                    'num_threads': current_proc.num_threads(),
-                    'num_fds': current_proc.num_fds() if hasattr(current_proc, 'num_fds') else None,
-                    'create_time': datetime.fromtimestamp(current_proc.create_time()).isoformat()
-                }
-
-            return ToolResult(success=True, output=info)
-
+            if pid is None and not process_name:
+                return ToolResult(success=False, output=None,
+                                  error="pid or process_name is required: the process to profile")
+            if pid is not None:
+                procs = [psutil.Process(int(pid))]
+            else:
+                procs = [p for p in psutil.process_iter(['name']) if p.info['name'] == process_name]
+                if not procs:
+                    return ToolResult(success=False, output=None, error=f"No process named {process_name}")
+            profiles = []
+            for proc in procs:
+                with proc.oneshot():
+                    profiles.append({
+                        'pid': proc.pid,
+                        'name': proc.name(),
+                        'cpu_percent': proc.cpu_percent(interval=0.1),
+                        'memory_mb': round(proc.memory_info().rss / (1024**2), 2),
+                        'num_threads': proc.num_threads(),
+                        'num_fds': proc.num_fds() if hasattr(proc, 'num_fds') else None,
+                        'create_time': datetime.fromtimestamp(proc.create_time()).isoformat()
+                    })
+            return ToolResult(success=True, output={'processes': profiles, 'count': len(profiles)})
         except Exception as e:
             return ToolResult(success=False, output=None, error=str(e))
 

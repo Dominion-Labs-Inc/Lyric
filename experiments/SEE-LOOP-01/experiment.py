@@ -39,6 +39,9 @@ import sys
 import uuid
 from pathlib import Path
 
+# Experiments run in the sandbox unless the run names a database itself.
+os.environ.setdefault("POSTGRES_DATABASE", "lyric_dev")
+
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO))
 
@@ -84,6 +87,7 @@ async def main() -> int:
         from core.database import get_database_manager
         db = get_database_manager()
         await db.initialize()
+        await db.assert_database_identity(os.environ["POSTGRES_DATABASE"])
         from core.agents.autonomous.autonomous_coordinator import SelfEventType
         from core.reasoning.bayesian_uncertainty import get_uncertainty_system
         from core.domain import evidence_producers as ep
@@ -127,8 +131,9 @@ async def main() -> int:
     check("sight returned a percept through the one entry point",
           percept is not None, type(percept).__name__ if percept else "None")
     meta = getattr(percept, "metadata", None) or {}
-    percept_id = meta.get("perception_id")
-    check("the percept has a durable identity", bool(percept_id), str(percept_id))
+    percept_id = meta.get("memory_id")
+    check("the percept has a durable identity: the memory of the seeing",
+          bool(percept_id), str(percept_id))
     EV.metric("percept_id", percept_id, "id")
 
     # ── B. BELIEF, AT THE STANDING ITS EVIDENCE WARRANTS ────────────────────
@@ -227,7 +232,7 @@ async def main() -> int:
 
     # ── F. MEMORY ───────────────────────────────────────────────────────────
     print("\n== F. A memory of the seeing resolves to the bytes ==")
-    from core.agents.autonomous.perception_manager import (
+    from core.perception.perception_faculty import (
         set_acting_percept, reset_acting_percept)
     token = set_acting_percept(percept_id, meta.get("digest"))
     try:
@@ -242,13 +247,10 @@ async def main() -> int:
           recalled is not None
           and getattr(recalled, "percept_id", None) == percept_id,
           str(getattr(recalled, "percept_id", None)))
-    prow = await db.execute_query(
-        "SELECT content FROM unified.perceptions WHERE id = $1",
-        (percept_id,), fetch_one=True)
-    import json as _json
-    sensed = ({} if not prow else (prow["content"] if isinstance(prow["content"], dict)
-                                   else _json.loads(prow["content"])))
-    check("which resolves to the record of the seeing, digest and all",
+    # The percept IS the memory of the seeing; what was sensed is kept with it.
+    kept = await coord.memory.get_memory_media(str(percept_id)) if percept_id else []
+    sensed = (kept[0].get("perceived") or {}) if kept else {}
+    check("which resolves to the memory of the seeing, digest and all",
           bool(sensed) and sensed.get("sha256")
           and sensed.get("sha256") == getattr(recalled, "percept_digest", None),
           f"sha256={sensed.get('sha256')}")
@@ -337,11 +339,37 @@ async def main() -> int:
         await db.execute_query(
             "DELETE FROM memory_hot.memory_hot WHERE content::text LIKE $1",
             (f"%{subject}%",), commit=True)
-        await db.execute_query(
-            "DELETE FROM unified.perceptions WHERE id = $1", (percept_id,), commit=True)
+        if percept_id:
+            # The memory of the seeing, by its exact id, with what it kept.
+            await db.execute_query(
+                "DELETE FROM unified.memory_media WHERE memory_id = $1", (str(percept_id),),
+                commit=True)
+            await db.execute_query(
+                "DELETE FROM memory_hot.memory_hot WHERE memory_id = $1", (str(percept_id),),
+                commit=True)
         await db.execute_query(
             "DELETE FROM unified.evidence_envelopes WHERE producer IN ($1,$2)",
             (subject, weak), commit=True)
+        # What the seeings showed is also held as concepts, relations and pool
+        # items named with this run's nonce.
+        like = f"%{tag}%"
+        await db.execute_query(
+            "DELETE FROM unified.concept_relations WHERE source_concept_id IN "
+            "(SELECT concept_id FROM unified.concepts WHERE name LIKE $1) "
+            "OR target_concept_id IN (SELECT concept_id FROM unified.concepts "
+            "WHERE name LIKE $1) OR target_surface LIKE $1", (like,), commit=True)
+        await db.execute_query("DELETE FROM unified.concepts WHERE name LIKE $1",
+                               (like,), commit=True)
+        await db.execute_query("DELETE FROM unified.experience_pool WHERE about LIKE $1",
+                               (like,), commit=True)
+        await db.execute_query("DELETE FROM unified.evidence_envelopes "
+                               "WHERE producer LIKE $1 OR source_id LIKE $1", (like,), commit=True)
+        left = await db.execute_query(
+            "SELECT (SELECT count(*) FROM unified.concepts WHERE name LIKE $1) + "
+            "(SELECT count(*) FROM unified.beliefs WHERE belief_text LIKE $1) + "
+            "(SELECT count(*) FROM memory_hot.memory_hot WHERE content::text LIKE $1) AS n",
+            (like,), fetch_one=True)
+        EV.note(f"Cleanup by nonce {tag} and exact memory id: {left['n']} left.")
     except Exception as e:
         print(f"  (cleanup: {e})")
 

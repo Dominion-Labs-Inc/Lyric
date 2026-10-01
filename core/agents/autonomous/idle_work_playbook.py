@@ -161,7 +161,7 @@ class RemediationPlan:
     severity:        str                        # "critical" | "high" | "medium" | "low" | "info"
     summary:         str                        # One-line description for logs/memory
     steps:           List[PlaybookStep] = field(default_factory=list)
-    notify:          bool               = False # Whether to send Slack notification
+    notify:          bool               = False # Whether to send a notification
     store_to_memory: bool               = True  # Whether to persist plan execution to memory
 
 
@@ -196,7 +196,7 @@ _HEALTH_MATRIX: Dict[str, List[PlaybookStep]] = {
     # process supervision belongs to the container the substrate runs inside, not
     # a restart from within it. Report the degradation honestly.
     "security":         _SECURITY_NOTIFY_ONLY,
-    "governance":       _SECURITY_NOTIFY_ONLY,
+    "constitution":     _SECURITY_NOTIFY_ONLY,
     "safety":           _SECURITY_NOTIFY_ONLY,
     "firewall":         _SECURITY_NOTIFY_ONLY,
     "threat_intel":     _SECURITY_NOTIFY_ONLY,

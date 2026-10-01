@@ -5,7 +5,7 @@ statement below was read in the source, in a dated experiment artifact, or measu
 `lyric_db` on the date given. Nothing here is a plan for what Lyric will be able to do; it is a
 statement of what a subscriber would receive if they paid this week.
 
-Companion to `DHCM/TET.md` (editions, packs, build order) and
+Companion to `Tet/TET.md` (editions, packs, build order) and
 `docs/LYRIC_VALIDATION_AND_EXPERIMENT_RESULTS.md` (the evidence corpus).
 
 ---
@@ -183,7 +183,7 @@ Supervised. A human asks; Lyric researches, writes, and reports. Idle autonomy i
 ### What must be true to ship
 
 1. Tet build steps 1–3 (world identity, stack parameterization by `world_id`, world registry) — this
-   gives one isolated stack per lab. `DHCM/TET.md` §11 already scopes it.
+   gives one isolated stack per lab. `Tet/TET.md` §11 already scopes it.
 2. Explain or disclose the 19.6% goal-conclusion rate.
 3. Sweep the retrieval window so held knowledge is not hidden behind the similarity floor.
 4. A conversation surface. There is no tool/chat API today — `core/api/` holds only `device_auth.py`
@@ -212,7 +212,7 @@ anything.
 | Deny a false rule the authority to act | `GOV-ABLATION-01` (ablation — 1 unsafe act averted) |
 | Read an environment into knowledge without ever decoding binaries into facts | `ENV-INVESTIGATE-01` 9/9 |
 
-The DHCM shield is separately real: walls hardened and red-team verified live 2026-09-14, forge path
+The Tet shield is separately real: walls hardened and red-team verified live 2026-09-14, forge path
 closed, field off the database network.
 
 ### Cannot do today — and why this one does not ship
@@ -353,7 +353,7 @@ evidence the system needs to earn its way past the operability bar (§2.2).
 Three things verified 2026-09-22 that shrink the estimate:
 
 1. **A containerized deployment already exists and is hardened.** The compose that defines it
-   (`DHCM/deploy/docker-compose.yml`) gives non-root containers, all Linux capabilities dropped,
+   (`Tet/deploy/docker-compose.yml`) gives non-root containers, all Linux capabilities dropped,
    read-only root filesystems, seccomp, an internal-only database network with no host route, and
    secrets read from a gitignored `.env` with fail-loud `${VAR:?}`. The substrate + Postgres portion
    of that is the pilot install; whether the rest ships with it is the §9.4 decision.
@@ -375,7 +375,7 @@ authenticated chat endpoint over a faculty that already works.
 ### 9.4 An unresolved question first: what does the pilot actually install?
 
 The only hardened, containerized deployment of Lyric that exists today is
-`DHCM/deploy/docker-compose.yml`, which brings up field + world + lyric + worlddb **together**.
+`Tet/deploy/docker-compose.yml`, which brings up field + world + lyric + worlddb **together**.
 That is a fact about where the deployment is defined, not a decision about what to sell. Two
 different products come out of it and they should be chosen deliberately:
 
@@ -411,8 +411,8 @@ This is a real decision with a real cost difference, and §9.5 changes depending
 deployment to mint and retire. It is not on the path to the first one.
 
 If B is chosen instead, add: persisting the shield's experiment record, which does not exist today
-(`DHCM/experiments/` holds harnesses with no results directories), and refreshing
-`DHCM/REDTEAM_FINDINGS.md`, which still presents two CRITICAL findings that are fixed in code. Both
+(`Tet/experiments/` holds harnesses with no results directories), and refreshing
+`Tet/REDTEAM_FINDINGS.md`, which still presents two CRITICAL findings that are fixed in code. Both
 are cheap, and neither is on the path unless B is the product.
 
 **SBIR Phase I is non-dilutive income in its own right**, and the pilot generates its evidence
@@ -436,6 +436,6 @@ the path to the first paying customer.
 3. **Does `CONSTITUTION-03` remediation come before or after the beta?** It is not on the critical
    path for an isolated single-tenant pilot. It is on the critical path for everything after.
 4. **Does the SOC role get retired or deferred?** Deferring keeps it in the story for SBIR. Retiring
-   frees the effort. The DHCM shield is a stronger SBIR asset than a SOC subscription would be.
+   frees the effort. The Tet shield is a stronger SBIR asset than a SOC subscription would be.
 5. **Explaining the 19.6% goal-conclusion rate** — this is the most valuable unclaimed
    investigation in the system. It gates every autonomy claim in every role.

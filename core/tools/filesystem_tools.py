@@ -905,9 +905,8 @@ class SearchFilesTool(Tool):
             ToolParameter(
                 name="directory",
                 type="string",
-                description="Directory to search in (defaults to current directory)",
-                required=False,
-                default="."
+                description="Directory to search in",
+                required=True
             ),
             ToolParameter(
                 name="max_results",
@@ -941,7 +940,7 @@ class SearchFilesTool(Tool):
     async def execute(
         self,
         pattern: str,
-        directory: str = ".",
+        directory: str,
         max_results: int = 100,
         recursive: bool = True
     ) -> ToolResult:

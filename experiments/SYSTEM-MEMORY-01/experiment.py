@@ -78,13 +78,17 @@ async def main() -> int:
               "is on" in str(meta) or "superseded" in str(meta).lower() or "previous" in str(meta).lower(),
               f"metadata keys={sorted(meta)[:8] if isinstance(meta, dict) else type(meta).__name__}")
 
-        print("\n== D. Governance holds on deletion ==")
-        gone = await M.delete_memory(mid, capability_token="not_a_token", reason="probe")
-        still = await M.retrieve_memory(mid)
-        check("a delete without a valid token is refused", gone is False and still is not None,
+        print("\n== D. A memory can be forgotten ==")
+        ok_f, forget_id = await M.store_memory(
+            content=f"isolation probe: the {TOKEN} note to forget", memory_type=MemoryType.EPISODIC,
+            importance_score=0.5, origin=Origin.own("SYSTEM-MEMORY-01"))
+        if forget_id:
+            ids.append(forget_id)
+        gone = await M.delete_memory(forget_id, reason="probe") if forget_id else False
+        still = await M.retrieve_memory(forget_id) if forget_id else None
+        check("a forgotten memory is gone", ok_f and gone is True and still is None,
               f"deleted={gone} still_present={still is not None}")
-        gone2 = await M.delete_memory(mid, capability_token="", reason="probe")
-        check("and with no token at all", gone2 is False)
+        check("and the others are untouched", await M.retrieve_memory(mid) is not None)
 
         print("\n== E. Whose memory it is ==")
         # A user's memory is theirs: every way memory is searched -- by
@@ -117,8 +121,12 @@ async def main() -> int:
                                       importance_score=0.7, tags=[f"owner_{TOKEN}"], origin=Origin.of(A, "SYSTEM-MEMORY-01"))
         if a2 and a2 not in ids:
             ids.append(a2)
-        check("the same words from the same user merge into their own memory",
-              a2 == a_mid, f"first={a_mid} again={a2}")
+        # NOTHING IS MERGED: the same words said again are a second memory of
+        # theirs, found beside the first by recall.
+        again = await M.retrieve_memory(a2) if a2 else None
+        check("the same words from the same user are a second memory of theirs, not merged",
+              bool(a2) and a2 != a_mid and again is not None
+              and getattr(again, "user_id", None) == A, f"first={a_mid} again={a2}")
 
         m = M.get_metrics()
         check("metrics are a dict", isinstance(m, dict) and bool(m), f"keys={sorted(m)[:8]}")

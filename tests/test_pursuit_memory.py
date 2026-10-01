@@ -10,7 +10,7 @@ from datetime import datetime
 from types import SimpleNamespace
 from uuid import uuid4
 
-from core.agents.autonomous.governance_block_schema import pursuit_account
+from core.memory.utils.interfaces import pursuit_account
 from core.memory import Experience, Origin, Part
 
 

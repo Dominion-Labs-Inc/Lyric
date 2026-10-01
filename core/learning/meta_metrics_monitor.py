@@ -139,7 +139,7 @@ class MetaMetricsMonitor:
     Monitor the meta-learner's own health and parameters
 
     Prevents the meta-learning system from degrading its own standards over time.
-    This is "second-order governance" - watching the watchers.
+    This is "second-order oversight" - watching the watchers.
     """
 
     def __init__(self, db_config: Dict[str, Any] = None):
@@ -808,7 +808,7 @@ class MetaMetricsMonitor:
             # standards_stability_score is 0, which tripped `< 50` and reported
             # CRITICAL while `alerts` was empty -- literally
             # "🚨 META-LEARNER HEALTH: CRITICAL - 0 critical alerts", and it
-            # would have fired a Slack page with an empty bullet list. A
+            # would have raised an alert with an empty bullet list. A
             # verdict nothing can justify is worse than no verdict: it trains
             # the reader to ignore CRITICAL.
             if current_snapshot is None:
@@ -867,7 +867,7 @@ class MetaMetricsMonitor:
         """Create meta_health_alerts rows for detected standards violations.
 
         Maps high-level violations into structured alerts so that the
-        governance and monitoring layers can reason about meta-standards
+        the Constitution and monitoring layers can reason about meta-standards
         degradation over time.
         """
         for violation in violations:

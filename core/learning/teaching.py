@@ -198,6 +198,9 @@ class Report:
     #: `open` (an unknown no situation names, so not a fact to hold), and
     #: `not_told` (a question or a request states nothing to hold).
     meanings: Dict[str, int] = field(default_factory=dict)
+    #: {observed, already, no_construction, refused, total} for how often the source met each word naming each thing
+    #: (`learn_usage`).
+    usage: Dict[str, int] = field(default_factory=dict)
     sampled: bool = False
     limit: Optional[int] = None
     seconds: float = 0.0
@@ -217,6 +220,7 @@ class Report:
             f"word classes      : {self.word_classes or 'none stated'}",
             f"patterns          : {self.patterns or 'none taught'}",
             f"meaning facts     : {self.meanings or 'none given'}",
+            f"word usage        : {self.usage or 'none counted'}",
             f"seconds           : {self.seconds:.1f}",
         ]
 
@@ -381,6 +385,14 @@ class TeachingPass:
             # no fact inherits another's standing.
             report.taught = await self._teach(learning, records, report)
 
+        # HOW OFTEN EACH WORD NAMES EACH THING, after the words are learned: a source that counted its words in real
+        # use (`usage()`) says so, and the count lands on the construction that says the word names the thing.
+        if records and hasattr(self.source, "usage"):
+            report.usage = await learning.learn_usage(
+                self.source.usage(), provenance=self.source.provenance(),
+                quality=float(self.source.quality))
+            await self._flush()
+
         report.seconds = time.time() - started
         return report
 
@@ -440,7 +452,7 @@ class TeachingPass:
             #
             # The triple stands where the sentence does not read, so a source is
             # never worse off for being able to say itself.
-            claims, blamed = (self._read(record.sentence) if record.sentence
+            claims, blamed = (await self._read(record.sentence) if record.sentence
                               else ([], []))
             # A READING THAT SPLITS THE SUBJECT IS A MIS-READING, NOT A RICHER
             # ONE. The reader distributes a coordinated subject -- correct for
@@ -599,30 +611,32 @@ class TeachingPass:
         has nobody to belong to, and is counted, not held.
         """
         from core.semantics.derived_reader import SITUATION_VARIABLES, is_variable
-        if record.meaning.act != "tell":
-            meanings["not_told"] += len(record.meaning.facts)
+        # A number the meaning builds from numbers is held as its value: "Twenty-one is a number." is `21`'s.
+        meaning = record.meaning.evaluated()
+        if meaning.act != "tell":
+            meanings["not_told"] += len(meaning.facts)
             return
         situation = dict(record.situation)
         speaker = situation.get("?speaker")
-        if record.meaning.condition:
+        if meaning.condition:
             # A CONDITIONAL STATES NO FACT OUTRIGHT: what it says holds when its condition does. It is held as a
             # rule, one fact a side, as a told rule is held; a side of several facts, or one still naming an unknown,
             # is counted, not held.
-            bound = dict(zip(record.meaning.facts, record.meaning.bound(situation)))
-            condition = [bound[f] for f in record.meaning.condition]
-            then = [bound[f] for f in record.meaning.asserted]
+            bound = dict(zip(meaning.facts, meaning.bound(situation)))
+            condition = [bound[f] for f in meaning.condition]
+            then = [bound[f] for f in meaning.asserted]
             if len(condition) != 1 or len(then) != 1 or any(
                     is_variable(t) for f in condition + then for t in f.terms()):
                 meanings["rule_not_held"] += 1
                 return
-            situational = any(t in SITUATION_VARIABLES for f in record.meaning.facts for t in f.terms())
+            situational = any(t in SITUATION_VARIABLES for f in meaning.facts for t in f.terms())
             if situational and not speaker:
                 meanings["no_speaker"] += 1
                 return
             rules.append((quality, condition[0], then[0], sentence, speaker if situational else None))
             meanings["rule"] += 1
             return
-        for said, fact in zip(record.meaning.facts, record.meaning.bound(situation)):
+        for said, fact in zip(meaning.facts, meaning.bound(situation)):
             if said.alternative:
                 # OF ALTERNATIVES, ONE HOLDS; none is stated, so none is held as a fact.
                 meanings["alternative"] += 1
@@ -793,8 +807,8 @@ class TeachingPass:
                 and cls._bare(c[2] if len(c) > 2 else "") not in object_fragments]
         return kept, len(kept) != len(claims)
 
-    def _read(self, sentence: str
-              ) -> Tuple[List[Tuple[str, str, str, str, bool]], List[tuple]]:
+    async def _read(self, sentence: str
+                    ) -> Tuple[List[Tuple[str, str, str, str, bool]], List[tuple]]:
         """Every claim a source's own sentence states, as facts carrying it,
         read by the one reader (`derived_reader`), and the word classes a
         refusal was attributed to -- none: constructions, not word classes,
@@ -804,13 +818,16 @@ class TeachingPass:
         says something about the kind. Each claim is taught with THE WHOLE
         SENTENCE as its surface, because that is what it was said in.
 
-        Only what a telling states outright between named things is a claim
-        (`derived_reader.stated`): a sentence read to more than one meaning is
-        not taught either way, because which one the source meant is not this
-        pass's to decide.
+        Only what a telling states outright between named things is a claim,
+        taken as a listener with memory at hand takes it
+        (`derived_reader.heard_stated`): where a word names several things,
+        memory is asked which was meant; a sentence whose meaning still cannot
+        be told is not taught either way, because which one the source meant is
+        not this pass's to guess.
         """
-        from core.semantics.derived_reader import stated
-        return [(f.subject, f.relation, f.obj, sentence, f.positive) for f in stated(sentence)], []
+        from core.semantics.derived_reader import heard_stated
+        return [(f.subject, f.relation, f.obj, sentence, f.positive)
+                for f in await heard_stated(sentence)], []
 
     async def _flush(self) -> None:
         from core.reasoning.bayesian_uncertainty import get_uncertainty_system

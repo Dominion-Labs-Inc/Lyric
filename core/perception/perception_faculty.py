@@ -1,21 +1,35 @@
 #!/usr/bin/env python3
-"""The perception faculty: the one entry point for all sight and hearing.
+"""The substrate's senses: sight, hearing and reading, each its own.
+
+They are the substrate's as a person's eyes and ears are theirs. None of them
+owns what it takes in, and none does the work of another: sight takes in
+pixels, hearing sound, reading written words, and whatever the substrate does
+with what it met -- remembers it, knows it again, names it, judges how sure it
+is, reads the words in it, believes what it says -- it does however it met it
+(`AutonomousCoordinator.perceive_moment`).
+
+THE SENSES WORK AT THE SAME TIME. A thing is taken in by every sense that can
+take something from it, at once, each in its own process (`senses`): a clip is
+seen and heard together. What is met at one moment -- a word said to it and the
+room it was said in -- is one experience, not one per sense.
 
 The substrate does not have many ad-hoc ways to read text -- it has one reader,
-and every path that consumes language goes through it. Sight and hearing are
-built the same way. `PerceptionFaculty.sense(path)` is the sole route by which a
-file becomes STRUCTURE: it perceives structure with the classical describers
-(core.perception.vision for pixels, core.perception.hearing for sound) and
-matches known instances. It does NOT admit evidence -- it is a sensor. The one
-perception pipeline (PerceptionManager.process_input) admits what was sensed, so
-a percept is admitted exactly once by one owner. Naming a novel structure is NOT
-done here -- that is the substrate's to learn downstream. What the faculty
-produces is honest structure; what it means is learned.
+and every path that consumes language goes through it: what reading opens of a
+file goes to that reader as a sentence typed or said does. `sense(path)` is how
+a file becomes STRUCTURE: it perceives structure with the classical describers
+(core.perception.vision for pixels, core.perception.hearing for sound,
+core.perception.reading for written words) and matches known instances.
+Sensing admits nothing: `admit_percept` takes in what was sensed, once, as
+evidence and into what the substrate is aware of perceiving, so a percept is
+admitted exactly once by one owner. Naming a novel structure is NOT done here --
+that is the substrate's to learn downstream. What the senses produce is honest
+structure; what it means is learned.
 
     from core.perception.perception_faculty import get_perception_faculty
     vf = get_perception_faculty()
     modality, content = await vf.sense("/path/to/photo.jpg")   # -> structure, not yet admitted
     modality, content = await vf.sense("/path/to/doorbell.wav")
+    modality, content = await vf.sense("/path/to/report.pdf")
     await vf.learn_instance("front_door", "ref.jpg")           # register a known instance
     await vf.learn_instance("doorbell", "doorbell.wav")        # ... or a known sound
     await coord.learn_word("three", "three.wav", actor_identity=None)   # a word, taught by
@@ -27,10 +41,11 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
+from collections import deque
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from . import hearing, music, senses, speech, vision
+from . import hearing, music, reading, senses, speech, vision
 from .senses import SenseProcess
 
 logger = logging.getLogger(__name__)
@@ -182,22 +197,22 @@ def _object_regions(regions) -> List[Dict[str, Any]]:
 
 
 class PerceptionFaculty:
-    """One faculty, the single entry point for perceiving a FILE of any kind.
+    """The substrate's senses -- sight, hearing and reading -- and what they
+    have been taught to know again.
 
-    WAS `VisionFaculty`, "the single entry point for all sight", and the rename
-    is the point rather than tidying. A document is not seen and an image is not
-    read, but both are the substrate ENCOUNTERING A FILE and turning it into
-    structure a percept can be admitted from -- and that act has one owner or it
-    has several that drift. A second faculty beside this one would have meant a
-    second `sense`, a second way of naming what was encountered, and a second
-    route into `PerceptionManager` -- the parallel-admitter shape this package
-    already refused once.
+    THE SENSES ARE THE SUBSTRATE'S, NOT THIS CLASS'S. It holds the senses'
+    processes and the library of things, sounds, words, voices and songs
+    taught; the substrate perceives (`AutonomousCoordinator.perceive_moment`),
+    and this is where its senses measure. No sense does another's work: a
+    document is READ, by reading, in reading's own process -- it was once
+    "sight's", which made the substrate's reading a kind of looking.
 
-    So `sense` dispatches on WHAT THE FILE IS. Pixels go to the visual reader,
-    sound to the ear, a document to the document reader; each returns the same
-    `(modality, content)` contract, and the pipeline downstream neither knows
-    nor cares which. Adding a modality means adding a reader here, never a
-    faculty.
+    `sense` TAKES A THING IN BY EVERY SENSE THAT CAN, AT ONCE (`senses_of`):
+    pixels by sight, sound by hearing, written words by reading, a clip by sight
+    and hearing together. Each returns the same `(modality, content)` contract,
+    and `content["senses"]` says which senses took part, so the pipeline
+    downstream treats what was read exactly as what was seen or heard. Adding a
+    sense means adding its measuring here, never a second faculty.
 
     HEARING IS ONE OF THESE READERS, not a faculty beside this one. What it
     hears is stated on the SAME contract as what sight sees: each sound is a
@@ -221,7 +236,14 @@ class PerceptionFaculty:
     line holds its pitches at a singer's pace, each with the support its
     measurement earned. A SONG is taught as a word is, by hearing it, told what
     it is called; from then on it is known wherever it is played (`plays`).
+
+    WHAT WAS SENSED IS ADMITTED HERE TOO (`admit_percept`), once: as evidence about the
+    memory of perceiving it, and into what the substrate is aware of perceiving
+    now (`recent_percepts`), so a memory forming while it perceives says what was in view.
     """
+
+    #: How many percepts the substrate is aware of at once, newest last.
+    AWARENESS = 1000
 
     def __init__(self) -> None:
         # Reference instances: name -> ORB descriptors. This is recognition of
@@ -237,6 +259,10 @@ class PerceptionFaculty:
         self._voices: Dict[str, List[Any]] = {}
         #: Songs taught by hearing them: title -> the landmarks of each hearing.
         self._songs: Dict[str, List[Any]] = {}
+        #: ... and title -> the tune of each hearing that taught it
+        #: (`music.tune_line`), which the song is known by when hummed or sung:
+        #: {"line", "mix"}, `mix` when it was read from a mix's melody.
+        self._tunes: Dict[str, List[Any]] = {}
         #: How near the taught voices lie to one another (`speech.voice_reach`),
         #: kept with them so it is measured once per teaching, not per hearing.
         self._voice_reach: Optional[tuple] = None
@@ -245,11 +271,106 @@ class PerceptionFaculty:
         self._taught_version = 0
         #: Whether this process has read the library from the store yet.
         self._instances_loaded = False
-        #: EACH SENSE MEASURES IN ITS OWN PROCESS (`senses`), so hearing, sight
-        #: and the substrate's reasoning run at the same time. Reading a
-        #: document is seeing, so it is sight's.
+        #: EACH SENSE MEASURES IN ITS OWN PROCESS (`senses`), so sight,
+        #: hearing, reading and the substrate's reasoning run at the same time.
         self._sight = SenseProcess("sight")
         self._hearing = SenseProcess("hearing")
+        self._reading = SenseProcess("reading")
+        #: WHAT IS BEING PERCEIVED NOW: the percepts met lately, newest last.
+        self._aware: deque = deque(maxlen=self.AWARENESS)
+        #: How many percepts were admitted as evidence in this process.
+        self._admitted = 0
+
+    # -- admitting what was sensed ------------------------------------------
+
+    async def admit_percept(self, subject: str, modality: str, content: Dict[str, Any],
+                    memory_id: Optional[str] = None, *, origin: "Origin") -> Any:
+        """Take in what was sensed, once: into what the substrate is aware of
+        perceiving now, and as evidence.
+
+        `memory_id` is the memory of HAVING PERCEIVED it, formed by the caller
+        that met it (`coord.see` remembers what it looked at). It is the
+        percept's identity: every claim admitted from it is a belief ABOUT that
+        memory, and anything formed while it is admitted links to it by
+        reference (`set_acting_percept`). Without one the belief store refuses
+        the claims -- correctly, since a belief names the memory it is about.
+
+        `origin` is whose perception this is, and it has no default. A person's
+        image is kept in their context, and what it shows goes where their words
+        go, never into the substrate's own knowledge."""
+        percept = self.note_percept(subject, modality, content, origin=origin)
+        digest = (content or {}).get("sha256") or (content or {}).get("digest")
+        if memory_id:
+            # The memory of perceiving IS the percept's identity.
+            percept.metadata["memory_id"] = str(memory_id)
+        if digest:
+            percept.metadata["digest"] = str(digest)
+        # ADMITTED INSIDE THE SCOPE OF THE PERCEPT, so anything formed while the
+        # evidence is being admitted links to what was perceived BY REFERENCE
+        # rather than by having happened near it in time.
+        token = set_acting_percept(memory_id, digest)
+        try:
+            await self._admit_as_evidence(subject, modality, content,
+                                          memory_id=memory_id, origin=origin)
+        finally:
+            reset_acting_percept(token)
+        return percept
+
+    async def _admit_as_evidence(self, subject, modality, content, *,
+                                 memory_id: Optional[str] = None,
+                                 origin: "Origin") -> None:
+        """Submit a percept as evidence. Never fails perceiving itself.
+
+        Dispatched on modality: a sensor reading, an image, a video, a sound and
+        a document read each carry structure a bare component/status envelope
+        cannot (a typed value and unit, perceived individuals, recognised
+        labels, temporal events, what the words said), so each has its own
+        producer. Anything else -- a named
+        component in a named state, a corpus arriving -- takes the general
+        `submit_perception` path. The producer decides what is nameable; an
+        unrecognised modality is not coerced into one that loses its structure.
+        Whose it is travels with it."""
+        try:
+            from core.domain import evidence_producers as ep
+
+            producer = {
+                "sensor": ep.submit_sensor_reading,
+                "image": ep.submit_image,
+                "video": ep.submit_video,
+                "audio": ep.submit_audio,
+                "document": ep.submit_reading,
+            }.get(str(modality or "").strip().lower())
+            if producer is not None:
+                await producer(subject, content or {}, memory_id=memory_id, origin=origin)
+            else:
+                await ep.submit_perception(subject, modality, content or {},
+                                           memory_id=memory_id, origin=origin)
+            self._admitted += 1
+        except Exception as e:
+            logger.error("perception from %s could not be recorded as evidence: %s: %s",
+                         subject, type(e).__name__, e)
+
+    def note_percept(self, subject: str, modality: str, content: Dict[str, Any], *,
+             origin: "Origin", confidence: Optional[float] = None) -> Any:
+        """Take a percept into what the substrate is aware of perceiving now,
+        WITHOUT admitting it as evidence: for a percept whose evidence its own
+        owner already admitted (a recognition rides `learn_fact`). `confidence`
+        is what was measured of it, or None when nothing was."""
+        from core.agents.autonomous.shared_types import PerceptionData
+        percept = PerceptionData(source=subject, data_type=modality,
+                                 content=dict(content or {}),
+                                 confidence=None if confidence is None else float(confidence),
+                                 origin=origin)
+        self._aware.append(percept)
+        return percept
+
+    def recent_percepts(self, limit: int = 10) -> List[Any]:
+        """The percepts met most lately, oldest first."""
+        return list(self._aware)[-limit:] if limit > 0 else []
+
+    def awareness(self) -> Dict[str, int]:
+        """What the substrate is aware of perceiving, counted."""
+        return {"aware": len(self._aware), "admitted": self._admitted}
 
     # -- durability ---------------------------------------------------------
     #
@@ -302,6 +423,10 @@ class PerceptionFaculty:
         self._voices = {p: kept(archives) for p, archives in voices.items() if kept(archives)}
         self._songs = {t: [e.astype("int32") for e in kept(archives)]
                        for t, archives in songs.items() if kept(archives)}
+        tuned = lambda archives: [{"line": line, "mix": hearing.trace_tune_from_mix(b)}
+                                  for line, b in ((hearing.trace_tune(b), b) for b in archives)
+                                  if line is not None]
+        self._tunes = {t: tuned(archives) for t, archives in songs.items() if tuned(archives)}
         # THINGS SHOWN are known by their keypoints, beside the references
         # learned as instances: the latest showing of each name is the one held.
         for name, archives in things.items():
@@ -352,26 +477,26 @@ class PerceptionFaculty:
 
     @staticmethod
     def _document_content(read: Dict[str, Any], p: Path, label: str) -> Dict[str, Any]:
-        """A document, as sight's process read it (`senses.read_document`), in
-        the structure a percept is admitted from.
+        """A document, as reading's process opened it (`senses.read`), in the
+        structure a percept is admitted from.
 
-        A DOCUMENT IS PERCEIVED, NOT FETCHED. The substrate had tools that
-        GENERATE a PDF and none that reads one, so every document it was given
-        was a file it could write and not open. This is the reading half, and it
-        belongs here rather than in a tool because encountering a file is what
-        this faculty is for -- the same act as meeting an image, with a different
-        reader under it.
+        A DOCUMENT IS READ, NOT FETCHED. The substrate had tools that GENERATE a
+        PDF and none that reads one, so every document it was given was a file
+        it could write and not open. Reading is one of its senses, as sight and
+        hearing are, and what it opens is taken in by the same act.
 
         WHAT IS RETURNED IS STRUCTURE, NOT A BLOB OF TEXT. The pages, and the
-        text as the document laid it out, so the sentence reader downstream is
-        reading prose rather than a run-on of every page concatenated. Naming
-        follows the visual path exactly: the subject comes from the CONTENT
-        digest, so the same document met twice is one individual and two
-        documents never merge.
+        text as the document laid it out, so the substrate's reader reads prose
+        rather than a run-on of every page concatenated. Naming follows sight
+        and hearing exactly: the subject comes from the CONTENT digest, so the
+        same document met twice is one individual and two documents never
+        merge. Its `trace` is the runs of words it is known again by, as a
+        picture's is its keypoints and a sound's its landmarks.
 
-        A FORMAT WITH NO READER RAISES. It is not opened as bytes and reported
-        as an empty document: "I cannot read this kind of file" and "this file
-        says nothing" are different states, and only one of them is honest.
+        A FILE WITH NO WRITTEN WORDS READING CAN OPEN RAISES. It is not opened
+        as bytes and reported as an empty document: "I cannot read this kind of
+        file" and "this file says nothing" are different states, and only one
+        of them is honest.
         """
         if read.get("named"):
             logger.warning(
@@ -383,18 +508,23 @@ class PerceptionFaculty:
         pages = read["pages"]
         # A READER THAT RETURNED NOTHING IS REPORTED AS SUCH. A scanned PDF is
         # pages of pixels with no text layer; saying "0 words" is the true
-        # answer and an OCR path is the honest next step, not a silent empty.
+        # answer and reading words off pixels is a sense of its own, not a
+        # silent empty.
         words = sum(len(page.split()) for page in pages)
+        # WHAT IT IS, as its bytes say; a plain text says only by its name, and
+        # not even that when its name claimed another kind.
+        form = (read["kind"] if read["kind"] != "text" or read.get("named")
+                else (p.suffix.lower().lstrip(".") or "text"))
         content: Dict[str, Any] = {
             "subject": _percept_subject(label, read["sha256"]),
             "sha256": read["sha256"],
             "pages": len(pages),
             "words": words,
             "text": pages,
-            "properties": {"has_format": p.suffix.lower().lstrip("."),
-                           "has_pages": len(pages)},
-            "caption": (f"{len(pages)} page(s), {words} word(s), "
-                        f"{p.suffix.lower().lstrip('.')} document"),
+            "properties": {"has_format": form, "has_pages": len(pages)},
+            "caption": f"{len(pages)} page(s), {words} word(s), {form} document",
+            "trace": _encode(read["trace"]) if read.get("trace") else None,
+            "senses": ["reading"],
         }
         if not words:
             logger.warning(
@@ -403,13 +533,20 @@ class PerceptionFaculty:
                 "empty document", p.name, len(pages))
         return content
 
+    #: Which senses take something from each kind of thing, all at once.
+    SENSES: Dict[str, tuple] = {"image": ("sight",), "video": ("sight", "hearing"),
+                                "audio": ("hearing",), "document": ("reading",)}
+
     @staticmethod
     def modality_of(path: str) -> Optional[str]:
-        """What kind of percept a file would give -- "image", "video", "audio" or
-        "document" -- judged the way `sense` dispatches, or None when there is
-        no reader for it. Lets a door say what it perceives before opening a file."""
+        """What kind of thing a file is -- "image", "video", "audio" or
+        "document" -- judged the way `sense` dispatches, or None when no sense
+        can take anything from it. Its name decides where it names a kind a
+        sense opens; where it does not, its own bytes decide: a file of written
+        words is read whatever it is called. Lets a door say what it takes in
+        before opening a file."""
         suffix = Path(path).suffix.lower()
-        if suffix in senses.DOCUMENT_READERS:
+        if suffix in reading.DOCUMENT_READERS:
             return "document"
         if suffix in _VIDEO_EXT:
             return "video"
@@ -417,7 +554,22 @@ class PerceptionFaculty:
             return "audio"
         if suffix in _IMAGE_EXT:
             return "image"
-        return None
+        from core.memory.media_store import mime_of
+        try:
+            with open(path, "rb") as f:
+                mime = mime_of(f.read(96))
+        except OSError:
+            return None
+        said = mime.split("/", 1)[0] if mime else None
+        if said in ("image", "audio", "video"):
+            return said
+        return "document" if reading.kind_of(path) is not None else None
+
+    @classmethod
+    def senses_of(cls, path: str) -> tuple:
+        """Every sense that takes something from this file, all at once -- empty
+        when none can."""
+        return cls.SENSES.get(cls.modality_of(path) or "", ())
 
     async def _read_library(self) -> None:
         """Read the known-instance library once, before the first recognition."""
@@ -435,19 +587,21 @@ class PerceptionFaculty:
 
     async def sense(self, path: str, *, source: Optional[str] = None,
                     lesson: Optional[Dict[str, Any]] = None) -> Optional[tuple]:
-        """Sense one real image, video, sound or document: read the structure that
-        is really in the file and return it as ``(modality, content)`` --
-        "image"/"video"/"audio"/"document" plus the perceived structure (regions,
-        colours, shapes, codes, sounds, instance matches).
+        """Take in one real image, video, sound or document by every sense that
+        can: the structure that is really in the file, as ``(modality,
+        content)`` -- "image"/"video"/"audio"/"document" plus the perceived
+        structure (regions, colours, shapes, codes, sounds, pages of text,
+        instance matches), and `content["senses"]`, the senses that took part.
 
-        A VIDEO IS SEEN AND HEARD. Its sound track goes through the same ear as a
-        sound file, so what was heard in a clip is stated on the clip's percept
-        beside what was seen in it.
+        A VIDEO IS SEEN AND HEARD AT ONCE. Its sound track goes through the same
+        ear as a sound file, so what was heard in a clip is stated on the clip's
+        percept beside what was seen in it. A document is read, in reading's
+        own process, while the other senses take in whatever else they are
+        given.
 
-        This faculty ONLY senses. It does NOT admit evidence. The one perception
-        pipeline (PerceptionManager.process_input) admits what is sensed, so a percept
-        is admitted exactly once by one owner, instead of vision submitting through a
-        second parallel path. Returns None only when there is nothing to sense.
+        `sense` ONLY senses; it admits nothing. `admit_percept` takes in what was
+        sensed, so a percept is admitted exactly once, by one owner. Returns
+        None only when there is nothing to sense.
         Raises when the file cannot be read as media -- an honest failure, distinct
         from a readable file with little structure.
 
@@ -467,18 +621,20 @@ class PerceptionFaculty:
                              f"{p.name} is {modality or 'no kind of file the substrate reads'}")
         if modality == "document":
             return "document", self._document_content(
-                await self._sight.run(senses.read_document, str(p)), p, label)
+                await self._reading.run(senses.read, str(p)), p, label)
         if modality is None:
             raise ValueError(
-                f"no reader for {p.suffix.lower()!r}: the substrate has no way to "
-                f"perceive this kind of file, and will not guess at its contents")
+                f"nothing in {p.name} can be seen, heard or read: the substrate has "
+                f"no sense for this kind of file, and will not guess at its contents")
         # Known-instance recognition rides on the same observation.
         await self._read_library()
         if modality == "audio":
             heard = await self._hearing.run(senses.listen, str(p), self._hearing_library(), taught)
             # Named from the CONTENT, not from the caller -- see `_percept_subject`.
-            return "audio", self._audio_content(
+            content = self._audio_content(
                 heard, _percept_subject(label, heard["desc"].get("sha256")), taught)
+            content["senses"] = ["hearing"]
+            return "audio", content
         if modality == "video":
             # A clip is seen and heard AT ONCE, each sense in its own process.
             seen, track = await asyncio.gather(
@@ -490,6 +646,7 @@ class PerceptionFaculty:
             subject = _percept_subject(label, seen.get("sha256"))
             content = self._video_content(seen, subject)
             self._add_soundtrack(track, str(p), content, subject)
+            content["senses"] = ["sight", "hearing"]
             return "video", content
 
         looked = await self._sight.run(senses.look, str(p), dict(self._instances))
@@ -512,13 +669,15 @@ class PerceptionFaculty:
             content["detections"].extend(
                 {"label": _term(name), "confidence": round(score, 2)}
                 for name, score in looked["known"])
+        content["senses"] = ["sight"]
         return "image", content
 
     def _hearing_library(self) -> Dict[str, Any]:
         """What hearing matches against, as this faculty holds it, for the
-        hearing process: words, voices and songs taught, and known sounds."""
+        hearing process: words, voices and songs taught (and the songs' tunes),
+        and known sounds."""
         return {"words": self._words, "voices": self._voices, "reach": self._voice_reach,
-                "songs": self._songs,
+                "songs": self._songs, "tunes": self._tunes,
                 "sounds": {name: marks for name, (marks, _table) in self._sounds.items()}}
 
     async def describe_picture(self, path: str) -> Dict[str, Any]:
@@ -530,9 +689,12 @@ class PerceptionFaculty:
         """How traces kept in memory agree with what is met now, measured in
         that sense's own process, never in the substrate's loop: for "sound"
         (landmark rows) `senses.sound_agreements`, for "sight" (sight
-        features) `senses.sight_agreements`."""
+        features) `senses.sight_agreements`, for "text" (runs of words)
+        `senses.text_agreements`."""
         if sense == "sound":
             return await self._hearing.run(senses.sound_agreements, met, list(kept))
+        if sense == "text":
+            return await self._reading.run(senses.text_agreements, list(met), list(kept))
         return await self._sight.run(senses.sight_agreements, met, list(kept))
 
     async def sight_trace(self, path: str) -> bytes:
@@ -551,6 +713,7 @@ class PerceptionFaculty:
         """Stop the senses' processes."""
         self._sight.close()
         self._hearing.close()
+        self._reading.close()
 
     # -- known-instance library (recognition by matching, no model) ---------
 
@@ -629,6 +792,11 @@ class PerceptionFaculty:
             self._words.setdefault(label, []).append(example)
         elif key == "song":
             self._songs.setdefault(label, []).append(example.astype("int32"))
+            kept = decode_trace(content["trace"])
+            line = hearing.trace_tune(kept)
+            if line is not None:
+                self._tunes.setdefault(label, []).append(
+                    {"line": line, "mix": hearing.trace_tune_from_mix(kept)})
         else:
             self._voices.setdefault(label, []).append(example)
             self._voice_reach = speech.voice_reach(self._voices)
@@ -1119,8 +1287,9 @@ class PerceptionFaculty:
     @staticmethod
     def _music_content(heard: Dict[str, Any]) -> Dict[str, Any]:
         """The music heard, under the percept's own keys: what music claimed of
-        the recording (`in_key`, `tempo`, `melody`), and the songs taught that
-        it plays (`plays`), each with the support its matching earned."""
+        the recording (`in_key`, `tempo`, `melody`), the songs taught that it
+        plays (`plays`), and the song whose tune a single line of it carries
+        (`has_tune_of`), each with the support its matching earned."""
         claims = (heard.get("music") or {}).get("claims") or {}
         out = {k: claims[k] for k in ("in_key", "tempo", "melody") if claims.get(k)}
         playing = [{"song": title, "agreeing": count, "at": at, "share": share,
@@ -1128,6 +1297,10 @@ class PerceptionFaculty:
                    for title, count, at, share in heard.get("songs") or []]
         if playing:
             out["plays"] = playing
+        tuned = [{"song": t["song"], "ratio": t["ratio"], "support": t["support"]}
+                 for t in heard.get("tunes") or []]
+        if tuned:
+            out["has_tune_of"] = tuned
         return out
 
     @staticmethod
@@ -1137,6 +1310,8 @@ class PerceptionFaculty:
         parts = []
         if found.get("plays"):
             parts.append(f'playing "{found["plays"][0]["song"]}"')
+        elif found.get("has_tune_of"):
+            parts.append(f'the tune of "{found["has_tune_of"][0]["song"]}"')
         if found.get("in_key"):
             parts.append(f"in {found['in_key']['key']}")
         if found.get("tempo"):
@@ -1240,6 +1415,64 @@ class PerceptionFaculty:
         content["caption"] = (f"{content.get('caption', '')}, "
                               f"{desc.get('sound_count') or 0} sound(s) heard"
                               f"{self._speech_caption(spoken)}{self._music_caption(found)}")
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# WHAT THE SUBSTRATE IS PERCEIVING RIGHT NOW — bound to the acting context
+# ══════════════════════════════════════════════════════════════════════════
+#
+# The perceptual counterpart of `set_acting_intent`, and it exists for the same
+# reason that one does: a memory forming while the substrate is perceiving has
+# to be able to say WHICH percept it is of, by reference.
+#
+# WHAT THIS REPLACES. A memory already carried a `perceptual_state` snapshot,
+# attached by RECENCY — a 120-second window over whatever had been perceived
+# lately. That is a correlation: it says something was in view around then, and
+# it degrades exactly where it matters most, when several things were seen close
+# together. "I saw that employee send that email" then rests on the substrate's
+# word plus a nearby timestamp, which is testimony, not a record.
+#
+# A reference is defensible where a recollection is not: the percept is the
+# memory of perceiving, which holds what was sensed, and its digest identifies the
+# very bytes.
+#
+# MODALITY-AGNOSTIC. `percept`, not `image` — hearing and voice arrive through
+# the same door and bind here the same way.
+
+import contextvars as _contextvars
+
+_acting_percept: "_contextvars.ContextVar[Optional[Dict[str, Any]]]" = \
+    _contextvars.ContextVar("lyric_acting_percept", default=None)
+
+
+def set_acting_percept(percept_id: Optional[str],
+                       digest: Optional[str] = None):
+    """Bind the percept the current work is being done under. Returns the token.
+
+    `digest` is the content identity of the thing perceived (an image's sha256),
+    carried beside the id so the OBJECT stays identifiable even if the memory of
+    perceiving it is later forgotten.
+    """
+    if not percept_id:
+        return _acting_percept.set(None)
+    return _acting_percept.set({"percept_id": str(percept_id),
+                                "percept_digest": str(digest) if digest else None})
+
+
+def get_acting_percept() -> Optional[Dict[str, Any]]:
+    """The percept bound to the current async context, or None. None is honest:
+    work that is not being done under a percept must not borrow one."""
+    return _acting_percept.get()
+
+
+def reset_acting_percept(token) -> None:
+    try:
+        _acting_percept.reset(token)
+    except (ValueError, LookupError):
+        # A token from another context is not this context's to reset; losing the
+        # reset is harmless (the context ends), silently ignoring a real error is
+        # not, so only these two are caught.
+        pass
 
 
 _faculty: Optional[PerceptionFaculty] = None

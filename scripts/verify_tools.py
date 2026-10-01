@@ -214,11 +214,8 @@ SAFE_PROBES: Dict[str, Dict[str, Any]] = {
     "check_dependencies": {"requirements": ["python"]},
 
     # ── learning tools ────────────────────────────────────────────────────────
-    "profile_performance": {"task_name": "test_task", "metrics": {"latency_ms": 100}},
     "detect_patterns":    {"data": [1, 2, 3, 2, 1]},
 
-    # ── chaos tools (read-only ops) ───────────────────────────────────────────
-    "list_chaos_scenarios": {},
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -237,11 +234,9 @@ SENSITIVE_BLOCKLIST: Set[str] = {
     "get_channel_history", "monitor_team_activity",
     "get_team_health_metrics", "get_user_presence",
     # Database — real writes / reads
-    "mysql_query", "mysql_backup", "mysql_restore",
+    "mysql_query",
     "redis_set", "redis_get",
     "r2_upload", "r2_download",
-    "migration_runner", "transaction_wrapper",
-    "store_memory", "query_memory",
     # External APIs that cost money / have rate limits
     "virustotal_scan_file", "virustotal_scan_url",
     "virustotal_get_ip_report", "virustotal_get_domain_report",
@@ -266,8 +261,7 @@ SENSITIVE_BLOCKLIST: Set[str] = {
     "reload_config", "schedule_cron_job",
     "start_service", "stop_service", "restart_service",
     "delete_file", "move_file",  # destructive
-    "load_test", "chaos_testing",  # can saturate system
-    "run_chaos_experiment", "create_chaos_experiment",
+    "load_test",  # can saturate system
     "mutation_testing",  # can be slow + mutates files
     "run_python", "execute_sandbox", "run_shell_command",
     "execute_with_timeout", "execute_with_resource_limits",

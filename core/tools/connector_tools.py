@@ -21,10 +21,13 @@ from .capabilities import Capability, ToolCapabilityProfile, CapabilityMetadata
 
 logger = logging.getLogger(__name__)
 
-# Add AgentSO to Python path so we can import connectors
+# GUARDED. AgentSO is a separate program, not part of the substrate. Its folder is
+# put at the END of the import path, and only when it is there, so the
+# substrate's own modules always load first and none of AgentSO's top-level
+# modules (main, services, connectors...) can ever stand in for one of them.
 AGENTSO_PATH = Path(__file__).parent.parent.parent.parent / "services" / "agentso"
-if str(AGENTSO_PATH) not in sys.path:
-    sys.path.insert(0, str(AGENTSO_PATH))
+if AGENTSO_PATH.is_dir() and str(AGENTSO_PATH) not in sys.path:
+    sys.path.append(str(AGENTSO_PATH))
 
 def get_active_connector():
     """Get the active connector with credentials already configured."""
@@ -71,6 +74,19 @@ class ConnectorTool(Tool):
                                 error="No active connector. Configure one in AgentSO first.",
                                 tool_name=self.name, parameters=kwargs)
 
+            # GUARDED: a connector never works on the substrate itself. One whose
+            # database is the substrate's own server is refused before it runs.
+            settings = getattr(connector, "config", None) or {}
+            host = getattr(connector, "host", None) or settings.get("host")
+            port = getattr(connector, "port", None) or settings.get("port")
+            if host:
+                from .database_tools import _is_own_server
+                if _is_own_server(host, port or 5432):
+                    return ToolResult(success=False, output=None,
+                                      error=("the connector points at the substrate's own database server; "
+                                             "a connector never works on the substrate itself"),
+                                      tool_name=self.name, parameters=kwargs)
+
             # Verify connector type matches
             connector_type = connector.__class__.__name__.replace('Connector', '').lower()
             if connector_type != self._connector_name:
@@ -96,7 +112,11 @@ class ConnectorTool(Tool):
 
 
 def register_connector_tools(registry) -> int:
-    """Register all AgentSO connector tools in Lyric."""
+    """Register all AgentSO connector tools in Lyric. None when AgentSO is not
+    present: the substrate does not depend on it."""
+    if not AGENTSO_PATH.is_dir():
+        logger.info("AgentSO is not present (%s); its connector tools are not registered", AGENTSO_PATH)
+        return 0
     count = 0
 
     # VirusTotal Tools

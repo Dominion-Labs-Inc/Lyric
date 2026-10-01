@@ -2,8 +2,8 @@
 """
 Directive System Type Definitions
 
-Complete dataclasses for the governance-based directive system.
-These types define the structure of directives, evaluations, and governance laws.
+Complete dataclasses for the directive system, whose directives the Constitution judges.
+These types define the structure of directives and their evaluations.
 """
 
 from dataclasses import dataclass, field
@@ -60,13 +60,8 @@ class ABTestStatus(Enum):
     INSUFFICIENT_DATA = "insufficient_data"
 
 
-# NOTE (2026-09-02): GovernanceAgentType (the five-judge panel:
-# neutral/conservative/moderate/progressive/synthesizer) was REMOVED. Directive
-# governance is no longer a multi-agent LLM-style vote — a proposed directive is
-# validated against the CONSTITUTION (the single, model-free governance authority,
-# singleton_constitution) before activation. The removed vote types
-# (GovernanceAgentType/GovernanceAgentVote/GovernanceEvaluation) and their dead
-# persistence sink are archived in archive/llm_era_directive_governance_2026-09-02/.
+# A proposed directive is validated against the CONSTITUTION, the single
+# model-free authority, before activation — not a multi-agent vote.
 
 
 # ==========================
@@ -108,7 +103,7 @@ class InternalDirective:
     test_group: Optional[str] = None
     test_id: Optional[str] = None
 
-    # Governance compliance
+    # Validated by the Constitution (the stored column keeps its old name)
     governance_validated: bool = False
     constitutional_validated: bool = False
 
@@ -310,8 +305,8 @@ class DirectiveEvolution:
 class DirectiveProposal:
     """
     Proposal for a new directive or modification to existing directive.
-    Must be validated against the CONSTITUTION (the model-free governance
-    authority) before activation — not a multi-agent vote.
+    Must be validated against the CONSTITUTION (the model-free authority)
+    before activation — not a multi-agent vote.
     """
     proposal_id: str
     proposed_directive: InternalDirective

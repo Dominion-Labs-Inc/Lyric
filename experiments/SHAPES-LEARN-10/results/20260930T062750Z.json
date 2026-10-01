@@ -1,0 +1,312 @@
+{
+  "experiment": "SHAPES-LEARN-10",
+  "claim": "Taught the lessons and then WordNet's nouns through its one teaching path, the substrate says each fact through the frames it was taught, in WordNet's words and as English says them, and learns from what it said: every noun taught reads in a question it was never taught, the facts are held, and what it says of them reads back to them.",
+  "hypothesis": "A pair refused; a noun taught that a question never taught does not read to its sense; a fact taught that is not held, or a pair WordNet does not relate answered yes; a sentence said against English's 'a' and 'an'; a fact said that reads back to another meaning; a lesson sentence that no longer reads; or a write to the main store would each show here.",
+  "started_at": "2026-09-30T06:27:50.521932+00:00",
+  "duration_seconds": 11331.186,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/Lyric/venv_lyric/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/Lyric",
+    "shadow_mode": null,
+    "git_commit": "4079045ffdac8d282649a9a829e3060eb736139f",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "lyric_dev",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "lyric_dev",
+        "model": "lyric_dev",
+        "user_context": "lyric_dev",
+        "learning": "lyric_dev"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "environment",
+        "database": "environment",
+        "user": "environment",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 240,
+    "database_verified": null,
+    "database_verified_reason": "not verified"
+  },
+  "summary": {
+    "checks": 37,
+    "passed": 34,
+    "failed": 3,
+    "outcome": "FAIL"
+  },
+  "metrics": [
+    {
+      "name": "nouns said",
+      "value": "1208/1333",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "nouns taught that read in a question never taught",
+      "value": "723/1208",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "facts held",
+      "value": "199/200",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "unrelated pairs answered yes",
+      "value": "0/200",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "seconds per WordNet record",
+      "value": 2.9114,
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "hours for all of WordNet's records, at this rate",
+      "value": 130.38,
+      "unit": "",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "the run is in the sandbox",
+      "passed": true,
+      "detail": "connected to lyric_dev",
+      "at": "2026-09-30T06:27:52.121356+00:00"
+    },
+    {
+      "label": "the substrate is running",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-30T06:28:09.765858+00:00"
+    },
+    {
+      "label": "english_01.json is learned, none refused",
+      "passed": true,
+      "detail": "{'learned': 231, 'linked': 349, 'already': 3, 'understood': 68, 'refused': 0, 'total': 228, 'repair_holophrase': 15, 'repair_substitution': 35, 'repair_item_based_lexical': 63, 'repair_add_links': 65, 'repair_lexical_item_based': 47}",
+      "at": "2026-09-30T06:28:19.087309+00:00"
+    },
+    {
+      "label": "english_02.json is learned, none refused",
+      "passed": true,
+      "detail": "{'learned': 17, 'linked': 66, 'already': 0, 'understood': 13, 'refused': 0, 'total': 29, 'repair_lexical_item_based': 12, 'repair_add_links': 13, 'repair_item_based_lexical': 3, 'repair_substitution': 1}",
+      "at": "2026-09-30T06:28:20.989449+00:00"
+    },
+    {
+      "label": "english_03.json is learned, none refused",
+      "passed": true,
+      "detail": "{'learned': 12, 'linked': 46, 'already': 1, 'understood': 4, 'refused': 0, 'total': 21, 'repair_item_based_lexical': 5, 'repair_add_links': 3, 'repair_phrase_in_slot': 12}",
+      "at": "2026-09-30T06:28:22.080884+00:00"
+    },
+    {
+      "label": "english_04.json is learned, none refused",
+      "passed": true,
+      "detail": "{'learned': 100, 'linked': 109, 'already': 0, 'understood': 4, 'refused': 0, 'total': 70, 'repair_item_based_lexical': 23, 'repair_holophrase': 6, 'repair_lexical_item_based': 34, 'repair_substitution': 3, 'repair_add_links': 4}",
+      "at": "2026-09-30T06:28:27.505326+00:00"
+    },
+    {
+      "label": "english_05.json is learned, none refused",
+      "passed": true,
+      "detail": "{'learned': 42, 'linked': 68, 'already': 4, 'understood': 11, 'refused': 0, 'total': 52, 'repair_lexical_item_based': 10, 'repair_item_based_lexical': 28, 'repair_phrase_in_slot': 3, 'repair_add_links': 7}",
+      "at": "2026-09-30T06:28:29.684054+00:00"
+    },
+    {
+      "label": "english_06.json is learned, none refused",
+      "passed": true,
+      "detail": "{'learned': 60, 'linked': 115, 'already': 2, 'understood': 20, 'refused': 0, 'total': 77, 'repair_lexical_item_based': 28, 'repair_add_links': 18, 'repair_holophrase': 8, 'repair_item_based_lexical': 4, 'repair_substitution': 2, 'repair_phrase_in_slot': 15}",
+      "at": "2026-09-30T06:28:33.154013+00:00"
+    },
+    {
+      "label": "english_07.json is learned, none refused",
+      "passed": true,
+      "detail": "{'learned': 91, 'linked': 157, 'already': 5, 'understood': 36, 'refused': 0, 'total': 115, 'repair_item_based_lexical': 69, 'repair_substitution': 1, 'repair_add_links': 31, 'repair_lexical_item_based': 9}",
+      "at": "2026-09-30T06:28:38.075738+00:00"
+    },
+    {
+      "label": "english_08.json is learned, none refused",
+      "passed": true,
+      "detail": "{'learned': 78, 'linked': 232, 'already': 3, 'understood': 57, 'refused': 0, 'total': 135, 'repair_lexical_item_based': 36, 'repair_add_links': 54, 'repair_item_based_lexical': 35, 'repair_phrase_in_slot': 6, 'repair_holophrase': 1}",
+      "at": "2026-09-30T06:28:49.711159+00:00"
+    },
+    {
+      "label": "english_09.json is learned, none refused",
+      "passed": true,
+      "detail": "{'learned': 88, 'linked': 174, 'already': 11, 'understood': 25, 'refused': 0, 'total': 120, 'repair_lexical_item_based': 28, 'repair_item_based_lexical': 12, 'repair_phrase_in_slot': 51, 'repair_add_links': 14, 'repair_substitution': 2, 'repair_holophrase': 2}",
+      "at": "2026-09-30T06:28:58.558815+00:00"
+    },
+    {
+      "label": "english_10.json is learned, none refused",
+      "passed": true,
+      "detail": "{'learned': 32, 'linked': 134, 'already': 0, 'understood': 17, 'refused': 0, 'total': 49, 'repair_lexical_item_based': 32, 'repair_add_links': 17}",
+      "at": "2026-09-30T06:29:03.150222+00:00"
+    },
+    {
+      "label": "english_11.json is learned, none refused",
+      "passed": true,
+      "detail": "{'learned': 32, 'linked': 102, 'already': 0, 'understood': 14, 'refused': 0, 'total': 40, 'repair_lexical_item_based': 12, 'repair_add_links': 14, 'repair_substitution': 4, 'repair_item_based_lexical': 10}",
+      "at": "2026-09-30T06:29:06.058843+00:00"
+    },
+    {
+      "label": "english_12.json is learned, none refused",
+      "passed": true,
+      "detail": "{'learned': 96, 'linked': 239, 'already': 6, 'understood': 26, 'refused': 0, 'total': 128, 'repair_phrase_in_slot': 53, 'repair_lexical_item_based': 38, 'repair_substitution': 5, 'repair_item_based_lexical': 6, 'repair_add_links': 20}",
+      "at": "2026-09-30T06:29:18.630609+00:00"
+    },
+    {
+      "label": "english_13.json is learned, none refused",
+      "passed": true,
+      "detail": "{'learned': 88, 'linked': 155, 'already': 8, 'understood': 36, 'refused': 0, 'total': 126, 'repair_lexical_item_based': 32, 'repair_add_links': 28, 'repair_holophrase': 6, 'repair_item_based_lexical': 33, 'repair_phrase_in_slot': 17, 'repair_substitution': 2}",
+      "at": "2026-09-30T06:29:28.702617+00:00"
+    },
+    {
+      "label": "english_14.json is learned, none refused",
+      "passed": true,
+      "detail": "{'learned': 64, 'linked': 201, 'already': 0, 'understood': 7, 'refused': 0, 'total': 87, 'repair_lexical_item_based': 28, 'repair_phrase_in_slot': 48, 'repair_item_based_lexical': 4, 'repair_add_links': 7}",
+      "at": "2026-09-30T06:29:40.213215+00:00"
+    },
+    {
+      "label": "english_15.json is learned, none refused",
+      "passed": true,
+      "detail": "{'learned': 63, 'linked': 236, 'already': 3, 'understood': 38, 'refused': 0, 'total': 91, 'repair_lexical_item_based': 35, 'repair_add_links': 35, 'repair_substitution': 7, 'repair_phrase_in_slot': 6, 'repair_item_based_lexical': 4, 'repair_holophrase': 1}",
+      "at": "2026-09-30T06:29:55.301629+00:00"
+    },
+    {
+      "label": "english_16.json is learned, none refused",
+      "passed": true,
+      "detail": "{'learned': 39, 'linked': 98, 'already': 5, 'understood': 22, 'refused': 0, 'total': 67, 'repair_holophrase': 11, 'repair_lexical_item_based': 23, 'repair_add_links': 17, 'repair_phrase_in_slot': 10, 'repair_item_based_lexical': 1}",
+      "at": "2026-09-30T06:30:17.809569+00:00"
+    },
+    {
+      "label": "english_17.json is learned, none refused",
+      "passed": true,
+      "detail": "{'learned': 105, 'linked': 343, 'already': 2, 'understood': 31, 'refused': 0, 'total': 164, 'repair_phrase_in_slot': 77, 'repair_lexical_item_based': 44, 'repair_substitution': 5, 'repair_item_based_lexical': 6, 'repair_add_links': 29, 'repair_holophrase': 1}",
+      "at": "2026-09-30T06:31:16.950193+00:00"
+    },
+    {
+      "label": "english_18.json is learned, none refused",
+      "passed": true,
+      "detail": "{'learned': 77, 'linked': 297, 'already': 7, 'understood': 48, 'refused': 0, 'total': 131, 'repair_phrase_in_slot': 32, 'repair_lexical_item_based': 42, 'repair_add_links': 41, 'repair_substitution': 6, 'repair_item_based_lexical': 3}",
+      "at": "2026-09-30T06:31:50.775406+00:00"
+    },
+    {
+      "label": "english_19.json is learned, none refused",
+      "passed": true,
+      "detail": "{'learned': 62, 'linked': 75, 'already': 0, 'understood': 7, 'refused': 0, 'total': 58, 'repair_item_based_lexical': 51, 'repair_add_links': 7}",
+      "at": "2026-09-30T06:32:13.202295+00:00"
+    },
+    {
+      "label": "english_20.json is learned, none refused",
+      "passed": true,
+      "detail": "{'learned': 48, 'linked': 160, 'already': 7, 'understood': 31, 'refused': 0, 'total': 75, 'repair_lexical_item_based': 24, 'repair_add_links': 24, 'repair_phrase_in_slot': 15, 'repair_substitution': 4, 'repair_item_based_lexical': 1}",
+      "at": "2026-09-30T06:32:40.830575+00:00"
+    },
+    {
+      "label": "english_21.json is learned, none refused",
+      "passed": true,
+      "detail": "{'learned': 36, 'linked': 88, 'already': 3, 'understood': 23, 'refused': 0, 'total': 57, 'repair_lexical_item_based': 23, 'repair_add_links': 20, 'repair_phrase_in_slot': 6, 'repair_substitution': 3, 'repair_holophrase': 1, 'repair_item_based_lexical': 1}",
+      "at": "2026-09-30T06:33:28.410878+00:00"
+    },
+    {
+      "label": "english_22.json is learned, none refused",
+      "passed": true,
+      "detail": "{'learned': 35, 'linked': 93, 'already': 1, 'understood': 16, 'refused': 0, 'total': 53, 'repair_lexical_item_based': 18, 'repair_add_links': 15, 'repair_phrase_in_slot': 8, 'repair_holophrase': 5, 'repair_substitution': 3, 'repair_item_based_lexical': 3}",
+      "at": "2026-09-30T06:33:37.063495+00:00"
+    },
+    {
+      "label": "english_23.json is learned, none refused",
+      "passed": true,
+      "detail": "{'learned': 30, 'linked': 76, 'already': 0, 'understood': 13, 'refused': 0, 'total': 40, 'repair_lexical_item_based': 22, 'repair_add_links': 13, 'repair_item_based_lexical': 1, 'repair_holophrase': 3, 'repair_substitution': 1}",
+      "at": "2026-09-30T06:33:45.651345+00:00"
+    },
+    {
+      "label": "english_24.json is learned, none refused",
+      "passed": true,
+      "detail": "{'learned': 30, 'linked': 109, 'already': 80, 'understood': 94, 'refused': 0, 'total': 164, 'repair_item_based_lexical': 19, 'repair_add_links': 14, 'repair_phrase_in_slot': 44, 'repair_lexical_item_based': 5, 'repair_substitution': 2}",
+      "at": "2026-09-30T06:33:57.107070+00:00"
+    },
+    {
+      "label": "english_25.json is learned, none refused",
+      "passed": true,
+      "detail": "{'learned': 94, 'linked': 345, 'already': 5, 'understood': 83, 'refused': 0, 'total': 171, 'repair_lexical_item_based': 62, 'repair_add_links': 78, 'repair_substitution': 4, 'repair_phrase_in_slot': 16, 'repair_item_based_lexical': 6}",
+      "at": "2026-09-30T07:07:39.672207+00:00"
+    },
+    {
+      "label": "english_26.json is learned, none refused",
+      "passed": true,
+      "detail": "{'learned': 138, 'linked': 223, 'already': 0, 'understood': 31, 'refused': 0, 'total': 137, 'repair_item_based_lexical': 68, 'repair_lexical_item_based': 30, 'repair_phrase_in_slot': 8, 'repair_add_links': 31}",
+      "at": "2026-09-30T07:08:01.286787+00:00"
+    },
+    {
+      "label": "the nouns' facts are said through the frames taught, in WordNet's words",
+      "passed": true,
+      "detail": "said 1208 of 1333; {'bound': 1333, 'speaker_context': 0, 'no_speaker': 0, 'open': 0, 'not_told': 0, 'rule': 0, 'rule_not_held': 0, 'alternative': 0, 'example': 0, 'said': 1208, 'not_said': 125}",
+      "at": "2026-09-30T09:35:29.228408+00:00"
+    },
+    {
+      "label": "no pair said is refused",
+      "passed": true,
+      "detail": "{'learned': 2228, 'linked': 2259, 'already': 0, 'understood': 1, 'refused': 0, 'total': 1208, 'repair_item_based_lexical': 1206, 'repair_add_links': 1, 'repair_holophrase': 1}",
+      "at": "2026-09-30T09:35:29.228491+00:00"
+    },
+    {
+      "label": "what is said is said as English says it: 'a' and 'an' where they go, and only there",
+      "passed": false,
+      "detail": "after 'a': []; bare: ['Wing is an airfoil.']; against the letter: ['Hepatitis A is a viral hepatitis.']",
+      "at": "2026-09-30T09:35:29.722191+00:00"
+    },
+    {
+      "label": "every noun taught reads in a question never taught, to the sense taught",
+      "passed": false,
+      "detail": "723/1208",
+      "at": "2026-09-30T09:36:00.271812+00:00"
+    },
+    {
+      "label": "the reasoning authority answers yes to the facts taught",
+      "passed": false,
+      "detail": "199/200",
+      "at": "2026-09-30T09:36:04.601831+00:00"
+    },
+    {
+      "label": "for pairs WordNet does not relate it does not answer yes",
+      "passed": true,
+      "detail": "0/200 answered yes",
+      "at": "2026-09-30T09:36:04.842090+00:00"
+    },
+    {
+      "label": "each fact taught is said, and what is said reads back to it",
+      "passed": true,
+      "detail": "200/200",
+      "at": "2026-09-30T09:36:10.516368+00:00"
+    },
+    {
+      "label": "every taught sentence of the lessons reads to its meaning",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-09-30T09:36:35.587203+00:00"
+    },
+    {
+      "label": "the main model's store is untouched",
+      "passed": true,
+      "detail": "255211 rows before, 255211 after",
+      "at": "2026-09-30T09:36:41.817399+00:00"
+    }
+  ],
+  "notes": []
+}

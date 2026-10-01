@@ -31,6 +31,7 @@ from core.execution import command_console
 from .capabilities import (
     ToolCapabilityProfile, CapabilityMetadata, Capability, RiskLevel
 )
+from core.security.secrets import get_secrets_authority
 
 
 logger = logging.getLogger(__name__)
@@ -201,7 +202,10 @@ class RunPythonTool(Tool):
                 # Build subprocess environment: inject cwd into PYTHONPATH so that
                 # internal project imports (e.g. `from services.x import ...`) resolve.
                 import os as _os_run
-                env = dict(_os_run.environ)
+                # The child gets the environment WITHOUT the substrate's keys:
+                # code it runs cannot dump what it was never given
+                # (core.security.secrets).
+                env = get_secrets_authority().scrubbed_env()
                 if cwd is not None:
                     existing_pypath = env.get("PYTHONPATH", "")
                     env["PYTHONPATH"] = str(cwd) + (_os_run.pathsep + existing_pypath if existing_pypath else "")
@@ -336,7 +340,8 @@ class RunShellCommandTool(Tool):
                 command if shell else command.split(),
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
-                cwd=cwd
+                cwd=cwd,
+                env=get_secrets_authority().scrubbed_env(),  # no keys in a child
             )
             
             try:
@@ -638,7 +643,8 @@ class StartServiceTool(Tool):
             else:
                 return ToolResult(success=False, output=None, error=f"Unsupported system: {system}")
 
-            result = subprocess.run(cmd, capture_output=True, text=True)
+            result = subprocess.run(cmd, capture_output=True, text=True,
+                                    env=get_secrets_authority().scrubbed_env())
 
             # Tool is working if it can communicate with service manager
             # Service not existing is a valid response
@@ -715,7 +721,8 @@ class StopServiceTool(Tool):
             else:
                 return ToolResult(success=False, output=None, error=f"Unsupported system: {system}")
 
-            result = subprocess.run(cmd, capture_output=True, text=True)
+            result = subprocess.run(cmd, capture_output=True, text=True,
+                                    env=get_secrets_authority().scrubbed_env())
 
             # Tool is working if it can communicate with service manager
             tool_working = True
@@ -790,7 +797,8 @@ class RestartServiceTool(Tool):
             else:
                 return ToolResult(success=False, output=None, error=f"Unsupported system: {system}")
 
-            result = subprocess.run(cmd, capture_output=True, text=True)
+            result = subprocess.run(cmd, capture_output=True, text=True,
+                                    env=get_secrets_authority().scrubbed_env())
 
             # Tool is working if it can communicate with service manager
             tool_working = True
@@ -960,7 +968,8 @@ class RunBackgroundTaskTool(Tool):
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 cwd=str(cwd) if cwd else None,
-                start_new_session=True
+                start_new_session=True,
+                env=get_secrets_authority().scrubbed_env(),  # no keys in a child
             )
 
             return ToolResult(
@@ -1037,7 +1046,8 @@ class ScheduleCronJobTool(Tool):
     async def execute(self, command: str, schedule: str) -> ToolResult:
         try:
             # Read existing crontab
-            result = subprocess.run(['crontab', '-l'], capture_output=True, text=True)
+            result = subprocess.run(['crontab', '-l'], capture_output=True, text=True,
+                                    env=get_secrets_authority().scrubbed_env())
             existing_cron = result.stdout if result.returncode == 0 else ""
 
             # Add new job
@@ -1048,7 +1058,8 @@ class ScheduleCronJobTool(Tool):
             updated_cron = existing_cron + f"\n{new_job}\n"
 
             # Write updated crontab
-            proc = subprocess.Popen(['crontab', '-'], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            proc = subprocess.Popen(['crontab', '-'], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                    env=get_secrets_authority().scrubbed_env())
             stdout, stderr = proc.communicate(input=updated_cron.encode())
 
             return ToolResult(
@@ -1134,7 +1145,8 @@ class InstallPythonPackageTool(Tool):
                 cmd,
                 capture_output=True,
                 text=True,
-                timeout=300  # 5 minute timeout
+                timeout=300,  # 5 minute timeout
+                env=get_secrets_authority().scrubbed_env(),  # no keys in a child
             )
 
             return ToolResult(
@@ -1247,20 +1259,24 @@ class ExecuteWithTimeoutTool(Tool):
             else:
                 cmd = command
 
-            # Start process with process group for complete cleanup
+            # Start process with process group for complete cleanup; the child
+            # gets no keys (core.security.secrets).
+            child_env = get_secrets_authority().scrubbed_env()
             if isinstance(cmd, str):
                 process = await asyncio.create_subprocess_shell(
                     cmd,
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
-                    preexec_fn=os.setsid  # Create new process group
+                    preexec_fn=os.setsid,  # Create new process group
+                    env=child_env,
                 )
             else:
                 process = await asyncio.create_subprocess_exec(
                     *cmd,
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
-                    preexec_fn=os.setsid
+                    preexec_fn=os.setsid,
+                    env=child_env,
                 )
 
             start_time = time.time()
@@ -1530,12 +1546,13 @@ sys.exit(os.WEXITSTATUS(result) if os.WIFEXITED(result) else 1)
                 wrapper_file = f.name
 
             try:
-                # Execute wrapper script
+                # Execute wrapper script; the child gets no keys
                 process = await asyncio.create_subprocess_exec(
                     sys.executable,
                     wrapper_file,
                     stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE
+                    stderr=asyncio.subprocess.PIPE,
+                    env=get_secrets_authority().scrubbed_env(),
                 )
 
                 start_time = time.time()
@@ -1726,12 +1743,13 @@ except PermissionError as e:
                 temp_file = f.name
 
             try:
-                # Execute isolated code
+                # Execute isolated code; the child gets no keys
                 process = await asyncio.create_subprocess_exec(
                     sys.executable,
                     temp_file,
                     stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE
+                    stderr=asyncio.subprocess.PIPE,
+                    env=get_secrets_authority().scrubbed_env(),
                 )
 
                 start_time = time.time()
@@ -2120,19 +2138,22 @@ print("=== END TRACE ===", file=sys.stderr)
                 # Execute
                 cwd = resolve_working_directory(working_directory)
 
+                child_env = get_secrets_authority().scrubbed_env()  # no keys in a child
                 if isinstance(cmd, str):
                     process = await asyncio.create_subprocess_shell(
                         cmd,
                         stdout=asyncio.subprocess.PIPE,
                         stderr=asyncio.subprocess.PIPE,
-                        cwd=cwd
+                        cwd=cwd,
+                        env=child_env,
                     )
                 else:
                     process = await asyncio.create_subprocess_exec(
                         *cmd,
                         stdout=asyncio.subprocess.PIPE,
                         stderr=asyncio.subprocess.PIPE,
-                        cwd=cwd
+                        cwd=cwd,
+                        env=child_env,
                     )
 
                 try:

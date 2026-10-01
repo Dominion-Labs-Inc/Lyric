@@ -117,6 +117,109 @@ def test_a_song_lesson_is_held_once_remembered():
     assert np.array_equal(faculty._songs["Take Five"][0], marks)
 
 
+HUMTRANS = MUSIC / "humtrans" / "wav"
+hums = pytest.mark.skipif(not HUMTRANS.exists(), reason="HumTrans is not in test_data")
+#: HumTrans VALID tunes, one segment of each of sixteen songs, each hummed by
+#: F01 and by F02 (first takes). Two segments of one song share its melody, so
+#: they are not taught as two songs.
+_TAUGHT = ("0003_0001", "0027_0001", "0034_0001", "0089_0001", "0161_0001", "0162_0001",
+           "0191_0001", "0210_0001", "0232_0001", "0249_0002", "0256_0001", "0262_0002")
+_NEVER_TAUGHT = ("0269_0001", "0275_0001", "0291_0001", "0305_0001")
+
+
+def _tune_of(person: str, tune: str):
+    path = next(HUMTRANS.glob(f"{person}_{tune}_1*.wav"))
+    return music.describe(hearing.decode(str(path))).get("tune")
+
+
+@hums
+def test_a_tune_is_known_hummed_by_someone_else():
+    """Taught from one person's hum, a tune is known from another person's, in
+    their own key and at their own pace; a tune never taught is not named."""
+    taught = {t: [_tune_of("F01", t)] for t in _TAUGHT}
+    assert all(lines[0] is not None and len(lines[0]) >= music.TUNE_MIN_POINTS
+               for lines in taught.values())
+    named = {t: music.tunes_heard(_tune_of("F02", t), taught) for t in _TAUGHT}
+    right = [t for t, found in named.items() if found and found[0]["song"] == t]
+    wrong = [t for t, found in named.items() if found and found[0]["song"] != t]
+    # Measured: all twelve named, each at a ratio of 0.61 or less. On the VALID
+    # split, among 350 taught tunes: 79% of whole hums named, 99.5% of them right.
+    assert len(right) >= 10 and not wrong, named
+    assert not any(music.tunes_heard(_tune_of("F02", t), taught) for t in _NEVER_TAUGHT)
+    # A ratio needs a rival: one song taught names nothing.
+    one = {_TAUGHT[0]: taught[_TAUGHT[0]]}
+    assert music.tunes_heard(_tune_of("F02", _TAUGHT[0]), one) == []
+
+
+MDB = MUSIC / "MDB-melody-synth"
+mixes = pytest.mark.skipif(not MDB.exists(), reason="MDB-melody-synth is not in test_data")
+
+
+def _melody_scores(name: str, start: float, f0_of) -> tuple:
+    """(pitch right, overall) of `f0_of(y)` against the annotated melody of a
+    minute of `name`'s mix, from `start`, on a 10 ms grid."""
+    import csv
+    y = hearing.decode(str(MDB / "audio_mix" / f"{name}_MIX_melsynth.wav"))
+    y = y[int(start * hearing.SR):int((start + 60) * hearing.SR)]
+    ann = next((MDB / "annotation_melody").glob(f"{name}_STEM_*.csv"))
+    rows = np.array([[float(a), float(b)] for a, b in csv.reader(open(ann))])
+    grid = np.arange(0, 60, 0.01)
+    ref = rows[np.clip(np.searchsorted(rows[:, 0], grid + start), 0, len(rows) - 1), 1]
+    f0 = f0_of(y)
+    est = f0[np.clip((grid * hearing.SR / hearing.HOP).astype(int), 0, len(f0) - 1)]
+    rv, ev = ref > 0, est > 0
+    near = np.zeros(len(ref), bool)
+    near[rv & ev] = 1200 * np.abs(np.log2(est[rv & ev] / ref[rv & ev])) <= 50
+    return near.sum() / rv.sum(), (np.sum(~rv & ~ev) + near.sum()) / len(ref)
+
+
+@mixes
+def test_the_melody_of_a_mix_is_read_as_annotated():
+    """Which line of a full mix is the melody (MDB-melody-synth's exact f0): the
+    salience path follows it where the pitch tracker for a single line cannot.
+    Measured: 0.54/0.67, 0.52/0.56, 0.62/0.69 (pitch right / overall); YIN on
+    the same mixes 0.02 pitch right."""
+    for name in ("AClassicEducation_NightOwl", "LizNelson_Coldwar", "HopAlong_SisterCities"):
+        pitch, overall = _melody_scores(name, 35.0, lambda y: music.melody_of_mix(y)["f0"])
+        assert pitch >= 0.45 and overall >= 0.5, (name, pitch, overall)
+        yin, _ = _melody_scores(name, 35.0, lambda y: music.pitch_track(y)["f0"])
+        assert yin < 0.1, (name, yin)
+
+
+def test_a_hearing_keeps_its_tune_and_a_song_lesson_holds_it():
+    from core.perception.perception_faculty import PerceptionFaculty, _encode
+    line = np.array([0.0, 2.0, 4.0, 5.0, 7.0, 5.0, 4.0, 2.0, 0.0], np.float32)
+    marks = np.array([[10, 20, 3, 0], [11, 25, 4, 7]], dtype=np.int32)
+    trace = hearing.trace_bytes({"samples": 1, "segments": [], "ground": None}, marks,
+                                marks, line)
+    assert np.allclose(hearing.trace_tune(trace), line)
+    faculty = PerceptionFaculty()
+    assert faculty.hold_lesson({"lesson": {"song": "Ode"}, "trace": _encode(trace)})
+    assert np.allclose(faculty._tunes["Ode"][0]["line"], line)
+    assert faculty._tunes["Ode"][0]["mix"] is False
+    assert "Ode" in faculty._hearing_library()["tunes"]
+    # A song taught from a mix says its tune was read from the mix's melody.
+    mixed = hearing.trace_bytes({"samples": 1, "segments": [], "ground": None}, marks,
+                                marks, line, tune_from_mix=True)
+    assert hearing.trace_tune_from_mix(mixed) and not hearing.trace_tune_from_mix(trace)
+    assert faculty.hold_lesson({"lesson": {"song": "Ode"}, "trace": _encode(mixed)})
+    assert faculty._tunes["Ode"][1]["mix"] is True
+    # A hearing that was not a single line keeps no tune.
+    assert hearing.trace_tune(hearing.trace_bytes(
+        {"samples": 1, "segments": [], "ground": None}, None, marks)) is None
+
+
+def test_a_tune_heard_reaches_the_percept_and_its_claims():
+    from core.agents.autonomous.autonomous_coordinator import AutonomousCoordinator
+    from core.perception.perception_faculty import PerceptionFaculty
+    found = PerceptionFaculty._music_content(
+        {"music": {"claims": {}}, "tunes": [{"song": "Ode to Joy", "cost": 0.4,
+                                              "ratio": 0.5, "support": 1.0}]})
+    assert found["has_tune_of"] == [{"song": "Ode to Joy", "ratio": 0.5, "support": 1.0}]
+    assert PerceptionFaculty._music_caption(found) == '; the tune of "Ode to Joy"'
+    assert "hum has_tune_of ode_to_joy" in AutonomousCoordinator._sensed_claims("hum", found)
+
+
 def test_music_reaches_the_percept_and_its_claims():
     from core.agents.autonomous.autonomous_coordinator import AutonomousCoordinator
     from core.perception.perception_faculty import PerceptionFaculty

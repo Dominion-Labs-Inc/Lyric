@@ -257,7 +257,7 @@ class RecoveryManager:
     #: DELIBERATELY ABSENT, so nobody adds a handler that reports a recovery it
     #: cannot perform:
     #:
-    #:   security / governance -- never restarted from inside the substrate;
+    #:   security / the Constitution -- never restarted from inside the substrate;
     #:                process supervision belongs to the container it runs in.
     #:   monitoring / watchdog -- retired; the health monitor is the one
     #:                health authority and nothing restarts it in-process.
@@ -950,7 +950,7 @@ class RecoveryManager:
         failure_type: FailureType,
         metadata: Dict[str, Any]
     ):
-        """Escalate failure to higher level with Slack notification"""
+        """Escalate failure to higher level"""
         logger.error(f"Escalating failure for component: {component}")
         await self._send_alert(component, failure_type, metadata)
 
@@ -960,18 +960,8 @@ class RecoveryManager:
         failure_type: FailureType,
         metadata: Dict[str, Any]
     ):
-        """Send alert to Slack monitoring"""
-        logger.warning(f"Alert: {failure_type.value} in {component}")
-
-        try:
-            from core.integration.slack_notifier import get_slack_notifier
-            slack = get_slack_notifier()
-            await slack.send_message(
-                f"🚨 System Alert: {failure_type.value} in {component}\nMetadata: {metadata}",
-                channel="ALERTS"
-            )
-        except Exception as e:
-            logger.error(f"Failed to send Slack alert: {e}")
+        """Raise an alert for a failed component, in the log."""
+        logger.warning(f"Alert: {failure_type.value} in {component}: {metadata}")
 
     async def _persist_failure(self, failure: FailureEvent):
         """Persist failure event to database"""

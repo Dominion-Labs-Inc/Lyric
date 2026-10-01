@@ -93,8 +93,14 @@ DEFAULTS: Dict[str, Any] = {
     "database": "lyric_db",
     "user": "postgres",
     "password": "",
-    "pool_min_size": 5,
-    "pool_max_size": 20,
+    # No connection is kept for its own sake: a pool opens one when a statement
+    # needs it and closes it once it has sat idle `pool_idle_seconds`, opening
+    # it again when it is needed. At most a hundred per process: sixty tasks at
+    # once and everything else the process does, with the server (250) left
+    # room for a second process and for scripts.
+    "pool_min_size": 0,
+    "pool_max_size": 100,
+    "pool_idle_seconds": 60,
     "environment": "development",
     "release": "",
 }
@@ -107,6 +113,7 @@ ENV_KEYS: Dict[str, str] = {
     "password": "POSTGRES_PASSWORD",
     "pool_min_size": "POSTGRES_POOL_MIN_SIZE",
     "pool_max_size": "POSTGRES_POOL_MAX_SIZE",
+    "pool_idle_seconds": "POSTGRES_POOL_IDLE_SECONDS",
     "environment": "LYRIC_ENVIRONMENT",
     "release": "LYRIC_RELEASE",
 }
@@ -155,7 +162,7 @@ STORE_TABLES: Dict[str, frozenset] = {
 #: person's rows are that person's context. The table exists in both databases, so the table cannot decide:
 #: the caller names the store (shared_types.store_for_owner, and the manager's `write_store` for a write).
 #:   memories, their images and archive log, the questions it could not answer, the experiences waiting in
-#:   the pool, perceptions, and what reasoning wrote down (arguments, temporal knowledge, hypotheses with their
+#:   the pool, and what reasoning wrote down (arguments, temporal knowledge, hypotheses with their
 #:   experiments and evidence): the substrate's are the model (and, while serving frozen, the ones it makes go
 #:   to the learning store);
 #:   an intent's content (`scoped_intents`): the substrate's own intents are runtime, beside their shape rows
@@ -166,7 +173,7 @@ PER_OWNER_TABLES: Dict[str, str] = {
     **{table: "model" for table in (
         _qualified("memory_hot", "memory_hot archive_log")
         | _qualified("memory_cold", "memory_cold")
-        | _qualified("unified", "memory_media known_unknowns experience_pool perceptions "
+        | _qualified("unified", "memory_media known_unknowns experience_pool "
                      "reasoning_arg_claims reasoning_arguments reasoning_arg_fallacies "
                      "reasoning_temporal_propositions reasoning_temporal_causal_links "
                      "hypotheses experiments evidence"))},
@@ -420,7 +427,7 @@ def schema_requirements(statement: str, search_schema: str = "unified") -> Optio
     return None
 
 
-_INTEGERS = {"port", "pool_min_size", "pool_max_size"}
+_INTEGERS = {"port", "pool_min_size", "pool_max_size", "pool_idle_seconds"}
 
 
 class DatabaseIdentityError(RuntimeError):
@@ -443,6 +450,8 @@ class PostgresConfig:
     password: str
     pool_min_size: int
     pool_max_size: int
+    #: seconds a pooled connection may sit idle before it is closed
+    pool_idle_seconds: int
     #: development, staging or production (ENVIRONMENTS)
     environment: str
     #: the release a staging or production process serves; None in development

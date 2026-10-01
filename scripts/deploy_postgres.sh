@@ -58,8 +58,8 @@ fi
 echo -e "${GREEN}✓${NC} pgvector extension installed"
 
 # Check data migration
-LAWS_COUNT=$(psql -U stefan -d lyric_db -t -c "SELECT COUNT(*) FROM unified.governance_laws" | xargs)
-echo -e "${GREEN}✓${NC} Governance laws in PostgreSQL: $LAWS_COUNT"
+LAWS_COUNT=$(cd "$PROJECT_ROOT" && ./venv_lyric/bin/python3 -c "from core.agents.autonomous.autonomous_coordinator import Constitution; print(len(Constitution().laws))" 2>/dev/null | tail -1)
+echo -e "${GREEN}✓${NC} Constitution laws: $LAWS_COUNT"
 
 MEMORIES_COUNT=$(psql -U stefan -d lyric_db -t -c "SELECT COUNT(*) FROM memory_hot.memory_hot WHERE embedding IS NOT NULL" | xargs)
 echo -e "${GREEN}✓${NC} Memories with embeddings: $MEMORIES_COUNT"
@@ -138,12 +138,9 @@ async def health_check():
         await db.initialize()
         print("✓ PostgreSQL connection successful")
 
-        # Check governance laws
-        laws = await db.execute_query(
-            "SELECT COUNT(*) as count FROM unified.governance_laws",
-            fetch_one=True
-        )
-        print(f"✓ Governance laws: {laws['count']}")
+        # The laws are the Constitution's, held in code
+        from core.agents.autonomous.autonomous_coordinator import Constitution
+        print(f"✓ Constitution laws: {len(Constitution().laws)}")
 
         # Check memory with embeddings
         memories = await db.execute_query(

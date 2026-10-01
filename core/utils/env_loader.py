@@ -12,68 +12,38 @@ Resolution order:
 
 import os
 import logging
-import subprocess
 from pathlib import Path
-from typing import Optional, Iterable
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_ENV_FILES: tuple[str, ...] = (".env.production", ".env")
 
 
-def _candidate_roots() -> Iterable[Path]:
-    """Return likely repo roots to search for env files."""
-    here = Path(__file__).resolve()
-
-    # Lyric/core/utils/env_loader.py -> Lyric
-    lyric_root = here.parents[2]
-    yield lyric_root
-
-    # Workspace root (one above Lyric)
-    workspace_root = here.parents[3]
-    yield workspace_root
-
-    # Current working directory (useful when running scripts)
-    yield Path.cwd()
-
-
 def resolve_env_files() -> list[Path]:
-    """The env files to load, in BASE→OVERRIDE order (later files win).
+    """The env files to load: the substrate's OWN, and nothing else.
 
-    THE MASTER LIVES OUTSIDE THE AI FOLDER. The Dominion Labs workspace `.env`
-    (one above Lyric) is the single source of every shared credential the AI
-    needs -- Cloudflare, threat-intelligence (ABUSEIPDB/VIRUSTOTAL/OTX), and the
-    rest. Lyric's own `.env.production`/`.env` are the AI-specific layer that
-    OVERRIDES the master where they disagree.
-
-    The previous resolver returned the FIRST file it found, and it searched the
-    Lyric root first, so it loaded only the local partial file and never the
-    master -- which is exactly why threat_intel had zero sources despite the
-    keys existing. Loading the workspace master as a base, then the local files
-    on top, gives the process every key with the local layer still winning.
-
-    The workspace `.env` also carries PG_*/agentso credentials for the sibling
-    web app; those are inert here because Lyric reads POSTGRES_*/DB_* through
-    PostgresConfig (which asserts its own database identity) and nothing reads
-    PG_*. So the master can be a safe base without repointing the database.
+    This used to layer the Dominion Labs workspace `.env` (every company
+    credential: payments, email, cloud storage, other products) under Lyric's
+    own file, so the substrate's process held 158 keys it never reads. Measured
+    2026-10-01: Lyric's code reads no key that exists only in the workspace file
+    (the threat-intelligence and DB readers that named some were dead). The
+    substrate holds its own keys, in its own file, which it may add to through
+    `core.security.secrets`.
     """
     explicit = os.getenv("LYRIC_ENV_FILE") or os.getenv("DOMINION_ENV_FILE")
     if explicit:
         p = Path(explicit).expanduser().resolve()
         return [p] if p.exists() else []
 
-    here = Path(__file__).resolve()
-    lyric_root = here.parents[2]
-    workspace_root = here.parents[3]
-
+    lyric_root = Path(__file__).resolve().parents[2]
     files: list[Path] = []
-    # Base first (workspace master), then the AI-specific overrides. Within a
-    # location, .env.production before .env so .env still wins locally.
-    for root in (workspace_root, lyric_root):
-        for name in (".env.production", ".env"):
-            candidate = root / name
-            if candidate.exists() and candidate not in files:
-                files.append(candidate)
+    # .env.production before .env so .env still wins locally; `.env` is
+    # normally a link to `.env.production`, and one file is loaded once.
+    for name in (".env.production", ".env"):
+        candidate = lyric_root / name
+        if candidate.exists() and candidate.resolve() not in {f.resolve() for f in files}:
+            files.append(candidate)
     return files
 
 
@@ -81,8 +51,7 @@ def resolve_env_file() -> Optional[Path]:
     """The single winning env file (the last override), for messaging.
 
     Kept for callers that want one representative path. The real loading uses
-    `resolve_env_files()`, which layers the workspace master under the local
-    overrides.
+    `resolve_env_files()`.
     """
     files = resolve_env_files()
     return files[-1] if files else None
@@ -213,135 +182,22 @@ def get_cloudflare_credentials() -> dict:
     }
 
 
-def get_threat_intel_keys() -> dict:
-    """
-    Get threat intelligence API keys from global .env
-
-    Returns:
-        Dictionary with abuseipdb_key, virustotal_key, otx_key
-    """
-    return {
-        'abuseipdb_key': get_env('ABUSEIPDB_API_KEY'),
-        'virustotal_key': get_env('VIRUSTOTAL_API_KEY'),
-        'otx_key': get_env('OTX_API_KEY')
-    }
-
-
-def get_database_credentials() -> dict:
-    """
-    Get database credentials from global .env
-
-    Returns:
-        Dictionary with host, port, user, password, database
-    """
-    return {
-        'host': get_env('DB_HOST', 'localhost'),
-        # Lyric's own instance. 5432 is the shared agentso one.
-        'port': int(get_env('DB_PORT', '5433')),
-        'user': get_env('DB_USER', 'postgres'),
-        'password': get_env('DB_PASSWORD'),
-        'database': get_env('DB_NAME', 'lyric_db')
-    }
-
-
-def list_available_env_vars() -> list:
-    """
-    List all environment variables loaded from global .env
-
-    Returns:
-        List of (key, value) tuples (passwords/tokens are masked)
-    """
-    load_global_env()
-
-    sensitive_keywords = ['password', 'token', 'key', 'secret', 'credential']
-
-    env_vars = []
-    for key, value in os.environ.items():
-        # Skip system environment variables
-        if key.startswith('_') or key in ['PATH', 'HOME', 'USER', 'SHELL']:
-            continue
-
-        # Mask sensitive values
-        is_sensitive = any(kw in key.lower() for kw in sensitive_keywords)
-        display_value = '***MASKED***' if is_sensitive and value else value
-
-        env_vars.append((key, display_value))
-
-    return sorted(env_vars)
-
-
 def get_github_token() -> Optional[str]:
-    """
-    Resolve a GitHub personal access token from every available credential source.
+    """The substrate's GitHub token: `GITHUB_TOKEN` (or `GH_TOKEN`) from its own
+    key file, or None.
 
-    Resolution order (first non-empty value wins):
-      1. Environment variables — GITHUB_TOKEN, GH_TOKEN, GITHUB_PAT,
-         PERSONAL_ACCESS_TOKEN, GH_ACCESS_TOKEN, GITHUB_ACCESS_TOKEN, GIT_TOKEN
-      2. gh CLI  — ``gh auth token``  (works when VS Code / gh CLI is authenticated)
-      3. macOS Keychain  — ``git credential-osxkeychain get``
-      4. Generic git credential helper — ``git credential fill``
-
-    Returns:
-        The token string, or None if nothing was found.
+    This used to fall through to the gh CLI, the macOS Keychain and
+    `git credential fill`, so with no token of its own the substrate took the
+    owner's personal GitHub login. A credential it was not given is not one it
+    may use; the substrate has its own token.
     """
     load_global_env()
-
-    # 1. Environment variables
-    for var in (
-        "GITHUB_TOKEN", "GH_TOKEN", "GITHUB_PAT",
-        "PERSONAL_ACCESS_TOKEN", "GH_ACCESS_TOKEN",
-        "GITHUB_ACCESS_TOKEN", "GIT_TOKEN",
-    ):
+    for var in ("GITHUB_TOKEN", "GH_TOKEN"):
         val = os.getenv(var, "").strip()
         if val and not val.startswith("#"):
-            logger.debug(f"GitHub token resolved from env var: {var}")
             return val
-
-    # 2. gh CLI
-    try:
-        r = subprocess.run(
-            ["gh", "auth", "token"],
-            capture_output=True, text=True, timeout=5,
-        )
-        tok = r.stdout.strip()
-        if tok and r.returncode == 0:
-            logger.debug("GitHub token resolved via gh CLI")
-            return tok
-    except Exception:
-        pass
-
-    # 3. macOS Keychain via git-credential-osxkeychain
-    try:
-        r = subprocess.run(
-            ["git", "credential-osxkeychain", "get"],
-            input="protocol=https\nhost=github.com\n",
-            capture_output=True, text=True, timeout=5,
-        )
-        for line in r.stdout.splitlines():
-            if line.startswith("password="):
-                logger.debug("GitHub token resolved from macOS Keychain")
-                return line.split("=", 1)[1].strip()
-    except Exception:
-        pass
-
-    # 4. Generic git credential fill (any configured helper)
-    try:
-        r = subprocess.run(
-            ["git", "credential", "fill"],
-            input="protocol=https\nhost=github.com\n",
-            capture_output=True, text=True, timeout=5,
-        )
-        for line in r.stdout.splitlines():
-            if line.startswith("password="):
-                logger.debug("GitHub token resolved via git credential fill")
-                return line.split("=", 1)[1].strip()
-    except Exception:
-        pass
-
-    logger.warning(
-        "get_github_token(): no token found. Checked env vars, gh CLI, "
-        "osxkeychain, and git-credential-fill."
-    )
+    logger.warning("get_github_token(): the substrate holds no GitHub token "
+                   "(GITHUB_TOKEN in its key file)")
     return None
 
 

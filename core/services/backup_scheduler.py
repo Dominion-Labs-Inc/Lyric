@@ -141,7 +141,6 @@ class BackupScheduler:
 
         # Integration points
         self.database = None
-        self.slack_notifier = None
         self._catalog_ready = False
 
         logger.info(f"BackupScheduler initialized (backup_dir={self.backup_dir})")
@@ -405,10 +404,6 @@ class BackupScheduler:
 
             logger.info(f"Backup completed: {record_id} ({record.file_size} bytes)")
 
-            # Notify success
-            if self.slack_notifier:
-                await self._notify_backup_success(record)
-
         except Exception as e:
             logger.error(f"Backup failed: {e}")
 
@@ -417,10 +412,6 @@ class BackupScheduler:
             record.end_time = datetime.now()
 
             self.stats['failed_backups'] += 1
-
-            # Notify failure
-            if self.slack_notifier:
-                await self._notify_backup_failure(record, str(e))
 
     async def _create_backup(
         self,
@@ -526,47 +517,6 @@ class BackupScheduler:
             except Exception as e:
                 logger.error(f"Failed to delete old backup: {e}")
 
-    async def _notify_backup_success(self, record: BackupRecord):
-        """Notify backup success"""
-        if not self.slack_notifier:
-            return
-
-        try:
-            await self.slack_notifier.send_message(
-                channel="ACTIVITY",
-                title="Backup Completed",
-                message=f"Backup {record.record_id} completed successfully",
-                metadata={
-                    'backup_id': record.backup_id,
-                    'size_mb': round(record.file_size / 1024 / 1024, 2),
-                    'duration_seconds': (
-                        (record.end_time - record.start_time).total_seconds()
-                        if record.end_time else 0
-                    )
-                }
-            )
-        except Exception as e:
-            logger.error(f"Failed to send Slack notification: {e}")
-
-    async def _notify_backup_failure(self, record: BackupRecord, error: str):
-        """Notify backup failure"""
-        if not self.slack_notifier:
-            return
-
-        try:
-            await self.slack_notifier.send_message(
-                channel="ALERTS",
-                title="Backup Failed",
-                message=f"Backup {record.record_id} failed: {error}",
-                severity="high",
-                metadata={
-                    'backup_id': record.backup_id,
-                    'error': error
-                }
-            )
-        except Exception as e:
-            logger.error(f"Failed to send Slack notification: {e}")
-
     async def add_backup_config(
         self,
         backup_id: str,
@@ -661,7 +611,6 @@ class BackupScheduler:
                     f"No usable backup archive found. Checked {len(skipped)} record(s); "
                     f"every archive is missing or corrupted."
                 )
-                await self._notify_restore_unavailable(record, skipped)
                 return False
 
             if usable.record_id != record.record_id:
@@ -670,7 +619,6 @@ class BackupScheduler:
                     f"({skipped[0][1] if skipped else 'unavailable'}). "
                     f"Restoring from {usable.record_id} ({usable.start_time}) instead."
                 )
-                await self._notify_restore_substituted(record, usable, skipped)
 
             # Extract backup
             restore_path = request.restore_path or self.data_dir
@@ -730,61 +678,6 @@ class BackupScheduler:
         record.metadata['archive_checked_at'] = datetime.now().isoformat()
         await self._persist_record(record)
         logger.warning(f"Backup {record.record_id} marked unusable: {reason}")
-
-    async def _notify_restore_substituted(
-        self,
-        requested: BackupRecord,
-        used: BackupRecord,
-        skipped: List
-    ):
-        """Notify that a restore succeeded from a different backup than requested."""
-        if not self.slack_notifier:
-            return
-
-        try:
-            await self.slack_notifier.send_message(
-                channel="ALERTS",
-                title="Restore Used a Fallback Backup",
-                message=(
-                    f"Requested backup {requested.record_id} was unusable. "
-                    f"Restored from {used.record_id} ({used.start_time}) instead."
-                ),
-                severity="high",
-                metadata={
-                    'requested_record': requested.record_id,
-                    'restored_record': used.record_id,
-                    'restored_from': used.start_time.isoformat(),
-                    'skipped': [
-                        {'record_id': r.record_id, 'reason': why} for r, why in skipped
-                    ],
-                }
-            )
-        except Exception as e:
-            logger.error(f"Failed to send Slack notification: {e}")
-
-    async def _notify_restore_unavailable(self, requested: BackupRecord, skipped: List):
-        """Notify that no usable archive exists at all."""
-        if not self.slack_notifier:
-            return
-
-        try:
-            await self.slack_notifier.send_message(
-                channel="ALERTS",
-                title="Restore Failed — No Usable Backup",
-                message=(
-                    f"Restore of {requested.record_id} failed. "
-                    f"All {len(skipped)} candidate archive(s) are missing or corrupted."
-                ),
-                severity="critical",
-                metadata={
-                    'requested_record': requested.record_id,
-                    'skipped': [
-                        {'record_id': r.record_id, 'reason': why} for r, why in skipped
-                    ],
-                }
-            )
-        except Exception as e:
-            logger.error(f"Failed to send Slack notification: {e}")
 
     async def verify_backup(
         self,
@@ -873,12 +766,6 @@ class BackupScheduler:
         """Set database integration"""
         self.database = database
         logger.info("Database integration configured")
-
-    def set_slack_notifier(self, slack_notifier):
-        """Set Slack notifier integration"""
-        self.slack_notifier = slack_notifier
-        logger.info("Slack notifier integration configured")
-
 
 # Global instance
 _backup_scheduler: Optional[BackupScheduler] = None

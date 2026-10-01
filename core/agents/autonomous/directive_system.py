@@ -6,7 +6,7 @@ Main directive orchestration:
 - Integrates DirectiveManager (CRUD)
 - Coordinates A/B testing
 - Tracks evolution
-- Governance validation
+- Constitutional validation
 - Applies directives to decisions
 """
 
@@ -39,7 +39,7 @@ class DirectiveSystem:
     2. Learning authority (MetaLearner) - owns directive effectiveness + variant
        selection (directives are arms); credited via log_directive_application
     3. DirectiveEvolutionEngine - lifecycle EVENT LOG (not a learner)
-    4. The Constitution - a directive may not tell the substrate to set aside its governance
+    4. The Constitution - a directive may not tell the substrate to set aside its laws
 
     Usage:
     - Query active directives by category
@@ -47,7 +47,7 @@ class DirectiveSystem:
     - Update directive performance
     - Create A/B tests for variants
     - Track evolution history
-    - Validate against governance
+    - Validate against the Constitution
 
     Integration with Autonomous Coordinator:
     - Planning phase queries directives
@@ -94,7 +94,7 @@ class DirectiveSystem:
             'directives_created': 0,
             'directives_promoted': 0,
             'directives_deprecated': 0,
-            'directives_rejected_by_governance': 0
+            'directives_rejected_by_constitution': 0
         }
 
         # Initialization flag
@@ -419,7 +419,7 @@ class DirectiveSystem:
                             "(trials=%d, success_rate=%.2f)", did, trials, rate)
         return promoted
 
-    async def create_directive_with_governance(
+    async def create_directive(
         self,
         directive_name: str,
         category: DirectiveCategory,
@@ -466,7 +466,7 @@ class DirectiveSystem:
             "judgment_id": judgment.judgment_id,
         }
         if not judgment.allowed:
-            self.metrics['directives_rejected_by_governance'] += 1
+            self.metrics['directives_rejected_by_constitution'] += 1
             logger.warning("Directive '%s' REFUSED by the constitution (Law %d): "
                            "%s — not persisted", directive_name,
                            judgment.law_number, judgment.reason)
@@ -481,14 +481,14 @@ class DirectiveSystem:
             return None
         directive_id = directive.directive_id
 
-        # Log evolution (CREATED) carrying the governance verdict.
+        # Log evolution (CREATED) carrying the Constitution's verdict.
         await self.evolution_engine.log_evolution(
             directive_id=directive_id,
             evolution_type=EvolutionType.CREATED,
             previous_version=None,
             new_version=1,
             changes={'created': True, 'created_by': created_by,
-                     'governance_validation': validation},
+                     'constitution_validation': validation},
             trigger_reason=(f"Created by {created_by}; allowed by the "
                             f"constitution ({validation['judgment_id']})")
         )

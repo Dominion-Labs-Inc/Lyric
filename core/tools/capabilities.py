@@ -329,7 +329,7 @@ class Capability(Enum):
 
 
 class RiskLevel(Enum):
-    """Risk level for capability operations, integrates with governance system"""
+    """Risk level for capability operations, read by the Constitution"""
     LOW = "low"                # Safe operations (read files, list data)
     MEDIUM = "medium"          # Moderate risk (write files, run queries)
     HIGH = "high"              # High risk (delete data, modify system)
@@ -359,7 +359,7 @@ class CapabilityMetadata:
     cost: str = "low"                          # low, medium, high (compute/API costs)
     reliability: str = "high"                  # low, medium, high
 
-    # Governance-integrated safety model (replaces binary requires_approval)
+    # Safety model the Constitution reads (replaces binary requires_approval)
     #: WHAT THE TOOL DECLARES ABOUT ITSELF, per capability.
     #:
     #: This is a CAPABILITY prior, not a reading of an invocation, and the two
@@ -613,11 +613,10 @@ class ToolCapabilityProfile:
 
     # requires_approval() REMOVED. It read `CapabilityMetadata.risk_level` to
     # decide whether a capability needed sign-off, and had ZERO callers -- so
-    # it described an approval tier that nothing consulted, for a
-    # governance-session model that no longer exists. Risk is decided per
-    # invocation now, by `governance_triggers.blocking_mode`,
-    # from evidence about the invocation rather than a static per-capability
-    # annotation.
+    # it described an approval tier that nothing consulted, for an
+    # approval-session model that no longer exists. Risk is decided per
+    # invocation now, by the Constitution, from evidence about the invocation
+    # rather than a static per-capability annotation.
 
 
 # ========== CAPABILITY HELPERS ==========

@@ -162,11 +162,27 @@ Each links to its exhaustive method reference.
 - **Semantics-write** — [`architecture/semantics-ingress.md`](architecture/semantics-ingress.md).
   `CognitiveIngress`: the one door knowledge comes through (admit → concepts + aliases +
   evidence + memory), with the `MIN_ADMIT_QUALITY` floor.
-- **Perception** — the one sensory pipeline. `coord.see(path)` and `coord.hear(path)` *sense*
-  (classical CV and classical signal processing, no model) through ONE faculty
-  (`PerceptionFaculty`, readers `vision` and `hearing`) and route the structure through
-  `PerceptionManager.process_input`, the **sole admitter** — every modality (vision, hearing,
-  sensors) admitted once, through one owner. Hearing states each sound as a perceived
+- **Perception** — the substrate's own senses: sight, hearing and READING, each its own as a
+  person's eyes and ears are theirs, none doing another's work. `coord.perceive_moment(things)`
+  is the ONE act: everything met at one moment taken in by every sense that can, AT THE SAME
+  TIME (a clip seen and heard; a word said to it and the room it was said in; a page read beside
+  a picture), as ONE experience — one memory keeping what each sense keeps (`remember_met`), one
+  hand-over to the memory agent. `coord.see`, `coord.hear`, `coord.read` and `coord.take_in`
+  are its doors; a door takes in a thing when its sense can, and then every sense that can does.
+  The senses measure (classical CV, classical signal processing, the opening of a text; no
+  model) in `PerceptionFaculty` (`vision`, `hearing`, `reading`), which admits what they took
+  in (`admit_percept`), the **sole admitter** — every sense (and sensors) admitted once, on one
+  contract (`evidence_producers._submit_perceived`), as evidence about that memory, and held in
+  its awareness of what is being perceived now. READING IS THE SUBSTRATE'S OWN (READ-01): a
+  file of written words — PDF, Word, Excel, any text, by what its bytes are — is opened in
+  reading's own process; its lines go to the substrate's one reader (`derived_reader.stated`),
+  as a sentence typed or said does, yielding between lines so it thinks while it reads; what
+  they state is held as what the document said, at the learning door's floor, and the document
+  `mentions` what it is about (a person's document goes to their context); the reading is
+  recorded in the reading ledger; and the same text met again — or a new version of it, or a
+  page of it quoted elsewhere — is known by its runs of words (`reading.shingles`, memory's
+  `text` strategy, `same_text_as`), as a sound is by its landmarks and a picture by its
+  keypoints. The environment scan takes each file in through the same act. Hearing states each sound as a perceived
   individual on sight's own contract (`isa` pitched/unpitched, register, onset; level, start
   and length as facts about the recording; `before`/`louder_than`/`higher_than` between
   neighbours), so the naming reflex, induction and `describe_kind` serve it unchanged, and it
@@ -192,16 +208,17 @@ Each links to its exhaustive method reference.
   A SONG is taught as a word is, by hearing it, told its title (`coord.learn_song`); its trace
   keeps the song's landmarks, and a recording playing it is known by the share of landmarks
   that agree (`plays`), through a room and a codec (SONGS-01). EACH SENSE MEASURES IN A PROCESS OF ITS OWN
-  (`core.perception.senses`): sight and hearing are programs the faculty talks to over pipes,
-  so the substrate hears, sees and reasons at the same time; a sense process found dead is
+  (`core.perception.senses`): sight, hearing and reading are programs the faculty talks to over
+  pipes, so the substrate sees, hears, reads and reasons at the same time; a sense process found dead is
   started again and the perception given to it once (SENSES-TOGETHER-01). THE LIVE SENSES
   (`core.perception.live`) listen to a microphone and look at a camera for as long as the
   substrate runs (`core/main.py`'s `run`, never a bare `start`); the ear cuts the stream into
   utterances by hearing's own sounds and keeps one only when the substrate's taught NAME is in
   it, or taught words are firmly heard in it within attention of one that was -- everything
-  else is dropped inside the ear's process. A kept utterance is heard through `hear`, the scene
-  looked at through `see`, and a complete hearing goes to the front door
-  (`handle_user_request`), the same conversation typed words go to (LIVE-01).
+  else is dropped inside the ear's process. A kept utterance and the scene of that moment are
+  taken in as ONE moment (`perceive_moment`: one memory, both traces), and a complete hearing
+  goes to the front door (`handle_user_request`), the same conversation typed words go to
+  (LIVE-01).
   `coord.perceive(classifier, instance, id)` recognizes and lets the recognition's
   posterior govern behaviour through the **same acceptance band as completion**, emitting
   `PERCEPT_RECOGNIZED` → `_react_percept` (ACT stands; VERIFY → known-unknown; ABSTAIN
@@ -213,7 +230,7 @@ Each links to its exhaustive method reference.
 - **Governance** — [`architecture/security.md`](architecture/security.md). The substrate's own law,
   held by the `Constitution` inside the coordinator and applied at the single gate every tool call
   passes (`tool_registry.execute_tool`); self-defense is the Constitution and `ThreatSense`
-  together. World/DHCM security lives in the world's factory, outside Lyric.
+  together. World/Tet security lives in the world's factory, outside Lyric.
 - **The body / coordinator** — [`architecture/coordinator.md`](architecture/coordinator.md).
   Holds every authority; execution faculty (`execute_task`), the self (`state`/`render`/
   `disposition`), grounded completion (`_derive_completion_anchor`→`_decide_completion`, DID+SAW),

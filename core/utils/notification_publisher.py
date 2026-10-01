@@ -2,9 +2,7 @@
 #!/usr/bin/env python3
 """
 Notification Publisher for Lyric
-Sends notifications to Slack channels for immediate visibility.
-
-Also publishes to API Gateway (for notification dashboard/governance sessions).
+Publishes notifications to the API Gateway, for the notification dashboard.
 """
 import os
 import json
@@ -19,11 +17,6 @@ try:
     import httpx
 except Exception:
     httpx = None
-
-# SLACK REMOVED 2026-08-25. Outbound Slack notifications are retired; the Slack
-# TOOL (core/tools/slack_tools) is separate and unaffected. Forced off here so
-# the publisher never attempts a Slack send and never logs a "Slack fallback".
-SLACK_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
@@ -100,12 +93,11 @@ def _gateway_base() -> str:
 async def publish_notification(
     payload: Dict[str, Any],
     notify_token: Optional[str] = None,
-    send_to_slack: bool = True,
     max_retries: int = 3,
     skip_deduplication: bool = False
 ) -> bool:
     """
-    Publish notification to API Gateway and optionally to Slack
+    Publish notification to API Gateway
 
     Includes retry logic with exponential backoff to handle API gateway startup delays.
     Implements deduplication to prevent duplicate notifications within a 60-second window.
@@ -119,28 +111,23 @@ async def publish_notification(
             - status: Notification status
             - metadata: Additional metadata dict (optional)
         notify_token: Optional authentication token
-        send_to_slack: Whether to also send to Slack (default True)
         max_retries: Maximum retry attempts for API gateway (default 3)
         skip_deduplication: If True, bypass deduplication check (default False)
 
     Returns:
-        bool: True if API Gateway publish succeeded OR Slack succeeded (fallback)
+        bool: True if the API Gateway publish succeeded
     """
     # Check for duplicate notifications (unless explicitly skipped)
     if not skip_deduplication and _deduplicator.is_duplicate(payload):
         return True  # Return True to indicate "handled" (just suppressed)
 
     if httpx is None:
-        # If httpx unavailable, try Slack only
-        if send_to_slack and SLACK_AVAILABLE:
-            try:
-                asyncio.create_task(send_slack_notification(payload))
-                return True
-            except Exception:
-                pass
         return False
 
-    p = _make_serializable(dict(payload))
+    # A notification leaves the process; a key in an error message or a
+    # parameter preview must not leave with it (core.security.secrets).
+    from core.security.secrets import get_secrets_authority
+    p = get_secrets_authority().redact(_make_serializable(dict(payload)))
     p.setdefault('time', datetime.now().isoformat())
 
     # Send to API Gateway with retry logic
@@ -178,18 +165,7 @@ async def publish_notification(
             logger.error(f"Unexpected error publishing to API Gateway: {e}")
             break
 
-    # Send to Slack (always attempt if enabled, even if gateway succeeded)
-    slack_success = False
-    if send_to_slack and SLACK_AVAILABLE:
-        try:
-            # AWAIT instead of fire-and-forget so we know if it succeeds
-            slack_success = await send_slack_notification(p)
-        except Exception as e:
-            logger.warning(f"Failed to send Slack notification: {e}")
-            slack_success = False
-
-    # Success if either gateway OR Slack worked
-    return gateway_success or slack_success
+    return gateway_success
 
 
 async def send_system_notification(
@@ -230,4 +206,4 @@ async def send_system_notification(
         'status': severity,
         'color': color_map.get(severity, '#36a64f'),
         'metadata': metadata or {}
-    }, send_to_slack=True)
+    })

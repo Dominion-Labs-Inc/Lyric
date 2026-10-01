@@ -1,0 +1,157 @@
+{
+  "experiment": "MEMORY-SIGHT-01",
+  "claim": "The memory agent knows what the substrate has seen before, by the picture itself: a seeing keeps its gist and sight trace and never the photograph; the same picture resized and re-encoded, and the same object from another view, are known as seen before -- in words, in the graph and as a belief; a different object is not; a thing shown later and named names the earlier seeing and is then known by name; recall by sight is injected; a person's seeing is recalled only for that person.",
+  "hypothesis": "H1 the same picture re-encoded is known by its difference hash. H2 another view of the same object agrees on one geometry (at least 20 keypoints). H3 a different object does not. H4 naming reaches back. H5 recall by sight respects whose memories may be seen.",
+  "started_at": "2026-09-29T21:17:23.564175+00:00",
+  "duration_seconds": 22.859,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/Lyric/venv_lyric/bin/python3",
+    "platform": "macOS-26.5.2-arm64-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/Lyric",
+    "shadow_mode": null,
+    "git_commit": null,
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "lyric_dev",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "lyric_dev",
+        "model": "lyric_dev",
+        "user_context": "lyric_dev",
+        "learning": "lyric_dev"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "dotenv:.env.postgres",
+        "database": "environment",
+        "user": "dotenv:.env.postgres",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": null,
+    "database_verified": "lyric_dev",
+    "database_verified_reason": "asked the server"
+  },
+  "summary": {
+    "checks": 17,
+    "passed": 17,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [],
+  "checks": [
+    {
+      "label": "its memory keeps the sight trace and the gist, and no photograph",
+      "passed": true,
+      "detail": "application/x-npz, 56418 bytes of a 243673-byte photograph",
+      "at": "2026-09-29T21:17:38.436206+00:00"
+    },
+    {
+      "label": "and it is seen again from memory, at its proportions",
+      "passed": true,
+      "detail": "(480, 640, 3)",
+      "at": "2026-09-29T21:17:38.450437+00:00"
+    },
+    {
+      "label": "the first seeing had nothing to recall",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-09-29T21:17:38.450449+00:00"
+    },
+    {
+      "label": "it is known as the same picture seen before",
+      "passed": true,
+      "detail": "[('mem_3c1cf675aa2947519f5cbbb7f2f66bce', True, 1.0)]",
+      "at": "2026-09-29T21:17:38.775339+00:00"
+    },
+    {
+      "label": "and says so in words, and when",
+      "passed": true,
+      "detail": "320x240 jpeg image, 4 region(s); seen before, 1 time(s), last on 2026-09-29 17:17",
+      "at": "2026-09-29T21:17:38.775422+00:00"
+    },
+    {
+      "label": "the graph holds it: the same thing as the first",
+      "passed": true,
+      "detail": "vfc98cereencodedxfb90205907 ('same_thing_as', 'vfc98cefirstx2237caf492')",
+      "at": "2026-09-29T21:17:38.776116+00:00"
+    },
+    {
+      "label": "and believes it",
+      "passed": true,
+      "detail": "vfc98cereencodedxfb90205907 same_thing_as vfc98cefirstx2237caf492",
+      "at": "2026-09-29T21:17:38.776712+00:00"
+    },
+    {
+      "label": "both earlier seenings of it are recalled, by their keypoints",
+      "passed": true,
+      "detail": "[('mem_3c1cf675aa2947519f5cbbb7f2f66bce', 356, False), ('mem_cacdf182f0da4b56ab0b65a18c772ff6', 143, False)]",
+      "at": "2026-09-29T21:17:39.920589+00:00"
+    },
+    {
+      "label": "nothing is recalled",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-09-29T21:17:41.512509+00:00"
+    },
+    {
+      "label": "by the picture, with how firmly it agreed",
+      "passed": true,
+      "detail": "{'mem_0f100b484efa4a3bb252de3b555d6953': 1.0, 'mem_3c1cf675aa2947519f5cbbb7f2f66bce': 1.0, 'mem_cacdf182f0da4b56ab0b65a18c772ff6': 1.0}",
+      "at": "2026-09-29T21:17:41.581207+00:00"
+    },
+    {
+      "label": "the lesson recalled the earlier seenings",
+      "passed": true,
+      "detail": "['mem_0f100b484efa4a3bb252de3b555d6953', 'mem_3c1cf675aa2947519f5cbbb7f2f66bce', 'mem_cacdf182f0da4b56ab0b65a18c772ff6']",
+      "at": "2026-09-29T21:17:42.706903+00:00"
+    },
+    {
+      "label": "and the first picture is now said to show the thing",
+      "passed": true,
+      "detail": "vfc98cefirstx2237caf492 observed green_mug_fc98ce",
+      "at": "2026-09-29T21:17:42.707657+00:00"
+    },
+    {
+      "label": "a new view of it is known by name",
+      "passed": true,
+      "detail": "['green_mug_fc98ce']",
+      "at": "2026-09-29T21:17:43.666204+00:00"
+    },
+    {
+      "label": "they are injected as the same thing seen before",
+      "passed": true,
+      "detail": "\u2022 640x480 jpeg image, 8 region(s); seen before, 4 time(s), last on 2026-09-29 17:17, as \"green mug fc98ce\" (seen before: the same picture)\n\u2022 640x480 jpeg image, 6 region(s); seen before, 2 time(s), la",
+      "at": "2026-09-29T21:17:43.704822+00:00"
+    },
+    {
+      "label": "not for another person",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-09-29T21:17:46.403385+00:00"
+    },
+    {
+      "label": "nor for the substrate's own",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-09-29T21:17:46.403394+00:00"
+    },
+    {
+      "label": "but for them",
+      "passed": true,
+      "detail": "['mem_70f2a7657b374867b9b909b306636f75', 'mem_3a1fc3afd2e3429782f1b0a7b94d69b6']",
+      "at": "2026-09-29T21:17:46.403398+00:00"
+    }
+  ],
+  "notes": [
+    "Cleanup by nonce fc98ce and exact memory id: 538 tagged row(s) written, 0 left."
+  ]
+}

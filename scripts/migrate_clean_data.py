@@ -9,7 +9,6 @@ User Constraint: "cannot rely on what's in mysql because it is completely messed
 Strategy: Fresh schema with selective clean data migration only
 
 What to Migrate:
-- Governance laws (5 laws - immutable seed data)
 - Validated directives (governance_validated = TRUE only)
 - Recent memory (last 7 days with embeddings)
 - Active experiments (status = 'running')
@@ -53,7 +52,6 @@ class DataMigrator:
 
         # Migration statistics
         self.stats = {
-            'governance_laws': 0,
             'internal_directives': 0,
             'directive_applications': 0,
             'memories_hot': 0,
@@ -77,78 +75,6 @@ class DataMigrator:
         await self.mysql_db.close()
         await self.postgres_db.close()
         logger.info("Database connections closed")
-
-    async def migrate_governance_laws(self) -> int:
-        """
-        Migrate governance laws (immutable seed data)
-
-        Note: These should already be seeded in postgres_schemas.sql,
-        but we'll verify and update if needed.
-        """
-        logger.info("\n=== Migrating Governance Laws ===")
-
-        try:
-            # Fetch all governance laws from MySQL
-            laws = await self.mysql_db.execute_query(
-                "SELECT * FROM governance_laws ORDER BY law_number",
-                fetch_all=True
-            )
-
-            if not laws:
-                logger.warning("No governance laws found in MySQL")
-                return 0
-
-            migrated = 0
-
-            for law in laws:
-                try:
-                    # Check if law already exists in Postgres (from seed data)
-                    existing = await self.postgres_db.execute_query(
-                        "SELECT law_id FROM unified.governance_laws WHERE law_id = $1",
-                        (law['law_id'],),
-                        fetch_one=True
-                    )
-
-                    if existing:
-                        logger.debug(f"Law {law['law_number']} already exists in PostgreSQL (from seed data)")
-                        migrated += 1
-                        continue
-
-                    # Insert law into PostgreSQL
-                    await self.postgres_db.execute_query(
-                        """
-                        INSERT INTO unified.governance_laws
-                        (law_id, law_number, law_name, law_description, requirements,
-                         created_at, immutable)
-                        VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7)
-                        """,
-                        (
-                            law['law_id'],
-                            law['law_number'],
-                            law['law_name'],
-                            law['law_description'],
-                            json.dumps(law['requirements']) if isinstance(law['requirements'], (dict, list)) else law['requirements'],
-                            law['created_at'],
-                            law.get('immutable', True)
-                        ),
-                        commit=True
-                    )
-
-                    migrated += 1
-                    logger.info(f"✓ Migrated Law {law['law_number']}: {law['law_name']}")
-
-                except Exception as e:
-                    logger.error(f"Failed to migrate law {law.get('law_id')}: {e}")
-                    self.stats['errors'] += 1
-
-            self.stats['governance_laws'] = migrated
-            logger.info(f"Governance Laws: {migrated} migrated")
-            return migrated
-
-        except Exception as e:
-            logger.error(f"Governance laws migration failed: {e}")
-            self.stats['errors'] += 1
-            return 0
 
     async def migrate_validated_directives(self) -> int:
         """
@@ -479,13 +405,6 @@ class DataMigrator:
         logger.info("\n=== Verifying Migration ===")
 
         try:
-            # Check governance laws
-            laws_count = await self.postgres_db.execute_query(
-                "SELECT COUNT(*) as count FROM unified.governance_laws",
-                fetch_one=True
-            )
-            logger.info(f"✓ Governance Laws: {laws_count['count']} in PostgreSQL")
-
             # Check directives
             directives_count = await self.postgres_db.execute_query(
                 "SELECT COUNT(*) as count FROM unified.internal_directives WHERE governance_validated = TRUE",
@@ -525,7 +444,6 @@ class DataMigrator:
         logger.info("\n" + "="*60)
         logger.info("MIGRATION SUMMARY")
         logger.info("="*60)
-        logger.info(f"Governance Laws:         {self.stats['governance_laws']}")
         logger.info(f"Validated Directives:    {self.stats['internal_directives']}")
         logger.info(f"Directive Applications:  {self.stats['directive_applications']}")
         logger.info(f"Recent Memories:         {self.stats['memories_hot']}")
@@ -534,7 +452,6 @@ class DataMigrator:
         logger.info("="*60)
 
         total_migrated = (
-            self.stats['governance_laws'] +
             self.stats['internal_directives'] +
             self.stats['directive_applications'] +
             self.stats['memories_hot'] +
@@ -561,7 +478,6 @@ async def main():
         await migrator.initialize()
 
         # Migrate clean data in order
-        await migrator.migrate_governance_laws()
         await migrator.migrate_validated_directives()
         await migrator.migrate_directive_applications()
         await migrator.migrate_recent_memory(days=7)

@@ -2040,8 +2040,8 @@ score = sample * speed_factor
 
 ### 13.1 Security Audit Worker — REMOVED (2026-09-14)
 
-Removed from Lyric with all of its consumers. World security is the DHCM world factory's
-`security-audit` agent (`DHCM/institutions/security_audit_agent.py`); see
+Removed from Lyric with all of its consumers. World security is the Tet world factory's
+`security-audit` agent (`Tet/institutions/security_audit_agent.py`); see
 `docs/architecture/security.md`.
 
 ### 13.2 Threat Intelligence Engine
@@ -3020,7 +3020,7 @@ The correct idle priority order, from highest to lowest:
 ---
 
 **Priority 1 — Security** — no longer a substrate idle tier: the security audit worker was removed
-2026-09-14; world security runs in the DHCM world factory (see `docs/architecture/security.md`).
+2026-09-14; world security runs in the Tet world factory (see `docs/architecture/security.md`).
 
 ---
 

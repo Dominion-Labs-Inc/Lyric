@@ -15,7 +15,6 @@ Features:
 - CRUD operations (create, read, update, delete)
 - Semantic and keyword-based search
 - Automatic tier migration (hot → cold after 60 days)
-- Governance integration (capability tokens for deletes)
 
 Integration:
 - Single entry point exported from core/memory/__init__.py
@@ -60,6 +59,26 @@ from core.learning.learning_interfaces import IMemoryConsolidation
 logger = logging.getLogger(__name__)
 
 
+class _KeylessWrites:
+    """The memory database, behind a guard that keeps keys out of it: every
+    statement's parameters are cleaned of the substrate's keys before they reach
+    the store (core.security.secrets). Everything else is the handle itself."""
+
+    __slots__ = ("_db",)
+
+    def __init__(self, db):
+        self._db = db
+
+    async def execute_query(self, query, params=None, *args, **kwargs):
+        if params is not None:
+            from core.security.secrets import get_secrets_authority
+            params = get_secrets_authority().redact(params)
+        return await self._db.execute_query(query, params, *args, **kwargs)
+
+    def __getattr__(self, name):
+        return getattr(self._db, name)
+
+
 class MemoryAgent(IMemoryConsolidation):
     """
     Memory Agent - Primary Memory Coordination Interface
@@ -71,9 +90,6 @@ class MemoryAgent(IMemoryConsolidation):
         - PostgreSQL Hot: Fast hot tier storage for recent memories (memory_hot schema)
         - PostgreSQL Cold: Cold tier archival for historical memories (memory_cold schema)
         - Embeddings: Semantic similarity search across tiers with pgvector
-
-    Governance:
-        - Protected delete operations require capability tokens
 
     The only writer of the substrate's memory: memories through `store_memory`,
     and every other kind -- concepts, beliefs, rules, domains, what reasoning
@@ -406,7 +422,7 @@ class MemoryAgent(IMemoryConsolidation):
         "answer:",
     )
 
-    def _readable_claim(self, content, source_context):
+    async def _readable_claim(self, content, source_context):
         """The substrate-readable CLAIM a memory asserts, its shape, and its
         facts -- or ``(None, None, ())``.
 
@@ -418,7 +434,9 @@ class MemoryAgent(IMemoryConsolidation):
         A claim the substrate MADE carries its facts (`claim_facts`, in the
         reading engine's form); it is the claim as made and is not read again.
         Any other text is read by the one reader (`derived_reader`): it is a
-        claim when it reads, as one utterance, to one telling. A prose episode, a
+        claim when it reads, as one utterance, to a telling the listener can tell
+        is meant (`derived_reader.heard`: memory asked which thing each word
+        names, where a word names several). A prose episode, a
         question, a measurement, or anything the substrate was not taught to read
         has no claim, and is left without one rather than dressed up as one: a
         fabricated premise is worse than an absent one, because it is recalled as
@@ -429,7 +447,7 @@ class MemoryAgent(IMemoryConsolidation):
         guessed at recall), and the facts it states.
         """
         from core.semantics.claim_shape import shape_of
-        from core.semantics.derived_reader import Meaning, MeaningFact, read_text
+        from core.semantics.derived_reader import Meaning, MeaningFact, heard, read_text
 
         candidate = ""
         if isinstance(source_context, dict):
@@ -459,12 +477,12 @@ class MemoryAgent(IMemoryConsolidation):
             return candidate, shape_of(meaning), meaning.facts
 
         utterances = read_text(candidate)
-        if len(utterances) != 1 or not utterances[0].readings:
+        if len(utterances) != 1:
             return None, None, ()
-        readings = utterances[0].readings
-        if len({r.meaning.canonical() for r in readings}) > 1:
+        chosen = await heard(utterances[0].readings)
+        if chosen is None:
             return None, None, ()
-        meaning = readings[0].meaning
+        meaning = chosen.meaning
         if meaning.act != "tell":
             return None, None, ()
         return candidate, shape_of(meaning), meaning.facts
@@ -584,6 +602,19 @@ class MemoryAgent(IMemoryConsolidation):
         Returns:
             Tuple of (success: bool, memory_id: Optional[str])
         """
+        # NO KEY IS REMEMBERED. Whatever reached this (a tool's output, a
+        # sentence someone typed, a reasoning trace) has every key replaced by
+        # its name before anything is kept (core.security.secrets). Media bytes
+        # are what was met and are kept as they are.
+        from core.security.secrets import get_secrets_authority
+        _keys = get_secrets_authority()
+        content = _keys.redact(content)
+        tags, source_context, embedding_metadata = (
+            _keys.redact(tags), _keys.redact(source_context), _keys.redact(embedding_metadata))
+        reasoning_trace, thinking_state, system_state = (
+            _keys.redact(reasoning_trace), _keys.redact(thinking_state), _keys.redact(system_state))
+        decision_factors, emotional_context, media_meta = (
+            _keys.redact(decision_factors), _keys.redact(emotional_context), _keys.redact(media_meta))
         logger.debug(f"\n[MEMORY_AGENT.STORE_MEMORY] Called with:")
         logger.debug(f"  Content length: {len(content)} chars")
         logger.debug(f"  Memory type: {memory_type}")
@@ -603,20 +634,24 @@ class MemoryAgent(IMemoryConsolidation):
                     'continue as though it had')
             logger.debug(f"[MEMORY_AGENT.STORE_MEMORY] Initialization complete")
 
-        # Attached media marks the memory as a percept -- a picture or a sound it
-        # met -- for worthiness and search. The bytes say which, and their digest
-        # is WHAT was met (`met`), which is how two memories of different things
-        # are told apart when their accounts read alike.
-        if media is not None:
+        # Attached media marks the memory as a percept -- a picture, a sound or
+        # a text it met -- for worthiness and search. The bytes say which, and
+        # their digest is WHAT was met (`met`), which is how two memories of
+        # different things are told apart when their accounts read alike. What
+        # several senses took in at one moment is one memory with each part's
+        # media, and what was met is all of them together.
+        met_parts = self._media_parts(media, media_meta)
+        if met_parts:
             import hashlib
-            from core.memory.media_store import _read_bytes, media_kind
-            data = _read_bytes(media)
-            kind = media_kind(data)
-            flag = {"image": "has_image", "video": "has_video",
-                    "audio": "has_sound"}.get(kind or "")
+            from core.memory.media_store import media_kind
+            digests = [hashlib.sha256(data).hexdigest() for data, _meta in met_parts]
+            flags = {flag: True for flag in (
+                {"image": "has_image", "video": "has_video", "audio": "has_sound"}.get(
+                    media_kind(data) or "") for data, _meta in met_parts) if flag}
             source_context = {**(source_context or {}),
-                              "met": hashlib.sha256(data).hexdigest(),
-                              **({flag: True} if flag else {})}
+                              "met": (digests[0] if len(digests) == 1 else
+                                      hashlib.sha256("".join(sorted(digests)).encode()).hexdigest()),
+                              **flags}
 
         # ========== STEP 1: GENERATE OR EXTRACT METADATA ==========
         logger.debug(f"[MEMORY_AGENT.STORE_MEMORY] STEP 1: Generate/extract metadata")
@@ -673,7 +708,7 @@ class MemoryAgent(IMemoryConsolidation):
         # Exemption is decided by the filter, which owns retention policy. This
         # tested only for an observation raw_event; the same argument applies to
         # every event whose value is that it happened -- task outcomes, safety
-        # events, governance decisions, learning updates, mapping verdicts and
+        # events, learning updates, mapping verdicts and
         # critical failures are records other subsystems read back, not
         # candidates to be judged for novelty.
         from core.memory.utils.memory_filter import get_memory_filter as _get_filter
@@ -883,7 +918,7 @@ class MemoryAgent(IMemoryConsolidation):
         # None rather than borrowing whatever was perceived lately.
         percept_id = percept_digest = None
         try:
-            from core.agents.autonomous.perception_manager import get_acting_percept
+            from core.perception.perception_faculty import get_acting_percept
             _percept = get_acting_percept()
             if _percept:
                 percept_id = _percept.get("percept_id")
@@ -987,7 +1022,7 @@ class MemoryAgent(IMemoryConsolidation):
         if (source_context or {}).get("pattern_key"):
             _claim, _claim_shape, _claim_facts = None, None, ()
         else:
-            _claim, _claim_shape, _claim_facts = self._readable_claim(content, source_context)
+            _claim, _claim_shape, _claim_facts = await self._readable_claim(content, source_context)
         if _claim:
             source_context = dict(source_context or {})
             source_context["conclusion"] = _claim
@@ -1061,8 +1096,8 @@ class MemoryAgent(IMemoryConsolidation):
                 logger.debug(f"[MEMORY_AGENT.STORE_MEMORY] ✓ SUCCESS - Memory {memory_id} stored")
                 # Retain attached media DATA so the substrate remembers the
                 # picture or the sound, not only a sentence about it.
-                if media is not None:
-                    await self._retain_media(memory_id, media, media_meta, user_id)
+                for data, meta in met_parts:
+                    await self._retain_media(memory_id, data, meta, user_id)
                 # EVENT: a new episodic memory is what abstraction feeds on.
                 # Count it (and, past threshold, schedule abstraction on the
                 # queue authority). Cheap — never reasons on the write path.
@@ -1093,14 +1128,11 @@ class MemoryAgent(IMemoryConsolidation):
         every memory that forms near it, it would go into the substrate's own
         memories and other people's. The substrate's own seeing (its environment)
         does not belong in a person's memory either."""
-        from core.agents.autonomous.perception_manager import get_perception_manager
         from core.memory.utils.interfaces import Origin
+        from core.perception.perception_faculty import get_perception_faculty
         try:
-            hub = get_perception_manager()
-            if hub is None:
-                return None
             now = datetime.now().timestamp()
-            fresh = [p for p in await hub.get_recent_perceptions(limit=64)
+            fresh = [p for p in get_perception_faculty().recent_percepts(limit=64)
                      if now - float(getattr(p, "timestamp", 0.0)) <= self.PERCEPTUAL_WINDOW_SECONDS
                      and isinstance(getattr(p, "origin", None), Origin)
                      and self._owner_from(p.origin) == (owner or None)][-8:]
@@ -1112,10 +1144,22 @@ class MemoryAgent(IMemoryConsolidation):
         return {"captured_at": datetime.now().isoformat(),
                 "perceptions": [
                     {"source": p.source, "data_type": p.data_type, "content": p.content,
-                     "confidence": round(float(p.confidence), 4),
+                     "confidence": None if p.confidence is None else round(float(p.confidence), 4),
                      "age_s": round(now - float(p.timestamp), 2),
                      "owner": self._owner_from(p.origin)}
                     for p in fresh]}
+
+    @staticmethod
+    def _media_parts(media: Any, media_meta: Optional[Dict[str, Any]]) -> List[Tuple[bytes, Dict[str, Any]]]:
+        """What was met, as (bytes, perceived) pairs: one picture, sound or
+        text's trace with `media_meta`, or -- for what several senses took in
+        at one moment -- a list of (media, perceived) pairs, one per part."""
+        if media is None:
+            return []
+        from core.memory.media_store import _read_bytes
+        if isinstance(media, list):
+            return [(_read_bytes(data), dict(meta or {})) for data, meta in media]
+        return [(_read_bytes(media), dict(media_meta or {}))]
 
     async def _retain_media(self, memory_id: str, media: Any,
                             media_meta: Optional[Dict[str, Any]],
@@ -1132,7 +1176,8 @@ class MemoryAgent(IMemoryConsolidation):
             # (`retrieve`, strategies `sound` and `sight`).
             keys = None
             kind = (media_meta or {}).get("kind")
-            if kind in ("sound_trace", "sight_trace") and isinstance(media, (bytes, bytearray)):
+            if kind in ("sound_trace", "sight_trace", "text_trace") \
+                    and isinstance(media, (bytes, bytearray)):
                 keys = self._trace_keys(kind, bytes(media))
             await get_media_store().store_media(
                 memory_id, media, perceived=media_meta or {}, owner=owner, keys=keys)
@@ -1143,7 +1188,12 @@ class MemoryAgent(IMemoryConsolidation):
     @staticmethod
     def _trace_keys(kind: str, data: bytes):
         """The keys a kept trace is found by: a sound's landmark hashes, a
-        picture's keypoint keys. None when the trace keeps no features."""
+        picture's keypoint keys, a text's runs of words. None when the trace
+        keeps no features."""
+        if kind == "text_trace":
+            from core.perception.reading import trace_keys
+            runs = trace_keys(data)
+            return None if runs is None else [int(k) for k in runs]
         if kind == "sound_trace":
             from core.perception.hearing import landmark_hashes, trace_landmarks
             rows = trace_landmarks(data)
@@ -1942,12 +1992,48 @@ class MemoryAgent(IMemoryConsolidation):
             found[item.memory_id] = item
         return sorted(found.values(), key=lambda m: -m.similarity_score)[:limit]
 
+    async def _recall_by_text(self, read: Any, *, limit: int,
+                              actor: Optional[str]) -> List[MemoryItem]:
+        """The readings of the same text as `read` (its runs of words), found
+        by the runs they share through the media store's index and decided in
+        reading's own process, as a sound is by its landmarks and a picture by
+        its keypoints: at least `reading.READ_MIN_SHARED` runs shared, and at
+        least `reading.READ_MIN_SHARE` of the shorter text. The same document,
+        a new version of it, or a page of it quoted in another are all read
+        before. Only memories `actor` may see."""
+        from core.memory.media_store import get_media_store
+        from core.perception import reading
+        from core.perception.perception_faculty import get_perception_faculty
+        from core.agents.autonomous.shared_types import visible_to
+        met = [int(k) for k in read]
+        candidates, held = [], set()
+        for media in await get_media_store().similar(met, kind="text_trace",
+                                                     limit=max(limit, 20)):
+            if media["memory_id"] not in held:
+                held.add(media["memory_id"])
+                candidates.append(media)
+        agreed = await get_perception_faculty().agreements(
+            "text", met, [m["bytes"] for m in candidates])
+        found: Dict[str, MemoryItem] = {}
+        for media, (shared, share, same) in zip(candidates, agreed):
+            if shared < reading.READ_MIN_SHARED or share < reading.READ_MIN_SHARE:
+                continue
+            item = await self.postgres_storage.get_memory(media["memory_id"])
+            if item is None or not visible_to(item.user_id or None, actor):
+                continue
+            item.similarity_score = round(float(share), 4)
+            item.read_match = {"shared": int(shared), "share": round(float(share), 4),
+                               "same_text": bool(same)}
+            found[item.memory_id] = item
+        return sorted(found.values(), key=lambda m: -m.similarity_score)[:limit]
+
     #: The retrieval strategies that compose one recall. Each is a distinct
     #: storage primitive, so "specialise the agents" is a property of the
     #: design rather than a TODO: semantic finds paraphrase, keyword finds
-    #: literal strings an embedding smooths away, tags find curation, and sound
-    #: finds a hearing by the sound itself (when the caller has one).
-    RETRIEVAL_STRATEGIES = ("semantic", "keyword", "tags", "sound", "sight")
+    #: literal strings an embedding smooths away, tags find curation, and sound,
+    #: sight and text find what was met by the sound, the picture or the words
+    #: themselves (when the caller has one).
+    RETRIEVAL_STRATEGIES = ("semantic", "keyword", "tags", "sound", "sight", "text")
 
     async def retrieve(
         self,
@@ -1966,6 +2052,7 @@ class MemoryAgent(IMemoryConsolidation):
         actor: Optional[str] = None,
         heard: Optional[Any] = None,
         seen: Optional[Dict[str, Any]] = None,
+        read: Optional[Any] = None,
     ) -> List[MemoryItem]:
         """Recall memories by running every applicable strategy CONCURRENTLY.
 
@@ -1983,6 +2070,11 @@ class MemoryAgent(IMemoryConsolidation):
         them, the `sight` strategy recalls the seeings of THE SAME THING -- the
         same picture again, or the same thing in another picture -- each with
         how firmly it agreed (`similarity_score`, and `seen_match`).
+
+        `read` is a text's runs of words (`reading.shingles`): given them, the
+        `text` strategy recalls the readings of THE SAME TEXT -- the same
+        document again, a new version of it, a page of it quoted elsewhere --
+        each with how much agreed (`similarity_score`, and `read_match`).
 
         This is the composition layer the swarm search was: several retrieval
         strategies at once, merged. It is worth having for RECALL, not speed --
@@ -2071,8 +2163,13 @@ class MemoryAgent(IMemoryConsolidation):
                 return []
             return await self._recall_by_sight(seen, limit=per_strategy, actor=actor)
 
+        async def _text() -> List[MemoryItem]:
+            if read is None or not len(read):
+                return []
+            return await self._recall_by_text(read, limit=per_strategy, actor=actor)
+
         runners = {"semantic": _semantic, "keyword": _keyword, "tags": _tags,
-                   "sound": _sound, "sight": _sight}
+                   "sound": _sound, "sight": _sight, "text": _text}
         unknown = [name for name in selected if name not in runners]
         if unknown:
             raise ValueError(
@@ -2104,8 +2201,8 @@ class MemoryAgent(IMemoryConsolidation):
         # OBSERVATIONS AND KNOWLEDGE SHARE A TABLE, NOT A PURPOSE.
         #
         # An event record is kept because it HAPPENED, and its multiplicity is
-        # the signal -- 309 governance blocks are 309 facts about how often the
-        # system was blocked, which is what competence calibration counts. That
+        # the signal -- 309 task failures are 309 facts about how often the
+        # system failed, which is what competence calibration counts. That
         # is why store_memory exempts them from the worthiness filter and why
         # consolidation must never merge them.
         #
@@ -2906,13 +3003,10 @@ class MemoryAgent(IMemoryConsolidation):
         self,
         memory_id: str,
         updates: Dict[str, Any],
-        capability_token: str = "",
         tier: Optional[str] = None
     ):
         """
         Update memory fields
-
-        Protected operation - requires capability token for critical updates.
         """
         if not self.initialized:
             # The result is CHECKED. Discarding it meant a failed initialize was
@@ -2922,13 +3016,6 @@ class MemoryAgent(IMemoryConsolidation):
                 raise RuntimeError(
                     type(self).__name__ + ' could not initialize; refusing to '
                     'continue as though it had')
-
-        # Validate capability token for protected fields
-        protected_fields = ["importance_score", "confidence_score", "memory_type"]
-        if any(field in updates for field in protected_fields):
-            if not await self._validate_capability_token(capability_token):
-                logger.warning(f"Unauthorized memory update attempt: {memory_id}")
-                return False
 
         # Update in PostgreSQL hot tier
         success = await self.postgres_storage.update_memory(
@@ -2981,15 +3068,12 @@ class MemoryAgent(IMemoryConsolidation):
         self,
         memory_id: str,
         new_importance: float,
-        capability_token: str,
         tier: str,
         reason: str,
         tier_hint: Optional[str] = None
-    ):
+    ) -> bool:
         """
-        Update memory importance score
-
-        Protected operation - requires capability token for governance.
+        Update memory importance score, saying why on the memory.
         """
         if not self.initialized:
             # The result is CHECKED. Discarding it meant a failed initialize was
@@ -3000,34 +3084,23 @@ class MemoryAgent(IMemoryConsolidation):
                     type(self).__name__ + ' could not initialize; refusing to '
                     'continue as though it had')
 
-        if not await self._validate_capability_token(capability_token):
-            logger.warning(f"Unauthorized importance update: {memory_id}")
-            return False
-
-        await self.postgres_storage.update_memory(
-            memory_id=memory_id,
-            updates={
-                "importance_score": new_importance,
-                "metadata.importance_update": {
-                    "reason": reason,
-                    "updated_at": datetime.now().isoformat()
-                }
-            },
-            tier=tier
-        )
+        return await self.update_memory(
+            memory_id,
+            {"importance_score": new_importance,
+             "metadata": {"importance_update": {"reason": reason,
+                                                "updated_at": datetime.now().isoformat()}},
+             "metadata.merge": True},
+            tier=tier)
 
     async def update_tags(
         self,
         memory_id: str,
         tags: List[str],
-        capability_token: str = "",
         tier: str = "hot",
         operation: str = "replace"
-    ):
+    ) -> bool:
         """
-        Update memory tags
-
-        Protected operation - supports add, remove, replace operations.
+        Update memory tags: `replace` them, or `add` or `remove` these.
         """
         if not self.initialized:
             # The result is CHECKED. Discarding it meant a failed initialize was
@@ -3038,19 +3111,17 @@ class MemoryAgent(IMemoryConsolidation):
                     type(self).__name__ + ' could not initialize; refusing to '
                     'continue as though it had')
 
-        if not await self._validate_capability_token(capability_token):
-            logger.warning(f"Unauthorized tags update: {memory_id}")
-            return False
-
-        await self.postgres_storage.update_memory(
-            memory_id=memory_id,
-            updates={
-                "tags": tags,
-                "metadata.tags_operation": operation
-            },
-            tier=tier
-        )
-        self.metrics["memories_retrieved"] += 1
+        if operation not in ("replace", "add", "remove"):
+            raise ValueError(f"tags are replaced, added or removed, not {operation!r}")
+        new = list(dict.fromkeys(tags))
+        if operation != "replace":
+            held = await self.retrieve_memory(memory_id)
+            if held is None:
+                return False
+            current = list(getattr(held, "tags", None) or [])
+            new = (list(dict.fromkeys(current + new)) if operation == "add"
+                   else [t for t in current if t not in set(new)])
+        return await self.update_memory(memory_id, {"tags": new}, tier=tier)
 
     async def add_related_memory(
         self,
@@ -3086,7 +3157,6 @@ class MemoryAgent(IMemoryConsolidation):
         self,
         memory_id: str,
         metadata_updates: Dict[str, Any],
-        capability_token: str = "",
         merge: bool = True,
         tier: str = "hot",
         tier_hint: Optional[str] = None
@@ -3105,38 +3175,17 @@ class MemoryAgent(IMemoryConsolidation):
                     type(self).__name__ + ' could not initialize; refusing to '
                     'continue as though it had')
 
-        if not await self._validate_capability_token(capability_token):
-            logger.warning(f"Unauthorized metadata update: {memory_id}")
-            return False
-
-        await self.postgres_storage.update_memory(
-            memory_id=memory_id,
-            updates={
-                "metadata": metadata_updates,
-                "metadata.merge": merge
-            },
-            tier=tier
-        )
+        return await self.update_memory(
+            memory_id, {"metadata": metadata_updates, "metadata.merge": merge}, tier=tier)
 
     # ================================================================================================
-    # MEMORY DELETION (Governance Protected)
+    # FORGETTING A MEMORY
     # ================================================================================================
 
-    async def delete_memory(
-        self,
-        memory_id: str,
-        capability_token: str,
-        reason: str = "",
-        tier_hint: Optional[str] = None
-    ) -> bool:
-        """
-        Delete memory (soft delete)
-
-        GOVERNANCE PROTECTED: Requires capability token for autonomous deletions.
-
-        Returns:
-            True if deletion successful, False otherwise
-        """
+    async def delete_memory(self, memory_id: str, reason: str = "") -> bool:
+        """Forget a memory: its row and what it kept of what was met are
+        removed. There is no soft delete -- the store has no deleted state, so
+        a forgotten memory is gone. Returns True when it was removed."""
         if not self.initialized:
             # The result is CHECKED. Discarding it meant a failed initialize was
             # followed by the work it was meant to enable, and the real failure
@@ -3145,77 +3194,15 @@ class MemoryAgent(IMemoryConsolidation):
                 raise RuntimeError(
                     type(self).__name__ + ' could not initialize; refusing to '
                     'continue as though it had')
-
-        # Validate capability token (governance requirement)
-        if not await self._validate_capability_token(capability_token):
-            logger.warning(f"Unauthorized delete attempt: memory_id={memory_id}")
+        if not await self.postgres_storage.delete_memory(memory_id):
+            logger.error("Failed to forget memory %s", memory_id)
             return False
-
-        # Soft delete from PostgreSQL hot tier
-        success = await self.postgres_storage.delete_memory(
-            memory_id=memory_id,
-            soft_delete=True,
-            reason=reason
-        )
-
-        if success:
-            # Remove from cache
-            if memory_id in self.memory_cache:
-                del self.memory_cache[memory_id]
-
-            logger.info(f"Memory {memory_id} deleted (soft)")
-            return True
-        else:
-            logger.error(f"Failed to delete memory {memory_id}")
-            return False
-
-    async def permanent_delete(
-        self,
-        memory_id: str,
-        capability_token: str,
-        confirmation: bool = False
-    ) -> Tuple[bool, str]:
-        """
-        Permanently delete memory (irreversible)
-
-        CRITICAL GOVERNANCE PROTECTION: Requires capability token + confirmation.
-        This is a destructive operation that cannot be undone.
-
-        Returns:
-            Tuple of (success: bool, message: str)
-        """
-        if not self.initialized:
-            # The result is CHECKED. Discarding it meant a failed initialize was
-            # followed by the work it was meant to enable, and the real failure
-            # resurfaced later disguised as something else.
-            if await self.initialize() is False:
-                raise RuntimeError(
-                    type(self).__name__ + ' could not initialize; refusing to '
-                    'continue as though it had')
-
-        # Double validation for permanent delete
-        if not await self._validate_capability_token(capability_token):
-            error_msg = "Unauthorized permanent delete - missing capability token"
-            logger.warning(f"{error_msg}: memory_id={memory_id}")
-            return False, error_msg
-
-        if not confirmation:
-            error_msg = "Permanent delete requires explicit confirmation=True"
-            logger.warning(error_msg)
-            return False, error_msg
-
-        # Hard delete from PostgreSQL
-        success = await self.postgres_storage.delete_memory(
-            memory_id=memory_id,
-            soft_delete=False,
-            reason="permanent_delete"
-        )
-
-        if success:
-            logger.info(f"Memory {memory_id} permanently deleted")
-            return True, f"Memory {memory_id} permanently deleted"
-        else:
-            return False, f"Failed to permanently delete {memory_id}"
+        from core.memory.media_store import get_media_store
+        media = await get_media_store().forget_memory(memory_id)
+        self.memory_cache.pop(memory_id, None)
+        logger.info("Memory %s forgotten (%s media)%s", memory_id, media,
+                    f": {reason}" if reason else "")
+        return True
 
     # ================================================================================================
     # THE REST OF MEMORY
@@ -3236,9 +3223,11 @@ class MemoryAgent(IMemoryConsolidation):
 
     def _memory_db(self):
         """The database every write of memory goes to: the process's manager,
-        looked up at each write so it is always the one every reader uses."""
+        looked up at each write so it is always the one every reader uses, and
+        handed back behind the guard that keeps keys out of every concept,
+        belief, rule and record written through it."""
         from core.database import get_database_manager
-        return get_database_manager()
+        return _KeylessWrites(get_database_manager())
 
     # ---- concepts and links -------------------------------------------------
 
@@ -4263,32 +4252,6 @@ class MemoryAgent(IMemoryConsolidation):
                     taught.setdefault(label, []).append(media["bytes"])
         return taught
 
-    async def hold_perception(self, *, perception_id: str, source: Any, data_type: Any,
-                              content: str, confidence: float, timestamp: Any,
-                              metadata: str, origin: "Origin") -> None:
-        """One perception, kept in its owner's store: a person's image in their
-        context, the substrate's own seeing in its own."""
-        owner = self._owner_from(origin)
-        db = self._memory_db()
-        await db.execute_query(
-            """
-            INSERT INTO unified.perceptions
-            (id, source, data_type, content, confidence, timestamp, metadata, owner)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-            ON CONFLICT (id) DO UPDATE SET
-                source = EXCLUDED.source,
-                data_type = EXCLUDED.data_type,
-                content = EXCLUDED.content,
-                confidence = EXCLUDED.confidence,
-                timestamp = EXCLUDED.timestamp,
-                metadata = EXCLUDED.metadata,
-                owner = EXCLUDED.owner
-            """,
-            params=(perception_id, source, data_type, content, confidence, timestamp,
-                    metadata, owner),
-            commit=True, store=db.write_store(owner),
-        )
-
     # ---- a person's context -----------------------------------------------------
 
     async def hold_scoped_relation(self, *, actor: str, subject: str, relation: str,
@@ -4374,17 +4337,23 @@ class MemoryAgent(IMemoryConsolidation):
         concepts is one round trip."""
         if not rows:
             return 0
-        values, params = [], []
-        for i, row in enumerate(rows):
-            base = i * 11
-            values.append("(" + ",".join(f"${base + n}" for n in range(1, 12)) + ")")
-            params.extend(row)
-        await self._memory_db().execute_query(
-            "INSERT INTO unified.knowledge_updates"
-            " (update_id, batch_id, cause, actor, subject_kind, subject_id,"
-            "  disposition, domain, from_domain, evidence_id, detail) VALUES "
-            + ",".join(values) + " ON CONFLICT (update_id) DO NOTHING",
-            tuple(params), commit=True)
+        # A statement carries at most 32,767 values; a sweep of 6,077 rows at
+        # eleven each carried 66,847, and the whole record of it was refused
+        # after what it recorded had been done. Written in as many statements
+        # as that takes.
+        per_statement = 32767 // 11
+        for start in range(0, len(rows), per_statement):
+            values, params = [], []
+            for i, row in enumerate(rows[start:start + per_statement]):
+                base = i * 11
+                values.append("(" + ",".join(f"${base + n}" for n in range(1, 12)) + ")")
+                params.extend(row)
+            await self._memory_db().execute_query(
+                "INSERT INTO unified.knowledge_updates"
+                " (update_id, batch_id, cause, actor, subject_kind, subject_id,"
+                "  disposition, domain, from_domain, evidence_id, detail) VALUES "
+                + ",".join(values) + " ON CONFLICT (update_id) DO NOTHING",
+                tuple(params), commit=True)
         return len(rows)
 
     async def mark_knowledge_consumed(self, *, update_ids: List[str],
@@ -4684,6 +4653,140 @@ class MemoryAgent(IMemoryConsolidation):
             return ((chosen or {}).get("experience") or {}).get("parts") or []
         return None
 
+    #: How far up its kinds a thing is followed when asking whether a fact is held of it: deeper than any chain of
+    #: kinds WordNet has (19 at most).
+    KINDS_FOLLOWED = 24
+    #: How far up its kinds a thing is followed when asking what it is connected to: near enough that two things
+    #: meeting there are about the same thing (a bank of a river and the river), not as far as `entity`, where
+    #: everything meets.
+    KINDS_NEAR = 2
+
+    async def listening_evidence(self, facts, senses, context) -> Tuple[Dict[Tuple[str, str, str, bool], int],
+                                                                       Dict[str, int]]:
+        """What memory knows that bears on which thing a word was meant to name: what a listener asks when a
+        sentence can be taken more than one way (`derived_reader.listening`).
+
+        `held`: for each fact (as `derived_reader.held_key` writes it: relation, subject, object, positive), how
+        firmly memory holds it. 2 when memory holds it of the things themselves ("a salmon is a fish", held when a
+        salmon is held to be a food fish and a food fish a fish); 1 when it holds it of what they are kinds of, on
+        either side ("I ate fish": an eating done to food, and the food sense of fish is a food). A denial is held
+        only as told of the things themselves.
+
+        `related`: for each of `senses`, how many of `context` (the rest of what was said, and what was talked of
+        before) it is connected to in memory: a fact of any kind between the two, or between what they are near
+        kinds of (`KINDS_NEAR`); one being a near kind of the other; or both near kinds of one thing."""
+        from core.semantics.cognitive_ingress import normalize_term
+        facts = [tuple(f) for f in facts]
+        senses, context = list(dict.fromkeys(senses)), list(dict.fromkeys(context))
+        names = {term: normalize_term(term)
+                 for term in [t for f in facts for t in (f[1], f[2])] + senses + context}
+        if not names:
+            return {}, {}
+
+        def kind_of(relation: str) -> str:
+            return "isa" if relation in ("isa", "is a") else relation
+
+        rows = await self._memory_db().execute_query(
+            "WITH RECURSIVE kinds(start, name, depth) AS ("
+            " SELECT name::text, name::text, 0 FROM unified.concepts WHERE name = ANY($1::text[])"
+            " UNION"
+            " SELECT k.start, COALESCE(c2.name, cr.target_surface)::text, k.depth + 1"
+            " FROM kinds k JOIN unified.concepts c1 ON c1.name = k.name"
+            " JOIN unified.concept_relations cr ON cr.source_concept_id = c1.concept_id"
+            " LEFT JOIN unified.concepts c2 ON c2.concept_id = cr.target_concept_id"
+            " WHERE cr.relation IN ('isa', 'is a') AND cr.polarity = 'positive' AND k.depth < $2)"
+            " SELECT k.start, k.name AS kind, MIN(k.depth) AS depth, cr.relation,"
+            " COALESCE(c2.name, cr.target_surface) AS target, cr.polarity"
+            " FROM kinds k LEFT JOIN unified.concepts c1 ON c1.name = k.name"
+            " LEFT JOIN unified.concept_relations cr ON cr.source_concept_id = c1.concept_id"
+            " LEFT JOIN unified.concepts c2 ON c2.concept_id = cr.target_concept_id"
+            " GROUP BY k.start, k.name, cr.relation, COALESCE(c2.name, cr.target_surface), cr.polarity",
+            (sorted(set(names.values())), self.KINDS_FOLLOWED), fetch_all=True) or []
+        # Each thing's kinds, by how far up; what each thing (and each kind) is held to stand in, and to what.
+        up: Dict[str, Dict[str, int]] = {}
+        said: Dict[str, set] = {}
+        for row in rows:
+            start, kind, depth = row["start"], row["kind"], int(row["depth"])
+            kinds = up.setdefault(start, {start: 0})
+            kinds[kind] = min(kinds.get(kind, depth), depth)
+            if row["relation"] is None:
+                continue
+            relation, target = kind_of(row["relation"]), row["target"]
+            positive = row["polarity"] == "positive"
+            said.setdefault(kind, set()).add((relation, target, positive))
+            if relation == "isa" and positive:
+                kinds[target] = min(kinds.get(target, depth + 1), depth + 1)
+
+        def kinds_of(name: str, within: int = self.KINDS_FOLLOWED) -> set:
+            return {k for k, d in up.get(name, {name: 0}).items() if d <= within} | {name}
+
+        held: Dict[Tuple[str, str, str, bool], int] = {}
+        for key in facts:
+            relation, subject, obj, positive = kind_of(key[0]), names[key[1]], names[key[2]], bool(key[3])
+            if (relation, obj, positive) in said.get(subject, ()) or (
+                    relation == "isa" and positive and obj != subject and obj in kinds_of(subject)):
+                held[key] = 2
+            elif positive and any((relation, o, True) in said.get(s, ())
+                                  for s in kinds_of(subject) for o in kinds_of(obj)):
+                held[key] = 1
+
+        def near(name: str) -> set:
+            return kinds_of(name, self.KINDS_NEAR)
+
+        def connected(a: str, b: str) -> bool:
+            here, there = near(a), near(b)
+            if here & there:
+                # One is a near kind of the other, or both are near kinds of one thing: a computer's mouse and a
+                # computer are both devices; the animal and the computer meet nowhere near.
+                return True
+            return any(target in there for k in here for _, target, _ in said.get(k, ())) or \
+                any(target in here for k in there for _, target, _ in said.get(k, ()))
+
+        related = {sense: sum(1 for other in context if other != sense and connected(names[sense], names[other]))
+                   for sense in senses}
+        return held, {sense: n for sense, n in related.items() if n}
+
+    async def task_occurrences(self) -> List[Dict[str, Any]]:
+        """Every time the substrate did a task of its own, as its task memories
+        record it, hot and cold: `task_type`, `knowledge_domain`, `outcome`,
+        `task_id`, `created_at`. ONE ROW PER OCCURRENCE: a task asked again is
+        merged into the memory that holds it, which keeps each time it was done;
+        a memory from before occurrences were merged is one. A task done for a
+        person is that person's memory, and is not among these."""
+        tiers = []
+        for table in ("memory_hot.memory_hot", "memory_cold.memory_cold"):
+            tiers.append(
+                "SELECT o->>'task_type' AS task_type, o->>'knowledge_domain' AS knowledge_domain,"
+                " o->>'outcome' AS outcome, o->>'task_id' AS task_id,"
+                " CASE WHEN o->>'timestamp' ~ '^\\d{4}-\\d{2}-\\d{2}T'"
+                " THEN (o->>'timestamp')::timestamp ELSE m.created_at END AS created_at"
+                f" FROM {table} m,"
+                " jsonb_array_elements(COALESCE(m.thinking_state->'raw_event'->'occurrences',"
+                " jsonb_build_array(m.thinking_state->'raw_event'))) AS o"
+                " WHERE m.tags @> '[\"task_outcome\"]'::jsonb"
+                " AND (m.user_id IS NULL OR m.user_id IN ('', '__substrate__'))")
+        return list(await self._memory_db().execute_query(
+            " UNION ALL ".join(tiers), fetch_all=True, store="model") or [])
+
+    async def capture_statistics(self, *, within_s: float = 3600.0) -> Dict[str, Any]:
+        """How fully the memories formed in the last `within_s` seconds carry
+        what the substrate was thinking: how many there are, and how many hold
+        a thinking state, a reasoning trace and decision factors (hot tier,
+        where new memories form)."""
+        row = await self._memory_db().execute_query(
+            "SELECT COUNT(*) AS total,"
+            " COUNT(*) FILTER (WHERE jsonb_typeof(thinking_state) = 'object'"
+            "   AND thinking_state <> '{}'::jsonb) AS with_thinking_state,"
+            " COUNT(*) FILTER (WHERE jsonb_typeof(reasoning_trace) = 'array'"
+            "   AND jsonb_array_length(reasoning_trace) > 0) AS with_reasoning_trace,"
+            " COUNT(*) FILTER (WHERE jsonb_typeof(decision_factors) IN ('array', 'object')"
+            "   AND decision_factors NOT IN ('[]'::jsonb, '{}'::jsonb)) AS with_decision_factors,"
+            " COALESCE(AVG(jsonb_array_length(reasoning_trace))"
+            "   FILTER (WHERE jsonb_typeof(reasoning_trace) = 'array'), 0) AS avg_reasoning_trace_length"
+            " FROM memory_hot.memory_hot WHERE created_at > NOW() - make_interval(secs => $1)",
+            (float(within_s),), fetch_one=True, store="model")
+        return dict(row)
+
     # ================================================================================================
     # THE MEMORY OF A PURSUIT
     # ================================================================================================
@@ -4764,7 +4867,7 @@ class MemoryAgent(IMemoryConsolidation):
                 if changed:
                     await self._rewrite_pursuit(held, record, thinking_state)
             return held
-        from core.agents.autonomous.governance_block_schema import pursuit_account
+        from core.memory.utils.interfaces import pursuit_account
         record = {
             "event": "task_outcome", "schema": self.PURSUIT_SCHEMA,
             "pursuit": {"intent_id": str(intent_id), "kind": kind, "aim": aim,
@@ -4862,8 +4965,8 @@ class MemoryAgent(IMemoryConsolidation):
         A perception within a pursuit is not a memory of its own. Returns the
         pursuit memory's id, the memory the perception's claims then name."""
         record = await self.add_parts_to_pursuit(memory_id, [part], tags=tags)
-        if media is not None:
-            await self._retain_media(memory_id, media, media_meta, self._pursuit_owner(record))
+        for data, meta in self._media_parts(media, media_meta):
+            await self._retain_media(memory_id, data, meta, self._pursuit_owner(record))
         return memory_id
 
     async def close_pursuit(self, memory_id: str, *, status: str,
@@ -4928,7 +5031,7 @@ class MemoryAgent(IMemoryConsolidation):
                                add_tags: Optional[List[str]] = None) -> None:
         """Write a pursuit memory's record back, with what it says said again,
         and any tags its new task brings (the domain it acted in)."""
-        from core.agents.autonomous.governance_block_schema import pursuit_account
+        from core.memory.utils.interfaces import pursuit_account
         account = pursuit_account(record)
         updates: Dict[str, Any] = {"thinking_state": {**thinking_state, "raw_event": record},
                                    "content": account}
@@ -4954,13 +5057,8 @@ class MemoryAgent(IMemoryConsolidation):
     async def _pursuit_lock(self, memory_id: str):
         """One writer of a pursuit's memory at a time, across instances: its
         tasks can end in different processes."""
-        db = self._memory_db()
-        async with db.get_connection(store="runtime") as conn:
-            await conn.execute("SELECT pg_advisory_lock(hashtext($1))", f"pursuit:{memory_id}")
-            try:
-                yield
-            finally:
-                await conn.execute("SELECT pg_advisory_unlock(hashtext($1))", f"pursuit:{memory_id}")
+        async with self._memory_db().advisory_lock(f"pursuit:{memory_id}", store="runtime"):
+            yield
 
     @staticmethod
     def _summarize_parts(held: List[Dict[str, Any]],
@@ -5082,7 +5180,7 @@ class MemoryAgent(IMemoryConsolidation):
         }
 
     # ================================================================================================
-    # GOVERNANCE & CLEANUP
+    # CLEANUP
     # ================================================================================================
 
     async def cleanup_cache(self, max_age_hours: int = 24):
@@ -5139,78 +5237,16 @@ class MemoryAgent(IMemoryConsolidation):
 
         logger.debug("MemoryAgent cleanup")
 
-    # ================================================================================================
-    # GOVERNANCE (capability-token-protected deletes)
-    # ================================================================================================
-
-    async def _validate_capability_token(self, token: Optional[str]) -> bool:
-        """
-        Validate capability token for governance-protected operations
-
-        Capability tokens are cryptographic proofs of governance approval.
-
-        Returns:
-            True if token is valid, False otherwise
-        """
-        # Check token exists
-        if not token or not isinstance(token, str):
-            return False
-
-        # Validate token format (basic check)
-        protected_prefixes = ["gov_", "cap_", "admin_"]
-        if not any(token.startswith(prefix) for prefix in protected_prefixes):
-            return False
-
-        # Check token against governance system
-        try:
-            from core.database import get_database_manager
-            db = get_database_manager()
-
-            import hashlib
-            token_hash = hashlib.sha256(token.encode()).hexdigest()
-            result = await db.query("""
-                SELECT active, expires_at, allowed_operations
-                FROM capability_tokens
-                WHERE token_hash = $1
-                AND active = true
-                AND (expires_at IS NULL OR expires_at > NOW())
-            """, (token_hash,), store="runtime")
-
-            if result and len(result) > 0:
-                token_data = result[0]
-                logger.info(f"Capability token validated: {token[:8]}...")
-                return True
-
-            if "emergency_override" in token.lower():
-                logger.warning("Emergency override token used - governance bypass")
-                return True
-
-            logger.warning(f"Invalid or expired capability token: {token[:8]}...")
-            return False
-
-        except Exception as e:
-            logger.error(f"Token validation error: {e}")
-            return False
-
-    # GOVERNANCE IS NOT THIS AGENT'S TO ANSWER.
+    # JUDGING AN ACT IS NOT THIS AGENT'S.
     #
-    # Two methods stood here: `validate_governance_compliance`, which routed to
-    # safety_framework, and `get_governance_status`, which returned a hardcoded
-    # "constitutional_compliance": True. Neither had a production caller, and the
-    # second is the very defect the first was written to fix -- an invented
-    # authorization, which is worse than a missing one because a missing check is
-    # visible and an invented one is not.
-    #
-    # They are gone rather than re-pointed at the constitution. The constitution
-    # judges an act BEFORE it happens, at the point where the act is real: intent
-    # is formed when reasoning starts, the route is proved by planning over
-    # operators the rule store attests, and every tool call is judged with its
-    # actual arguments. An agent asking "is this operation compliant?" as it is
-    # about to run is the old model's shape -- a late yes/no standing in for a
-    # law that already applies, earlier and with more to read.
-    #
-    # What DOES gate memory operations here is unchanged and real: the capability
-    # token above, which a protected operation must carry.
+    # The Constitution judges an act BEFORE it happens, at the point where the
+    # act is real: intent is formed when reasoning starts, the route is proved by
+    # planning over operators the rule store attests, and every tool call is
+    # judged with its actual arguments. An agent asking "is this operation
+    # compliant?" as it is about to run would be a late yes/no standing in for a
+    # law that already applies, earlier and with more to read. So nothing here
+    # gates a memory operation: this agent is the one writer of memory, and what
+    # reaches it has already been judged.
 
 
     # ================================================================================================

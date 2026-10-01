@@ -12,12 +12,12 @@ from core.memory import Origin
 
 
 def test_a_memory_is_stamped_only_with_what_its_own_owner_was_perceiving(monkeypatch):
-    import core.agents.autonomous.perception_manager as hub_module
+    import core.perception.perception_faculty as faculty_module
     from core.agents.autonomous.shared_types import PerceptionData
     from core.agents.memory_agent import MemoryAgent
 
-    class Hub:
-        async def get_recent_perceptions(self, limit=10):
+    class Faculty:
+        def recent_percepts(self, limit=10):
             return [PerceptionData("theirs.png", "image", {"detections": ["alice's"]},
                                    origin=Origin.of("alice", "see")),
                     PerceptionData("other.png", "image", {"detections": ["bob's"]},
@@ -25,7 +25,7 @@ def test_a_memory_is_stamped_only_with_what_its_own_owner_was_perceiving(monkeyp
                     PerceptionData("room.png", "image", {"detections": ["its own"]}, origin=Origin.own("see")),
                     PerceptionData("unsaid.png", "image", {}, origin=None)]
 
-    monkeypatch.setattr(hub_module, "get_perception_manager", lambda: Hub())
+    monkeypatch.setattr(faculty_module, "get_perception_faculty", lambda: Faculty())
     agent = MemoryAgent()
     alice = asyncio.run(agent._perceptual_state("alice"))
     own = asyncio.run(agent._perceptual_state(None))

@@ -98,7 +98,6 @@ echo "Running VACUUM ANALYZE on all tables..."
 
 psql -U stefan -d lyric_db << 'EOF'
 -- Governance and directive tables
-VACUUM ANALYZE unified.governance_laws;
 VACUUM ANALYZE unified.internal_directives;
 VACUUM ANALYZE unified.directive_applications;
 VACUUM ANALYZE unified.directive_evolution_log;

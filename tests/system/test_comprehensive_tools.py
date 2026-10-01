@@ -163,9 +163,6 @@ class TestDatabaseTools:
     async def test_mysql_tools_registered(self, registry):
         """Test that MySQL tools are registered"""
         assert registry.get_tool('mysql_query') is not None
-        assert registry.get_tool('mysql_table_info') is not None
-        assert registry.get_tool('mysql_backup') is not None
-        assert registry.get_tool('mysql_restore') is not None
 
     @pytest.mark.asyncio
     async def test_r2_tools_registered(self, registry):
@@ -246,8 +243,6 @@ class TestAIMLTools:
     async def test_ai_ml_tools_registered(self, registry):
         """Test that AI/ML tools are registered"""
         assert registry.get_tool('generate_embedding') is not None
-        assert registry.get_tool('query_memory') is not None
-        assert registry.get_tool('store_memory') is not None
         assert registry.get_tool('run_inference') is not None
         assert registry.get_tool('semantic_similarity') is not None
 

@@ -10,7 +10,7 @@ Provides:
 - Safety checks
 - Usage tracking
 - Constitutional oversight
-- Governance integration
+- Constitution integration
 
 Author: Lyric AI Team
 """
@@ -32,1299 +32,92 @@ from typing import Any, Callable, Dict, List, Optional, Set, Union
 from core.chaos.decorators import inject_latency, inject_error
 
 
-# ── Tool error enrichment ─────────────────────────────────────────────────────
-# Each entry is (category_tag, [regex_patterns], hint_text).
-# Patterns are matched against the lowercased error string.
-# The FIRST matching category wins — more specific patterns go first.
-
-import re as _re
-
-_ERROR_CATEGORIES = [
-
-    # ════════════════════════════════════════════════════════════════════════
-    # FILESYSTEM TOOLS  (read_file, write_file, patch_file, list_directory,
-    #                    search_files, move_file, copy_file, delete_file)
-    # ════════════════════════════════════════════════════════════════════════
-
-    # ── patch_file: old_string not found — MUST be before FILE_NOT_FOUND ────
-    (
-        "PATCH_STRING_NOT_FOUND",
-        [
-            r"old_string not found",
-            r"exact text was not found",
-            r"old_string.*not found",
-            r"copy.*verbatim.*read_file",
-        ],
-        """patch_file could not locate old_string in the file.
-  The file may have been modified since you last read it, or whitespace differs.
-  Retry steps (do each in order until one works):
-  1. read_file(path, start_line=<line>, end_line=<line+20>) on the exact section to change.
-  2. Copy the text character-for-character from that read_file output — do not reconstruct from memory.
-  3. Indentation, trailing spaces, and blank lines must match exactly.
-  4. If the section has moved, use grep_search(pattern="<unique_phrase>") to find its new line number.
-  5. Retry patch_file with the freshly-read text as old_string.""",
-    ),
-
-    # ── patch_file: ambiguous match ──────────────────────────────────────────
-    (
-        "PATCH_AMBIGUOUS",
-        [
-            r"old_string.*ambiguous",
-            r"old_string matches \d+ locations",
-            r"must be unique",
-            r"add more surrounding context",
-        ],
-        """patch_file found old_string in more than one place — it must be unique.
-  Retry steps:
-  1. read_file(path, start_line=<target_line-5>, end_line=<target_line+5>) to get broader context.
-  2. Extend old_string to include 3-5 unique surrounding lines (function signature, comment, etc.).
-  3. Verify uniqueness: grep_search(pattern="<key_phrase_in_old_string>") should return exactly one hit.
-  4. Retry patch_file with the extended old_string.""",
-    ),
-
-    # ── patch_file / write_file: no-op ───────────────────────────────────────
-    (
-        "PATCH_NOOP",
-        [
-            r"old_string and new_string are identical",
-            r"no-op patch",
-            r"patch changes nothing",
-            r"content.*already.*present",
-            r"already contains",
-        ],
-        """The patch changed nothing — old_string and new_string are identical.
-  The file already contains the content you tried to write, or you made a copy error.
-  Retry steps:
-  1. read_file the section you intended to change to see its current state.
-  2. If the desired change is already there, proceed to the next step (run tests).
-  3. If you intended a different change, identify the correct old_string from what read_file returns.
-  4. Construct a new_string that is genuinely different, then retry patch_file.""",
-    ),
-
-    # ── write_file: truncation guard ─────────────────────────────────────────
-    (
-        "TRUNCATION_GUARD",
-        [
-            r"truncation guard",
-            r"content is too short",
-            r"less than 80.*original",
-            r"refusing to overwrite",
-        ],
-        """write_file rejected the write — new content is far shorter than the existing file.
-  You are about to destroy content by writing a partial/stub replacement.
-  Retry steps:
-  1. Switch to patch_file — provide only old_string (the lines to replace) and new_string (the replacement).
-  2. patch_file leaves the rest of the file untouched; you do not need the full file content.
-  3. If you genuinely need to rewrite the whole file, read_file it completely first, apply your change
-     to the full text in memory, then write_file the complete result.""",
-    ),
-
-    # ── File not found ────────────────────────────────────────────────────────
-    (
-        "FILE_NOT_FOUND",
-        [
-            r"no such file or directory",
-            r"filenotfounderror",
-            r"path.*does not exist",
-            r"cannot find.*file",
-            r"file.*not found",
-            r"no such path",
-        ],
-        """The file or directory does not exist at the given path.
-  Retry steps:
-  1. grep_search(pattern="<filename_keyword>", path=".") to locate the correct path.
-  2. list_directory(path="<parent_dir>") to see what actually exists there.
-  3. Check for typos, case sensitivity, or a missing subdirectory.
-  4. If the path uses ~, expand it: run_python("import os; print(os.path.expanduser('~/<rel_path>'))").
-  5. Retry the original tool call with the corrected path.""",
-    ),
-
-    # ── Write / delete permission denied ─────────────────────────────────────
-    (
-        "WRITE_PERMISSION",
-        [
-            r"read.?only file system",
-            r"permission denied.*write",
-            r"cannot write",
-            r"isadirectoryerror",
-            r"oserror.*\[errno 13\]",
-            r"oserror.*\[errno 30\]",
-        ],
-        """Write or delete failed — the path is read-only or the process lacks permission.
-  Retry steps:
-  1. run_command("ls -la '<parent_dir>'") to inspect actual permissions.
-  2. Try writing to a writable path instead: store/outputs/<task_id>/ or /tmp/.
-  3. If the target is a project source file, confirm it is not git-locked:
-     run_command("git status '<file_path>'").
-  4. run_command("chmod u+w '<file_path>'") to grant write permission if appropriate.
-  5. Retry the write with the corrected path or after fixing permissions.""",
-    ),
-
-    # ── File already exists (exclusive create) ────────────────────────────────
-    (
-        "FILE_EXISTS",
-        [
-            r"file.*already exists",
-            r"fileexistserror",
-            r"oserror.*\[errno 17\]",
-        ],
-        """A file already exists at the target path.
-  Retry steps:
-  1. read_file the existing file to understand its current contents.
-  2. If you want to update it, use patch_file (targeted change) or write_file with mode="write".
-  3. If you want to append, use write_file with mode="append".
-  4. If the file should be replaced entirely, read it first, merge your changes, then write_file.""",
-    ),
-
-    # ── Directory not empty (delete/move) ─────────────────────────────────────
-    (
-        "DIR_NOT_EMPTY",
-        [
-            r"directory not empty",
-            r"oserror.*\[errno 66\]",
-            r"directory.*not.*empty",
-        ],
-        """Cannot delete or move a non-empty directory.
-  Retry steps:
-  1. list_directory(path="<dir>", recursive=True) to see what is inside.
-  2. Delete or move the contents individually first, then retry the directory operation.
-  3. Alternatively: run_command("rm -rf '<dir>'") if removal of all contents is intended.""",
-    ),
-
-    # ── Large file read (auto-batched) ────────────────────────────────────────
-    (
-        "LARGE_FILE_BATCHED",
-        [
-            r"batched.*next_batch",
-            r"use start_line.*end_line.*next batch",
-            r"file.*too large.*batch",
-        ],
-        """The file is too large to return in one read — a partial batch was returned.
-  Retry steps:
-  1. Use the next_batch hint in the result to get the next chunk:
-     read_file(path, start_line=<next>, end_line=<next+499>).
-  2. Continue reading in batches until you have the section you need.
-  3. For log files, use tail_lines=<N> to read only the most recent entries.
-  4. For searching within a large file, use grep_search(pattern="<keyword>", path="<file>")
-     instead of reading the whole file.""",
-    ),
-
-
-    # ════════════════════════════════════════════════════════════════════════
-    # EXECUTION TOOLS  (run_python, run_shell_command, execute_sandbox,
-    #                   install_package, kill_process)
-    # ════════════════════════════════════════════════════════════════════════
-
-    # ── Module / import error ─────────────────────────────────────────────────
-    (
-        "MODULE_NOT_FOUND",
-        [
-            r"modulenotfounderror",
-            r"no module named",
-            r"importerror.*cannot import",
-            r"cannot import name",
-        ],
-        """A Python import failed inside run_python or a test file.
-  Retry steps:
-  1. run_command("pip show <package_name>") to check if it is installed.
-  2. If missing: run_command("pip install <package_name>") then retry.
-  3. If pip is unavailable: run_command("python3 -m pip install <package_name>").
-  4. For project-internal imports: verify the module path with grep_search(pattern="class <Name>|def <func>").
-  5. Add sys.path.insert(0, '<project_root>') at the top of run_python code to ensure project modules resolve.""",
-    ),
-
-    # ── Shell command not found ───────────────────────────────────────────────
-    (
-        "COMMAND_NOT_FOUND",
-        [
-            r"command not found",
-            r"no such file or directory.*bin",
-            r"exec.*not found",
-            r"is not recognized as.*command",
-            r"zsh:.*not found",
-            r"bash:.*not found",
-        ],
-        """The shell command was not found on PATH.
-  Retry steps:
-  1. run_command("which <command>") — if it prints a path, use that absolute path.
-  2. run_command("brew list | grep <command>") or run_command("pip list | grep <command>").
-  3. If it is a Python CLI tool: run_command("python3 -m <module_name> <args>") instead.
-  4. If the binary is installed elsewhere: run_command("find /usr /opt /usr/local -name '<cmd>' 2>/dev/null").
-  5. Install the tool if missing: run_command("brew install <tool>") or run_command("pip install <tool>").""",
-    ),
-
-    # ── Python syntax / indentation error ────────────────────────────────────
-    (
-        "PYTHON_SYNTAX_ERROR",
-        [
-            r"syntaxerror",
-            r"indentationerror",
-            r"unexpected indent",
-            r"expected an indented block",
-            r"invalid syntax",
-        ],
-        """Python syntax or indentation error in run_python code or a source file.
-  Retry steps:
-  1. Identify the exact line number from the traceback.
-  2. Check indentation: Python requires consistent 4-space indentation; do not mix tabs and spaces.
-  3. Check for unclosed brackets, parentheses, triple-quotes, or missing colons.
-  4. If the error is in a file you just wrote, read_file it to inspect the exact content on disk.
-  5. Test a minimal version of the code first; add complexity only after the base runs cleanly.""",
-    ),
-
-    # ── Process / sandbox timeout ─────────────────────────────────────────────
-    (
-        "TIMEOUT",
-        [
-            r"timed? out",
-            r"timeout.*exceeded",
-            r"deadline.*exceeded",
-            r"asyncio\.timeouterror",
-            r"read timeout",
-            r"operation.*timed out",
-            r"execution timed out",
-        ],
-        """The operation timed out before completing.
-  Retry steps:
-  1. Reduce scope: fewer rows, shorter date range, smaller file section, fewer iterations.
-  2. For shell commands, increase the timeout parameter or use: run_command("timeout 120 <cmd>").
-  3. For file reads on large files, switch to read_file(start_line=..., end_line=...) batches.
-  4. Check if the target service is healthy: run_command("ps aux | grep <service_name>").
-  5. Run a quick smoke-test version of the operation to confirm it works at small scale, then scale up.""",
-    ),
-
-    # ── Process resource exhaustion ───────────────────────────────────────────
-    (
-        "RESOURCE_EXHAUSTION",
-        [
-            r"memoryerror",
-            r"out of memory",
-            r"killed.*signal 9",
-            r"killed.*oom",
-            r"disk.*full",
-            r"no space left",
-            r"resource.*exhausted",
-        ],
-        """Resource exhaustion — memory, disk, or process killed by the OS.
-  Retry steps:
-  1. run_command("df -h && free -h") to check current disk and memory state.
-  2. For memory: process data in smaller chunks; avoid loading entire large files at once.
-  3. For disk: run_command("du -sh /tmp/* 2>/dev/null | sort -rh | head -20") to find large files to clean.
-  4. For OOM: reduce batch size in the code and retry with explicit chunk loops.
-  5. Verify the operation actually requires this resource, or find a lower-memory alternative algorithm.""",
-    ),
-
-    # ── Runtime error inside run_python ──────────────────────────────────────
-    (
-        "RUNTIME_ERROR",
-        [
-            r"runtimeerror",
-            r"zerodivisionerror",
-            r"indexerror",
-            r"keyerror",
-            r"attributeerror",
-            r"nameerror.*not defined",
-            r"recursionerror",
-            r"stopiteration",
-        ],
-        """A runtime exception occurred inside run_python or run_shell_command.
-  Retry steps:
-  1. Read the full traceback — identify the exact line and variable that caused the error.
-  2. For KeyError/IndexError: print the object's keys or length before accessing it.
-  3. For AttributeError: confirm the object type with run_python("print(type(obj), dir(obj))").
-  4. For NameError: ensure all variables and imports are defined before use.
-  5. Add defensive checks (if key in dict, if len(list) > i) and retry.""",
-    ),
-
-
-    # ════════════════════════════════════════════════════════════════════════
-    # TESTING TOOLS  (run_pytest, run_unittest, generate_test, benchmark)
-    # ════════════════════════════════════════════════════════════════════════
-
-    # ── No tests collected / collection error ────────────────────────────────
-    (
-        "TEST_NOT_FOUND",
-        [
-            r"no tests ran",
-            r"no tests were run",
-            r"collected 0 items",
-            r"no tests found",
-            r"error.*collecting",
-            r"could not import.*test",
-            r"importerror.*test",
-            r"did not warn",
-            r"failed.*did not warn",
-        ],
-        """pytest collected no tests, or the test file has an import/collection error.
-  Retry steps:
-  1. run_command("python -m pytest '<test_file>' --collect-only -v") to see what pytest can find.
-  2. Confirm the test file path is correct and single-quoted (paths on this machine contain spaces).
-  3. Run only the specific test file — never the whole tests/ directory.
-  4. Verify the test file imports correctly:
-     run_python("import sys; sys.path.insert(0,'<lyric_root>'); import <module>; print('OK')").
-  5. If the test expects behaviour the source does not yet implement (e.g. a warning never raised),
-     fix the SOURCE file to add the missing behaviour, then re-run the test.""",
-    ),
-
-    # ── Test assertion failure ────────────────────────────────────────────────
-    (
-        "TEST_ASSERTION_FAILED",
-        [
-            r"assertionerror.*test",
-            r"assert.*failed",
-            r"expected.*got",
-            r"assertEqual.*failed",
-            r"failed.*assert",
-            r"not equal.*assert",
-        ],
-        """A test assertion failed — the code under test produced an unexpected result.
-  Retry steps:
-  1. Read the full failure output to identify which assertion failed and what values were compared.
-  2. read_file the source function under test to understand its current logic.
-  3. Determine whether the SOURCE is wrong (fix source, re-run test) or the TEST is wrong (fix test).
-  4. Add a run_python debug snippet that calls the function directly and prints its return value.
-  5. patch_file the source to correct the logic, then re-run the targeted test file.""",
-    ),
-
-    # ── Benchmark / performance regression ───────────────────────────────────
-    (
-        "PERFORMANCE_REGRESSION",
-        [
-            r"performance.*regression",
-            r"benchmark.*failed",
-            r"slower than.*baseline",
-            r"exceeded.*time.*budget",
-            r"latency.*too high",
-        ],
-        """A performance benchmark failed or exceeded its threshold.
-  Retry steps:
-  1. run_python a timing snippet to measure the slow function in isolation.
-  2. Use grep_search to find recent changes to the function: grep_search(pattern="def <func_name>").
-  3. Profile with: run_python("import cProfile; cProfile.run('<statement>')").
-  4. Identify the bottleneck and patch_file a targeted optimization.
-  5. Re-run the benchmark to confirm the regression is resolved.""",
-    ),
-
-
-    # ════════════════════════════════════════════════════════════════════════
-    # SEARCH TOOLS  (grep_search, semantic_search, analyze_code,
-    #                find_files, list_code_structure)
-    # ════════════════════════════════════════════════════════════════════════
-
-    # ── Search returned no results ────────────────────────────────────────────
-    (
-        "SEARCH_NO_RESULTS",
-        [
-            r"no matches found",
-            r"no results.*found",
-            r"search.*returned.*empty",
-            r"0 matches",
-            r"nothing matched",
-        ],
-        """The search returned no results.
-  Retry steps:
-  1. Broaden the pattern — try a shorter keyword or partial word (e.g. "config" instead of "configuration").
-  2. Try a different tool: semantic_search for concept-level search vs grep_search for exact text.
-  3. Check the search path — list_directory(path=".") to confirm you are searching the right directory.
-  4. Try a case-insensitive variant or regex alternative.
-  5. Search parent directories: grep_search(pattern="<term>", path="<project_root>").""",
-    ),
-
-    # ── Regex error in search ─────────────────────────────────────────────────
-    (
-        "SEARCH_INVALID_REGEX",
-        [
-            r"invalid.*regex",
-            r"regex.*error",
-            r"re\.error",
-            r"bad escape",
-            r"nothing to repeat",
-            r"unbalanced parenthes",
-        ],
-        """The search pattern is not valid regex.
-  Retry steps:
-  1. Set is_regex=False to treat the pattern as a plain text search.
-  2. If regex is needed, escape special characters: ., *, +, (, ), [, ], {, }, ^, $, |, \\, ?.
-  3. Test the regex with: run_python("import re; re.compile('<pattern>'); print('OK')").
-  4. Simplify the pattern and add complexity after confirming the base pattern compiles.""",
-    ),
-
-
-    # ════════════════════════════════════════════════════════════════════════
-    # DATABASE TOOLS  (postgres_query, mysql_query, redis_get/set,
-    #                  clickhouse_query, mysql_table_info)
-    # ════════════════════════════════════════════════════════════════════════
-
-    # ── DB connection / server down ───────────────────────────────────────────
-    (
-        "DATABASE_CONNECTION",
-        [
-            r"can't connect to.*server",
-            r"lost connection to.*server",
-            r"database.*unreachable",
-            r"connection.*refused.*\d{4}",
-            r"server.*not.*running",
-            r"pg.*connection.*failed",
-            r"asyncpg.*cannotconnect",
-        ],
-        """Cannot connect to the database server.
-  DISCOVER the endpoint before probing it. Every step below reads the real
-  configuration rather than assuming a host, port, file or service name -- this
-  guidance is generic, and a caller's deployment is not knowable from here.
-  Retry steps:
-  1. Resolve the configured target, do not assume localhost or a default port:
-     run_python("from core.database.postgres_config import PostgresConfig; c=PostgresConfig.resolve(); print(c.host, c.port, c.database, dict(c.provenance))")
-     The provenance says which source decided each field, so a wrong value is
-     traceable to the file or variable that set it.
-  2. Probe THAT endpoint, with its port: run_command("pg_isready -h <host> -p <port>")
-     (for MySQL: run_command("mysqladmin ping -h <host> -P <port>")).
-  3. If it does not answer, find what is actually listening before concluding
-     the server is down: run_command("lsof -nP -iTCP -sTCP:LISTEN | grep -i -E 'postgres|mysql'").
-     More than one instance on different ports is common; connecting to the
-     wrong one reads a different database, which is worse than an error.
-  4. Start it only if nothing is listening on the configured port. Discover how
-     it is managed rather than guessing a version or init system:
-     run_command("brew services list") on macOS, run_command("systemctl list-units '*sql*'") on Linux.
-  5. Retry the database tool once step 2 answers on the configured port.""",
-    ),
-
-    # ── SQL error (bad query / missing table) ─────────────────────────────────
-    (
-        "DATABASE_QUERY_ERROR",
-        [
-            r"operationalerror",
-            r"table.*doesn.*exist",
-            r"unknown column",
-            r"no such table",
-            r"relation.*does not exist",
-            r"column.*does not exist",
-            r"syntax error.*at or near",
-            r"pg.*error",
-            r"clickhouse.*exception",
-        ],
-        """The SQL query failed — bad syntax, missing table, or unknown column.
-  Retry steps:
-  1. For missing table: run_command("psql -c '\\dt'") or use mysql_table_info to list tables.
-  2. For unknown column: fetch the schema first with mysql_table_info(table_name="<table>").
-  3. For syntax errors: simplify the query to a basic SELECT, verify it works, then add complexity.
-  4. Check if a migration is needed: grep_search(pattern="CREATE TABLE.*<table_name>", path="migrations/").
-  5. Retry with the corrected table name, column name, or fixed SQL syntax.""",
-    ),
-
-    # ── Redis error ───────────────────────────────────────────────────────────
-    (
-        "REDIS_ERROR",
-        [
-            r"redis.*error",
-            r"connection.*redis",
-            r"redis.*not.*running",
-            r"redis.*refused",
-        ],
-        """Redis operation failed.
-  Retry steps:
-  1. run_command("redis-cli ping") — should return PONG if Redis is running.
-  2. run_command("brew services start redis") to start it if needed.
-  3. Verify the Redis host/port in config: grep_search(pattern="REDIS_URL|redis_host", path="config/").
-  4. For key-not-found: use redis_get with a default value or check key existence first.
-  5. Retry the Redis operation after confirming the server is reachable.""",
-    ),
-
-
-    # ════════════════════════════════════════════════════════════════════════
-    # NETWORK TOOLS  (http_request, download_file, api_call,
-    #                 websocket_connect, graphql_query)
-    # ════════════════════════════════════════════════════════════════════════
-
-    # ── HTTP error responses ──────────────────────────────────────────────────
-    (
-        "HTTP_ERROR",
-        [
-            r"\b4\d{2}\b(?!.*\b401\b)(?!.*\b403\b)",  # 4xx except 401/403 (covered by CREDENTIAL)
-            r"\b5\d{2}\b",
-            r"http.*error",
-            r"bad gateway",
-            r"service unavailable",
-            r"internal server error",
-            r"not found.*404",
-            r"status.*4\d\d",
-            r"status.*5\d\d",
-        ],
-        """An HTTP error response was received.
-  Retry steps:
-  1. Check the status code: 404 = wrong URL, 500/502/503 = server error (retry later), 400 = bad request body.
-  2. For 404: verify the endpoint URL with grep_search(pattern="<api_base_url>") or API docs.
-  3. For 400: print the request body and compare with the API's expected schema.
-  4. For 500/503: run_command("curl -v '<url>'") to get full headers; wait 30s and retry once.
-  5. For rate limit (429) see the RATE_LIMIT hint above.""",
-    ),
-
-    # ── Hostname not found / DNS failure ─────────────────────────────────────
-    # Must come BEFORE the generic NETWORK_ERROR block so it matches first.
-    (
-        "HOST_NOT_FOUND",
-        [
-            r"name or service not known",
-            r"nodename nor servname provided",
-            r"name resolution.*fail",
-            r"cannot resolve.*hostname",
-            r"getaddrinfo.*failed",
-            r"temporary failure in name resolution",
-            r"clientconnectordnserror",
-        ],
-        """The hostname does not exist — you likely used a made-up or misspelled URL.
-  Do NOT retry http_request with the same hostname.
-
-  If you are trying to search or research a topic, use the correct tool:
-    conduct_research(topic='your topic here')   — searches arXiv, GitHub, Wikipedia, news, etc.
-    search_academic(query='your topic here')    — arXiv, Semantic Scholar, PubMed
-
-  If you need to fetch a specific real page, use known working URLs, e.g.:
-    https://news.ycombinator.com               (Hacker News front page)
-    https://github.com/trending                (GitHub trending repos)
-    https://arxiv.org/search/?query=<topic>    (arXiv search)
-    https://api.github.com/search/repositories?q=<topic>&sort=stars   (GitHub API)
-    https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=<topic>&format=json
-
-  Do NOT invent or guess hostnames — only pass URLs you know are real.""",
-    ),
-
-    # ── Network / connection failure ──────────────────────────────────────────
-    (
-        "NETWORK_ERROR",
-        [
-            r"connection refused",
-            r"connection.*timed out",
-            r"network.*unreachable",
-            r"failed to establish.*connection",
-            r"connectionerror",
-            r"socket.*error",
-            r"ssl.*error",
-            r"certificate.*verify.*failed",
-            r"errno 111",
-            r"errno 110",
-        ],
-        """Network or connection failure.
-  Retry steps:
-  1. run_command("curl -s --max-time 5 https://api.github.com") to test general connectivity.
-  2. For a local service: run_command("lsof -i :<port>") to confirm it is listening.
-  3. For SSL errors: run_command("openssl s_client -connect <host>:443") to inspect the cert.
-  4. Retry after confirming the network path is reachable.""",
-    ),
-
-    # ── Rate limit ────────────────────────────────────────────────────────────
-    (
-        "RATE_LIMIT",
-        [
-            r"\b429\b", r"rate.?limit", r"too many requests",
-            r"quota.*exceeded", r"quota.*exhausted", r"daily.*limit",
-            r"requests.*per.*minute", r"throttl",
-        ],
-        """Rate limit or quota reached.
-  Retry steps:
-  1. Wait at least 60 seconds, then retry the same request.
-  2. run_command("gh api rate_limit") for GitHub API remaining budget.
-  3. For repeated limits, check if multiple concurrent calls are hitting the same endpoint and serialize them.
-  4. If a per-key limit, try a different API key if one is configured in the environment.
-  5. For daily quotas, queue the work and retry it as a follow-up task.""",
-    ),
-
-    # ── Download failed / partial download ───────────────────────────────────
-    (
-        "DOWNLOAD_ERROR",
-        [
-            r"download.*failed",
-            r"incomplete.*download",
-            r"partial.*content",
-            r"content.*length.*mismatch",
-            r"checksum.*mismatch",
-        ],
-        """File download failed or was incomplete.
-  Retry steps:
-  1. Retry the download — transient network errors are common.
-  2. run_command("curl -L -o '<dest>' '<url>'") as an alternative to the download_file tool.
-  3. Check available disk space: run_command("df -h '<dest_dir>'").
-  4. Verify the URL is still valid with http_request(url="<url>", method="HEAD").
-  5. For large files, consider streaming or downloading in parts.""",
-    ),
-
-
-    # ════════════════════════════════════════════════════════════════════════
-    # AUTH / CREDENTIAL  (shared across all tools)
-    # ════════════════════════════════════════════════════════════════════════
-
-    (
-        "CREDENTIAL",
-        [
-            r"no.*token", r"token.*not found", r"missing.*token",
-            r"no.*api.*key", r"api.*key.*not found", r"missing.*api.*key",
-            r"unauthorized", r"\b401\b", r"\b403\b", r"forbidden",
-            r"authentication.*failed", r"unauthenticated",
-            r"no.*credential", r"credential.*not found", r"missing.*credential",
-            r"github_token", r"gh_token", r"github.*pat",
-            r"no.*github", r"github.*not.*configured",
-            r"invalid.*token", r"token.*expired", r"token.*revoked",
-        ],
-        """Credential not found or rejected.
-  Retry steps — try each in order until one succeeds:
-  1. run_command("gh auth token")
-  2. read_file("~/.config/gh/hosts.yml")  — gh CLI stores OAuth tokens here
-  3. run_command("grep -r 'GITHUB_TOKEN\\|GH_TOKEN\\|GITHUB_PAT' ~/.env .env ../.env 2>/dev/null | head -5")
-  4. run_command("security find-generic-password -s github -w 2>/dev/null")  — macOS Keychain
-  5. run_python("import os; print(os.environ.get('GITHUB_TOKEN') or os.environ.get('GH_TOKEN','NOT SET'))")
-  If none return a token, record the absence in the task output and proceed with whatever is available.""",
-    ),
-
-
-    # ════════════════════════════════════════════════════════════════════════
-    # CODE GENERATION / ANALYSIS TOOLS  (generate_code, refactor_code,
-    #                                    analyze_code, lint_code)
-    # ════════════════════════════════════════════════════════════════════════
-
-    # ── Generated code fails to parse / compile ───────────────────────────────
-    (
-        "GENERATED_CODE_INVALID",
-        [
-            r"generated.*code.*invalid",
-            r"code.*generation.*failed",
-            r"could not parse.*generated",
-            r"ast.*parse.*failed",
-            r"compile.*failed",
-        ],
-        """The generated or refactored code is syntactically invalid.
-  Retry steps:
-  1. run_python("import ast; ast.parse(open('<file>').read()); print('OK')") to validate the file.
-  2. read_file the generated file and find the exact syntax error line from the traceback.
-  3. patch_file the invalid section with corrected syntax.
-  4. Re-validate with ast.parse before proceeding to tests.""",
-    ),
-
-    # ── Lint / style errors ───────────────────────────────────────────────────
-    (
-        "LINT_ERROR",
-        [
-            r"flake8.*error",
-            r"pylint.*error",
-            r"ruff.*error",
-            r"mypy.*error",
-            r"type.*error.*mypy",
-            r"linting.*failed",
-            r"style.*violation",
-        ],
-        """Linting or type-checking errors were found.
-  Retry steps:
-  1. Read the linter output line by line — each line identifies a file, line number, and rule.
-  2. For type errors: run_python the function with explicit type assertions to verify types.
-  3. patch_file each violation individually — do not rewrite the whole file.
-  4. Re-run the linter after each patch to confirm the specific error is resolved.
-  5. For repeated false positives, add a targeted inline suppression comment (# noqa: <rule>).""",
-    ),
-
-
-    # ════════════════════════════════════════════════════════════════════════
-    # MONITORING / SYSTEM TOOLS  (get_metrics, check_service_health,
-    #                              get_logs, system_info, process_monitor)
-    # ════════════════════════════════════════════════════════════════════════
-
-    # ── Service not running ───────────────────────────────────────────────────
-    (
-        "SERVICE_NOT_RUNNING",
-        [
-            r"service.*not.*running",
-            r"service.*stopped",
-            r"service.*inactive",
-            r"daemon.*not.*running",
-            r"process.*not.*found",
-            r"no.*process.*listening",
-        ],
-        """The target service or daemon is not running.
-  Retry steps:
-  1. run_command("brew services list") or run_command("systemctl list-units --type=service --state=running") to list running services.
-  2. run_command("brew services start <service>") or run_command("systemctl start <service>") to start it.
-  3. read_file the service log to understand why it stopped: run_command("tail -50 /var/log/<service>.log").
-  4. run_command("ps aux | grep <process_name>") to check if it is running under a different name.
-  5. Retry the monitoring tool after confirming the service is active.""",
-    ),
-
-    # ── Metrics / telemetry unavailable ──────────────────────────────────────
-    (
-        "METRICS_UNAVAILABLE",
-        [
-            r"metrics.*unavailable",
-            r"metric.*not.*found",
-            r"telemetry.*not.*configured",
-            r"prometheus.*error",
-            r"statsd.*error",
-            r"no data.*metric",
-        ],
-        """Metrics or telemetry data is unavailable.
-  Retry steps:
-  1. Verify the metrics endpoint is reachable: http_request(url="http://localhost:9090/-/ready").
-  2. Check if the metrics agent is configured: grep_search(pattern="prometheus|statsd|metrics", path="config/").
-  3. Try a different time range or aggregation window in the query.
-  4. Fall back to log-based metrics: grep_search(pattern="<event_keyword>", path="logs/") and count matches.
-  5. Document what data sources are available and use those instead.""",
-    ),
-
-    # ── Log file empty or not found ───────────────────────────────────────────
-    (
-        "LOG_NOT_FOUND",
-        [
-            r"log.*not found",
-            r"log.*file.*empty",
-            r"no log.*entries",
-            r"log.*directory.*missing",
-        ],
-        """Log file is missing or empty.
-  Retry steps:
-  1. list_directory(path="logs/") or list_directory(path="/var/log/") to find the correct log path.
-  2. grep_search(pattern="<service_name>", path="logs/") to locate the right log file.
-  3. run_command("find . -name '*.log' -newer /tmp -ls 2>/dev/null") to find recently written logs.
-  4. Check if logging is enabled in config: grep_search(pattern="log_level|logging", path="config/").
-  5. Retry after identifying the correct log file path.""",
-    ),
-
-
-    # ════════════════════════════════════════════════════════════════════════
-    # MEMORY / LEARNING TOOLS  (store_memory, retrieve_memory,
-    #                            update_belief, semantic_similarity)
-    # ════════════════════════════════════════════════════════════════════════
-
-    # ── Memory store / retrieval failure ─────────────────────────────────────
-    (
-        "MEMORY_ERROR",
-        [
-            r"memory.*store.*failed",
-            r"memory.*retrieval.*failed",
-            r"embedding.*failed",
-            r"vector.*store.*error",
-            r"pgvector.*error",
-            r"memory.*not.*initialized",
-            r"memory.*agent.*unavailable",
-        ],
-        """Memory storage or retrieval failed.
-  Retry steps:
-  1. run_python("from core.memory.agent import get_memory_agent; a=get_memory_agent(); print('OK' if a else 'NONE')") to check availability.
-  2. Check the configured PostgreSQL/pgvector endpoint -- resolve it first, do
-     not assume localhost or a default port:
-     run_python("from core.database.postgres_config import PostgresConfig; c=PostgresConfig.resolve(); print(c.host, c.port, c.database)")
-     then run_command("pg_isready -h <host> -p <port>").
-  3. Try storing a simpler/shorter memory entry to isolate whether the failure is size-related.
-  4. Check the embedding service: grep_search(pattern="embedding_service", path="core/memory/").
-  5. Retry the memory operation after confirming the vector store is running.""",
-    ),
-
-
-    # ════════════════════════════════════════════════════════════════════════
-    # PARSE / DATA ERRORS  (shared across all tools)
-    # ════════════════════════════════════════════════════════════════════════
-
-    (
-        "PARSE_ERROR",
-        [
-            r"json.*decode.*error",
-            r"jsondecode",
-            r"expecting value.*line.*column",
-            r"invalid.*json",
-            r"yaml.*error",
-            r"parse.*error",
-            r"unexpected token",
-            r"csv.*error",
-            r"xml.*parse",
-        ],
-        """Output could not be parsed — malformed JSON, YAML, XML, or CSV.
-  Retry steps:
-  1. run_python("print(repr(raw_output[:500]))") to inspect the raw bytes/characters.
-  2. Check if the output was truncated — look for an incomplete closing bracket or quote.
-  3. For JSON: try json.loads() with error handling; fall back to regex extraction if needed.
-  4. If an API returned an HTML error page instead of JSON, there is a network or auth issue — check those first.
-  5. For YAML: verify indentation and quoting; try loading with yaml.safe_load() inside run_python.""",
-    ),
-
-    # ════════════════════════════════════════════════════════════════════════
-    # GIT TOOLS  (git_commit, git_push, git_pull, git_diff, git_log,
-    #             git_checkout, git_merge, git_stash)
-    # ════════════════════════════════════════════════════════════════════════
-
-    # ── Not a git repository ──────────────────────────────────────────────────
-    (
-        "GIT_NOT_INITIALIZED",
-        [
-            r"not a git repository",
-            r"fatal.*not a git",
-            r"\.git.*not found",
-        ],
-        """The current directory is not inside a git repository.
-  Retry steps:
-  1. run_command("git -C '<expected_root>' status") to check if the root is elsewhere.
-  2. run_command("find . -name '.git' -maxdepth 4 -type d") to locate the repo root.
-  3. If no repo exists yet: run_command("git init && git add -A && git commit -m 'init'").
-  4. Retry the git command with the correct repository root path.""",
-    ),
-
-    # ── Dirty state blocks checkout / rebase ─────────────────────────────────
-    (
-        "GIT_DIRTY_STATE",
-        [
-            r"local changes.*would be overwritten",
-            r"please commit.*stash",
-            r"cannot.*checkout.*modified",
-            r"uncommitted changes",
-            r"working tree.*not clean",
-        ],
-        """Git operation blocked by uncommitted local changes.
-  Retry steps:
-  1. run_command("git status") to see which files are modified.
-  2. run_command("git stash push -m 'auto-stash before <operation>'") to stash changes.
-  3. Retry the git operation.
-  4. Restore changes afterwards: run_command("git stash pop").""",
-    ),
-
-    # ── Remote rejected push ──────────────────────────────────────────────────
-    (
-        "GIT_REMOTE_REJECTED",
-        [
-            r"rejected.*non-fast-forward",
-            r"push rejected",
-            r"remote.*rejected",
-            r"updates were rejected",
-            r"fetch first",
-        ],
-        """The remote rejected the push — the branch has diverged.
-  Retry steps:
-  1. run_command("git pull --rebase origin <branch>") to rebase on top of the remote.
-  2. If there are conflicts, resolve them (see GIT_MERGE_CONFLICT hint).
-  3. run_command("git push origin <branch>") after the rebase completes cleanly.
-  4. Do NOT force-push to a shared branch without explicit instruction to do so.""",
-    ),
-
-    # ── Merge conflict ────────────────────────────────────────────────────────
-    (
-        "GIT_MERGE_CONFLICT",
-        [
-            r"merge conflict",
-            r"automatic merge failed",
-            r"conflict.*both modified",
-            r"unmerged paths",
-            r"<<<<<<.*======.*>>>>>>",
-        ],
-        """A merge or rebase produced conflicts.
-  Retry steps:
-  1. run_command("git diff --name-only --diff-filter=U") to list conflicting files.
-  2. read_file each conflicted file to see the conflict markers (<<<<<<, ======, >>>>>>).
-  3. patch_file to replace the conflict block with the correct merged content.
-  4. run_command("git add '<file>'") for each resolved file.
-  5. run_command("git rebase --continue") or run_command("git merge --continue") to finish.""",
-    ),
-
-
-    # ════════════════════════════════════════════════════════════════════════
-    # SLACK / COMMUNICATION TOOLS  (send_slack, slack_react,
-    #                                slack_list_channels, slack_read_messages)
-    # ════════════════════════════════════════════════════════════════════════
-
-    # ── Slack channel not found ───────────────────────────────────────────────
-    (
-        "SLACK_CHANNEL_NOT_FOUND",
-        [
-            r"channel.*not found",
-            r"channel_not_found",
-            r"no.*channel.*named",
-            r"channel_id.*invalid",
-        ],
-        """The Slack channel ID or name was not found.
-  Retry steps:
-  1. Use slack_list_channels() to get the full list of channels and their IDs.
-  2. Match the desired channel name to its ID from the list.
-  3. Use the channel ID (C01XXXXXX format), not the human-readable name, in the tool call.
-  4. Retry the Slack tool with the correct channel ID.""",
-    ),
-
-    # ── Slack message too long ────────────────────────────────────────────────
-    (
-        "SLACK_MESSAGE_TOO_LONG",
-        [
-            r"msg_too_long",
-            r"message.*too long",
-            r"slack.*character.*limit",
-            r"text.*exceeds.*limit",
-        ],
-        """Slack rejected the message because it exceeds the character limit (40,000 chars).
-  Retry steps:
-  1. Split the message into multiple parts: Part 1/N, Part 2/N, etc.
-  2. For code blocks: upload as a Slack file attachment instead of inline text.
-  3. Summarize the content to fit in one message, then reference the full data by file path.
-  4. Retry by sending each part as a separate slack_send call.""",
-    ),
-
-
-    # ════════════════════════════════════════════════════════════════════════
-    # ENCODING / CHARACTER ERRORS  (shared across file, network, and DB tools)
-    # ════════════════════════════════════════════════════════════════════════
-
-    (
-        "ENCODING_ERROR",
-        [
-            r"unicodedecodeerror",
-            r"unicodeencodeerror",
-            r"codec.*can.*t decode",
-            r"ordinal not in range",
-            r"invalid.*byte.*sequence",
-        ],
-        """A Unicode encoding or decoding error occurred.
-  Retry steps:
-  1. For reading a file: use read_file's encoding parameter (try 'latin-1' or 'cp1252' as fallback).
-  2. run_python("open('<file>', 'rb').read(200)") to inspect the raw bytes.
-  3. run_python("open('<file>', 'r', encoding='utf-8', errors='replace').read(500)") to read with replacement.
-  4. For API responses: check the Content-Type header for the declared encoding.
-  5. Normalize to UTF-8 and retry: run_python("data.encode('utf-8', 'replace').decode('utf-8')").""",
-    ),
-
-
-    # ════════════════════════════════════════════════════════════════════════
-    # CONCURRENCY / ASYNC ERRORS  (shared across execution and network tools)
-    # ════════════════════════════════════════════════════════════════════════
-
-    (
-        "CONCURRENCY_ERROR",
-        [
-            r"runtimeerror.*event loop",
-            r"asyncio.*coroutine",
-            r"cannot run.*event loop.*is running",
-            r"nest_asyncio",
-            r"deadlock",
-            r"lock.*timeout",
-            r"race condition",
-            r"concurrent.*modification",
-        ],
-        """Asyncio or concurrency error.
-  Retry steps:
-  1. For "event loop is already running": use asyncio.run() only at top level, not inside an existing loop.
-  2. run_python("import nest_asyncio; nest_asyncio.apply()") to allow nested event loops in notebooks/shells.
-  3. For thread-safety issues: serialize the access or use a queue.Queue() to coordinate.
-  4. For deadlocks: add a timeout to all lock.acquire() calls and log which lock is stuck.
-  5. Retry after restructuring the async/sync boundary.""",
-    ),
-
-
-    # ════════════════════════════════════════════════════════════════════════
-    # SYSTEM / OS PERMISSION  (shared across file, shell, and monitoring tools)
-    # ════════════════════════════════════════════════════════════════════════
-
-    (
-        "SYSTEM_PERMISSION",
-        [
-            r"operation not permitted",
-            r"oserror.*\[errno 1\]",
-            r"eperm",
-            r"not permitted.*sudo",
-            r"must be run as root",
-            r"requires.*elevated.*privilege",
-            r"sip.*protected",
-        ],
-        """OS permission denied — the operation requires elevated privileges.
-  Retry steps:
-  1. run_command("ls -la '<path>'") to check the file's current ownership and permissions.
-  2. For SIP-protected macOS paths (/System, /usr): find an alternative writable path.
-  3. For plist/launchd operations: run_command("launchctl print system/<service>") needs no sudo.
-  4. For cron entries: run_command("crontab -l") (current user) doesn't need sudo.
-  5. If the operation genuinely requires root, document what command needs to be run and ask the user.""",
-    ),
-
-
-    # ── Tool misuse (wrong tool for the job) ──────────────────────────────────
-    (
-        "TOOL_MISUSE",
-        [
-            r"tool.*not.*appropriate",
-            r"wrong.*tool",
-            r"should use.*instead",
-            r"tool.*cannot.*perform",
-            r"this tool does not support",
-            r"not designed.*for",
-            r"incorrect tool",
-        ],
-        """The chosen tool cannot perform the requested operation.
-  Retry steps:
-  1. Identify what the operation requires (read, write, search, execute, network call, etc.).
-  2. Use list_tools() or request_tools(capability="<description>") to discover the correct tool.
-  3. grep_search(pattern="<tool_keyword>", path="core/tools/") to find tools by name.
-  4. Retry the operation with the appropriate tool.""",
-    ),
-
-    # ── Bad parameters / type error ───────────────────────────────────────────
-    (
-        "BAD_PARAMETERS",
-        [
-            r"assertionerror",
-            r"valueerror",
-            r"typeerror",
-            r"invalid.*parameter",
-            r"unexpected.*keyword",
-            r"takes \d+ positional argument",
-            r"required.*argument.*missing",
-            r"unexpected.*argument",
-        ],
-        """Invalid or wrong-type parameters were passed to the tool.
-  Retry steps:
-  1. Re-read the tool's parameter schema — check required names, types (string/int/bool/list/dict), and defaults.
-  2. For TypeErrors: confirm types with run_python("print(type(<value>))") before passing.
-  3. For unexpected keyword argument: remove the unknown parameter and retry.
-  4. For missing required arguments: identify which parameter is missing from the schema.
-  5. Retry with corrected parameter types and names.""",
-    ),
+# ── Tool failures ─────────────────────────────────────────────────────────────
+# A failed call carries the tool's OWN account of what went wrong, unchanged.
+# What to do about it is the substrate's to work out from what happened.
+#
+# This used to classify every error message against ~1,000 lines of regex
+# "recovery recipes" written as prompts for a language model ("try each in
+# order: run_command(...)"), append the recipe to the error itself, and decide
+# from the matched wording whether a failure was "retryable". No model reads
+# prompts any more, so the recipes did one thing: every record the substrate
+# kept of a failed act carried instructions it never learned, one of them to
+# hunt for a GitHub token in env files and the Keychain.
+
+#: The failure history the health monitor counts, declared where it is written
+#: so a fresh store has it. `error_category` holds HOW the failure showed (see
+#: `_record_tool_failure`). A store created before this still has the recipe
+#: columns `retryable` (NOT NULL) and `short_hint`; they are dropped by hand, not
+#: from here, because a schema change to the main store needs the owner's word.
+#: Until then that store refuses these inserts, and the refusal is logged loudly.
+_TOOL_ERROR_EVENTS_SCHEMA = [
+    """CREATE TABLE IF NOT EXISTS unified.tool_error_events (
+           id             BIGSERIAL PRIMARY KEY,
+           task_id        TEXT,
+           session_id     VARCHAR,
+           user_id        VARCHAR,
+           tool_name      VARCHAR NOT NULL,
+           error_category VARCHAR NOT NULL,
+           message        TEXT,
+           created_at     TIMESTAMP DEFAULT NOW())""",
 ]
 
 
-# ── Pre-compiled pattern cache — avoids re.compile() overhead on every call ──
-# Each entry: (tag, [compiled_regex, ...], hint_text)
-_COMPILED_CATEGORIES: list = [
-    (tag, [_re.compile(p, _re.IGNORECASE) for p in patterns], hint)
-    for tag, patterns, hint in _ERROR_CATEGORIES
-]
-
-# ── Retry policy frozensets ───────────────────────────────────────────────────
-# RETRYABLE: the same goal can succeed with different args or after waiting.
-# TERMINAL:  the executor must stop retrying this path and switch strategy.
-RETRYABLE_ERRORS: frozenset = frozenset({
-    "PATCH_STRING_NOT_FOUND", "PATCH_AMBIGUOUS", "TIMEOUT", "NETWORK_ERROR",
-    "RATE_LIMIT", "DOWNLOAD_ERROR", "DATABASE_CONNECTION", "REDIS_ERROR",
-    "SEARCH_NO_RESULTS", "TEST_NOT_FOUND", "TEST_ASSERTION_FAILED",
-    "SERVICE_NOT_RUNNING", "MEMORY_ERROR", "GIT_DIRTY_STATE",
-    "GIT_REMOTE_REJECTED", "GIT_MERGE_CONFLICT", "HTTP_ERROR",
-    "ENCODING_ERROR", "CONCURRENCY_ERROR", "LARGE_FILE_BATCHED",
-    "MODULE_NOT_FOUND", "COMMAND_NOT_FOUND", "PYTHON_SYNTAX_ERROR",
-    "RUNTIME_ERROR", "GENERATED_CODE_INVALID", "LINT_ERROR",
-    "DATABASE_QUERY_ERROR", "UNCLASSIFIED_ERROR",
-})
-TERMINAL_ERRORS: frozenset = frozenset({
-    "FILE_NOT_FOUND", "CREDENTIAL", "BAD_PARAMETERS", "GIT_NOT_INITIALIZED",
-    "WRITE_PERMISSION", "SYSTEM_PERMISSION", "PATCH_NOOP",
-    "TRUNCATION_GUARD", "TOOL_MISUSE", "FILE_EXISTS",
-})
-
-# ── Compressed short hints — 1-line summary for iteration-prompt injection ────
-_SHORT_HINTS: dict = {
-    "PATCH_STRING_NOT_FOUND":  "read_file target section → copy exact text → retry patch_file",
-    "PATCH_AMBIGUOUS":         "read_file broader context → extend old_string with 3-5 unique lines → retry",
-    "PATCH_NOOP":              "File already has this content → read_file to verify → proceed to tests",
-    "TRUNCATION_GUARD":        "Use patch_file (targeted) not write_file — it changes only the specific section",
-    "FILE_NOT_FOUND":          "grep_search to locate correct path → list_directory to verify → retry",
-    "WRITE_PERMISSION":        "Write to store/outputs/<id>/ or /tmp/ → or chmod u+w the file",
-    "FILE_EXISTS":             "read_file the existing file → patch_file or write_file(mode='write')",
-    "DIR_NOT_EMPTY":           "list_directory to see contents → delete contents first → retry",
-    "LARGE_FILE_BATCHED":      "read_file(start_line=<next>, end_line=<next+499>) for the next batch",
-    "MODULE_NOT_FOUND":        "pip install <pkg> → sys.path.insert(0,'<root>') → retry",
-    "COMMAND_NOT_FOUND":       "which <cmd> → python3 -m <module> if Python CLI → brew/pip install",
-    "PYTHON_SYNTAX_ERROR":     "Traceback line → fix indent/brackets/colons → re-run",
-    "TIMEOUT":                 "Reduce scope (rows/range/size) → timeout 120 flag → check service health",
-    "RESOURCE_EXHAUSTION":     "df -h && free -h → process in smaller chunks → retry",
-    "RUNTIME_ERROR":           "Read traceback → print(type(obj), dir(obj)) → add defensive checks → retry",
-    "TEST_NOT_FOUND":          "pytest '<file>' --collect-only → single-quote path → check imports",
-    "TEST_ASSERTION_FAILED":   "Read failure → read_file source → fix source or test → re-run",
-    "PERFORMANCE_REGRESSION":  "cProfile slow function → patch_file optimization → re-benchmark",
-    "SEARCH_NO_RESULTS":       "Broaden pattern → try semantic_search → check search path",
-    "SEARCH_INVALID_REGEX":    "Set is_regex=False → escape special chars → test re.compile()",
-    "DATABASE_CONNECTION":     "Resolve configured host/port → pg_isready -h <host> -p <port> → lsof for other instances → start only if nothing listens → retry",
-    "DATABASE_QUERY_ERROR":    "List tables → fetch schema → fix SQL → retry",
-    "REDIS_ERROR":             "redis-cli ping → start redis → check REDIS_URL → retry",
-    "HTTP_ERROR":              "404=wrong URL · 400=bad body · 5xx=server error → fix → retry",
-    "NETWORK_ERROR":           "curl -s --max-time 5 <url> → lsof -i :<port> → check DNS → retry",
-    "RATE_LIMIT":              "Wait 60s → gh api rate_limit → serialize concurrent calls",
-    "DOWNLOAD_ERROR":          "Retry → curl -L as fallback → df -h for disk space",
-    "CREDENTIAL":              "gh auth token → ~/.config/gh/hosts.yml → grep .env → Keychain",
-    "GENERATED_CODE_INVALID":  "ast.parse to validate → read_file error line → patch_file fix",
-    "LINT_ERROR":              "Read linter output line by line → patch_file each violation → re-run",
-    "SERVICE_NOT_RUNNING":     "brew services list → start service → tail -50 service.log",
-    "METRICS_UNAVAILABLE":     "Check endpoint health → grep config for metrics setup",
-    "LOG_NOT_FOUND":           "list_directory logs/ → find . -name '*.log' → grep_search",
-    "MEMORY_ERROR":            "Check memory agent → resolve configured host/port → pg_isready -h <host> -p <port> → retry",
-    "PARSE_ERROR":             "print(repr(raw[:500])) → check truncation → json.loads() fallback",
-    "GIT_NOT_INITIALIZED":     "find .git dir → git init if needed → retry with correct root",
-    "GIT_DIRTY_STATE":         "git status → git stash → retry → git stash pop",
-    "GIT_REMOTE_REJECTED":     "git pull --rebase → resolve conflicts → git push",
-    "GIT_MERGE_CONFLICT":      "git diff --name-only -U → read_file conflict → patch_file → git add → continue",
-    "SLACK_CHANNEL_NOT_FOUND": "slack_list_channels() → use channel ID not name → retry",
-    "SLACK_MESSAGE_TOO_LONG":  "Split into parts or upload as file → send separately",
-    "ENCODING_ERROR":          "open(encoding='latin-1') or errors='replace' → inspect raw bytes",
-    "CONCURRENCY_ERROR":       "nest_asyncio.apply() → serialize access → add lock timeouts",
-    "SYSTEM_PERMISSION":       "ls -la → use writable path → document if root required",
-    "BAD_PARAMETERS":          "Re-read tool schema → fix types/names → remove unknown params → retry",
-    "TOOL_MISUSE":             "list_tools() or request_tools() → identify correct tool → retry with right tool",
-    "UNCLASSIFIED_ERROR":      "Explain WHY it failed in one sentence → try different args → try alternative tool",
-}
-
-
-@dataclass
-class ToolErrorInfo:
-    """Structured error object returned by _enrich_tool_error.
-
-    Replaces raw enriched-string returns so executors can reason over error state
-    programmatically without parsing free-form text.
-
-    Fields:
-        status         — always "error"
-        tool           — name of the failing tool
-        error_category — matched tag (e.g. PATCH_STRING_NOT_FOUND) or UNCLASSIFIED_ERROR
-        message        — original raw error string
-        retryable      — True if the same goal may succeed with different args/approach
-        recovery_hint  — full numbered steps (verbose, for logs and first-occurrence hints)
-        short_hint     — compressed 1-liner (for repeated-failure context injection)
-    """
-    status: str = "error"
-    tool: str = ""
-    error_category: str = "UNCLASSIFIED_ERROR"
-    message: str = ""
-    retryable: bool = True
-    recovery_hint: str = ""
-    short_hint: str = ""
-
-    def to_dict(self) -> dict:
-        return {
-            "status": self.status,
-            "tool": self.tool,
-            "error_category": self.error_category,
-            "message": self.message,
-            "retryable": self.retryable,
-            "recovery_hint": self.recovery_hint,
-            "short_hint": self.short_hint,
-        }
-
-    def to_prompt_str(self, verbose: bool = True) -> str:
-        """String suitable for LLM injection.
-
-        verbose=True  → full recovery_hint  (first failure / debug logs)
-        verbose=False → compressed short_hint (repeated-failure injection)
-        """
-        retryable_label = "RETRYABLE" if self.retryable else "TERMINAL — do not retry this approach"
-        hint_body = (self.recovery_hint if verbose else self.short_hint).strip()
-        return (
-            f"{self.message}\n\n"
-            f"[RECOVERY_HINT:{self.error_category} for '{self.tool}']\n"
-            f"retryable: {retryable_label}\n"
-            f"{hint_body}"
-        )
-
-    def __str__(self) -> str:
-        return self.to_prompt_str(verbose=True)
-
-
-def _enrich_tool_error(error_str: str, tool_name: str) -> "ToolErrorInfo":
-    """Classify *error_str* against pre-compiled failure patterns.
-
-    Returns a ToolErrorInfo with:
-      - error_category  — matched tag or UNCLASSIFIED_ERROR
-      - retryable       — whether the executor should attempt a different approach
-      - recovery_hint   — full numbered steps (for first-occurrence / debug)
-      - short_hint      — 1-line summary (for repeated-failure injection)
-
-    Uses _COMPILED_CATEGORIES (pre-compiled at module load) for performance.
-    Falls back to UNCLASSIFIED_ERROR with a forced-reflection prompt (point 9).
-    """
-    low = error_str.lower()
-    for category, compiled_patterns, hint in _COMPILED_CATEGORIES:
-        for rx in compiled_patterns:
-            if rx.search(low):
-                return ToolErrorInfo(
-                    status="error",
-                    tool=tool_name,
-                    error_category=category,
-                    message=error_str,
-                    retryable=(category in RETRYABLE_ERRORS),
-                    recovery_hint=hint.strip(),
-                    short_hint=_SHORT_HINTS.get(category, hint.strip()[:120]),
-                )
-    # No category matched → UNCLASSIFIED_ERROR (point 9: forced reflection before retry)
-    _reflection_hint = (
-        "Before retrying, state in ONE sentence why this tool call failed.\n"
-        "Then choose a different approach — different arguments, different tool, or reduced scope.\n"
-        "Do NOT repeat the exact same call."
-    )
-    return ToolErrorInfo(
-        status="error",
-        tool=tool_name,
-        error_category="UNCLASSIFIED_ERROR",
-        message=error_str,
-        retryable=True,
-        recovery_hint=(
-            "The error did not match a known category. Diagnosis steps:\n"
-            "  1. Read the full exception message — identify the specific line and failure type.\n"
-            "  2. Explain in one sentence WHY the tool failed before retrying.\n"
-            "  3. Try a minimal version of the operation (fewer parameters, smaller scope).\n"
-            "  4. Verify all paths/IDs/names exist: use grep_search or list_directory.\n"
-            "  5. Check the tool's parameter schema — confirm required fields and types.\n"
-            "  6. If the error is in external infrastructure (DB, API, file), diagnose that first.\n"
-            "  IMPORTANT: Do NOT retry with the exact same arguments."
-        ),
-        short_hint=_reflection_hint,
-    )
-
-
-async def _persist_tool_error_async(
-    tool_error: "ToolErrorInfo",
+async def _record_tool_failure(
+    tool_name: str,
+    message: str,
+    *,
+    raised: bool,
     task_id: Optional[str] = None,
     session_id: Optional[str] = None,
     user_id: Optional[str] = None,
 ) -> None:
-    """Persist a ToolErrorInfo record to the tool_error_events PostgreSQL table.
-    Designed for fire-and-forget via asyncio.create_task().
+    """Persist one failed call. Fire-and-forget via asyncio.create_task().
+
+    How a failure showed is read from its structure, not guessed from its
+    wording. A tool that REPORTED failure ran and said the world refused: the
+    file was not there, the place was taken. The tool worked, and teaching
+    produces such refusals on purpose. A tool that RAISED broke, and only that
+    is a component failing, so only that reaches the canonical failure record
+    the recovery manager and the recurring-failure check watch. (The recipe
+    classifier sent "file not found" there as a terminal failure, so every
+    refused demonstration read as the tool breaking.)
     """
     try:
         from core.database import get_database_manager
         db = get_database_manager()
         if db is None or not getattr(db, 'initialized', False):
             return
+        await db.ensure_schema("tool_error_events", _TOOL_ERROR_EVENTS_SCHEMA)
         await db.execute_query(
             """
-            INSERT INTO tool_error_events
+            INSERT INTO unified.tool_error_events
                 (task_id, session_id, user_id, tool_name, error_category,
-                 retryable, message, short_hint, created_at)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+                 message, created_at)
+            VALUES ($1, $2, $3, $4, $5, $6, NOW())
             """,
-            (
-                task_id,
-                session_id,
-                user_id,
-                tool_error.tool,
-                tool_error.error_category,
-                tool_error.retryable,
-                (tool_error.message or "")[:2000],
-                (tool_error.short_hint or "")[:500],
-            ),
+            (task_id, session_id, user_id, tool_name,
+             "raised" if raised else "reported", (message or "")[:2000]),
         )
     except Exception as _pe:
-        logger.debug(f"[tool_error_persist] Failed: {_pe}")
+        logger.warning(f"[tool_error_persist] failure of {tool_name} not recorded: {_pe}")
 
-    # ALSO to the canonical record. `tool_error_events` holds the tool-specific
-    # detail and only the tool layer reads it -- 1,441 rows that the recovery
-    # manager, the coordinator's recurring-failure check and the improvement
-    # cycle have never been able to see. A non-retryable tool error is a
-    # component failing, and those are the systems whose job is to notice.
+    if not raised:
+        return
     try:
-        if not tool_error.retryable:
-            from core.observability import failure_record
+        from core.observability import failure_record
 
-            await failure_record.report(
-                component=f"tools.{tool_error.tool}",
-                failure_type="tool_error",
-                description=(tool_error.message or "tool execution failed")[:2000],
-                source_system="tool_registry",
-                severity="medium",
-                metadata={"error_category": tool_error.error_category,
-                          "retryable": bool(tool_error.retryable),
-                          "hint": (tool_error.short_hint or "")[:500],
-                          "task_id": task_id, "session_id": session_id},
-            )
+        await failure_record.report(
+            component=f"tools.{tool_name}",
+            failure_type="tool_error",
+            description=(message or "tool execution failed")[:2000],
+            source_system="tool_registry",
+            severity="medium",
+            metadata={"task_id": task_id, "session_id": session_id},
+        )
     except Exception as _fe:
         logger.debug(f"[tool_error_persist] canonical record failed: {_fe}")
 
-
-# Keep a reference to the credential hint for callers that import it directly
-_CREDENTIAL_RECOVERY_HINT = next(
-    hint for tag, _, hint in _ERROR_CATEGORIES if tag == "CREDENTIAL"
-)
-_CREDENTIAL_SIGNALS = next(
-    patterns for tag, patterns, _ in _ERROR_CATEGORIES if tag == "CREDENTIAL"
-)
 
 # Capability-based discovery system (NEW)
 from core.tools.capabilities import (
@@ -2616,6 +1409,16 @@ class ToolRegistry:
         # Execute tool
         try:
             result = await tool.execute(**parameters)
+            # A RESULT CAN CARRY A KEY BACK: an environment dump, a file of keys,
+            # a service echoing its credential. It is cleaned here, before
+            # anything records it, says it or remembers it
+            # (core.security.secrets).
+            from core.security.secrets import get_secrets_authority
+            _keys = get_secrets_authority()
+            result.output = _keys.redact(result.output)
+            result.error = _keys.redact(result.error)
+            if isinstance(result.metadata, dict):
+                result.metadata = _keys.redact(result.metadata)
             result.tool_name = tool_name
             result.parameters = parameters
             result.execution_time = (datetime.now() - start_time).total_seconds()
@@ -2663,18 +1466,11 @@ class ToolRegistry:
             # Track usage
             await tool._track_usage()
 
-            # Enrich controlled failures (success=False returned by the tool itself,
-            # not unhandled exceptions) with structured ToolErrorInfo.
+            # A failure the tool itself reported, kept exactly as the tool said it.
             if not result.success and result.error:
-                _tei = _enrich_tool_error(result.error, tool_name)
-                result.error = _tei.to_prompt_str(verbose=True)
-                if isinstance(result.metadata, dict):
-                    result.metadata.setdefault("error_category", _tei.error_category)
-                    result.metadata.setdefault("retryable", _tei.retryable)
-                    result.metadata.setdefault("short_hint", _tei.short_hint)
-                asyncio.create_task(_persist_tool_error_async(
-                    _tei, session_id=session_id, user_id=user_id
-                ))
+                asyncio.create_task(_record_tool_failure(
+                    tool_name, result.error, raised=False,
+                    session_id=session_id, user_id=user_id))
 
             # Record the execution.
             self._log_usage(tool, parameters, result, user_id, session_id)
@@ -2709,10 +1505,10 @@ class ToolRegistry:
             except Exception as notify_error:
                 logger.warning(f"Failed to send tool failure notification: {notify_error}")
 
-            # Return rich, machine-readable error info for agents
-            _raw_err = f"EXECUTION_ERROR: {e.__class__.__name__}: {str(e)}"
-            # If this is a parameter-name TypeError, inject the schema so the
-            # model sees exactly which params are valid on the next attempt.
+            from core.security.secrets import get_secrets_authority
+            _raw_err = get_secrets_authority().redact(
+                f"EXECUTION_ERROR: {e.__class__.__name__}: {str(e)}")
+            # A parameter-name TypeError: name the parameters the tool does take.
             if isinstance(e, TypeError) and (
                 "unexpected keyword argument" in str(e)
                 or "missing" in str(e).lower()
@@ -2725,33 +1521,23 @@ class ToolRegistry:
                         _schema_parts.append(f"  • {p.name} ({_req}, type={p.type}){_desc}")
                 _schema_str = "\n".join(_schema_parts) if _schema_parts else "  (no parameters)"
                 _raw_err += f"\nValid parameters for '{tool_name}':\n{_schema_str}"
-            _tei = _enrich_tool_error(_raw_err, tool_name)
-            asyncio.create_task(_persist_tool_error_async(
-                _tei, session_id=session_id, user_id=user_id
-            ))
+            asyncio.create_task(_record_tool_failure(
+                tool_name, _raw_err, raised=True,
+                session_id=session_id, user_id=user_id))
             await self._record_run(tool_name, success=False,
                                    execution_time_s=(datetime.now() - start_time).total_seconds(),
                                    error=_raw_err)
             return ToolResult(
                 success=False,
                 output=None,
-                error=_tei.to_prompt_str(verbose=True),
+                error=_raw_err,
                 tool_name=tool_name,
                 parameters=parameters,
                 execution_time=(datetime.now() - start_time).total_seconds(),
                 metadata={
-                    "error_type": f"TOOL_EXECUTION_ERROR:{_tei.error_category}",
+                    "error_type": "TOOL_EXECUTION_ERROR",
                     "exception_type": e.__class__.__name__,
                     "exception_message": str(e),
-                    "error_category": _tei.error_category,
-                    "retryable": _tei.retryable,
-                    "short_hint": _tei.short_hint,
-                    "hint": (
-                        f"Error category: {_tei.error_category} "
-                        f"({'retryable' if _tei.retryable else 'TERMINAL — do not retry'}). "
-                        "Follow the RECOVERY_HINT steps above. "
-                        "Do NOT repeat the exact same call — change at least one parameter or approach."
-                    )
                 }
             )
     
@@ -3129,54 +1915,23 @@ def _register_default_tools():
     except ImportError as e:
         logger.warning(f"Could not register system tools: {e}")
 
-    # STAGING AND PRODUCTION DO NOT CARRY THE TOOLS THAT REACH THEIR OWN DATABASES.
-    # As written, these run SQL through this process's own database manager: where
-    # people are served, a person's request could reach the model or other people's
-    # context through them. Only these 15 are left out -- the Redis and R2 storage
-    # tools and the host monitoring tools reach no database of the environment.
-    # Development keeps all of them until the substrate can write the code
-    # they spell out.
-    from core.database.postgres_config import PostgresConfig
-    _separated = PostgresConfig.resolve().environment != "development"
-    _REACH_OWN_DATABASES = {
-        "MySQLQueryTool", "MySQLTableInfoTool", "MySQLBackupTool", "MySQLRestoreTool",
-        "ConnectionPoolManagerTool", "TransactionWrapperTool", "MigrationRunnerTool",
-        "RowLevelAccessControlTool", "SafeQueryExecutorTool", "PostgresQueryTool",
-        "PostgresSafeQueryExecutorTool", "CheckMySQLHealthTool", "CheckPostgreSQLHealthTool",
-        "QueryMetricsTool", "CreateAlertTool"}
-
-    def _register_unless_it_reaches_own_databases(tool_class):
-        if _separated and tool_class.__name__ in _REACH_OWN_DATABASES:
-            logger.info("%s is not registered in a serving environment (it reaches the "
-                        "environment's own databases)", tool_class.__name__)
-            return
-        _register_tool_lazy(tool_class)
-
     # ===== EXTENDED TOOLS =====
 
-    # Database & Storage Tools
+    # Database & Storage Tools. The database tools work only on an OUTSIDE
+    # database they are given, never the substrate's own (its own data is reached
+    # through its authorities); the ones that ran on its own database were
+    # archived 2026-09-30 (archive/superseded_database_tools_2026-09-30/).
     try:
         from .database_tools import (
-            MySQLQueryTool, MySQLTableInfoTool, MySQLBackupTool, MySQLRestoreTool,
+            MySQLQueryTool, PostgresQueryTool,
             RedisGetTool, RedisSetTool, R2UploadTool, R2DownloadTool,
-            # Advanced database tools
-            ConnectionPoolManagerTool, TransactionWrapperTool, MigrationRunnerTool,
-            RowLevelAccessControlTool, SafeQueryExecutorTool
         )
-        _register_unless_it_reaches_own_databases(MySQLQueryTool)
-        _register_unless_it_reaches_own_databases(MySQLTableInfoTool)
-        _register_unless_it_reaches_own_databases(MySQLBackupTool)
-        _register_unless_it_reaches_own_databases(MySQLRestoreTool)
-        _register_unless_it_reaches_own_databases(RedisGetTool)
-        _register_unless_it_reaches_own_databases(RedisSetTool)
-        _register_unless_it_reaches_own_databases(R2UploadTool)
-        _register_unless_it_reaches_own_databases(R2DownloadTool)
-        # Advanced database tools
-        _register_unless_it_reaches_own_databases(ConnectionPoolManagerTool)
-        _register_unless_it_reaches_own_databases(TransactionWrapperTool)
-        _register_unless_it_reaches_own_databases(MigrationRunnerTool)
-        _register_unless_it_reaches_own_databases(RowLevelAccessControlTool)
-        _register_unless_it_reaches_own_databases(SafeQueryExecutorTool)
+        _register_tool_lazy(MySQLQueryTool)
+        _register_tool_lazy(PostgresQueryTool)
+        _register_tool_lazy(RedisGetTool)
+        _register_tool_lazy(RedisSetTool)
+        _register_tool_lazy(R2UploadTool)
+        _register_tool_lazy(R2DownloadTool)
     except ImportError as e:
         logger.warning(f"Could not register database tools: {e}")
 
@@ -3288,38 +2043,32 @@ def _register_default_tools():
     try:
         from .monitoring_tools import (
             GetCPUUsageTool, GetMemoryUsageTool, GetDiskUsageTool, GetNetworkStatsTool,
-            CheckMySQLHealthTool, GetServiceStatusTool, ParseLogsTool, QueryMetricsTool,
-            CreateAlertTool, GetPerformanceProfileTool,
+            GetServiceStatusTool, ParseLogsTool, GetPerformanceProfileTool,
             # Advanced monitoring tools
             DistributedTracingTool, SLOSLIToolingTool, AnomalyDetectionTool, DashboardGeneratorTool
         )
-        _register_unless_it_reaches_own_databases(GetCPUUsageTool)
-        _register_unless_it_reaches_own_databases(GetMemoryUsageTool)
-        _register_unless_it_reaches_own_databases(GetDiskUsageTool)
-        _register_unless_it_reaches_own_databases(GetNetworkStatsTool)
-        _register_unless_it_reaches_own_databases(CheckMySQLHealthTool)
-        _register_unless_it_reaches_own_databases(GetServiceStatusTool)
-        _register_unless_it_reaches_own_databases(ParseLogsTool)
-        _register_unless_it_reaches_own_databases(QueryMetricsTool)
-        _register_unless_it_reaches_own_databases(CreateAlertTool)
-        _register_unless_it_reaches_own_databases(GetPerformanceProfileTool)
+        _register_tool_lazy(GetCPUUsageTool)
+        _register_tool_lazy(GetMemoryUsageTool)
+        _register_tool_lazy(GetDiskUsageTool)
+        _register_tool_lazy(GetNetworkStatsTool)
+        _register_tool_lazy(GetServiceStatusTool)
+        _register_tool_lazy(ParseLogsTool)
+        _register_tool_lazy(GetPerformanceProfileTool)
         # Advanced monitoring tools
-        _register_unless_it_reaches_own_databases(DistributedTracingTool)
-        _register_unless_it_reaches_own_databases(SLOSLIToolingTool)
-        _register_unless_it_reaches_own_databases(AnomalyDetectionTool)
-        _register_unless_it_reaches_own_databases(DashboardGeneratorTool)
+        _register_tool_lazy(DistributedTracingTool)
+        _register_tool_lazy(SLOSLIToolingTool)
+        _register_tool_lazy(AnomalyDetectionTool)
+        _register_tool_lazy(DashboardGeneratorTool)
     except ImportError as e:
         logger.warning(f"Could not register monitoring tools: {e}")
 
     # AI/ML Operations Tools
     try:
         from .ai_ml_tools import (
-            GenerateEmbeddingTool, QueryMemoryTool, StoreMemoryTool, RunInferenceTool,
+            GenerateEmbeddingTool, RunInferenceTool,
             AnalyzeTrainingDataTool, GetModelInfoTool, SemanticSimilarityTool, ExtractEntitiesTool
         )
         _register_tool_lazy(GenerateEmbeddingTool)
-        _register_tool_lazy(QueryMemoryTool)
-        _register_tool_lazy(StoreMemoryTool)
         _register_tool_lazy(RunInferenceTool)
         _register_tool_lazy(AnalyzeTrainingDataTool)
         _register_tool_lazy(GetModelInfoTool)
@@ -3425,7 +2174,7 @@ def _register_default_tools():
             IntegrationTestRunnerTool, LoadTestTool, RunCoverageTool,
             # Advanced testing/validation tools
             FuzzTestingTool, MutationTestingTool, StaticSecurityAnalysisTool,
-            GoldenTestHarnessTool, ChaosTestingTool
+            GoldenTestHarnessTool
         )
         _register_tool_lazy(RunPytestTool)
         _register_tool_lazy(RunUnittestTool)
@@ -3447,7 +2196,6 @@ def _register_default_tools():
         _register_tool_lazy(MutationTestingTool)
         _register_tool_lazy(StaticSecurityAnalysisTool)
         _register_tool_lazy(GoldenTestHarnessTool)
-        _register_tool_lazy(ChaosTestingTool)
     except ImportError as e:
         logger.warning(f"Could not register testing/validation tools: {e}")
 
@@ -3574,7 +2322,7 @@ def _register_default_tools():
         _register_tool_lazy(DetectIntrusionTool)
         _register_tool_lazy(AnalyzeAnomalyTool)
         _register_tool_lazy(MonitorLogsTool)
-        _register_tool_lazy(DetectBruteForceTool)
+        # detect_brute_force is DISABLED (2026-09-30, the owner's word): kept, not registered.
         _register_tool_lazy(AnalyzeTrafficPatternTool)
         _register_tool_lazy(AutoRespondThreatTool)
         _register_tool_lazy(HuntThreatsTool)
@@ -3586,44 +2334,19 @@ def _register_default_tools():
     # Learning & Analysis Tools (Self-Improvement, Causal Reasoning)
     try:
         from .learning_tools import (
-            ProfilePerformanceTool, AnalyzeCausalFeedbackTool, DetectPatternsTool,
-            ExtractLessonsLearnedTool, GenerateHypothesisTool,
-            VisualizeLearningProgressTool, BenchmarkCapabilityTool,
-            IdentifySkillGapsTool, RecommendTrainingTool, MonitorDataDriftTool,
+            DetectPatternsTool, VisualizeLearningProgressTool,
+            IdentifySkillGapsTool, MonitorDataDriftTool,
         )
-        _register_tool_lazy(ProfilePerformanceTool)
-        _register_tool_lazy(AnalyzeCausalFeedbackTool)
         _register_tool_lazy(DetectPatternsTool)
-        _register_tool_lazy(ExtractLessonsLearnedTool)
-        _register_tool_lazy(GenerateHypothesisTool)
         _register_tool_lazy(VisualizeLearningProgressTool)
-        _register_tool_lazy(BenchmarkCapabilityTool)
         _register_tool_lazy(IdentifySkillGapsTool)
-        _register_tool_lazy(RecommendTrainingTool)
         _register_tool_lazy(MonitorDataDriftTool)
         logger.info("✅ Registered 12 learning & analysis tools (lazy)")
     except ImportError as e:
         logger.warning(f"Could not register learning tools: {e}")
 
-    # Chaos Engineering Tools
-    try:
-        from .chaos_tools import (
-            CreateChaosExperimentTool,
-            RunChaosExperimentTool,
-            CreateChaosExperimentFromScenarioTool,
-            ListChaosScenariosTool,
-            GetChaosExperimentStatusTool,
-            RollbackChaosExperimentTool,
-        )
-        _register_tool_lazy(CreateChaosExperimentTool)
-        _register_tool_lazy(RunChaosExperimentTool)
-        _register_tool_lazy(CreateChaosExperimentFromScenarioTool)
-        _register_tool_lazy(ListChaosScenariosTool)
-        _register_tool_lazy(GetChaosExperimentStatusTool)
-        _register_tool_lazy(RollbackChaosExperimentTool)
-        logger.info("✅ Registered 6 chaos engineering tools (lazy)")
-    except ImportError as e:
-        logger.warning(f"Could not register chaos tools: {e}")
+    # Chaos engineering tools: archived 2026-09-30. Their only targets were the
+    # substrate's own systems (archive/superseded_chaos_tools_2026-09-30/).
 
     # ===== AGENTSO CONNECTOR TOOLS =====
     # Register AgentSO security connectors (VirusTotal, CrowdStrike, MISP, etc.)

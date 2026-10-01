@@ -120,6 +120,10 @@ class AgentCoordinator:
     await-queue, nothing more.
     """
 
+    #: Findings held for a caller that collects them. The self is handed every
+    #: finding as it lands (JOB_COMPLETED), so only the latest are kept here.
+    READY_KEPT = 100
+
     def __init__(self, enable_monitoring: bool = True, enable_safety: bool = True):
         self.enable_monitoring = enable_monitoring
         self.enable_safety = enable_safety
@@ -275,11 +279,28 @@ class AgentCoordinator:
             "findings": outcome.get("result") if not error else None,
             "error": error,
         }
+        # THE SUBSTRATE IS HANDED ITS AGENT'S FINDINGS; IT NEVER HAS TO WAIT FOR
+        # THEM. The moment an agent lands, its findings go to the coordinator as
+        # a JOB_COMPLETED self-event, so the self reconciles them (a domain
+        # outcome learned from, a failure recorded) without awaiting or polling.
+        # `await_findings` and `collect_ready` stay for a caller that wants one.
+        if self._coordinator is not None:
+            from core.agents.autonomous.autonomous_coordinator import (
+                JobCompleted, SelfEvent, SelfEventType)
+            asyncio.ensure_future(self._coordinator.emit(SelfEvent(
+                SelfEventType.JOB_COMPLETED,
+                payload=JobCompleted(job_id=deployment_id,
+                                     name=f"agent:{dep.reasoning_type if dep else 'unknown'}",
+                                     result=finding["findings"], error=error),
+                origin="agent_factory")))
         fut = self._futures.pop(deployment_id, None)
         if fut is not None and not fut.done():
             fut.set_result(finding)
         else:
+            # Held for a caller that collects; the self already has them, so only
+            # the latest are kept rather than every finding for ever.
             self._ready.append(finding)
+            del self._ready[:-self.READY_KEPT]
 
     async def _run_agent(self, deployment_id, description, task_type, actor,
                          allowed_tools, parameters) -> Dict[str, Any]:
@@ -347,35 +368,6 @@ class AgentCoordinator:
         """Deployment ids still running."""
         return list(self._active)
 
-    async def delegate_task(
-        self,
-        task: str,
-        task_type: str,
-        parameters: Optional[Dict[str, Any]] = None,
-        allowed_tools: Optional[List[str]] = None,
-        reasoning_type: Any = None,
-    ) -> Optional[Dict[str, Any]]:
-        """Deploy an agent for one task and WAIT for it — the synchronous
-        convenience the `delegate_task` tool uses. `allowed_tools` defaults to
-        None → the executor's full set (a plain sub-task of the substrate's own
-        work); the substrate passes a scoped set when it wants a restricted copy.
-        Returns the findings, or None on refusal/failure (honest)."""
-        from core.agents.autonomous.shared_types import TaskType
-
-        tt = None
-        try:
-            tt = TaskType(str(task_type).lower())
-        except Exception:
-            tt = TaskType.RESEARCH
-        deployment_id = self.deploy(
-            task, reasoning_type=reasoning_type or "deductive",
-            allowed_tools=allowed_tools,  # None = unrestricted (full toolset)
-            task_type=tt, parameters=parameters)
-        if deployment_id is None:
-            return None
-        outcome = await self.await_findings(deployment_id)
-        return outcome.get("findings") if outcome else None
-
     async def get_statistics(self) -> Dict[str, Any]:
         return {
             "coordinator_id": self.coordinator_id,
@@ -400,8 +392,8 @@ class AgentCoordinator:
 
 # ── singleton ───────────────────────────────────────────────────────────────
 #
-# Exactly ONE factory in the process (main.py and the delegate_task tool both
-# reach it). Two would split the deployment registry the way two meta-learners
+# Exactly ONE factory in the process (main.py and the coordinator both reach
+# it). Two would split the deployment registry the way two meta-learners
 # split the posteriors — authoritative state disagreeing with itself.
 
 _agent_coordinator: Optional[AgentCoordinator] = None

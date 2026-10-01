@@ -295,7 +295,7 @@ SEGMENTED = [
 for subject, relation, obj, sentence, how in SEGMENTED:
     record = TaughtRecord(subject=subject, relation=relation, obj=obj,
                           quality=0.9, sentence=sentence)
-    read, _blamed = _teacher._read(sentence)
+    read, _blamed = asyncio.run(_teacher._read(sentence))
     kept, cut = _teacher._drop_segmented_claims(record, read)
     print(f"  {how:20} {sentence}")
     print(f"      read {[(c[0], c[2]) for c in read]} -> kept {[(c[0], c[2]) for c in kept]}")
@@ -313,7 +313,7 @@ INTACT = [
 for subject, relation, obj, sentence in INTACT:
     record = TaughtRecord(subject=subject, relation=relation, obj=obj,
                           quality=0.9, sentence=sentence)
-    read, _blamed = _teacher._read(sentence)
+    read, _blamed = asyncio.run(_teacher._read(sentence))
     kept, cut = _teacher._drop_segmented_claims(record, read)
     check(f"an ordinary reading of {subject!r} survives untouched",
           (kept, cut), (read, False))

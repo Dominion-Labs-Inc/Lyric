@@ -126,11 +126,6 @@ class GovernancePhase2Tests(TestBase):
         assert judgment.get("law_number") == 2, f"expected Law 2, got {judgment.get('law_number')}"
         return result
 
-    async def test_chaos_tool_safe_parameters_executes(self):
-        """Chaos testing with safe parameters is asked for an account, not refused"""
-        await self._asked_for_an_account(
-            "chaos_testing", {"chaos_type": "latency", "target": "staging"})
-
     async def test_mutation_tool_safe_files_executes(self):
         """Mutation testing on a non-critical file is asked for an account, not refused"""
         await self._asked_for_an_account(

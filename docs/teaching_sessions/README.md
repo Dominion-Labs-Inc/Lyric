@@ -104,6 +104,106 @@ This is the whole point of representing knowledge as *graded beliefs* rather tha
 rows: repeated, independent teaching of the same fact **raises confidence** (Bayesian
 update, model-free), while the belief store stays free of duplicates.
 
+### 2026-09-29 — the English lessons, into the main model (`lyric_db`)
+
+Taught through `scripts/teach.py --source lesson`, a live substrate each time, after each lesson passed in the sandbox.
+A lesson teaches sentence–meaning examples: its constructions and links are memories, each with a belief, and it adds
+no concepts or links between concepts.
+
+| When (UTC) | Lesson | Patterns | Beliefs prior → after | Report |
+|---|---|---|---|---|
+| 13:07 | english_01 | 228 read or learned, none refused | 57,006 → 57,556 | [report](20260929T130724Z_lesson.md) |
+| 13:08 | english_02 | 29, none refused | 57,556 → 57,639 | [report](20260929T130807Z_lesson.md) |
+| 21:19 | english_01 again | all 228 already read | 57,640 → 58,638 (+998, the start-up's, below) | [report](20260929T211922Z_lesson.md) |
+| 21:19 | english_02 again | all 29 already read | 58,638 → 58,638 | [report](20260929T211957Z_lesson.md) |
+| 21:20 | english_03 | 21, none refused | 58,638 → 58,700 | [report](20260929T212032Z_lesson.md) |
+| 21:21 | english_04 | 70, none refused | 58,700 → 58,875 | [report](20260929T212108Z_lesson.md) |
+| 21:21 | english_05 | 52, none refused | 58,875 → 58,990 | [report](20260929T212144Z_lesson.md) |
+| 21:22 | english_06 | 77, none refused | 58,990 → 59,161 | [report](20260929T212221Z_lesson.md) |
+| 21:22 | english_07 | 101, none refused | 59,161 → 59,380 | [report](20260929T212258Z_lesson.md) |
+
+- **Read again, not doubled.** english_01 and english_02 were taught again with the rest. A belief moves once per
+  example, so reading them again moved none.
+- **Not identical to the sandbox.** Those two lessons were learned in the morning by an earlier learner, so the main
+  model keeps their constructions as learned then ("An eel" as a name). It differs from the sandbox by 31
+  constructions of english_01 and 28 of english_02; english_03 to 07 differ by at most 5 each.
+- **The +998 at 21:19 came from the first start-up in the renamed folder, not from teaching.** The substrate looked
+  at its surroundings: the machine, and the Lyric folder's files by name, size and extension. That wrote 527
+  concepts and 989 beliefs under `environment_dc1455ad4d39ee9c`, and it saw one image. Later start-ups added
+  nothing.
+- **Checked, read-only, against the main model's own view** (every table counted before and after; the checks wrote
+  only 4 performance-log rows, the database's own logging):
+  - all 578 taught sentences read to their meaning;
+  - never-taught sentences read 15/15 with function words, and 9/9 with names, words without "a" and kinds of
+    people;
+  - on a WordNet sample, about 1,300 of 1,400 nouns are said. None has a name or uncounted word after "a", none has
+    a counted word bare, and none has "a"/"an" against the letter;
+  - SHAPES-LEARN-08's and SHAPES-LEARN-09's faults are all said rightly.
+- **Two engine faults the check found, both fixed** (`SHAPES_CHANGE_MAP.md` §11f):
+  - a view warmed from memory lost which words are names;
+  - a word never held went bare into a slot whose fillers all begin with "a".
+
+**Cleared and taught again (21:57–22:02 UTC, the owner's word).** To bring english_01 and 02 up to the current
+learner, and 03 to 07 on top of them in order, the seven lessons' English was cleared from `lyric_db`:
+- 1,412 construction and link memories and the 1,374 beliefs held of them were removed through the memory agent
+  (`delete_memory`, `drop_belief`);
+- each removal was recorded in the ledger (`learning.patterns.cleared`);
+- everything removed was archived first to `data/snapshots/english_lessons_lyric_db_20260929T215742Z.json`;
+- the belief that the substrate has learned `english` was kept, and nothing else was touched.
+
+english_01 to 07 were then taught again, none refused (reports `20260929T215837Z` to `20260929T220218Z`), after two
+more engine fixes: a kind statement names a kind in each place, and saying counts shapes over the concepts whose
+plural is held.
+
+Checked read-only against the main model's own view:
+- its constructions and links are identical by key to the sandbox's, lesson for lesson (1,417);
+- all 578 taught sentences read, and never-taught sentences 15/15 and 9/9;
+- on the WordNet sample, 1,239 of 1,379 nouns are said, with no "a" wrong, no counted word bare and no "a"/"an"
+  against the letter;
+- the five faults are said rightly.
+
+### 2026-09-30 — all twenty-six English lessons, into the main model (`lyric_db`)
+
+english_08 to 26 are the grammar lessons (08–23) and the mathematics lessons (24–26: numbers to the trillions,
+arithmetic said in words, written formulas). All twenty-six were first taught into a sandbox emptied for them, and
+checked there; then the main model's lesson English was cleared and the twenty-six taught in order.
+
+- **Sandbox** (`lyric_dev`, reset first; reports `20260930T052122Z` to `20260930T053652Z`): every lesson learned,
+  none refused, each exactly as the in-memory run learned it.
+- **Cleared from `lyric_db`** (05:43 UTC, the owner's word to run the teaching again): 1,417 construction and link
+  memories and the 1,380 beliefs held of them, through the memory agent, each removal in the ledger
+  (`learning.patterns.cleared`), everything archived first to
+  `data/snapshots/english_lessons_lyric_db_20260930T054318Z.json`; the belief that the substrate has learned
+  `english` was kept.
+- **Taught** (05:43–06:01 UTC; reports `20260930T054407Z` to `20260930T060119Z`): all twenty-six, none refused. A
+  lesson's sentences are examples: they teach constructions and links, and no fact is held from them.
+- **Checked read-only against the main model's own view** (every table counted before and after; the check wrote
+  only 4 performance-log rows): 6,077 constructions and links, the same as the sandbox's; all 2,485 taught sentences
+  read to their meaning; every never-taught probe set of lessons 8–23 passes but one sentence of lesson 12's ("The
+  cat walked carefully.", below); lessons 24–26's never-taught sentences 73/73; eleven questions worked through the
+  symbolic mathematics faculty from the main model's reading, all right; the WordNet sample said with no "a" wrong
+  and no counted word bare (the check flagged "A is a blood group." and "Provitamin A is a provitamin." as "a"/"an"
+  against the letter: the "A" there is a name, and both are said rightly).
+- **"The cat walked carefully."** read "carefully" as a quality of its own, where memory reads it as `careful`
+  written in "-ly". The store's teaching had linked a few modal words ("could" for `possible`) to the adjective slot
+  of "red ball", so that slot counted as written otherwise, and one "recently" among them made it a slot written in
+  "-ly" whose other words broke the change. Fixed in the reader, not in what was taught: a slot is evidence of a
+  change only when most of what stands there written otherwise is written by one. Learning is unchanged by it (the
+  same 6,082 items in memory), so neither store was taught again.
+- **Cleared and taught again (10:57–11:16 UTC).** SHAPES-LEARN-10's fourth run showed english_24 had taught "a" as the
+  number 1, and three more faults behind it (its README; `SHAPES_CHANGE_MAP.md` §11f). With the lessons and the reader
+  fixed, the twenty-six were taught into an emptied sandbox (none refused, checked clean), then the main model's lesson
+  English was cleared again -- 6,077 memories and 6,002 beliefs, archived first to
+  `data/snapshots/english_lessons_lyric_db_20260930T105755Z.json`, removed through the memory agent -- and the
+  twenty-six taught again, none refused. The clear's ledger write failed after the removals: 6,077 rows at eleven
+  values each is more than one statement carries, so `record_knowledge_updates` now writes in as many statements as
+  it takes, and the 6,077 rows were then recorded from the archive (`learning.patterns.cleared`, batch
+  `clear-english-20260930T105755Z`).
+- **Checked read-only** from the main model's view: 6,087 constructions and links, the same as the sandbox's but for
+  five of lessons 1 and 4; "a" and "an" build sentences only; 2,492/2,492 taught sentences read; every never-taught set
+  passes, lessons 24–26's 77/77; eleven questions worked through the faculty, all right; WordNet's sample said with
+  nothing wrong.
+
 ## Substrate state after these sessions
 
 - **Beliefs:** 4,714 total (2,082 in `lexical`).

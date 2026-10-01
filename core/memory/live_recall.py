@@ -217,8 +217,8 @@ class LiveRecall:
         try:
             agent = await self._memory_agent()
             # RECALL SEARCHES KNOWLEDGE, NOT THE EVENT LOG. Records kept
-            # because they HAPPENED -- task outcomes, governance blocks, safety
-            # events -- are near-identical to each other by construction, so
+            # because they HAPPENED -- task outcomes, safety events,
+            # mapping verdicts -- are near-identical to each other by construction, so
             # they cannot be found by meaning and they displace what can. They
             # are queried by structure instead, where their count is exact.
             return await agent.retrieve(query=query, limit=self.per_wave,

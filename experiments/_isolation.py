@@ -37,9 +37,16 @@ from __future__ import annotations
 import ast
 import contextlib
 import io
+import os
 import re
 import sys
 from pathlib import Path
+
+# EXPERIMENTS RUN IN THE SANDBOX. `lyric_db` is the main model; testing and
+# development use `lyric_dev`, unless the run names a database itself
+# (`POSTGRES_DATABASE=... python3 experiments/...`). The same rule as
+# tests/conftest.py, and `boot` checks it against the server.
+os.environ.setdefault("POSTGRES_DATABASE", "lyric_dev")
 from typing import Any, Dict, Iterable, List, Optional
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -56,6 +63,7 @@ async def boot():
         from core.main import get_system
         system = get_system()
         await system.start()
+    await db().assert_database_identity(os.environ["POSTGRES_DATABASE"])
     return system, system.autonomous_coordinator
 
 

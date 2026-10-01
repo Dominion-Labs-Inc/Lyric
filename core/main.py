@@ -242,7 +242,6 @@ class LyricSystem:
         self.quantum_reasoning = None
         self.proof_engine = None
         self.memory_injector = None
-        self.slack_notifier = None
         self.logical_integration = None
         self.backup_scheduler = None
         self.testing_tools = None
@@ -287,7 +286,7 @@ class LyricSystem:
         logger.info("  8.  Quantum Computing (IBM hardware - DISABLED)")
         logger.info("  9.  Reasoning Systems")
         logger.info("  10. Autonomous Coordinator (THE SINGLETON)")
-        logger.info("  11. Security, Safety, Governance & Tools")
+        logger.info("  11. Security, Safety & Tools")
         logger.info("  12. Additional Services (Backup, Testing)")
         logger.info("=" * 80)
 
@@ -454,7 +453,6 @@ class LyricSystem:
                 if getattr(self, 'recovery_manager', None): autonomous_services.append("Recovery")
 
                 # Support systems
-                if getattr(self, 'slack_notifier', None): support_services.append("Slack")
                 if getattr(self, 'tool_registry', None): support_services.append("Tools")
                 if getattr(self, 'backup_scheduler', None): support_services.append("Backup")
 
@@ -837,7 +835,7 @@ class LyricSystem:
         # services, no routing) and a router model (AgentCoordinator owning
         # registration, routing and lifecycle). The flat one ran and was a dead
         # end; the router one was complete and unreachable. This adopts the
-        # router, which is also what the delegate_task tool routes through.
+        # router, which the coordinator deploys agents through (`deploy_agent`).
         try:
             from core.agents.agents import get_agent_coordinator
 
@@ -909,7 +907,7 @@ class LyricSystem:
                 health = get_health_monitor()
                 # THIS PROCESS IS THE SUBSTRATE LAYER. It grades its own internal
                 # subsystems (cognition, request-validation security, safety,
-                # governance); the always-on guardian grades active defense and
+                # the Constitution); the always-on guardian grades active defense and
                 # infrastructure. One owner per component, no process reporting
                 # on a subsystem it does not host.
                 health.set_scope("substrate")
@@ -1253,21 +1251,8 @@ class LyricSystem:
 
     async def _initialize_security_safety(self):
         """Initialize security and safety systems"""
-        # Slack Notifier
-        try:
-            from core.integration.slack_notifier import get_slack_notifier
-
-            logger.info("Initializing Slack notifier...")
-            self.slack_notifier = get_slack_notifier()
-            logger.info("✓ Slack notifier initialized")
-            self.stats['services_initialized'] += 1
-
-        except Exception as e:
-            logger.error(f"Slack notifier initialization failed: {e}")
-            self.stats['services_failed'] += 1
-
         # SECURITY IS NOT STARTED BY THE SUBSTRATE.
-        # The shield is the DHCM membrane (Dominion Labs/DHCM/) around the WORLD — the
+        # The shield is the Tet membrane (Dominion Labs/Tet/) around the WORLD — the
         # environment the substrate operates in (like nature around the earth). The
         # world and its shield run independently; the substrate neither creates nor
         # starts them, and they do not start the substrate. The legacy integrated
@@ -1348,9 +1333,6 @@ class LyricSystem:
             logger.info("Initializing backup scheduler...")
             self.backup_scheduler = get_backup_scheduler()
 
-            if self.slack_notifier:
-                self.backup_scheduler.set_slack_notifier(self.slack_notifier)
-
             logger.info("✓ Backup scheduler initialized")
             self.stats['services_initialized'] += 1
 
@@ -1364,9 +1346,6 @@ class LyricSystem:
 
             logger.info("Initializing testing tools...")
             self.testing_tools = get_testing_tools()
-
-            if self.slack_notifier:
-                self.testing_tools.set_slack_notifier(self.slack_notifier)
 
             logger.info("✓ Testing tools initialized")
             self.stats['services_initialized'] += 1
@@ -1641,47 +1620,6 @@ class LyricSystem:
                 )
             except Exception as e:
                 logger.warning(f"Failed to send shutdown notification: {e}")
-
-            if self.slack_notifier:
-                try:
-                    uptime_seconds = self.stats.get('uptime_seconds', 0)
-                    uptime_hours = uptime_seconds / 3600
-                    uptime_str = f"{uptime_hours:.1f}h" if uptime_hours >= 1 else f"{uptime_seconds/60:.1f}m"
-
-                    shutdown_message = {
-                        "text": "🛑 *Lyric System Shutdown*",
-                        "blocks": [
-                            {
-                                "type": "header",
-                                "text": {
-                                    "type": "plain_text",
-                                    "text": "🛑 System Shutdown Complete"
-                                }
-                            },
-                            {
-                                "type": "section",
-                                "fields": [
-                                    {"type": "mrkdwn", "text": f"*Uptime:*\n{uptime_str}"},
-                                    {"type": "mrkdwn", "text": f"*Services:*\n{self.stats.get('services_initialized', 0)} active"},
-                                    {"type": "mrkdwn", "text": f"*Operations:*\n{self.stats.get('successful_operations', 0)} successful"},
-                                    {"type": "mrkdwn", "text": f"*Failed:*\n{self.stats.get('failed_operations', 0)} errors"}
-                                ]
-                            },
-                            {
-                                "type": "context",
-                                "elements": [
-                                    {
-                                        "type": "mrkdwn",
-                                        "text": f"Stopped at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
-                                    }
-                                ]
-                            }
-                        ]
-                    }
-                    await self.slack_notifier._send_slack_notification(shutdown_message)
-                    logger.info("✓ Shutdown notification sent to Slack")
-                except Exception as e:
-                    logger.warning(f"Failed to send Slack shutdown notification: {e}")
 
             logger.info("=" * 80)
             logger.info("✓ Lyric System Shutdown Complete")

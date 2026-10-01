@@ -224,18 +224,28 @@ def clause_atom(subject: str, relation: str, obj: Optional[str] = None,
 
 def question_of(request: "ReasoningRequest") -> Optional[Any]:
     """The meaning of the question: the caller's reading, or the engine's
-    reading of the query. None when the query is not one utterance read to one
-    meaning -- which one is meant is not the bridge's to decide."""
+    reading of the query. None when the query is not one utterance whose
+    meaning the listener can tell (`derived_reader.meant`) -- which one is meant
+    is not the bridge's to decide."""
     if request.reading is not None:
         return request.reading
-    from core.semantics.derived_reader import read_text
+    from core.semantics.derived_reader import meant, read_text
     utterances = read_text(str(request.query or ""))
-    if len(utterances) != 1 or not utterances[0].readings:
+    if len(utterances) != 1:
         return None
-    readings = utterances[0].readings
-    if len({r.meaning.canonical() for r in readings}) > 1:
+    chosen = meant(utterances[0].readings)
+    return chosen.meaning if chosen is not None else None
+
+
+async def _question_heard(query: str) -> Optional[Any]:
+    """The meaning of a query that is one utterance, taken as a listener with memory at hand takes it; None when it
+    is not one utterance, or the listener cannot tell which meaning was meant."""
+    from core.semantics.derived_reader import heard, read_text
+    utterances = read_text(query)
+    if len(utterances) != 1:
         return None
-    return readings[0].meaning
+    chosen = await heard(utterances[0].readings)
+    return chosen.meaning if chosen is not None else None
 
 
 def goal_fact(meaning: Optional[Any]) -> Optional[Any]:
@@ -291,6 +301,7 @@ NEURAL_TOKEN_BUDGET = 2048
 # but unavailable or failing.
 REASON_SUBSTRATE_VERIFIED = "substrate_verified"    # solver proved the goal
 REASON_SUBSTRATE_REFUTED = "substrate_refuted"      # solver decided against it
+REASON_COMPUTED = "computed"                        # the symbolic mathematics faculty worked it out
 #: A KIND OF THINKING derived it -- causal, spatial, temporal and the rest --
 #: without propositional formalization or a solver. Distinct from
 #: SUBSTRATE_VERIFIED on purpose: that means a solver checked a formalized
@@ -821,13 +832,14 @@ class DerivedReadingFormalizer(IFormalizer):
     name = "derived"
 
     @classmethod
-    def _atoms(cls, sentence: str) -> Optional[Tuple[List[str], str]]:
+    async def _atoms(cls, sentence: str) -> Optional[Tuple[List[str], str]]:
         """Every formal atom a taught sentence states, and the constructions that read it.
 
         Declines when:
           * nothing taught reads these words;
-          * the words were taught with more than one meaning -- which one is meant
-            is not this formalizer's to decide;
+          * the words read to more than one meaning and the listener, with
+            memory asked, cannot tell which was meant (`derived_reader.heard`):
+            that is not this formalizer's to decide;
           * the meaning is a request, which states nothing to assume or prove, or
             a question that asks for a value rather than a yes or a no;
           * a fact still holds a variable. The solver's language names things,
@@ -838,16 +850,16 @@ class DerivedReadingFormalizer(IFormalizer):
         none of its facts outright, so none of them is an atom of its own. Of
         alternatives, one holds: they are one disjunction, never atoms apart.
         """
-        from core.semantics.derived_reader import is_variable, read
+        from core.semantics.derived_reader import heard, is_variable, read
 
         readings = read(sentence)
         if not readings:
             return None
-        if len({r.meaning.canonical() for r in readings}) > 1:
-            logger.debug("%r was taught with %d meanings; not choosing between them",
+        reading = await heard(readings)
+        if reading is None:
+            logger.debug("%r reads to %d meanings and which was meant cannot be told; not choosing",
                          sentence, len(readings))
             return None
-        reading = readings[0]
         meaning = reading.meaning
         if meaning.act == "request" or meaning.asked:
             return None
@@ -902,7 +914,7 @@ class DerivedReadingFormalizer(IFormalizer):
                 premises.append(text.strip())
                 origins.append(origin)
                 continue
-            read = self._atoms(text)
+            read = await self._atoms(text)
             if read is None:
                 # A CONTEXT SENTENCE THAT CANNOT BE READ IS NOT DROPPED. Dropping
                 # it would hand the solver an incomplete premise set, and a
@@ -919,7 +931,7 @@ class DerivedReadingFormalizer(IFormalizer):
             used.append(read[1])
             surface.append(str(sentence))
 
-        goal = self._atoms(query)
+        goal = await self._atoms(query)
         if goal is None:
             return Formalization(
                 succeeded=False, source=self.name,
@@ -1793,6 +1805,11 @@ class NeuralSymbolicBridge:
         # self that silently stops recording its own intentions is the defect
         # this exists to prevent.
         _intent = await self._intent_engage(request)
+        if request.reading is None and request.query:
+            # THE QUESTION IS LISTENED TO ONCE, where memory can be asked: where a word in it names several
+            # things, which one was meant is taken as a listener takes it (`derived_reader.heard`), and every
+            # step below reads that meaning (`question_of`).
+            request.reading = await _question_heard(str(request.query))
         result = await self._reason_impl(request)
         await self._intent_settle(_intent, request, result)
         try:
@@ -2313,6 +2330,38 @@ class NeuralSymbolicBridge:
                       KEY_TEACHER_CONSULTED: False,
                       "capability": "constraint_solver", "route": route,
                       "solution": solution.model})
+
+    def _mathematics(self, request: ReasoningRequest) -> Optional[ReasoningResult]:
+        """A reading about numbers, worked: its answer, the steps to it, and the
+        check, all computed by the symbolic mathematics faculty. None when the
+        reading is not mathematics.
+
+        The answer is exact at any size and every step is the algebra system's
+        own; nothing here is recalled or guessed. A formula the faculty cannot
+        work is reported as that, with its reason, and not answered from
+        anywhere else."""
+        reading = getattr(request, "reading", None)
+        if reading is None:
+            return None
+        from core.agents.autonomous.shared_types import SUBSTRATE_ACTOR
+        from core.tools.symbolic_math_faculty import mathematics_of
+        worked = mathematics_of(reading, ("?listener", SUBSTRATE_ACTOR))
+        if worked is None:
+            return None
+        route = ["derived_reader", "symbolic_math_faculty"]
+        if not worked.ok:
+            return ReasoningResult(
+                answer="", confidence=0.0, mode_used=ReasoningMode.SYMBOLIC,
+                reasoning_steps=[f"{worked.formula}: {worked.error}"],
+                metadata={"verified": False, "formalized": True, "reason": REASON_CAPABILITY_UNAVAILABLE,
+                          "capability": "symbolic_math_faculty", "route": route, "worked": worked,
+                          KEY_SUBSTRATE_FORMALIZED: True, KEY_TEACHER_CONSULTED: False})
+        return ReasoningResult(
+            answer="; ".join(worked.answer), confidence=1.0, mode_used=ReasoningMode.SYMBOLIC,
+            reasoning_steps=worked.lines(),
+            metadata={"verified": True, "formalized": True, "reason": REASON_COMPUTED,
+                      "capability": "symbolic_math_faculty", "route": route, "worked": worked,
+                      KEY_SUBSTRATE_FORMALIZED: True, KEY_TEACHER_CONSULTED: False})
 
     def _extend_sequence(self, sequence) -> ReasoningResult:
         """Extend a sequence by the rule the learning authority induces.
@@ -2913,6 +2962,15 @@ class NeuralSymbolicBridge:
         The probe uses only deterministic formalizers, so an input Lyric can
         represent itself never enters the model call graph.
         """
+        # MATHEMATICS SAID IN A SENTENCE, FIRST: a reading about numbers --
+        # arithmetic in words, a written formula, a request to solve or factor
+        # or break one down -- is worked by the symbolic mathematics faculty,
+        # which computes the answer and the steps to it. A reading that is not
+        # about numbers goes on to what follows.
+        worked = self._mathematics(request)
+        if worked is not None:
+            return worked
+
         # ARITHMETIC FIRST, AND BEFORE ANY MODEL. The constraint solver runs
         # here so Z3 PRODUCES the answer -- "Lyric can do algebra" is a
         # substrate claim, never contingent on a model checking it.

@@ -1,0 +1,218 @@
+{
+  "experiment": "TOOLS-EXTERNAL-01",
+  "claim": "No tool is hardcoded to the substrate: the chaos and memory tools are archived, the security tools read the logs they are told to (an outside log database, or the substrate's own when named), the file and code tools work on the folder they are given, and the AgentSO connector tools are guarded against the substrate.",
+  "hypothesis": "A chaos tool still registered, a testing tool lost, a security tool reading the substrate's logs unasked or an outside source that is its own server, a made-up or silently skipped finding, a file tool falling back to the substrate's folder, an unguarded connector, or a write to the substrate's stores would each show here.",
+  "started_at": "2026-09-30T22:59:51.437629+00:00",
+  "duration_seconds": 4.865,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/Lyric/venv_lyric/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/Lyric",
+    "shadow_mode": null,
+    "git_commit": "4079045ffdac8d282649a9a829e3060eb736139f",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "lyric_dev",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "lyric_dev",
+        "model": "lyric_dev",
+        "user_context": "lyric_dev",
+        "learning": "lyric_dev"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "environment",
+        "database": "environment",
+        "user": "environment",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "pool_idle_seconds": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 335,
+    "database_verified": null,
+    "database_verified_reason": "not verified"
+  },
+  "summary": {
+    "checks": 27,
+    "passed": 27,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [],
+  "checks": [
+    {
+      "label": "no chaos tool is registered",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-09-30T22:59:53.493468+00:00"
+    },
+    {
+      "label": "every testing and validation tool is still registered",
+      "passed": true,
+      "detail": "19/19 registered; missing []",
+      "at": "2026-09-30T22:59:53.493582+00:00"
+    },
+    {
+      "label": "the six obsolete learning tools are not registered; the four that work on given data are",
+      "passed": true,
+      "detail": "left: []; missing: []",
+      "at": "2026-09-30T22:59:53.493596+00:00"
+    },
+    {
+      "label": "detect_brute_force is disabled: kept in the code, not registered",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-30T22:59:53.493602+00:00"
+    },
+    {
+      "label": "the six security tools and the rate limiter are registered",
+      "passed": true,
+      "detail": "missing []",
+      "at": "2026-09-30T22:59:54.011796+00:00"
+    },
+    {
+      "label": "with no source named, each refuses",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-09-30T22:59:54.011846+00:00"
+    },
+    {
+      "label": "an 'outside' source that is the substrate's own server is refused",
+      "passed": true,
+      "detail": "that is the substrate's own database server; to read the substrate's own security logs, name them: logs_of='lyric'",
+      "at": "2026-09-30T22:59:54.024036+00:00"
+    },
+    {
+      "label": "on an outside log database, what is there is found",
+      "passed": true,
+      "detail": "1 detection(s) of 203.0.113.9",
+      "at": "2026-09-30T22:59:54.035287+00:00"
+    },
+    {
+      "label": "the rate limiter counts in the protected system's database",
+      "passed": true,
+      "detail": "[True, True, True, False]; 3 counted there",
+      "at": "2026-09-30T22:59:54.055016+00:00"
+    },
+    {
+      "label": "zero-day detection says which checks it could not make, never reports them clean",
+      "passed": true,
+      "detail": "not checked: ['memory_patterns']",
+      "at": "2026-09-30T22:59:54.061731+00:00"
+    },
+    {
+      "label": "named, the substrate's own security logs are read",
+      "passed": true,
+      "detail": "read",
+      "at": "2026-09-30T22:59:54.082629+00:00"
+    },
+    {
+      "label": "each takes its folder from the caller, with none assumed",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-09-30T22:59:54.243745+00:00"
+    },
+    {
+      "label": "it works on a user's folder",
+      "passed": true,
+      "detail": "found",
+      "at": "2026-09-30T22:59:54.326971+00:00"
+    },
+    {
+      "label": "and on the substrate's own code, here",
+      "passed": true,
+      "detail": "found",
+      "at": "2026-09-30T22:59:54.327000+00:00"
+    },
+    {
+      "label": "AgentSO's folder is after the substrate's own on the import path",
+      "passed": true,
+      "detail": "substrate at 0, AgentSO at 6",
+      "at": "2026-09-30T22:59:54.327266+00:00"
+    },
+    {
+      "label": "its connector tools are still registered",
+      "passed": true,
+      "detail": "4 VirusTotal tools",
+      "at": "2026-09-30T22:59:54.327360+00:00"
+    },
+    {
+      "label": "a connector pointing at the substrate's own database server is refused before it runs",
+      "passed": true,
+      "detail": "the connector points at the substrate's own database server; a connector never works on the substrate itself",
+      "at": "2026-09-30T22:59:54.344446+00:00"
+    },
+    {
+      "label": "the memory tools are not registered",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-09-30T22:59:54.344465+00:00"
+    },
+    {
+      "label": "a variable is read from the project's .env file",
+      "passed": true,
+      "detail": "{'key': 'APP_MODE', 'env_file': '/private/var/folders/0y/66ltqc9s0xs5h7yhj_vv5ct80000gn/T/toolsexternal01_project_f0vtivlj/.env', 'value': 'staging', 'exists': True, 'is_default': False}",
+      "at": "2026-09-30T22:59:54.344892+00:00"
+    },
+    {
+      "label": "and written there, never into the substrate's live environment",
+      "passed": true,
+      "detail": "written",
+      "at": "2026-09-30T22:59:54.345081+00:00"
+    },
+    {
+      "label": "the substrate's own settings file is refused, for reading and for writing",
+      "passed": true,
+      "detail": "[\"that is the substrate's own settings file; this tool works on a user's project\", \"that is the substrate's own settings file; this tool works on a user's project\"]",
+      "at": "2026-09-30T22:59:54.345192+00:00"
+    },
+    {
+      "label": "each takes its file, interpreter or process from the caller",
+      "passed": true,
+      "detail": "optional: []",
+      "at": "2026-09-30T22:59:54.345220+00:00"
+    },
+    {
+      "label": "a project's requirements are checked against its own interpreter",
+      "passed": true,
+      "detail": "1 installed, 1 missing",
+      "at": "2026-09-30T22:59:54.699571+00:00"
+    },
+    {
+      "label": "the process asked about is the one profiled",
+      "passed": true,
+      "detail": "{'processes': [{'pid': 38310, 'name': 'Python', 'cpu_percent': 0.0, 'memory_mb': 13.67, 'num_threads': 1, 'num_fds': 3, 'create_time': '2026-09-30T18:59:54.705048'}], 'count': 1}",
+      "at": "2026-09-30T22:59:55.812305+00:00"
+    },
+    {
+      "label": "a user's service is told to reread its configuration",
+      "passed": true,
+      "detail": "reloaded",
+      "at": "2026-09-30T22:59:55.944200+00:00"
+    },
+    {
+      "label": "the substrate's own process is refused",
+      "passed": true,
+      "detail": "that is the substrate's own process; this tool works on a user's service",
+      "at": "2026-09-30T22:59:55.965124+00:00"
+    },
+    {
+      "label": "main and sandbox are untouched",
+      "passed": true,
+      "detail": "before {'lyric_db': 290079, 'lyric_dev': 350341}, after {'lyric_db': 290079, 'lyric_dev': 350341}",
+      "at": "2026-09-30T22:59:56.303174+00:00"
+    }
+  ],
+  "notes": [
+    "nonce a4575b; the outside world was a throwaway PostgreSQL server, removed after the run"
+  ]
+}

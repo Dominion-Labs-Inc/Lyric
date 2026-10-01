@@ -1,0 +1,139 @@
+{
+  "experiment": "TASKS-AT-ONCE-01",
+  "claim": "The substrate runs sixty tasks at once, inside the queue authority's one acting budget, and no person holds more than three of them at once; work past that waits for a slot and is then done.",
+  "hypothesis": "A budget smaller than sixty in force anywhere (the queue authority's own, the substrate's gate, a ceiling), a person holding a fourth slot, work lost or failed under the load, or a write to the main store would each show here.",
+  "started_at": "2026-09-30T16:48:12.441120+00:00",
+  "duration_seconds": 951.129,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/Lyric/venv_lyric/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/Lyric",
+    "shadow_mode": null,
+    "git_commit": "4079045ffdac8d282649a9a829e3060eb736139f",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "lyric_dev",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "lyric_dev",
+        "model": "lyric_dev",
+        "user_context": "lyric_dev",
+        "learning": "lyric_dev"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "environment",
+        "database": "environment",
+        "user": "environment",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 309,
+    "database_verified": null,
+    "database_verified_reason": "no initialized connection in this process"
+  },
+  "summary": {
+    "checks": 14,
+    "passed": 11,
+    "failed": 3,
+    "outcome": "FAIL"
+  },
+  "metrics": [],
+  "checks": [
+    {
+      "label": "the queue authority runs sixty work jobs at once",
+      "passed": true,
+      "detail": "60",
+      "at": "2026-09-30T16:48:49.807130+00:00"
+    },
+    {
+      "label": "the substrate draws up to sixty, three per person",
+      "passed": true,
+      "detail": "60 at once, 3 per person",
+      "at": "2026-09-30T16:48:49.807146+00:00"
+    },
+    {
+      "label": "a size given after the authority exists is put in force",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-30T16:48:49.807184+00:00"
+    },
+    {
+      "label": "never changed under running work",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-30T16:48:49.858331+00:00"
+    },
+    {
+      "label": "every job asked for is taken on",
+      "passed": true,
+      "detail": "82/82",
+      "at": "2026-09-30T16:48:59.723448+00:00"
+    },
+    {
+      "label": "sixty jobs run at the same moment, inside the queue authority's budget",
+      "passed": true,
+      "detail": "60 at once; all 82 done in 245s, each holding its slot 10s",
+      "at": "2026-09-30T17:04:00.899130+00:00"
+    },
+    {
+      "label": "never more than sixty in flight",
+      "passed": true,
+      "detail": "60",
+      "at": "2026-09-30T17:04:00.899180+00:00"
+    },
+    {
+      "label": "every person holds three at once, and never a fourth",
+      "passed": true,
+      "detail": "[2, 3]",
+      "at": "2026-09-30T17:04:00.899199+00:00"
+    },
+    {
+      "label": "a person's fourth job starts only once one of theirs has ended",
+      "passed": true,
+      "detail": "20/20",
+      "at": "2026-09-30T17:04:00.899258+00:00"
+    },
+    {
+      "label": "the one more person's jobs wait for a slot to free",
+      "passed": true,
+      "detail": "started 235.0s in, first slot freed 230.0s in",
+      "at": "2026-09-30T17:04:00.899271+00:00"
+    },
+    {
+      "label": "every job ends done, under that load",
+      "passed": false,
+      "detail": "22/82 completed; {'in_progress': 60, 'completed': 22}",
+      "at": "2026-09-30T17:04:00.899289+00:00"
+    },
+    {
+      "label": "its note read",
+      "passed": false,
+      "detail": "22/82",
+      "at": "2026-09-30T17:04:00.927045+00:00"
+    },
+    {
+      "label": "each person is told how each of their jobs ended",
+      "passed": false,
+      "detail": "22/82",
+      "at": "2026-09-30T17:04:02.942706+00:00"
+    },
+    {
+      "label": "the main model's store is untouched",
+      "passed": true,
+      "detail": "290079 rows before, 290079 after",
+      "at": "2026-09-30T17:04:03.585224+00:00"
+    }
+  ],
+  "notes": [
+    "nonce 708852: left in the sandbox, the people's job records in the queue's history and their turns' and readings' experiences in the memory agent's pool"
+  ]
+}

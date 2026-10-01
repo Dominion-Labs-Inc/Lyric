@@ -1,0 +1,152 @@
+{
+  "experiment": "ENV-INVESTIGATE-01",
+  "claim": "Environment investigation is ROBUST and BOUNDED: the substrate scans its world recursively, records what each thing IS structurally, and takes what each file holds in through its one act of perceiving, by every sense that can \u2014 while never handing a binary to reading, and never exceeding its scan/depth/size bounds.",
+  "hypothesis": "A naive scanner either stays shallow (missing nested content), or decodes everything (turning binary bytes into fabricated 'facts'). Both failures are visible here: nested content must be found, and a NUL-containing file must yield structural metadata and never be taken in.",
+  "started_at": "2026-09-30T15:02:01.168398+00:00",
+  "duration_seconds": 4.335,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/Lyric/venv_lyric/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/Lyric",
+    "shadow_mode": null,
+    "git_commit": "4079045ffdac8d282649a9a829e3060eb736139f",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "lyric_db",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "lyric_db",
+        "model": "lyric_db",
+        "user_context": "lyric_db",
+        "learning": "lyric_db"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "dotenv:.env.postgres",
+        "database": "dotenv:.env.postgres",
+        "user": "dotenv:.env.postgres",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 296,
+    "database_verified": null,
+    "database_verified_reason": "no initialized connection in this process"
+  },
+  "summary": {
+    "checks": 10,
+    "passed": 10,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [
+    {
+      "name": "entries_scanned",
+      "value": 7,
+      "unit": "count",
+      "note": "everything the bounded recursive scan found, files and directories"
+    },
+    {
+      "name": "scan_max_entries",
+      "value": 400,
+      "unit": "count",
+      "note": "the containment bound"
+    },
+    {
+      "name": "scan_max_depth",
+      "value": 4,
+      "unit": "levels",
+      "note": "the containment bound"
+    },
+    {
+      "name": "read_max_bytes",
+      "value": 65536,
+      "unit": "bytes",
+      "note": "no file is read past this \u2014 investigation cannot become ingestion"
+    },
+    {
+      "name": "structural_facts",
+      "value": 4,
+      "unit": "count",
+      "note": "what the thing IS: contains / isa / extension / size"
+    },
+    {
+      "name": "binary_taken_in",
+      "value": 0,
+      "unit": "count",
+      "note": "MUST be 0: a NUL-containing file yields metadata only. Any other value means the substrate decoded bytes into invented facts"
+    }
+  ],
+  "checks": [
+    {
+      "label": "scan recurses into subdirectories (finds sub/b.md at depth 1)",
+      "passed": true,
+      "detail": "['a.txt', 'b.md', 'bin.dat', 'empty', 'long.txt', 'notes', 'sub']",
+      "at": "2026-09-30T15:02:05.501932+00:00"
+    },
+    {
+      "label": "scan records kind + extension + size",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-30T15:02:05.501943+00:00"
+    },
+    {
+      "label": "directories are recorded too",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-30T15:02:05.501945+00:00"
+    },
+    {
+      "label": "a NUL-containing file gives no sense anything (binary, never decoded)",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-30T15:02:05.502112+00:00"
+    },
+    {
+      "label": "a text file is taken in by reading",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-30T15:02:05.502119+00:00"
+    },
+    {
+      "label": "a text file with no name for its kind is read by what its bytes are",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-30T15:02:05.502156+00:00"
+    },
+    {
+      "label": "structural facts held (contains / isa / extension / size)",
+      "passed": true,
+      "detail": "4 structural",
+      "at": "2026-09-30T15:02:05.502749+00:00"
+    },
+    {
+      "label": "the text is handed to the one act of perceiving, as the substrate's own",
+      "passed": true,
+      "detail": "[{'path': '/private/var/folders/0y/66ltqc9s0xs5h7yhj_vv5ct80000gn/T/envscan_tt1hhgdk/a.txt', 'actor_identity': None, 'source': 'a.txt'}]",
+      "at": "2026-09-30T15:02:05.502755+00:00"
+    },
+    {
+      "label": "binary file yields structural metadata and is never taken in",
+      "passed": true,
+      "detail": "taken: []",
+      "at": "2026-09-30T15:02:05.502810+00:00"
+    },
+    {
+      "label": "a text past the read bound is recorded by its metadata, not read",
+      "passed": true,
+      "detail": "65721 bytes; taken: []",
+      "at": "2026-09-30T15:02:05.502819+00:00"
+    }
+  ],
+  "notes": [
+    "Uses the REAL _scan_environment / _ingest_environment_entry and the real senses' judgement (PerceptionFaculty.senses_of), bound to a stand-in that records what is handed to the one act of perceiving. What that act does with a text it reads -- its words through the substrate's reader, held as what the file said, the reading recorded in the reading ledger -- is READ-01's to show."
+  ]
+}

@@ -62,13 +62,6 @@ async def main() -> int:
     check("the overall score is tracked as a capability baseline", "overall" in tracked,
           f"tracked metrics={sorted(tracked)}")
 
-    print("\n== 5. The substrate-facing tool runs the same path ==")
-    from core.tools.learning_tools import BenchmarkCapabilityTool
-    tr = await BenchmarkCapabilityTool().execute(sample_size=4)
-    check("benchmarkcapability tool returns a successful report",
-          tr.success and isinstance(tr.output, dict) and "overall_score" in tr.output,
-          f"success={tr.success}")
-
     print("\n" + "=" * 60)
     passed = sum(1 for x in results if x)
     print(f"RESULT: {passed}/{len(results)} checks passed")

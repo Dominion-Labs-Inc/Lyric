@@ -58,7 +58,6 @@ class CoordinatorConfig:
     circuit_half_open_timeout: float = 30.0  # seconds to test in half_open
 
     # Parallel execution
-    max_parallel_tasks: int = 1  # singleton: one task at a time (sub-agents handle parallelism within executor)
     task_execution_timeout: float = 300.0  # seconds before task timeout
 
     # System limits
@@ -109,7 +108,6 @@ class CoordinatorConfig:
             "circuit_success_threshold": self.circuit_success_threshold,
             "circuit_timeout_seconds": self.circuit_timeout_seconds,
             "circuit_half_open_timeout": self.circuit_half_open_timeout,
-            "max_parallel_tasks": self.max_parallel_tasks,
             "task_execution_timeout": self.task_execution_timeout,
             "min_cycle_interval": self.min_cycle_interval,
             "max_cycle_interval": self.max_cycle_interval,

@@ -16,6 +16,233 @@ Conventions:
 
 ---
 
+## 2026-10-01 — The SEG paper revised; one authority over the substrate's keys
+
+### Part 1 — SEG paper, section 9
+
+The promotion-gate ablation re-run under the revised validation (2026-09-30 entry,
+Part 5) gives the correctly constrained rule 1 confirmation where the paper reported 2.
+The owner chose a dated note over an edit: the original sentence stands, followed by
+"Revision, 1 October 2026". Published to the site (PDF regenerated, 17 pages, note on page
+15, checked as rendered), to the public repository (README note; the new run record added
+beside the 18 September one, not replacing it; commit 907bb9f), and the Cloudflare cache
+purged. Live page and PDF verified.
+
+### Part 2 — Keys
+
+**Found.** The substrate loaded the whole workspace `.env` (158 company keys) though its
+code reads no key that exists only there; its GitHub lookup fell back to the owner's
+Keychain login; `env_loader` held three dead credential helpers (one dumped the
+environment) and `epistemic_engine` a dead credential word list. Nothing kept a key out of
+speech, memory, tool traffic, child processes, notifications or logs.
+
+**Built.** `core/security/secrets.py`: one authority over the key files (which values
+are keys, by name; redaction including base64, hex and URL-quoted forms; key-file paths;
+a key-free environment for children; `hold` writes a key to the substrate's own file at
+mode 600; `./lyric secret set NAME` reads one without echo). Wired in: Law 5 refuses an
+act whose arguments carry a key or name a key file (the constitution stays the only
+gate); the registry redacts every tool result and crash message; every child process in
+the execution tools starts without keys; notifications are redacted before they leave;
+the memory agent's writes (`_memory_db`, `_store_memory`) keep no key; `say` cannot say
+one; every log record, including exception text, is redacted at creation. `env_loader`
+loads only the substrate's file and takes the GitHub token from it alone; the dead
+helpers are deleted.
+
+**Verified so far.** Each file compiles; the authority alone on a temporary key file
+(plain and encoded forms, nested results, symlinked and backup key files, a scrubbed
+environment, `hold` at mode 600); the loader reads only `.env.production` and the token
+is the substrate's own. **Not yet verified end to end** through the running guards; a
+large adversarial test script was stopped while being written and its partial file
+removed unrun.
+
+---
+
+## 2026-09-30 — File acts re-taught; an over-broad COPY rule; tool failures stop carrying scripts
+
+**Objective.** The substrate is to be the system measured in a planned study of how an
+agent decides a task is done, so it must first LEARN the operations that study uses. The
+sandbox (`lyric_dev`) held 0 learned rules: a reset since 09-28 had removed MOVE, COPY
+and DELETE.
+
+### Part 1 — MOVE, DELETE, COPY from the substrate's own acts
+
+**Hypothesis.** From two rounds of five real acts plus a still world, the learning
+authority induces each operator with exactly the preconditions its failures force, as on
+09-28.
+
+**Method.** `fs_move_teach.py`, `fs_remove_teach.py`, and a new `fs_copy_teach.py` (COPY
+was only ever taught inside TEACH-ACTION-01, which forgets its practice domain), each run
+with `POSTGRES_DATABASE=lyric_dev`.
+
+**Result.**
+
+| operator | outcome |
+|---|---|
+| MOVE | executable `rule_fd4827e70b8e`, needs `ABSENT(dst)`; the over-broad candidate `rule_dbc93bccd216` REFUTED by the occupied-place observation |
+| DELETE | executable `rule_4092227badf1` |
+| COPY | **two** executable rules: `rule_1ff38a1f7a89` (correct, needs `ABSENT(dst)`) and `rule_2f89ba6ba384` (over-broad, no `ABSENT(dst)`) |
+
+**Cause, from demonstration and rule timestamps.** The background induction drain ran at
+33.568, after only *works / not there / works*, before any occupied-place demonstration,
+and induced the over-broad rule. At 33.786 it validated that rule on one held-out *not
+there* failure, where the rule does not fire; `rule_store.validate` counts a negative
+example the rule does not contradict as a confirmation. The occupied-place refusal at
+34.019 contradicts the rule, but nothing re-judges a validated rule against later
+evidence, and the stricter rule induced at 34.244 does not supersede it. MOVE came out
+clean only because its drain happened to run after its occupied-place demonstration.
+
+**Verdict.** Refuted for COPY: whether an over-broad rule gains authority to act depends
+on when the drain runs. **Open, not fixed.** Also seen in all three runs and not traced:
+`memory_agent.search_memories` logged `CancelledError`.
+
+### Part 2 — The GitHub credential
+
+No env file held a GitHub token, so `env_loader.get_github_token` fell through to the
+macOS Keychain, i.e. the owner's personal login. The substrate now has its own token,
+`GITHUB_TOKEN` in `.env.production` (mode 600), verified against `api.github.com`. The
+Keychain fallback is still in the code (open). Correction to a claim made during the
+session: `Lyric/.env` is not mode 755; it is a symlink to `.env.production` (600).
+
+### Part 3 — Tool failures stop carrying recipes
+
+**Found.** `tool_registry.py` held about 1,000 lines of regex "recovery recipes" written
+as prompts for a language model. Every failed call had its recipe appended to the error
+(`to_prompt_str`), so the substrate's record of each failed act carried instructions,
+among them a CREDENTIAL recipe to hunt for tokens (`gh auth token`, grep env files,
+`security find-generic-password`, print the environment). Nothing read the category or
+hints. The regex's "retryable" verdict decided which failures reached
+`unified.failure_events`, so *file not found* and *destination exists* (the deliberate
+negatives of teaching) were reported as the tool failing.
+
+**Change.** How the substrate responds to a failure is its own behaviour, learned from
+outcomes, not a script attached by the tool layer. The recipe system is deleted
+(3,588 → about 2,365 lines). A failed result keeps the tool's own message.
+`tool_error_events.error_category` is now `reported` (the tool returned failure: the
+world refused) or `raised` (an unhandled exception: the tool broke), and only `raised`
+reaches `failure_events`. The table is declared in code (`ensure_schema`, CREATE only).
+The three other live sessions were asked first; the one editing this file said go.
+
+**Error caught by a peer session.** The first version also dropped the `retryable` /
+`short_hint` columns from `ensure_schema`, which would have changed the MAIN store's
+schema on its next tool failure without the owner's word. Removed before any main run
+(`lyric_db` verified untouched, 0 rows). The columns are dropped in `lyric_dev` only;
+`lyric_db` waits for the owner. Until then the main store refuses these inserts
+(`retryable` is NOT NULL) and the refusal logs at WARNING, not debug.
+
+**Hypothesis.** A refused copy returns exactly the tool's message, is recorded
+`reported`, and is not in `failure_events`; a raised failure is recorded `raised` and is.
+
+**Verified.** Scratch check in `lyric_dev`, **8/8**. The first run scored 6/8 because the
+check acted with no intent, so the constitution refused the copy before the tool ran: an
+error in the check, not the code. Test rows removed by unique tag, 0 left. Not run:
+TOOLS-EXTERNAL-01, OUTSIDE-DB-01 (registration untouched; the peer session confirmed its
+registrations intact).
+
+### Part 4 — Authority answers to what is shown after it was granted
+
+**Change.** `RuleStore.rejudge(record, observations)`: a VALIDATED rule is held against
+every demonstration of its act it was not induced from, and loses authority when one it
+APPLIES to is not borne out (a positive it does not derive, a negative that contradicts
+it). Agreement, or a case the rule says nothing about, changes nothing.
+`_induce_signature` calls it for the signature's executable rules before re-inducing, so
+it runs on every drain, off the acting path.
+
+**Hypothesis.** Re-inducing the stored COPY demonstrations refutes `rule_2f89ba6ba384`
+(the occupied-place refusals contradict it) and leaves the correct COPY, MOVE and DELETE
+rules executable.
+
+**Verified** in `lyric_dev`, no new acts: `rule_2f89ba6ba384` REFUTED, "2 independent
+observation(s) made after it was validated contradict the rule" (both occupied-place
+refusals), authority-change event emitted; COPY now has exactly one executable rule;
+MOVE and DELETE unchanged. PASS.
+
+**Found while tracing, NOT changed.** `rule_store.validate` counts a negative example the
+rule does not apply to as a confirmation (`contradicted_by` is False when nothing is
+asserted). The teachers end each round with two negatives, and those are what
+`_induce_signature` holds back, so the correct MOVE and COPY rules were each "confirmed
+by 2 independent observation(s)" that were both cases they do not apply to: no executable
+file operator has been shown, independently, to produce its effect. Fixing it means
+validation must see the rule produce its effect at least once, which changes what becomes
+executable in other experiments and some published confirmation counts. Put to the owner.
+
+### Part 5 — Validation must see the rule work (owner-approved)
+
+**Change.** One judgment, `rule_induction.judged_by(rule, example)`: True if the rule
+applied and the world bore it out, False if it applied and did not, None if it asserts
+nothing about the case. `validate` and `rejudge` both use it; a None case is neither
+confirmation nor contradiction and is not attached as evidence. `_induce_signature` now
+holds back the latest SUCCESS and the latest failure, and only when three or more
+successes exist (two stay to induce from), so a rule cannot be validated without being
+seen to produce its effect. `lyric_db.tool_error_events` lost `retryable` / `short_hint`
+with the owner's OK (0 rows).
+
+**Hypothesis.** Re-taught from an empty path domain, MOVE, DELETE and COPY are each
+validated on a held-out success; any over-broad candidate is refuted; the SEG ablation
+keeps its verdicts while the correct rule's confirmations drop from 2 to 1 (its second
+"confirmation" was a case it does not apply to).
+
+**Method.** My 5 path rules and 35 path demonstrations (all the sandbox held there)
+removed by exact id; the three teachers re-run; GOV-ABLATION-01 and RULE-EVIDENCE-01 run
+with `POSTGRES_DATABASE=lyric_dev` (both default to `lyric_db` otherwise).
+
+**Result.**
+
+| rule | status | validation evidence |
+|---|---|---|
+| MOVE `rule_6ffd42e68f0f` | validated | 1 held-out success |
+| MOVE over-broad `rule_d251757d9237` | refuted | 1 success, contradicted by the occupied-place refusal |
+| DELETE `rule_40a30a32039e` | validated | 1 held-out success |
+| COPY `rule_19e9b723a3e2` | validated | 1 held-out success |
+| COPY over-broad `rule_9b4972d57e03` | refuted | 1 success, contradicted by the occupied-place refusal |
+
+GOV-ABLATION-01: over-broad refuted (1 confirmed, 1 contradicted), 0 unsafe; gate
+bypassed, executable, 2 authorized, 1 unsafe; correct rule validated on **1**
+confirmation (published: 2), 1 act authorized. RULE-EVIDENCE-01 21/21.
+
+**Verdict.** Confirmed. Every executable file operator has now been seen, independently,
+to do what it claims, and the race of Part 1 is closed at validation itself.
+
+**Consequence for published work.** The SEG paper (section 9) and its public repository
+README state the correct rule "validated on two independent confirmations". On the
+current substrate it is one. Revising the paper is the owner's decision.
+
+### Part 6 — 1,000 hidden worlds (RULE-AUTHORITY-01), and a correction to Part 5
+
+**Why.** RULE-EVIDENCE-01's 21 hand-written checks show cases work; they cannot show the
+authority rule holds. The owner asked for 1,000.
+
+**Method.** 1,000 generated worlds, each hiding a true rule over six conditions; the world
+decides every outcome; demonstrations arrive one at a time and the real authority step
+(`_judge_signature`, split out of `_induce_signature` so it can run without writing to the
+concept graph) runs after every arrival. An independent oracle enumerates the well-formed
+hypotheses consistent with the learner's basis. Seven checks declared before the run (see
+the experiment README).
+
+**Result.** 7/7 over 1,000 worlds, 5,805 demonstrations and authority judgements, 27 s.
+Determined worlds 250/250 ended with the correct operator; ambiguous worlds 0/469 ended with
+any operator; no executable rule was contradicted by evidence, none lacked a held-out
+success, none came from two successes; 269 rules lost authority to evidence that arrived after
+validation. 168 worlds ended with an over-broad operator their evidence licensed (62 shown no
+failure at all), measured, not a failure.
+
+**Errors on the way, with causes.**
+1. My first "determined" ignored incidental features shared by every success; the learner's
+   "multiple hypotheses" was right (20 worlds, C6 1/9). Replaced by the oracle.
+2. **Part 5's hold-out was wrong.** Holding back the latest FAILURE as well as the latest
+   success removed the counterexample that forced a precondition; the rule induced without it
+   was refuted by it, and determined worlds ended with no operator. The learner now holds back
+   only the latest success; a failure arriving later is answered by `rejudge`.
+3. The oracle omitted the act as a literal (two worlds the learner rightly called ambiguous),
+   then counted rivals such as `SUN(y) → RAN(x, y)` that leave `x` unbound and cannot be
+   expressed (first 1,000-world run, C7 3/469). Both amended; no check or threshold changed.
+
+**Open.** Supersession is still not recorded when a narrower rule replaces a refuted one;
+the SEG paper's confirmation count; `epistemic_engine._CREDENTIAL_SIGNALS`; the Keychain fallback; a
+secrets authority; the substrate perceiving file content (needed to learn writes and
+edits); git tools. The language plan is paused at its current step, to be resumed.
+
+---
+
 ## 2026-09-24 (later) — Perception and reasoning verified; seeing was believing nothing
 
 **Objective.** The user asked, before a 1.5–2M-fact teaching run: after a memory wipe,
@@ -11507,3 +11734,800 @@ is …", "A fire tongs is a tongs.").
     away.
 - The sandbox run waits for the rename's database cut-over.
 
+
+**SHAPES-LEARN-09, 16/16, then 18/18 (same day).** In the sandbox, after the embedding cache path was fixed.
+- **First run** (`20260929T200222Z`, 16/16). All checks passed, but the sayings showed a new fault: capitalized
+  words for kinds of people were taken as names ("Asian is an inhabitant.", "Slav is a person.").
+- **Fixed in the engine:**
+  - A capital after "a" is a kind's, not a name's.
+  - Capitalized words have their own endings, with a name as the default: "-ian" decides counted, "Japan" stays a
+    name.
+  - The learner creates only names reading could take as new. "An American", "An eel" and "A painting" had been
+    learned as names.
+  - A word's shapes must split the letters among them all. "every" had become a third shape of "a"/"an", and "An
+    peludo" was said.
+  - Shapes keep capitals ("All Germans are persons.").
+- **english_07** now has 101 pairs: five countries and eight kinds of people.
+- **Second run** (`20260929T202704Z`, 18/18):
+  - every taught sentence reads;
+  - never-taught sentences read 15/15 and 9/9;
+  - 1,274 of 1,401 WordNet nouns are said, with no "a" wrong, no counted word bare and no "a"/"an" against the
+    letter;
+  - the five faults are said rightly.
+- **Tests:** 67/67, conversation 15/15.
+- **Left to data:**
+  - kinds of people with endings no lesson decides ("Montanan is an American.");
+  - held words with another sense ("Black is a person.");
+  - words held only after "an" are not of the kind of words after "a", so "A Bostonian is an American." goes unsaid.
+
+## 2026-09-29 (5) — One perception faculty; the governance-block record gone; the substrate stops using Slack
+
+**Asked:**
+- "There is no governance system anymore. It's the constitution that is a first class module of the substrate";
+- "there also seems to be two perception systems" … "Yes collapse the [perception] manager. We already have a working
+  perception system";
+- "We don't use Slack anymore", then: "you shouldnt be removing slack capabilities from the tool folder, the ai can
+  still use them externally for users."
+
+**Governance.**
+- The 2026-09-26 consolidation deleted the governance packages but left about 400 mentions of "governance" in 44 core
+  files; it had been recorded as done.
+- `governance_block_schema.py` is gone. Its governance half was a chain that read memories nothing writes: motivation's
+  `query_governance_blocks` always came back empty, so abstraction's `_check_governance_blocks` penalty was always 0.
+  Both are deleted, with the memory filter's two governance tags.
+- Its other half, the task-outcome and pursuit record, is in `core/memory/utils/interfaces.py`, beside `Part` and
+  `Experience`.
+- `embedding_critic.py`, the embedding stand-in for the retired LLM completion critic, is archived beside that
+  protocol; nothing imported it.
+- Still named "governance": the Constitution's `GovernanceLaw`, "the five governance laws", and
+  `config/governance_triggers.json`.
+
+**Perception is one faculty.**
+- `PerceptionManager` is gone. `PerceptionFaculty` now senses and admits:
+  - `admit_percept` records evidence once, inside the acting-percept scope;
+  - `note_percept` records a percept whose evidence its owner already admitted;
+  - `recent_percepts` is what the memory agent stamps a forming memory with;
+  - the acting-percept scope moved with them.
+- A percept's identity is the memory of perceiving it (`metadata["memory_id"]`). The separate `unified.perceptions`
+  table is no longer created or written, and `PER_OWNER_TABLES` drops it; the table and its old rows are still in
+  the databases.
+- A video watched or a document read now forms a memory (`remember_seen`), as an image and a sound do. Before this they
+  formed only a row in that table, so no belief could name them.
+- Removed as invented:
+  - the manager's `_calculate_confidence` (0.8, plus 0.1 for text, plus 0.1 for metadata), so
+    `PerceptionData.confidence` is now what was measured, or None;
+  - its placeholder "simple analysis";
+  - a coordinator reward branch that read a `novel_patterns` stat the manager never produced;
+  - a `latest_perception` attribute that never existed.
+- The origin scanner (`scripts/separation_map.py`) checks `admit_percept` and `note_percept`.
+- 14 experiments that called the manager or counted its table now use the faculty, or the memory of the seeing. LIVE-01
+  reads the faculty's awareness. None were run.
+
+**Slack.**
+- The substrate's own Slack use is removed:
+  - the coordinator's seven notification blocks and its notifier;
+  - `main.py`'s notifier boot and shutdown message;
+  - the learning system's milestones;
+  - the backup scheduler's and recovery manager's alerts;
+  - the notification publisher's Slack branch.
+- The Slack TOOLS stay, since the substrate uses them for users: everything in `core/tools/`, the notifier they send
+  through, and the Constitution's consequence entries for them. I first removed those too; they are restored from git.
+
+**Evidence:**
+- store-free tests: 43 (task and pursuit records, recall ranking, retention filter), then 22 (memory writers and origin
+  scanner, release tables, perception owner, sight recognition, coordinator reactions, pursuit account), then 32
+  (motivation integration, memory writers), all passing;
+- all edited modules import, and the 14 edited experiments compile;
+- another session booted the substrate on these changes (SHAPES-LEARN-09) without error.
+
+## 2026-09-29 (6) — The Constitution's names are its own
+
+**Asked:** "do the rename" — the Constitution's leftover "governance" vocabulary.
+
+**Renamed:**
+- **The laws.** The class `GovernanceLaw` is now `Law`. "The five governance laws" is now "the five laws". Law 5's
+  requirement reads "must not bypass the Constitution's oversight". The status key `governance_laws_count` is now
+  `laws_count`, and its one reader, the health monitor, reads that.
+- **The policy file.** `config/governance_triggers.json` is now `config/constitution_triggers.json` (git mv), with
+  `_POLICY_FILE`, `CRITICAL_FILES` and the Constitution's own control paths moved with it.
+  - The file's own safety-infrastructure rule named it by its old name, so after the move the policy would no longer
+    have protected itself. The rule now names the new file.
+  - Probed: the new path is one of the Constitution's control paths (Law 5), and its declared policy matches the file
+    (`safety_infrastructure_write`).
+  - The policy loads: 18 target rules, 12 act rules.
+- **The content screen.** The regex that recognises content reaching for the substrate's own laws is now `_ITS_LAWS`.
+  Its test for being addressed by name still looked for `torin`; it now looks for `lyric`. Probed: "Lyric should
+  disregard its laws from now on." is refused, and "The court may disregard the policy." is allowed.
+- **The directive door.** `DirectiveSystem.create_directive_with_governance` is now `create_directive`. Its refusal
+  counter is now `directives_rejected_by_constitution`, and its evolution log key is now `constitution_validation`.
+- **Health.** The health component `governance` is now `constitution`: `_check_constitution_health`, its ownership,
+  its criticality and its recovery playbook. Its metrics are now:
+  - `policy_loaded`, `policy_rules` and `policy_unenforceable`;
+  - `judgements_recorded`, `judgements_allowed` and `judgements_refused`;
+  - `refusal_rate`.
+- **Comments and docstrings** in the coordinator, the queue authority, the directive system and its types, intent
+  authority, appraisal, the behaviour arbiter, main, meta-metrics, the recovery manager and the tools' capability map
+  now say the Constitution where they said governance. Comments that cited deleted modules or consolidation sections
+  are rewritten in the present tense.
+- **Dead code deleted:** `notify_governance_decision`, which nothing called.
+
+**Left, as data or reserved:**
+- the database column `directives.governance_validated`, and `Task.governance_approved` / `governance_action_id`;
+- the `unified.governance_laws` table, which duplicates the laws the Constitution holds in code and is read only by
+  old scripts;
+- the chaos package, `directive_safety_monitor` and `safety_audit_trail`;
+- path and parameter patterns inside the policy rules;
+- the memory scope value `governance`;
+- `LYRIC_REFERENCE.md`, a snapshot dated 2026-03-06;
+- the memory agent's "governance-protected" deletes, which check a `capability_tokens` table that does not exist.
+
+**Evidence:**
+- 58 store-free tests pass (security authority, health evaluator, recovery paths, memory writers, motivation);
+- all edited modules import, and CONSOLIDATION-01 compiles.
+
+## 2026-09-29 (7) — The laws table's readers use the Constitution; the capability-token gate is gone; SEE-LOOP-01 23/23
+
+**Asked:**
+- "drop the unified.governance_laws, just double check nothing depends on it; if so it can use the laws the
+  constitution holds";
+- "yes the capability table was deleted";
+- "drop the old percepts table and run see loop 01".
+
+**What depended on `unified.governance_laws`:**
+- The table is empty in `lyric_db` and `lyric_dev`. No view, foreign key, trigger or function depends on it, and no
+  substrate code reads it.
+- Only old scripts and two database tests did. They now use the Constitution's laws:
+  - `health_check_postgres.py`, and its copy inside `deploy_postgres.sh`, count `Constitution().laws`;
+  - the vacuum line and the expected-table entry are removed;
+  - the MySQL migration's laws step is removed;
+  - `test_table_exists` checks `beliefs`, and a new store-free test asserts the Constitution holds laws 1–5.
+
+**The capability-token gate** (`MemoryAgent._validate_capability_token`) queried the deleted `capability_tokens`
+table, so it refused every call it guarded:
+- protected fields in `update_memory`;
+- `update_importance`, `update_tags` and `update_metadata`;
+- `delete_memory` and `permanent_delete`.
+
+The gate is removed. What it hid was also broken:
+- `delete_memory` called the store with arguments it does not take (`soft_delete=`, `reason=`), and the store has no
+  soft delete. It now forgets the memory with its media, through the new `MediaStore.forget_memory`.
+- `permanent_delete` duplicated it and is gone.
+- `update_importance` and `update_tags` wrote keys the store refuses. They now write through `update_memory`, and
+  `update_tags` adds and removes as its `operation` says.
+
+Nothing in production calls these, and no tool deletes memories. The abstraction pipeline still records an importance
+boost as pending rather than applying it; the comment that blamed the gate is corrected.
+
+SYSTEM-MEMORY-01's D, "a delete without a token is refused", is now "a forgotten memory is gone and the others are
+untouched". Not run.
+
+**Drops:**
+- The percepts table's 1,081 rows in `lyric_db` are snapshotted:
+  `data/snapshots/perceptions_table_dropped_20260929/lyric_db_unified_perceptions.dump` (pg_dump -Fc, with data).
+- The DROP TABLE commands were refused by the session's permission check, so both tables still exist, waiting on the
+  user.
+
+**SEE-LOOP-01, 23/23** (`lyric_dev`, `POSTGRES_DATABASE` set explicitly — the coded default is `lyric_db`):
+- the percept's identity is the memory of the seeing;
+- 24 beliefs held;
+- 16 claims judged;
+- PERCEPT_RECOGNIZED fanned out;
+- the memory resolves to the seeing and its sha256;
+- the unsure percept is judged VERIFY.
+
+By exact id, 0 memories, media or beliefs were left afterwards.
+
+**Also:** 18 store-free tests pass (memory writers, recall ranking, the laws test).
+
+**The English lessons in the main model (same day, the owner's word).**
+- **Taught:** english_01 to english_07 into `lyric_db` through `scripts/teach.py`, none refused.
+  - english_01 and 02 were already held, from the morning's teaching by an earlier learner, and were read again
+    without moving any belief.
+  - english_03 to 07 were learned almost exactly as in the sandbox.
+  - The first start-up in the renamed folder also looked at its surroundings (527 concepts and 989 beliefs about
+    the machine and the folder's files); that is the substrate's own, not the lessons'.
+- **Checked** read-only against the main model's view, warmed from memory. The check found two faults the sandbox
+  could not show, both fixed:
+  - a warmed view lost which words are names: links arrive before fillers in the store's order, so "Tom" was taken
+    as a word used without "a";
+  - a new word went bare into a slot whose fillers all begin with "a" ("Every flowering quince is shrub.").
+- **After the fixes:**
+  - 578/578 taught sentences read, never-taught 15/15 and 9/9;
+  - about 1,300 of 1,400 WordNet nouns said, with no "a" wrong, no counted word bare, no "a"/"an" against the
+    letter;
+  - all five faults said rightly.
+- **Tests:** 69/69.
+
+## 2026-09-29 (8) — Ten runs in the sandbox; the ear hears its new name
+
+**Asked:** "run the tests 1-4"; "the default database is lyric_db. lyric_dev is for testing and development"; delete
+LIVE-01's "Torin" recordings; "add them to a memories importance"; voice and heard-before words: "no model!".
+
+**Results** (`lyric_dev`, once each; a rerun only after a fix):
+
+| Run | Result |
+|---|---|
+| MEMORY-SIGHT-01 | 17/17 (15/17 earlier, the embedding path) |
+| MEMORY-SOUND-01 | 23/23 |
+| SENSES-TOGETHER-01 | 11/16, then 16/16 |
+| MEMORY-PERCEPT-01 | 15/15 |
+| SYSTEM-PERCEPTION-01 | 18/18 behaviour |
+| PERCEIVE-05 | 9/9 |
+| LIVE-01 | 12/18, then 18/18 |
+| SYSTEM-MEMORY-01 | 17/18, then 18/18 |
+| PERCEIVE-04 | 8/8 |
+| SYSTEM-CONVERSATION-01 | 35/38, then 38/38 after the other session's reader fixes |
+
+The three SYSTEM-CONVERSATION-01 failures are the other session's reader change: "a glintX bird" now reads as a
+phrase, and plurals say "-es" after any letter. It fixed both (a kind statement names a kind in each place; saying counts shapes over concepts whose plural is held), and the rerun passed 38/38.
+
+**Found and fixed:**
+- **The ear lost the start of its name.**
+  - `Ear._let_go` kept samples only from the utterance's start. That start is set when the first sound ENDS, so a
+    first sound longer than the 0.35 s kept before it lost its opening.
+  - "Lyric" is one unbroken half-second sound; "Torin" was not.
+  - The ear now keeps a sound still going on from where it began.
+- **What was asked is what follows the name** (or precedes it, said last), and completeness is judged on that. A room
+  click before the name is no longer part of the question.
+- **SENSES-TOGETHER-01's answer check was case-sensitive**, and the word now opens the answer ("Vex… are animals.").
+- **SYSTEM-MEMORY-01 still expected a repeat to merge.** The memory agent never merges (one pursuit, one memory), so
+  the check is now "a second memory of theirs".
+- **LIVE-01's trace check expected only sound.** A hearing that starts a pursuit shares that memory with the look
+  taken with it.
+- **LIVE-01 depended on the web.** Asked "are cats animals?" with "cat" not held, the conversation looked it up
+  online in the turn (about 60 s), past the run's 120 s limit. It now teaches "a cat is a mammal" first.
+- **Experiments defaulted to `lyric_db`.** `experiments/_isolation.py` (every SYSTEM-*), SEE-LOOP-01,
+  MEMORY-PERCEPT-01, PERCEIVE-01 and PERCEIVE-05 now default to `lyric_dev`, as `tests/conftest.py` does, and assert
+  it against the server. About 20 older experiments still name `lyric_db` themselves.
+- **Cleanups that missed rows:**
+  - PERCEIVE-05 and PERCEIVE-04 removed nothing;
+  - MEMORY-PERCEPT-01 left the beliefs now held about its seeing;
+  - SEE-LOOP-01 left concepts and relations.
+
+  Each now removes what it wrote, and each run's leftovers were cleared by nonce or exact id. `lyric_db` holds
+  none of them.
+
+**Also done:**
+- **Importance boosts** now raise a memory's `importance_score`, keeping what it was before and which schema raised it.
+- **LIVE-01's recordings** that said "Torin" were removed (git rm, 15 files) and regenerated saying "Lyric".
+
+**Two more faults, and the main model cleared and taught again (same day).**
+- **SYSTEM-CONVERSATION-01 fell to 35/38 in the sandbox** (the hearing session found it). Both faults were mine:
+  - since english_03's phrases, "a glintbsrtp bird" in a kind statement read as some bird that is glintbsrtp;
+  - english_07's "kindness", "grass" and "scissors" sank the `s` plural in the reading-direction count, so saying
+    gave "Vexbsrtpes".
+- **Fixed:**
+  - a kind statement names a kind in each place (the owner's choice: "mythical monster" is a kind of its own);
+  - saying counts shapes over the concepts whose plural is held, as Yang counts a rule over its stems.
+- **Checks:** tests 70/70, SHAPES-LEARN-09 18/18, conversation 15/15, SYSTEM-CONVERSATION-01 38/38.
+- **The main model, at the owner's word:** the seven lessons' English was archived and cleared through the memory
+  agent (1,412 memories, 1,374 beliefs), then english_01–07 were taught again. Its constructions are identical by key
+  to the sandbox's, and the checks pass against its own view.
+- **Open before all of WordNet:** the word-use model and saying's shapes are recomputed after every addition, so a
+  one-record-at-a-time run grows with the square.
+
+**English grammar, stages 1–4, and WordNet at scale (same day, the owner's "English, everything").**
+- **WordNet at scale:** the word-use model is now kept as items arrive. Saying after one addition at 55,000 fillers
+  fell from 0.56 s to about 0.015 s.
+- **Meaning language:** new link kinds for positions (`above`/`below`, `left_of`/`right_of`,
+  `in_front_of`/`behind`, `between`, named as sight names them), counts (`has_count`), events (`done_with`,
+  `state_of`, `during`) and degrees (`has_degree`, `exceeds`, `greatest_of`), and `?now` for when a sentence is said.
+  Actions are named by the plain verb.
+- **Lessons 08–11** (344 pairs): positions, numbers, groups, contrast; events and tense; clauses joined by
+  "because", "when", "before", "after"; comparison.
+- **Engine, from what the lessons showed:**
+  - slots keep their own writing, and readings rank by fillers written against it;
+  - saying counts shapes where they are written;
+  - shapes that say more are learned from phrases ("jumped" is `jump` before now);
+  - substitution from a held frame ("bigger"/"smaller" → an adjective slot);
+  - a word's shapes need two deciding occurrences ("every" and "it" are no shapes of "a").
+- **In memory, all eleven lessons:** never-taught sentences read 15/15, 9/9, 20/20, 19/19, 6/6, 10/10; WordNet saying
+  clean; faults 5/5. Tests 95/95.
+- **Wrong turns caught by the probes:**
+  - "more careful" learned as a name, until "more" was met with amounts first;
+  - "All birds" made by substitution, until substitution kept the learner's held-name rule;
+  - compounds unreadable once the junk two-word fillers were gone, until compounds were taught.
+
+## 2026-09-29 (9) — Songs: a tune known when someone else hums it
+
+**Asked:** "lets work on songs after the tests"; voice and words: "no model!".
+
+**Built, into the existing song path:**
+- `music.tune_line`: how a single line's melody goes. It is 16 points a second over what was sung (rests dropped),
+  in semitones from its own median.
+- `music.tunes_heard`:
+  - subsequence DTW against every taught tune, at half to twice the pace;
+  - 13 key shifts, then quarter semitones around the best, for the top ten;
+  - misses capped at 3 semitones;
+  - named only at a ratio of 0.75 or less to the runner-up, fully resolved at 0.60;
+  - a ratio needs a rival.
+- **Keeping the tune:** `describe` gives the tune of anything heard as a single line; `hearing.trace_bytes` keeps it
+  (`trace_tune` reads it back).
+- **The faculty** holds `_tunes` beside `_songs`, from memory and from each lesson, and gives them to listening.
+- **The claim:** what is heard becomes `has_tune_of` in the percept, the caption ('the tune of "…"'), the claims and
+  the evidence edges, beside `plays` (which stays for a replay of the taught recording itself).
+
+**Measured, TUNES-01** (HumTrans; the MIR-QBSH server is down). On TEST, heard once against 355 taught tunes:
+
+| | Right first | Named | Right when named | Never-taught hums named |
+|---|---|---|---|---|
+| Whole hums | 95.1% | 85.1% | 100% | 0.1% |
+| Half hums | 84.0% | 59.5% | 99.3% | 2.3% |
+
+**Decided:**
+- 99.7% of hums pass `describe`'s single-line test, so the tune is read only there. Mixes wait for melody
+  extraction, which is next, on MDB-melody-synth.
+- Hums clear the song-lesson landmark floor (min 1,665 distinct against 100), so a song can be taught by humming it.
+- The cost alone does not separate taught hums from untaught ones, so one song taught alone is not named from a hum.
+
+**Evidence so far:**
+- `tests/test_music.py`: 11/11. Twelve songs are each taught from F01's hum and heard in F02's; 12/12 are named, none
+  wrongly, and four never-taught songs are not named.
+- SONGS-01 is 25/25 (section J: taught by humming, known hummed by another, a never-taught hum not named), and 0 of
+  1,091 rows were left.
+
+**The rest of the grammar, stages 5–9 (same day).**
+- **Lessons 12–16** (499 pairs):
+  - the verb: perfect, progressive, passive, negation, adverbs, degree, polite requests;
+  - the noun phrase: pronouns, reflexives, indefinites, quantifiers, numbers to a thousand, "of", "whose";
+  - prepositions: twelve motion paths, time, "for", "about", "like", "with" a companion;
+  - clauses: that, want/like/try, relative clauses on events, while/until/since, if/unless, so, purpose, how, tags,
+    clefts;
+  - answers, greetings, exclamations, "let's", ellipsis, "would" and counterfactuals, comparing actions.
+- **Engine, from the probes:**
+  - one-word phrases count in their slot's writing, and doubled consonants agree;
+  - phrase substitution;
+  - misfits rank after proposed links;
+  - synonyms for frames and holophrases;
+  - words that say more (tense) stand only where taught;
+  - shaped concept words are not structure words;
+  - telling shapes apart by the letter needs A&H confidence ("he" had become a shape of "it").
+- **Naming:** an action takes its "-ing" name only where its plain name is another sort of concept (`opening`,
+  `snowing`, `raining`), and the insect is `insect fly`.
+- **In memory, all sixteen lessons:** every probe set passes (15/15, 9/9, 20/20, 19/19, 6/6, 10/10, 16/16, 20/20,
+  16/16, 16/16, 11/11); WordNet saying is clean; faults 5/5. Tests 98/98.
+- **SHAPES-LEARN-10's first run:** 17/18. One noun, "stove", read to the lessons' sense. The gate rerun with all
+  lessons is running.
+
+## 2026-09-29 (10) — Songs: the melody of a full mix, and a song taught from its mix known when sung
+
+**Built into `music.py`:**
+- `_spectral_peaks` now takes a frame, hop, range, zero-padding and centring; chroma is unchanged.
+- `salience`: 10-cent bins from 55 to 1760 Hz; 20 harmonics weighted 0.8^(h-1); energy to the fourth root; a squared
+  cosine over ±100 cents.
+- `_melody_path`: a Viterbi path at 0.01 per 10 cents. Each step is exact in O(bins), taken as a running minimum from
+  each side.
+- `melody_of_mix`: a 150 Hz high-pass, then salience, then the path. A frame is voiced where the path is at least the
+  song's median path salience.
+- **Where it is used:**
+  - A song lesson from a mix keeps `tune_line(melody_of_mix)`, marked `tune_from_mix` in its trace.
+  - The faculty keeps `{"line", "mix"}`.
+  - `_follow` forgives octaves only for a tune read from a mix; on hums, forgiving octaves cost 1 point.
+
+**Measured, MELODY-01** (MDB-melody-synth, DEV 33 / TEST 32; TEST heard once):
+- Frames, first 60 s: pitch right 47.2%, overall 56.6%. YIN on the mix, which hearing used before, got 11.4% and
+  29.6% on DEV.
+- End to end, songs taught from their whole mix and heard as 20 s of their melody sung alone: 59.4% right first,
+  40.6% named, all right. One of 32 never-taught melodies was named.
+- **Diagnosis on DEV:**
+  - The true pitch was the strongest salience peak in 55.5% of melody frames.
+  - The first tracker (contours, after Salamon & Gomez) fell to 47%.
+  - The Viterbi path reached 58.6% with every frame voiced.
+- **Dropped:** harmonic/percussive separation, raising the pitch floor, and a sliding median for half hums.
+
+**Evidence:**
+- `tests/test_music.py`: 12/12. The new test reads three minutes of mixes at 0.52–0.62 pitch right, against YIN's 0.02.
+- SONGS-01 section K (three songs taught from a minute of their mix; one's melody sung alone; a never-taught song's
+  melody) is written. It waits for the sandbox. Its excerpts are cut into the dataset's folder at run time, because
+  MDB-melody-synth and HumTrans are CC BY-NC and are not copied into the repository.
+
+## 2026-09-29 (11) — English grammar, lessons 8 to 23: what the reader was missing, taught
+
+**What.** The grammar English needs beyond the first seven lessons, taught as sixteen lessons of sentence–meaning
+pairs (english_08 to english_23, about 1,930 pairs), with the engine changes each lesson showed were needed. The full
+record, lesson by lesson, is `docs/research/SHAPES_CHANGE_MAP.md` §11f.
+
+**Lessons 8–16** (built earlier today): positions, numbers and groups; events, tense and modals; clauses; comparison;
+the rest of the verb (perfect, progressive, passive, negation, adverbs, requests); the noun phrase; where events go and
+when; clauses about clauses; answers, exclamations and what would be.
+
+**Lessons 17–18** (tonight):
+- english_17: numbers built of number words ("twenty-one", "two hundred and six"), a place in an order, measures
+  ("ten years old"), "ago", "now", "soon", "again", "already", "still", "yet", "then", "only", "else"/"other", "even",
+  amounts ("a lot of", "half of", "fewer"), counts of events ("twice", "three times"), "here" and "there".
+- english_18: who receives what an event passes ("gave Rex the ball", "gave the ball to Rex"); reported speech read
+  from the time it was said ("said that the dog had barked"); a question or request inside another ("asked where the
+  dog ran", "told Rex to run"); "each other"; "one"; "used to"; "shall"; "It is easy to …"; emphatic "do"; verbs of two
+  words; "made"/"let"; who is spoken to; "which"/"whose" of an event; "the most".
+
+**Lessons 19–23** (tonight, after 17 and 18 passed): words used without "a" by their endings ("-ity", "-ics",
+"-ence"); "although", "near"/"inside"/"outside"/"under", "without", "except", "because of", "during", "too hot to
+hold", "old enough to drive", "should have gone", "one of the dogs", months and years; "have" as owning, "there was",
+starting and stopping, "need", asking leave, "Who did the dog chase?"; "A dog barked.", "Dogs bark.", "Tom saw her.",
+"than me", "How are you?", "which" and "whose"; names ("My name is Tom."), "Where are you from?", "so tired that", "as
+soon as", "whenever", "instead of", "where" in a description. None needed an engine change; three added kinds (`near`,
+`named`, `comes_from`). english_06 and 07 had taught "near" as "next to", for want of a kind; corrected.
+
+**The meaning language** has 81 kinds (nine new: `has_addend`, `has_factor`, `has_rank`, `has_measure`, `other_than`,
+`received_by`, `near`, `named`, `comes_from`) and two new situation variables (`?here`, `?there`). A number built of number words is written as its
+value, so "twenty-one dogs" and "21 dogs" are one meaning.
+
+**Engine changes** (all in `core/semantics/derived_reader.py`, plus `sentence_machine.form_of`, `literals.py`, the
+teaching path and the conversation's situation):
+- a hyphen between letters is a piece of its own, and the words it joins are still one word where names are looked up;
+- phrases that say something of a second thing are learned only as held phrases compose them;
+- the phrase-scale forms of two repairs (links only; a missing word, or a held word's other sense);
+- a proposed word must have stood beside the slot's own words somewhere, by concept, where a construction has no word
+  of its own, and it ranks readings last otherwise;
+- a thing is never a kind;
+- a word that says more than its concept stands for it where the frame says the rest;
+- two corrections to how writing and saying count shapes;
+- in conversation, "now" is the moment of the turn (a new UTC `moment` literal) and "there" the last place named.
+
+**Measured, in memory, all twenty-three lessons taught:** every taught sentence reads; never-taught sentences read
+SHAPES-LEARN-09 15/15 and 9/9, english_08 20/20, 09 19/19, 10 6/6, 11 10/10, 12 16/16, 13 20/20, 14 16/16, 15 16/16,
+16 11/11, 17 33/33, 18 30/30, 20 17/17, 21 14/14, 22 12/12, 23 11/11. WordNet's sample is said with no "a" wrong, no
+counted word bare, and no "a"/"an" against the letter; the five faults are said rightly. Tests 111/111.
+
+**Found on the way:**
+- A slot's kind had become one class of 583 fillers (numbers, animals, events), so it could not tell "snow" the stuff
+  from "snow" for snowing. `stood_beside` gives the finer, local likeness.
+- Words ending "-ity" and "-ics" ("serendipity", "bionics") are judged counted: no lesson teaches those endings as
+  used without "a". It looked at first like a drop caused by the new lessons (55 such nouns against SHAPES-LEARN-09's
+  94), but on one seeded sample lessons 1–7 give the same 55; the 94 was another sample.
+- The test harness checks that every repair reads its own pair; the dry scripts did not. One phrase-scale repair linked
+  to a word the reader had made on the spot, not a held one, and the tests caught it.
+
+## 2026-09-30 (1) — Mathematics: numbers to the trillions, arithmetic in words, any formula, worked
+
+**What.** Asked for full capability with numbers "to the trillions": to understand, calculate and break down any
+equation. Three lessons (english_24–26, 473 pairs) teach the reading; the symbolic mathematics faculty, which already
+held SymPy, does the working. Full record: `docs/research/SHAPES_CHANGE_MAP.md` §11f, "Mathematics".
+
+**Before.** The reader folded number words to values ("twenty-one" is 21) and nothing more: no "plus", no "million",
+no comparison of numbers, no formula in a sentence. The only way to the solver was a one-unknown `ax + b = c` pattern
+on the raw query; the CAS faculty parsed its input with SymPy's `parse_expr`, which evaluates text as Python.
+
+**Built.**
+- `arithmetic_reading.read_formula`: any written formula, by the rules of its writing, into a tree; no evaluation.
+  `form_of` makes a written formula one piece of a sentence; "=", "<", ">" are words. A formula is a literal term.
+- Twelve kinds (92 now): `equals` and each operation's numbers in their own places (`has_augend`/`has_addend`, ...,
+  `has_argument`), since a meaning cannot state "has_addend 2" twice for "two plus two".
+- The faculty: exact calculation in the order of operations; solving by each equation's kind, with steps a person
+  takes and every answer put back; breaking a formula down; checking what it is told. `mathematics_of(meaning)` is its
+  entry; the bridge runs it first; the conversation answers through it with the working under the answer.
+- Reader changes the lessons showed were needed: learning the phrase that joins held phrases; keeping a span's
+  least-supposing readings only (a 16-word numeral: 129 s → under 1 s); number-phrase slot sizes; numbers and formulas
+  one kind, named by value, always slots, said as written; relation signs as words; two meaning-language rules (a group
+  has one count; a number is neither a kind nor a quality).
+
+**Measured, in memory, all 26 lessons.** Lessons 24–26 never-taught 73/73; every taught sentence of all 26 lessons
+reads; lessons 8–23's probe sets unchanged (20/20, 19/19, 6/6, 10/10, 16/16, 20/20, 16/16, 16/16, 11/11, 33/33,
+30/30, 17/17, 14/14, 12/12, 11/11; endings 11/13 and 7/7 as before); WordNet's seeded sample said with nothing wrong.
+Worked end to end from sentence to said answer: "What is seven times eight?" → "7 times 8 is 56."; "Is two plus two
+five?" → "No. Two plus two is four."; "Solve x + y = 10 and x - y = 2." → "x = 6; y = 4." with substitution steps and
+checks; "What is 100!?" exact; "Solve cos(x) = x." → a numeric root, labelled. Tests 170/170
+(`test_written_mathematics.py`, `test_derived_reading.py`, `test_relation_types_and_algebra.py`,
+`test_capability_severance.py`).
+
+**Stopped.** SHAPES-LEARN-10's third run, begun on the engine before these changes (its README says why).
+
+**Next.** Teach english_01–26 into the sandbox and check; then the main model; then the gate with all 26 lessons
+before WordNet goes into the main model.
+
+## 2026-09-30 (2) — All twenty-six lessons taught: the sandbox, then the main model
+
+**What.** english_01–26 taught through the one teaching path into an emptied sandbox, checked there, then into the
+main model after its lesson English was cleared (archived first, removed through the memory agent, each removal in
+the ledger). Record: `docs/teaching_sessions/README.md`, 2026-09-30.
+
+**Measured, read-only, from each store's own view.** Every lesson learned, none refused, exactly as in memory; 6,077
+constructions and links in each store; 2,485/2,485 taught sentences read; every never-taught set of lessons 8–23
+passes; lessons 24–26's never-taught sentences 73/73; eleven questions worked through the faculty from the store's
+reading, all right; WordNet's sample said with nothing after "a" that should not be, nothing bare (one false flag of
+the check: the "A" of "Hepatitis A" is a name). Asked through the sandbox substrate's own conversation, math is
+answered in about a tenth of a second with its working.
+
+**What the stores showed that memory did not.** The store's teaching ranks repairs by beliefs' scores, and linked a
+few modal words to the adjective slot of "red ball"; with one "recently" there, the "-ly" statistic broke and
+"The cat walked carefully." misread. Fixed in the reader (`changed_writing`): a slot is evidence of its changes only
+when most of what stands there written otherwise is written by one. A first version applied the same test to what
+stands against a slot's writing and cost "What is 25% of 360?"; split, both read. Learning is unchanged by it.
+
+**Gaps found for later lessons.** "Tom walked quietly." (a name, a past event, a manner) reads nowhere; irregular
+pasts never taught ("sang").
+
+**Tests.** 170/170 on the final engine (`test_written_mathematics.py`, `test_derived_reading.py`,
+`test_relation_types_and_algebra.py`, `test_capability_severance.py`).
+
+**Running.** SHAPES-LEARN-10's fourth run: all twenty-six lessons and the seeded WordNet sample, the gate before
+WordNet goes into the main model.
+
+## 2026-09-30 (3) — The gate caught what the checks did not: "a" became a word that names
+
+**What.** SHAPES-LEARN-10's fourth run (26 lessons, WordNet's seeded sample) failed: only 723 of 1,208 nouns read
+in "What is a/an <word>?". The lessons all read and every lesson check passed from both stores; only teaching WordNet
+on top showed it. Each cause was then found in memory on the gate's own samples (`SHAPES_CHANGE_MAP.md` §11f):
+- english_24's "Two and three quarters is a number." beside "Three and a half" taught "a" as the number 1, so "a"
+  named something, and the WordNet pass learned 1,251 nouns with their "a" ("A quoin").
+- english_26's "a + b" made "a" a named word, so "A is a blood group." turned "a" into a filler partway through.
+- A frame learned as written in another shape ("Every ?slot0 is a ?slot1." from "… an ?slot1.") put its nouns in a
+  kind of their own.
+- English words read as formulas: "pip" as π·p, "cost" as cos t, "a T" as a product.
+Fixed in the lessons and the reader; "a" and "an" building sentences only is now asserted by the lesson test and
+printed by both store checks. In memory, on three samples, every noun reads but the words the lessons hold in another
+sense (10–22 a sample).
+
+**Taught again.** Sandbox then main model, all twenty-six, none refused; both checked clean. The main clear's ledger
+write failed on a statement over 32,767 values (6,077 rows × 11); `record_knowledge_updates` now writes in chunks and
+the 6,077 rows were recorded from the archive.
+
+**Running.** SHAPES-LEARN-10's fifth run.
+
+## 2026-09-30 (4) — The gate's fifth run: nearly clean, and the next blocker is words with several senses
+
+**What.** SHAPES-LEARN-10's fifth run (`20260930T111909Z`), all twenty-six lessons and the WordNet sample: 34/37.
+Nouns read in a question never taught: **1,238/1,254** (from 723). The misses are words the lessons hold in another
+sense ("What is a flower?" reads to the lessons' flower, not WordNet's "time period" sense). One counted word said
+bare, "Wing is a stage.": the lessons hold "wing" only as "wings", and the singular is said with no article (the
+fourth run's "Wing is an airfoil." is the same fault). Facts held 198/200; which two could not be found, because
+the sample harvested again in another process comes out differently.
+
+**The blocker the gate did not score.** Read-only on the sandbox after the run, the store's view shows WordNet's
+senses displacing the lessons' words:
+- "All fish can swim." now reads two ways (food fish, aquatic vertebrate fish);
+- "A trillion is a number." reads two ways;
+- "A Slovenian is a person." reads two ways, so saying avoids "person" and says "A Slovenian is an one.".
+The reader reports every meaning, and the listener needs exactly one. The design already says which one is meant
+is decided "by the situation and the scores, by whoever is listening". That half was never built. WordNet gives
+the everyday words the most senses, so all of WordNet in the main model would break ordinary sentences. It waits
+for the sense choice.
+
+## 2026-09-30 (5) — Perception rebuilt: sight, hearing and reading are the substrate's own, at the same time
+
+**What was wrong.** Perception had one "faculty" that owned every file. A document was "sight's": it was read in
+sight's process, came in through `see`, and was stored as a percept whose words nothing ever read. Each file had
+exactly one kind, and each door opened one kind. Recognizing something met before, naming and judging worked for
+what was seen or heard, never for what was read. A word said to the substrate and the room it was said in were two
+memories. And the one place the substrate did read file text, the environment scan, held what files say at quality
+0.3, which the learning door refuses (its floor is 0.5), so it never held any of it. ENV-INVESTIGATE-01 passed
+because its stand-in learning accepted everything.
+
+**What it is now.**
+- Reading is a sense of its own (`core/perception/reading.py`, its own process), beside sight and hearing.
+- One act, `coord.perceive_moment`: everything met at one moment, taken in by every sense that can at the same
+  time, is one experience — one memory keeping each sense's trace (`remember_met` replaces three rememberers), one
+  hand-over. `see`, `hear`, `read` and `take_in` are its doors.
+- Words met go to the substrate's one reader. What they state is held as what the document said, at the learning
+  door's floor; the document `mentions` what it is about; a person's document goes to their context.
+- The same text met again is known by its runs of words (memory's `text` strategy), as sounds and pictures are.
+- The reading ledger records every reading.
+- The environment scan and the live ear and eye use the one act.
+
+**Shown.** READ-01 22/22 (first run 21/22: the floor above). ENV-INVESTIGATE-01 10/10 and PERCEIVE-04 8/8, both
+changed to the new calls. A scratch check read a Word file and a file with no extension by their bytes.
+
+**What it does not show.** How much real prose is understood. Read-only, the repository README gave 1 fact from
+286 lines; the capabilities document gave none. "A salmon is a fish." states nothing once WordNet's senses of
+"fish" are held. The sense choice above is the same blocker for reading documents as for WordNet.
+
+**Not yet run** (reached by the change, named and not run): SEE-LOOP-01, FRAME-01, RECALL-01, SPEECH-01, SONGS-01,
+SENSES-TOGETHER-01, LIVE-01, MEMORY-SOUND-01, SYSTEM-PERCEPTION-01, `tests/test_hearing.py`, and CANARY-01, which
+empties the sandbox.
+
+## 2026-09-30 (6) — A task's reading is the substrate's own, and the conversation knows its own work
+
+**A task's reading.** A task opened files through the `read_file` tool, which handed the bytes to its plan. Nothing
+read the words or remembered the reading. Now every file a task's tool opens is read by the substrate's own reading
+(`_read_what_was_opened`), as part of the task's pursuit, as whoever the task is for. What it says is kept with the
+task. READ-01 27/27.
+
+**The conversation and the queue.** The queue authority held all the work, and the conversation never read it: the
+substrate could not say what it was doing or report what finished, and "stop that" became a new job. `cancel`
+(the authority's one way to stop a job) reached only background and scheduled jobs. Now:
+- `cancel` stops work jobs, waiting or running;
+- `work_of` and `mark_told` keep one person's jobs, and whether they were told how each ended, on the job's own
+  record;
+- `Conversation.about_my_work` reads doing, finished, stop and keep-going from the meaning;
+- the front door answers those turns from the queue, never makes a request not to act into a job, and brings back,
+  once, how the person's work ended and what it found.
+english_27 teaches the sentences: 71 records, sandbox only. WORK-TALK-01 21/21 on the running substrate. Its first
+run passed its checks while "Don't stop." became a job; that was fixed.
+
+**In the reader.** A happening both going on and over at the same moment is refused as a meaning.
+`test_derived_reading.py` 93/93.
+
+**Not run** (reached by the queue change, named): TASK-RESULT-01, TEACH-AND-DO-01, LEARNED-WORK-01, the queue's
+tests, and CANARY-01, which empties the sandbox. english_27 is not in the main model.
+
+## 2026-09-30 (7) — The substrate speaks first
+
+Everything the substrate said was a reply to a turn. Work it finished waited, unsaid, until the person spoke again.
+Now:
+- `speak_to` owes a person a message, due now or at a set moment, in the durable outbox (`unified.outbox`), and
+  records it in their conversation;
+- front ends listening for that person (`on_message`) are pushed it when it is due, once;
+- with none listening, it waits for their next turn or a front end asking;
+- a message due later is delivered by the queue authority's timed job and armed again at boot;
+- the queue authority announces a work job ending (`on_work_ended`), and the substrate tells the person how it
+  ended and what it found;
+- the live senses listen for the person in the room.
+MESSAGE-01 17/17: pushed with no turn between, held and brought once, a 4 s message said at 4.0 s, still owed and
+said after its timer was lost, both front ends of one person told and no one else, and in their conversation.
+WORK-TALK-01 21/21 on the new path. This is the base for reminders and scheduled work. Neither the sentences for
+them nor a durable user schedule exists yet.
+
+## 2026-09-30 (8) — english_27 in the main model; sixty tasks at once, and the deadlock it found
+
+**english_27 in the main model.** Taught into `lyric_db` through `scripts/teach.py` (session
+`docs/teaching_sessions/20260930T163939Z_lesson.md`), none refused, 126 constructions, the same as the sandbox by key.
+Checked read-only on main's own view:
+- all 2563 taught sentences read;
+- every never-taught probe set passes;
+- 11/11 mathematics questions are worked;
+- the work-talk probes read as meant: "Don't stop." is keep going.
+
+**Sixty at once, three per person.** Five places set the acting budget:
+- the coordinator's default of 6;
+- a clamp at 16;
+- the substrate's own tuning, which stopped raising it at 8;
+- the queue authority's own default of 5;
+- a dead config field saying one task at a time.
+
+The queue authority is one per process and was made by whoever reached it first, so the substrate's setting could
+be ignored. Now:
+- the budget is 60 everywhere, three per person;
+- a directive can hold it lower, never higher;
+- `QueueAuthority.configure` puts settings given later in force.
+
+**TASKS-AT-ONCE-01, run 1: 11/14.** Sixty ran at the same moment, no person held a fourth, and the next person
+waited for a slot. Then the first sixty deadlocked. The memory agent's cross-instance lock on a pursuit's memory
+(`_pursuit_lock`) held a pooled connection while the write under it needed another from the same pool. All twenty
+connections were held by locks waiting, and each job sat until its 225 s limit.
+
+Changed:
+- a lock holds a connection of its own (`DatabaseManager.advisory_lock`);
+- each process's pool is 0 to 100 connections, closing one after 60 s idle;
+- the server allows 250, pending a restart;
+- a job the queue times out is recorded as failed and its person told; it was left "in progress", never told, and
+  re-run at boot.
+
+**Run 2 (`20260930T175144Z`): 14/14**, after the server restart. All 82 jobs completed and read their notes, none
+timed out, and every person was told. It took 62 s from the first start to the last end, with each job holding 10 s.
+
+## 2026-09-30 (9) — Tools work on people's databases, and memory is read only through the memory agent
+
+**Memory through its authority.** Nothing reads memory rows with its own SQL.
+- The coordinator's reading of the substrate's past task outcomes moved into the memory agent
+  (`task_occurrences`). Checked on the sandbox: the same 5 records as the old query.
+- The chaos adapter's memory figures moved into the memory agent too (`capture_statistics`). The old query could
+  never run, so they had always been zeros reported as a measurement. The real figures: of 90,759 sandbox memories,
+  none holds a reasoning trace or decision factors, because nothing writes them.
+- Still to convert: about 28 experiments that read memory rows directly, 13 of which also delete them.
+
+**Database tools.** Fifteen tools ran SQL on the substrate's own databases. Used by the substrate, that goes
+around its authorities, which Law 5 forbids.
+- `postgres_query` and `mysql_query` are rebuilt to work on an outside database they are given, and to refuse the
+  substrate's own server before connecting. `mysql_query` had run on the substrate's own PostgreSQL; it now talks to
+  real MySQL. `postgres_query` had never been registered.
+- The other thirteen are archived (`archive/superseded_database_tools_2026-09-30/`), with their entries in the
+  constitution's tables and the registry's rule for leaving them out of serving environments.
+- OUTSIDE-DB-01 **10/10**, against a throwaway PostgreSQL and MySQL.
+- A first version looked people's logins up in another product's connector store; it was withdrawn, since that
+  product has nothing to do with the substrate. Logins are given with the query until access controls are built.
+
+**The tools folder audited** (`docs/research/TOOLS_AUDIT_2026-09-30.md`, 346 tools); the owner decided each group.
+TOOLS-EXTERNAL-01 **17/17**.
+- **Chaos tools archived.** The 7 had only the substrate's own systems as targets, with data corruption among the
+  faults. The testing and validation tools stay, all 19.
+- **Security tools rebuilt.** The six log readers and the rate limiter read the logs of the system they are told
+  to: an outside log database, or the substrate's own when named (`logs_of`), for its own defence. They never
+  assume a source.
+  - `detect_zero_day` now names the checks it could not make instead of reading as clean.
+  - `detect_brute_force` is disabled. When its query failed, it had invented an attack: two made-up sources
+    reported as found. That is removed.
+- **File and code tools take their folder from the caller.**
+- **AgentSO's connector tools guarded:** last on the import path, absent when AgentSO is absent, and refused when a
+  connector points at the substrate's own database server.
+- **Found:** the substrate records no security logs of its own, and its `auth_logs` columns do not match what the
+  tools read.
+
+**Then the memory and configuration tools.**
+- `query_memory` and `store_memory` are archived. The substrate's memory is reached through the memory agent only.
+- The five configuration and environment tools work for users:
+  - the .env tools read and write the file they are given, and refuse the substrate's own. `get_environment_variable`
+    used to return the substrate's live environment, passwords included;
+  - dependencies are checked against the project's own interpreter;
+  - `get_performance_profile` profiles the process asked about. It had ignored it and profiled the substrate;
+  - `reload_config` signals a user's service (SIGHUP) and refuses the substrate's own processes.
+- TOOLS-EXTERNAL-01 **26/26**.
+- Found: the nine firewall and Cloudflare tools cannot run at all. They import `create_integrated_security_system`,
+  which no longer exists; their implementation is archived in `core/security/_disabled/`.
+- **Six learning tools archived** as obsolete, on the owner's word: profile performance, causal feedback, lessons
+  learned, benchmark, training recommendations, hypotheses. The learning system does all of it, and the feedback
+  setup they fed is old. CAPABILITY-BENCHMARK-01 drops its tool section; the benchmark is still checked through the
+  learning system. TOOLS-EXTERNAL-01 **27/27**.
+- **delegate_task deleted**, after AGENTS-01 (**9/9**) showed the substrate's own agent deployment is sound. Checked:
+  wired at boot; findings returned; ungranted tools refused; the allowance holds; findings collected without
+  waiting; failures honest. Found: nothing in the substrate calls `deploy_agent`. The tool was the only way agents
+  were ever used, so the substrate's own decision to deploy one is not built.
+- **Agents are never waited for.** An agent's findings are handed to the coordinator as a JOB_COMPLETED self-event
+  the moment it lands; the factory had only held them for someone to await or collect. Also fixed: the reaction to a
+  failed job faulted on every failure (`payload["error"]` on a dataclass). AGENTS-01 **11/11**.
+- **Firewall and Cloudflare tools:** not rebuilt. Tet owns that, on the owner's word. The nine stay as they are.
+
+
+### 2026-09-30 (10): the listener, and all of WordNet as a source
+
+The owner agreed the order for all of WordNet into the main model: first the listener (a word taken in the sense
+meant), then all of WordNet as a source, then a meaning given with every definition and example, then the whole run
+in the sandbox, then the main model.
+
+**The listener built** (`derived_reader.meant`). The reader reports every meaning; nothing chose between them, so a
+sentence a WordNet sense made ambiguous ("All fish can swim.") was not understood anywhere. Among meanings that
+differ only in which thing a word names, the listener takes:
+1. the one whose facts memory holds (`MemoryAgent.facts_held`, through the kinds a thing is held to be);
+2. otherwise, the one whose words have been met naming those things more often (constructions' uses).
+
+Otherwise the meaning is left open. Seven copies of "more than one meaning, give up" now ask it. The conversation
+asks memory before it decides (`Conversation._listen`).
+- **Measured on the old sandbox, read-only:** all four blocker sentences now take the lessons' sense. "fish" the
+  lessons' animal has 44 uses; WordNet's two senses have 1 each.
+- **A second cause found:** a word's shape was judged against the concept's name. "fish" written for `fish` counted
+  as a misfit in a plural slot, and "fish" written for `food fish` was never judged, so the wrong sense supposed
+  less. A sense named apart is now judged by its word.
+- **The main model, read-only, unchanged:** 2,563/2,563 taught, every probe set, 11/11 worked.
+
+**WordNet as a source, rewritten.**
+- **Names.** Within each part of speech, the sense a word names most often is named by the word itself. The lessons'
+  "fish" and WordNet's animal are one concept. Each other sense is named by what it is first a kind of, never taking
+  a name WordNet already gives ("solid food fish", since "food fish" is `food_fish.n.01`). This replaces qualifying
+  every sense, which made the lessons' word and WordNet's sense two concepts; at full size the WordNet sense would
+  have outweighed the lessons'.
+- **Coverage:** every part of speech; every word a sense is written with; kinds, named things (now `instance_of`),
+  parts, members, materials, opposites, likenesses, and what verbs require and cause. 264,280 records.
+- **The same harvest in every process.** NLTK hands over related senses from a set, so the earlier gate's harvest
+  differed per process; they are now ordered.
+
+**Cost, measured** (300 records profiled on the sandbox). The earlier 2.7 s per record is mostly definitions:
+- each one is read twice, to teach it and again to keep it as unread, at about 3.5 s under the profiler;
+- 3 of 30 read whole;
+- a fact costs about 0.1 s.
+
+Fixed on the way:
+- a one-second CPU sample taken on the event loop (17.8 s stalled in 398 s);
+- WordNet's 75,834 word classes worked out from its files on every call.
+
+Found: frames for parts, members, materials and opposites, taught with two to nine examples each, rarely say new
+words: opposites 0/80, members 1/80. Those facts are taught as facts alone.
+
+**SENSE-01 written, not run.** It needs the sandbox emptied first, and that needs the owner's word.
+
+**Then the owner: "you said it's weaker than an LLM, so why move on?"** Nothing moves on until the listener meets an
+LLM's bar on a measured test. Built the same day:
+- **Knowledge on every side.** A fact counts as held of what its things are kinds of, on either side, and an event
+  counts as its kind (`listening_facts`).
+- **The conversation as context.** It keeps the last 24 things talked of; a sense connected to them, or to the rest
+  of the sentence, is taken over a commoner one. Read-only on the old sandbox: with "causal agent" talked of, "A
+  Slovenian is a person." took the causal-agent sense over the commoner one.
+- **Real usage.** WordNet's tagged counts are taught as evidence: 240,754 uses over 33,151 word–sense pairs. A
+  belief's observation carries how many uses it witnessed.
+- **Memory on every reading that can wait for it.** That covers the conversation, a told sentence, stored memories,
+  perceived text, ingested statements, teaching and reasoning. Three call sites became awaitable, and their two
+  test files and PIPELINE-01 await them. Targeted tests: derived reading 93/93, statements 5/5, speech 11/11.
+- **The ear hands on words that sound alike** (`close`, `heard_texts`); the listener takes the way that reads and
+  that memory supports (`heard_which`).
+- **Naming found wrong for the lessons' own words.** The tagged text's commonest sense is not the lessons':
+  - "table" was a table of data;
+  - "tank" was the armored vehicle;
+  - "plant" was a factory;
+  - "number" was an amount;
+  - "Tom" was an ethnic slur's entry.
+
+  The lessons hold no facts, so memory could not say which thing they meant. Their teacher now states it
+  (`data/lessons/senses.json`, 46 words).
+- **Naming also corrected:** a person's name never outranks a thing's common name ("crane"), and numbers are named by
+  their value as the lessons name them.
+
+SENSE-01 gained the bar (K): 16 sentences and 2 heard pairs. Two of the sentences need knowledge that only the
+definitions' meanings will give. Not run: the sandbox reset needs the owner's word.

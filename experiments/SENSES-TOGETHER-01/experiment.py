@@ -175,7 +175,9 @@ async def main() -> int:
                     and any(kind in k for k in kept))
 
         def answered(text):
-            return isinstance(text, str) and text.startswith("Yes") and V in text
+            # The word may open the sentence ("Vex… are animals."), so it is
+            # found whatever its case.
+            return isinstance(text, str) and text.startswith("Yes") and V in text.lower()
 
         # ── A. ALONE ────────────────────────────────────────────────────────
         print("\n== A. Each on its own ==")
@@ -293,7 +295,7 @@ async def main() -> int:
                 await d.execute_query("DELETE FROM unified.knowledge_updates WHERE update_id = ANY($1::text[])",
                                       (updates,))
             for table, col in (("unified.beliefs", "belief_text"), ("unified.beliefs", "claim"),
-                               ("unified.perceptions", "source"), ("unified.experience_pool", "about"),
+                               ("unified.experience_pool", "about"),
                                ("unified.experience_pool", "parts::text"),
                                ("unified.held_conditionals", "surface")):
                 await d.execute_query(f"DELETE FROM {table} WHERE {col} ILIKE $1", (like,))
@@ -315,7 +317,6 @@ async def main() -> int:
             left = await d.execute_query(
                 "SELECT (SELECT count(*) FROM unified.concepts WHERE name ILIKE $1) + "
                 "(SELECT count(*) FROM unified.beliefs WHERE belief_text ILIKE $1) + "
-                "(SELECT count(*) FROM unified.perceptions WHERE source ILIKE $1) + "
                 "(SELECT count(*) FROM memory_hot.memory_hot WHERE content ILIKE $1) AS n",
                 (like,), fetch_one=True)
             EV.note(f"Cleanup by nonce {N} and exact memory id: {len(concepts)} concepts, "

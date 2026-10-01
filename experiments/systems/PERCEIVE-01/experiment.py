@@ -10,11 +10,11 @@ into first-class, provenance-carried, revisable knowledge through the one ingres
 authority, exactly as a taught fact is.
 
 Nothing is asserted by fiat. For each modality we drive
-`PerceptionManager.process_input` (the real path: manager -> _observe_semantically
--> the modality producer -> ConceptIngestionService.ingest -> belief fan-out) and
-then inspect the store directly:
+`PerceptionFaculty.admit_percept` (the real path: the faculty -> the modality
+producer -> ConceptIngestionService.ingest -> belief fan-out) and then inspect the
+store directly:
 
-  1. the perception was RETAINED (unified.perceptions),
+  1. the perception was ADMITTED as evidence (the faculty counts it),
   2. the observation reached the concept graph as edges (unified.concept_relations),
   3. a numeric value is held as a TYPED QUANTITY, not a word (unified.concepts),
   4. the substrate now BELIEVES the observations, with posteriors (unified.beliefs),
@@ -26,7 +26,7 @@ then inspect the store directly:
 from __future__ import annotations
 import os
 for k, v in {"POSTGRES_PORT": "5433", "POSTGRES_USER": "stefan",
-             "POSTGRES_DATABASE": "lyric_db", "LYRIC_NO_WATCHDOG": "1"}.items():
+             "POSTGRES_DATABASE": "lyric_dev", "LYRIC_NO_WATCHDOG": "1"}.items():
     os.environ.setdefault(k, v)
 import asyncio, contextlib, io, json, sys
 from datetime import datetime, timezone
@@ -77,25 +77,24 @@ async def main() -> int:
         from core.database import get_database_manager
         db = get_database_manager(); await db.initialize()
 
-        pm = getattr(coord, "perception", None)
-        if pm is not None and not getattr(pm, "active", False):
-            await pm.initialize()
+        pm = getattr(coord, "vision", None)
 
     if pm is None:
-        print("FAIL: coordinator has no perception manager to drive", flush=True)
+        print("FAIL: coordinator has no perception faculty to drive", flush=True)
         return 1
 
-    print("=== feeding 3 perceptions through the real PerceptionManager path ===\n",
+    print("=== feeding 3 perceptions through the real perception faculty ===\n",
           flush=True)
     feed = []
     for source, data_type, content in INPUTS:
         from core.memory import Origin
-        processed = await pm.process_input(source, data_type, content,
+        before = pm.awareness()["admitted"]
+        processed = await pm.admit_percept(source, data_type, content,
                                            origin=Origin.own("PERCEIVE-01"))
-        retained = bool(processed and processed.metadata.get("retained"))
+        admitted = pm.awareness()["admitted"] > before
         feed.append({"source": source, "data_type": data_type,
-                     "processed": processed is not None, "retained": retained})
-        state = "retained" if retained else ("processed, NOT retained"
+                     "processed": processed is not None, "admitted": admitted})
+        state = "admitted" if admitted else ("processed, NOT admitted"
                                              if processed else "NOT processed")
         print(f"  [{data_type:6}] {source:18} -> {state}", flush=True)
 
@@ -172,17 +171,17 @@ async def main() -> int:
     print(f"• PERCEPTION provenance envelopes by producer: {provenance}\n", flush=True)
 
     all_edges_present = all(not per_subject[s]["missing_edges"] for s in SUBJECTS)
-    all_retained = all(f["retained"] for f in feed)
+    all_admitted = all(f["admitted"] for f in feed)
     any_beliefs = all(per_subject[s]["beliefs"] for s in SUBJECTS)
     provenance_ok = all(provenance.get(s, 0) > 0 for s in SUBJECTS_SRC)
 
     summary = {
-        "all_retained": all_retained,
+        "all_admitted": all_admitted,
         "all_expected_edges_present": all_edges_present,
         "value_held_as_quantity": value_typed,
         "beliefs_held_for_every_subject": any_beliefs,
         "perception_provenance_present": provenance_ok,
-        "verdict_pass": bool(all_retained and all_edges_present and value_typed
+        "verdict_pass": bool(all_admitted and all_edges_present and value_typed
                              and any_beliefs and provenance_ok),
     }
     manifest = {

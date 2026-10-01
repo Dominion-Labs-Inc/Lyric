@@ -29,7 +29,6 @@ async def store_state(db):
         "relations_by_extractor": await rows(
             "SELECT extractor, count(*) n FROM unified.concept_relations "
             "GROUP BY 1 ORDER BY 2 DESC"),
-        "perceptions": await rows("SELECT count(*) n FROM unified.perceptions"),
         "reasoning_pattern_rules": await rows(
             "SELECT rule_id, rendered_formula, epistemic_status FROM unified.learned_rules "
             "WHERE rule_kind='reasoning_pattern' ORDER BY rule_id"),
@@ -37,22 +36,22 @@ async def store_state(db):
 
 
 async def check_perception():
-    from core.agents.autonomous.perception_manager import PerceptionManager
-    pm = PerceptionManager({})
-    assert await pm.initialize()
+    from core.perception.perception_faculty import get_perception_faculty
+    faculty = get_perception_faculty()
+    before = faculty.awareness()["admitted"]
     from core.memory import Origin
-    p = await pm.process_input(
-        source="health_monitoring", data_type="component_degraded",
-        content={"component": "learning_system", "severity": "degraded",
-                 "message": "learning subsystem reported degraded health"},
+    p = await faculty.admit_percept(
+        "health_monitoring", "component_degraded",
+        {"component": "learning_system", "severity": "degraded",
+         "message": "learning subsystem reported degraded health"},
         origin=Origin.own("health monitoring"))
-    found = await pm.search_perceptions({"source": "health_monitoring", "limit": 3})
+    aware = [q for q in faculty.recent_percepts(3) if q.source == "health_monitoring"]
+    admitted = faculty.awareness()["admitted"] - before
     return {
         "perceived": bool(p),
-        "retained": bool(p and p.metadata.get("retained")),
-        "readback_rows": len(found),
-        "stats": {k: v for k, v in pm.stats.items() if k.startswith("total")},
-        "passed": bool(p and p.metadata.get("retained") and found),
+        "admitted_as_evidence": admitted,
+        "in_awareness": len(aware),
+        "passed": bool(p and admitted == 1 and aware),
     }
 
 
@@ -73,7 +72,7 @@ async def main() -> int:
     await db.initialize()
 
     checks = {
-        "perception_retention": await check_perception(),
+        "perception_admission": await check_perception(),
         "tool_observation_and_projection": await check_tool_projection(),
     }
     evidence = {

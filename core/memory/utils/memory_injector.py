@@ -372,8 +372,8 @@ class MemoryInjector:
 
             # Search for relevant memories using semantic search
             # KNOWLEDGE ONLY. What is injected here is what the system knows
-            # about the topic. Event records -- task outcomes, governance
-            # blocks, safety events -- are kept for their COUNT, are
+            # about the topic. Event records -- task outcomes, safety
+            # events, mapping verdicts -- are kept for their COUNT, are
             # near-identical to one another, and answer nothing about a topic;
             # in a similarity search they only take the places that would have
             # gone to something the system actually knows.

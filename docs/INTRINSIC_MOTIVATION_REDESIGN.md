@@ -285,7 +285,7 @@ an event needs a warmed/disposed appraisal, which the autonomy/scale tests exerc
 Operability is really THREE axes, and environment state lives in two of them (distinct from *domain
 knowledge* — knowledge is stable, environment state is not):
 - **KNOW** — domain satisfaction ≥ stakes+earned bar (*may I operate here?*).
-- **CONDITIONS** — the environment's pressure/climate (DHCM `sense()`), **felt** (sense → interoception
+- **CONDITIONS** — the environment's pressure/climate (Tet `sense()`), **felt** (sense → interoception
   → affect) and modulating **disposition**: under a storm / high pressure, be more cautious (raise the
   bar, defer, verify harder). Plugs into the same disposition gate that governs exploration.
 - **VERIFY** — the substrate cannot *know* it satisfied an environment requirement from internal
@@ -293,7 +293,7 @@ knowledge* — knowledge is stable, environment state is not):
   Crucially, **this grounds the "earned" half of the bar**: earned outcomes come from the *world
   confirming* success, not self-report — which keeps long-horizon operating honest (no drift on a
   stale internal model).
-Status: DHCM `sense()` + the environment-investigation exist; wiring **pressure → affect → operate-gate**
+Status: Tet `sense()` + the environment-investigation exist; wiring **pressure → affect → operate-gate**
 (CONDITIONS) and **environment-observed outcome → earned** (VERIFY) is the long-horizon layer, not yet
 built — but it slots in without rethinking the hybrid (VERIFY = the source of "earned"; CONDITIONS = a
 disposition modulator).

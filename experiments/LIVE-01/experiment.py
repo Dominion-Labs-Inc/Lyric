@@ -164,15 +164,20 @@ async def main() -> int:
                         domain="hearing"))
         # WHAT IT IS ASKED, IT IS TAUGHT FIRST. A lesson's examples are how
         # English says things, never facts about the world, so nothing holds
-        # "a mammal is an animal" unless it is taught as a fact.
-        held = await db.execute_query(
-            "SELECT 1 FROM unified.concept_relations cr JOIN unified.concepts c "
-            "ON cr.source_concept_id = c.concept_id WHERE c.name = 'mammal' "
-            "AND cr.relation = 'isa' AND cr.target_surface = 'animal' LIMIT 1", (), fetch_one=True)
-        if not held:
-            with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
-                await coord.learning.learn_fact("mammal", "isa", "animal", domain="general")
-            EV.note("taught 'a mammal is an animal' (left in place, as SENSES-TOGETHER-01 does)")
+        # "a mammal is an animal" unless it is taught as a fact. What it is
+        # asked and does not hold it would look up on the web in the same turn,
+        # which a run on a sealed machine must not depend on.
+        for subject, obj in (("mammal", "animal"), ("cat", "mammal")):
+            held = await db.execute_query(
+                "SELECT 1 FROM unified.concept_relations cr JOIN unified.concepts c "
+                "ON cr.source_concept_id = c.concept_id WHERE c.name = $1 "
+                "AND cr.relation = 'isa' AND cr.target_surface = $2 LIMIT 1",
+                (subject, obj), fetch_one=True)
+            if not held:
+                with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
+                    await coord.learning.learn_fact(subject, "isa", obj, domain="general")
+                EV.note(f"taught 'a {subject} is a{'n' if obj[0] in 'aeiou' else ''} {obj}' "
+                        f"(left in place, as SENSES-TOGETHER-01 does)")
         live = LiveSenses(coord, microphone=f"file:{stim['stream']}", camera=f"file:{JELLYFISH}",
                           name=NAME, session=session, label=f"l{N}")
         with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
@@ -234,10 +239,11 @@ async def main() -> int:
 
         # ── D. DROPPED ──────────────────────────────────────────────────────
         print("\n== D. Nothing let pass reaches the substrate ==")
-        percepts = await db.execute_query(
-            "SELECT data_type, count(*) AS n FROM unified.perceptions WHERE source LIKE $1 "
-            "GROUP BY data_type", (f"l{N}%",), fetch_all=True) or []
-        by = {str(r["data_type"]): int(r["n"]) for r in percepts}
+        # What the substrate perceived, as the perception faculty is aware of it.
+        by = {}
+        for p in coord.vision.recent_percepts(coord.vision.AWARENESS):
+            if str(p.source).startswith(f"l{N}"):
+                by[str(p.data_type)] = by.get(str(p.data_type), 0) + 1
         check("the only percepts are of what was kept: one hearing and one seeing each",
               by.get("audio", 0) == len(kept) and by.get("image", 0) == len(kept),
               f"{by}")
@@ -257,10 +263,19 @@ async def main() -> int:
               "; ".join(rows.get(r["heard_memory"], "")[-70:] for r in kept))
         from core.memory.media_store import get_media_store
         media = [m for r in kept for m in await get_media_store().media_for_memory(str(r["heard_memory"]))]
+        # A hearing that started a pursuit is part of that pursuit's memory, with
+        # the look taken at the same time: both are kept as traces there.
+        by_hearing = {}
+        for r in kept:
+            by_hearing[r["heard_memory"]] = await get_media_store().media_for_memory(
+                str(r["heard_memory"]))
         check("remembered as a trace, never the recording",
               media and all(m["mime"] == "application/x-npz"
-                            and (m["perceived"] or {}).get("kind") == "sound_trace" for m in media),
-              ", ".join(f"{m['mime']} {m['byte_size']}B" for m in media))
+                            and (m["perceived"] or {}).get("kind") in ("sound_trace", "sight_trace")
+                            for m in media)
+              and all(any((m["perceived"] or {}).get("kind") == "sound_trace" for m in got)
+                      for got in by_hearing.values()),
+              ", ".join(f"{(m['perceived'] or {}).get('kind')} {m['byte_size']}B" for m in media))
         check("and no recording is left on disk",
               not any(live._dir.glob("*")), f"{len(list(live._dir.glob('*')))} file(s) in {live._dir}")
 
@@ -282,9 +297,19 @@ async def main() -> int:
                   "; ".join(repr(r["heard_text"]) for r in kept))
         check("at least one hearing came through complete, so the front door is reached",
               bool(complete), "; ".join(repr(r["heard_text"]) for r in kept))
+        def asked_of(heard: str) -> str:
+            """What was asked: what follows the name, or what came before it when
+            the name was said last."""
+            ws = heard.split()
+            if NAME in ws:
+                at = ws.index(NAME)
+                after = [w for w in ws[at + 1:] if w != NAME]
+                ws = after if after else [w for w in ws[:at] if w != NAME]
+            return " ".join(ws)
+
         check("every complete hearing went to the front door, without the name it was called by",
               complete and all(r.get("asked") and NAME not in r["asked"].split()
-                               and r["asked"] == " ".join(w for w in r["heard_text"].split() if w != NAME)
+                               and r["asked"] == asked_of(r["heard_text"])
                                for r in complete),
               "; ".join(repr(r.get("asked")) for r in complete))
         check("and the front door took each one in",
@@ -343,8 +368,7 @@ async def main() -> int:
                                        (concepts,), commit=True)
                 await db.execute_query("DELETE FROM unified.evidence_envelopes WHERE evidence_id = ANY($1::text[])",
                                        (envelopes,), commit=True)
-            for table, col in (("unified.beliefs", "belief_text"), ("unified.perceptions", "source"),
-                               ("unified.experience_pool", "about")):
+            for table, col in (("unified.beliefs", "belief_text"), ("unified.experience_pool", "about")):
                 await db.execute_query(f"DELETE FROM {table} WHERE {col} ILIKE $1", (like,), commit=True)
             spoken = [r["memory_id"] for r in await db.execute_query(
                 "SELECT memory_id FROM memory_hot.memory_hot WHERE user_id = $1", (actor,),
@@ -362,7 +386,6 @@ async def main() -> int:
                                        (task_ids,), commit=True)
             left = await db.execute_query(
                 "SELECT (SELECT count(*) FROM unified.concepts WHERE name ILIKE $1) + "
-                "(SELECT count(*) FROM unified.perceptions WHERE source ILIKE $1) + "
                 "(SELECT count(*) FROM memory_hot.memory_hot WHERE user_id = $2) AS n",
                 (like, actor), fetch_one=True)
             EV.note(f"Cleanup by nonce {N}, exact ids and the run's speaker {actor}: "

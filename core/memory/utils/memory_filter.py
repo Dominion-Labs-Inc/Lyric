@@ -97,9 +97,8 @@ class MemoryFilter:
     #:
     #: The filter asks "is this novel / consequential / belief-changing enough
     #: to keep?" That is the wrong question for an event whose value is that it
-    #: HAPPENED. A task outcome is evidence about performance; a governance
-    #: decision is an audit obligation; a mapping verdict is a result other
-    #: subsystems read back. None of them become less true for being routine,
+    #: HAPPENED. A task outcome is evidence about performance; a mapping verdict is a
+    #: result other subsystems read back. None of them become less true for being routine,
     #: and judging them by novelty produces survivorship bias -- failures score
     #: high-consequence and are kept, ordinary successes are discarded, and the
     #: measured success rate can never rise.
@@ -112,8 +111,6 @@ class MemoryFilter:
         "outcome_failure": "task outcome",
         "safety_validation": "safety event",
         "safety_event": "safety event",
-        "governance_block": "governance decision",
-        "governance_decision": "governance decision",
         "strategy_adaptation": "learning update",
         "learning_update": "learning update",
         "mapping_verdict": "mapping verdict",

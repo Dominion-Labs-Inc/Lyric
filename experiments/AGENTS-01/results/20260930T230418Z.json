@@ -1,0 +1,110 @@
+{
+  "experiment": "AGENTS-01",
+  "claim": "The substrate deploys agents of itself through its own coordinator: they return findings, use only the tools granted, are refused past the allowance, can be collected without waiting, and report failure honestly.",
+  "hypothesis": "An unwired factory, an agent using an ungranted tool, deployment past the allowance, findings lost or left pending, a failure reported as findings, or a write to the main store would each show here.",
+  "started_at": "2026-09-30T23:04:18.052994+00:00",
+  "duration_seconds": 40.569,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/Lyric/venv_lyric/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/Lyric",
+    "shadow_mode": null,
+    "git_commit": "4079045ffdac8d282649a9a829e3060eb736139f",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "lyric_dev",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "lyric_dev",
+        "model": "lyric_dev",
+        "user_context": "lyric_dev",
+        "learning": "lyric_dev"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "environment",
+        "database": "environment",
+        "user": "environment",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "pool_idle_seconds": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 336,
+    "database_verified": null,
+    "database_verified_reason": "no initialized connection in this process"
+  },
+  "summary": {
+    "checks": 9,
+    "passed": 9,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [],
+  "checks": [
+    {
+      "label": "the coordinator holds the agent factory, and the factory is bound back to it",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-30T23:04:55.738967+00:00"
+    },
+    {
+      "label": "deploying returns the agent's name",
+      "passed": true,
+      "detail": "keen-badger",
+      "at": "2026-09-30T23:04:55.739083+00:00"
+    },
+    {
+      "label": "awaited, it returns its findings: what the note says",
+      "passed": true,
+      "detail": "{'success': True, 'model_free': True, 'verification_state': 'verified', 'task_id': 'keen-badger', 'task_type': 'RESEARCH', 'method': 'declared_tools', 'tools_run': [{'tool': 'read_file', 'success': Tr",
+      "at": "2026-09-30T23:04:56.415848+00:00"
+    },
+    {
+      "label": "an agent never uses a tool it was not granted",
+      "passed": true,
+      "detail": "{'success': False, 'model_free': True, 'verification_state': 'failed', 'task_id': 'misty-reef', 'task_type': 'RESEARCH', 'method': 'declared_tools', 'tools_run': [{'tool': 'read_file', 'success': Fals",
+      "at": "2026-09-30T23:04:56.707446+00:00"
+    },
+    {
+      "label": "past the allowance, deployment is refused while the others run",
+      "passed": true,
+      "detail": "allowance 2: ['deployed', 'deployed', 'refused']",
+      "at": "2026-09-30T23:04:56.707654+00:00"
+    },
+    {
+      "label": "findings are collected when they are back, without waiting on any one agent",
+      "passed": true,
+      "detail": "2/2 back",
+      "at": "2026-09-30T23:04:57.708446+00:00"
+    },
+    {
+      "label": "nothing is left pending",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-09-30T23:04:57.708511+00:00"
+    },
+    {
+      "label": "an agent whose work fails reports the failure, never findings",
+      "passed": true,
+      "detail": "{'success': False, 'model_free': True, 'verification_state': 'failed', 'task_id': 'zephyr-thistle', 'task_type': 'RESEARCH', 'method': 'declared_tools', 'tools_run': [{'tool': 'read_file', 'success': ",
+      "at": "2026-09-30T23:04:58.043074+00:00"
+    },
+    {
+      "label": "the main model's store is untouched",
+      "passed": true,
+      "detail": "290079 rows before, 290079 after",
+      "at": "2026-09-30T23:04:58.622772+00:00"
+    }
+  ],
+  "notes": [
+    "nonce 18be6c: left in the sandbox, the agents' pursuit memories and task records"
+  ]
+}

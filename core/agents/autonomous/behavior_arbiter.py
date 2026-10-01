@@ -11,7 +11,7 @@ BehaviorArbiter — turns disposition into a decision for THIS situation.
 The arbiter consumes appraisal PRESSURES. It never re-reads the underlying
 evidence — that interpretation already happened once, in AppraisalState.
 
-Governance and safety sit ABOVE this. Caution is not permission: the arbiter
+The Constitution and safety sit ABOVE this. Caution is not permission: the arbiter
 only decides how conservatively to operate inside space already permitted, and
 never widens what is allowed.
 """

@@ -503,8 +503,7 @@ class GenerateChangelogTool(Tool):
                 name="repo_path",
                 type="string",
                 description="Path to git repository",
-                required=False,
-                default="."
+                required=True
             ),
             ToolParameter(
                 name="since_tag",
@@ -548,7 +547,10 @@ class GenerateChangelogTool(Tool):
         import subprocess
 
         try:
-            repo_path = kwargs.get("repo_path", ".")
+            repo_path = kwargs.get("repo_path")
+            if not repo_path:
+                return ToolResult(success=False, output=None,
+                                  error="repo_path is required: the repository to write the changelog for")
             since_tag = kwargs.get("since_tag", None)
             max_commits = kwargs.get("max_commits", 100)
 

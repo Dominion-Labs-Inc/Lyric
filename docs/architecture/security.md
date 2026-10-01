@@ -5,10 +5,10 @@ update when the authorities change.*
 
 Security has two owners that never share control:
 
-| | **Internal safety (Lyric)** | **World security (DHCM)** |
+| | **Internal safety (Lyric)** | **World security (Tet)** |
 |---|---|---|
 | Protects | the substrate's own actions and state | the world and its boundary |
-| Lives in | the `Constitution` and `ThreatSense` faculties, `core/agents/autonomous/` | `Dominion Labs/DHCM/` (outside Lyric) |
+| Lives in | the `Constitution` and `ThreatSense` faculties, `core/agents/autonomous/` | `Dominion Labs/Tet/` (outside Lyric) |
 | Runs as | part of the substrate process | the world's agent factory, inside the world |
 
 ---
@@ -32,7 +32,7 @@ the only thing that decides whether an act or a task may happen.
 - **Consequence** is the substrate's own measurement (`classify_action` in the same module: verb ×
   arguments → action class and reversibility). The Constitution reads it; tools declare nothing
   about themselves.
-- **Declared policy** (`config/governance_triggers.json`), read by the Constitution alone: target
+- **Declared policy** (`config/constitution_triggers.json`), read by the Constitution alone: target
   rules (what makes a path, command or query sensitive), act rules (conditions on a tool and its
   arguments), a declared reversibility that raises the measured one, a declaration needing a human
   refused under Law 5, one declared IRREVERSIBLE + CRITICAL refused under Law 3. Rules about internal
@@ -70,14 +70,14 @@ the only thing that decides whether an act or a task may happen.
 ## B) World security — outside Lyric
 
 The substrate does not audit the world. The world's **agent factory**
-(`DHCM/institutions/factory.py`, started by `DHCM/walls/world_runtime.py`) spawns
-**`security-audit`** agents (`DHCM/institutions/security_audit_agent.py`). Today the one agent's
+(`Tet/institutions/factory.py`, started by `Tet/walls/world_runtime.py`) spawns
+**`security-audit`** agents (`Tet/institutions/security_audit_agent.py`). Today the one agent's
 only job is auditing the world's audit log and the field's audit log. It is event-driven (no timer):
 new entries are verified against its last signed checkpoint; any write to a log file the log did not
 make (reported by the kernel), a restart or a reconnect triggers a full re-verification. Checkpoints
 are signed with a key from the environment. It reports to the world process log. Both logs, the
 factory's registry and the checkpoints are durable across restarts. Proven by
-`DHCM/experiments/DHCM-AUDIT-AGENT-02` (28/28, also inside the Linux image) and `DHCM-PERSISTENCE-01` (22/22).
+`Tet/experiments/TET-AUDIT-AGENT-02` (28/28, also inside the Linux image) and `TET-PERSISTENCE-01` (22/22).
 
 The former `core/security/security_audit_worker.py` (a substrate loop auditing the host, its logs,
 ports and database) was **removed on 2026-09-14** together with every consumer: the coordinator's

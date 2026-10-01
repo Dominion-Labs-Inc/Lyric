@@ -545,7 +545,7 @@ async def suite_memory_agent(diag: DiagResult) -> None:
 
     What this exercises, and why each matters:
       - retention no longer depends on how verbose a caller was
-      - record classes (task outcomes, governance, safety...) bypass worthiness
+      - record classes (task outcomes, safety...) bypass worthiness
       - a routine SUCCESS survives, which is what survivorship bias destroyed
       - the stated policy matches the rules the filter can emit
       - a stored memory is recallable
@@ -568,7 +568,6 @@ async def suite_memory_agent(diag: DiagResult) -> None:
 
     # 1. Record classes bypass worthiness entirely.
     for tags, label in ((["task_outcome", "outcome_success"], "task_outcome"),
-                        (["governance_block"], "governance"),
                         (["safety_validation"], "safety"),
                         (["strategy_adaptation"], "learning_update"),
                         (["cross_domain_mapping"], "mapping_verdict"),

@@ -1,8 +1,8 @@
 # PERCEIVE-05 — one perception pipeline, with perception kept in memories
 
 **What it tests.** Three fixes, each checked on the booted substrate:
-- Vision only senses. Every percept goes through the one pipeline (`PerceptionManager.process_input`) and
-  is admitted once.
+- One perception faculty senses and admits. Every percept is admitted once, by
+  `PerceptionFaculty.admit_percept`.
 - `perceive` is the recognition primitive. A trained Tsetlin machine recognises an instance, and the
   decision (act, verify or abstain) goes out on the event spine.
 - A memory records the perceptual state at the moment it forms, so recalling the memory returns what

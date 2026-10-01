@@ -6,10 +6,9 @@ Three things were wrong and are fixed here; each is checked against the booted
 substrate, no stubs:
 
   1. TWO perception pipelines. Vision admitted percepts through `vision.see` while
-     the overall `PerceptionManager` admitted through `process_input` — and the hub
-     was never even initialized, so it was dead. Now vision SENSES only, and every
-     percept funnels through the ONE pipeline (PerceptionManager.process_input),
-     admitted once. `coord.see` returns the PerceptionData and the evidence lands.
+     a separate perception manager admitted through its own `process_input`. Now
+     the perception faculty senses AND admits (`admit_percept`), once, and
+     `coord.see` returns the PerceptionData and the evidence lands.
 
   2. `perceive` was ORPHANED (zero callers). Now it is the recognition primitive:
      a trained Tsetlin machine recognizes an instance, the finding goes through the
@@ -28,7 +27,7 @@ substrate, no stubs:
 from __future__ import annotations
 import os
 for k, v in {"POSTGRES_PORT": "5433", "POSTGRES_USER": "stefan",
-             "POSTGRES_DATABASE": "lyric_db", "LYRIC_NO_WATCHDOG": "1"}.items():
+             "POSTGRES_DATABASE": "lyric_dev", "LYRIC_NO_WATCHDOG": "1"}.items():
     os.environ.setdefault(k, v)
 import asyncio, contextlib, io, sys
 from pathlib import Path
@@ -78,6 +77,7 @@ async def main() -> int:
         coord = system.autonomous_coordinator
         from core.database import get_database_manager
         db = get_database_manager(); await db.initialize()
+        await db.assert_database_identity(os.environ["POSTGRES_DATABASE"])
         from core.memory import get_memory_agent
         from core.memory.utils.interfaces import MemoryType
         agent = await get_memory_agent()
@@ -110,9 +110,10 @@ async def main() -> int:
 
     model, F = _train_toy_ctm()
 
-    out.append("== 1. the perception hub is active (the one pipeline is live) ==")
-    check("PerceptionManager initialized -> process_input admits",
-          getattr(coord.perception, "active", False) is True)
+    out.append("== 1. the perception faculty is the one admitter ==")
+    check("the coordinator's perception faculty admits percepts",
+          callable(getattr(coord.vision, "admit_percept", None))
+          and not hasattr(coord, "perception"))
 
     out.append("== 2. perceive is the recognition primitive (no longer orphaned) ==")
     coord.learning.register_clause_classifier(
@@ -131,14 +132,14 @@ async def main() -> int:
     check("PERCEPT_RECOGNIZED reached a reaction (confidence governs behaviour)",
           len(seen_events) > 0)
 
-    out.append("== 4. ONE pipeline: coord.see senses, the hub admits once ==")
+    out.append("== 4. ONE pipeline: coord.see senses, the faculty admits once ==")
     coord.learning.register_clause_classifier(
         "toy_vision", model, labels=["dark", "bright"],
         encode=lambda p: _image_features(p, F))
     coord.attach_recognizer("vision", "toy_vision")
     pd = await coord.see(IMAGE, source="vision_test", domain="vision", actor_identity=None)
     await asyncio.sleep(0.2)
-    check("see returned PerceptionData (the hub was the admitter)", pd is not None)
+    check("see returned PerceptionData (the faculty was the admitter)", pd is not None)
     # THE PERCEPT IS NAMED FROM THE IMAGE'S CONTENT, not from the caller's
     # label: `source="vision_test"` becomes `vision_testx<digest>`, because the
     # caller's label is not an identity (an environment scan passes
@@ -148,7 +149,7 @@ async def main() -> int:
     percept_name = getattr(pd, "source", None) or "vision_test"
     check("the percept was admitted as evidence (edges for the subject exist)",
           len(await edges_for(percept_name)) > 0)
-    recent = await coord.perception.get_recent_perceptions(limit=20)
+    recent = coord.vision.recent_percepts(limit=20)
     check("the percept is in the substrate's perceptual awareness",
           any(getattr(p, "source", None) == percept_name for p in recent))
 
@@ -168,6 +169,39 @@ async def main() -> int:
     check("the memory carries a contemporaneous perceptual_state", bool(ps))
     check("belief_state is also stamped (perceived + believed together)",
           isinstance(ts, dict) and "belief_state" in ts)
+
+    # EVERYTHING THIS RUN WROTE IS REMOVED: its memories by exact id, and what
+    # it admitted under its own names (the percept's and the recognised sample's).
+    names = [percept_name, "sample_bright"]
+    ids = {mid, (getattr(pd, "metadata", None) or {}).get("memory_id")}
+    for name in names:
+        for sql in ("SELECT DISTINCT memory_id FROM unified.beliefs WHERE belief_text LIKE $1",
+                    "SELECT memory_id FROM memory_hot.memory_hot WHERE content::text LIKE $1"):
+            rows = await db.execute_query(sql, (f"%{name}%",), fetch_all=True) or []
+            ids |= {r["memory_id"] for r in rows}
+    ids.discard(None)
+    for memory_id in ids:
+        for table in ("unified.beliefs", "unified.memory_media", "memory_hot.memory_hot"):
+            await db.execute_query(f"DELETE FROM {table} WHERE memory_id = $1", (memory_id,),
+                                   commit=True)
+    for name in names:
+        like = f"{name}%"
+        await db.execute_query(
+            "DELETE FROM unified.concept_relations WHERE source_concept_id IN "
+            "(SELECT concept_id FROM unified.concepts WHERE name LIKE $1) "
+            "OR target_concept_id IN (SELECT concept_id FROM unified.concepts "
+            "WHERE name LIKE $1) OR target_surface LIKE $1", (like,), commit=True)
+        for sql in ("DELETE FROM unified.concepts WHERE name LIKE $1",
+                    "DELETE FROM unified.beliefs WHERE belief_text LIKE $1",
+                    "DELETE FROM unified.experience_pool WHERE about LIKE $1",
+                    "DELETE FROM unified.evidence_envelopes WHERE producer LIKE $1 OR source_id LIKE $1"):
+            await db.execute_query(sql, (like,), commit=True)
+    left = sum(int((await db.execute_query(
+        "SELECT (SELECT count(*) FROM unified.concepts WHERE name LIKE $1) + "
+        "(SELECT count(*) FROM unified.beliefs WHERE belief_text LIKE $1) AS n",
+        (f"{name}%",), fetch_one=True))["n"]) for name in names)
+    out.append(f"  cleanup: {len(ids)} memories and what was admitted under "
+               f"{', '.join(names)} removed; {left} left")
 
     print("\n".join(out))
     print(f"\nRESULT: {'PASS — one pipeline; perceive wired; perception rides within memory' if ok else 'FAIL'}")

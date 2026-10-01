@@ -157,6 +157,20 @@ optimization. Two subtleties:
 Runs only deterministic formalizers, so an input the substrate can represent never
 enters a model call graph. In order:
 
+0. **Mathematics said in a sentence, first.** `_mathematics(request)` takes the
+   request's *reading* (the one reader's meaning) and, when it is about numbers,
+   hands it to the symbolic mathematics faculty
+   (`core/tools/symbolic_math_faculty.mathematics_of`): arithmetic said in words
+   ("What is two plus three times four?", read into `has_augend` / `has_addend` /
+   `has_multiplicand` / ... facts), a written formula carried as one term
+   ("What is 2^64?", "Solve x^2 - 5x + 6 = 0.", "If 3x - 4 = 11, what is x?"), a
+   yes/no about numbers ("Is 97 prime?", "Is 2 + 2 = 5?"), and a request to
+   calculate, simplify, expand, factor, break down, differentiate or integrate.
+   The faculty computes the answer exactly at any size, the steps a person would
+   take, and a check that puts every answer back; the result's reason is
+   `computed` and its metadata carries the `worked` record. Formulas are read by
+   `arithmetic_reading.read_formula` (a precedence parser, nothing evaluated as
+   code). A reading that is not mathematics goes on to what follows.
 1. **Arithmetic first.** `read_equation(query)` (`arithmetic_reading.py`) reads a
    linear equation; if present, `_solve_equation` (`neural_bridge.py:1826`) hands it
    to the **constraint solver** (Z3). "Lyric can do algebra" is therefore a

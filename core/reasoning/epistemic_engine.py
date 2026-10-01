@@ -524,13 +524,6 @@ class EpistemicEngine:
         "detect_intrusion": "security.intrusion",
     }
 
-    # Lifted from the execution faculty (now in autonomous_coordinator.py) —
-    # these exist because blind credential retries were a real observed failure.
-    _CREDENTIAL_SIGNALS = (
-        "github_token", "gh_token", "github_pat", "personal_access_token",
-        "token", "credential", "osxkeychain", "gh auth",
-    )
-
     _PYTEST_RE = re.compile(r"(?P<n>\d+)\s+(?P<kind>passed|failed|error)")
 
     @staticmethod

@@ -155,8 +155,6 @@ from .security_tools import (
 
 from .ai_ml_tools import (
     GenerateEmbeddingTool,
-    QueryMemoryTool,
-    StoreMemoryTool,
     RunInferenceTool,
     AnalyzeTrainingDataTool,
     GetModelInfoTool,
@@ -165,8 +163,6 @@ from .ai_ml_tools import (
 )
 
 from .learning_tools import (
-    ProfilePerformanceTool,
-    AnalyzeCausalFeedbackTool,
     MonitorDataDriftTool,
     register_learning_tools
 )
@@ -228,19 +224,11 @@ from .data_processing_tools import (
 
 from .database_tools import (
     MySQLQueryTool,
-    MySQLTableInfoTool,
-    MySQLBackupTool,
-    MySQLRestoreTool,
+    PostgresQueryTool,
     RedisGetTool,
     RedisSetTool,
     R2UploadTool,
-    R2DownloadTool,
-    # Advanced database tools
-    ConnectionPoolManagerTool,
-    TransactionWrapperTool,
-    MigrationRunnerTool,
-    RowLevelAccessControlTool,
-    SafeQueryExecutorTool
+    R2DownloadTool
 )
 
 from .documentation_tools import (
@@ -267,11 +255,8 @@ from .monitoring_tools import (
     GetMemoryUsageTool,
     GetDiskUsageTool,
     GetNetworkStatsTool,
-    CheckMySQLHealthTool,
     GetServiceStatusTool,
     ParseLogsTool,
-    QueryMetricsTool,
-    CreateAlertTool,
     GetPerformanceProfileTool,
     # Advanced monitoring tools
     DistributedTracingTool,
@@ -325,8 +310,7 @@ from .testing_validation_tools import (
     FuzzTestingTool,
     MutationTestingTool,
     StaticSecurityAnalysisTool,
-    GoldenTestHarnessTool,
-    ChaosTestingTool
+    GoldenTestHarnessTool
 )
 
 from .reasoning_tools import (
@@ -468,8 +452,6 @@ __all__ = [
 
     # AI/ML tools
     'GenerateEmbeddingTool',
-    'QueryMemoryTool',
-    'StoreMemoryTool',
     'RunInferenceTool',
     'AnalyzeTrainingDataTool',
     'GetModelInfoTool',
@@ -477,8 +459,6 @@ __all__ = [
     'ExtractEntitiesTool',
 
     # Learning tools
-    'ProfilePerformanceTool',
-    'AnalyzeCausalFeedbackTool',
     'MonitorDataDriftTool',
     'register_learning_tools',
 
@@ -535,18 +515,11 @@ __all__ = [
 
     # Database tools
     'MySQLQueryTool',
-    'MySQLTableInfoTool',
-    'MySQLBackupTool',
-    'MySQLRestoreTool',
+    'PostgresQueryTool',
     'RedisGetTool',
     'RedisSetTool',
     'R2UploadTool',
     'R2DownloadTool',
-    'ConnectionPoolManagerTool',
-    'TransactionWrapperTool',
-    'MigrationRunnerTool',
-    'RowLevelAccessControlTool',
-    'SafeQueryExecutorTool',
 
     # Documentation tools
     'GenerateReadmeTool',
@@ -570,11 +543,8 @@ __all__ = [
     'GetMemoryUsageTool',
     'GetDiskUsageTool',
     'GetNetworkStatsTool',
-    'CheckMySQLHealthTool',
     'GetServiceStatusTool',
     'ParseLogsTool',
-    'QueryMetricsTool',
-    'CreateAlertTool',
     'GetPerformanceProfileTool',
     'DistributedTracingTool',
     'SLOSLIToolingTool',
@@ -624,7 +594,6 @@ __all__ = [
     'MutationTestingTool',
     'StaticSecurityAnalysisTool',
     'GoldenTestHarnessTool',
-    'ChaosTestingTool'
 
     # Reasoning / simulation / optimization tools
     'ProveTheoremTool',
@@ -643,13 +612,5 @@ except Exception as e:
     logger = logging.getLogger(__name__)
     logger.warning(f"Learning tools registration deferred: {e}")
 
-# Auto-register delegation tools. Without this the delegate_task tool exists in
-# the tree but is unreachable at runtime -- the same dark-capability pattern as
-# create_agents_system.
-try:
-    from .delegation_tools import register_delegation_tools
-    register_delegation_tools()
-except Exception as e:
-    import logging
-    logging.getLogger(__name__).error(
-        f"Delegation tools registration FAILED: {e}", exc_info=True)
+# The delegate_task tool is gone (2026-09-30): the substrate deploys agents of
+# itself through its coordinator (`deploy_agent`), not through a tool.

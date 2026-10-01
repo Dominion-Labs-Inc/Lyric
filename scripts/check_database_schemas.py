@@ -152,7 +152,6 @@ async def check_all_databases():
 
     # lyric_unified expected tables
     unified_expected = [
-        "governance_laws",
         "internal_directives",
         "directive_applications",
         "directive_evolution_log",

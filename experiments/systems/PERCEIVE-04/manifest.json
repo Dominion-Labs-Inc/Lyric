@@ -1,24 +1,24 @@
 {
   "experiment": "PERCEIVE-04",
-  "purpose": "memory stores image data: bytes retained, perceived, linked, recallable",
-  "run_at": "2026-09-28T15:16:48.107900+00:00",
+  "purpose": "memory keeps a picture's summary and sight trace, never the photograph; seen again from memory",
+  "run_at": "2026-09-30T15:02:41.471152+00:00",
   "image": "/Users/stefan/Dominion Labs/Lyric/test_data/vision_test.png",
   "file_sha256": "34d363dde4cf9345793469a805ce48f09577f666c9c07da7741f042b7ffbb1f1",
-  "memory_id": "mem_3bf589d3f13347338acb7009cc9c6238",
-  "retained": {
-    "media_id": "media_34d363dde4cf9345793469a805ce48f0",
-    "memory_id": "mem_3bf589d3f13347338acb7009cc9c6238",
-    "mime": "image/png",
-    "byte_size": 5294,
-    "width": 800,
-    "height": 400
+  "memory_id": "mem_df66b20107984cb28dc55807dcc442fc",
+  "kept": {
+    "media_id": "media_ff2b44888cafd7bade89b11dc33f78b3",
+    "memory_id": "mem_df66b20107984cb28dc55807dcc442fc",
+    "mime": "application/x-npz",
+    "byte_size": 18927
   },
   "checks": {
     "memory_stored": true,
-    "image_linked_to_memory": true,
-    "bytes_round_trip_exact": true,
-    "dimensions_retained": true,
+    "seeing_linked_to_memory": true,
+    "no_photograph_kept": true,
+    "sight_trace_kept": true,
+    "dimensions_retained_in_gist": true,
     "perceived_structure_attached": true,
+    "seen_again_from_memory": true,
     "memory_text_describes_picture": true
   }
 }

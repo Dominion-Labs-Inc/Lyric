@@ -119,11 +119,10 @@ async def main() -> int:
         await get_uncertainty_system().drain_writes()
         meta = getattr(percept, "metadata", None) or {}
         wrote["subject"] = subject = getattr(percept, "source", None)
-        wrote["perception_id"] = meta.get("perception_id")
         wrote["memory_id"] = memory_id = meta.get("memory_id")
-        check("sight returns a percept with a durable identity",
-              percept is not None and bool(wrote["perception_id"]) and bool(subject),
-              f"subject={subject} perception={wrote['perception_id']}")
+        check("sight returns a percept with a durable identity: the memory of the seeing",
+              percept is not None and bool(memory_id) and bool(subject),
+              f"subject={subject} memory={memory_id}")
         mem = await d.execute_query(
             "SELECT content FROM memory_hot.memory_hot WHERE memory_id = $1", (memory_id,),
             fetch_one=True) if memory_id else None
@@ -197,8 +196,6 @@ async def remove_sight(d, wrote):
                           (envelopes,))
     await d.execute_query("DELETE FROM unified.beliefs WHERE belief_text LIKE $1 OR memory_id = $2",
                           (f"{subject}%", memory_id or ""))
-    if wrote.get("perception_id"):
-        await d.execute_query("DELETE FROM unified.perceptions WHERE id = $1", (wrote["perception_id"],))
     if memory_id:
         await d.execute_query("DELETE FROM unified.memory_media WHERE memory_id = $1", (memory_id,))
         await d.execute_query("DELETE FROM memory_hot.memory_hot WHERE memory_id = $1", (memory_id,))
@@ -208,7 +205,6 @@ async def remove_sight(d, wrote):
         "experience": ("SELECT count(*) AS n FROM unified.experience_pool WHERE about = $1", subject),
         "envelopes": ("SELECT count(*) AS n FROM unified.evidence_envelopes WHERE producer = $1", subject),
         "beliefs": ("SELECT count(*) AS n FROM unified.beliefs WHERE belief_text LIKE $1", f"{subject}%"),
-        "perceptions": ("SELECT count(*) AS n FROM unified.perceptions WHERE source = $1", subject),
         "memory": ("SELECT count(*) AS n FROM memory_hot.memory_hot WHERE memory_id = $1", memory_id or ""),
         "media": ("SELECT count(*) AS n FROM unified.memory_media WHERE memory_id = $1", memory_id or ""),
     }

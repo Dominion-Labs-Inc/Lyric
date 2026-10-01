@@ -1,0 +1,192 @@
+{
+  "experiment": "SHAPES-LEARN-09",
+  "claim": "Taught function words, names, words used without 'a' and kinds of people written with a capital by example through its one teaching path, the substrate reads sentences with them it was never taught, and says a word it never held only where words used as it is used stand: WordNet's names without 'a', its words used without 'a' bare, its counted words, capital or not, after 'a' or 'an' as the next letter asks, its plural-only words as plurals.",
+  "hypothesis": "A lesson pair refused; a taught sentence that no longer reads; a never-taught probe unread or misread; a name said after 'a', a word the view takes to go without 'a' said after one, a counted word said bare, or 'a' and 'an' against the letter after them; a fault said again; a reading or saying that writes; or a write to the main store would each show here.",
+  "started_at": "2026-09-29T20:27:04.891992+00:00",
+  "duration_seconds": 71.044,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/Lyric/venv_lyric/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/Lyric",
+    "shadow_mode": null,
+    "git_commit": "4079045ffdac8d282649a9a829e3060eb736139f",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "lyric_dev",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "lyric_dev",
+        "model": "lyric_dev",
+        "user_context": "lyric_dev",
+        "learning": "lyric_dev"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "environment",
+        "database": "environment",
+        "user": "environment",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 54,
+    "database_verified": null,
+    "database_verified_reason": "not verified"
+  },
+  "summary": {
+    "checks": 18,
+    "passed": 18,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [
+    {
+      "name": "never-taught function words read",
+      "value": "15/15",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "never-taught names and bare words read",
+      "value": "9/9",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "WordNet nouns said",
+      "value": "1274/1401",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "uses found for WordNet's nouns",
+      "value": {
+        "name": 168,
+        "count": 1143,
+        "plural": 3,
+        "mass": 76,
+        "held": 11
+      },
+      "unit": "",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "the run is in the sandbox",
+      "passed": true,
+      "detail": "connected to lyric_dev",
+      "at": "2026-09-29T20:27:06.486554+00:00"
+    },
+    {
+      "label": "the substrate is running",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-29T20:27:24.740566+00:00"
+    },
+    {
+      "label": "english_01.json is learned, none refused",
+      "passed": true,
+      "detail": "{'learned': 234, 'linked': 330, 'already': 1, 'understood': 64, 'refused': 0, 'total': 228, 'repair_holophrase': 19, 'repair_substitution': 27, 'repair_lexical_item_based': 59, 'repair_item_based_lexical': 59, 'repair_add_links': 63}",
+      "at": "2026-09-29T20:27:33.660650+00:00"
+    },
+    {
+      "label": "english_02.json is learned, none refused",
+      "passed": true,
+      "detail": "{'learned': 17, 'linked': 66, 'already': 0, 'understood': 13, 'refused': 0, 'total': 29, 'repair_lexical_item_based': 12, 'repair_add_links': 13, 'repair_item_based_lexical': 3, 'repair_substitution': 1}",
+      "at": "2026-09-29T20:27:36.978489+00:00"
+    },
+    {
+      "label": "english_03.json is learned, none refused",
+      "passed": true,
+      "detail": "{'learned': 15, 'linked': 48, 'already': 0, 'understood': 4, 'refused': 0, 'total': 21, 'repair_item_based_lexical': 5, 'repair_add_links': 4, 'repair_phrase_in_slot': 11, 'repair_addition': 1}",
+      "at": "2026-09-29T20:27:38.209084+00:00"
+    },
+    {
+      "label": "english_04.json is learned, none refused",
+      "passed": true,
+      "detail": "{'learned': 95, 'linked': 100, 'already': 0, 'understood': 4, 'refused': 0, 'total': 70, 'repair_item_based_lexical': 22, 'repair_holophrase': 10, 'repair_lexical_item_based': 33, 'repair_substitution': 1, 'repair_add_links': 4}",
+      "at": "2026-09-29T20:27:45.935055+00:00"
+    },
+    {
+      "label": "english_05.json is learned, none refused",
+      "passed": true,
+      "detail": "{'learned': 43, 'linked': 72, 'already': 0, 'understood': 10, 'refused': 0, 'total': 52, 'repair_lexical_item_based': 11, 'repair_item_based_lexical': 28, 'repair_phrase_in_slot': 3, 'repair_add_links': 10}",
+      "at": "2026-09-29T20:27:50.198828+00:00"
+    },
+    {
+      "label": "english_06.json is learned, none refused",
+      "passed": true,
+      "detail": "{'learned': 59, 'linked': 116, 'already': 0, 'understood': 17, 'refused': 0, 'total': 77, 'repair_lexical_item_based': 27, 'repair_add_links': 17, 'repair_holophrase': 8, 'repair_item_based_lexical': 4, 'repair_phrase_in_slot': 15, 'repair_substitution': 6}",
+      "at": "2026-09-29T20:27:53.777765+00:00"
+    },
+    {
+      "label": "english_07.json is learned, none refused",
+      "passed": true,
+      "detail": "{'learned': 85, 'linked': 137, 'already': 3, 'understood': 30, 'refused': 0, 'total': 101, 'repair_item_based_lexical': 61, 'repair_lexical_item_based': 8, 'repair_add_links': 27, 'repair_substitution': 2}",
+      "at": "2026-09-29T20:28:01.493563+00:00"
+    },
+    {
+      "label": "every taught sentence of the seven lessons reads to its meaning",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-09-29T20:28:02.581428+00:00"
+    },
+    {
+      "label": "sentences with function words never taught read to the meaning they have",
+      "passed": true,
+      "detail": "15/15",
+      "at": "2026-09-29T20:28:02.618024+00:00"
+    },
+    {
+      "label": "sentences with names and bare words never taught read to the meaning they have",
+      "passed": true,
+      "detail": "9/9",
+      "at": "2026-09-29T20:28:02.640723+00:00"
+    },
+    {
+      "label": "no name, and no word taken to go without 'a', is said after 'a'",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-09-29T20:28:15.493786+00:00"
+    },
+    {
+      "label": "no word taken to be counted is said bare",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-09-29T20:28:15.493800+00:00"
+    },
+    {
+      "label": "'a' and 'an' are written as the letter after them asks",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-09-29T20:28:15.493805+00:00"
+    },
+    {
+      "label": "each is said as English says it",
+      "passed": true,
+      "detail": "5/5",
+      "at": "2026-09-29T20:28:15.514631+00:00"
+    },
+    {
+      "label": "the view is as teaching left it",
+      "passed": true,
+      "detail": "1417 -> 1417",
+      "at": "2026-09-29T20:28:15.514646+00:00"
+    },
+    {
+      "label": "the main model's store is untouched",
+      "passed": true,
+      "detail": "192294 rows before, 192294 after",
+      "at": "2026-09-29T20:28:15.936264+00:00"
+    }
+  ],
+  "notes": []
+}

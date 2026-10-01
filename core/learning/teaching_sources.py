@@ -327,11 +327,23 @@ class ConceptNetSource:
 
 @dataclass
 class WordNetSource:
-    """WordNet's noun taxonomy and its own part-of-speech tags.
+    """All of WordNet: every word it holds, in every part of speech, each sense it names, and what it says of each.
 
     A hand-built lexical resource, so its assertions are not crowd-sourced
     guesses and do not carry a per-assertion weight -- `quality` is stated once,
     for the resource, rather than invented per edge.
+
+    What it teaches, each sense under the name `_sense_names` gives it:
+      * what a thing is a kind of (`isa`), and what a named thing is an instance of (`instance_of`), for nouns
+        and verbs;
+      * what a thing is part of (`part_of`), a member of (`member_of`) and made of (`made_of`);
+      * opposites (`antonym_of`), and the adjectives a satellite is like (`similar_to`);
+      * what a verb's doing requires (`requires`, WordNet's entailment) and causes (`causes`);
+      * every word a sense is written with, not only its first: "bank" for the financial institution as well as
+        for the slope;
+      * the word class of every word it settles (`word_classes`).
+    A fact a frame the substrate was taught can say carries its meaning and its words, so it teaches English as
+    well as the fact; the rest is taught as the fact alone until a lesson teaches the English for it.
     """
 
     name: str = "wordnet"
@@ -339,6 +351,13 @@ class WordNetSource:
     #: Hand-built hypernymy. This is the resource the reasoning taxonomy is
     #: supposed to come from.
     curated: bool = True
+    #: Where the lessons' teacher states which sense each lesson word is used in (`stated_senses`); the lessons'
+    #: own statement when not given.
+    senses_path: Optional[str] = None
+    #: Offer each definition as a sentence with no meaning given, read or dropped. Off unless asked: read so, a
+    #: definition costs seconds and about one in ten reads at all, so all of WordNet's 64,497 would take days and
+    #: teach little. A definition is taught once, with its meaning, when its meaning is given.
+    definitions: bool = False
 
     def provenance(self):
         return _provenance("wordnet", "wordnet_3.0")
@@ -353,7 +372,12 @@ class WordNetSource:
         here. That abstention is deliberate and load-bearing: measured against
         the 315 words bulk teaching had wrongly marked ADJECTIVE, WordNet has no
         clear class for 310 of them.
+
+        Worked out once for the source: WordNet reads each tagged count from its files, and a pass asks for the
+        classes more than once.
         """
+        if "_classes" in self.__dict__:
+            return self.__dict__["_classes"]
         from collections import defaultdict
         from nltk.corpus import wordnet as wn
 
@@ -375,151 +399,288 @@ class WordNetSource:
             if len(ranked) > 1 and ranked[0][1] == ranked[1][1]:
                 continue
             settled[word] = ranked[0][0]
+        self.__dict__["_classes"] = settled
         return settled
 
-    def _ambiguous_names(self) -> set:
-        """Names whose noun senses DISAGREE about what kind they are.
+    @staticmethod
+    def _written(lemma_name: str) -> str:
+        return lemma_name.replace("_", " ").strip()
 
-        Two synsets sharing a first lemma are only a problem when their parents
-        differ: `bank.n.01` and `bank.n.09` are genuinely different kinds, while
-        two senses that hang off the same parent lose nothing by sharing a node.
-        So this is the exact set that needs qualifying, and nothing wider --
-        8,498 of 67,186 names, carrying the 23,291 edges that were asserting
-        several kinds at once.
+    @staticmethod
+    def _ordered(related) -> list:
+        """WordNet's related senses in one order every time. NLTK keeps a synset's pointers in a set, so the order
+        it hands them over in changed from one process to the next, and with it which qualifier a sense was named
+        by and which side of an opposite was taught: the same source taught a different harvest in each process."""
+        return sorted(set(related), key=lambda item: item.name() if hasattr(item, "name") else str(item))
+
+    @classmethod
+    def _qualifiers(cls, synset) -> list:
+        """What a sense can be told apart by, most telling first: what it is a kind of (or an instance of); for an
+        adjective, the head adjective it is like, then the attribute it is a value of; for an adverb, the
+        adjective it is made from; then the senses WordNet groups it with or refers to."""
+        order = cls._ordered
+        return (order(synset.hypernyms()) + order(synset.instance_hypernyms()) + order(synset.similar_tos())
+                + order(synset.attributes())
+                + order(p.synset() for lemma in synset.lemmas() for p in lemma.pertainyms())
+                + order(synset.verb_groups()) + order(synset.also_sees()))
+
+    def _sense_names(self) -> Dict[Any, str]:
+        """The name each SENSE is taught under, synset by synset; "" for one that cannot be told apart from the
+        other senses of its word, and is not taught.
+
+        A word names several things, and each is its own concept: "fish" names an animal and a food, "person" a
+        human being, a human body and a grammatical category. A synset's first word alone named them all, and
+        that fused the taxonomy: `inheritance.n.01..04` are four kinds (an acquisition, a transferred property, a
+        heredity, an attribute) and all reduced to `inheritance`, which then inherited all four parents at once.
+        Measured across WordNet's nouns, 8,498 names asserted parents that disagree, and they are the COMMON
+        words: `person` came out a kind of `grammatical_category` AND `human_body`.
+
+        So where a word's senses in one part of speech disagree about what they are, THE SENSE THE WORD NAMES
+        MOST OFTEN is named by the word itself: by tagged use, then by WordNet's own order of senses, which is by
+        frequency. That is the sense an everyday word means, and the one English lessons taught under the same
+        name ("fish", the animal), so what the lessons taught and what WordNet says of it are one concept. Each
+        OTHER sense is named by what it is first a kind of, before its word ("food fish", "grammatical category
+        person"), which is the form the identity authority reads (`classify_qualified_name`). A qualified name
+        never takes a name WordNet gives a sense of its own ("food fish" is a fish kept for food, `food_fish.n.01`;
+        the food sense of "fish" is then "solid food fish"), nor another sense's: the next qualifier is tried. A
+        word's senses in different parts of speech share the word's name where each is its own part's most
+        frequent sense ("open" the act and "open" the state), as the lessons hold them.
+        Worked out once for the source.
         """
+        if "_names" in self.__dict__:
+            return self.__dict__["_names"]
         from collections import defaultdict
         from nltk.corpus import wordnet as wn
 
-        def first_lemma(synset) -> str:
-            return synset.lemma_names()[0].replace("_", " ").strip().lower()
+        def name_of(synset) -> str:
+            return self._written(synset.lemma_names()[0]).lower()
 
-        senses = defaultdict(list)
-        for synset in wn.all_synsets("n"):
-            name = first_lemma(synset)
-            if name:
-                senses[name].append(synset)
+        def part(synset) -> str:
+            return "a" if synset.pos() == "s" else synset.pos()
 
-        contested = set()
-        for name, group in senses.items():
-            if len(group) < 2:
+        groups: Dict[Tuple[str, str], list] = defaultdict(list)
+        names: Dict[Any, str] = {}
+        for synset in wn.all_synsets():
+            # A NUMBER IS NAMED BY ITS VALUE, as the lessons name numbers ("1", "1000000000000"): WordNet writes
+            # `trillion.n.03` "trillion" first and "1000000000000" among its words, and named by the word it would
+            # be a second concept beside the number the lessons taught.
+            value = next((lemma for lemma in synset.lemma_names() if lemma.isdigit()), None)
+            if value is not None:
+                names[synset] = str(int(value))
                 continue
-            parents = {first_lemma(h) for s in group
-                       for h in s.hypernyms() + s.instance_hypernyms()}
-            if len(parents) > 1:
-                contested.add(name)
-        return contested
+            name = name_of(synset)
+            if name:
+                groups[(part(synset), name)].append(synset)
+        # THE SENSES THE LESSONS USE THEIR WORDS IN, as their teacher states them (`stated_senses`): such a sense is
+        # named by the lessons' word, whatever word WordNet writes it with first ("say" is WordNet's `state.v.01`),
+        # and every other sense of that word is named apart. A word the lessons use for none of WordNet's senses
+        # ("Tom", a person) leaves every WordNet sense of it named apart.
+        stated = self.stated_senses()
+        for synset in (s for s in stated.values() if s is not None):
+            own = groups.get((part(synset), name_of(synset)))
+            if own and synset in own:
+                own.remove(synset)
+        taken = {name for _, name in groups} | {word for _, word in stated} | set(names.values())
+        qualify: list = []
+        for (pos, name), senses in sorted(groups.items()):
+            if (pos, name) in stated:
+                meant = stated[(pos, name)]
+                if meant is not None:
+                    names[meant] = name
+                qualify.extend((name, synset) for synset in senses)
+                continue
+            if not senses:
+                continue
+            kinds = {name_of(q) for s in senses for q in self._qualifiers(s)}
+            if len(senses) < 2 or len(kinds) < 2:
+                for synset in senses:
+                    names[synset] = name
+                continue
+            order = {s: i for i, s in enumerate(wn.synsets(senses[0].lemma_names()[0]))}
+            # Most tagged first; then a thing's common name before a person's or a place's ("crane" the bird or the
+            # machine, not the writer Stephen Crane, when none was tagged); then WordNet's order, by frequency.
+            ranked = sorted(senses, key=lambda s: (-s.lemmas()[0].count(), s.lemma_names()[0][:1].isupper(),
+                                                   order.get(s, len(order)), s.name()))
+            names[ranked[0]] = name
+            qualify.extend((name, synset) for synset in ranked[1:])
+        for (pos, word), meant in stated.items():
+            if meant is not None and meant not in names:
+                names[meant] = word
+        for name, synset in qualify:
+            names[synset] = ""
+            for qualifier in self._qualifiers(synset):
+                for lemma in qualifier.lemma_names():
+                    word = self._written(lemma).lower()
+                    candidate = f"{word} {name}"
+                    if word == name or len(candidate.split()) > MAX_TERM_WORDS or candidate in taken:
+                        continue
+                    names[synset] = candidate
+                    taken.add(candidate)
+                    break
+                if names[synset]:
+                    break
+        self.__dict__["_names"] = names
+        return names
+
+    def stated_senses(self) -> Dict[Tuple[str, str], Any]:
+        """`(part of speech, word) -> synset` (None: no WordNet sense) for the words the English lessons use in a
+        sense other than the one WordNet's tagged text names most often, as the lessons' teacher states them
+        (`data/lessons/senses.json`). Empty when there is no such statement."""
+        if "_stated" in self.__dict__:
+            return self.__dict__["_stated"]
+        from pathlib import Path
+        from nltk.corpus import wordnet as wn
+        path = Path(self.senses_path) if self.senses_path else \
+            Path(__file__).resolve().parents[2] / "data" / "lessons" / "senses.json"
+        stated: Dict[Tuple[str, str], Any] = {}
+        if path.exists():
+            for key, synset in json.loads(path.read_text())["senses"].items():
+                word, pos = key.rsplit("|", 1)
+                stated[(pos, word.strip().lower())] = wn.synset(synset) if synset else None
+        self.__dict__["_stated"] = stated
+        return stated
+
+    def usage(self) -> Iterator[Tuple[str, str, int]]:
+        """How often each word was met naming each sense, in the text WordNet's senses were tagged in (SemCor, the
+        Brown corpus): `(word, sense name, times)`, for every word met at least once. What a person learns from
+        hearing English used, given as the count of real uses: "fish" met naming the animal 12 times and the
+        food 3; "person" naming a human being 6,833 times. Read by the listener as how often a word names each
+        thing (`derived_reader.meant`)."""
+        from nltk.corpus import wordnet as wn
+        names = self._sense_names()
+        met: Dict[Tuple[str, str], int] = {}
+        for synset in wn.all_synsets():
+            name = names.get(synset, "")
+            if not name or len(name.split()) > MAX_TERM_WORDS:
+                continue
+            for lemma in synset.lemmas():
+                times = lemma.count()
+                if times > 0:
+                    # Senses that share a name (they do not disagree about what they are) are one thing, met as often
+                    # as all of them were.
+                    key = (self._written(lemma.name()), name)
+                    met[key] = met.get(key, 0) + times
+        for (word, name), times in met.items():
+            yield word, name, times
 
     def word_classes(self) -> Iterator[Tuple[str, str]]:
         """Every class WordNet settles, INCLUDING adverbs.
 
-        `records()` states a class only for the two nouns in a taxonomy edge, so
-        a verb, an adjective or an adverb that never appears in one was never
-        stated at all. This is the source saying everything it knows about its
-        own vocabulary."""
+        `records()` states a class only for the words in a fact, so a verb, an adjective or an adverb that never
+        appears in one was never stated at all. This is the source saying everything it knows about its own
+        vocabulary."""
         return iter(self._word_classes().items())
 
     def records(self) -> Iterator[TaughtRecord]:
         from nltk.corpus import wordnet as wn
+        from core.semantics.derived_reader import Meaning, MeaningFact
 
         classes = self._word_classes()
-        ambiguous = self._ambiguous_names()
-
-        def name_of(synset) -> str:
-            """The name this SENSE is taught under.
-
-            A synset's first lemma is its conventional name, and using it alone
-            is what fused the taxonomy: `inheritance.n.01..04` are four kinds
-            (an acquisition, a transferred property, a heredity, an attribute)
-            and they all reduced to `inheritance`, which then inherited all four
-            parents at once. Measured across WordNet's nouns, 8,498 names ended
-            up asserting parents that disagree — and they are the COMMON words,
-            the ones the rest of the taxonomy hangs off: `person` came out a kind
-            of `grammatical_category` AND `human_body`; `man` a kind of
-            `game_equipment` AND `island`.
-
-            A sense whose name is contested is therefore taught QUALIFIED BY WHAT
-            IT IS A KIND OF — `causal_agent person`, `grammatical_category
-            person`. The qualifier goes FIRST because that is the form the
-            identity authority already reads: `classify_qualified_name` treats
-            `<qualifier>_<head>` as a SPECIALIZATION_OF the head (head-first is a
-            different claim — `pressure_loss` is a loss, not a pressure). So the
-            bare word still reaches every sense through `resolve_query`, and no
-            sense inherits another's parents.
-
-            Measured on this scheme: the 8,498 disagreeing names fall to 50, and
-            84,061 of 84,427 edges survive.
-            """
-            name = synset.lemma_names()[0].replace("_", " ").strip().lower()
-            if not name or name not in ambiguous:
-                return name
-            hypernyms = synset.hypernyms() + synset.instance_hypernyms()
-            if not hypernyms:
-                # Nothing to qualify BY. A contested name with no parent cannot
-                # be told from its siblings, so it is not taught rather than
-                # taught as one of them.
-                return ""
-            qualifier = hypernyms[0].lemma_names()[0].replace("_", " ").strip().lower()
-            return f"{qualifier} {name}" if qualifier else ""
-
-        def word_of(synset) -> str:
-            """The word a sense is written with: its first lemma, whatever name it is taught under."""
-            return synset.lemma_names()[0].replace("_", " ").strip()
-
-        from core.semantics.derived_reader import Meaning, MeaningFact
+        names = self._sense_names()
+        order = self._ordered
         seen = set()
-        for synset in wn.all_synsets("n"):
-            child = name_of(synset)
-            if not child or len(child.split()) > MAX_TERM_WORDS:
-                # The store holds names of at most MAX_TERM_WORDS words, and a
-                # qualified sense can exceed it. Shortening the identifier is not
-                # available here -- the qualifier IS what tells the sense apart --
-                # so the edge is dropped rather than taught under a name that
-                # means something else. 363 of 84,427 edges, measured.
-                continue
-            for hypernym in synset.hypernyms() + synset.instance_hypernyms():
-                parent = name_of(hypernym)
-                if not parent or parent == child:
-                    continue
-                if len(parent.split()) > MAX_TERM_WORDS:
-                    continue
-                key = (child, parent)
-                if key in seen:
-                    continue
-                seen.add(key)
-                written = ((child, word_of(synset)), (parent, word_of(hypernym)))
-                stated = tuple((word.lower(), classes[word.lower()])
-                               for _, word in written if word.lower() in classes)
-                if hypernym in synset.instance_hypernyms():
-                    # A NAMED THING ("Paris", "Hussein") is said without an article, and no frame taught yet says
-                    # a name so: its fact is taught, and its English waits for a lesson with names in it.
-                    yield TaughtRecord(subject=child, relation="isa", obj=parent,
-                                       quality=self.quality, word_classes=stated)
-                    continue
-                # WHAT IS SO, AND THE WORDS: the substrate says it through the
-                # frames it was taught (`TeachingPass._said`), so the source
-                # writes no English of its own.
-                yield TaughtRecord(subject=child, relation="isa", obj=parent,
-                                   quality=self.quality, word_classes=stated,
-                                   meaning=Meaning("tell", (MeaningFact("isa", child, parent),)),
-                                   words=tuple((name, word) for name, word in written if name != word))
+        opposites = set()
 
-            # THE DEFINITION, SAID AS A SENTENCE. The taxonomy edge above says
-            # what a thing IS; WordNet's gloss says what it DOES, and that is
-            # the only place a VERB ever appears in this source. Taught as a
-            # sentence with no triple behind it, so it is READ or it is dropped
-            # -- there is no fallback that could file a mis-parsed gloss as a
-            # taxonomy edge.
-            # THE GLOSS IS ABOUT ONE SENSE, so it is said of that sense. Said of
-            # the bare word it would put the definitional edge straight back on
-            # the fused node -- "A person is a human being." and "A person is a
-            # grammatical category." are both WordNet glosses of `person`, and
-            # admitting both is the collapse this method just took apart.
+        def fits(name: str) -> bool:
+            # The store holds names of at most MAX_TERM_WORDS words. A name past it is not taught: shortening it
+            # would name something else.
+            return bool(name) and len(name.split()) <= MAX_TERM_WORDS
+
+        def record(relation: str, subject, subject_word: str, obj, obj_word: str, *, said: bool):
+            """One fact between two senses, taught once. `said`: a frame the substrate was taught says this
+            relation between things of these parts of speech, so the fact carries its meaning and its words and
+            teaches its English too (`TeachingPass._said`); otherwise it is the fact alone."""
+            child, parent = names.get(subject, ""), names.get(obj, "")
+            if not (fits(child) and fits(parent)) or child == parent:
+                return None
+            if relation in ("isa", "instance_of") and parent.isdigit():
+                # NOTHING IS A 7: WordNet files a set of seven under `seven`, but a number is no kind; that a set
+                # has seven members is a count, which WordNet does not state as one.
+                return None
+            key = (child, relation, parent, subject_word.lower(), obj_word.lower() if said else "")
+            if key in seen:
+                return None
+            seen.add(key)
+            written = ((child, subject_word), (parent, obj_word))
+            stated = tuple((word.lower(), classes[word.lower()]) for _, word in written if word.lower() in classes)
+            if not said:
+                return TaughtRecord(subject=child, relation=relation, obj=parent, quality=self.quality,
+                                    word_classes=stated)
+            # WHAT IS SO, AND THE WORDS: the substrate says it through the frames it was taught, so the source
+            # writes no English of its own.
+            return TaughtRecord(subject=child, relation=relation, obj=parent, quality=self.quality,
+                                word_classes=stated,
+                                meaning=Meaning("tell", (MeaningFact(relation, child, parent),)),
+                                words=tuple((name, word) for name, word in written if name != word))
+
+        for synset in wn.all_synsets():
+            if not fits(names.get(synset, "")):
+                continue
+            pos = "a" if synset.pos() == "s" else synset.pos()
+            words = list(dict.fromkeys(self._written(lemma) for lemma in synset.lemma_names()))
+            word = words[0]
+            found = []
+            for hypernym in order(synset.hypernyms()):
+                # What a thing is a kind of, said for a noun through "A robin is a bird."; a verb's kind waits for a
+                # lesson that says one ("To stroll is to walk.").
+                found.append(record("isa", synset, word, hypernym, self._written(hypernym.lemma_names()[0]),
+                                    said=pos == "n"))
+                # EVERY WORD THE SENSE IS WRITTEN WITH: "auto" and "automobile" name the car as "car" does, and are
+                # learned saying the same fact.
+                if pos == "n":
+                    for other in words[1:]:
+                        found.append(record("isa", synset, other, hypernym,
+                                            self._written(hypernym.lemma_names()[0]), said=True))
+            for hypernym in order(synset.instance_hypernyms()):
+                # A NAMED THING ("Paris", "Hussein") is said without an article, and no frame taught yet says a name
+                # so: its fact is taught, and its English waits for a lesson with names in it.
+                found.append(record("instance_of", synset, word, hypernym,
+                                    self._written(hypernym.lemma_names()[0]), said=False))
+            for part_of, kind in ((order(synset.part_meronyms()), "part_of"),
+                                  (order(synset.member_meronyms()), "member_of")):
+                for piece in part_of:
+                    # "A wheel is part of a car." "A player is a member of a team."
+                    found.append(record(kind, piece, self._written(piece.lemma_names()[0]), synset, word,
+                                        said=True))
+            for material in order(synset.substance_meronyms()):
+                # "A table is made of wood."
+                found.append(record("made_of", synset, word, material, self._written(material.lemma_names()[0]),
+                                    said=True))
+            for head in order(synset.similar_tos()):
+                found.append(record("similar_to", synset, word, head, self._written(head.lemma_names()[0]),
+                                    said=False))
+            for needed in order(synset.entailments()):
+                found.append(record("requires", synset, word, needed, self._written(needed.lemma_names()[0]),
+                                    said=False))
+            for caused in order(synset.causes()):
+                found.append(record("causes", synset, word, caused, self._written(caused.lemma_names()[0]),
+                                    said=False))
+            for lemma in synset.lemmas():
+                for opposite in order(lemma.antonyms()):
+                    # An opposite is one fact, whichever side it is found from. "Hot is the opposite of cold." says
+                    # it of adjectives; of the rest, the fact alone.
+                    pair = frozenset((names.get(opposite.synset(), ""), names.get(synset, "")))
+                    if pair in opposites:
+                        continue
+                    opposites.add(pair)
+                    found.append(record("antonym_of", synset, self._written(lemma.name()), opposite.synset(),
+                                        self._written(opposite.name()), said=pos == "a"))
+            for taught in found:
+                if taught is not None:
+                    yield taught
+
+            # THE DEFINITION, SAID AS A SENTENCE. The facts above say what a thing IS; WordNet's gloss says what
+            # it DOES. Taught as a sentence with no triple behind it, so it is READ or it is dropped -- there is no
+            # fallback that could file a mis-parsed gloss as a taxonomy edge.
+            # THE GLOSS IS ABOUT ONE SENSE, and a sentence written with the word is read as the sense the word
+            # names most often. So a gloss is said only of the sense the word itself names; another sense's waits
+            # for its meaning to be given with it.
             gloss = (synset.definition() or "").strip().rstrip(".")
-            if (gloss and len(gloss.split()) <= 24 and child
-                    and len(child.split()) <= MAX_TERM_WORDS):
+            if (self.definitions and pos == "n" and gloss and len(gloss.split()) <= 24
+                    and names[synset] == word.lower()):
                 yield TaughtRecord(
                     subject="", relation="", obj="", quality=self.quality,
-                    sentence=f"{_article(child).capitalize()} {child} is {gloss}.")
+                    sentence=f"{_article(word).capitalize()} {word} is {gloss}.")
 
 
 # ── Wikidata ────────────────────────────────────────────────────────────────

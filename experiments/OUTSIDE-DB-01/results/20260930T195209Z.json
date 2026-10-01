@@ -1,0 +1,122 @@
+{
+  "experiment": "OUTSIDE-DB-01",
+  "claim": "postgres_query works on the PostgreSQL database the person it acts for saved, and nowhere else: never the substrate's own server, never for the substrate's own acts, never without a saved connection, and the login never passes through what the tool is given or returns.",
+  "hypothesis": "A query reaching the substrate's own server, a query run for no person or for someone with nothing saved, the login showing up in the tool's output, or a write to the substrate's stores would each show here.",
+  "started_at": "2026-09-30T19:52:09.528320+00:00",
+  "duration_seconds": 8.25,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/Lyric/venv_lyric/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/Lyric",
+    "shadow_mode": null,
+    "git_commit": "4079045ffdac8d282649a9a829e3060eb736139f",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "lyric_dev",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "lyric_dev",
+        "model": "lyric_dev",
+        "user_context": "lyric_dev",
+        "learning": "lyric_dev"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "environment",
+        "database": "environment",
+        "user": "environment",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "pool_idle_seconds": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 313,
+    "database_verified": null,
+    "database_verified_reason": "not verified"
+  },
+  "summary": {
+    "checks": 11,
+    "passed": 11,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [],
+  "checks": [
+    {
+      "label": "a query reads the rows of the database the person saved",
+      "passed": true,
+      "detail": "{'query': 'SELECT item, qty FROM orders ORDER BY id', 'database': 'shop', 'rows': [{'item': 'valve', 'qty': 3}, {'item': 'pump', 'qty': 1}], 'count': 2}",
+      "at": "2026-09-30T19:52:17.149932+00:00"
+    },
+    {
+      "label": "a change writes to their database",
+      "passed": true,
+      "detail": "{'query': 'INSERT INTO orders (item, qty) VALUES ($1, $2)', 'database': 'shop', 'status': 'INSERT 0 1', 'affected_rows': 1}; their database holds 12",
+      "at": "2026-09-30T19:52:17.151998+00:00"
+    },
+    {
+      "label": "a person who saved no database is refused",
+      "passed": true,
+      "detail": "outsidedb_ben_4004cc has no postgresql database saved",
+      "at": "2026-09-30T19:52:17.152275+00:00"
+    },
+    {
+      "label": "a saved connection to the substrate's own server is refused",
+      "passed": true,
+      "detail": "the saved connection is the substrate's own database server; its own data is reached through its authorities, never through a tool",
+      "at": "2026-09-30T19:52:17.277548+00:00"
+    },
+    {
+      "label": "and nothing connected to it",
+      "passed": true,
+      "detail": "cached connectors: ['ann_4004cc']",
+      "at": "2026-09-30T19:52:17.277571+00:00"
+    },
+    {
+      "label": "the substrate's own act is refused",
+      "passed": true,
+      "detail": "a database tool works on a database of the person it acts for; this act is the substrate's own, and its own data is reached through its authorities",
+      "at": "2026-09-30T19:52:17.277590+00:00"
+    },
+    {
+      "label": "an act bound to no one is refused",
+      "passed": true,
+      "detail": "a database tool works on a database of the person it acts for; this act is the substrate's own, and its own data is reached through its authorities",
+      "at": "2026-09-30T19:52:17.277604+00:00"
+    },
+    {
+      "label": "it offers no way to name the substrate's databases",
+      "passed": true,
+      "detail": "['query', 'params']",
+      "at": "2026-09-30T19:52:17.277625+00:00"
+    },
+    {
+      "label": "the login never appears in what it returns",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-30T19:52:17.277648+00:00"
+    },
+    {
+      "label": "it is registered",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-30T19:52:17.277699+00:00"
+    },
+    {
+      "label": "main and sandbox are untouched",
+      "passed": true,
+      "detail": "before {'lyric_db': 290079, 'lyric_dev': 350341}, after {'lyric_db': 290079, 'lyric_dev': 350341}",
+      "at": "2026-09-30T19:52:17.778643+00:00"
+    }
+  ],
+  "notes": [
+    "nonce 4004cc; the outside world was a throwaway PostgreSQL server, removed after the run"
+  ]
+}

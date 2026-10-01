@@ -1,7 +1,7 @@
 {
   "experiment": "GOV-ABLATION-01",
   "question": "Does the promotion gate stop a false (over-broad) rule from gaining authority to act, while still admitting a correct rule?",
-  "run_at": "2026-09-18T01:26:01.544734+00:00",
+  "run_at": "2026-10-01T00:41:02.763412+00:00",
   "coordinator_driven": [
     "system.autonomous_coordinator.learning.induce",
     "system.autonomous_coordinator.learning.record",
@@ -57,7 +57,7 @@
     "has_POWERED": true,
     "SEG": {
       "validation_status": "validated",
-      "confirmed": 2,
+      "confirmed": 1,
       "contradicted": 0,
       "executable": true,
       "authorized": 1,

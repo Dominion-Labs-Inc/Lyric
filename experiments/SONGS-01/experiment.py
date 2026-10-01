@@ -71,6 +71,21 @@ SUNG = "vocadito_5"
 #: Fixed before the first run.
 NOTES_MATCHED = 0.65        # a sung melody's notes against the annotator's (measured 0.73)
 RECALLED_SAME = 0.8         # the melody heard again from its trace (0.85-0.88 offline)
+#: Songs taught by one person humming them and heard hummed by another (HumTrans,
+#: VALID split, first takes, one segment of each song: F01 teaches, F02 hums);
+#: and a song never taught, hummed by F02.
+HUMTRANS = REPO / "test_data" / "music" / "humtrans" / "wav"
+HUMMED = ("0003_0001", "0027_0001", "0034_0001")
+HUMMED_UNTAUGHT = "0269_0001"
+#: Songs taught from a minute of their full MIX, heard as 20 s of their melody
+#: sung alone (MDB-melody-synth: the melody stem), with the minute each is
+#: taught from (seconds in); and one song whose melody is heard never taught.
+#: The excerpts are cut at run time into the dataset's folder: the dataset is
+#: CC BY-NC and is not copied into the repository.
+MDB = REPO / "test_data" / "music" / "MDB-melody-synth"
+MIXED = {"AClassicEducation_NightOwl": 35, "LizNelson_Coldwar": 24,
+         "HopAlong_SisterCities": 22}
+MIXED_UNTAUGHT = ("AlexanderRoss_GoodbyeBolero", 130)
 
 EV = RunRecord(
     "SONGS-01",
@@ -359,11 +374,98 @@ async def main() -> int:
         check("the clip is seen, and heard playing the song",
               played[:1] == [title_of["disco"]] and bool((clip.content.get("blobs") or [])),
               str(played))
+
+        # ── J. HUMMED ────────────────────────────────────────────────────────
+        print("\n== J. A song taught by one person humming it is known hummed by another ==")
+        hum = lambda person, tune: next(HUMTRANS.glob(f"{person}_{tune}_1*.wav"))
+        hummed_title = {t: f"hummed song {t} {tag}" for t in HUMMED}
+        hummed_ids = {}
+        with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
+            for t in HUMMED:
+                hummed_ids[t] = await coord.learn_song(
+                    hummed_title[t], str(hum("F01", t)), actor_identity=None,
+                    source=f"s{tag}h{t}", domain=DOMAIN)
+            await get_uncertainty_system().drain_writes()
+        memory_ids.extend(hummed_ids.values())
+        kept = await get_media_store().media_for_memory(str(hummed_ids[HUMMED[0]]))
+        line = H.trace_tune(kept[0]["bytes"]) if kept else None
+        check("a song taught by humming it keeps its tune in the lesson's trace",
+              line is not None and len(line) >= MU.TUNE_MIN_POINTS
+              and set(faculty._tunes) >= set(hummed_title.values()),
+              f"{0 if line is None else len(line)} points; tunes held: "
+              f"{sorted(t for t in faculty._tunes if tag in t)}")
+        other = await perceive("hear", hum("F02", HUMMED[0]), "hum")
+        tuned = [t for t in (other.content.get("has_tune_of") or [])] if other else []
+        check("another person humming it, in their own key and pace, has the song's tune",
+              [t["song"] for t in tuned[:1]] == [hummed_title[HUMMED[0]]]
+              and not other.content.get("plays"),
+              str(tuned))
+        said = await db.execute_query(
+            "SELECT content FROM memory_hot.memory_hot WHERE memory_id = $1",
+            (str((other.metadata or {}).get("memory_id")),), fetch_one=True) if other else None
+        check("and its memory says so in words",
+              bool(said) and f'the tune of "{hummed_title[HUMMED[0]]}"' in text_of(said["content"]),
+              text_of(said["content"])[-120:] if said else "no memory")
+        hummer = other.source if other else None
+        tune_edges = set(await edges_of(hummer)) if hummer else set()
+        rows = await db.execute_query(
+            "SELECT belief_text FROM unified.beliefs WHERE belief_text LIKE $1",
+            (f"{hummer} has_tune_of %",), fetch_all=True) if hummer else []
+        check("it HAS THE TUNE OF the song, in the graph and as a belief",
+              ("has_tune_of", _term_like(hummed_title[HUMMED[0]])) in tune_edges and bool(rows),
+              "; ".join(str(r["belief_text"]) for r in rows or [])[:200])
+        stranger = await perceive("hear", hum("F02", HUMMED_UNTAUGHT), "stranger")
+        check("a hum of a song never taught has no song's tune",
+              stranger is not None and not stranger.content.get("has_tune_of"),
+              str(stranger.content.get("has_tune_of") if stranger else None))
+
+        # ── K. FROM A MIX ────────────────────────────────────────────────────
+        print("\n== K. A song taught from its full mix is known from its melody sung alone ==")
+        cut = MDB / "excerpts"
+        cut.mkdir(exist_ok=True)
+
+        def excerpt(src, start, seconds, out):
+            if not out.exists():
+                subprocess.run(["ffmpeg", "-v", "error", "-y", "-ss", str(start), "-t", str(seconds),
+                                "-i", str(src), "-ac", "1", str(out)], check=True)
+            return out
+
+        stem_of = lambda n: next((MDB / "audio_melody").glob(f"{n}_STEM_*.wav"))
+        mixed_title = {n: f"mixed song {n} {tag}" for n in MIXED}
+        mixed_ids = {}
+        with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
+            for n, at in MIXED.items():
+                lesson = excerpt(MDB / "audio_mix" / f"{n}_MIX_melsynth.wav", at, 60,
+                                 cut / f"{n}_mix_{at}_60.wav")
+                mixed_ids[n] = await coord.learn_song(mixed_title[n], str(lesson),
+                                                      actor_identity=None,
+                                                      source=f"s{tag}m{n[:8]}", domain=DOMAIN)
+            await get_uncertainty_system().drain_writes()
+        memory_ids.extend(mixed_ids.values())
+        first = next(iter(MIXED))
+        kept = await get_media_store().media_for_memory(str(mixed_ids[first]))
+        line = H.trace_tune(kept[0]["bytes"]) if kept else None
+        check("a song taught from its mix keeps the tune of the mix's melody",
+              line is not None and H.trace_tune_from_mix(kept[0]["bytes"])
+              and all(any(t["mix"] for t in faculty._tunes.get(mixed_title[n], [])) for n in MIXED),
+              f"{0 if line is None else len(line)} points, read from the mix: "
+              f"{bool(kept) and H.trace_tune_from_mix(kept[0]['bytes'])}")
+        sung = await perceive("hear", excerpt(stem_of(first), MIXED[first] + 20, 20,
+                                              cut / f"{first}_melody_{MIXED[first] + 20}_20.wav"),
+                              "sung")
+        tuned = (sung.content.get("has_tune_of") or []) if sung else []
+        check("its melody sung alone has the song's tune",
+              [t["song"] for t in tuned[:1]] == [mixed_title[first]], str(tuned))
+        n, at = MIXED_UNTAUGHT
+        other = await perceive("hear", excerpt(stem_of(n), at + 20, 20,
+                                               cut / f"{n}_melody_{at + 20}_20.wav"), "othersung")
+        check("the melody of a song never taught has no song's tune",
+              other is not None and not other.content.get("has_tune_of"),
+              str(other.content.get("has_tune_of") if other else None))
     finally:
         # ── cleanup: everything this run wrote, by exact id and by its nonce ─
         _tagged = ("SELECT (SELECT count(*) FROM unified.concepts WHERE name LIKE $1) + "
                    "(SELECT count(*) FROM unified.beliefs WHERE belief_text LIKE $1) + "
-                   "(SELECT count(*) FROM unified.perceptions WHERE source LIKE $1) + "
                    "(SELECT count(*) FROM memory_hot.memory_hot WHERE content::text LIKE $1) AS n")
         like = f"%{tag}%"
         try:
@@ -385,8 +487,6 @@ async def main() -> int:
                                    (like,), commit=True)
             await db.execute_query("DELETE FROM unified.evidence_envelopes "
                                    "WHERE producer LIKE $1 OR source_id LIKE $1",
-                                   (like,), commit=True)
-            await db.execute_query("DELETE FROM unified.perceptions WHERE source LIKE $1",
                                    (like,), commit=True)
             tagged = await db.execute_query(
                 "SELECT memory_id FROM memory_hot.memory_hot WHERE content::text LIKE $1",

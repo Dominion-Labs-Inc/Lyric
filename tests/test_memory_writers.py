@@ -62,16 +62,17 @@ def test_a_hand_off_that_says_nothing_is_found(tmp_path):
 def test_a_perception_that_does_not_say_whose_it_is_is_found(tmp_path):
     module = tmp_path / "perceiving.py"
     module.write_text(textwrap.dedent('''
-        async def perceive(coord, hub, origin):
+        async def perceive(coord, faculty, origin):
             await coord.see("/a.png", source="upload")
             await coord.see("/b.png", actor_identity=None, source="environment")
-            await hub.process_input("s", "image", {})
-            await hub.process_input("s", "image", {}, origin=origin)
-            hub.note_perception("s", "recognition", {})
+            await coord.process_input("s", "knowledge", {})
+            await faculty.admit_percept("s", "image", {})
+            await faculty.admit_percept("s", "image", {}, origin=origin)
+            faculty.note_percept("s", "recognition", {})
     '''))
     found = _scanner().hand_offs_without_origin(str(module), "perceiving.py")
     assert sorted((line, call) for _f, line, call, _what in found) == [
-        (3, "see"), (5, "process_input"), (7, "note_perception")], found
+        (3, "see"), (5, "process_input"), (6, "admit_percept"), (8, "note_percept")], found
 
 
 def test_whose_memory_follows_where_it_came_from():

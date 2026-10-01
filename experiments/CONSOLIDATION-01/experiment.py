@@ -178,7 +178,7 @@ def static_checks():
 
     readers = [str(p.relative_to(REPO)) for p in (REPO / "core").rglob("*.py")
                if "__pycache__" not in p.parts
-               and "governance_triggers.json" in p.read_text(errors="replace")]
+               and "constitution_triggers.json" in p.read_text(errors="replace")]
     check("one reader of the declared policy file",
           readers == ["core/agents/autonomous/autonomous_coordinator.py"], str(readers))
 

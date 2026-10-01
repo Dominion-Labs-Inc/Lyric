@@ -399,13 +399,11 @@ class AbstractionPipeline:
         memory_agent: 'MemoryAgent',
         uncertainty_system: 'BayesianUncertaintySystem',
         reasoning_engine: Optional['AbstractReasoningEngine'] = None,
-        governance_agent: Optional[Any] = None,
         intrinsic_motivation: Optional[Any] = None
     ):
         self.memory = memory_agent
         self.beliefs = uncertainty_system
         self.reasoning = reasoning_engine
-        self.governance = governance_agent
         self.motivation = intrinsic_motivation
         self.concept_hierarchy = ConceptHierarchy()
         self.active_schemas: Dict[str, ProbabilisticSchema] = {}
@@ -423,7 +421,6 @@ class AbstractionPipeline:
             'feedback_loops_prevented': 0,
             'semantic_overreach_prevented': 0,
             'stress_tests_run': 0,
-            'governance_blocks_checked': 0,
             'motivation_adjustments': 0
         }
         self._db_handle = None
@@ -600,7 +597,7 @@ class AbstractionPipeline:
         Create candidate from cluster using existing metadata
 
         INTEGRATION C: Calculates domain coherence from UDM
-        INTEGRATION D: Checks governance blocks and intrinsic motivation outcomes
+        INTEGRATION D: Weighs intrinsic motivation outcomes
         """
         candidate = AbstractionCandidate(
             cluster_id=f"cluster_{uuid.uuid4().hex[:8]}",
@@ -616,10 +613,6 @@ class AbstractionPipeline:
 
         # INTEGRATION C: Calculate domain coherence
         candidate.domain_coherence = await self._assess_domain_coherence(cluster)
-
-        # INTEGRATION D: Check governance blocks
-        governance_penalty = await self._check_governance_blocks(cluster)
-        candidate.contradiction_penalty += governance_penalty
 
         # INTEGRATION D: Apply motivation-based weighting
         motivation_boost = await self._assess_motivation_outcomes(cluster)
@@ -773,63 +766,6 @@ class AbstractionPipeline:
         except Exception as e:
             logger.debug(f"Domain coherence assessment failed: {e}")
             return 0.5
-
-    async def _check_governance_blocks(self, cluster: List[Any]) -> float:
-        """
-        INTEGRATION D: Check if pattern matches governance blocks
-
-        Queries governance system for blocked patterns and penalizes
-        candidates that match previously blocked actions.
-
-        Returns:
-            Penalty score (0.0 = no match, higher = matches blocked patterns)
-        """
-        try:
-            if not self.motivation:
-                return 0.0
-
-            # Query governance blocks from intrinsic motivation system
-            governance_constraints = await self.motivation.query_governance_blocks()
-
-            if not governance_constraints:
-                return 0.0
-
-            # Extract pattern description from cluster
-            pattern_texts = []
-            for memory in cluster:
-                if hasattr(memory, 'content'):
-                    if isinstance(memory.content, dict):
-                        # Extract task/action descriptions
-                        for key in ['action', 'task', 'description', 'goal']:
-                            if key in memory.content:
-                                pattern_texts.append(str(memory.content[key]).lower())
-                    else:
-                        pattern_texts.append(str(memory.content).lower())
-
-            if not pattern_texts:
-                return 0.0
-
-            pattern_text = " ".join(pattern_texts)
-
-            # Check for matches with governance blocks
-            penalty = 0.0
-            for constraint in governance_constraints:
-                constraint_lower = constraint.lower()
-                # Simple substring matching (in production would use semantic similarity)
-                if any(keyword in pattern_text for keyword in constraint_lower.split()[:5]):
-                    penalty += 0.5
-                    logger.warning(
-                        f"Pattern matches governance constraint: {constraint[:100]}"
-                    )
-
-            self.stats['governance_blocks_checked'] += 1
-
-            # Cap penalty at 2.0
-            return min(2.0, penalty)
-
-        except Exception as e:
-            logger.debug(f"Governance block check failed: {e}")
-            return 0.0
 
     async def _assess_motivation_outcomes(self, cluster: List[Any]) -> float:
         """
@@ -1232,44 +1168,34 @@ class AbstractionPipeline:
                         self.stats['feedback_loops_prevented'] += 1
                         continue
 
-                    new_importance = min(1.0, memory.importance_score * 1.2)
+                    before = float(memory.importance_score or 0.0)
+                    new_importance = min(1.0, before * 1.2)
 
-                    # SPLIT the write. `importance_score` is a governance-
-                    # protected field: update_memory() demands a capability
-                    # token, _validate_capability_token() checks a
-                    # `capability_tokens` table that DOES NOT EXIST, and nothing
-                    # in the codebase mints tokens. So that half is impossible by
-                    # construction for every internal caller — a gate no
-                    # subsystem can ever satisfy. Bundling it with the metadata
-                    # write meant BOTH halves failed silently.
-                    #
-                    # The boost provenance (which schema boosted this, how many
-                    # times, the <=3 cap) is unprotected and genuinely useful, so
-                    # it is written on its own.
-                    _meta_ok = await self.memory.update_memory(
+                    # THE BOOST RAISES THE MEMORY'S IMPORTANCE, with its
+                    # provenance on the memory: which schema boosted it, how
+                    # many times (at most 3), and what it was before.
+                    boosted = await self.memory.update_memory(
                         memory_id,
                         {
+                            'importance_score': new_importance,
                             'metadata': {
                                 **existing_meta,
                                 'schema_support': schema.schema_id,
                                 'schema_boosts': existing_boosts + [schema.schema_id],
                                 'boost_count': len(existing_boosts) + 1,
-                                'pending_importance_boost': new_importance,
+                                'importance_before_boost': before,
                             },
                         }
                     )
-                    if not _meta_ok:
-                        self.stats.setdefault('boost_metadata_rejected', 0)
-                        self.stats['boost_metadata_rejected'] += 1
+                    if not boosted:
+                        self.stats.setdefault('importance_boosts_refused', 0)
+                        self.stats['importance_boosts_refused'] += 1
                         continue
 
-                    # In-schema weighting still applies — this is the part that
-                    # actually influences retrieval ranking today.
                     schema.cumulative_retrieval_boosts[memory_id] = current_boost * 1.2
                     self.stats['retrieval_weights_modified'] += 1
-                    # Named, countable gap rather than a silent no-op.
-                    self.stats.setdefault('importance_boosts_requiring_governance', 0)
-                    self.stats['importance_boosts_requiring_governance'] += 1
+                    self.stats.setdefault('importance_boosts_applied', 0)
+                    self.stats['importance_boosts_applied'] += 1
             except Exception as e:
                 logger.error(f"Error boosting memory {memory_id}: {e}")
 
@@ -2357,7 +2283,6 @@ def initialize_abstraction_pipeline(
     memory_agent: 'MemoryAgent',
     uncertainty_system: 'BayesianUncertaintySystem',
     reasoning_engine: Optional['AbstractReasoningEngine'] = None,
-    governance_agent: Optional[Any] = None,
     intrinsic_motivation: Optional[Any] = None
 ) -> AbstractionPipeline:
     """Initialize global instance"""
@@ -2367,7 +2292,6 @@ def initialize_abstraction_pipeline(
             memory_agent=memory_agent,
             uncertainty_system=uncertainty_system,
             reasoning_engine=reasoning_engine,
-            governance_agent=governance_agent,
             intrinsic_motivation=intrinsic_motivation
         )
     return _abstraction_pipeline

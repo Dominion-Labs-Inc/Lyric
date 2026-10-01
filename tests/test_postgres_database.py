@@ -143,9 +143,9 @@ async def test_table_exists():
     db = LyricUnifiedDatabasePostgres()
     await db.initialize()
 
-    # Check if governance_laws table exists in unified schema
-    exists = await db.table_exists('governance_laws')
-    assert exists, "governance_laws table should exist in unified schema"
+    # Check a table that exists in the unified schema
+    exists = await db.table_exists('beliefs')
+    assert exists, "beliefs table should exist in unified schema"
 
     # Check non-existent table
     not_exists = await db.table_exists('nonexistent_table_xyz')
@@ -155,26 +155,10 @@ async def test_table_exists():
     await db.close()
 
 
-@pytest.mark.asyncio
-async def test_governance_laws_query():
-    """Test querying governance laws from unified schema"""
-    db = LyricUnifiedDatabasePostgres()
-    await db.initialize()
-
-    # Query governance laws (should have 5 laws from seed data)
-    laws = await db.execute_query(
-        "SELECT law_number, law_name FROM governance_laws ORDER BY law_number",
-        fetch_all=True
-    )
-
-    if laws and len(laws) > 0:
-        print(f"✓ Found {len(laws)} governance laws:")
-        for law in laws:
-            print(f"  Law {law['law_number']}: {law['law_name']}")
-    else:
-        print("⚠ No governance laws found (run schema seed data)")
-
-    await db.close()
+def test_the_laws_are_the_constitutions():
+    """The five laws are held by the Constitution, in code, not read from a table."""
+    from core.agents.autonomous.autonomous_coordinator import Constitution
+    assert sorted(Constitution().laws) == [1, 2, 3, 4, 5]
 
 
 @pytest.mark.asyncio
@@ -393,7 +377,7 @@ if __name__ == "__main__":
     asyncio.run(test_execute_query_placeholders())
     asyncio.run(test_fetch_all())
     asyncio.run(test_table_exists())
-    asyncio.run(test_governance_laws_query())
+    test_the_laws_are_the_constitutions()
     asyncio.run(test_pgvector_extension())
     asyncio.run(test_vector_storage())
     asyncio.run(test_vector_similarity_search())

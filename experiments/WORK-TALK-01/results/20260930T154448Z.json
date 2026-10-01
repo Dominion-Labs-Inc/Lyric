@@ -1,0 +1,169 @@
+{
+  "experiment": "WORK-TALK-01",
+  "claim": "Through the one front door, the substrate answers what it is working on and whether it finished from the work the queue authority holds for that person, stops their work when asked -- waiting or running -- and tells them, once, how work they asked for ended and what it found.",
+  "hypothesis": "A request to stop taken as new work, work still running after it was stopped, a finished job never mentioned or mentioned twice, one person's work shown to another, or a write to the main store would each show here.",
+  "started_at": "2026-09-30T15:44:48.135488+00:00",
+  "duration_seconds": 44.752,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/Lyric/venv_lyric/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/Lyric",
+    "shadow_mode": null,
+    "git_commit": "4079045ffdac8d282649a9a829e3060eb736139f",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "lyric_dev",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "lyric_dev",
+        "model": "lyric_dev",
+        "user_context": "lyric_dev",
+        "learning": "lyric_dev"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "environment",
+        "database": "environment",
+        "user": "environment",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 304,
+    "database_verified": null,
+    "database_verified_reason": "no initialized connection in this process"
+  },
+  "summary": {
+    "checks": 19,
+    "passed": 19,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [],
+  "checks": [
+    {
+      "label": "the work is taken on, and said so",
+      "passed": true,
+      "detail": "user_48e03af43976",
+      "at": "2026-09-30T15:45:22.473171+00:00"
+    },
+    {
+      "label": "what it is working on names it",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-30T15:45:22.646343+00:00"
+    },
+    {
+      "label": "\"Stop that.\" stops that job, and is not a new one",
+      "passed": true,
+      "detail": "user_48e03af43976",
+      "at": "2026-09-30T15:45:22.833099+00:00"
+    },
+    {
+      "label": "it is stopped, and its record says so",
+      "passed": true,
+      "detail": "cancelled",
+      "at": "2026-09-30T15:45:22.833113+00:00"
+    },
+    {
+      "label": "asked again, nothing is running",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-30T15:45:22.988373+00:00"
+    },
+    {
+      "label": "another person sees none of it",
+      "passed": true,
+      "detail": "Nothing you asked me is running.",
+      "at": "2026-09-30T15:45:23.130043+00:00"
+    },
+    {
+      "label": "the queue hands out their job, passing the stopped one",
+      "passed": true,
+      "detail": "user_0d68f7008c66",
+      "at": "2026-09-30T15:45:23.279744+00:00"
+    },
+    {
+      "label": "it is named while it runs",
+      "passed": true,
+      "detail": "I'm working on what you asked: \"Open the box.\" (for 0 seconds).",
+      "at": "2026-09-30T15:45:23.933762+00:00"
+    },
+    {
+      "label": "the running job is stopped where it is",
+      "passed": true,
+      "detail": "stopped after 0.19s",
+      "at": "2026-09-30T15:45:24.119921+00:00"
+    },
+    {
+      "label": "its record says so",
+      "passed": true,
+      "detail": "cancelled",
+      "at": "2026-09-30T15:45:24.119936+00:00"
+    },
+    {
+      "label": "\"Don't stop.\" stops nothing",
+      "passed": true,
+      "detail": "None",
+      "at": "2026-09-30T15:45:24.200926+00:00"
+    },
+    {
+      "label": "the task loop ran it to its end",
+      "passed": true,
+      "detail": "completed",
+      "at": "2026-09-30T15:45:31.410910+00:00"
+    },
+    {
+      "label": "their next turn, about anything, says how it ended",
+      "passed": true,
+      "detail": "A robin is a kind of bird.\n\nI couldn't do \"Don't stop.\": Validation failed: no substrate handler for a ANALYSIS task yet; the substrate declined all model-free paths and the model is not a fallback, completion belief 0.01 < acceptance 0.95 \u2014 goal not yet grounded-confident (needs corroboration).\nFinished: \"Help me.\". I read /private/var/folders/0y/66ltqc9s0xs5h7yhj_vv5ct80000gn/T/worktalk_lc952co0/note.txt.",
+      "at": "2026-09-30T15:45:31.971669+00:00"
+    },
+    {
+      "label": "and what it found",
+      "passed": true,
+      "detail": "A robin is a kind of bird.\n\nI couldn't do \"Don't stop.\": Validation failed: no substrate handler for a ANALYSIS task yet; the substrate declined all model-free paths and the model is not a fallback, completion belief 0.01 < acceptance 0.95 \u2014 goal not yet grounded-confident (needs corroboration).\nFinished: \"Help me.\". I read /private/var/folders/0y/66ltqc9s0xs5h7yhj_vv5ct80000gn/T/worktalk_lc952co0/note.txt.",
+      "at": "2026-09-30T15:45:31.971680+00:00"
+    },
+    {
+      "label": "the turn itself was still answered",
+      "passed": true,
+      "detail": "A robin is a kind of bird.\n\nI couldn't do \"Don't stop.\": Validation failed: no substrate handler for a ANALYSIS task yet; the substrate declined all model-free paths and the model is not a fallback, completion belief 0.01 < acceptance 0.95 \u2014 goal not yet grounded-confident (needs corroboration).\nFinished: \"Help me.\". I read /private/var/folders/0y/66ltqc9s0xs5h7yhj_vv5ct80000gn/T/worktalk_lc952co0/note.txt.",
+      "at": "2026-09-30T15:45:31.971697+00:00"
+    },
+    {
+      "label": "the turn after does not say it again",
+      "passed": true,
+      "detail": "A robin is a kind of bird.",
+      "at": "2026-09-30T15:45:32.424430+00:00"
+    },
+    {
+      "label": "\"Did you finish?\" answers yes, with what it found",
+      "passed": true,
+      "detail": "Yes. Finished: \"Help me.\". I read /private/var/folders/0y/66ltqc9s0xs5h7yhj_vv5ct80000gn/T/worktalk_lc952co0/note.txt.",
+      "at": "2026-09-30T15:45:32.552452+00:00"
+    },
+    {
+      "label": "asking only for what finished brings nothing new",
+      "passed": true,
+      "detail": "{'success': True, 'answer': ''}",
+      "at": "2026-09-30T15:45:32.553081+00:00"
+    },
+    {
+      "label": "the main model's store is untouched",
+      "passed": true,
+      "detail": "289277 rows before, 289277 after",
+      "at": "2026-09-30T15:45:32.888061+00:00"
+    }
+  ],
+  "notes": [
+    "nonce 467402: left in the sandbox, person worktalk_467402's job records in the queue's history and their turns' experiences in the memory agent's pool"
+  ]
+}

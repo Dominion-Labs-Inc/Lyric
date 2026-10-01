@@ -53,7 +53,7 @@ from core.learning.learning_policy import guard_learning
 from core.learning.rule_identity import semantic_fingerprint
 from core.learning.rule_induction import (
     BindingOrigin, CandidateRule, Fact, InductionResult, OutputBinding,
-    RuleEffects, TrainingExample, applies, contradicted_by, derives,
+    RuleEffects, TrainingExample, judged_by,
 )
 
 logger = logging.getLogger(__name__)
@@ -767,6 +767,7 @@ class RuleStore:
 
         confirmed, contradicted = 0, 0
         confirming_roots: List[str] = []
+        contradicting_roots: List[str] = []
         for example in held_out:
             # ASKED OF THE INDUCTION OWNER, not decided again here. This was a
             # second copy of the comparison and it had drifted to a subset
@@ -774,13 +775,15 @@ class RuleStore:
             # holds, what a request returns -- was REFUTED by every
             # demonstration of it working. Measured: a learned READ rule,
             # refuted by a held-out read that did exactly what it said.
-            held = (derives(record.rule, example) if example.positive
-                    else not contradicted_by(record.rule, example))
+            held = judged_by(record.rule, example)
+            if held is None:
+                continue            # the rule says nothing here: no evidence either way
             if held:
                 confirmed += 1
                 confirming_roots.append(example.evidence_id)
             else:
                 contradicted += 1
+                contradicting_roots.append(example.evidence_id)
 
         if contradicted:
             outcome = ValidationOutcome(
@@ -795,17 +798,58 @@ class RuleStore:
         else:
             outcome = ValidationOutcome(
                 EpistemicStatus.SUPPORTED, 0, 0, held_out_roots,
-                "independent evidence attached but none exercised the rule",
+                "independent evidence supplied but none exercised the rule",
             )
 
+        # Only an observation that judged the rule is attached to it as
+        # validation evidence; one it says nothing about is evidence of nothing.
         await self._attach(
-            record.rule_id, [r for r in held_out_roots if r in confirming_roots],
-            EvidenceRole.VALIDATION_POSITIVE, True,
+            record.rule_id, confirming_roots, EvidenceRole.VALIDATION_POSITIVE, True)
+        await self._attach(
+            record.rule_id, contradicting_roots, EvidenceRole.VALIDATION_NEGATIVE, False)
+        await self._set_status(record, outcome)
+        return outcome
+
+    async def rejudge(
+        self, record: StoredRule, observations: Sequence[TrainingExample]
+    ) -> Optional[ValidationOutcome]:
+        """Hold a rule with authority against what was observed after it got it.
+
+        VALIDATED is a judgement over the evidence that existed when it was
+        made, and the always-online learner validates as soon as a signature
+        has enough demonstrations, so a rule can be judged before the case that
+        refutes it has been shown. Measured in the sandbox: a COPY_FILE rule
+        missing the free-destination precondition was validated mid-teaching,
+        the copy onto an occupied place contradicted it 0.2 s later, and it
+        stayed executable beside the narrower rule induced from the full set.
+
+        So an executable rule is held against every demonstration of its act
+        that it was not induced from. Only one transition is made here: a case
+        the rule applied to and the world did not bear out takes its authority
+        away. A case that agrees, or that the rule says nothing about, leaves
+        the status as it is.
+        """
+        if record.status is not EpistemicStatus.VALIDATED:
+            return None
+        guard_learning("rule re-judgement")
+        await self.ensure_schema()
+
+        induction_roots = await self.evidence_roots(record.rule_id, INDUCTION_ROLES)
+        contradicting = [
+            example.evidence_id for example in observations
+            if example.evidence_id and example.evidence_id not in induction_roots
+            and judged_by(record.rule, example) is False
+        ]
+        if not contradicting:
+            return None
+
+        outcome = ValidationOutcome(
+            EpistemicStatus.REFUTED, 0, len(contradicting), contradicting,
+            f"{len(contradicting)} independent observation(s) made after it was "
+            f"validated contradict the rule",
         )
         await self._attach(
-            record.rule_id, [r for r in held_out_roots if r not in confirming_roots],
-            EvidenceRole.VALIDATION_NEGATIVE, False,
-        )
+            record.rule_id, contradicting, EvidenceRole.VALIDATION_NEGATIVE, False)
         await self._set_status(record, outcome)
         return outcome
 

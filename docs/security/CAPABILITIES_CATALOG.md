@@ -44,7 +44,7 @@ not a perimeter file · **[TOOL-BACKING]** implements agent tools in `core/tools
 - **Dynamic analysis: executes the file on-host (temp-dir) — REMOVE (never run untrusted code).**
 - Behavioral analysis, threat-level assessment, IOC extraction, recommendations, DB/memory persistence.
 
-## security_audit_worker.py — SecurityAuditWorker  **[REMOVED from Lyric 2026-09-14 → DHCM world factory security-audit agent]**
+## security_audit_worker.py — SecurityAuditWorker  **[REMOVED from Lyric 2026-09-14 → Tet world factory security-audit agent]**
 - 12 sub-audits: access control, data integrity, authentication, configuration, anomalies, file
   integrity (manifest hashing + authorized-drift), attack surface (listener enumeration by bind
   addr), tool permissions, log integrity, dependency security (`pip-audit`), active-defense

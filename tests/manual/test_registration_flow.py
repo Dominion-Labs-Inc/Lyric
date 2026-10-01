@@ -5,7 +5,7 @@ import logging
 logging.basicConfig(level=logging.DEBUG)
 
 from core.tools.tool_registry import ToolRegistry, _register_tool_lazy
-from core.tools.learning_tools import AnalyzeCausalFeedbackTool
+from core.tools.learning_tools import VisualizeLearningProgressTool
 from core.tools.capabilities import Capability
 
 print("\n" + "="*80)
@@ -18,10 +18,10 @@ registry = ToolRegistry()
 print("\n1. Before registration:")
 print(f"   capability_index: {registry.capability_index}")
 
-print("\n2. Registering AnalyzeCausalFeedbackTool...")
+print("\n2. Registering VisualizeLearningProgressTool...")
 
 # Simulate _register_tool_lazy
-metadata_instance = AnalyzeCausalFeedbackTool()
+metadata_instance = VisualizeLearningProgressTool()
 tool_name = metadata_instance.name
 
 print(f"   Tool name: {tool_name}")
@@ -37,7 +37,7 @@ else:
 # Register factory
 registry.register_factory(
     tool_name,
-    AnalyzeCausalFeedbackTool,
+    VisualizeLearningProgressTool,
     capabilities=capabilities,
     category=metadata_instance.category,
     safety_level=metadata_instance.safety_level

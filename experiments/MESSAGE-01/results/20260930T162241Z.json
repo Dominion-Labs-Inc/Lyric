@@ -1,0 +1,157 @@
+{
+  "experiment": "MESSAGE-01",
+  "claim": "The substrate says something to a person with no turn before it: when their work ends and at a moment set, pushed to every front end listening for them, held for their next turn when none listens, once, still owed after a restart, and recorded in their conversation.",
+  "hypothesis": "Work that ends said only when the person speaks again, a message said early, twice, to the wrong person, lost when its timed job is gone, missing from the conversation, or a write to the main store would each show here.",
+  "started_at": "2026-09-30T16:22:41.203217+00:00",
+  "duration_seconds": 53.642,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/Lyric/venv_lyric/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/Lyric",
+    "shadow_mode": null,
+    "git_commit": "4079045ffdac8d282649a9a829e3060eb736139f",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "lyric_dev",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "lyric_dev",
+        "model": "lyric_dev",
+        "user_context": "lyric_dev",
+        "learning": "lyric_dev"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "environment",
+        "database": "environment",
+        "user": "environment",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 306,
+    "database_verified": null,
+    "database_verified_reason": "no initialized connection in this process"
+  },
+  "summary": {
+    "checks": 17,
+    "passed": 17,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [],
+  "checks": [
+    {
+      "label": "a front end listening for them is told, with no turn of theirs in between",
+      "passed": true,
+      "detail": "Finished: \"Help me.\" I read note.txt. It says: A robin is a bird.",
+      "at": "2026-09-30T16:23:20.225797+00:00"
+    },
+    {
+      "label": "it says how the work ended and what it found",
+      "passed": true,
+      "detail": "{'message_id': 'msg_60c3d49528c14877', 'actor': 'message_ann_c6bdf7', 'text': 'Finished: \"Help me.\" I read note.txt. It says: A robin is a bird.', 'why': 'work ended', 'about': 'user_fa433e86c4a7', 'session': 'session_message_ann_c6bdf7', 'created_at': '2026-09-30T16:23:20.196919+00:00', 'due_at': '2026-09-30T16:23:20.196631+00:00', 'delivered_at': None, 'delivered_by': None}",
+      "at": "2026-09-30T16:23:20.225826+00:00"
+    },
+    {
+      "label": "their next turn does not repeat it",
+      "passed": true,
+      "detail": "A robin is a kind of bird.",
+      "at": "2026-09-30T16:23:21.070467+00:00"
+    },
+    {
+      "label": "the work ends",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-30T16:23:22.203963+00:00"
+    },
+    {
+      "label": "no one else is told",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-30T16:23:23.204087+00:00"
+    },
+    {
+      "label": "their next turn brings it",
+      "passed": true,
+      "detail": "A robin is a kind of bird.\n\nFinished: \"Help me.\" I read note.txt. It says: A robin is a bird.",
+      "at": "2026-09-30T16:23:23.654448+00:00"
+    },
+    {
+      "label": "once",
+      "passed": true,
+      "detail": "A robin is a kind of bird.",
+      "at": "2026-09-30T16:23:24.095448+00:00"
+    },
+    {
+      "label": "not before its time",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-30T16:23:26.099980+00:00"
+    },
+    {
+      "label": "said at its time",
+      "passed": true,
+      "detail": "said 4.0s after it was set for 4s",
+      "at": "2026-09-30T16:23:28.119027+00:00"
+    },
+    {
+      "label": "its timed job is gone, as when the process ends",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-30T16:23:28.123950+00:00"
+    },
+    {
+      "label": "the message is still owed in the outbox",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-30T16:23:28.124746+00:00"
+    },
+    {
+      "label": "armed again, as at boot, it is said at its time",
+      "passed": true,
+      "detail": "5.0s after arming",
+      "at": "2026-09-30T16:23:33.176294+00:00"
+    },
+    {
+      "label": "each front end listening for them is told",
+      "passed": true,
+      "detail": "",
+      "at": "2026-09-30T16:23:34.182757+00:00"
+    },
+    {
+      "label": "another person is told nothing",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-09-30T16:23:34.182841+00:00"
+    },
+    {
+      "label": "it is delivered once, by being pushed",
+      "passed": true,
+      "detail": "push",
+      "at": "2026-09-30T16:23:34.184788+00:00"
+    },
+    {
+      "label": "what it said unasked is a turn of its own in their conversation",
+      "passed": true,
+      "detail": "['Finished: \"Help me.\" I read note.txt. It says: A robin is a bird.', 'Time to check the pump.', 'Both of your screens should show this.']",
+      "at": "2026-09-30T16:23:34.184854+00:00"
+    },
+    {
+      "label": "the main model's store is untouched",
+      "passed": true,
+      "detail": "289277 rows before, 289277 after",
+      "at": "2026-09-30T16:23:34.844791+00:00"
+    }
+  ],
+  "notes": [
+    "nonce c6bdf7: left in the sandbox, the people's job records in the queue's history and their turns' experiences in the memory agent's pool"
+  ]
+}

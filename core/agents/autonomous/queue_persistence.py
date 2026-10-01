@@ -322,6 +322,47 @@ class QueuePersistence:
         out["error"] = row["error"]
         return out
 
+    async def jobs_of(self, actor: str, *, limit: int = 10) -> List[Dict[str, Any]]:
+        """The stored work jobs of one actor, newest first, as the queue
+        authority shows a job to its owner (`QueueAuthority._job_view`)."""
+        await self.ensure_schema()
+        rows = await self.db().execute_query(
+            "SELECT task_id, status, payload, result, error, created_at FROM unified.task_queue"
+            " WHERE payload->'task'->>'actor' = $1 ORDER BY created_at DESC LIMIT $2",
+            (actor, int(limit)), fetch_all=True) or []
+        out: List[Dict[str, Any]] = []
+        for row in rows:
+            payload = row["payload"]
+            if isinstance(payload, str):
+                payload = json.loads(payload)
+            queued = payload.get("queued") or {}
+            result = row["result"]
+            out.append({
+                "task_id": row["task_id"],
+                "asked": (payload.get("task") or {}).get("description"),
+                "status": row["status"],
+                "added_at": queued.get("added_at") or (row["created_at"].isoformat()
+                                                       if row["created_at"] else None),
+                "completed_at": queued.get("completed_at"),
+                "result": json.loads(result) if isinstance(result, str) else result,
+                "error": row["error"],
+                "read": ((payload.get("task") or {}).get("metadata") or {}).get("read"),
+                "told_at": (queued.get("metadata") or {}).get("told_at"),
+            })
+        return out
+
+    async def mark_told(self, task_id: str, at: str) -> bool:
+        """Record, on a stored job this instance does not hold, that its owner
+        was told how it ended. Returns whether a row was updated."""
+        await self.ensure_schema()
+        rows = await self.db().execute_query(
+            "UPDATE unified.task_queue SET payload = jsonb_set(payload, '{queued,metadata}',"
+            "   COALESCE(payload->'queued'->'metadata', '{}'::jsonb)"
+            "   || jsonb_build_object('told_at', $2::text), true), updated_at = NOW()"
+            " WHERE task_id = $1 RETURNING task_id",
+            (task_id, at), fetch_all=True)
+        return bool(rows)
+
     async def prune_terminal(self, keep_last: int = 500) -> int:
         """Bound the history: keep the most recent `keep_last` terminal rows,
         delete older ones. Returns how many were deleted. Prevents the table from

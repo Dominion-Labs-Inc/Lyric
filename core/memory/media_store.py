@@ -245,6 +245,18 @@ class MediaStore:
         rows.sort(key=lambda r: r["created_at"], reverse=True)
         return [self._row(r) for r in rows]
 
+    async def forget_memory(self, memory_id: str) -> int:
+        """Remove every picture or sound attached to a memory, with the memory.
+        Returns how many were removed."""
+        await self._ready()
+        removed = 0
+        for store in self.db().owner_stores():
+            rows = await self.db().execute_query(
+                "DELETE FROM unified.memory_media WHERE memory_id=$1 RETURNING media_id",
+                (memory_id,), fetch_all=True, commit=True, store=store) or []
+            removed += len(rows)
+        return removed
+
     @staticmethod
     def _row(r) -> Dict[str, Any]:
         import json

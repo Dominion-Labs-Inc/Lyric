@@ -298,7 +298,7 @@ class ConceptExtractor:
     #: Set when the evidence could not be read at all. Reset every call.
     last_failure: Optional[str] = None
 
-    def extract(self, envelope: EvidenceEnvelope) -> List[ConceptCandidate]:
+    async def extract(self, envelope: EvidenceEnvelope) -> List[ConceptCandidate]:
         self.last_failure = None
         data = envelope.structured_data or {}
         present = [f for f in self.FORMS if data.get(f)]
@@ -312,7 +312,10 @@ class ConceptExtractor:
 
         out: List[ConceptCandidate] = []
         for form in present:
-            out.extend(getattr(self, f"_read_{form}")(data[form], envelope))
+            # Statements are read as a listener reads them, with memory asked which thing a word names, so their
+            # reader waits for memory; the structured forms are read as they stand.
+            found = getattr(self, f"_read_{form}")(data[form], envelope)
+            out.extend(await found if inspect.isawaitable(found) else found)
         return out
 
     # ---- form: concepts -------------------------------------------------
@@ -439,7 +442,7 @@ class ConceptExtractor:
 
     # ---- form: statements -----------------------------------------------
 
-    def _read_statements(self, raw, envelope: EvidenceEnvelope) -> List[ConceptCandidate]:
+    async def _read_statements(self, raw, envelope: EvidenceEnvelope) -> List[ConceptCandidate]:
         """Assertions in prose, parsed deterministically or DECLINED.
 
         Prose is where a model is usually reached for, and where reaching for
@@ -461,7 +464,7 @@ class ConceptExtractor:
         conditional is a rule, held by the rule path, not an edge between two
         properties, so it is counted as declined here.
         """
-        from core.semantics.derived_reader import stated
+        from core.semantics.derived_reader import heard_stated
         from core.semantics.relation_types import SemanticRelation
 
         domain = str((envelope.structured_data or {}).get("domain") or "").strip()
@@ -481,7 +484,7 @@ class ConceptExtractor:
             return label
 
         for sentence in raw:
-            claims = stated(str(sentence))
+            claims = await heard_stated(str(sentence))
             if not claims:
                 declined += 1
                 continue

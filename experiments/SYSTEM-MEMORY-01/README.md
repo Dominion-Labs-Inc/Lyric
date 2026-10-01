@@ -2,7 +2,8 @@
 
 **Finding (2026-09-26): behaviour 18/18; ten wiring findings.** One memory authority (`MemoryAgent`). A
 memory is stored, found by content and by id, superseded keeping what it used to say, and cannot be deleted
-without the token governance requires.
+without the token governance requires. (2026-09-29: that token gate checked a table that no longer exists and was
+removed; D now checks that a memory can be forgotten. Not re-run since.)
 
 **The memory store did not keep users apart.** All 156,178 hot memories carried no owner. The storage layer
 had an owner rule, but only the semantic search applied it — and only ever as the substrate, since no reader
@@ -25,8 +26,8 @@ hours before the fix). It now writes `embedding`, and the merged reasoning trace
 | **A** | one authority, one construction site |
 | **B** | stored, found by content, read back by id; an unknown id is None |
 | **C** | superseded: the content changes and what it said is kept |
-| **D** | a delete without a valid token is refused |
-| **E** | a user's memory is found by its owner and by no other user and not by the substrate — by meaning, by wording and by tag; the same words from the substrate are a separate memory; the same words from the same user merge into theirs |
+| **D** | a forgotten memory is gone, with what it kept, and the others are untouched |
+| **E** | a user's memory is found by its owner and by no other user and not by the substrate — by meaning, by wording and by tag; the same words from the substrate are a separate memory; the same words from the same user are a second memory of theirs — nothing is merged |
 
 **Wiring findings (called by nothing in `core/`):** `bulk_import`, `get_memory_by_content`, `claim_tags`,
 `increment_access_count`, `update_importance`, `update_tags`, `add_related_memory`, `retrieve_from_archive`,

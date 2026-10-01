@@ -228,7 +228,7 @@ class HealthMonitor:
                              'description': 'Quantum reasoning (disabled: no IBM access, '
                                             'qiskit_algorithms not installed)',
                              'monitoring_enabled': False},
-        'governance':       {'type': 'governance', 'category': 'policy',
+        'constitution':     {'type': 'constitution', 'category': 'policy',
                              'module': 'core.agents.autonomous.autonomous_coordinator',
                              'description': "The Constitution's declared policy and its record of judgements",
                              'monitoring_enabled': True},
@@ -749,8 +749,8 @@ class HealthMonitor:
                 metrics, issues = await self._check_quantum_health()
             elif component == "network":
                 metrics, issues = await self._check_network_health()
-            elif component == "governance":
-                metrics, issues = await self._check_governance_health()
+            elif component == "constitution":
+                metrics, issues = await self._check_constitution_health()
             elif component == "chaos":
                 metrics, issues = await self._check_chaos_health()
             elif component == "safety":
@@ -898,7 +898,7 @@ class HealthMonitor:
     #: that is unreachable while CPU, memory and latency are all perfect must
     #: not average out to 0.80 HEALTHY.
     CRITICALITY = {
-        'critical': {'database', 'memory', 'safety', 'governance', 'security',
+        'critical': {'database', 'memory', 'safety', 'constitution', 'security',
                      'health_system', 'domain', 'tools'},
         'optional': {'quantum', 'chaos', 'simulation', 'optimization',
                      'intelligence', 'metrics_export'},
@@ -2270,8 +2270,8 @@ class HealthMonitor:
                 except Exception as _ce:
                     logger.debug('constitution metrics unavailable: %s', _ce)
 
-            # DIRECTIVE system metrics (governance + learning-authority-owned) —
-            # honest counters of governance decisions and application outcomes.
+            # DIRECTIVE system metrics (Constitution + learning-authority-owned) —
+            # honest counters of the Constitution's decisions and application outcomes.
             directive_system = getattr(coordinator, 'directive_system', None) if coordinator else None
             if directive_system is not None:
                 try:
@@ -2641,7 +2641,7 @@ class HealthMonitor:
         self._declared_metrics['network'] = declared
         return metrics, issues
 
-    async def _check_governance_health(self) -> tuple[Dict[str, Any], List[str]]:
+    async def _check_constitution_health(self) -> tuple[Dict[str, Any], List[str]]:
         """The Constitution's declared policy and its record of judgements."""
         metrics: Dict[str, Any] = {}
         issues: List[str] = []
@@ -2664,43 +2664,43 @@ class HealthMonitor:
             row = counts[0] if counts else {'total': 0, 'approved': 0, 'rejected': 0}
 
             # Real liveness: the declared policy is usable only if its rules loaded.
-            metrics['governance_initialized'] = policy_rules > 0
-            metrics['governance_policy_rules'] = policy_rules
+            metrics['policy_loaded'] = policy_rules > 0
+            metrics['policy_rules'] = policy_rules
             # Declared, but about internal action types no act carries: counted
             # so an unenforced rule is visible rather than read as enforced.
-            metrics['governance_policy_unenforceable'] = len(report['unreachable'])
-            metrics['governance_total_evaluations'] = int(row['total'])
-            metrics['governance_approved'] = int(row['approved'] or 0)
-            metrics['governance_rejected'] = int(row['rejected'] or 0)
+            metrics['policy_unenforceable'] = len(report['unreachable'])
+            metrics['judgements_recorded'] = int(row['total'])
+            metrics['judgements_allowed'] = int(row['approved'] or 0)
+            metrics['judgements_refused'] = int(row['rejected'] or 0)
 
-            total = metrics['governance_total_evaluations']
+            total = metrics['judgements_recorded']
             if total > 0:
-                rejection_rate = metrics['governance_rejected'] / total
-                metrics['governance_rejection_rate'] = round(rejection_rate, 3)
-                if rejection_rate > 0.5 and total >= 10:
+                refusal_rate = metrics['judgements_refused'] / total
+                metrics['refusal_rate'] = round(refusal_rate, 3)
+                if refusal_rate > 0.5 and total >= 10:
                     issues.append(
-                        f"High governance rejection rate: {rejection_rate:.0%} — "
+                        f"High refusal rate: {refusal_rate:.0%} of recorded judgements — "
                         "system may be over-constrained or misconfigured"
                     )
             else:
                 # No evaluation recorded -- rejection rate undefined, and
                 # declared so (`_record_rate`).
-                self._record_rate(metrics, 'governance_rejection_rate', None, total)
+                self._record_rate(metrics, 'refusal_rate', None, total)
 
-            if not metrics.get('governance_initialized', True):
+            if not metrics.get('policy_loaded', True):
                 issues.append("The Constitution's declared policy did not load — "
                               "it judges on perceived sensitivity alone")
 
         except Exception as e:
-            metrics['governance_available'] = False
+            metrics['constitution_available'] = False
             # A FAILED CHECK HAS TO SAY WHY. The *_available gate fires, so the
             # component grades correctly -- but the cause went only to a debug
             # log and no issue was recorded, leaving an unexplained CRITICAL for
             # the operator and nothing for the remediation path, which selects
             # what to do from `issues`. Same at the eight sibling checks.
-            issues.append(f"Governance health check failed: "
+            issues.append(f"Constitution health check failed: "
                           f"{type(e).__name__}: {e}")
-            logger.warning(f"Governance health check error: {e}")
+            logger.warning(f"Constitution health check error: {e}")
 
         return metrics, issues
 
@@ -2791,7 +2791,7 @@ class HealthMonitor:
 
             status = await constitution.get_constitution_status()
             metrics['constitution_active'] = bool(status.get('active'))
-            metrics['constitution_laws'] = int(status.get('governance_laws_count', 0))
+            metrics['constitution_laws'] = int(status.get('laws_count', 0))
 
             counts = dict(getattr(constitution, 'metrics', {}) or {})
             judged = int(counts.get('judged', 0))
@@ -2950,7 +2950,9 @@ class HealthMonitor:
         """
         try:
             # Collect system metrics
-            cpu_percent = psutil.cpu_percent(interval=1)
+            # SAMPLED OFF THE EVENT LOOP. A one-second sample taken on it stopped every other task of the
+            # substrate for that second, each time health was asked: measured, 17.8 s of a 398 s teaching run.
+            cpu_percent = await asyncio.to_thread(psutil.cpu_percent, 1)
             memory = psutil.virtual_memory()
             disk = psutil.disk_usage('/')
 

@@ -1976,103 +1976,6 @@ class IntrinsicMotivationSystem:
             logger.error(f"Error generating curiosity-driven goals: {e}", exc_info=True)
             return []
 
-
-    async def query_governance_blocks(self) -> List[str]:
-        """Query META memory for governance blocks.
-
-        Returns a list of human-readable constraint descriptions derived from
-        structured governance_block META memories. Falls back gracefully if
-        legacy / non-conforming records are encountered.
-        """
-        try:
-            # Import memory system via unified public entrypoint
-            from core.agents.autonomous.governance_block_schema import GovernanceBlock
-            from core.memory import get_memory_agent
-            from core.memory.utils.interfaces import MemoryType
-
-            memory_agent = await get_memory_agent()
-
-            if not memory_agent or not memory_agent.initialized:
-                logger.debug("Memory agent not available for governance query")
-                return []
-
-            # Query META memories with governance_block tag
-            memories = await memory_agent.search_memories(
-                query_text="governance_block",
-                memory_type=MemoryType.META,
-                tags=["governance_block"],
-                max_results=50,  # Get recent blocks
-                min_importance=0.5,
-            )
-
-            if not memories:
-                return []
-
-            constraints: List[str] = []
-            task_descriptions: set[str] = set()
-
-            for memory in memories:
-                try:
-                    raw = memory.content
-
-                    # New path: content already a dict with schema marker
-                    if isinstance(raw, dict) and raw.get("event") == "governance_block":
-                        try:
-                            block = GovernanceBlock.from_dict(raw)
-                        except Exception as schema_error:
-                            logger.debug(
-                                "Skipping governance_block memory with invalid schema: %s",
-                                schema_error,
-                            )
-                            continue
-
-                        desc = block.task_description.strip()
-                        if desc and desc not in task_descriptions:
-                            task_descriptions.add(desc)
-                            constraint = f"Avoid: {desc} (blocked: {block.block_reason.strip()})"
-                            constraints.append(constraint)
-                        continue
-
-                    # Fallback path: legacy string/dict representation
-                    content_str = (
-                        raw
-                        if isinstance(raw, str)
-                        else str(raw)
-                    )
-
-                    if "task_description" not in content_str:
-                        continue
-
-                    # Very simple legacy extraction; retained for backward compatibility
-                    try:
-                        task_desc_match = content_str.split("task_description")[1].split(",")[0]
-                        block_reason_match = (
-                            content_str.split("block_reason")[1].split(",")[0]
-                            if "block_reason" in content_str
-                            else None
-                        )
-                    except Exception:
-                        continue
-
-                    if task_desc_match and task_desc_match not in task_descriptions:
-                        task_descriptions.add(task_desc_match)
-                        constraint = f"Avoid: {task_desc_match.strip()}"
-                        if block_reason_match:
-                            constraint += f" (blocked: {block_reason_match.strip()})"
-                        constraints.append(constraint)
-
-                except Exception as parse_error:
-                    logger.debug("Failed to parse governance block memory: %s", parse_error)
-                    continue
-
-            logger.info("🛡️ Found %d governance constraints from META memory", len(constraints))
-
-            return constraints
-
-        except Exception as e:
-            logger.error(f"Failed to query governance blocks: {e}")
-            return []
-
     async def get_domain_performance_stats(self, domain: str = "all") -> Dict[str, Any]:
         """
         Query META memory for domain performance statistics
@@ -2084,7 +1987,7 @@ class IntrinsicMotivationSystem:
             Dictionary with success rate, failure rate, avg confidence
         """
         try:
-            from core.agents.autonomous.governance_block_schema import task_outcomes_from_memory
+            from core.memory.utils.interfaces import task_outcomes_from_memory
             from core.memory import get_memory_agent
             from core.memory.utils.interfaces import MemoryType
 

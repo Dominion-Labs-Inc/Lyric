@@ -474,7 +474,8 @@ class BayesianUncertaintySystem:
                       supports: bool = True, quality: float = 0.9,
                       source: str = "taught",
                       observation: Optional[str] = None,
-                      memory_id: Optional[str] = None) -> BayesianBelief:
+                      memory_id: Optional[str] = None,
+                      uses: int = 1) -> BayesianBelief:
         """Find-or-create the belief for a claim and record one observation of it.
 
         `update_belief` needs an existing belief and `create_belief` mints a new
@@ -522,6 +523,12 @@ class BayesianUncertaintySystem:
         evidence = {"quality": quality, "source": source}
         if observation:
             evidence["observation"] = str(observation)
+        # ONE WITNESS, MANY USES. A tagged corpus that met a word naming a thing 6,833 times is one source saying
+        # so, and moves the belief once; how often the word was met naming it is what it says, and is kept with it
+        # (`uses`), so how often a word names each thing is counted from what was met, never from how many
+        # entries a list holds.
+        if int(uses) != 1:
+            evidence["uses"] = int(uses)
         # THE MEMORY THAT VOUCHES FOR THIS, recorded as EVIDENCE — which is
         # where this system already tracks what a belief rests on, and where it
         # belongs. A belief is not an annotation on one memory: it outlives the

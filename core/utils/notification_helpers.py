@@ -52,7 +52,7 @@ async def notify_tool_failure(
             "error_type": type(error).__name__,
             "parameters": parameters or {}
         }
-    }, send_to_slack=True)
+    })
 
 
 async def notify_tool_success(
@@ -79,7 +79,7 @@ async def notify_tool_success(
             "tool_name": tool_name,
             "execution_time": execution_time
         }
-    }, send_to_slack=True)
+    })
 
 
 # ============================================================================
@@ -115,7 +115,7 @@ async def notify_database_error(
             "error_type": type(error).__name__,
             "context": context or {}
         }
-    }, send_to_slack=True)
+    })
 
 
 async def notify_database_success(
@@ -140,7 +140,7 @@ async def notify_database_success(
             "database": database,
             "operation": operation
         }
-    }, send_to_slack=True)
+    })
 
 
 # ============================================================================
@@ -185,7 +185,7 @@ async def notify_learning_event(
         'status': severity,
         'color': color_map.get(severity, '#36a64f'),
         'metadata': metadata or {}
-    }, send_to_slack=True)
+    })
 
 
 # ============================================================================
@@ -229,44 +229,7 @@ async def notify_security_event(
         'status': severity,
         'color': color_map.get(severity, '#36a64f'),
         'metadata': threat_info or {}
-    }, send_to_slack=True)
-
-
-# ============================================================================
-# GOVERNANCE NOTIFICATIONS
-# ============================================================================
-
-async def notify_governance_decision(
-    decision_type: str,
-    action: str,
-    decision: str,
-    details: str = None,
-    metadata: Dict[str, Any] = None
-):
-    """Send notification for governance decisions"""
-    if not NOTIFICATIONS_AVAILABLE:
-        return
-
-    emoji_map = {
-        "approved": "✅",
-        "blocked": "🚫",
-        "escalated": "⬆️",
-        "queued": "⏳",
-        "reviewed": "👀"
-    }
-
-    emoji = emoji_map.get(decision_type.lower(), "⚖️")
-    details_str = f"\n\n{details}" if details else ""
-
-    await publish_notification({
-        'id': f'governance_{decision_type}_{datetime.now().timestamp()}',
-        'type': f'governance_{decision_type}',
-        'title': f"{emoji} Governance: {action}",
-        'message': f"**Decision:** {decision}{details_str}",
-        'status': 'warning' if decision_type == "blocked" else "info",
-        'color': '#FFA500' if decision_type == "blocked" else '#36a64f',
-        'metadata': metadata or {}
-    }, send_to_slack=True)
+    })
 
 
 # ============================================================================
@@ -311,7 +274,7 @@ async def notify_autonomous_event(
         'status': severity,
         'color': color_map.get(severity, '#36a64f'),
         'metadata': metadata or {}
-    }, send_to_slack=True)
+    })
 
 
 # ============================================================================
@@ -353,7 +316,7 @@ async def notify_memory_event(
         'status': severity,
         'color': color_map.get(severity, '#36a64f'),
         'metadata': metadata or {}
-    }, send_to_slack=True)
+    })
 
 
 # ============================================================================
@@ -382,7 +345,7 @@ async def notify_service_error(
             "service": service_name,
             "error_type": type(error).__name__
         }
-    }, send_to_slack=True)
+    })
 
 
 async def notify_service_status(
@@ -416,7 +379,7 @@ async def notify_service_status(
             "service": service_name,
             "status": status
         }
-    }, send_to_slack=True)
+    })
 
 
 # ============================================================================
@@ -450,7 +413,7 @@ async def notify_api_error(
             "error_type": type(error).__name__,
             "request": request_details or {}
         }
-    }, send_to_slack=True)
+    })
 
 
 # ============================================================================
@@ -491,7 +454,7 @@ async def notify_error(
             "error_type": type(error).__name__,
             "context": context or {}
         }
-    }, send_to_slack=True)
+    })
 
 
 async def notify_success(
@@ -511,7 +474,7 @@ async def notify_success(
         'status': 'info',
         'color': '#36a64f',
         'metadata': metadata or {}
-    }, send_to_slack=True)
+    })
 
 
 async def notify_info(
@@ -531,4 +494,4 @@ async def notify_info(
         'status': 'info',
         'color': '#36a64f',
         'metadata': metadata or {}
-    }, send_to_slack=True)
+    })

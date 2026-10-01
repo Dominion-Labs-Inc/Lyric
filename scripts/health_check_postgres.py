@@ -16,12 +16,9 @@ async def health_check():
         await db.initialize()
         print("✓ PostgreSQL connection successful")
 
-        # Check governance laws
-        laws = await db.execute_query(
-            "SELECT COUNT(*) as count FROM unified.governance_laws",
-            fetch_one=True
-        )
-        print(f"✓ Governance laws: {laws['count']}")
+        # The laws are the Constitution's, held in code
+        from core.agents.autonomous.autonomous_coordinator import Constitution
+        print(f"✓ Constitution laws: {len(Constitution().laws)}")
 
         # Check memory with embeddings
         memories = await db.execute_query(

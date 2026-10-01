@@ -1,0 +1,193 @@
+{
+  "experiment": "RULE-EVIDENCE-01",
+  "claim": "A learned rule can say how well attested it is, that attestation is current, and it reaches the act's judgement.",
+  "hypothesis": "If evidence counts are recounted by role wherever evidence is attached, and bound to the acting context, then a judgement can report whether the act rests on a rule the world confirmed 133 times or one it confirmed twice \u2014 and validation stays strict.",
+  "started_at": "2026-10-01T00:41:04.404224+00:00",
+  "duration_seconds": 4.718,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/Lyric/venv_lyric/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/Lyric",
+    "shadow_mode": null,
+    "git_commit": "4079045ffdac8d282649a9a829e3060eb736139f",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "lyric_dev",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "lyric_dev",
+        "model": "lyric_dev",
+        "user_context": "lyric_dev",
+        "learning": "lyric_dev"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "dotenv:.env.postgres",
+        "database": "environment",
+        "user": "dotenv:.env.postgres",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "pool_idle_seconds": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 342,
+    "database_verified": null,
+    "database_verified_reason": "not verified"
+  },
+  "summary": {
+    "checks": 21,
+    "passed": 21,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [
+    {
+      "name": "attested_confirmations",
+      "value": 7,
+      "unit": "roots",
+      "note": ""
+    },
+    {
+      "name": "attested_support",
+      "value": 1.0,
+      "unit": "fraction",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "a rule was induced",
+      "passed": true,
+      "detail": "1 rule(s) \u2014 rule_learned: ",
+      "at": "2026-10-01T00:41:09.064688+00:00"
+    },
+    {
+      "label": "its confirmations are the demonstrations that worked",
+      "passed": true,
+      "detail": "+2",
+      "at": "2026-10-01T00:41:09.064720+00:00"
+    },
+    {
+      "label": "its counterexamples are counted AS counterexamples",
+      "passed": true,
+      "detail": "3 counterexample(s)",
+      "at": "2026-10-01T00:41:09.064728+00:00"
+    },
+    {
+      "label": "and NOTHING has contradicted it, because nothing has tested it yet",
+      "passed": true,
+      "detail": "-0",
+      "at": "2026-10-01T00:41:09.064737+00:00"
+    },
+    {
+      "label": "a single contradicting observation REFUTES the rule",
+      "passed": true,
+      "detail": "status=refuted, detail='1 independent observation(s) contradict the rule'",
+      "at": "2026-10-01T00:41:09.083254+00:00"
+    },
+    {
+      "label": "and it is no longer executable",
+      "passed": true,
+      "detail": "is_executable=False",
+      "at": "2026-10-01T00:41:09.084223+00:00"
+    },
+    {
+      "label": "the contradiction is counted as a contradiction",
+      "passed": true,
+      "detail": "-1",
+      "at": "2026-10-01T00:41:09.084240+00:00"
+    },
+    {
+      "label": "without disturbing the counterexamples it was induced from",
+      "passed": true,
+      "detail": "3",
+      "at": "2026-10-01T00:41:09.084249+00:00"
+    },
+    {
+      "label": "five confirming observations VALIDATE it",
+      "passed": true,
+      "detail": "'confirmed by 5 independent observation(s)'",
+      "at": "2026-10-01T00:41:09.107281+00:00"
+    },
+    {
+      "label": "the attached validation evidence and the stored count AGREE",
+      "passed": true,
+      "detail": "count=+7 (2 induction + 5 validation)",
+      "at": "2026-10-01T00:41:09.108458+00:00"
+    },
+    {
+      "label": "the row does not contradict its own detail column",
+      "passed": true,
+      "detail": "detail='confirmed by 5 independent observation(s)' count=+7",
+      "at": "2026-10-01T00:41:09.108471+00:00"
+    },
+    {
+      "label": "and still nothing has contradicted it",
+      "passed": true,
+      "detail": "-0 / 3 counterexample(s)",
+      "at": "2026-10-01T00:41:09.108478+00:00"
+    },
+    {
+      "label": "p/(p+n) is about contradictions, not counterexamples",
+      "passed": true,
+      "detail": "1.00 (conflated, it read 0.70)",
+      "at": "2026-10-01T00:41:09.108487+00:00"
+    },
+    {
+      "label": "no independent observations leaves the status UNCHANGED",
+      "passed": true,
+      "detail": "'no independent observations supplied; status unchanged'",
+      "at": "2026-10-01T00:41:09.111474+00:00"
+    },
+    {
+      "label": "an act resting on no rule reports no attestation",
+      "passed": true,
+      "detail": "rests_on=None",
+      "at": "2026-10-01T00:41:09.113882+00:00"
+    },
+    {
+      "label": "the judgement names the rule the act rests on",
+      "passed": true,
+      "detail": "rule_4b6747213581",
+      "at": "2026-10-01T00:41:09.113934+00:00"
+    },
+    {
+      "label": "and how the world has tested it",
+      "passed": true,
+      "detail": "+7 / -0 / 3 counterexample(s)",
+      "at": "2026-10-01T00:41:09.113943+00:00"
+    },
+    {
+      "label": "support is the share of observations that TESTED it",
+      "passed": true,
+      "detail": "support=1.0",
+      "at": "2026-10-01T00:41:09.113949+00:00"
+    },
+    {
+      "label": "it travels in the judgement's own dict, so the record carries it",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-01T00:41:09.113957+00:00"
+    },
+    {
+      "label": "the binding is released \u2014 it does not leak to the next act",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-01T00:41:09.113961+00:00"
+    },
+    {
+      "label": "a refuted rule's contradiction is visible in the judgement",
+      "passed": true,
+      "detail": "status=refuted -1 support=0.6666666666666666",
+      "at": "2026-10-01T00:41:09.113996+00:00"
+    }
+  ],
+  "notes": []
+}

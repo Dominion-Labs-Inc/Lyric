@@ -149,14 +149,15 @@ def shape_of(meaning) -> ClaimShape:
 def read_shape(text: str) -> ClaimShape:
     """The shape of what a text claims, read through the one reader: a text that reads, as one utterance, to one
     meaning. Anything else claims nothing this can place, and says so."""
-    from core.semantics.derived_reader import read_text
+    from core.semantics.derived_reader import meant, read_text, sense_choices
     utterances = read_text(text or "")
-    if len(utterances) != 1 or not utterances[0].readings:
+    if len(utterances) != 1:
         return ClaimShape()
     readings = utterances[0].readings
-    if len({r.meaning.canonical() for r in readings}) > 1:
-        return ClaimShape()
-    return shape_of(readings[0].meaning)
+    # Meanings that differ only in which thing a word names ("fish", the animal or the food) affirm or deny alike,
+    # so the shape is theirs whichever was meant.
+    chosen = meant(readings) or next(iter(sense_choices(readings)), None)
+    return shape_of(chosen.meaning) if chosen is not None else ClaimShape()
 
 
 def read_claim(text: str) -> ClaimShape:

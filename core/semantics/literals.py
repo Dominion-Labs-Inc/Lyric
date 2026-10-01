@@ -25,7 +25,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime, timezone
 from typing import Optional
 
 #: A quantity -- how many, how much. The store holds it so a count or a measure
@@ -44,11 +44,17 @@ ORDINAL = "ordinal"
 YEAR = "year"
 DECADE = "decade"
 DATE = "date"
+#: A moment, to the second, in UTC: the time a conversation says "now" at.
+MOMENT = "moment"
+#: A written mathematical expression -- `2 + 3`, `x^2 - 4`, `sqrt(16)` -- as one term: what it comes to is a
+#: quantity, and it is read by the rules of mathematics' writing (`arithmetic_reading.read_expression`), so the
+#: same expression written two ways (`2+3`, `2 + 3`) is one thing.
+EXPRESSION = "expression"
 
 #: kind -> the concept type the store files it under.
 _CONCEPT_TYPE = {
     CARDINAL: QUANTITY, DECIMAL: QUANTITY, ORDINAL: QUANTITY,
-    YEAR: QUANTITY, DECADE: QUANTITY, DATE: TEMPORAL,
+    YEAR: QUANTITY, DECADE: QUANTITY, DATE: TEMPORAL, MOMENT: TEMPORAL, EXPRESSION: QUANTITY,
 }
 
 
@@ -75,7 +81,19 @@ _DECADE = re.compile(r"^(\d{1,4})0s$")
 _ORDINAL_NUM = re.compile(r"^(\d+)(st|nd|rd|th)$")
 _DECIMAL = re.compile(r"^[+-]?\d+\.\d+$")
 _CARDINAL = re.compile(r"^[+-]?\d+$")
+#: A whole number written in groups of three: 1,000,000.
+_GROUPED = re.compile(r"^[+-]?\d{1,3}(?:,\d{3})+$")
+#: Two numbers of one or two digits about a slash name a thing more often than they divide (`9/11`, `24/7`), and
+#: stay unread as the names they are.
+_SLASH_NAME = re.compile(r"^\d{1,2}/\d{1,2}$")
+#: The marks and names that make an expression do something: without one, `3pm` and `3D` are words with a number in
+#: them; `10 mod 3` and `log 100` do something by name.
+_OPERATES = re.compile(r"[-+*/^×÷·⋅−√∛!%|()]|\b(?:mod|sin|cos|tan|cot|sec|csc|log|ln|lg|exp|sqrt|cbrt|abs|lim)\b",
+                       re.IGNORECASE)
 _ISO_DATE = re.compile(r"^(\d{4})-(\d{1,2})-(\d{1,2})$")
+#: A moment only as ISO writes one in UTC, to the second: `2026-09-29T21:45:00Z`. A time with no zone is not
+#: read, since which moment it is depends on where it was written.
+_ISO_MOMENT = re.compile(r"^(\d{4})-(\d{2})-(\d{2})t(\d{2}):(\d{2}):(\d{2})z$")
 #: A slash date is admitted ONLY with a year. `9/11` and `24/7` have none, are
 #: month/day-ambiguous, and are in fact the names of things -- so they stay
 #: unread here and the door refuses them as the proper names they are.
@@ -125,6 +143,14 @@ def classify_literal(term: str) -> Optional[Literal]:
     if m:
         return Literal(ORDINAL, f"{int(m.group(1))}{m.group(2)}", int(m.group(1)), surface)
 
+    m = _ISO_MOMENT.match(low)
+    if m:
+        try:
+            moment = datetime(*(int(g) for g in m.groups()), tzinfo=timezone.utc)
+        except ValueError:                   # 2026-09-29T25:00:00Z is no moment
+            return None
+        return Literal(MOMENT, moment.strftime("%Y-%m-%dT%H:%M:%SZ"), moment, surface)
+
     m = _ISO_DATE.match(low)
     if m:
         d = _valid_date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
@@ -164,6 +190,16 @@ def classify_literal(term: str) -> Optional[Literal]:
 
     if _CARDINAL.match(low):
         return Literal(CARDINAL, str(int(low)), int(low), surface)
+
+    if _GROUPED.match(low):
+        value = int(low.replace(",", ""))
+        return Literal(CARDINAL, str(value), value, surface)
+
+    if _OPERATES.search(surface) and not _SLASH_NAME.match(surface):
+        from core.reasoning.arithmetic_reading import read_expression, render
+        expression = read_expression(surface)
+        if expression is not None:
+            return Literal(EXPRESSION, render(expression), expression, surface)
 
     return None
 

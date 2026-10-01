@@ -57,6 +57,25 @@ class SemanticRelation(Enum):
     HAS_PART = "has_part"          # car HAS_PART wheel   (inverse of PART_OF)
     MEMBER_OF = "member_of"        # robin MEMBER_OF flock
     HAS_MEMBER = "has_member"      # flock HAS_MEMBER robin
+    HAS_COUNT = "has_count"        # a group HAS_COUNT 3: how many there are
+    HAS_ADDEND = "has_addend"      # 21 HAS_ADDEND 20, 21 HAS_ADDEND 1: "twenty-one"
+    HAS_FACTOR = "has_factor"      # 200 HAS_FACTOR 2, 200 HAS_FACTOR 100: "two hundred"
+    HAS_RANK = "has_rank"          # the first dog HAS_RANK 1: its place in an order
+    # Arithmetic said in words: each operation's value is a thing, and each number it is made of stands in its
+    # own place, so "two plus two" is the sum whose augend is 2 and whose addend is 2 -- two facts, not one said
+    # twice -- and "seven minus four" is not "four minus seven".
+    EQUALS = "equals"              # two plus three EQUALS 5: the same number (symmetric)
+    HAS_AUGEND = "has_augend"      # 2 + 3 HAS_AUGEND 2: the number added to (HAS_ADDEND 3 is the one added)
+    HAS_MINUEND = "has_minuend"    # 7 - 4 HAS_MINUEND 7: the number taken from
+    HAS_SUBTRAHEND = "has_subtrahend"  # 7 - 4 HAS_SUBTRAHEND 4: the number taken away
+    HAS_MULTIPLICAND = "has_multiplicand"  # 3 × 4 HAS_MULTIPLICAND 3: the number multiplied (HAS_FACTOR 4: by)
+    HAS_DIVIDEND = "has_dividend"  # 12 / 3 HAS_DIVIDEND 12: the number divided
+    HAS_DIVISOR = "has_divisor"    # 12 / 3 HAS_DIVISOR 3: the number it is divided by
+    HAS_BASE = "has_base"          # 2^10 HAS_BASE 2: the number raised to a power
+    HAS_EXPONENT = "has_exponent"  # 2^10 HAS_EXPONENT 10: the power it is raised to
+    HAS_RADICAND = "has_radicand"  # √16 HAS_RADICAND 16: the number a root is taken of
+    HAS_INDEX = "has_index"        # √16 HAS_INDEX 2: which root, square (2) or cube (3)
+    HAS_ARGUMENT = "has_argument"  # the sine of x HAS_ARGUMENT x: what a function is applied to
 
     # ── compositional (substance) ────────────────────────────────────────
     MADE_OF = "made_of"            # cabinet MADE_OF wood
@@ -67,10 +86,22 @@ class SemanticRelation(Enum):
     CONTAINS = "contains"          # nest CONTAINS robin (inverse)
     LOCATED_AT = "located_at"      # meeting LOCATED_AT office
     ADJACENT_TO = "adjacent_to"    # kitchen ADJACENT_TO hall (symmetric)
+    NEAR = "near"                  # house NEAR river: close, not touching (symmetric)
+    ABOVE = "above"                # lamp ABOVE table
+    BELOW = "below"                # cat BELOW table (inverse)
+    LEFT_OF = "left_of"            # cup LEFT_OF plate
+    RIGHT_OF = "right_of"          # plate RIGHT_OF cup (inverse)
+    IN_FRONT_OF = "in_front_of"    # car IN_FRONT_OF house
+    BEHIND = "behind"              # house BEHIND car (inverse)
+    BETWEEN = "between"            # dog BETWEEN a group whose members it is between
 
     # ── attribute / property ─────────────────────────────────────────────
     HAS_PROPERTY = "has_property"  # snow HAS_PROPERTY white
     PROPERTY_OF = "property_of"    # white PROPERTY_OF snow (inverse)
+    HAS_DEGREE = "has_degree"      # dog HAS_DEGREE d, d INSTANCE_OF big: how big the dog is
+    EXCEEDS = "exceeds"            # one degree EXCEEDS another: "bigger than"
+    GREATEST_OF = "greatest_of"    # a degree GREATEST_OF dog: the most of it among dogs
+    HAS_MEASURE = "has_measure"    # a degree of long HAS_MEASURE two meters: how much it is
 
     # ── causal / conditional ─────────────────────────────────────────────
     CAUSES = "causes"              # rain CAUSES wetness
@@ -102,9 +133,35 @@ class SemanticRelation(Enum):
     # ── temporal ─────────────────────────────────────────────────────────
     PRECEDES = "precedes"          # ignition PRECEDES combustion
     FOLLOWS = "follows"            # combustion FOLLOWS ignition (inverse)
+    DURING = "during"              # a running DURING now: at the same time as
     # ── event participants ───────────────────────────────────────────────
     DONE_BY = "done_by"            # tying DONE_BY listener: who did the event
     DONE_TO = "done_to"            # tying DONE_TO shoe: what it was done to
+    DONE_WITH = "done_with"        # cutting DONE_WITH knife: what it was done with
+    MOVES_TO = "moves_to"          # a going TO: where the event ends
+    MOVES_INTO = "moves_into"      # into: ends inside it
+    MOVES_ONTO = "moves_onto"      # onto: ends on it
+    MOVES_FROM = "moves_from"      # from: where the event starts
+    MOVES_OUT_OF = "moves_out_of"  # out of: starts inside it
+    MOVES_THROUGH = "moves_through"# through it
+    MOVES_ACROSS = "moves_across"  # across it
+    MOVES_OVER = "moves_over"      # over it
+    MOVES_AROUND = "moves_around"  # around it
+    MOVES_TOWARD = "moves_toward"  # toward it, not always reaching it
+    MOVES_UP = "moves_up"          # up it
+    MOVES_DOWN = "moves_down"      # down it
+    LASTS_UNTIL = "lasts_until"    # an event and the time it lasts until
+    LASTS_SINCE = "lasts_since"    # an event and the time it has lasted since
+    LASTS_FOR = "lasts_for"        # an event and how long it lasts
+    DONE_FOR = "done_for"          # an event and whom it was done for
+    RECEIVED_BY = "received_by"    # a giving RECEIVED_BY Rex: who gets what the event passes
+    HAS_PURPOSE = "has_purpose"      # an event and the event it is meant to bring about
+    ABOUT = "about"                # a thing and what it is about
+    SIMILAR_TO = "similar_to"      # a thing and what it is like
+    OTHER_THAN = "other_than"      # someone OTHER_THAN Tom: "someone else" (symmetric)
+    NAMED = "named"                # the speaker NAMED tom: "My name is Tom."
+    COMES_FROM = "comes_from"      # the speaker COMES_FROM paris: "I am from Paris."
+    STATE_OF = "state_of"          # a being open STATE_OF door: whose state it is
 
     # ── dispositional ────────────────────────────────────────────────────
     CAPABLE_OF = "capable_of"      # a disposition/ability: birds CAPABLE_OF fly
@@ -243,6 +300,72 @@ _SPECS: Tuple[RelationSpec, ...] = (
                  frozenset({"next to", "adjacent to", "beside", "near",
                             "borders", "is next to", "is adjacent to"}),
                  symmetric=True, generic_safe=False),
+    # Where one thing is against another, as sight finds it too (`left_of` and
+    # `above` between the regions of a picture). NO SURFACE FORMS: the English
+    # for them is learned from lessons. Each has its inverse; none chains unless
+    # a context licenses it, since "above" held of places, not kinds, is contextual.
+    RelationSpec(SemanticRelation.ABOVE, frozenset(), inverse=SemanticRelation.BELOW,
+                 transitivity=Transitivity.ONTOLOGY_DEFINED, generic_safe=False,
+                 gloss="higher than another thing"),
+    RelationSpec(SemanticRelation.BELOW, frozenset(), inverse=SemanticRelation.ABOVE,
+                 transitivity=Transitivity.ONTOLOGY_DEFINED, generic_safe=False,
+                 gloss="lower than another thing"),
+    RelationSpec(SemanticRelation.LEFT_OF, frozenset(), inverse=SemanticRelation.RIGHT_OF,
+                 transitivity=Transitivity.ONTOLOGY_DEFINED, generic_safe=False,
+                 gloss="to the left of another thing"),
+    RelationSpec(SemanticRelation.RIGHT_OF, frozenset(), inverse=SemanticRelation.LEFT_OF,
+                 transitivity=Transitivity.ONTOLOGY_DEFINED, generic_safe=False,
+                 gloss="to the right of another thing"),
+    RelationSpec(SemanticRelation.IN_FRONT_OF, frozenset(), inverse=SemanticRelation.BEHIND,
+                 transitivity=Transitivity.ONTOLOGY_DEFINED, generic_safe=False,
+                 gloss="nearer the one looking than another thing"),
+    RelationSpec(SemanticRelation.BEHIND, frozenset(), inverse=SemanticRelation.IN_FRONT_OF,
+                 transitivity=Transitivity.ONTOLOGY_DEFINED, generic_safe=False,
+                 gloss="farther from the one looking than another thing"),
+    RelationSpec(SemanticRelation.BETWEEN, frozenset(), generic_safe=False,
+                 gloss="between the members of a group"),
+    RelationSpec(SemanticRelation.NEAR, frozenset(), symmetric=True, generic_safe=False,
+                 gloss="close to another thing, not touching it"),
+    # How many there are of a group ("three dogs": a group of dogs, and 3). The
+    # count is a number, a term of its own; nothing chains through it.
+    RelationSpec(SemanticRelation.HAS_COUNT, frozenset(), generic_safe=False,
+                 gloss="how many members a group has"),
+    # A number English builds from numbers: "twenty-one" is the number whose
+    # addends are 20 and 1, "two hundred" the one whose factors are 2 and 100.
+    # A meaning is written one way with each such number as its value (21, 200).
+    RelationSpec(SemanticRelation.HAS_ADDEND, frozenset(), generic_safe=False,
+                 gloss="a number and one of the numbers it is the sum of"),
+    RelationSpec(SemanticRelation.HAS_FACTOR, frozenset(), generic_safe=False,
+                 gloss="a number and one of the numbers it is the product of"),
+    RelationSpec(SemanticRelation.HAS_RANK, frozenset(), generic_safe=False,
+                 gloss="a thing and its place in an order"),
+    # Arithmetic said in words: an operation's value and the numbers it is made of, each in its own place. The
+    # symbolic mathematics faculty works these out; nothing chains through them. NO SURFACE FORMS: learned.
+    RelationSpec(SemanticRelation.EQUALS, frozenset(), symmetric=True,
+                 transitivity=Transitivity.ONTOLOGY_DEFINED, generic_safe=False,
+                 gloss="two values that are the same number"),
+    RelationSpec(SemanticRelation.HAS_AUGEND, frozenset(), generic_safe=False,
+                 gloss="a sum and the number added to"),
+    RelationSpec(SemanticRelation.HAS_MINUEND, frozenset(), generic_safe=False,
+                 gloss="a difference and the number taken from"),
+    RelationSpec(SemanticRelation.HAS_SUBTRAHEND, frozenset(), generic_safe=False,
+                 gloss="a difference and the number taken away"),
+    RelationSpec(SemanticRelation.HAS_MULTIPLICAND, frozenset(), generic_safe=False,
+                 gloss="a product and the number multiplied"),
+    RelationSpec(SemanticRelation.HAS_DIVIDEND, frozenset(), generic_safe=False,
+                 gloss="a quotient and the number divided"),
+    RelationSpec(SemanticRelation.HAS_DIVISOR, frozenset(), generic_safe=False,
+                 gloss="a quotient and the number it is divided by"),
+    RelationSpec(SemanticRelation.HAS_BASE, frozenset(), generic_safe=False,
+                 gloss="a power and the number raised"),
+    RelationSpec(SemanticRelation.HAS_EXPONENT, frozenset(), generic_safe=False,
+                 gloss="a power and the power it is raised to"),
+    RelationSpec(SemanticRelation.HAS_RADICAND, frozenset(), generic_safe=False,
+                 gloss="a root and the number it is taken of"),
+    RelationSpec(SemanticRelation.HAS_INDEX, frozenset(), generic_safe=False,
+                 gloss="a root and which root it is"),
+    RelationSpec(SemanticRelation.HAS_ARGUMENT, frozenset(), generic_safe=False,
+                 gloss="a function's value and what the function is applied to"),
     # attribute
     RelationSpec(SemanticRelation.HAS_PROPERTY,
                  frozenset({"has property", "is"}),   # bare copula + adjective
@@ -251,6 +374,19 @@ _SPECS: Tuple[RelationSpec, ...] = (
     RelationSpec(SemanticRelation.PROPERTY_OF,
                  frozenset({"is property of", "property of"}),
                  inverse=SemanticRelation.HAS_PROPERTY),
+    # Comparison by degrees: a thing has a degree of a property, and degrees of
+    # one property are compared. "The dog is bigger than the cat." is the dog's
+    # degree of big exceeding the cat's. NO SURFACE FORMS: learned from lessons.
+    RelationSpec(SemanticRelation.HAS_DEGREE, frozenset(), generic_safe=False,
+                 gloss="a thing and its degree of a property"),
+    RelationSpec(SemanticRelation.EXCEEDS, frozenset(),
+                 transitivity=Transitivity.ONTOLOGY_DEFINED, generic_safe=False,
+                 gloss="one degree of a property, or one number, more than another"),
+    RelationSpec(SemanticRelation.GREATEST_OF, frozenset(), generic_safe=False,
+                 gloss="a degree the most of its property among the things of a kind"),
+    # "two meters long": the degree of long, and the amount it measures.
+    RelationSpec(SemanticRelation.HAS_MEASURE, frozenset(), generic_safe=False,
+                 gloss="a degree and the amount it measures"),
     # causal
     RelationSpec(SemanticRelation.CAUSES,
                  frozenset({"causes", "cause", "leads to", "results in",
@@ -327,6 +463,8 @@ _SPECS: Tuple[RelationSpec, ...] = (
     RelationSpec(SemanticRelation.FOLLOWS,
                  frozenset({"follows", "comes after", "is after"}),
                  inverse=SemanticRelation.PRECEDES, generic_safe=False),
+    RelationSpec(SemanticRelation.DURING, frozenset(), generic_safe=False,
+                 gloss="an event or state at the same time as another, or as a time"),
     # event participants. "Tie your shoe." is a tying, done by the listener, done
     # to the shoe, and no other kind can say who did an event or what it was done
     # to. NO SURFACE FORMS: which English says them is learned, not written here.
@@ -336,6 +474,66 @@ _SPECS: Tuple[RelationSpec, ...] = (
                  gloss="an event and who did it"),
     RelationSpec(SemanticRelation.DONE_TO, frozenset(), generic_safe=False,
                  gloss="an event and what it was done to"),
+    RelationSpec(SemanticRelation.DONE_WITH, frozenset(), generic_safe=False,
+                 gloss="an event and what it was done with"),
+    # Where an event goes, when, how long, for whom, and what a thing is about or
+    # like. Each a kind of its own, as English tells "into the house" from "to the
+    # house". NO SURFACE FORMS: learned from lessons.
+    RelationSpec(SemanticRelation.MOVES_TO, frozenset(), generic_safe=False,
+                 gloss="a going TO: where the event ends"),
+    RelationSpec(SemanticRelation.MOVES_INTO, frozenset(), generic_safe=False,
+                 gloss="into: ends inside it"),
+    RelationSpec(SemanticRelation.MOVES_ONTO, frozenset(), generic_safe=False,
+                 gloss="onto: ends on it"),
+    RelationSpec(SemanticRelation.MOVES_FROM, frozenset(), generic_safe=False,
+                 gloss="from: where the event starts"),
+    RelationSpec(SemanticRelation.MOVES_OUT_OF, frozenset(), generic_safe=False,
+                 gloss="out of: starts inside it"),
+    RelationSpec(SemanticRelation.MOVES_THROUGH, frozenset(), generic_safe=False,
+                 gloss="through it"),
+    RelationSpec(SemanticRelation.MOVES_ACROSS, frozenset(), generic_safe=False,
+                 gloss="across it"),
+    RelationSpec(SemanticRelation.MOVES_OVER, frozenset(), generic_safe=False,
+                 gloss="over it"),
+    RelationSpec(SemanticRelation.MOVES_AROUND, frozenset(), generic_safe=False,
+                 gloss="around it"),
+    RelationSpec(SemanticRelation.MOVES_TOWARD, frozenset(), generic_safe=False,
+                 gloss="toward it, not always reaching it"),
+    RelationSpec(SemanticRelation.MOVES_UP, frozenset(), generic_safe=False,
+                 gloss="up it"),
+    RelationSpec(SemanticRelation.MOVES_DOWN, frozenset(), generic_safe=False,
+                 gloss="down it"),
+    RelationSpec(SemanticRelation.LASTS_UNTIL, frozenset(), generic_safe=False,
+                 gloss="an event and the time it lasts until"),
+    RelationSpec(SemanticRelation.LASTS_SINCE, frozenset(), generic_safe=False,
+                 gloss="an event and the time it has lasted since"),
+    RelationSpec(SemanticRelation.LASTS_FOR, frozenset(), generic_safe=False,
+                 gloss="an event and how long it lasts"),
+    RelationSpec(SemanticRelation.DONE_FOR, frozenset(), generic_safe=False,
+                 gloss="an event and whom it was done for"),
+    RelationSpec(SemanticRelation.RECEIVED_BY, frozenset(), generic_safe=False,
+                 gloss="an event and who receives what it passes"),
+    RelationSpec(SemanticRelation.HAS_PURPOSE, frozenset(), generic_safe=False,
+                 gloss="an event and the event it is meant to bring about"),
+    RelationSpec(SemanticRelation.ABOUT, frozenset(), generic_safe=False,
+                 gloss="a thing and what it is about"),
+    RelationSpec(SemanticRelation.SIMILAR_TO, frozenset(), generic_safe=False, symmetric=True,
+                 gloss="a thing and what it is like"),
+    # "someone else", "the other dog". Denied of an unknown, as "Nothing is in
+    # the box." denies it of anything: "Only Tom can swim." is that nothing
+    # other than Tom can.
+    RelationSpec(SemanticRelation.OTHER_THAN, frozenset(), generic_safe=False, symmetric=True,
+                 gloss="a thing and one it is not"),
+    # What a thing is called, and where it is from: "My name is Tom.", "I am from Paris.".
+    RelationSpec(SemanticRelation.NAMED, frozenset(), generic_safe=False,
+                 gloss="a thing and the name it is called by"),
+    RelationSpec(SemanticRelation.COMES_FROM, frozenset(), generic_safe=False,
+                 gloss="a thing and the place it comes from"),
+    # A state, as an event is: "The door was open." is a state of being open,
+    # the door's, before now. What holds now is said as it always was
+    # (`has_property`); a state is a thing of its own only where it has a time.
+    RelationSpec(SemanticRelation.STATE_OF, frozenset(), generic_safe=False,
+                 gloss="a state and whose it is"),
     # dispositional
     RelationSpec(SemanticRelation.CAPABLE_OF,
                  frozenset({"can", "is able to", "able to", "can do",

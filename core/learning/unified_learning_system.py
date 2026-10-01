@@ -17,9 +17,6 @@ from enum import Enum
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 from core.database.logging_database import LoggingDatabase
 
-# Import Slack notifier for learning milestone notifications
-from core.integration.slack_notifier import get_slack_notifier
-
 logger = logging.getLogger(__name__)
 
 
@@ -442,9 +439,8 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
         # -- `get_learning_metrics` reports both, labelled.
         #
         # `knowledge_base_size` was removed from here: nothing ever assigned it,
-        # so it was reported as 0 forever, including in the Slack milestone
-        # ("Knowledge Base Size: 0"). It is measured now, from the stores that
-        # actually hold knowledge.
+        # so it was reported as 0 forever. It is measured now, from the stores
+        # that actually hold knowledge.
         self.system_metrics = {
             "total_learning_sessions": 0,
             "successful_adaptations": 0,
@@ -459,64 +455,7 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
         # `_learning_depth` ContextVar so it is per-task; only the limit is
         # configurable state on the instance.
         self._max_nesting_depth = 3
-
-        # Slack notifier for learning milestones
-        self.slack_notifier = get_slack_notifier()
     
-    #: Fire-and-forget notification tasks, held so the event loop cannot
-    #: garbage-collect them mid-flight. asyncio keeps only a weak reference to a
-    #: task, so a create_task() whose result nobody stores can vanish before it
-    #: runs -- silently, and only sometimes.
-    _pending_notifications: set = set()
-
-    def _notify(self, **kwargs) -> None:
-        """Send a Slack notification WITHOUT holding the learning path.
-
-        A notification is a side effect. Whether a chat message was delivered
-        says nothing about whether learning succeeded, so nothing here waits to
-        find out.
-
-        This was `self._notify(...)` at six sites,
-        and the cost of that landed somewhere it had no business being: every
-        AbstractReasoningEngine.reason() call blocked indefinitely at
-        `_update_learning`, because reasoning -> learning -> notification, and
-        the notification would not resolve. Instrumenting the awaits showed it
-        exactly --
-
-            ENTER select_strategy  EXIT 4ms
-            ENTER store_memory     EXIT 148ms
-            ENTER slack            (never exits)
-
-        -- so every registered kind of thinking was unreachable through its own
-        engine because a webhook was unreachable. `SEND_DEADLINE_SECONDS` in the
-        notifier now bounds that at 35 s for every caller, but a bound is not
-        the same as not waiting: reasoning should not pay 35 s either, and it
-        has no reason to wait even 35 ms.
-
-        Failures are logged and dropped. There is nothing sensible for a
-        learning routine to DO about an undelivered chat message.
-        """
-        notifier = getattr(self, "slack_notifier", None)
-        if notifier is None:
-            return
-        try:
-            task = asyncio.ensure_future(notifier.send_notification(**kwargs))
-        except RuntimeError:
-            # No running loop -- called from sync context during teardown.
-            logger.debug("notification skipped: no running event loop")
-            return
-        self._pending_notifications.add(task)
-        task.add_done_callback(self._pending_notifications.discard)
-
-        def _log_failure(finished):
-            if finished.cancelled():
-                return
-            error = finished.exception()
-            if error is not None:
-                logger.warning("notification failed: %s: %s",
-                               type(error).__name__, error)
-        task.add_done_callback(_log_failure)
-
     async def start(self) -> None:
         """Start the unified learning system
 
@@ -622,39 +561,15 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
             self.initialized = True
             logger.info("✅ Unified learning system started successfully")
 
-            # NOTE: No Slack notification here - system startup notification is sent by main.py
-            # to avoid duplicate notifications
-
         except RuntimeError as re:
             # RuntimeError we raised - just re-raise
             self.initialized = False
 
-            # 📢 Slack alert for initialization failure
-            self._notify(
-                message=f"🚨 **Learning System Initialization Failed**\n"
-                        f"• Error: {str(re)}\n"
-                        f"• Type: RuntimeError\n"
-                        f"• Impact: Learning functionality unavailable\n"
-                        f"• Action: Check component initialization",
-                channel="ALERTS",
-                severity="error"
-            )
             raise
 
         except Exception as e:
             logger.error(f"Unexpected error starting unified learning system: {e}")
             self.initialized = False
-
-            # 📢 Slack alert for unexpected initialization error
-            self._notify(
-                message=f"🚨 **Learning System Critical Error**\n"
-                        f"• Error: {type(e).__name__}\n"
-                        f"• Message: {str(e)}\n"
-                        f"• Impact: Learning system failed to start\n"
-                        f"• Action: Review logs for full stack trace",
-                channel="ALERTS",
-                severity="error"
-            )
 
             raise RuntimeError(
                 f"Unexpected error during learning system initialization: {e}\n"
@@ -909,35 +824,8 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
                 else:
                     logger.warning(f"⚠️  Memory agent rejected: {memory_id}")
 
-                # 📢 Slack notification for important learning milestones
-                # STATED, not defaulted. `example.get('success', True)` fired
-                # this "High-Accuracy Learning Achieved" alert for examples that
-                # said nothing about their outcome -- while the credit path
-                # below correctly classed the very same example as
-                # INSUFFICIENT_EVIDENCE. The notification claimed a win the
-                # posterior refused to award.
-                if (strategy is not None and example.get('success') is True
-                        and example.get('accuracy', 0.0) > 0.9):
-                    self._notify(
-                        message=f"🎓 **High-Accuracy Learning Achieved**\n"
-                                f"• Type: {learning_type}\n"
-                                f"• Strategy: {strategy.strategy_id}\n"
-                                f"• Accuracy: {example.get('accuracy', 0.0):.2%}\n"
-                                f"• Memory ID: {memory_id}",
-                        channel="ACTIVITY",
-                        severity="info"
-                    )
             else:
                 logger.warning("⚠️  Memory system not available - learning NOT persisted!")
-
-                # 📢 Slack alert for missing memory system
-                self._notify(
-                    message="⚠️ **Learning System Warning**\n"
-                            f"Memory system unavailable - learning experience NOT persisted!\n"
-                            f"Learning ID: {learning_id}",
-                    channel="ALERTS",
-                    severity="warning"
-                )
 
             # 📊 Track outcome in meta-learning for strategy optimization
             #
@@ -1022,17 +910,6 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
                 }
             )
 
-            # 📢 Slack notification for learning milestones (every 100 adaptations)
-            if self.system_metrics["successful_adaptations"] % 100 == 0 and success:
-                self._notify(
-                    message=f"🎓 **Learning Milestone Reached**\n"
-                            f"• Total Sessions: {self.system_metrics['total_learning_sessions']}\n"
-                            f"• Successful Adaptations: {self.system_metrics['successful_adaptations']}\n"
-                            f"• Latest Accuracy: {example.get('accuracy', 0.0):.2%}",
-                    channel="ACTIVITY",
-                    severity="success"
-                )
-
             # CROSS-DOMAIN: learning in a domain looks for what it already
             # knows elsewhere.
             #
@@ -1083,18 +960,6 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
 
         except Exception as e:
             logger.error(f"❌ Learning from example failed: {e}")
-
-            # 📢 ROBUST Slack alert for learning failure
-            self._notify(
-                message=f"🚨 **Learning System Failure**\n"
-                        f"• Error: {type(e).__name__}\n"
-                        f"• Message: {str(e)}\n"
-                        f"• Example Type: {example.get('type', 'unknown')}\n"
-                        f"• Session: {self.system_metrics['total_learning_sessions']}\n"
-                        f"• Successful Adaptations: {self.system_metrics['successful_adaptations']}",
-                channel="ALERTS",
-                severity="error"
-            )
 
             # Log error with full stack trace
             import traceback
@@ -1363,8 +1228,7 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
         """What the substrate actually holds, by store. None if unreadable.
 
         There was a `knowledge_base_size` counter in `system_metrics` that
-        nothing ever wrote to, so every consumer -- including the Slack
-        milestone -- reported 0. A count of what is known is measurable; it was
+        nothing ever wrote to, so every consumer reported 0. A count of what is known is measurable; it was
         just never measured.
         """
         try:
@@ -3531,6 +3395,81 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
             _ledger.end_batch(batch)
         return counts
 
+    async def learn_usage(self, usage, *, provenance: Any = None, quality: float) -> Dict[str, int]:
+        """How often each word is met naming each thing, from a source that counted it in real use (WordNet's
+        tagged corpus): `usage` is an iterable of `(word, concept, times)`.
+
+        What a person learns from hearing English used, and what a listener goes by when nothing it knows tells
+        two meanings of a word apart (`derived_reader.meant`): "fish" is met naming the animal more often than the
+        food. Each count lands on the belief of the construction that says the word names the thing, as ONE
+        observation from the source carrying how many uses it witnessed, so the same source again moves nothing.
+        A word that names the thing through no construction yet (never read naming it) has nowhere to land, and is
+        counted, not held elsewhere.
+
+        Returns counts: `observed`, `already` (this source's count held already), `no_construction`, `total`.
+        """
+        from core.memory import knowledge_ledger as _ledger
+        from core.memory import get_memory_agent
+        from core.reasoning.bayesian_uncertainty import get_uncertainty_system
+        from core.semantics import derived_reader as dr
+        from core.semantics.cognitive_ingress import MIN_ADMIT_QUALITY
+        from core.semantics.sentence_machine import form_of
+
+        usage = list(usage)
+        counts = {"observed": 0, "already": 0, "no_construction": 0, "refused": 0, "total": len(usage)}
+        if self._refused_while_frozen(f"learn_usage ({len(usage)})"):
+            counts["refused"] = len(usage)
+            return counts
+        if quality < MIN_ADMIT_QUALITY:
+            logger.info("usage REFUSED for %d word(s): evidence quality %.3f < floor %.2f",
+                        len(usage), quality, MIN_ADMIT_QUALITY)
+            counts["refused"] = len(usage)
+            return counts
+        agent = await get_memory_agent()
+        view = await agent.language_view()
+        held = await agent.stated_patterns()
+        producer = getattr(provenance, "producer", "learning")
+        source_id = getattr(provenance, "source_id", None) or "you"
+        cause = f"learning.usage.{producer}"
+        us = get_uncertainty_system()
+        updates: List[Any] = []
+        batch = _ledger.begin_batch(cause)
+        try:
+            for word, concept, times in usage:
+                words = tuple(p.text for p in form_of(str(word)))
+                wanted = str(concept).strip().lower()
+                lexical = next((lx for lx in view.lexicals_with_words(words)
+                                + view.lexicals_with_words(tuple(w.lower() for w in words), loose=True)
+                                if lx.value.lower() == wanted), None)
+                if lexical is None:
+                    counts["no_construction"] += 1
+                    continue
+                before = us.belief_for_claim(lexical.claim())
+                seen = len(before.evidence_for) if before is not None else 0
+                after = us.observe_claim(lexical.claim(), dr.ENGLISH_DOMAIN, supports=True, quality=quality,
+                                         source="taught", observation=f"{source_id}:usage",
+                                         memory_id=held.get(lexical.key), uses=int(times))
+                if after is None or len(after.evidence_for) <= seen:
+                    counts["already"] += 1
+                    continue
+                counts["observed"] += 1
+                updates.append(_ledger.KnowledgeUpdate(
+                    subject_kind="language_pattern", subject_id=lexical.key,
+                    disposition=_ledger.Disposition.UPDATED, domain=dr.ENGLISH_DOMAIN,
+                    detail=f"{word!r} met {int(times)} times naming {concept!r} ({source_id})"[:500],
+                    cause=cause))
+            if updates:
+                try:
+                    from core.database import get_database_manager
+                    await _ledger.record_many(get_database_manager(), updates)
+                except Exception as error:
+                    from core.capability import raise_if_structural
+                    raise_if_structural(error, "unified_learning_system.learn_usage.ledger")
+                    logger.debug("knowledge updates for word usage not recorded: %s", error)
+        finally:
+            _ledger.end_batch(batch)
+        return counts
+
     async def _store_language_item(self, agent: Any, item: Any, producer: str, source_id: str,
                                    quality: float) -> Optional[str]:
         """One construction or link as the semantic memory that holds it; its memory id, or None."""
@@ -4635,10 +4574,27 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
 
     async def _induce_signature(self, *, domain_id: str, predicate: str,
                                 arity: int) -> Dict[str, Any]:
-        """Load a signature's demonstrations and re-induce its operator. Off the
-        hot path by construction: this is the expensive half. Contrastive
-        negatives from the whole domain enter the basis; the most recent
-        action-ful demonstrations are held back to validate independently."""
+        """Load a signature's demonstrations, judge and re-induce its operator,
+        and project an executable one into the concept graph. Off the hot path
+        by construction: this is the expensive half."""
+        summary, promoted, basis = await self._judge_signature(
+            domain_id=domain_id, predicate=predicate, arity=arity)
+        if promoted is not None:
+            summary["projected_to_concepts"] = await self._project_operator_to_concepts(
+                promoted, basis, domain_id=domain_id)
+        return summary
+
+    async def _judge_signature(self, *, domain_id: str, predicate: str,
+                               arity: int) -> Tuple[Dict[str, Any], Optional[Any], List]:
+        """Everything that decides a signature's authority, and nothing else:
+        re-judge the rules it already holds, hold back the latest success and
+        failure, induce from the rest, record, validate. Contrastive negatives
+        from the whole domain enter the basis.
+
+        Returns the summary, the record now executable (or None) and the basis
+        it was induced from. Kept apart from the concept projection so the
+        decision can be measured at scale without writing to the concept graph.
+        """
         from core.learning.demonstration_store import get_demonstration_store
 
         rule_kind = predicate.lower()
@@ -4646,6 +4602,19 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
         signature_examples = await demos.load(
             domain_id=domain_id, predicate=predicate, arity=arity)
         contrastive = await demos.load_contrastive(domain_id=domain_id)
+
+        # Authority already granted answers to what has been shown since. A rule
+        # validated early in a teaching run must not outlive the case that
+        # refutes it just because a narrower rule was induced after it.
+        for held in await self.store.executable_rules(domain_id=domain_id):
+            act = getattr(held.rule, "action", None)
+            if act is None or act.predicate != predicate or len(act.args) != arity:
+                continue
+            try:
+                await self.store.rejudge(held, signature_examples)
+            except Exception as e:
+                raise_if_structural(e, "unified_learning_system._judge_signature")
+                logger.info("re-judgement of %s deferred: %s", held.rule_id, e)
 
         positives = [e for e in signature_examples if e.positive]
         summary: Dict[str, Any] = {
@@ -4659,21 +4628,31 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
             "executable": False,
         }
         if len(positives) < 2:
-            return summary
+            return summary, None, []
 
+        # Validation holds back the most recent SUCCESS. Holding back the latest
+        # demonstrations whatever they were gave the teachers' rules two failures
+        # their bodies did not match, and a case a rule says nothing about cannot
+        # confirm it: validation has to see the rule produce its effect.
+        #
+        # Every failure stays in the basis. Holding the latest one back too was
+        # tried and measured (RULE-AUTHORITY-01): it removed the counterexample
+        # that forced a precondition into the body, the rule induced without it
+        # was refuted by it, and a teaching set that determined the rule ended
+        # with no operator. A failure that arrives later is answered by
+        # `rejudge`. The basis keeps at least two successes, so with only two
+        # nothing is held back and the rule waits, unvalidated, for a third.
         signature_basis = list(signature_examples)
         held_out: List = []
-        while len(held_out) < 2 and len(signature_basis) > 1:
-            if sum(1 for e in signature_basis[:-1] if e.positive) >= 2:
-                held_out.insert(0, signature_basis.pop())
-            else:
-                break
+        if sum(1 for e in signature_basis if e.positive) >= 3:
+            latest = max(i for i, e in enumerate(signature_basis) if e.positive)
+            held_out.append(signature_basis.pop(latest))
 
         basis = _relevant_frame(_bounded_basis(signature_basis, contrastive))
         result = self.induce(basis)
         summary["status"] = result.status.value
         if result.status is not InductionStatus.RULE_LEARNED:
-            return summary
+            return summary, None, []
         acted = getattr(result.rule, "action", None)
         if acted is None or acted.predicate != predicate:
             # NOT THIS ACT'S OPERATOR. The demonstrations were explained without
@@ -4684,12 +4663,12 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
             # as one.
             summary["status"] = "effect_without_act"
             summary["detail"] = str(result.rule)
-            return summary
+            return summary, None, []
 
         stored = await self.record(
             result, basis, domain_id=domain_id, rule_kind=rule_kind)
         if not stored:
-            return summary
+            return summary, None, []
         record = stored[0]
         summary["rule_id"] = record.rule_id
 
@@ -4697,18 +4676,14 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
             try:
                 await self.store.validate(record, held_out)
             except Exception as e:
-                raise_if_structural(e, "unified_learning_system._induce_signature")
+                raise_if_structural(e, "unified_learning_system._judge_signature")
                 logger.info("validation of %s deferred: %s", record.rule_id, e)
 
         promoted = [r for r in await self.store.executable_rules(domain_id=domain_id)
                     if r.rule_id == record.rule_id]
         summary["executable"] = bool(promoted)
-        if promoted:
-            projected = await self._project_operator_to_concepts(
-                promoted[0], basis, domain_id=domain_id)
-            summary["projected_to_concepts"] = projected
         summary["status"] = "operator_executable" if promoted else "operator_candidate"
-        return summary
+        return summary, (promoted[0] if promoted else None), basis
 
     async def _project_operator_to_concepts(self, record, basis, *,
                                             domain_id: str) -> bool:

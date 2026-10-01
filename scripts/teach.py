@@ -34,6 +34,7 @@ So this starts the substrate and teaches it while it is running:
   --relations grammar | practical | taxonomy      (conceptnet only)
   --limit N  teach a uniform sample of N across the WHOLE source
   --head     take the source's first N instead of a sample
+  --definitions  (wordnet) also offer each definition as a sentence with no meaning given
 
 Run: PYTHONPATH="$PWD" POSTGRES_PORT=5433 POSTGRES_USER=stefan \
      LYRIC_NO_WATCHDOG=1 ./venv_lyric/bin/python3 scripts/teach.py --source wordnet
@@ -71,7 +72,7 @@ def build_source(args):
         return ConceptNetSource(path=args.dump or str(DUMP),
                                 relations=dict(relations))
     if args.source == "wordnet":
-        return WordNetSource()
+        return WordNetSource(definitions=args.definitions)
     if args.source == "closed-classes":
         # The finite classes of English. No facts, only what class each word
         # has -- which is the half of language a taxonomy source cannot state.
@@ -182,6 +183,8 @@ async def main() -> int:
     parser.add_argument("--dump", default=None)
     parser.add_argument("--relations", default="grammar")
     parser.add_argument("--lesson", default=None)
+    parser.add_argument("--definitions", action="store_true",
+                        help="wordnet: also offer each definition as a sentence with no meaning, read or dropped")
     args = parser.parse_args()
 
     from core.learning.teaching import TeachingPass

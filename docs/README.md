@@ -47,14 +47,13 @@ Lyric/
 │   ├── learning/        # Learning systems (continuous, pattern recognition)
 │   ├── security/        # Security systems (WAF, malware sandbox, threat intel)
 │   ├── tools/           # Tool registry and execution
-│   ├── governance/      # Governance and decision-making
 │   ├── chaos/           # Chaos testing framework
 │   └── database/        # Database management
 │
 ├── config/              # Configuration files
 │   ├── memory_filtering_policy.json
 │   ├── chaos_config.json
-│   └── governance_triggers.json
+│   └── constitution_triggers.json
 │
 └── docs/                # This folder
     ├── memory_filtering.md

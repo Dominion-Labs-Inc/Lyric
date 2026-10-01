@@ -21,15 +21,14 @@ reported, so the substrate can say how much it let pass.
 THE EYE looks at a camera without stopping and keeps only the latest frame;
 every other frame is overwritten. It hands the frame over only when asked.
 
-THE SUBSTRATE (`LiveSenses`) takes each kept utterance through the one door a
-recording comes through (`coord.hear`), so it is admitted, judged and
-remembered like any hearing -- in words, as a trace, never the recording -- and
-looks at the scene of that moment through `coord.see`. When the hearing was
-complete -- every word in it a taught word, nothing unknown -- what was said
-goes to the one front door a person's message comes through
-(`coord.handle_user_request`), where typed words go, so spoken and written
-talk are one conversation in one memory. The reply is text; a voice of its own
-is later work.
+THE SUBSTRATE (`LiveSenses`) takes each kept utterance and the scene of that
+moment in together, as ONE moment (`coord.perceive_moment`): heard and seen at
+the same time, admitted, judged and remembered as one experience -- in words,
+as traces, never the recording or the picture. When the hearing was complete --
+every word in it a taught word, nothing unknown -- what was said goes to the
+one front door a person's message comes through (`coord.handle_user_request`),
+where typed words go, so spoken and written talk are one conversation in one
+memory. The reply is text; a voice of its own is later work.
 
 Run the ear or the eye alone (they are started by `LiveSenses`):
     python -m core.perception.live ear mic:default
@@ -243,8 +242,16 @@ class Ear:
     def _let_go(self) -> None:
         """Samples no utterance can still need are let go of: before the
         current utterance's start, or, between utterances, all but the room
-        quiet an utterance would keep before it."""
-        keep_from = (self._start * hearing.HOP if self._start is not None
+        quiet an utterance would keep before it.
+
+        A SOUND STILL GOING ON is kept from where it began. A sound is known
+        only when it ends, and an utterance starts with its first sound, so
+        letting go by the utterance's start alone dropped the opening of any
+        first sound longer than the room kept before it: a name said as one
+        unbroken sound ("Lyric", half a second) lost its first fifth and was
+        no longer heard as the name."""
+        begins = self._start if self._start is not None else self._run
+        keep_from = (begins * hearing.HOP if begins is not None
                      else self._total) - int(EDGE_SECONDS * hearing.SR) - hearing.FRAME
         drop = keep_from - self._at
         if drop > 0:
@@ -369,7 +376,8 @@ class LiveSenses:
         #: What the hearings and seeings are called when admitted (their source).
         self.label = label
         self.account: Dict[str, Any] = {"kept": [], "passed_seconds": 0.0, "passed": 0,
-                                        "status": []}
+                                        "status": [], "told": []}
+        self._stop_listening = None
         self._ear = self._eye = None
         self._tasks: List[asyncio.Task] = []
         self._eye_lock = asyncio.Lock()
@@ -394,6 +402,10 @@ class LiveSenses:
             self._tasks.append(asyncio.create_task(self._keep_ear_taught()))
         if self.camera:
             self._eye = await self._program("eye", self.camera)
+        # WHAT THE SUBSTRATE SAYS UNASKED to whoever talks to it here reaches them
+        # here: work they asked for that ended, a reminder due. Said in words
+        # until the substrate has a voice of its own.
+        self._stop_listening = self.coord.on_message(self.session, self._told)
         logger.info("👂👁 live senses on: listening to %s, looking at %s; kept only when "
                     "%r is said", self.microphone or "nothing", self.camera or "nothing",
                     self.name)
@@ -467,9 +479,9 @@ class LiveSenses:
         return path
 
     async def _take_in(self, utterance: Dict[str, Any]) -> None:
-        """One utterance said to the substrate: heard through the one door,
-        the scene looked at, and -- when every word of it was heard as a taught
-        word -- what was said given to the front door.
+        """One utterance said to the substrate: heard, and the scene looked at,
+        as one moment, and -- when every word of it was heard as a taught word
+        -- what was said given to the front door.
 
         WHAT IT BECOMES DECIDES WHICH MEMORY IT IS PART OF. The hearing and the
         look are sensed first and remembered after: a request they start forms
@@ -495,13 +507,35 @@ class LiveSenses:
         said = [s["word"] for s in content.get("said") or []]
         supports = [s["support"] for s in content.get("said") or []]
         text = content.get("heard_text") or ""
-        complete = bool(said) and "..." not in text.split()
-        words = text.split()
-        # The name said to call it is how it was addressed, not what was asked.
-        while words and words[0] == self.name:
-            words = words[1:]
-        while words and words[-1] == self.name:
-            words = words[:-1]
+
+        def asked_in(heard_as: str) -> List[str]:
+            """THE NAME SAID TO CALL IT IS HOW IT WAS ADDRESSED, not what was
+            asked. What was asked is what follows the name, or, when the name is
+            said last, what came before it. What came before a name that the
+            request follows -- a sound in the room, a word to someone else -- was
+            not asked of it."""
+            words = heard_as.split()
+            if self.name in words:
+                at = words.index(self.name)
+                after = [w for w in words[at + 1:] if w != self.name]
+                words = after if after else [w for w in words[:at] if w != self.name]
+            return words
+
+        words = asked_in(text)
+        # WORDS THAT SOUND ALIKE ARE HEARD AS A PERSON HEARS THEM. The ear hands
+        # on every way what was said can be heard ("I have to go" and "I have
+        # two go"); the listener takes the one that makes sense
+        # (`derived_reader.heard_which`), and only when it can tell.
+        ways = [" ".join(asked_in(way)) for way in content.get("heard_texts") or []]
+        ways = [way for way in dict.fromkeys(ways) if way and "..." not in way.split()]
+        if ways:
+            from core.semantics.derived_reader import heard_which
+            which = await heard_which(ways)
+            if which is not None:
+                words = which.split()
+        # COMPLETE when every word of what was asked was heard as a taught word,
+        # or as one of the words it sounds alike to, which the listener chose.
+        complete = bool(said or ways) and bool(words) and "..." not in words
         record: Dict[str, Any] = {
             "at": utterance["at"], "named": utterance["named"], "heard_text": text,
             "complete": complete,
@@ -519,29 +553,39 @@ class LiveSenses:
             record.update({"asked": asked, "reply": reply, "pursuit_memory": within})
             logger.info("🗣 said to it: %r -> %s", asked,
                         reply.get("answer") or reply.get("task_id") or reply)
+            # WHAT WAS SAID TO IT went to the front door, where what a person
+            # tells it is read; it is not read a second time as the room's words.
+            if heard_sensed is not None:
+                heard_sensed[1]["said_to_it"] = True
         else:
             logger.info("🗣 said to it, not all understood: %r (remembered, not acted on)", text)
-        jobs = [self.coord.hear(str(path), actor_identity=None, source=self.label,
-                                domain="hearing", sensed=heard_sensed, within=within)]
+        from core.agents.autonomous.autonomous_coordinator import Met
+        moment = [Met(path=str(path), door="hear", domain="hearing", sensed=heard_sensed)]
         if picture is not None and seen_sensed is not None \
                 and not isinstance(seen_sensed, BaseException):
-            jobs.append(self.coord.see(str(picture), actor_identity=None, source=self.label,
-                                       domain="vision", sensed=seen_sensed, within=within))
-        perceived = await asyncio.gather(*jobs, return_exceptions=True)
-        for kept in (path, picture):
-            if kept is not None:
-                kept.unlink(missing_ok=True)            # memory keeps what it keeps
+            moment.append(Met(path=str(picture), door="see", domain="vision",
+                              sensed=seen_sensed))
+        try:
+            perceived = await self.coord.perceive_moment(
+                moment, actor_identity=None, source=self.label, within=within)
+        finally:
+            for kept in (path, picture):
+                if kept is not None:
+                    kept.unlink(missing_ok=True)        # memory keeps what it keeps
         heard = perceived[0]
-        if isinstance(heard, BaseException):
-            raise heard
         seen = perceived[1] if len(perceived) > 1 else None
         record["heard_memory"] = (heard.metadata or {}).get("memory_id") if heard else None
-        record["seen_memory"] = ((seen.metadata or {}).get("memory_id")
-                                 if seen is not None and not isinstance(seen, BaseException)
-                                 else None)
+        record["seen_memory"] = (seen.metadata or {}).get("memory_id") if seen else None
         self.account["kept"].append(record)
 
+    def _told(self, message: Dict[str, Any]) -> None:
+        """What the substrate said to the person here, unasked."""
+        logger.info("🗣 said to you (%s): %s", message.get("why"), message.get("text"))
+        self.account["told"].append({k: message.get(k) for k in ("text", "why", "about", "due_at")})
+
     async def stop(self) -> None:
+        if self._stop_listening is not None:
+            self._stop_listening()
         for task in self._tasks:
             task.cancel()
         for program in (self._ear, self._eye):

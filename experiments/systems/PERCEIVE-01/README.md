@@ -2,9 +2,9 @@
 
 **What it tests.** The substrate is model-free and does not read raw pixels or waveforms here. It takes
 the structure an upstream detector or sensor supplies, such as a value with a unit, recognised labels,
-a duration or a capture date. That structure goes through `PerceptionManager.process_input`, and the
+a duration or a capture date. That structure goes through `PerceptionFaculty.admit_percept`, and the
 experiment then checks the store:
-- the perception is retained;
+- the perception is admitted as evidence;
 - its edges are in the concept graph;
 - a number is held as a typed quantity;
 - the substrate believes the observations;

@@ -68,21 +68,10 @@ SIMPLE_TEST_PARAMS = {
 
     # ===== DATABASE (16 tools) =====
     'mysql_query': {'query': 'SELECT 1'},
-    'mysql_table_info': {'table_name': 'test_sessions'},
-    'mysql_backup': {'table_name': 'test_results', 'output_path': '/tmp/backup.json'},
-    'mysql_restore': {'table_name': 'test_results', 'backup_path': '/tmp/backup.json'},
     'redis_get': {'key': 'test_key'},
     'redis_set': {'key': 'test_key', 'value': 'test_value'},
     'r2_upload': {'file_path': '/tmp/lyric_test.txt', 'object_key': 'test_object'},
     'r2_download': {'object_key': 'test_object', 'file_path': '/tmp/downloaded.txt'},
-    'connection_pool_manager': {'operation': 'check_health'},
-    'transaction_wrapper': {'queries': ['SELECT 1']},
-    'migration_runner': {'operation': 'get_history'},
-    'row_level_access_control': {'operation': 'create_policy', 'table_name': 'test_sessions', 'service_user': 'test', 'allowed_owners': ['test_user']},
-    'safe_query_executor': {'query': 'SELECT 1'},
-    'check_mysql_health': {},
-    'query_metrics': {'metric_type': 'health'},
-    'create_alert': {'alert_type': 'health', 'message': 'test alert'},
 
     # ===== NETWORK (18 tools) =====
     'http_request': {'url': 'https://httpbin.org/get', 'method': 'GET'},
@@ -185,7 +174,6 @@ SIMPLE_TEST_PARAMS = {
     'mutation_testing': {'source_file': '/tmp/lyric_atomic.txt', 'test_file': '/tmp/lyric_atomic.txt'},
     'static_security_analysis': {'code': 'def test(): pass'},
     'golden_test_harness': {'test_file': '/tmp/test.txt', 'golden_dir': '/tmp'},
-    'chaos_testing': {'chaos_type': 'latency', 'target': 'test'},
 
     # Chaos Engineering Tools
     'createchaosexperiment': {
@@ -206,8 +194,6 @@ SIMPLE_TEST_PARAMS = {
     'rollbackchaosexperiment': {'experiment_id': 'test-experiment-id', 'reason': 'Test rollback'},
 
     'generate_embedding': {'text': 'test text'},
-    'query_memory': {'query': 'test query'},
-    'store_memory': {'content': 'test content'},
     'run_inference': {'model_name': 'test', 'input_data': {}},
     'analyze_training_data': {'data': []},
     'get_model_info': {},

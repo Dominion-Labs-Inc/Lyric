@@ -290,7 +290,6 @@ def test_curiosity_goals_are_generated_from_real_targets():
         max_goals_curiosity=2, expected_competence_gain=0.5,
         novelty_weight=0.4, uncertainty_weight=0.4, competence_weight=0.2,
     )
-    coordinator.slack_notifier = None
     created = []
 
     async def set_goal(description, priority=None, intrinsic_values=None):
@@ -368,7 +367,6 @@ def test_curiosity_goals_are_generated_from_real_targets():
         max_goals_curiosity=2, expected_competence_gain=0.5,
         novelty_weight=0.4, uncertainty_weight=0.4, competence_weight=0.2,
     )
-    coordinator.slack_notifier = None
     created = []
 
     async def set_goal(description, priority=None, intrinsic_values=None):

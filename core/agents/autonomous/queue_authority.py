@@ -19,10 +19,9 @@ Three kinds of job, one authority:
   3. SCHEDULED   — recurring interval jobs (e.g. periodic maintenance/learning).
      jobs           Nothing schedules timed work on its own; it registers here.
 
-GOVERNANCE IS NOT HERE. Governance is a blanket authority over the whole self —
+THE CONSTITUTION IS NOT HERE. It is a blanket authority over the whole self —
 internal affairs over the sheriff's office — not a call reached up into from
-inside a sub-component. The old queue embedded a bulk-task-creation governance
-trigger; that has been removed. What stays is admission control, which is about
+inside a sub-component. What is here is admission control, which is about
 the QUEUE'S capacity, not about whether an action is permitted — a different
 question, owned above.
 """
@@ -152,7 +151,10 @@ class QueueAuthority:
         self.config = {
             'max_queue_size': 1000,
             'max_retries': 1,
-            'max_parallel': 5,
+            # Sixty work jobs at once: the people the substrate works for (three
+            # each at most -- the per-user cap is the substrate's, when it draws)
+            # and its own work, under this one budget.
+            'max_parallel': 60,
             'job_timeout_seconds': 300.0,
             **(config or {}),
         }
@@ -166,10 +168,20 @@ class QueueAuthority:
         self.metrics: Dict[str, int] = {
             'tasks_completed': 0, 'tasks_failed': 0,
             'tasks_requeued': 0, 'tasks_deferred': 0,
-            'tasks_already_queued': 0,
+            'tasks_already_queued': 0, 'tasks_cancelled': 0,
         }
+        #: The work jobs running now, by id, while they run: what `cancel` stops.
+        self._running_jobs: Dict[str, asyncio.Task] = {}
+        #: Writes of a cancelled job's record, held until they finish.
+        self._persisting: set = set()
+        #: Who is told when a work job ENDS (completed, failed, partly done):
+        #: handed the job, as a job is shown to its owner (`_job_view`), and the
+        #: task. How a result is passed back without polling, as `submit`'s
+        #: `on_complete` is for an await-job. A job cancelled is not announced:
+        #: whoever cancelled it already knows.
+        self._ended_handlers: List[Callable[[Dict[str, Any], Task], Any]] = []
 
-        # Admission control (the queue's own metabolism — NOT governance).
+        # Admission control (the queue's own metabolism — NOT the Constitution's).
         self.soft_limit = int(self.config.get('soft_limit', 25))
         self.hard_limit = int(self.config.get('hard_limit', 60))
         # Work that must never be refused, whatever the backlog. API/MANUAL are
@@ -256,7 +268,7 @@ class QueueAuthority:
 
     def admits(self, task: Task, priority: Priority = Priority.MEDIUM) -> Tuple[bool, str]:
         """Whether the queue can take this now, given the backlog. Capacity, not
-        permission: permission is governance's, decided above the queue."""
+        permission: permission is the Constitution's, decided above the queue."""
         level = self.pressure()
         if level == "nominal":
             return True, "nominal"
@@ -275,8 +287,8 @@ class QueueAuthority:
 
     async def add_task(self, task: Task, priority: Priority = Priority.MEDIUM) -> bool:
         """Push a work job. Returns True when the job is queued, False if
-        admission (backpressure) refused it or the queue is at capacity. No
-        governance here — that is a blanket authority applied where the
+        admission (backpressure) refused it or the queue is at capacity. The
+        Constitution is not here — it is a blanket authority applied where the
         substrate DECIDES to create work.
 
         ONE COPY PER ID. A job whose id is already owed — queued or in flight
@@ -328,6 +340,14 @@ class QueueAuthority:
         return True
 
     async def _take_first(self, timeout: Optional[float]):
+        """The first ready heap entry that is still owed, or None. A job
+        cancelled while it waited is let go of here, never drawn."""
+        while True:
+            first = await self._take_one(timeout)
+            if first is None or first[2].status != TaskStatus.CANCELLED:
+                return first
+
+    async def _take_one(self, timeout: Optional[float]):
         """The first ready heap entry, or None. `timeout=None` waits for work, a
         positive timeout waits that long, `timeout <= 0` does not wait at all.
 
@@ -375,9 +395,11 @@ class QueueAuthority:
         items = [first]
         while True:
             try:
-                items.append(self.queue.get_nowait())
+                item = self.queue.get_nowait()
             except asyncio.QueueEmpty:
                 break
+            if item[2].status != TaskStatus.CANCELLED:
+                items.append(item)
         chosen_idx = None
         for idx, (_, _, q) in enumerate(items):
             if getattr(q.task, "actor", SUBSTRATE_ACTOR) not in skip_actors:
@@ -400,10 +422,29 @@ class QueueAuthority:
         queued.wait_time = ((queued.started_at - queued.added_at).total_seconds()
                             if queued.added_at else 0.0)
 
+    def on_work_ended(self, handler: Callable[[Dict[str, Any], Task], Any]) -> None:
+        """Be told when a work job ends: `handler(job, task)`, sync or async, once
+        it is recorded as ended. A handler that raises is logged and never
+        changes how the job ended."""
+        self._ended_handlers.append(handler)
+
+    async def _announce_ended(self, queued: "QueuedTask") -> None:
+        job = self._job_view(queued)
+        for handler in list(self._ended_handlers):
+            try:
+                outcome = handler(job, queued.task)
+                if inspect.isawaitable(outcome):
+                    await outcome
+            except Exception as error:
+                logger.error("a handler of %s's ending raised: %s", queued.task.id, error)
+
     async def mark_completed(self, task_id: str, result: Dict[str, Any]) -> bool:
         queued = self.tasks_by_id.get(task_id)
         if queued is None:
             logger.warning("mark_completed: %s not found", task_id)
+            return False
+        if queued.status == TaskStatus.CANCELLED:
+            logger.info("mark_completed: %s was cancelled; its record stays so", task_id)
             return False
         async with self.lock:
             queued.status = TaskStatus.COMPLETED
@@ -411,12 +452,16 @@ class QueueAuthority:
             queued.task.result = result
             self.metrics['tasks_completed'] += 1
         await self._persist_queued(queued)
+        await self._announce_ended(queued)
         return True
 
     async def mark_failed(self, task_id: str, error: str) -> bool:
         queued = self.tasks_by_id.get(task_id)
         if queued is None:
             logger.warning("mark_failed: %s not found", task_id)
+            return False
+        if queued.status == TaskStatus.CANCELLED:
+            logger.info("mark_failed: %s was cancelled; its record stays so", task_id)
             return False
         async with self.lock:
             queued.status = TaskStatus.FAILED
@@ -425,6 +470,7 @@ class QueueAuthority:
             self.metrics['tasks_failed'] += 1
         await self._persist_queued(queued)
         logger.warning("task %s failed: %s", task_id, error)
+        await self._announce_ended(queued)
         return True
 
     async def requeue_task(self, task_id: str) -> bool:
@@ -489,6 +535,46 @@ class QueueAuthority:
         elif queued.status == TaskStatus.FAILED:
             out["error"] = queued.error_message
         return out
+
+    @staticmethod
+    def _job_view(queued: "QueuedTask") -> Dict[str, Any]:
+        """One work job as its owner may see it: what was asked, where it stands,
+        how it ended, and when they were told how it ended."""
+        return {"task_id": queued.task.id, "asked": queued.task.description,
+                "status": queued.status.value,
+                "added_at": queued.added_at.isoformat() if queued.added_at else None,
+                "completed_at": queued.completed_at.isoformat() if queued.completed_at else None,
+                "result": queued.task.result, "error": queued.error_message,
+                "read": (queued.task.metadata or {}).get("read"),
+                "told_at": (queued.metadata or {}).get("told_at")}
+
+    async def work_of(self, actor: str, *, limit: int = 10) -> List[Dict[str, Any]]:
+        """The work `actor` asked for, newest first: each job's id, what was
+        asked, where it stands, how it ended, and when they were told how it
+        ended (`told_at`). ONLY the actor's own, as `result_for` reads. This
+        instance's jobs from what it holds; any other from the stored record,
+        since another instance of the model may hold or have finished it."""
+        out: Dict[str, Dict[str, Any]] = {
+            q.task.id: self._job_view(q) for q in self.tasks_by_id.values()
+            if q.task is not None and getattr(q.task, "actor", None) == actor}
+        p = self._persistence_or_none()
+        if p is not None:
+            for row in await p.jobs_of(actor, limit=limit):
+                out.setdefault(row["task_id"], row)
+        return sorted(out.values(), key=lambda j: j.get("added_at") or "", reverse=True)[:limit]
+
+    async def mark_told(self, task_id: str) -> None:
+        """Its owner has been told how this job ended: kept with the job's own
+        record, so they are told once, whichever instance tells them."""
+        at = datetime.now().isoformat()
+        queued = self.tasks_by_id.get(task_id)
+        if queued is not None:
+            queued.metadata = {**(queued.metadata or {}), "told_at": at}
+            await self._persist_queued(queued)
+            return
+        p = self._persistence_or_none()
+        if p is not None:
+            await p.mark_told(task_id, at)
 
     async def get_failed_tasks(self, limit: int = 10) -> List[Task]:
         """Recently failed work jobs, most recent first — context for the
@@ -741,6 +827,28 @@ class QueueAuthority:
         job_timeout = timeout if timeout is not None else self.timeout_for(
             reasoning_type=reasoning_type, task_type=task_type,
             severity=severity, difficulty=difficulty)
+        # A WORK JOB IS HELD BY WHAT RUNS IT, from the moment it waits for a
+        # slot, so `cancel` can stop it wherever it is.
+        if not background and asyncio.current_task() is not None:
+            self._running_jobs[job_id] = asyncio.current_task()
+        try:
+            return await self._execute_held(job_id, func, args, kwargs, semaphore, job_timeout)
+        except asyncio.TimeoutError:
+            # The authority set the time and ended the job, so its record says it
+            # failed and why, and whoever waits on it is told. Left alone, the
+            # record said "in progress" for good: no one was told, and the next
+            # boot ran it again.
+            if not background:
+                await self.mark_failed(job_id, f"timed out after {job_timeout:.0f}s")
+            raise
+        finally:
+            if not background:
+                self._running_jobs.pop(job_id, None)
+
+    async def _execute_held(self, job_id: str, func: Callable[..., Awaitable[Any]],
+                            args: tuple, kwargs: Dict[str, Any], semaphore: asyncio.Semaphore,
+                            job_timeout: float) -> Any:
+        """`execute`'s run: under the semaphore, within the job's timeout."""
         wait_start = time.time()
         async with semaphore:
             wait = time.time() - wait_start
@@ -772,11 +880,33 @@ class QueueAuthority:
                     self._pool_stats.active -= 1
                 logger.error("job %s timed out after %.0fs", job_id, job_timeout)
                 raise
+            except asyncio.CancelledError:
+                # STOPPED, not failed: the slot is given back and the stop goes on.
+                self._pool_stats.active -= 1
+                raise
             except Exception:
                 async with self._pool_lock:
                     self._pool_stats.total_failed += 1
                     self._pool_stats.active -= 1
                 raise
+
+    def configure(self, config: Dict[str, Any]) -> None:
+        """Settings given after the authority exists, put in force.
+
+        The one authority is made by whoever reaches it first, and at boot that
+        can be a faculty registering its recurring job, with no settings. The
+        substrate's own settings, given after, must still be the ones in force,
+        or its acting budget is silently the default. The acting budget changes
+        only while no work job runs: a running job holds the budget it started
+        under."""
+        self.config.update(config)
+        size = int(self.config['max_parallel'])
+        if size != self.max_parallel:
+            if self._running_jobs:
+                raise RuntimeError(f"the acting budget changes only while no work runs; "
+                                   f"{len(self._running_jobs)} work job(s) running")
+            self.max_parallel = size
+            self._semaphore = asyncio.Semaphore(size)
 
     def pool_stats(self) -> Dict[str, Any]:
         s = self._pool_stats
@@ -903,12 +1033,28 @@ class QueueAuthority:
         return [j for j, t in self._await_jobs.items() if not t.done()]
 
     def cancel(self, job_id: str) -> bool:
-        """Stop a job by its id — the ONE way to stop any job. An await-job is
-        retired (cancelled if still running or still waiting out its delay; a
-        finished one is retired without a cancel). A recurring scheduled job is
-        removed and never fires again. False for an id that names neither
-        (never faked)."""
+        """Stop a job by its id — the ONE way to stop any job. A WORK job still
+        owed is cancelled: one waiting is never drawn, one running is stopped
+        where it is, and its record says `cancelled`. An await-job is retired
+        (cancelled if still running or still waiting out its delay; a finished
+        one is retired without a cancel). A recurring scheduled job is removed
+        and never fires again. False for an id that names none of them (never
+        faked)."""
         found = False
+        queued = self.tasks_by_id.get(job_id)
+        if queued is not None and queued.status in ACTIVE_STATUSES:
+            queued.status = TaskStatus.CANCELLED
+            queued.completed_at = datetime.now()
+            self.metrics['tasks_cancelled'] += 1
+            running = self._running_jobs.get(job_id)
+            if running is not None and not running.done():
+                running.cancel()
+            write = asyncio.ensure_future(self._persist_queued(queued))
+            self._persisting.add(write)
+            write.add_done_callback(self._persisting.discard)
+            logger.info("work job %s cancelled%s", job_id,
+                        " while it ran" if running is not None else " before it ran")
+            found = True
         task = self._await_jobs.pop(job_id, None)
         self._await_meta.pop(job_id, None)
         if task is not None:
@@ -1122,8 +1268,11 @@ _queue_authority: Optional[QueueAuthority] = None
 
 
 def get_queue_authority(config: Optional[Dict[str, Any]] = None) -> QueueAuthority:
-    """The one queue authority for the process."""
+    """The one queue authority for the process. Settings given once it exists
+    are put in force (`configure`), whoever reached it first."""
     global _queue_authority
     if _queue_authority is None:
         _queue_authority = QueueAuthority(config)
+    elif config:
+        _queue_authority.configure(config)
     return _queue_authority

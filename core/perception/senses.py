@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Each sense does its work in its own process.
+"""Each of the substrate's senses does its work in its own process.
 
-The perception faculty is the substrate's one entry point for perceiving, and
-it stays that: what is sensed is still named, admitted, believed and remembered
-by the substrate, through the faculty and the one perception pipeline. What
-runs HERE is only the measuring -- the signal processing of hearing, the image
-processing of sight, the reading of a document -- which is pure computation on
-a file and the library of what was taught.
+Sight, hearing and reading are the substrate's own, as a person's eyes and ears
+are theirs: what they take in is named, admitted, believed and remembered by
+the substrate, in one act of perceiving, whichever senses took part. What runs
+HERE is only the measuring -- the signal processing of hearing, the image
+processing of sight, the opening of a text for reading -- which is pure
+computation on a file and the library of what was taught.
 
 WHY A PROCESS OF ITS OWN. Measured on the running substrate, sight took the
 event loop for 1.4 s at a stretch to measure one video frame; for that time
@@ -14,7 +14,9 @@ nothing else the substrate does could run, so a question it answers in 0.3 s
 waited 1.4 s behind a picture. A sense measuring in the substrate's own loop
 makes it look OR think, never both. In a thread it would still hold the
 interpreter for its Python-level work; in a process of its own, hearing,
-sight and the substrate's reasoning run at the same time, each on its own.
+sight, reading and the substrate's reasoning run at the same time, each on its
+own -- so a clip is seen and heard at once, and a page is read while a picture
+is looked at.
 
 Each sense is ONE process, a program of its own, so a sense perceives one
 thing at a time, in the order it was given, as a sense does. A process found
@@ -27,7 +29,6 @@ substrate module beyond the describers, and never touches the store.
 from __future__ import annotations
 
 import asyncio
-import hashlib
 import logging
 import os
 import pickle
@@ -185,8 +186,11 @@ def listen(path: str, library: Dict[str, Any], lesson: Optional[Tuple[str, str]]
     recording is a lesson.
 
     `library` is what was taught, as the faculty holds it: `words`, `voices`,
-    `reach`, `sounds` (name -> landmark rows) and `songs` (title -> the
-    landmark rows of each hearing that taught it). A lesson that cannot be
+    `reach`, `sounds` (name -> landmark rows), `songs` (title -> the landmark
+    rows of each hearing that taught it) and `tunes` (title -> the tune line
+    of each hearing that taught it, when it was a single line); the songs
+    whose tune a single line heard carries come back under `tunes`. A lesson
+    that cannot be
     taught raises before anything is kept."""
     import numpy as np
     from . import hearing, music, speech
@@ -220,9 +224,22 @@ def listen(path: str, library: Dict[str, Any], lesson: Optional[Tuple[str, str]]
                 count, at, share = best
                 if count >= hearing.KNOWN_MIN_AGREE and share >= music.SONG_MIN_SHARE:
                     songs.append((title, count, at, round(share, 4)))
-    return {"desc": desc, "speech": heard, "music": music.describe(y),
+    # A SINGLE LINE CARRIES A TUNE: followed against every song's taught tune,
+    # so a song is known when someone else hums or sings it, in their own key
+    # and at their own pace.
+    described = music.describe(y)
+    tune = described.pop("tune", None)
+    # A SONG TAUGHT FROM A MIX keeps the tune of the mix's melody, so the song
+    # is known when someone hums or sings it.
+    from_mix = False
+    if tune is None and lesson is not None and lesson[0] == "song":
+        tune = music.tune_line(music.melody_of_mix(y))
+        from_mix = tune is not None
+    return {"desc": desc, "speech": heard, "music": described,
             "known": known, "songs": sorted(songs, key=lambda s: -s[3]),
-            "trace": (hearing.trace_bytes(desc["trace"], example, marks)
+            "tunes": ([] if from_mix else music.tunes_heard(tune, library.get("tunes") or {})),
+            "tune": tune,
+            "trace": (hearing.trace_bytes(desc["trace"], example, marks, tune, from_mix)
                       if desc.get("trace") else None)}
 
 
@@ -374,100 +391,33 @@ def rebuild_picture(perceived: Dict[str, Any], longest: int = 800):
 
 # ── reading ─────────────────────────────────────────────────────────────────
 
-#: WHAT A DOCUMENT IS, the file says, not its name: its first bytes where they
-#: declare a format. Eight files in one real folder were misnamed; one was 292
-#: bytes. Dispatching on the extension trusted the filename over the file.
-_MAGIC: List[tuple] = [
-    (b"%PDF", "pdf"),
-    (b"PK\x03\x04", "zip"),          # docx/xlsx are zip containers
-    (b"{\\rtf", "text"),
-    (b"<!DOC", "text"), (b"<!doc", "text"),
-    (b"<html", "text"), (b"<HTML", "text"), (b"<?xml", "text"),
-]
 
-DOCUMENT_READERS: Dict[str, str] = {
-    ".pdf": "pdf", ".docx": "docx", ".xlsx": "xlsx", ".xlsm": "xlsx",
-    ".txt": "text", ".md": "text", ".csv": "text", ".json": "text",
-    ".log": "text", ".yaml": "text", ".yml": "text",
-}
+def read(path: str) -> Dict[str, Any]:
+    """Everything reading measures of one file (`reading.read_document`): what
+    it really is, its pages of text, and the trace a memory of it keeps -- the
+    runs of words it is known again by (`reading.shingles`), never the words."""
+    from . import reading
+    found = reading.read_document(str(path))
+    found["trace"] = reading.trace_bytes(reading.shingles(found["pages"]))
+    return found
 
 
-def _declared_kind(raw: bytes) -> Optional[str]:
-    """What the FILE says it is, or None where its bytes do not say.
-
-    Plain text declares nothing -- a .txt, .md, .csv or .log has no magic -- so
-    None means "the bytes are silent", and the extension is then the only thing
-    anyone knows. That is not a fallback: it is the honest order of evidence,
-    content first and the name only where content does not speak.
-    """
-    # LEADING BLANK LINES DO NOT UNDECLARE A FILE. One of the eight was HTML
-    # behind four newlines, so an 8-byte window missed `<!DOCTYPE` and the file
-    # went to the PDF reader anyway. A binary format has no leading whitespace,
-    # so stripping it costs those nothing and rescues the text ones.
-    head = raw[:64].lstrip()[:8]
-    for magic, kind in _MAGIC:
-        if head.startswith(magic):
-            return kind
-    return None
-
-
-def read_document(path: str) -> Dict[str, Any]:
-    """A document read into its pages, with what it really is: `kind`, `named`
-    (what its name said, when that differs), `sha256`, `pages`, and `lossy`
-    when its text was not valid UTF-8. A format with no reader raises."""
-    p = Path(path)
-    kind = DOCUMENT_READERS.get(p.suffix.lower())
-    if kind is None:
-        raise ValueError(
-            f"no reader for {p.suffix!r}: the substrate cannot perceive this "
-            f"kind of document, and will not guess at its contents")
-    raw = p.read_bytes()
-    named = kind
-    declared = _declared_kind(raw)
-    if declared == "zip":
-        # A zip container is a .docx or an .xlsx; which one only the extension
-        # distinguishes, and here the two agree often enough that the name is
-        # the evidence available.
-        declared = kind if kind in ("docx", "xlsx") else None
-    if declared and declared != kind:
-        kind = declared
-    lossy = False
-    if kind == "pdf":
-        from pypdf import PdfReader
-        pages = [(page.extract_text() or "").strip() for page in PdfReader(str(p)).pages]
-    elif kind == "docx":
-        import docx
-        # A .docx has no pages until it is laid out; its paragraphs are the
-        # structure it really has, so they are what is reported.
-        pages = [para.text.strip() for para in docx.Document(str(p)).paragraphs
-                 if para.text.strip()]
-    elif kind == "xlsx":
-        import openpyxl
-        book = openpyxl.load_workbook(str(p), data_only=True, read_only=True)
-        pages = []
-        for sheet in book.worksheets:
-            rows = [" ".join(str(c) for c in row if c is not None)
-                    for row in sheet.iter_rows(values_only=True)]
-            body = "\n".join(r for r in rows if r.strip())
-            if body:
-                pages.append(f"{sheet.title}\n{body}")
-        book.close()
-    else:
-        # Encoding is DECLARED, never guessed silently: an undecodable byte is
-        # replaced and the fact is reported, because a mangled character in a
-        # mission document is a wrong reading and should be visible.
-        try:
-            pages = [raw.decode("utf-8")]
-        except UnicodeDecodeError:
-            pages, lossy = [raw.decode("utf-8", errors="replace")], True
-    return {"kind": kind, "named": named if named != kind else None,
-            "sha256": hashlib.sha256(raw).hexdigest(), "pages": pages, "lossy": lossy}
+def text_agreements(met: Sequence[int], kept: Sequence[bytes]) -> List[Tuple[int, float, bool]]:
+    """How much each kept reading shares with the text met now: the runs of
+    words they share, the share of the shorter of the two, and whether it is the
+    same text (`reading.agreement`). Measured here, in reading's process."""
+    from . import reading
+    out: List[Tuple[int, float, bool]] = []
+    for data in kept:
+        runs = reading.trace_keys(data)
+        out.append((0, 0.0, False) if runs is None else reading.agreement(met, runs))
+    return out
 
 
 #: The work a sense's program does, by name.
 _WORK = (listen, sound_landmarks, rebuild_sound, look, watch, describe_picture,
-         picture_descriptors, rebuild_picture, read_document, sight_trace_of,
-         sound_agreements, sight_agreements)
+         picture_descriptors, rebuild_picture, read, sight_trace_of,
+         sound_agreements, sight_agreements, text_agreements)
 
 
 if __name__ == "__main__":

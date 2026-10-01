@@ -6,6 +6,7 @@ taught; the tests hand it the view memory would warm, built from taught pairs. A
 system's link kinds, and a denial is polarity, never a link name. Pure: no database, no memory, nothing written
 anywhere.
 """
+import asyncio
 import sys
 from pathlib import Path
 
@@ -58,14 +59,19 @@ def _envelope(domain="test_domain", content="statements under test"):
                             structured_data={"domain": domain})
 
 
+def _read(extractor, raw, envelope):
+    """The statements reader waits for memory where a word names several things; none does here."""
+    return asyncio.run(extractor._read_statements(raw, envelope))
+
+
 def _edges(candidates):
     return {c.label: set(c.relationships) for c in candidates if c.relationships}
 
 
 def test_statements_become_typed_edges_with_polarity():
-    got = ConceptExtractor()._read_statements(
-        ["A robin is a bird.", "A robin is not a mammal.", "The cup is in the box."],
-        _envelope())
+    got = _read(ConceptExtractor(),
+                ["A robin is a bird.", "A robin is not a mammal.", "The cup is in the box."],
+                _envelope())
     edges = _edges(got)
     assert (R.ISA.value, "bird", "positive") in edges["robin"]
     assert (R.ISA.value, "mammal", "negative") in edges["robin"], \
@@ -76,7 +82,7 @@ def test_statements_become_typed_edges_with_polarity():
 
 
 def test_every_candidate_names_its_domain_and_evidence():
-    got = ConceptExtractor()._read_statements(["A robin is a bird."], _envelope("birds"))
+    got = _read(ConceptExtractor(), ["A robin is a bird."], _envelope("birds"))
     assert got and all(c.domain_candidates == ("birds",) for c in got)
     assert all(c.evidence_ids == ("ev_statements_test",) for c in got)
     assert {c.label: c.concept_kind for c in got}["robin"] is ConceptType.ENTITY
@@ -84,19 +90,18 @@ def test_every_candidate_names_its_domain_and_evidence():
 
 def test_a_conditional_is_declined_not_written_as_an_edge():
     extractor = ConceptExtractor()
-    got = extractor._read_statements(["If the tank is full then the valve is open."],
-                                     _envelope())
+    got = _read(extractor, ["If the tank is full then the valve is open."], _envelope())
     assert got == []
     assert extractor.last_failure and "none of 1 statement" in extractor.last_failure
 
 
 def test_what_was_never_taught_is_declined():
     extractor = ConceptExtractor()
-    assert extractor._read_statements(["Quarks bind through gluons."], _envelope()) == []
+    assert _read(extractor, ["Quarks bind through gluons."], _envelope()) == []
     assert "none of 1 statement" in extractor.last_failure
 
 
 def test_no_domain_is_refused():
     extractor = ConceptExtractor()
-    assert extractor._read_statements(["A robin is a bird."], _envelope("")) == []
+    assert _read(extractor, ["A robin is a bird."], _envelope("")) == []
     assert extractor.last_failure == "statements form carries no domain"

@@ -123,7 +123,7 @@ class LyricUnifiedDatabasePostgres:
     creating their own pools.
 
     Provides async connection pooling and database operations for:
-    - Directive system (governance_laws, internal_directives, etc.)
+    - Directive system (internal_directives, etc.)
     - Unified metrics and alerts
     - Component tracking
     - Hot tier memory storage (0-60 days) with pgvector semantic search
@@ -141,16 +141,10 @@ class LyricUnifiedDatabasePostgres:
             fetch_all=True
         )
 
-        # Use hot tier schema; a per-owner table names whose rows these are
-        memories = await db.execute_query(
-            "SELECT * FROM memory_hot WHERE timestamp > $1",
-            (cutoff_time,),
-            use_hot_tier=True,
-            fetch_all=True,
-            store="model",
-        )
-
         await db.close()
+
+    Memory (hot and cold tiers) is read and written only through the memory
+    agent, its one authority; nothing else queries those tables.
     """
 
     # Singleton: all instantiations share the same object and connection pools
@@ -181,8 +175,8 @@ class LyricUnifiedDatabasePostgres:
             password: PostgreSQL password (from env if None)
             database: The development database (from env if None); every
                 other database of its line is named from it
-            pool_min_size: Min pool size (from env if None, default 5)
-            pool_max_size: Max pool size (from env if None, default 20)
+            pool_min_size: Min pool size (from env if None, default 0)
+            pool_max_size: Max pool size (from env if None, default 100)
         """
         # Skip re-initialization if singleton already configured
         if hasattr(self, '_singleton_configured'):
@@ -213,8 +207,10 @@ class LyricUnifiedDatabasePostgres:
         self.release_verified: Optional[Dict[str, Any]] = None
         #: Every write refused because the model is a frozen release: "caller-visible statement head".
         self.frozen_refusals: List[str] = []
-        self.pool_min_size = 5
-        self.pool_max_size = 20
+        self.pool_min_size = 0
+        self.pool_max_size = 100
+        #: Seconds a pooled connection may sit idle before it is closed.
+        self.pool_idle_seconds = 60
         self._boot_time = time.time()
         self._error_counts: Dict[str, int] = {}
         self._error_grace_seconds = 60
@@ -256,6 +252,7 @@ class LyricUnifiedDatabasePostgres:
         self.frozen = self.config.frozen
         self.pool_min_size = self.config.pool_min_size
         self.pool_max_size = self.config.pool_max_size
+        self.pool_idle_seconds = self.config.pool_idle_seconds
         self._error_grace_seconds = int(os.getenv("DB_ERROR_GRACE_SECONDS", "60"))
         self._error_retry_threshold = int(os.getenv("DB_ERROR_MAX_INITIAL_RETRIES", "3"))
         for index, name in enumerate(dict.fromkeys(self.config.databases().values())):
@@ -474,7 +471,7 @@ class LyricUnifiedDatabasePostgres:
         """Decide whether to send a database error notification.
 
         Applies a startup grace window and per-operation retry threshold so
-        transient errors during boot don't spam Slack.
+        transient errors during boot don't flood the notifications.
         """
         # Track how many times we've seen this operation fail
         current_count = self._error_counts.get(operation, 0) + 1
@@ -646,6 +643,8 @@ class LyricUnifiedDatabasePostgres:
             database=pool.database,
             min_size=self.pool_min_size,
             max_size=self.pool_max_size,
+            # An idle connection is closed, and opened again when it is needed.
+            max_inactive_connection_lifetime=self.pool_idle_seconds,
             command_timeout=60,
             server_settings={'application_name': pool.tag},
             # EVERY pooled connection gets the pgvector codec, via asyncpg's
@@ -789,6 +788,31 @@ class LyricUnifiedDatabasePostgres:
             finally:
                 # Reset search_path to default after use
                 await conn.execute("SET search_path TO public")
+
+    @asynccontextmanager
+    async def advisory_lock(self, key: str, *, store: Optional[str] = None):
+        """Hold a named lock, across every instance of the model, while the block runs.
+
+        The lock lives on a server session, so its connection is held for the
+        whole block. That connection is its own, opened for the lock and closed
+        with it, never one of the pool's: the block's statements need the pool,
+        and a lock held on a pooled connection sits on one of them. With as many
+        blocks at once as the pool has connections, every connection was held
+        by a block waiting for another, and nothing moved until each timed out.
+        If the process dies holding it, the server ends the session and the
+        lock with it."""
+        pool = self._pool_for(store)
+        conn = await asyncpg.connect(
+            host=self.host, port=self.port, user=self.user, password=self.password,
+            database=pool.database, server_settings={'application_name': f"lyric_{os.getpid()}_lock"})
+        try:
+            await conn.execute("SELECT pg_advisory_lock(hashtext($1))", key)
+            try:
+                yield
+            finally:
+                await conn.execute("SELECT pg_advisory_unlock(hashtext($1))", key)
+        finally:
+            await conn.close()
 
     @asynccontextmanager
     async def get_connection(self, use_hot_tier: bool = False, use_cold_tier: bool = False,

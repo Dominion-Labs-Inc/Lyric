@@ -226,25 +226,34 @@ _HARMONIC_DECAY = 0.6
 _SPREAD_SEMITONES = 2.0 / 3.0
 
 
-def _spectral_peaks(y: np.ndarray):
-    """Each frame's spectral peaks within the chroma range, as (frame,
-    frequency, energy) arrays, each peak's frequency refined by a parabola
-    through the log magnitudes around it."""
+def _spectral_peaks(y: np.ndarray, frame: int = _CHROMA_FRAME, hop: int = _CHROMA_HOP,
+                    fmin: float = _CHROMA_FMIN, fmax: float = _CHROMA_FMAX,
+                    range_db: float = _PEAK_RANGE_DB, nfft: Optional[int] = None,
+                    centred: bool = False):
+    """Each frame's spectral peaks within `fmin`..`fmax`, as (frame, frequency,
+    energy) arrays, each peak's frequency refined by a parabola through the log
+    magnitudes around it; peaks more than `range_db` below the frame's strongest
+    are not peaks. The chroma's long frames by default; `nfft` zero-pads each
+    frame, and `centred` puts frame i's middle at sample i * hop."""
+    nfft = nfft or frame
+    if centred:
+        y = np.pad(np.asarray(y, np.float64), (frame // 2, frame // 2))
     n = len(y)
-    if n < _CHROMA_FRAME:
-        y = np.pad(y, (0, _CHROMA_FRAME - n))
-    view = np.lib.stride_tricks.sliding_window_view(y, _CHROMA_FRAME)[::_CHROMA_HOP]
-    window = np.hanning(_CHROMA_FRAME)
-    freqs = np.fft.rfftfreq(_CHROMA_FRAME, 1.0 / SR)
-    lo, hi = np.searchsorted(freqs, _CHROMA_FMIN), np.searchsorted(freqs, _CHROMA_FMAX)
+    if n < frame:
+        y = np.pad(y, (0, frame - n))
+    view = np.lib.stride_tricks.sliding_window_view(y, frame)[::hop]
+    window = np.hanning(frame)
+    freqs = np.fft.rfftfreq(nfft, 1.0 / SR)
+    lo = max(1, int(np.searchsorted(freqs, fmin)))
+    hi = min(len(freqs) - 1, int(np.searchsorted(freqs, fmax)))
     frames, where, energy = [], [], []
     for i in range(0, len(view), 256):
-        mag = np.abs(np.fft.rfft(view[i:i + 256] * window, axis=1))
+        mag = np.abs(np.fft.rfft(view[i:i + 256] * window, n=nfft, axis=1))
         db = 20.0 * np.log10(mag + _EPS)
         top = db.max(axis=1, keepdims=True)
         mid = db[:, lo:hi]
         is_peak = ((mid > db[:, lo - 1:hi - 1]) & (mid >= db[:, lo + 1:hi + 1])
-                   & (mid > top - _PEAK_RANGE_DB))
+                   & (mid > top - range_db))
         f_idx, b_idx = np.nonzero(is_peak)
         b = b_idx + lo
         a, c, m = db[f_idx, b - 1], db[f_idx, b + 1], db[f_idx, b]
@@ -252,7 +261,7 @@ def _spectral_peaks(y: np.ndarray):
         shift = np.where(np.abs(den) > _EPS, 0.5 * (a - c) / np.where(np.abs(den) > _EPS, den, 1.0), 0.0)
         shift = np.clip(shift, -0.5, 0.5)
         frames.append(f_idx + i)
-        where.append((b + shift) * SR / _CHROMA_FRAME)
+        where.append((b + shift) * SR / nfft)
         energy.append(mag[f_idx, b] ** 2)
     if not frames:
         return np.zeros(0, int), np.zeros(0), np.zeros(0)
@@ -300,6 +309,126 @@ def chroma(y: np.ndarray) -> Tuple[np.ndarray, float]:
     heard = top[:, 0] > 0
     profile = profile[heard] / top[heard]
     return (profile.sum(axis=0) if len(profile) else np.zeros(12)), tune
+
+
+# --- the melody of a mix ----------------------------------------------------------
+#
+# WHICH LINE OF A MIX IS THE MELODY is read the classical way (Salamon & Gomez
+# 2012): every frame's spectral peaks vote, as harmonics, for the pitches below
+# them (the salience of each 10-cent pitch), and the melody is the path through
+# the song that stays on salient pitches while moving little (Viterbi). A
+# frame is melody when the path there is as salient as the song's path usually
+# is. The bass below 150 Hz is filtered out first: it is the loudest line in
+# most mixes and not the melody.
+#
+# Measured on MDB-melody-synth (Salamon et al. 2017; 65 MedleyDB mixes whose
+# melody track was resynthesised to an exact f0), first 60 s of 33 DEV songs:
+#                              pitch right   either octave   overall
+#   YIN on the mix (before)       11.4%          26.5%         29.6%
+#   strongest salience            55.5%          68.7%           --
+#   the path, and its voicing     45.3%          52.2%         56.9%
+# (pitch within 50 cents of the annotation, of the frames with melody; overall,
+# frames right in both voicing and pitch; TEST, 32 songs: 47.2%, 52.7%, 56.6%).
+# The pitch is right in either octave far more often than in its own, so a tune
+# taught from a mix is followed with octaves forgiven (`tunes_heard`). End to end
+# (MELODY-01, TEST): each song taught from its whole mix and heard as 20 s of its
+# melody sung alone, 59.4% right first, 40.6% named, all of them right; of 32
+# never-taught melodies, one was named.
+_MELODY_FRAME, _MELODY_NFFT = 1024, 4096     # 46 ms, zero-padded four times
+_MELODY_FMIN, _MELODY_FMAX = 55.0, 1760.0
+_MELODY_PEAKS_UP_TO = 5000.0
+_MELODY_RANGE_DB = 40.0
+_MELODY_HIGHPASS = 150.0
+_SALIENCE_CENTS = 10.0
+_SALIENCE_BINS = int(round(1200 * np.log2(_MELODY_FMAX / _MELODY_FMIN) / _SALIENCE_CENTS))
+#: Each peak counts as the h-th harmonic, h = 1..20, weighted 0.8^(h-1), of the
+#: pitch h times below it; its energy compressed (to the fourth root: the
+#: magnitude's square root), so a loud accompaniment does not drown the voice.
+_SALIENCE_HARMONICS, _SALIENCE_DECAY, _SALIENCE_POWER = 20, 0.8, 0.25
+#: A peak reaches the bins within 100 cents of each pitch, by a squared cosine.
+_SALIENCE_SPREAD = 10
+#: The path's cost per 10 cents moved between frames, against each frame's
+#: -log(salience / the frame's strongest).
+_MELODY_STEP_COST = 0.01
+#: A frame is melody when the path's salience there is at least this share of
+#: the song's median path salience.
+_MELODY_VOICED = 1.0
+
+
+def salience(y: np.ndarray) -> np.ndarray:
+    """The salience of every 10-cent pitch from 55 to 1760 Hz, at every hop
+    (frames x bins): how strongly the frame's spectral peaks, taken as that
+    pitch's harmonics, say it is sounding."""
+    frames = len(y) // HOP + 1
+    fr, freqs, energy = _spectral_peaks(
+        y, frame=_MELODY_FRAME, hop=HOP, fmin=_MELODY_FMIN / 2, fmax=_MELODY_PEAKS_UP_TO,
+        range_db=_MELODY_RANGE_DB, nfft=_MELODY_NFFT, centred=True)
+    sal = np.zeros(frames * _SALIENCE_BINS)
+    if not len(fr):
+        return sal.reshape(frames, _SALIENCE_BINS)
+    frames = max(frames, int(fr.max()) + 1)
+    sal = np.zeros(frames * _SALIENCE_BINS)
+    weight = energy ** _SALIENCE_POWER
+    lowest = _MELODY_FMIN * 2 ** (-_SALIENCE_SPREAD * _SALIENCE_CENTS / 1200)
+    for h in range(1, _SALIENCE_HARMONICS + 1):
+        f0 = freqs / h
+        ok = (f0 >= lowest) & (f0 <= _MELODY_FMAX)
+        if not ok.any():
+            continue
+        at = 1200 * np.log2(f0[ok] / _MELODY_FMIN) / _SALIENCE_CENTS
+        base = np.round(at).astype(int)
+        w0 = weight[ok] * _SALIENCE_DECAY ** (h - 1)
+        where = fr[ok]
+        for d in range(-_SALIENCE_SPREAD, _SALIENCE_SPREAD + 1):
+            bins = base + d
+            dist = np.abs(at - bins) / _SALIENCE_SPREAD
+            keep = (dist < 1) & (bins >= 0) & (bins < _SALIENCE_BINS)
+            sal += np.bincount(where[keep] * _SALIENCE_BINS + bins[keep],
+                               weights=w0[keep] * np.cos(0.5 * np.pi * dist[keep]) ** 2,
+                               minlength=frames * _SALIENCE_BINS)
+    return sal.reshape(frames, _SALIENCE_BINS)
+
+
+def _melody_path(sal: np.ndarray) -> np.ndarray:
+    """The bin at every frame minimising, over the song, each frame's
+    -log(salience / its strongest) plus `_MELODY_STEP_COST` per bin moved. Each
+    step is exact in O(bins): a cost linear in distance is a running minimum
+    taken from each side."""
+    t_count, n = sal.shape
+    top = sal.max(axis=1, keepdims=True)
+    safe = np.where(top > 0, top, 1.0)
+    cost = -np.log(np.where(top > 0, sal / safe, 1.0) + 1e-3).astype(np.float32)
+    step = (np.arange(n) * _MELODY_STEP_COST).astype(np.float32)
+    total = np.empty((t_count, n), np.float32)
+    total[0] = cost[0]
+    for t in range(1, t_count):
+        prev = total[t - 1]
+        up = np.minimum.accumulate(prev - step) + step
+        down = np.minimum.accumulate((prev + step)[::-1])[::-1] - step
+        total[t] = cost[t] + np.minimum(up, down)
+    path = np.empty(t_count, int)
+    path[-1] = int(np.argmin(total[-1]))
+    bins = np.arange(n)
+    for t in range(t_count - 1, 0, -1):
+        path[t - 1] = int(np.argmin(total[t - 1] + _MELODY_STEP_COST * np.abs(bins - path[t])))
+    return path
+
+
+def melody_of_mix(y: np.ndarray) -> Dict[str, Any]:
+    """The melody of a mix at every hop: `f0` (Hz, 0 where there is no
+    melody) and `periodic` (1 where there is), in the shape of a pitch track,
+    so `tune_line` reads it as it reads a single line."""
+    from scipy.signal import butter, sosfiltfilt
+    y = np.asarray(y, np.float64)
+    if len(y) > 3 * _MELODY_FRAME:
+        y = sosfiltfilt(butter(2, _MELODY_HIGHPASS, btype="highpass", fs=SR, output="sos"), y)
+    sal = salience(y)
+    path = _melody_path(sal)
+    on = sal[np.arange(len(sal)), path]
+    usual = float(np.median(on[on > 0])) if (on > 0).any() else 0.0
+    voiced = (on > 0) & (on >= _MELODY_VOICED * usual)
+    f0 = np.where(voiced, _MELODY_FMIN * 2 ** (path * _SALIENCE_CENTS / 1200), 0.0)
+    return {"f0": f0, "periodic": voiced.astype(np.float64)}
 
 
 #: The probe-tone profiles of Krumhansl and Kessler (1982): how well each of
@@ -521,6 +650,143 @@ def resolve_song(share: float) -> float:
     return round(max(0.0, min(1.0, share / SONG_MIN_SHARE - 1.0)), 3)
 
 
+# --- a song's tune, hummed, sung or whistled -----------------------------------
+#
+# A TUNE IS KNOWN BY HOW ITS MELODY GOES, not by its sound. The same song hummed
+# by someone else, in another key, faster or slower, shares no landmark with the
+# recording it was taught from (`song_example`), but its melody rises and falls
+# the same way. So a song taught by hearing a single line of it also keeps that
+# line (`tune_line`), and a single line heard later is followed against every
+# taught one (`tunes_heard`): subsequence dynamic time warping over semitones,
+# the taught line advancing at half to twice the pace of what was heard, at the
+# key that fits it best.
+#
+# Measured on HumTrans (Liu et al. 2023; hums of 1,000 song segments by ten
+# people): one hum of each tune taught, with 300 more tunes taught that were
+# never hummed, and every other hum heard. Settings chosen on the VALID split,
+# then the TEST split heard once (711 hums against 355 taught tunes):
+#                    right first   named at TUNE_RATIO   right when named
+#   whole hums          95.1%            85.1%              100.0%
+#   half of a hum       84.0%            59.5%               99.3%
+# And 766 hums of tunes NEVER taught, against 350 taught: 0.1% of whole hums and
+# 2.3% of half hums were named as some taught song. A tune is NAMED only when it
+# follows the heard line clearly better than any other (`TUNE_RATIO`); below
+# it, what was heard is not said to be any song. How well it follows alone does
+# not decide: at a cost where a quarter of hums matched their own tune, 0.9% of
+# hums of untaught tunes matched some taught one.
+#: The line's pace: points a second, each the median pitch of what was sung in it.
+TUNE_RATE = 16.0
+#: Too little melody to follow: half a second of it.
+TUNE_MIN_POINTS = 8
+#: A frame's pitch is read as sung when its period holds this well.
+_TUNE_PERIODIC = 0.5
+#: One point's miss counts at most this many semitones, so a pitch that slipped
+#: an octave (onto a harmonic) is one wrong point, not a wrong tune.
+_TUNE_MISS_CAP = 3.0
+#: Keys tried, in semitones from the heard line's own median: a person hums part
+#: of a song, whose median is not the whole song's.
+_TUNE_SHIFTS = tuple(float(s) for s in range(-6, 7))
+#: The best candidates are followed again at quarter-semitone keys around theirs.
+_TUNE_REFINED = 10
+_TUNE_FINE = (-0.75, -0.5, -0.25, 0.0, 0.25, 0.5, 0.75)
+#: A tune is named only when its cost is at most this share of the next best;
+#: fully resolved at `_TUNE_RATIO_RESOLVED`, below which no hum of an untaught
+#: tune was ever named (VALID and TEST).
+TUNE_RATIO = 0.75
+_TUNE_RATIO_RESOLVED = 0.60
+
+
+def tune_line(track: Dict[str, Any]) -> Optional[np.ndarray]:
+    """The melody line of a single line of sound (a voice, a hum, a whistle):
+    `TUNE_RATE` points a second over what was sung, rests dropped (where a
+    singer breathes is not the tune), in semitones from the line's own median
+    (the key it was sung in is not the tune either). None when there is too
+    little of it."""
+    f0, periodic = np.asarray(track["f0"]), np.asarray(track["periodic"])
+    m = np.zeros(len(f0))
+    ok = (f0 > 0) & (periodic >= _TUNE_PERIODIC)
+    m[ok] = 69.0 + 12.0 * np.log2(f0[ok] / 440.0)
+    w = max(1, int(round(_RATE / TUNE_RATE)))
+    points = []
+    for a in range(0, len(m) - w + 1, w):
+        sung = m[a:a + w]
+        sung = sung[sung > 0]
+        if len(sung) >= w / 2:
+            points.append(float(np.median(sung)))
+    if len(points) < TUNE_MIN_POINTS:
+        return None
+    line = np.asarray(points, np.float32)
+    return line - np.float32(np.median(line))
+
+
+def _follow(heard: np.ndarray, taught: np.ndarray, shifts: Sequence[float],
+            octaves_forgiven: bool = False) -> Tuple[float, float]:
+    """How closely `heard` follows some stretch of `taught`, per heard point, at
+    the best of `shifts`, and that shift. Each heard point moves the taught
+    line on by none, one or two points (half to twice the pace). With
+    `octaves_forgiven`, a point an octave off counts as on (a mix's melody is
+    read in the wrong octave more often than as the wrong note)."""
+    best, at = math.inf, 0.0
+    heard = np.asarray(heard, np.float64)
+    taught = np.asarray(taught, np.float64)
+    for shift in shifts:
+        prev = np.zeros(len(taught) + 2)             # it may start anywhere in the taught
+        for point in heard:
+            off = point - taught - shift
+            if octaves_forgiven:
+                off = ((off + 6.0) % 12.0) - 6.0
+            miss = np.minimum(np.abs(off), _TUNE_MISS_CAP)
+            cur = np.full(len(taught) + 2, np.inf)
+            cur[2:] = miss + np.minimum(np.minimum(prev[2:], prev[1:-1]), prev[:-2])
+            prev = cur
+        cost = float(prev[2:].min() / len(heard))
+        if cost < best:
+            best, at = cost, shift
+    return best, at
+
+
+def _taught_tune(kept: Any) -> Tuple[Optional[np.ndarray], bool]:
+    """A taught tune as (line, octaves forgiven): kept either as its line (read
+    from a single line) or as {"line", "mix"} (read from a mix)."""
+    if isinstance(kept, dict):
+        return kept.get("line"), bool(kept.get("mix"))
+    return kept, False
+
+
+def tunes_heard(heard: Optional[np.ndarray], tunes: Dict[str, Sequence[Any]]
+                ) -> List[Dict[str, Any]]:
+    """The taught song whose tune a single line heard carries, as
+    [{"song", "cost", "ratio", "support"}], or [] when none clearly does.
+    `tunes` holds each song's taught tunes (`_taught_tune`).
+
+    A ratio needs a rival: with fewer than two songs' tunes taught there is
+    nothing to beat, and nothing is named."""
+    if heard is None or len(tunes) < 2:
+        return []
+    taught = {title: [t for t in (_taught_tune(k) for k in kept) if t[0] is not None]
+              for title, kept in tunes.items()}
+    costs: Dict[str, Tuple[float, float]] = {}
+    for title, lines in taught.items():
+        scored = [_follow(heard, line, _TUNE_SHIFTS, mix) for line, mix in lines]
+        if scored:
+            costs[title] = min(scored)
+    if len(costs) < 2:
+        return []
+    order = sorted(costs, key=lambda t: costs[t][0])
+    for title in order[:_TUNE_REFINED]:
+        at = costs[title][1]
+        costs[title] = (min(_follow(heard, line, [at + d for d in _TUNE_FINE], mix)[0]
+                            for line, mix in taught[title]), at)
+    order = sorted(costs, key=lambda t: costs[t][0])
+    ratio = costs[order[0]][0] / max(costs[order[1]][0], 1e-9)
+    if ratio > TUNE_RATIO:
+        return []
+    support = (TUNE_RATIO - ratio) / (TUNE_RATIO - _TUNE_RATIO_RESOLVED)
+    return [{"song": order[0], "cost": round(costs[order[0]][0], 3),
+             "ratio": round(float(ratio), 3),
+             "support": round(float(max(0.0, min(1.0, support))), 3)}]
+
+
 # --- what is claimed of the music, and how firmly --------------------------------
 #
 # EACH CLAIM CARRIES THE SUPPORT ITS MEASUREMENT EARNED, set so that the belief
@@ -617,6 +883,9 @@ def describe(y: np.ndarray) -> Dict[str, Any]:
             claims["tempo"] = {"bpm": beat["bpm"], "rival_bpm": beat.get("rival_bpm"),
                                "support": support}
     if periodic >= _ONE_LINE:
+        # A SINGLE LINE CARRIES A TUNE, followed against the songs taught
+        # (`tunes_heard`); of a mix, which line is the melody is not read here.
+        out["tune"] = tune_line(track)
         melody = notes(y, track)
         m = midi(track["f0"])
         voiced = m > 0

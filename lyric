@@ -4,6 +4,8 @@
 # Starts the entire Lyric autonomous system
 #
 # Usage: ./lyric
+#        ./lyric secret set NAME    add a key to Lyric's key file (read without echo)
+#        ./lyric secret names       list the names of the keys Lyric guards
 #
 
 set -e  # Exit on error
@@ -21,6 +23,14 @@ NC='\033[0m'                # No color
 
 # Directories
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+# Keys go through the one authority over them, never through this script.
+if [ "${1:-}" = "secret" ]; then
+    shift
+    cd "$SCRIPT_DIR"
+    exec "$SCRIPT_DIR/venv_lyric/bin/python3" -m core.security.secrets "$@"
+fi
+
 RUNTIME_DIR="$SCRIPT_DIR/runtime"
 LOGS_DIR="$SCRIPT_DIR/logs"
 PID_DIR="$RUNTIME_DIR"

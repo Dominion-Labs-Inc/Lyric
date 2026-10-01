@@ -124,7 +124,6 @@ def test_complexity_is_not_derived_from_trace_length():
 @pytest.mark.parametrize("tags,expected_class", [
     (["task_outcome", "meta_learning"], "task outcome"),
     (["outcome_success"], "task outcome"),
-    (["governance_block", "safety_validation"], "governance decision"),
     (["safety_validation"], "safety event"),
     (["meta_learning", "strategy_adaptation"], "learning update"),
     (["cross_domain_mapping"], "mapping verdict"),

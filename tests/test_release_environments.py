@@ -116,7 +116,7 @@ def test_the_substrates_own_rows_may_be_written_to_the_learning_store_and_no_oth
 def test_each_environment_database_holds_only_its_stores_tables():
     assert tables_of("learning") == {"memory_hot.memory_hot", "memory_hot.archive_log", "memory_cold.memory_cold",
                                      "unified.memory_media", "unified.known_unknowns",
-                                     "unified.experience_pool", "unified.perceptions",
+                                     "unified.experience_pool",
                                      "unified.reasoning_arg_claims", "unified.reasoning_arguments",
                                      "unified.reasoning_arg_fallacies", "unified.reasoning_temporal_propositions",
                                      "unified.reasoning_temporal_causal_links", "unified.hypotheses",
