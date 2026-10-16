@@ -16118,3 +16118,27 @@ attachment or clauses ("then the room" read as a place, relative clauses, "with 
 old frames that are no phrase ("It is true that the sky"), or several words parsed apart. About half (98) come from
 how words are classed and written before any structure: what main holds of a word (its classes from the lessons and
 WordNet) is not asked when the treebank never used it, and Lyric's pieces are not always the treebank's words.
+
+
+## 2026-10-16 (10) — A word the treebank never used: its ending, or what memory holds of it? Both measured
+
+**Why.** One cause runs through STRUCTURE-01's prose and STRUCTURE-02's misses: a word no sentence held used is
+classed by its ending and how it is written alone. "Rex" was a verb in 24 lesson sentences, "whale" a verb on a tie,
+"breathes" and "absorbs" nouns. Main holds classes for those words already (the word-class view, 76,884 words, from
+the lessons and WordNet), and the structure reader never asked.
+
+**Built** (`core/semantics/structure.py`), off unless given:
+- `StructureView.held_classes`: asked only of a word no sentence held used; its class is then one memory holds of
+  it, as the situations decide among those (and the one with the most evidence where no situation does). None asks
+  nothing: the reader on main is unchanged (from the files, dev 0.9204 / 0.7363 / 0.6687 as before).
+- `held_classes(inventory)`: the reader's own word-class view (`PatternInventory.word_classes`, net evidence above
+  nothing), the word itself or, holding none of it, the held words it is a shape of (`names_of_shape`, the changes
+  learned from the lessons: "breathes" as `breathe`), with MODAL and COPULA as the treebank's AUXILIARY and QUANTIFIER
+  as its DETERMINER.
+- Tests (`tests/test_structure.py`, 9 passed in a cloud session; the CoNLL-U one cannot run there):
+  `test_a_word_no_sentence_held_used_takes_a_class_memory_holds_of_it` ("breathes" after a noun is a noun by its
+  ending, a verb when memory holds it one), `test_what_memory_holds_of_a_word_is_read_through_the_shapes_it_learned`.
+
+**Measured both ways in one run** (the owner's word: "test it both ways and see which one gives us better
+results"): STRUCTURE-01 (the treebank's held-out parts, bars on both ways, and which prose sentences read otherwise)
+and STRUCTURE-02 (the lessons' ceiling). The reader takes memory's classes only if they measure better.

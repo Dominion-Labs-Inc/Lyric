@@ -29,7 +29,9 @@ over phrases (read only; the owner runs it on the Mac, where the lessons are). R
 lesson sentences read through a frame with slots, **93.9%** have every slot on one phrase, none placed against the
 meaning. About half of the 182 that fail come from how words are classed and written before any structure: "Rex"
 read as a verb (a word the treebank never used is classed by its ending alone, as "whale" was in the prose), numbers
-written in words, "Dr." in two pieces. Then constructions learned
+written in words, "Dr." in two pieces. **Under test** (2026-10-16 (10)): the structure reader taking a class
+memory holds for a word the treebank never used (`StructureView.held_classes`, off by default); STRUCTURE-01 and
+STRUCTURE-02 measure both ways in one run, and it is kept only if it measures better. Then constructions learned
 over phrases. Open for the owner: whether those learn from the lessons only or also from PropBank's annotations of the
 treebank (the research's decision 2; its licence is unchecked).
 

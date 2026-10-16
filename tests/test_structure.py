@@ -85,6 +85,37 @@ def test_a_tie_is_decided_by_the_next_situation_never_by_the_names_of_the_classe
     assert view.classes(("A", "stale", "bun", "."))[:2] == ("DETERMINER", "ADJECTIVE")
 
 
+def test_a_word_no_sentence_held_used_takes_a_class_memory_holds_of_it():
+    """"breathes", in no sentence held: after a noun, a word ending in "es" was a noun ("bus lanes"), so by its ending
+    alone it is one. Memory holds it a verb, and a class memory holds is the one taken; asked nothing, the ending
+    decides as before."""
+    view = StructureView()
+    view.add(_analysed("The bus lanes opened .", ["DETERMINER", "NOUN", "NOUN", "VERB", "PUNCTUATION"],
+                       [3, 3, 4, 0, 4], ["det", "compound", "nsubj", "root", "punct"], "t:1"))
+    words = ("The", "whale", "breathes", "air", ".")
+    assert view.classes(words)[2] == "NOUN"
+    held = {"whale": {"NOUN": 3}, "breathes": {"VERB": 2}}
+    view.held_classes = lambda word: held.get(word.lower(), {})
+    assert view.classes(words)[1:3] == ("NOUN", "VERB")
+
+
+def test_what_memory_holds_of_a_word_is_read_through_the_shapes_it_learned():
+    """A word memory holds no class of is read as the held word it is a shape of ("breathes" as `breathe`); classes
+    without net evidence are no classes, and the word-class view's MODAL is the treebank's AUXILIARY."""
+    from core.semantics.structure import held_classes
+
+    class Inventory:
+        word_classes = {"breathe": {"VERB": 4, "NOUN": -1}, "can": {"MODAL": 9, "NOUN": 2}}
+
+        @staticmethod
+        def names_of_shape(word):
+            return ["breathe"] if word == "breathes" else []
+    of = held_classes(Inventory())
+    assert of("breathes") == {"VERB": 4}
+    assert of("Can") == {"AUXILIARY": 9, "NOUN": 2}
+    assert of("zorp") == {}
+
+
 def test_pieces_are_written_as_a_treebank_writes_them():
     assert words_of(["It", "doesn", "'t", "change", "."]) == ("It", "does", "n't", "change", ".")
     assert words_of(["We", "can", "'t", "."]) == ("We", "ca", "n't", ".")

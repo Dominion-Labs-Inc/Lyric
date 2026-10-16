@@ -29,7 +29,11 @@ test by the kind of thing a slot holds (`_role_of_slot`: kind, quality, doing, n
 phrase depends on the rest (`_relations.json`), every sentence with a slot that fails (`_missed.json`), and checks
 the store was not written to.
 
-**Run** (from the Lyric folder; starts no substrate; about 5 minutes to load, then the lessons read once):
+**Two ways, one run** (since 2026-10-16 (10)): the structure as the treebank alone decides it, and with a word no
+sentence held used taking a class memory holds of it (`StructureView.held_classes`); the second way's metrics are
+named "with memory's word classes", its misses in `_missed_with_word_classes.json`.
+
+**Run** (from the Lyric folder; starts no substrate; about 5 minutes to load, then the lessons read twice):
 
 ```
 POSTGRES_DATABASE=lyric_db PYTHONPATH="$PWD" ./venv_lyric/bin/python3 experiments/STRUCTURE-02/experiment.py

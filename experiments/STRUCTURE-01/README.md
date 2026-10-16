@@ -26,6 +26,10 @@ The bars are the method's own numbers, measured on the treebank's files before a
 91.9%, UAS 73.1%, LAS 66.2%): read from memory, it must do as well, or memory holds less than was taught. It also reads
 the 33 prose sentences of UNDERSTANDS-PROSE-01 and shows their phrases, and checks the store was not written to.
 
+**Two ways, one run** (since 2026-10-16 (10)): as the treebank alone decides, and with a word no sentence held used
+taking a class memory holds of it (`StructureView.held_classes`, from the reader's word-class view, through the
+shapes it learned: "breathes" as `breathe`). The bars apply to both; the prose shows where the two read otherwise.
+
 **Run** (from the Lyric folder, after the treebank is taught; starts no substrate):
 
 ```

@@ -225,6 +225,7 @@ async def main() -> int:
         from core.database import get_unified_db
         from core.learning.teaching_sources import ListeningSource
         from core.semantics.derived_reader import live_view
+        from core.semantics.structure import held_classes
         agent = await get_memory_agent()
         await agent.initialize()
         await agent.warm_word_classes()
@@ -251,33 +252,41 @@ async def main() -> int:
     EV.check("the lessons are on disk", len(pairs) > 0, f"{len(source.paths)} lessons, {len(pairs):,} sentences")
     say(f"  {len(pairs):,} lesson sentences; {len(structure):,} analysed sentences held")
 
-    started = time.perf_counter()
-    counts, by_role, by_relation, missed = roles_on_phrases(pairs, view, structure)
-    say(f"  read in {time.perf_counter() - started:.0f}s")
-    framed = counts["read through a frame with slots"]
-    for name in ("sentences", "not read as taught", "read whole (no slots)", "slots not found",
-                 "read through a frame with slots", "slots", "slots on one phrase", "slots placed: as meant",
-                 "slots placed: top", "slots placed: no place", "slots placed: against", "every slot on one phrase",
-                 "every slot on one phrase, none against the meaning"):
-        EV.metric(name, counts[name], unit="count")
-        say(f"    {name:52} {counts[name]:,}")
-    if framed:
-        for test in ("on one phrase", "on one phrase, none against the meaning"):
-            share = counts[f"every slot {test}"] / framed
-            EV.metric(f"sentences with every slot {test}", round(share, 4), unit="fraction",
-                      note=f"of the {framed:,} sentences read through a frame with slots")
-            say(f"    sentences with every slot {test}: {share:.1%}")
-    for role in sorted({role for role, _, _ in by_role}):
-        for test in ("one phrase", "not against the meaning"):
-            on, off = by_role[(role, test, True)], by_role[(role, test, False)]
-            EV.metric(f"{role} slots: {test}", round(on / (on + off), 4), unit="fraction", note=f"of {on + off:,}")
-            say(f"    {role:10} {test:11} {on / (on + off):.1%} of {on + off:,}")
-
+    # TWO WAYS, ONE LOAD: the structure as the treebank alone decides it, and with a word no sentence held used taking
+    # a class memory holds of it (`StructureView.held_classes`).
     stamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
-    (_results() / f"{stamp}_missed.json").write_text(json.dumps(missed, indent=1))
-    (_results() / f"{stamp}_relations.json").write_text(json.dumps(
-        [{"role": role, "relation": relation, "slots": n} for (role, relation), n in by_relation.most_common()],
-        indent=1))
+    for way, held, named, file in (("treebank only", None, "", ""),
+                                   ("with memory's word classes", held_classes(view), "with memory's word classes: ",
+                                    "_with_word_classes")):
+        structure.held_classes = held
+        say(f"\n  {way}:")
+        started = time.perf_counter()
+        counts, by_role, by_relation, missed = roles_on_phrases(pairs, view, structure)
+        say(f"  read in {time.perf_counter() - started:.0f}s")
+        framed = counts["read through a frame with slots"]
+        for name in ("sentences", "not read as taught", "read whole (no slots)", "slots not found",
+                     "read through a frame with slots", "slots", "slots on one phrase", "slots placed: as meant",
+                     "slots placed: top", "slots placed: no place", "slots placed: against",
+                     "every slot on one phrase", "every slot on one phrase, none against the meaning"):
+            EV.metric(f"{named}{name}", counts[name], unit="count")
+            say(f"    {name:52} {counts[name]:,}")
+        if framed:
+            for test in ("on one phrase", "on one phrase, none against the meaning"):
+                share = counts[f"every slot {test}"] / framed
+                EV.metric(f"{named}sentences with every slot {test}", round(share, 4), unit="fraction",
+                          note=f"of the {framed:,} sentences read through a frame with slots")
+                say(f"    sentences with every slot {test}: {share:.1%}")
+        for role in sorted({role for role, _, _ in by_role}):
+            for test in ("one phrase", "not against the meaning"):
+                on, off = by_role[(role, test, True)], by_role[(role, test, False)]
+                EV.metric(f"{named}{role} slots: {test}", round(on / (on + off), 4), unit="fraction",
+                          note=f"of {on + off:,}")
+                say(f"    {role:10} {test:23} {on / (on + off):.1%} of {on + off:,}")
+        (_results() / f"{stamp}_missed{file}.json").write_text(json.dumps(missed, indent=1))
+        (_results() / f"{stamp}_relations{file}.json").write_text(json.dumps(
+            [{"role": role, "relation": relation, "slots": n} for (role, relation), n in by_relation.most_common()],
+            indent=1))
+    structure.held_classes = None
 
     await asyncio.sleep(1)
     after = await written()

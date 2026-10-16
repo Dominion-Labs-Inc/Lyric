@@ -147,6 +147,10 @@ class StructureView:
         self._unknown: Dict[Tuple, Counter] = {}
         self._steps: List[Dict[Tuple, Counter]] = []
         self._classes_of: Dict[str, frozenset] = {}
+        #: What memory holds of a word's class, from all it was taught (`held_classes`), asked only of a word no
+        #: sentence held used: its class is then one of those, as the situations decide. None asks nothing, and a
+        #: word never met is decided by its ending and how it is written alone.
+        self.held_classes: Optional[Callable[[str], Mapping[str, int]]] = None
 
     def __len__(self) -> int:
         return len(self._held)
@@ -325,16 +329,22 @@ class StructureView:
         return first
 
     def classes(self, words: Sequence[str]) -> Tuple[str, ...]:
-        """The class each word is used as here, decided left to right."""
+        """The class each word is used as here, decided left to right. A word no sentence held used takes a class
+        memory holds of it, where it holds one (`held_classes`): "whale" after "A" is a noun, not the verb its ending
+        gave it."""
         self._work_out()
         chosen: List[str] = []
         for i, word in enumerate(words):
             met = word in self._classes_of or word.lower() in self._classes_of
+            held = self.held_classes(word) if not met and self.held_classes is not None else {}
             table = self._known if met else self._unknown
-            decided = self._decide((s, table.get(s)) for s in self._class_situations(words, chosen, i, met=met))
+            decided = self._decide(((s, table.get(s)) for s in self._class_situations(words, chosen, i, met=met)),
+                                   (lambda c: c in held) if held else (lambda _: True))
             if decided is None and met:
                 decided = self._decide((s, self._unknown.get(s))
                                        for s in self._class_situations(words, chosen, i, met=False))
+            if decided is None and held:
+                decided = max((n, c) for c, n in held.items())[1], ()
             chosen.append(decided[0] if decided else _OPEN_CLASS)
         return tuple(chosen)
 
@@ -372,6 +382,29 @@ class StructureView:
     def read(self, words: Sequence[str]) -> Structure:
         """How these words go together: their classes, then their structure."""
         return self.structure(words, self.classes(words))
+
+
+#: The word-class view's names for classes the treebank names otherwise.
+_HELD_AS = {"MODAL": "AUXILIARY", "COPULA": "AUXILIARY", "QUANTIFIER": "DETERMINER"}
+
+
+def held_classes(inventory: Any) -> Callable[[str], Dict[str, int]]:
+    """What memory holds of a word's classes, by the treebank's names, for `StructureView.held_classes`: the classes
+    the reader's view observed the word in with net evidence for them (`PatternInventory.word_classes`); for a word
+    it holds none of, those of the held words it is written as a shape of (`names_of_shape`: "breathes" is `breathe`,
+    by a change learned from the lessons). Empty for a word memory knows nothing of."""
+    def of(word: str) -> Dict[str, int]:
+        folded = word.casefold()
+        for name in [folded] + [n for n in inventory.names_of_shape(folded) if n != folded]:
+            counts: Dict[str, int] = {}
+            for cls, n in inventory.word_classes.get(name, {}).items():
+                if n > 0:
+                    named = _HELD_AS.get(cls, cls)
+                    counts[named] = counts.get(named, 0) + n
+            if counts:
+                return counts
+        return {}
+    return of
 
 
 def words_of(pieces: Iterable[Any]) -> Tuple[str, ...]:
