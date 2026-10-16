@@ -33,3 +33,13 @@ POSTGRES_DATABASE=lyric_db PYTHONPATH="$PWD" ./venv_lyric/bin/python3 experiment
 ```
 
 **Results:** `results/<UTC timestamp>.json` and `.md`, the prose read beside them, and `results/run.log`.
+
+**Runs on main:**
+
+| Run | Code | dev: classes / UAS / LAS | test: classes / UAS / LAS | Checks | Written |
+|---|---|---|---|---|---|
+| `20261016T205339Z` | c203650 | 91.8% / 73.2% / 66.3% | 92.0% / 73.7% / 67.0% | 9/9 | nothing |
+
+The same code reading the treebank's files gives the same to four places, and the same reading of every prose
+sentence: memory holds what was taught. The file numbers above (91.9%, 73.1%, 66.2%) were measured with an earlier
+state of `structure.py`; the bars stand as fixed. Lab notebook 2026-10-16 (7).

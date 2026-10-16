@@ -15956,3 +15956,64 @@ sentences main holds as analysed.
 
 **Also built:** the gateway's read-only Lyric Store API (`dominion-labs`, `lyric_store_api.py`), so a cloud session
 can read both stores and the records runs leave (`docs/HANDOFF.md` §5).
+
+
+## 2026-10-16 (7) — STRUCTURE-01 on main: memory holds what was taught; where the prose reading fails
+
+**The run** (started from the Mac, 16:53 to 16:57 local, 228 s; checked from a cloud session through the gateway):
+`experiments/STRUCTURE-01/results/20261016T205339Z.md`. **PASS, 9 of 9 checks.**
+
+| Held out | Sentences | Words | Classes | Heads (UAS) | Heads and relations (LAS) |
+|---|---|---|---|---|---|
+| dev | 2,001 | 25,148 | 91.8% | 73.2% | 66.3% |
+| test | 2,077 | 25,094 | 92.0% | 73.7% | 67.0% |
+| bar | | | 91% | 72% | 65% |
+
+- Main holds 12,544 sentences as analysed: every sentence of the training part. The one memory more than beliefs in
+  (6) is not a missing sentence; it is still not traced.
+- Nothing was written. The run's own check passed, and main's write counters, read through the gateway at 16:52 and
+  16:58, moved in none of the 346 tables. Memories 1,431,010 (12,544 of them analysed), beliefs 1,206,181: as the
+  treebank pass left them.
+- A first attempt was started in `services/api-gateway` and never reached Python: `./venv_lyric/bin/python3` is only
+  in the Lyric folder (`../../Lyric` from there).
+
+**Memory holds exactly what was taught.** Read in a cloud session, with no store, from the treebank's files (UD English
+EWT r2.18 from GitHub, 12,544 / 2,001 / 2,077 sentences as on the Mac) with the code of c203650: dev 0.9177 / 0.7320 /
+0.6628, test 0.9196 / 0.7366 / 0.6702, main's numbers to four places; all 33 prose sentences read the same, every
+class, head and relation. So the round trip through memory loses nothing, and the 3 uncommitted changes the run record
+names on the Mac change nothing it measures. The file numbers in (5) and the README (91.9 / 73.1 / 66.2) were measured
+with an earlier state of `structure.py`. The structure reader can be measured in a cloud session from the files
+(`core/semantics/structure.py` and `read_conllu` need nothing else).
+
+**Ties are decided by the class's name.** `StructureView._decide` takes `max((times, choice))`: where the most
+specific situation met splits evenly, the choice whose name sorts last wins. On dev, 379 of 25,148 class decisions
+were ties (test: 349 of 25,094), and 1,052 of 50,283 structure steps. Measured from the files, code not changed:
+letting the next, less specific situation decide among the tied choices (the first tie standing if none does), for
+classes only, gives dev 92.04% / 73.44% / 66.60% and test 92.32% / 73.71% / 67.28%. Steps not tried.
+
+**The prose, read** (`results/20261016T205726Z_prose.json`). In 24 of 33 sentences the predicate, its subject and its
+object are right. The 9 others, each class traced to the situation it was decided by:
+- The main verb taken for a noun (4):
+  - "A whale breathes air through a blowhole.": "whale" is in no sentence taught; by its ending after a determiner
+    the situation split 1 noun, 1 adjective, 1 verb, and the tie went to VERB. "breathes", never met, is then a noun
+    after a verb (65 to 1).
+  - "Chlorophyll is the green pigment that absorbs the light.": "absorbs", never met, went by its last letter after a
+    pronoun: noun 191, verb 159. One class holds "their" (a noun follows) and "it" and "that" (a verb follows).
+  - "Whales feed their young with milk.": "feed" is a verb 28 times of 34 in the treebank, but after a noun it was a
+    noun 4 of 5 ("news feed"): a plural subject and the first noun of a compound are one class.
+  - "They release oxygen.": "release" was never met after a pronoun; before a word only ever a noun it was a noun 5
+    of 6 ("release date").
+  - Nothing else main holds of a word is asked. A word the treebank did not use is decided by its ending and capitals
+    alone, though WordNet gives breathe and absorb as verbs, and the word-class view warmed in the same run holds
+    76,884 words.
+- The noun before the verb taken for the root (3): "by which plants make food", "Plants take in carbon dioxide and
+  water.", "The function sorted returns a new list."
+- "garbage-collected" read as three words, "garbage" the object (1).
+- "A prime number is a natural number greater than 1 that has no divisors other than 1 and itself.": the root on the
+  subject (1).
+
+What the phrase layer was built for: "carbon dioxide and water" is one phrase, "water" its conj; "the capital of
+France", "Two of them" and "1 and itself" read right. "of common passwords" goes to "used", not "list";
+"structured, object-oriented and functional programming" does not hold together; and prepositional phrases go to the
+nearest noun where they belong to the verb ("in May" on "engineers", "from unlabeled data" on "traffic", "in the late
+1980s" on "Python").

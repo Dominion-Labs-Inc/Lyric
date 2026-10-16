@@ -1,7 +1,8 @@
 # Handoff: Lyric reading and understanding English (2026-10-14, updated 2026-10-16 evening)
 
 For an engineer, and their Claude Code session, picking this work up. Read this first, then the lab notebook entries
-2026-10-13 (4), 2026-10-14 (1), 2026-10-16 (1), 2026-10-16 (2) and 2026-10-16 (6) in `docs/research/LAB_NOTEBOOK.md`.
+2026-10-13 (4), 2026-10-14 (1), 2026-10-16 (1), 2026-10-16 (2), 2026-10-16 (6) and 2026-10-16 (7) in
+`docs/research/LAB_NOTEBOOK.md`.
 The previous handoff (2026-10-01) is in git history.
 
 **A cloud session (no Mac, no store) reads main through the API gateway** (§5, "From a cloud session"): the cloud
@@ -15,10 +16,13 @@ learns phrase structure itself from a treebank**, taught into the main model thr
 taught into main** (2026-10-16, finished 13:53, after the worthiness filter stopped declining what is taught: lab
 notebook 2026-10-16 (6)): memories 1,418,592 → 1,431,010, beliefs 1,193,764 → 1,206,181; the pass's review answered
 179 of 200 right. Main holds **12,544** memories tagged `analysed_sentence` in `memory_hot.memory_hot`, every sentence
-of the treebank's training part (counted read only, as `lyric_reader`). **Next: `experiments/STRUCTURE-01`** reads
-main's own view (read only; the owner runs it on the Mac; a session checks its results through the gateway:
-`files?path=experiments/STRUCTURE-01/results`, and `lyric_db/writes` before and after). After that: constructions
-learned over phrases.
+of the treebank's training part (counted read only, as `lyric_reader`). **`experiments/STRUCTURE-01` passed on main**
+(2026-10-16, 9 of 9, nothing written; lab notebook 2026-10-16 (7)): dev classes 91.8%, UAS 73.2%, LAS 66.3%; test
+92.0%, 73.7%, 67.0%. The treebank's files read with the same code give the same to four places, so memory holds what
+was taught, and the structure reader can be measured in a cloud session from the files. Open in it: ties go to the
+class's name (backing off on a tie, measured from the files: dev classes +0.3, LAS +0.3), and in 4 of the 33 prose
+sentences the main verb is read as a noun (a word the treebank never used is decided by its ending alone; a
+noun-or-verb word beside a noun reads as a compound). **Next:** constructions learned over phrases.
 
 ## 1. What Lyric is
 
@@ -361,6 +365,8 @@ header `X-Lyric-Store-Token: $LYRIC_STORE_TOKEN` (both set in the cloud environm
 `schema=memory_hot`, table `memory_hot`); `{store}/activity` (who is connected: a teach run shows here);
 `{store}/writes` (write counters: read before and after a run); `files?path=` (folders and text files under
 `experiments/`, `docs/`, `logs/`; `&tail=N` for a log's end). This is how a session checks what the owner ran.
+A run command given to the owner starts with `cd` to the Lyric folder: a terminal left in `services/api-gateway`
+finds no `./venv_lyric` (`../../Lyric` from there).
 
 ```
 curl -s -H "X-Lyric-Store-Token: $LYRIC_STORE_TOKEN" "$GATEWAY_BASE/api/admin/lyric-store/stores"
