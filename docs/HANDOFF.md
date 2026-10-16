@@ -1,8 +1,11 @@
-# Handoff: Lyric reading and understanding English (2026-10-14, updated 2026-10-16)
+# Handoff: Lyric reading and understanding English (2026-10-14, updated 2026-10-16 evening)
 
 For an engineer, and their Claude Code session, picking this work up. Read this first, then the lab notebook entries
-2026-10-13 (4), 2026-10-14 (1), 2026-10-16 (1) and 2026-10-16 (2) in `docs/research/LAB_NOTEBOOK.md`. The previous
-handoff (2026-10-01) is in git history.
+2026-10-13 (4), 2026-10-14 (1), 2026-10-16 (1), 2026-10-16 (2) and 2026-10-16 (6) in `docs/research/LAB_NOTEBOOK.md`.
+The previous handoff (2026-10-01) is in git history.
+
+**A cloud session (no Mac, no store) reads main through the API gateway** (§5, "From a cloud session"): the cloud
+environment holds `GATEWAY_BASE` and `LYRIC_STORE_TOKEN`. That is how a session checks a run the owner started.
 
 **Start here: `docs/research/READING_PROSE_AT_SCALE.md`, then the lab notebook 2026-10-16 (5).** The step-by-step
 plan in §4 patches one piece of English per step, and the owner judged it not the right fix (2026-10-16). The
@@ -11,8 +14,11 @@ learns phrase structure itself from a treebank**, taught into the main model thr
 `core/semantics/structure.py`, `TreebankSource`, `learn_structure`, `MemoryAgent.remember_analysed`. **The treebank is
 taught into main** (2026-10-16, finished 13:53, after the worthiness filter stopped declining what is taught: lab
 notebook 2026-10-16 (6)): memories 1,418,592 → 1,431,010, beliefs 1,193,764 → 1,206,181; the pass's review answered
-179 of 200 right. Next: `experiments/STRUCTURE-01` reads main's own view (read only, the owner runs it). After that:
-constructions learned over phrases.
+179 of 200 right. Main holds **12,544** memories tagged `analysed_sentence` in `memory_hot.memory_hot`, every sentence
+of the treebank's training part (counted read only, as `lyric_reader`). **Next: `experiments/STRUCTURE-01`** reads
+main's own view (read only; the owner runs it on the Mac; a session checks its results through the gateway:
+`files?path=experiments/STRUCTURE-01/results`, and `lyric_db/writes` before and after). After that: constructions
+learned over phrases.
 
 ## 1. What Lyric is
 
@@ -64,7 +70,15 @@ evidence, and reasons over a concept graph. No neural model reads or writes for 
   repo. Datasets are never pushed. Never copy the GitHub token in `Lyric/.env.production`.
 - **Before any push**, look at what it sends: `git rev-list --count origin/main..main`, and
   `git log origin/main..main --format=%B | grep -ci co-authored-by` must be 0.
-- Git state (2026-10-16): GitHub's main holds everything as of commit 67f0faa4. Dataset batches 5 to 9
+- Git state (2026-10-16 evening): GitHub's main holds everything, through the handoff's own update this evening; the
+  owner's Mac pulls it (`git pull --ff-only origin main` in the Lyric folder). Commits made from a cloud session carry
+  its git identity as author and no trailers.
+- **The API gateway is its own repository, `Dominion-Labs-Inc/dominion-labs`**: the folder `services/api-gateway` of
+  the Dominion Labs folder, made a git repository of its own (2026-10-16), pushed to GitHub, pulled back into that
+  folder. The Dominion Labs folder itself is not pushed: it holds Lyric (its own repository), a ClickHouse store,
+  logs, `data/` and other repositories; a push of it tried to send 2.79 GB and failed. The gateway's `.gitignore` keeps
+  out `.env`, keys, its virtual environments, logs and `*-bak` copies; check with `git ls-files` before any commit.
+- Dataset batches 5 to 9
   (`test_data/music/giantsteps`, `humtrans`, `test_data/speech/LibriSpeech`, `test_data/vision/ukbench`) stay on
   disk, untracked and in `.gitignore`. The local branch `backup/main-before-one-commit-2026-10-16` still holds them:
   never push it. GitHub's pull request #1 (2026-08-29 to 09-02) still carries old `Co-Authored-By: Claude` lines;
@@ -126,6 +140,25 @@ from experience, not from reader code written one sentence shape at a time.
   (`integrity violation: source_modified in core.agents.autonomous.autonomous_coordinator`): a substrate was teaching
   main when that file changed on disk. Every boot of main restores it. Only a human can lift it; a session never
   does. The listening pass taught main with it standing.
+
+### Done 2026-10-16 (6) (committed and pushed)
+
+1. **What is taught is not judged for keeping.** The treebank pass on main stopped at 11:06: the worthiness filter's
+   complexity threshold declined an analysed sentence (`analysed_sentence` was never an exempt tag). Now
+   `MemoryFilter.EXEMPT_ORIGINS` exempts everything that came through teaching, asked at store time only, so recall is
+   unchanged; `analysed_sentence` joins the taught-language tags held out of recall as knowledge. Tests:
+   `tests/test_memory_worthiness_semantics.py`, 31 passed. Lab notebook 2026-10-16 (6).
+2. **The treebank is taught into main** (finished 13:53; 12,544 sentences held as analysed; numbers above).
+3. **The gateway's Lyric Store API** (`dominion-labs`, `lyric_store_api.py`): read-only routes over `lyric_db` and
+   `lyric_dev` and the files runs leave (§5). Read only three ways over: the `lyric_reader` role (granted
+   `pg_read_all_data` and `pg_read_all_stats`), read-only sessions, `default_transaction_read_only`; 15 s statement
+   and 2 s lock timeouts; at most 1000 rows; no route takes SQL. 56 checks against a real Postgres.
+4. **Cloudflare cached a token-gated answer and served it to anyone** (`cf-cache-status: HIT` on
+   `api.dmnlabs.org`): its cache keys by URL, never by the token. Fixed three ways: the Lyric Store routes say
+   `no-store` on every answer; the gateway marks every `/api/` or JSON answer that sets no `Cache-Control` as
+   `no-store` (`shared_cache.py`, outermost middleware); and a Cloudflare Cache Rule, "Never cache API answers" (URI
+   path starts with `/api/`: bypass cache, the last rule), with the cache purged. Checked from a cloud session: no
+   token is refused (401), `cf-cache-status: DYNAMIC`.
 
 ### Done 2026-10-14 (2) to 2026-10-16 (committed and pushed, 67f0faa4)
 
@@ -329,6 +362,20 @@ header `X-Lyric-Store-Token: $LYRIC_STORE_TOKEN` (both set in the cloud environm
 `{store}/writes` (write counters: read before and after a run); `files?path=` (folders and text files under
 `experiments/`, `docs/`, `logs/`; `&tail=N` for a log's end). This is how a session checks what the owner ran.
 
+```
+curl -s -H "X-Lyric-Store-Token: $LYRIC_STORE_TOKEN" "$GATEWAY_BASE/api/admin/lyric-store/stores"
+curl -s -H "X-Lyric-Store-Token: $LYRIC_STORE_TOKEN" "$GATEWAY_BASE/api/admin/lyric-store/files?path=logs/treebank_production_run.log&tail=40"
+```
+
+- Never print `$LYRIC_STORE_TOKEN`, and never put it in a file, a commit or a message.
+- The gateway runs on the Mac from `services/api-gateway` (its `start.sh` loads the Dominion Labs folder's `.env`,
+  which holds `LYRIC_STORE_PG_PASSWORD` and `LYRIC_STORE_TOKEN`); restarts are the owner's. A change to the gateway is
+  pushed to `dominion-labs` and pulled there, then the owner restarts it.
+- Every new GET route that answers one person's data sets `Cache-Control: no-store` or relies on `shared_cache.py`:
+  Cloudflare caches by URL (§6).
+- On the Mac, `psql` is not on the PATH: use `/opt/homebrew/opt/postgresql@16/bin/psql` with the options
+  `scripts/watch_teaching.sh` uses, or `-U lyric_reader` with `PGPASSWORD` from the `.env` for reading only.
+
 **UNDERSTANDS-PROSE-01 on main** takes about 26 minutes and is started by the owner: a session's attempt to start
 it on main was refused by the permission check. Read-only scripts that load the reader's view only
 (`check_forms.py`) were allowed.
@@ -339,6 +386,14 @@ command works on your own processes; `py-spy` needs root.
 ## 6. Pitfalls found this session
 
 - **Beliefs with no `memory_id` are silently not stored** (see §2).
+- **The worthiness filter judged what was taught.** A memory not exempt by tag or origin goes through the complexity
+  threshold; `learn_word_classes` and `learn_pronunciations` count a decline as skipped and say nothing. Teaching is
+  exempt by origin now (2026-10-16 (6)); how many word classes and pronunciations earlier passes lost is not measured.
+  A new kind of taught memory needs no tag of its own to be kept, but one recall must not answer from needs its tag in
+  `EXEMPT_EVENT_TAGS`.
+- **Cloudflare caches by URL.** It never sees the token, cookie or user a request carried, so anything it holds goes to
+  everyone. A route that answers one person's data must say `no-store` (the gateway now does by default for `/api/`
+  and JSON).
 - **A study harness can differ from the system it studies.** A dump that rebuilt the reader's kept readings itself
   disagreed with the real check by 17 lessons. Measure with the reader's own functions (`_read_pieces`, `weighed`).
 - **`time.time()` can tie.** A belief witness withdrawn and observing again at the same instant is ignored, so give
