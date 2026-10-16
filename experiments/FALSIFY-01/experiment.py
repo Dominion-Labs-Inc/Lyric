@@ -78,7 +78,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 for _k, _v in {"POSTGRES_PORT": "5433", "POSTGRES_USER": "stefan",
-               "POSTGRES_DATABASE": "lyric_db", "LYRIC_NO_WATCHDOG": "1",
+               "POSTGRES_DATABASE": "lyric_dev", "LYRIC_NO_WATCHDOG": "1",
                "LYRIC_SHADOW_MODE": "1"}.items():
     os.environ.setdefault(_k, _v)
 

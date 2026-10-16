@@ -1,0 +1,387 @@
+{
+ "name": "unasserted-01",
+ "about": "Facts with new words, each happening written as an event of its verb's kind as english_14 and english_31 write one: a chase that happened; a running someone said happened, a kick someone wants, not told as so (english_15 and 18 since 2026-10-05); a chase denied and a chase that might be (english_12 and 9). Frozen before the first run.",
+ "quality": 0.95,
+ "examples": false,
+ "records": [
+  {
+   "sentence": "A kelt is an animal.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "isa",
+      "kelt",
+      "animal",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "A blip is an animal.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "isa",
+      "blip",
+      "animal",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "A fip is an animal.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "isa",
+      "fip",
+      "animal",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "A trel is a toy.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "isa",
+      "trel",
+      "toy",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "The kelt chased the blip.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "instance_of",
+      "?t0",
+      "kelt",
+      true,
+      false,
+      false,
+      false,
+      true
+     ],
+     [
+      "instance_of",
+      "?t1",
+      "blip",
+      true,
+      false,
+      false,
+      false,
+      true
+     ],
+     [
+      "instance_of",
+      "?v0",
+      "chase",
+      true
+     ],
+     [
+      "done_by",
+      "?v0",
+      "?t0",
+      true
+     ],
+     [
+      "done_to",
+      "?v0",
+      "?t1",
+      true
+     ],
+     [
+      "precedes",
+      "?v0",
+      "?now",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "The kelt said that the blip ran.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "instance_of",
+      "?t0",
+      "kelt",
+      true,
+      false,
+      false,
+      false,
+      true
+     ],
+     [
+      "instance_of",
+      "?t1",
+      "blip",
+      true,
+      false,
+      false,
+      true,
+      true
+     ],
+     [
+      "instance_of",
+      "?v0",
+      "say",
+      true
+     ],
+     [
+      "done_by",
+      "?v0",
+      "?t0",
+      true
+     ],
+     [
+      "done_to",
+      "?v0",
+      "?v1",
+      true
+     ],
+     [
+      "precedes",
+      "?v0",
+      "?now",
+      true
+     ],
+     [
+      "instance_of",
+      "?v1",
+      "run",
+      true,
+      false,
+      false,
+      true
+     ],
+     [
+      "done_by",
+      "?v1",
+      "?t1",
+      true,
+      false,
+      false,
+      true
+     ],
+     [
+      "precedes",
+      "?v1",
+      "?now",
+      true,
+      false,
+      false,
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "The fip wants to kick the trel.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "instance_of",
+      "?t0",
+      "fip",
+      true,
+      false,
+      false,
+      false,
+      true
+     ],
+     [
+      "instance_of",
+      "?t1",
+      "trel",
+      true,
+      false,
+      false,
+      true,
+      true
+     ],
+     [
+      "instance_of",
+      "?v0",
+      "want",
+      true
+     ],
+     [
+      "done_by",
+      "?v0",
+      "?t0",
+      true
+     ],
+     [
+      "done_to",
+      "?v0",
+      "?v1",
+      true
+     ],
+     [
+      "instance_of",
+      "?v1",
+      "kick",
+      true,
+      false,
+      false,
+      true
+     ],
+     [
+      "done_by",
+      "?v1",
+      "?t0",
+      true,
+      false,
+      false,
+      true
+     ],
+     [
+      "done_to",
+      "?v1",
+      "?t1",
+      true,
+      false,
+      false,
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "The fip did not chase the kelt.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "instance_of",
+      "?t0",
+      "fip",
+      true,
+      false,
+      false,
+      false,
+      true
+     ],
+     [
+      "instance_of",
+      "?t1",
+      "kelt",
+      true,
+      false,
+      false,
+      false,
+      true
+     ],
+     [
+      "instance_of",
+      "?v0",
+      "chase",
+      true
+     ],
+     [
+      "done_by",
+      "?v0",
+      "?t0",
+      true
+     ],
+     [
+      "done_to",
+      "?v0",
+      "?t1",
+      true
+     ],
+     [
+      "precedes",
+      "?v0",
+      "?now",
+      true
+     ],
+     [
+      "has_property",
+      "?v0",
+      "false",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "The kelt might chase the fip.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "instance_of",
+      "?t0",
+      "kelt",
+      true,
+      false,
+      false,
+      false,
+      true
+     ],
+     [
+      "instance_of",
+      "?t1",
+      "fip",
+      true,
+      false,
+      false,
+      false,
+      true
+     ],
+     [
+      "instance_of",
+      "?v0",
+      "chase",
+      true
+     ],
+     [
+      "done_by",
+      "?v0",
+      "?t0",
+      true
+     ],
+     [
+      "done_to",
+      "?v0",
+      "?t1",
+      true
+     ],
+     [
+      "has_property",
+      "?v0",
+      "possible",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  }
+ ]
+}

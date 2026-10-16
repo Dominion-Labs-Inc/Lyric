@@ -31,7 +31,7 @@ from datetime import datetime, timedelta
 from collections import defaultdict
 
 from .tool_registry import Tool, ToolParameter, ToolResult, ToolCategory, ToolSafety
-from .capabilities import Capability, ToolCapabilityProfile, CapabilityMetadata, RiskLevel
+from .tool_registry import Primitive, PrimitiveProfile, PrimitiveUse
 
 
 logger = logging.getLogger(__name__)
@@ -58,12 +58,12 @@ class GetCPUUsageTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="get_cpu_usage",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.ANALYZE_PERFORMANCE,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.ANALYZE_PERFORMANCE,
                     description="Monitor CPU usage"
                 )
             ]
@@ -99,12 +99,12 @@ class GetMemoryUsageTool(Tool):
         self.safety_level = ToolSafety.SAFE
         self.parameters = []
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="get_memory_usage",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.ANALYZE_PERFORMANCE,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.ANALYZE_PERFORMANCE,
                     description="Monitor memory usage"
                 )
             ]
@@ -150,12 +150,12 @@ class GetDiskUsageTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="get_disk_usage",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.ANALYZE_PERFORMANCE,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.ANALYZE_PERFORMANCE,
                     description="Monitor disk usage"
                 )
             ]
@@ -190,12 +190,12 @@ class GetNetworkStatsTool(Tool):
         self.safety_level = ToolSafety.SAFE
         self.parameters = []
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="get_network_stats",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.ANALYZE_PERFORMANCE,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.ANALYZE_PERFORMANCE,
                     description="Monitor network statistics"
                 )
             ]
@@ -240,24 +240,19 @@ class GetServiceStatusTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="get_service_status",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.MANAGE_PROCESS,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.MANAGE_PROCESS,
                     description="Get service status information"
                 ),
-                CapabilityMetadata(
-                    capability=Capability.MONITOR_HEALTH,
+                PrimitiveUse(
+                    primitive=Primitive.MONITOR_HEALTH,
                     description="Monitor health of system services",
                     input_types=["service_name"],
-                    output_types=["status"],
-                    latency="low",
-                    cost="low",
-                    reliability="high",
-                    risk_level=RiskLevel.LOW,
-                    priority=9
+                    output_types=["status"]
                 )
             ]
         )
@@ -325,12 +320,12 @@ class ParseLogsTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="parse_logs",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.READ_DATA,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.READ_DATA,
                     description="Parse and analyze log files"
                 )
             ]
@@ -395,12 +390,12 @@ class GetPerformanceProfileTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="get_performance_profile",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.ANALYZE_PERFORMANCE,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.ANALYZE_PERFORMANCE,
                     description="Get performance profiles"
                 )
             ]
@@ -497,12 +492,12 @@ class DistributedTracingTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="distributed_tracing",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.ANALYZE_PERFORMANCE,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.ANALYZE_PERFORMANCE,
                     description="Perform distributed tracing"
                 )
             ]
@@ -720,12 +715,12 @@ class SLOSLIToolingTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="slo_sli_tooling",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.ANALYZE_PERFORMANCE,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.ANALYZE_PERFORMANCE,
                     description="Monitor SLO/SLI metrics"
                 )
             ]
@@ -989,24 +984,19 @@ class AnomalyDetectionTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="anomaly_detection",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.DETECT_ANOMALY,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.DETECT_ANOMALY,
                     description="Detect system anomalies"
                 ),
-                CapabilityMetadata(
-                    capability=Capability.ANALYZE_THREAT,
+                PrimitiveUse(
+                    primitive=Primitive.ANALYZE_THREAT,
                     description="Analyze anomalies to detect security threats",
                     input_types=["time_series"],
-                    output_types=["anomalies", "threat_score"],
-                    latency="medium",
-                    cost="medium",
-                    reliability="high",
-                    risk_level=RiskLevel.LOW,
-                    priority=8
+                    output_types=["anomalies", "threat_score"]
                 )
             ]
         )
@@ -1230,12 +1220,12 @@ class DashboardGeneratorTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="dashboard_generator",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.VISUALIZE,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.VISUALIZE,
                     description="Generate monitoring dashboards"
                 )
             ]

@@ -49,10 +49,18 @@ def _ask(*facts, asked=()):
 
 
 #: The English these tests speak beyond the lessons: a question about causes,
-#: and questions about the exchange itself.
+#: a name of two words asked what it is, and questions about the exchange itself.
+#:
+#: A NAME OF TWO WORDS IS TAUGHT WHERE THE TESTS ASK ONE. The reader takes words
+#: it never met as a new name no longer than the longest name the slot's kind
+#: has held (`derived_reader._may_be_new`). The two lessons put only one-word
+#: names where "What is a ...?" asks, so "what is a zorblatt florpnax" read as
+#: "what is a zorblatt" with a word left over, where the substrate, taught every
+#: lesson, reads one name of two words.
 SPOKEN_HERE = [
     ("What causes pipe friction?", _ask(("caused_by", "pipe friction", "?x", True), asked=("?x",))),
     ("What causes water hammer?", _ask(("caused_by", "water hammer", "?x", True), asked=("?x",))),
+    ("What is a water hammer?", _ask(("isa", "water hammer", "?x", True), asked=("?x",))),
     ("What did I just ask you about?", _ask(("instance_of", "?e", "ask", True), ("done_by", "?e", "?speaker", True),
                                             ("done_to", "?e", "?listener", True), asked=("?e",))),
     ("What were we talking about?", _ask(("instance_of", "?e", "tell", True), ("done_by", "?e", "?speaker", True),
@@ -69,7 +77,7 @@ def _taught_view() -> PatternInventory:
     learner's own repairs, into a view nothing else reads."""
     global _VIEW
     if _VIEW is None:
-        view = PatternInventory(score=lambda item: (0.9, 1))
+        view = PatternInventory(score=lambda item: (0.9, 1, True))
         pairs = [(r["sentence"], r["meaning"]) for name in ("english_01", "english_02")
                  for r in json.loads((LESSONS / f"{name}.json").read_text())["records"]] + SPOKEN_HERE
         for sentence, data in pairs:
@@ -103,7 +111,7 @@ async def _pressure_loss_is_held():
     missing lesson. Taught here through the one learning path, into the sandbox
     the suite runs in, and only when it is not already held. The store is opened
     first: a test process has no substrate running to open it."""
-    from core.learning.unified_learning_system import get_learning_authority
+    from core.learning.unified_learning_system import Evidence, get_learning_authority
     from core.memory import get_memory_agent
 
     await get_memory_agent()
@@ -111,10 +119,12 @@ async def _pressure_loss_is_held():
     if any(r.phrase == "pressure loss" and any("caus" in relation for relation, _ in r.relations)
            for r in held.known):
         return
-    admission = await get_learning_authority().learn_fact(
+    decision = await get_learning_authority().consider(
         "pressure loss", "caused_by", "pipe friction", domain="fluid_mechanics",
-        description="the drop in pressure as a fluid flows through a pipe or a fitting")
-    assert admission.admitted, admission.refusals
+        description="the drop in pressure as a fluid flows through a pipe or a fitting",
+        evidence=Evidence(source="test:conversation", key="test:conversation", source_type="IMPORTED_KNOWLEDGE",
+                          quality=0.9, producer="test"))
+    assert decision.admitted, decision.reasons
 
 
 def test_a_phrase_is_read_as_a_phrase():
@@ -319,3 +329,25 @@ def test_research_that_does_not_name_the_phrase_is_refused():
         "sharing one word with the title is not being about the phrase"
     )
     assert not _titles("", "Anything")
+
+
+def test_what_is_said_is_written_with_one_dash():
+    """Nothing said to a person is written with a long dash or a doubled hyphen: one rule where words leave
+    (`said_plainly`), so it holds for a reply, a remembered sentence quoted back and a tool's words alike. What is
+    no dash is kept: an option written with two hyphens, a markdown rule and a table's row of dashes."""
+    from core.agents.autonomous.autonomous_coordinator import said_plainly
+    assert said_plainly("Noted — The dog is in the kennel.") == "Noted - The dog is in the kennel."
+    assert said_plainly("It reads lessons 1–26 -- then WordNet.") == "It reads lessons 1-26 - then WordNet."
+    assert said_plainly("word--word and a—b") == "word - word and a - b"
+    assert said_plainly("— a line that starts with a dash") == "- a line that starts with a dash"
+    for kept in ("Run it with --fresh and --k-only.", "| a | b |\n| --- | --- |\n| 1 | 2 |", "Title\n\n---\n\nBody",
+                 "nothing to change - here"):
+        assert said_plainly(kept) == kept, kept
+
+
+@pytest.mark.asyncio
+async def test_a_reply_is_written_with_one_dash(talk):
+    """The speech path applies it: a telling noted is said with a hyphen."""
+    understanding = await talk.understand("The door is open.", look_up=False)
+    reply = Conversation.say(understanding)
+    assert "—" not in reply and "–" not in reply and " -- " not in reply, reply

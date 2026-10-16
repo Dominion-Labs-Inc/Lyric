@@ -1238,6 +1238,24 @@ ACTS = {"solve": "solve", "calculate": "calculate", "work out": "calculate", "ev
         "differentiate": "differentiate", "integrate": "integrate"}
 #: Properties of a whole number that are decided, not looked up.
 _NUMBER_PROPERTIES = {"prime", "even", "odd", "positive", "negative", "composite"}
+#: KINDS OF NUMBER, DECIDED AS THEIR DEFINITIONS SAY, NOT LOOKED UP: what a number is a kind of is arithmetic's to
+#: say. Looked up, "Is seven a natural number?" was No: WordNet files 7 under digit and natural numbers under
+#: integer, and kinds neither of which is under the other were taken to exclude each other (2026-10-14). Each as
+#: WordNet defines it: a natural number is "the number 1 and any other number obtained by adding 1 to it
+#: repeatedly"; an integer, "any of the natural numbers (positive or negative) or zero". None where the algebra
+#: system cannot tell.
+_NUMBER_KINDS = {
+    "number": lambda v: True,
+    "complex number": lambda v: True,
+    "natural number": lambda v: bool(v.is_Integer) and v >= 1,
+    "integer": lambda v: bool(v.is_Integer),
+    "whole number": lambda v: bool(v.is_Integer),
+    "rational number": lambda v: v.is_rational,
+    "irrational number": lambda v: v.is_irrational,
+    "real number": lambda v: v.is_real,
+    "prime number": lambda v: bool(v.is_Integer) and bool(sp.isprime(v)),
+    "prime": lambda v: bool(v.is_Integer) and bool(sp.isprime(v)),
+}
 _MATH_KINDS = _PLACES | {"equals"}
 
 
@@ -1444,6 +1462,9 @@ def problem_of(meaning, listeners: Sequence[str] = ("?listener",)) -> Optional[C
             elif f.relation == "has_property" and f.obj in _NUMBER_PROPERTIES and len(stated) == 1:
                 target = reading.term(f.subject)
                 return (lambda: _property(target, f.obj, f.positive)) if target is not None else None
+            elif f.relation == "isa" and _number_kind(f.obj) and len(stated) == 1:
+                target = reading.term(f.subject)
+                return (lambda: _kind(target, _number_kind(f.obj), f.positive)) if target is not None else None
             elif _is_var(f.subject) and f.relation in _PLACES | {"instance_of"}:
                 continue            # the parts of an operation said in words
             else:
@@ -1592,6 +1613,35 @@ def _factors(target: Term) -> Worked:
     factors = [f for f, _ in sp.factor_list(value)[1]]
     worked.answer = [", ".join(written(f) for f in factors)]
     worked.steps.append(f"{shown} = {written(sp.factor(value))}")
+    return worked
+
+
+def _number_kind(name: str) -> Optional[str]:
+    """A kind of number the faculty decides (`_NUMBER_KINDS`), as memory or a meaning writes its name."""
+    kind = str(name).replace("_", " ").strip().lower()
+    return kind if kind in _NUMBER_KINDS else None
+
+
+def _kind(target: Term, kind: str, positive: bool) -> Optional[Worked]:
+    """Whether a number is of a kind of number, as the kind's definition decides it; None where the target is no
+    number, or the algebra system cannot tell."""
+    if kind in ("prime number", "prime"):
+        return _property(target, "prime", positive)      # shown as a prime is: divided by its smallest factor
+    value = to_sympy(target)
+    shown = render(target)
+    if not value.is_number:
+        return None
+    holds = _NUMBER_KINDS[kind](value)
+    if holds is None:
+        return None
+    worked = Worked(task="check", formula=f"{shown} is a {kind}")
+    if kind in ("natural number", "integer", "whole number"):
+        worked.steps.append(f"{shown} is {'a whole number' if value.is_Integer else 'not a whole number'}"
+                            + (f", {'1 or more' if value >= 1 else 'less than 1'}"
+                               if kind == "natural number" and value.is_Integer else ""))
+    holds = bool(holds) == positive
+    worked.answer = ["true" if holds else "false"]
+    worked.exact = sp.true if holds else sp.false
     return worked
 
 

@@ -17,7 +17,7 @@ from enum import Enum
 from abc import ABC, abstractmethod
 import re
 
-from core.capability import raise_if_structural
+from core.structural_defects import raise_if_structural
 from core.reasoning.unification import Atom, apply_substitution, match_body
 
 # Initialize logger first
@@ -39,7 +39,7 @@ logger = logging.getLogger(__name__)
 
 # The universal ontology this engine reasons over
 from core.domain import UniversalOntology
-from core.capability import raise_if_structural
+from core.structural_defects import raise_if_structural
 
 
 class ConfidenceLevel(Enum):
@@ -173,6 +173,17 @@ class ReasoningContext:
     #: (None: the substrate's own). A user's premises can include their own
     #: context, so everything this reasoning writes down is that user's.
     actor: Optional[str] = None
+    #: THE ORGANIZATION it was reasoned for, when the person asked through
+    #: their work for it: what it writes down is then the organization's Work
+    #: Context (docs/research/SEPARATION_MAP.md §11.13).
+    organization: Optional[str] = None
+
+    def origin(self, through: str):
+        """Where what this reasoning writes down belongs: the person's, the
+        organization's at work, or the substrate's own (`Origin.owner`)."""
+        from core.memory import Origin
+        return Origin.of(self.actor, through, context="work" if self.organization else None,
+                         organization=self.organization)
 
 
 @dataclass
@@ -430,290 +441,81 @@ class DeductiveReasoningStrategy(ReasoningStrategy):
             return None
 
 
+def _held_facts(premises: List[ReasoningPremise]) -> List[Tuple[str, str, str, bool, str]]:
+    """The premises that carry their structure, as `(subject, relation, object, held, premise_id)`: one relation
+    (`predicates`) between two named things (`constants`), held, or denied where its statement is negated ("~").
+    A premise given only as a string has no structure here, and two kinds that need it (induction, analogy) have
+    nothing to work from in it: they never reach for the words of the string."""
+    out = []
+    for premise in premises:
+        if len(premise.predicates) == 1 and len(premise.constants) == 2:
+            subject, obj = (str(c) for c in premise.constants)
+            out.append((subject, str(premise.predicates[0]), obj,
+                        not str(premise.statement).startswith("~"), premise.premise_id))
+    return out
+
+
+def _atom(subject: str, relation: str, obj: str) -> Optional[str]:
+    from core.reasoning.neural_bridge import clause_atom
+    return clause_atom(subject, relation, obj)
+
+
 class InductiveReasoningStrategy(ReasoningStrategy):
-    """Strategy for inductive reasoning (specific to general)"""
+    """Induction: from the instances of a kind held, what holds of the kind (specific to general).
+
+    Where every instance of a kind memory holds -- at least two -- holds the same fact, the fact is proposed of the
+    kind: "robin isa bird", "sparrow isa bird", both "capable_of fly", so perhaps "bird capable_of fly". Over the
+    premises' STRUCTURE (`_held_facts`), never their words. A generalisation is supported by its examples, not
+    proved by them: induction is not a kind that yields facts (`neural_bridge._FACT_YIELDING_KINDS`), and what it
+    proposes is not verified. Nothing is proposed that the kind already holds or is held not to."""
+
+    #: The fewest instances a generalisation is drawn from.
+    FEWEST = 2
 
     def __init__(self, neural_bridge=None):
         self.strategy_name = "inductive_reasoning"
         self.neural_bridge = neural_bridge
-    
+
     async def reason(self, context: ReasoningContext) -> List[ReasoningConclusion]:
-        """Execute inductive reasoning. Grouping and generalisation, only.
-
-        INDUCTION IS GENERALISATION SUPPORTED BY THE EXAMPLES GIVEN. A pattern
-        the examples do not support is not an induction from them, whatever
-        produced it, so there is nothing for a model to add that would still be
-        induction.
-
-        As with deduction, this first branched on whether an llm_service object
-        existed -- suppressing the pattern path entirely whenever one was
-        attached -- and then called the model unconditionally afterwards. That
-        call did not finish inside 60 s. Both are gone.
-        """
+        facts = _held_facts(context.premises)
+        held = {(s, r, o) for s, r, o, positive, _ in facts if positive}
+        denied = {(s, r, o) for s, r, o, positive, _ in facts if not positive}
+        kinds: Dict[str, Dict[str, str]] = {}
+        for s, r, o, positive, pid in facts:
+            if positive and r in ("isa", "instance_of"):
+                kinds.setdefault(o, {})[s] = pid
+        by_thing: Dict[str, Dict[Tuple[str, str], str]] = {}
+        for s, r, o, positive, pid in facts:
+            if positive and r not in ("isa", "instance_of"):
+                by_thing.setdefault(s, {})[(r, o)] = pid
         conclusions = []
-
-        try:
-            premise_groups = await self._group_similar_premises(context.premises)
-
-            for group in premise_groups:
-                if len(group) >= 2:  # Need multiple examples for induction
-                    pattern = await self._identify_pattern(group)
-                    if pattern:
-                        general_conclusion = await self._generalize_pattern(pattern, group)
-                        if general_conclusion:
-                            conclusions.append(general_conclusion)
-        except Exception as e:
-            logger.error(f"Error in pattern-based induction: {e}")
-
-        # THE MODEL IS NOT CONSULTED. INDUCTION IS WHAT THE SUBSTRATE DERIVES.
-        #
-        # This used to run the rule floor and then call the model
-        # UNCONDITIONALLY -- the only thing that skipped it was the absence of a
-        # service object -- "to extend the result".
-        #
-        # That cannot be right for induction. Induction is generalisation supported by the examples given. A statement the
-        # grouping and generalisation cannot produce is, by definition, not an induction; it is a
-        # guess wearing the label. There is no coverage gap here for a model to
-        # fill, because the gap IS the answer: if nothing follows, nothing
-        # follows, and saying so is the correct output.
-        #
-        # It had also stopped contributing anything. Since model proposals were
-        # given `origin="proposed"`, confidence 0.0 and no cited premises, they
-        # are excluded from `overall_confidence`, ranked below every derived
-        # conclusion and counted in no quality metric -- so what remained was an
-        # unscored sentence appended to the result.
-        #
-        # And it was expensive: measured at over 60 s -- it did not finish against roughly 80 ms for the
-        # nine strategies that never call a model. Worse, it MASKED failure --
-        # a run where rule matching produced nothing still returned a
-        # conclusion, so "the rules did not fire" looked like a successful
-        # answer.
-
+        for kind, instances in kinds.items():
+            if len(instances) < self.FEWEST:
+                continue
+            shared = set.intersection(*(set(by_thing.get(x, {})) for x in instances))
+            for relation, obj in sorted(shared):
+                if (kind, relation, obj) in held or (kind, relation, obj) in denied or obj == kind:
+                    continue
+                statement = _atom(kind, relation, obj)
+                if not statement:
+                    continue
+                support = [pid for pid in instances.values()] + [by_thing[x][(relation, obj)] for x in instances]
+                confidence = min(0.7, len(instances) / (len(instances) + 1))
+                conclusions.append(ReasoningConclusion(
+                    conclusion_id=str(uuid.uuid4()), statement=statement, confidence=confidence,
+                    reasoning_type=ReasoningType.INDUCTIVE, inference_method=InferenceMethod.PATTERN_MATCHING,
+                    supporting_premises=support,
+                    reasoning_steps=[f"{', '.join(sorted(instances))}: each is a {kind} and each {relation} {obj}",
+                                     f"so perhaps every {kind} {relation} {obj}"],
+                    logical_validity=0.0, evidence_strength=confidence, coherence_score=confidence))
         return conclusions
 
-
-    
     def get_strategy_name(self) -> str:
         return self.strategy_name
-    
+
     def is_applicable(self, context: ReasoningContext) -> bool:
-        """Whether the context carries what this strategy needs.
-
-        NO LONGER RE-CHECKS `allowed_reasoning_types`. `_select_strategies`
-        already filters on that before calling this, so the test was redundant
-        on the normal path -- and actively wrong on the other one: when a caller
-        declares no allowed types, `_select_strategies` falls back to "every
-        applicable strategy", and this returned False for an EMPTY list. So the
-        three original strategies could never fire on the fallback path, while
-        the eight added later (which test only for material) could. Same engine,
-        same call, two different rules about what "applicable" means.
-
-        What remains is the honest question: is the material here?
-        """
-        return len(context.premises) >= 2
-    
-    async def _group_similar_premises(self, premises: List[ReasoningPremise]) -> List[List[ReasoningPremise]]:
-        """Group similar premises together"""
-        groups = []
-        
-        for premise in premises:
-            added_to_group = False
-            
-            for group in groups:
-                if await self._premises_are_similar(premise, group[0]):
-                    group.append(premise)
-                    added_to_group = True
-                    break
-            
-            if not added_to_group:
-                groups.append([premise])
-        
-        return groups
-    
-    async def _premises_are_similar(self, premise1: ReasoningPremise, premise2: ReasoningPremise) -> bool:
-        """Check if two premises are similar"""
-        # Simple similarity check (would use more sophisticated methods)
-        words1 = set(premise1.statement.lower().split())
-        words2 = set(premise2.statement.lower().split())
-        
-        intersection = len(words1 & words2)
-        union = len(words1 | words2)
-        
-        similarity = intersection / union if union > 0 else 0
-        return similarity > 0.3
-    
-    async def _identify_pattern(self, premises: List[ReasoningPremise]) -> Optional[str]:
-        """Identify common pattern in a group of premises"""
-        if len(premises) < 2:
-            return None
-        
-        # Find common words/phrases
-        all_words = []
-        for premise in premises:
-            all_words.extend(premise.statement.lower().split())
-        
-        # Count word frequency
-        word_counts = {}
-        for word in all_words:
-            word_counts[word] = word_counts.get(word, 0) + 1
-        
-        # Find most common words that appear in most premises
-        common_words = []
-        for word, count in word_counts.items():
-            if count >= len(premises) * 0.7:  # Appears in 70% of premises
-                common_words.append(word)
-        
-        if common_words:
-            return " ".join(common_words)
-        
-        return None
-    
-    async def _generalize_pattern(self, pattern: str, premises: List[ReasoningPremise]) -> Optional[ReasoningConclusion]:
-        """Generate a general conclusion from a pattern"""
-        
-        try:
-            # HOW MUCH n SUPPORTING EXAMPLES AND NO COUNTEREXAMPLE ARE WORTH.
-            #
-            # This was `min(len(premises) / 10.0, 0.8)` -- divide by ten. The
-            # ten had no derivation behind it: it was not an interval, not a
-            # posterior, not a rate. It simply asserted that ten examples are
-            # needed for 0.8 and that three are worth 0.30, and the number it
-            # produced was carried into memory and ranking as though it meant
-            # something.
-            #
-            # LAPLACE'S RULE OF SUCCESSION, which is the answer to exactly this
-            # question: given n observations of a kind and no counterexample,
-            # the posterior mean that the next case is the same is
-            # (n + 1) / (n + 2), under a uniform prior over the underlying rate.
-            #
-            #     n = 1  ->  0.67       n = 3  ->  0.80
-            #     n = 2  ->  0.75       n = 9  ->  0.91
-            #
-            # It has the shape induction should have: never certain however many
-            # cases are seen, and never below a half, because a run of
-            # confirmations is evidence even when it is short.
-            #
-            # WHAT THIS STILL DOES NOT DO, and the number should be read knowing
-            # it: nothing here looks for a counterexample. `_group_similar_premises`
-            # collects LIKE examples, so a contradicting one lands in a
-            # different group and is never counted against this generalisation.
-            # The rule is being applied to a count of confirmations that has not
-            # been checked for disconfirmations, which is an overstatement
-            # whenever the evidence is mixed. Recorded rather than papered over
-            # with a smaller constant, because a smaller constant would hide the
-            # gap instead of naming it.
-            # COUNTEREXAMPLES ARE COUNTED. THEY ARE IN THIS GROUP ALREADY.
-            #
-            # `_premises_are_similar` groups on word overlap > 0.3, so
-            # "swan d is black" scores 2/6 = 0.33 against "swan a is white" and
-            # is GROUPED WITH THE POSITIVES. The pattern -- words appearing in
-            # >=70% of the group -- then degrades to the shared subject, and the
-            # generalisation is drawn over evidence that contradicts it while
-            # every member is counted as support.
-            #
-            # So a disconfirmation was not merely unchecked; it was absorbed and
-            # then counted as confirmation, which moves the number in the wrong
-            # direction. The real inducer in `core/learning/rule_induction.py`
-            # has always done this properly -- `contradicted_by`,
-            # CONTRADICTORY_EVIDENCE, and a refusal when every generalisation
-            # also covers a counter-demonstration -- and this second, weaker
-            # induction did not.
-            #
-            # A member SUPPORTS the pattern when it carries every pattern term
-            # and no negation. A member that lacks one, or negates, is a
-            # counterexample: the pattern asserts something of it that its own
-            # statement does not bear out.
-            # SPLIT ON THE TERM THE GROUP DISAGREES ABOUT.
-            #
-            # Splitting on the pattern terms alone was not enough. The pattern
-            # is words appearing in >=70% of the group, so an EVEN split hides
-            # itself: with two white swans and two black, neither colour reaches
-            # 70%, both drop out, and the pattern degrades to "swan is" -- which
-            # every member satisfies, so nothing contradicts it and evenly
-            # divided evidence scored 0.83, HIGHER than three-white-one-black.
-            # A contentless generalisation cannot be contradicted, and that is
-            # exactly what made it look strong.
-            #
-            # A CONTESTED TERM is one carried by at least two members but not
-            # all: a property the group actually disagrees about. Terms
-            # appearing exactly once are instance labels -- the "a", "b", "c" of
-            # "swan a" -- and a group is not divided by its members having
-            # different names.
-            words_of = {p.premise_id: set(p.statement.lower().split())
-                        for p in premises}
-            frequency: Dict[str, int] = {}
-            for bag in words_of.values():
-                for word in bag:
-                    frequency[word] = frequency.get(word, 0) + 1
-
-            contested = sorted(
-                (w for w, n in frequency.items()
-                 if 2 <= n < len(premises) and w not in _NEGATION_MARKERS),
-                key=lambda w: (-frequency[w], w))
-
-            pattern_terms = {w for w in pattern.lower().split() if w}
-            # The majority side of the disagreement, when there is one.
-            decisive = contested[0] if contested else None
-
-            positives, negatives = [], []
-            for candidate in premises:
-                words = words_of[candidate.premise_id]
-                denies = bool(words & _NEGATION_MARKERS)
-                carries_pattern = pattern_terms <= words
-                agrees = (decisive in words) if decisive else True
-                if carries_pattern and agrees and not denies:
-                    positives.append(candidate)
-                else:
-                    negatives.append(candidate)
-
-            # A generalisation needs something to generalise FROM.
-            if len(positives) < 2:
-                logger.info(
-                    "no generalisation for %r: %d supporting, %d contradicting",
-                    pattern, len(positives), len(negatives))
-                return None
-
-            # LAPLACE'S RULE, GENERAL FORM: (s + 1) / (s + f + 2). The earlier
-            # (n + 1) / (n + 2) is the special case where f = 0, which was being
-            # assumed rather than established.
-            supported, contradicted = len(positives), len(negatives)
-            base_confidence = (supported + 1) / (supported + contradicted + 2)
-            avg_premise_confidence = (
-                sum(p.confidence for p in positives) / len(positives))
-            # A generalisation is no stronger than the examples it rests on.
-            confidence = min(base_confidence * avg_premise_confidence, 0.9)
-            premises = positives
-            
-            general_statement = f"Generally, patterns involving '{pattern}' tend to occur"
-            
-            conclusion = ReasoningConclusion(
-                conclusion_id=str(uuid.uuid4()),
-                statement=general_statement,
-                confidence=confidence,
-                reasoning_type=ReasoningType.INDUCTIVE,
-                inference_method=InferenceMethod.PATTERN_MATCHING,
-                supporting_premises=[p.premise_id for p in premises],
-                reasoning_steps=[
-                    f"Identified pattern: {pattern}",
-                    f"Generalized from {supported} supporting example(s)",
-                    (f"{contradicted} contradicting example(s) counted against it"
-                     + (f" (group divided on {decisive!r})" if decisive else "")
-                     if contradicted else "no contradicting example in this group"),
-                    f"Laplace: ({supported} + 1) / ({supported} + {contradicted} + 2) "
-                    f"= {base_confidence:.2f}",
-                ],
-                # Induction never entails, so validity tracks the same evidence
-                # rather than sitting at a fixed 0.6 that no count could move.
-                logical_validity=base_confidence,
-                evidence_strength=confidence,
-                coherence_score=0.7
-            )
-            
-            return conclusion
-            
-        except Exception as e:
-            logger.error(f"Error generalizing pattern: {e}")
-            return None
+        """Whether the context carries what this strategy needs: structured premises, two at least."""
+        return len(_held_facts(context.premises)) >= 2
 
 
 class AbductiveReasoningStrategy(ReasoningStrategy):
@@ -909,156 +711,72 @@ class AbductiveReasoningStrategy(ReasoningStrategy):
         if not system.db:
             await system.initialize()
 
-        # An explanation of a person's observations is theirs.
-        from core.memory import Origin
+        # An explanation of a person's observations is theirs (the organization's at work).
         hypothesis = await system.generate_hypothesis(
             claim=conclusion.statement,
             domain=context.domain,
             predictions=conclusion.reasoning_steps[:1],
             alternatives=conclusion.alternative_conclusions,
-            owner=Origin.of(context.actor, "hypothesis testing").person,
+            owner=context.origin("hypothesis testing").owner,
         )
         conclusion.reasoning_steps.append(f"registered as hypothesis {hypothesis.hypothesis_id}")
         return hypothesis
 
 
 class AnalogicalReasoningStrategy(ReasoningStrategy):
-    """Strategy for analogical reasoning (similarity-based)"""
+    """Analogy: what one thing holds, proposed of another thing that is like it in what is held of both.
+
+    Two things alike in at least one fact held of each ("robin isa bird", "wug isa bird") are compared, and a fact
+    held of one and not of the other is proposed of the other, with how alike they are as its confidence: "robin
+    capable_of fly", so perhaps "wug capable_of fly". Structure-mapping over the premises' STRUCTURE (`_held_facts`;
+    Gentner 1983), never their words. An analogy proposes; it does not prove: analogy is not a kind that yields
+    facts (`neural_bridge._FACT_YIELDING_KINDS`), and what it proposes is not verified. Nothing is proposed that the
+    other thing is held not to hold."""
 
     def __init__(self, neural_bridge=None):
         self.strategy_name = "analogical_reasoning"
         self.neural_bridge = neural_bridge
-    
+
     async def reason(self, context: ReasoningContext) -> List[ReasoningConclusion]:
-        """Execute analogical reasoning"""
+        facts = _held_facts(context.premises)
+        denied = {(s, r, o) for s, r, o, positive, _ in facts if not positive}
+        by_thing: Dict[str, Dict[Tuple[str, str], str]] = {}
+        for s, r, o, positive, pid in facts:
+            if positive:
+                by_thing.setdefault(s, {})[(r, o)] = pid
         conclusions = []
-        
-        try:
-            # Find analogies between different premises
-            for i, premise1 in enumerate(context.premises):
-                for j, premise2 in enumerate(context.premises[i+1:], i+1):
-                    analogy = await self._find_analogy(premise1, premise2)
-                    if analogy:
-                        conclusion = await self._reason_by_analogy(premise1, premise2, analogy)
-                        if conclusion:
-                            conclusions.append(conclusion)
-            
-            return conclusions
-            
-        except Exception as e:
-            logger.error(f"Error in analogical reasoning: {e}")
-            return conclusions
-    
+        things = sorted(by_thing)
+        for source in things:
+            for target in things:
+                if source == target:
+                    continue
+                shared = set(by_thing[source]) & set(by_thing[target])
+                if not shared:
+                    continue
+                alike = len(shared) / len(set(by_thing[source]) | set(by_thing[target]))
+                for (relation, obj), pid in sorted(by_thing[source].items()):
+                    if (relation, obj) in by_thing[target] or (target, relation, obj) in denied or obj == target:
+                        continue
+                    statement = _atom(target, relation, obj)
+                    if not statement:
+                        continue
+                    confidence = min(0.7, 0.8 * alike)
+                    conclusions.append(ReasoningConclusion(
+                        conclusion_id=str(uuid.uuid4()), statement=statement, confidence=confidence,
+                        reasoning_type=ReasoningType.ANALOGICAL, inference_method=InferenceMethod.PATTERN_MATCHING,
+                        supporting_premises=[by_thing[source][f] for f in sorted(shared)]
+                        + [by_thing[target][f] for f in sorted(shared)] + [pid],
+                        reasoning_steps=[f"{source} and {target} are alike: "
+                                         + "; ".join(f"each {r} {o}" for r, o in sorted(shared)),
+                                         f"{source} {relation} {obj}, so perhaps {target} {relation} {obj}"],
+                        logical_validity=0.0, evidence_strength=confidence, coherence_score=alike))
+        return conclusions
+
     def get_strategy_name(self) -> str:
         return self.strategy_name
-    
+
     def is_applicable(self, context: ReasoningContext) -> bool:
-        return (len(context.premises) >= 2)
-    
-    async def _find_analogy(self, premise1: ReasoningPremise, premise2: ReasoningPremise) -> Optional[Dict[str, Any]]:
-        """Find analogical relationship between two premises"""
-        
-        # Extract structural elements
-        structure1 = await self._extract_structure(premise1.statement)
-        structure2 = await self._extract_structure(premise2.statement)
-        
-        # Look for similar patterns
-        similarity_score = await self._calculate_structural_similarity(structure1, structure2)
-        
-        if similarity_score > 0.5:
-            return {
-                "source": premise1,
-                "target": premise2,
-                "similarity_score": similarity_score,
-                "mapping": await self._create_mapping(structure1, structure2)
-            }
-        
-        return None
-    
-    async def _extract_structure(self, statement: str) -> Dict[str, List[str]]:
-        """Extract structural elements from a statement"""
-        # Simplified structure extraction
-        words = statement.lower().split()
-        
-        # Identify different types of words
-        entities = []
-        relations = []
-        properties = []
-        
-        # Simple heuristics (would use NLP in practice)
-        for word in words:
-            if word in ['is', 'are', 'has', 'have', 'does', 'do']:
-                relations.append(word)
-            elif word.endswith('ly') or word.endswith('ed'):
-                properties.append(word)
-            else:
-                entities.append(word)
-        
-        return {
-            "entities": entities,
-            "relations": relations, 
-            "properties": properties
-        }
-    
-    async def _calculate_structural_similarity(self, struct1: Dict[str, List[str]], struct2: Dict[str, List[str]]) -> float:
-        """Calculate structural similarity between two extracted structures"""
-        
-        similarities = []
-        
-        for key in struct1.keys():
-            if key in struct2:
-                set1 = set(struct1[key])
-                set2 = set(struct2[key])
-                
-                if len(set1) == 0 and len(set2) == 0:
-                    similarities.append(1.0)
-                elif len(set1) == 0 or len(set2) == 0:
-                    similarities.append(0.0)
-                else:
-                    intersection = len(set1 & set2)
-                    union = len(set1 | set2)
-                    similarities.append(intersection / union)
-        
-        return sum(similarities) / len(similarities) if similarities else 0.0
-    
-    async def _create_mapping(self, struct1: Dict[str, List[str]], struct2: Dict[str, List[str]]) -> Dict[str, str]:
-        """Create element mapping between two structures"""
-        mapping = {}
-        
-        for key in struct1.keys():
-            if key in struct2:
-                for i, elem1 in enumerate(struct1[key]):
-                    if i < len(struct2[key]):
-                        mapping[elem1] = struct2[key][i]
-        
-        return mapping
-    
-    async def _reason_by_analogy(self, premise1: ReasoningPremise, premise2: ReasoningPremise, analogy: Dict[str, Any]) -> Optional[ReasoningConclusion]:
-        """Generate conclusion based on analogical reasoning"""
-        
-        try:
-            confidence = min(0.7, analogy["similarity_score"] * 0.8)
-            
-            statement = f"By analogy with '{premise1.statement}', we can infer similar properties for '{premise2.statement}'"
-            
-            conclusion = ReasoningConclusion(
-                conclusion_id=str(uuid.uuid4()),
-                statement=statement,
-                confidence=confidence,
-                reasoning_type=ReasoningType.ANALOGICAL,
-                inference_method=InferenceMethod.PATTERN_MATCHING,
-                supporting_premises=[premise1.premise_id, premise2.premise_id],
-                reasoning_steps=[f"Found analogy with similarity {analogy['similarity_score']:.2f}"],
-                logical_validity=0.6,
-                evidence_strength=confidence,
-                coherence_score=analogy["similarity_score"]
-            )
-            
-            return conclusion
-            
-        except Exception as e:
-            logger.error(f"Error in analogical reasoning: {e}")
-            return None
+        return len(_held_facts(context.premises)) >= 2
 
 
 class CausalReasoningStrategy(ReasoningStrategy):
@@ -1174,8 +892,7 @@ class CausalReasoningStrategy(ReasoningStrategy):
 
         # WHOSE: a person's premises can be their own context, so what this
         # reasoning writes down is theirs.
-        from core.memory import Origin
-        owner = Origin.of(context.actor, "temporal reasoning").person
+        owner = context.origin("temporal reasoning").owner
 
         def proposition(text: str, when, confidence: float):
             existing = known.get(text)
@@ -1895,30 +1612,29 @@ class ProbabilisticReasoningStrategy(ReasoningStrategy):
             return []
 
         engine = self.engine
-        from core.learning.unified_learning_system import get_unified_learning_system
-        _auth = get_unified_learning_system()  # belief WRITES through one authority
+        # A PROBABILITY WORKED OUT TO ANSWER IS NOT A BELIEF HELD. This created a
+        # shared belief for every target, every time, and moved it with whatever
+        # premises it was given -- a person's context among them -- so reasoning
+        # for one person wrote the world's beliefs past the one door
+        # (docs/research/SEPARATION_MAP.md §11.6). The posterior is computed by
+        # the belief system's own update, and nothing is written.
+        from core.reasoning.bayesian_uncertainty import evidence_step, probability_of
         conclusions: List[ReasoningConclusion] = []
 
         for target in context.target_conclusions:
-            belief = _auth.create_belief(
-                claim=str(target), domain=str(context.domain or "general"),
-                prior=0.5)   # maximum uncertainty: nothing is assumed
+            held = 0.0   # even odds: nothing is assumed
             steps = ["prior 0.50 (no assumption made)"]
 
             for premise in context.premises:
                 text = str(getattr(premise, "statement", "") or "").lower()
                 weight = float(getattr(premise, "confidence", 1.0) or 1.0)
                 supports = not any(n in f" {text} " for n in self.NEGATORS)
-                belief = _auth.update_belief(
-                    belief_id=belief.belief_id,
-                    evidence={"claim": text, "quality": weight,
-                              "source": "premise"},
-                    evidence_supports=supports)
+                held += evidence_step(weight, supports)
                 steps.append(
                     f"{'for' if supports else 'against'} (q={weight:.2f}): "
-                    f"{text[:48]} -> {belief.posterior_probability:.3f}")
+                    f"{text[:48]} -> {probability_of(held):.3f}")
 
-            posterior = float(belief.posterior_probability)
+            posterior = probability_of(held)
             conclusions.append(ReasoningConclusion(
                 conclusion_id=str(uuid.uuid4()),
                 statement=f"P({target}) = {posterior:.3f}",
@@ -1999,8 +1715,7 @@ class TemporalReasoningStrategy(ReasoningStrategy):
         await engine.load()
         # WHOSE: a person's premises can be their own context, so what this
         # reasoning writes down is theirs.
-        from core.memory import Origin
-        owner = Origin.of(context.actor, "temporal reasoning").person
+        owner = context.origin("temporal reasoning").owner
         timeline = []
         for premise in context.premises:
             text = str(getattr(premise, "statement", "") or "")
@@ -2805,13 +2520,12 @@ class AbstractReasoningEngine:
             }
 
             # Store to memory agent with full chain of thought
-            from core.memory import Origin
             success, memory_id = await self.memory.store_memory(
                 memory_type=MemoryType.SEMANTIC,
                 content=content_summary,
                 # Reasoned for a user, over premises that may be their own
                 # context: their memory, not the shared mind's.
-                origin=Origin.of(result.context.actor, "reasoning"),
+                origin=result.context.origin("reasoning"),
                 importance_score=result.overall_confidence,
                 confidence_score=result.overall_confidence,
                 tags=["reasoning", result.context.problem_type, result.context.domain],

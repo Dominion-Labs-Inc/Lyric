@@ -95,6 +95,12 @@ class SemanticRelation(Enum):
     BEHIND = "behind"              # house BEHIND car (inverse)
     BETWEEN = "between"            # dog BETWEEN a group whose members it is between
 
+    # ── connective (how the parts of a system are joined) ────────────────
+    CONNECTED_TO = "connected_to"  # console CONNECTED_TO switch: joined directly (symmetric)
+    HAS_PORT = "has_port"          # console HAS_PORT console's j3: a point it is joined through
+    PORT_OF = "port_of"            # console's j3 PORT_OF console (inverse)
+    HAS_END = "has_end"            # cable w101 HAS_END console's j3: one of what a connection joins
+
     # ── attribute / property ─────────────────────────────────────────────
     HAS_PROPERTY = "has_property"  # snow HAS_PROPERTY white
     PROPERTY_OF = "property_of"    # white PROPERTY_OF snow (inverse)
@@ -128,6 +134,7 @@ class SemanticRelation(Enum):
     SYNONYM_OF = "synonym_of"      # (symmetric)
     ANTONYM_OF = "antonym_of"      # (symmetric)
     DEFINED_AS = "defined_as"      # function DEFINED_AS reusable_block
+    DEFINED_WITH = "defined_with"  # the bank that keeps money DEFINED_WITH money: a sense its definition is written with
     DERIVED_FROM = "derived_from"  # oxidation DERIVED_FROM oxygen
 
     # ── temporal ─────────────────────────────────────────────────────────
@@ -205,6 +212,14 @@ class RelationSpec:
       inverse      -- the relation of B r' A, DERIVABLE (not observed) from A r B
       generic_safe -- a bare indefinite subject may be read as a universal law
                       about the KIND, rather than one existential situation.
+      of_any_part  -- relates concepts of whatever part of speech they are, each
+                      as it is: "hot" and "cold" are qualities, "buy" and "sell"
+                      doings, "day" and "night" things, and the relation takes
+                      them as they come (opposites, synonyms).
+      heading_forms -- what a table's column heading calls this kind, read only
+                      by `classify_heading`: the "To" of a cable run sheet is
+                      where each cable runs, where "to" in a sentence is a
+                      preposition.
     """
 
     name: SemanticRelation
@@ -217,6 +232,8 @@ class RelationSpec:
     symmetric: bool = False
     generic_safe: bool = True
     gloss: str = ""
+    of_any_part: bool = False
+    heading_forms: FrozenSet[str] = frozenset()
 
     @property
     def transitive(self) -> bool:
@@ -251,12 +268,14 @@ _SPECS: Tuple[RelationSpec, ...] = (
     RelationSpec(SemanticRelation.INSTANCE_OF,
                  frozenset({"is instance of", "is an instance of",
                             "is the", "instance of"}),
-                 gloss="an individual falls under a kind"),
+                 gloss="an individual falls under a kind",
+                 heading_forms=frozenset({"type", "kind", "class", "equipment type"})),
     # mereological
     RelationSpec(SemanticRelation.PART_OF,
                  frozenset({"is part of", "part of", "is a part of"}),
                  inverse=SemanticRelation.HAS_PART, transitivity=Transitivity.ONTOLOGY_DEFINED,
-                 gloss="proper part of a whole"),
+                 gloss="proper part of a whole",
+                 heading_forms=frozenset({"parent", "assembly", "system", "subsystem"})),
     RelationSpec(SemanticRelation.HAS_PART,
                  frozenset({"has part", "has a", "have", "has", "consists of",
                             "is made up of", "comprises"}),
@@ -275,7 +294,7 @@ _SPECS: Tuple[RelationSpec, ...] = (
     RelationSpec(SemanticRelation.MADE_OF,
                  frozenset({"is made of", "made of", "made from",
                             "is made from", "composed of", "is composed of",
-                            "built from", "is built from", "consists of"}),
+                            "built from", "is built from"}),
                  inverse=SemanticRelation.MATERIAL_OF,
                  gloss="substance a thing is composed of (does NOT imply ISA)"),
     RelationSpec(SemanticRelation.MATERIAL_OF,
@@ -288,7 +307,8 @@ _SPECS: Tuple[RelationSpec, ...] = (
                             "inside", "resides in", "sits in", "dwells in"}),
                  inverse=SemanticRelation.CONTAINS, transitivity=Transitivity.ONTOLOGY_DEFINED,
                  generic_safe=False,
-                 gloss="containment location (contextual, not a kind law)"),
+                 gloss="containment location (contextual, not a kind law)",
+                 heading_forms=frozenset({"location", "compartment", "space", "room", "installed in"})),
     RelationSpec(SemanticRelation.CONTAINS,
                  frozenset({"contains", "holds", "encloses"}),
                  inverse=SemanticRelation.LOCATED_IN, generic_safe=False),
@@ -326,6 +346,30 @@ _SPECS: Tuple[RelationSpec, ...] = (
                  gloss="between the members of a group"),
     RelationSpec(SemanticRelation.NEAR, frozenset(), symmetric=True, generic_safe=False,
                  gloss="close to another thing, not touching it"),
+    # connective. What a cable run sheet, an interface table or a wiring diagram
+    # says: which things are joined, through which of their ports, by which
+    # connection. A CONNECTION IS A THING OF ITS OWN (a cable, a link) with its
+    # ends, as an event is with its participants, so a cable joining two ports is
+    # one thing and two facts, never a three-place fact. A port is its owner's:
+    # two consoles' "J3" are two ports. Nothing chains through any of them: a
+    # console joined to a switch joined to a router is not joined to the router.
+    RelationSpec(SemanticRelation.CONNECTED_TO,
+                 frozenset({"is connected to", "connected to", "connects to",
+                            "is connected with", "connected with", "is wired to",
+                            "wired to", "is linked to", "linked to"}),
+                 symmetric=True, generic_safe=False,
+                 gloss="two things joined directly"),
+    RelationSpec(SemanticRelation.HAS_PORT, frozenset(),
+                 inverse=SemanticRelation.PORT_OF, generic_safe=False,
+                 gloss="a thing and a point it is joined through",
+                 heading_forms=frozenset({"port", "connector", "jack", "plug", "terminal"})),
+    RelationSpec(SemanticRelation.PORT_OF, frozenset(),
+                 inverse=SemanticRelation.HAS_PORT, generic_safe=False,
+                 gloss="a point a thing is joined through, and the thing"),
+    RelationSpec(SemanticRelation.HAS_END, frozenset(), generic_safe=False,
+                 gloss="a connection and one of the things it joins",
+                 heading_forms=frozenset({"from", "to", "end a", "end b", "source",
+                                          "destination", "origin"})),
     # How many there are of a group ("three dogs": a group of dogs, and 3). The
     # count is a number, a term of its own; nothing chains through it.
     RelationSpec(SemanticRelation.HAS_COUNT, frozenset(), generic_safe=False,
@@ -403,7 +447,8 @@ _SPECS: Tuple[RelationSpec, ...] = (
                  frozenset({"prevents", "stops", "blocks", "inhibits"})),
     RelationSpec(SemanticRelation.REQUIRES,
                  frozenset({"requires", "needs", "depends on", "presupposes"}),
-                 inverse=SemanticRelation.REQUIRED_BY, inheritable=True),
+                 inverse=SemanticRelation.REQUIRED_BY, inheritable=True,
+                 heading_forms=frozenset({"requires", "dependency", "dependencies"})),
     RelationSpec(SemanticRelation.REQUIRED_BY,
                  frozenset({"is required by", "required by"}),
                  inverse=SemanticRelation.REQUIRES),
@@ -438,20 +483,26 @@ _SPECS: Tuple[RelationSpec, ...] = (
                  frozenset({"owns", "possesses"}),
                  inverse=SemanticRelation.OWNED_BY, generic_safe=False),
     RelationSpec(SemanticRelation.OWNED_BY,
-                 frozenset({"is owned by", "owned by", "belongs to"}),
+                 frozenset({"is owned by", "owned by"}),
                  inverse=SemanticRelation.OWNS, generic_safe=False),
     # lexical
     RelationSpec(SemanticRelation.SYNONYM_OF,
                  frozenset({"means", "is synonym of", "same as",
                             "is the same as", "is synonymous with"}),
-                 symmetric=True, transitivity=Transitivity.ONTOLOGY_DEFINED),
+                 symmetric=True, transitivity=Transitivity.ONTOLOGY_DEFINED, of_any_part=True),
     RelationSpec(SemanticRelation.ANTONYM_OF,
                  frozenset({"is opposite of", "antonym of",
                             "is the opposite of", "opposite of"}),
-                 symmetric=True),
+                 symmetric=True, of_any_part=True),
     RelationSpec(SemanticRelation.DEFINED_AS,
                  frozenset({"is defined as", "defined as", "refers to",
                             "denotes"})),
+    # A word of a sense's definition, as the sense it is used in there: the bank
+    # that "accepts deposits and channels the money into lending activities" is
+    # defined with money. What a sense is near, not what it is: nothing chains,
+    # inherits or is said through it. NO SURFACE FORMS: nobody says it.
+    RelationSpec(SemanticRelation.DEFINED_WITH, frozenset(), generic_safe=False,
+                 gloss="a sense and a sense its definition is written with"),
     RelationSpec(SemanticRelation.DERIVED_FROM,
                  frozenset({"is derived from", "derived from", "comes from",
                             "originates from"})),
@@ -526,7 +577,8 @@ _SPECS: Tuple[RelationSpec, ...] = (
                  gloss="a thing and one it is not"),
     # What a thing is called, and where it is from: "My name is Tom.", "I am from Paris.".
     RelationSpec(SemanticRelation.NAMED, frozenset(), generic_safe=False,
-                 gloss="a thing and the name it is called by"),
+                 gloss="a thing and the name it is called by",
+                 heading_forms=frozenset({"name", "designation", "tag", "identifier"})),
     RelationSpec(SemanticRelation.COMES_FROM, frozenset(), generic_safe=False,
                  gloss="a thing and the place it comes from"),
     # A state, as an event is: "The door was open." is a state of being open,
@@ -567,6 +619,19 @@ for _s in _SPECS:
         _SURFACE[_form] = _s.name
 
 _MAX_WORDS = max((len(f.split()) for f in _SURFACE), default=1)
+
+#: column heading -> type, built once from the specs' `heading_forms`. Kept apart
+#: from `_SURFACE`: a heading's words are not a predicate's. "To" heads where a
+#: cable runs; as a predicate form, a trailing "to" would type any span ("goes to").
+_HEADING: Dict[str, SemanticRelation] = {}
+for _s in _SPECS:
+    for _form in _s.heading_forms:
+        if _form in _HEADING and _HEADING[_form] is not _s.name:
+            logger.warning("relation heading %r maps to both %s and %s; keeping %s",
+                           _form, _HEADING[_form].value, _s.name.value,
+                           _HEADING[_form].value)
+            continue
+        _HEADING[_form] = _s.name
 
 # Word classes the bare copula "is" resolves to when disambiguation is available.
 NOUN, ADJECTIVE, VERB = "NOUN", "ADJECTIVE", "VERB"
@@ -716,6 +781,33 @@ def classify(span: str, *,
     return TypedRelation(rel, span, match, source, generic_result)
 
 
+def classify_heading(heading: str, *, source: str = "curated_heading_map") -> TypedRelation:
+    """Type a table's column heading: what each cell under it is to the thing its
+    row is about. Never guesses beyond the tables.
+
+    A HEADING IS NOT A PREDICATE SPAN. "To" heads where each cable on a run sheet
+    runs, and `classify` would read a trailing "to" as the relation of any span
+    ("goes to"). So a heading is typed by the phrases headings use
+    (`heading_forms`), or by a whole predicate phrase of two words or more ("Part
+    of", "Connected to"), never by one predicate word: "Is", "Has" and "On" head
+    no column a relation can be told from. A heading that ENDS in a port's word
+    ("From port") types its cells as ports of whatever the rest of the heading
+    names. Anything else is RELATED_TO: its cells are values the table states (a
+    part number, a length), not links the substrate reasons with.
+
+    A row is one individual, never a kind, so nothing typed here is generic.
+    """
+    norm = _normalize(heading)
+    words = norm.split()
+    if norm in _HEADING:
+        return TypedRelation(_HEADING[norm], heading, norm, source, False)
+    if len(words) > 1 and norm in _SURFACE:
+        return TypedRelation(_SURFACE[norm], heading, norm, "curated_lexical_map", False)
+    if len(words) > 1 and _HEADING.get(words[-1]) is SemanticRelation.HAS_PORT:
+        return TypedRelation(SemanticRelation.HAS_PORT, heading, words[-1], source, False)
+    return TypedRelation(SemanticRelation.RELATED_TO, heading, "", source, False)
+
+
 def get_spec(relation: SemanticRelation) -> RelationSpec:
     return SPEC[relation]
 
@@ -727,6 +819,6 @@ def all_surface_forms() -> Dict[str, SemanticRelation]:
 
 __all__ = ["SemanticRelation", "Transitivity", "EvidenceBehavior",
            "RelationSpec", "TypedRelation", "SPEC",
-           "classify", "get_spec", "all_surface_forms",
+           "classify", "classify_heading", "get_spec", "all_surface_forms",
            "NOUN", "ADJECTIVE", "VERB", "DETERMINER",
            "complement_class"]

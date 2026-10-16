@@ -80,6 +80,37 @@ def _forms(value: str) -> List[str]:
     return [f for f in forms if len(f) >= _MIN_LENGTH]
 
 
+def _one_pattern(forms: Iterable[str]) -> str:
+    """One pattern matching exactly these forms, the longest where one begins another, as the alternation of every
+    form longest first matches them.
+
+    WRITTEN AS A TREE OF THEIR BEGINNINGS, each shared beginning once. The alternation of all of them tried every
+    form at every letter of the text: 267 forms over a belief's 2.7 million characters of evidence took 0.77 s, on
+    every write of that belief, and teaching wrote it for nearly every sentence. Here a letter that begins no form
+    is passed at once, and one that does is followed only down the forms that begin with it."""
+    tree: Dict[str, Any] = {}
+    for form in forms:
+        node = tree
+        for letter in form:
+            node = node.setdefault(letter, {})
+        node[""] = {}                       # a form ends here
+
+    def written(node: Dict[str, Any]) -> str:
+        # A run with one way on and no form ending inside it is written as it is, so the depth of this is the
+        # number of places forms part, not their length (a key's hex runs to hundreds of letters).
+        run = ""
+        while len(node) == 1 and "" not in node:
+            (letter, node), = node.items()
+            run += letter
+        ways = [re.escape(letter) + written(rest) for letter, rest in sorted(node.items()) if letter]
+        after = ways[0] if len(ways) == 1 else ("(?:" + "|".join(ways) + ")" if ways else "")
+        if "" in node and after:
+            after = "(?:" + after + ")?"    # greedy: a longer form first, this one where none goes on
+        return re.escape(run) + after
+
+    return written(tree)
+
+
 class SecretsAuthority:
     """Which values are keys, and keeping them in: the one owner of that answer."""
 
@@ -117,9 +148,7 @@ class SecretsAuthority:
                     for form in _forms(value):
                         by_form.setdefault(form, name)
         self._by_form = by_form
-        self._pattern = (re.compile("|".join(re.escape(f) for f in
-                                             sorted(by_form, key=len, reverse=True)))
-                         if by_form else None)
+        self._pattern = re.compile(_one_pattern(by_form)) if by_form else None
         self._stamp = stamp
 
     def names(self) -> List[str]:

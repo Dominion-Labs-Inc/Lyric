@@ -5,9 +5,10 @@ Implements 7-dimensional intrinsic motivation for autonomous behavior
 (what the substrate pursues to get better at its job — by learning)
 """
 
-from core.capability import raise_if_structural
+from core.structural_defects import raise_if_structural
 import asyncio
 import logging
+from contextlib import asynccontextmanager
 from typing import Dict, Any, List, Optional, Tuple
 from datetime import datetime
 from dataclasses import dataclass, field
@@ -105,8 +106,8 @@ class MotivationProfile:
     #: `activation` and already treats None as unmeasured rather than flat.
     total_intrinsic_reward: Optional[float] = None
 
-    # Accumulated event rewards. A DIFFERENT quantity: unbounded running sum of
-    # what individual experiences were worth to the drives.
+    # Accumulated event rewards. A DIFFERENT quantity: the sum of what the
+    # world's newest experiences were worth to the drives (`_read_event_rewards`).
     #
     # These two used to share the field above. log_intrinsic_reward() did
     # `+= reward_value` and calculate_motivation() did `= weighted_mean(...)`,
@@ -169,65 +170,6 @@ def _unmeasured_stats(domain: str, reason: str) -> Dict[str, Any]:
         "unmeasured_reason": reason,
         "domain": domain,
     }
-
-
-@dataclass
-class CapabilityEvidence:
-    """What we have OBSERVED about a capability — evidence, not a verdict.
-
-    Deliberately stops short of `estimated_competence`. Raw success rate is not
-    competence: 4/4 causal successes and 8/9 technical successes both look
-    "high" while resting on very different support, and 1/1 is not mastery.
-    Producing a single maturity number here would recreate the defect this
-    layer exists to prevent — an authoritative-looking scalar with no
-    justification for its aggregation.
-
-    task_diversity / difficulty_coverage / recency_coverage are None until
-    something can actually measure them. They are named so their absence is
-    visible rather than quietly assumed adequate.
-    """
-
-    capability: str
-    successes: int = 0
-    failures: int = 0
-    attempts: int = 0
-    empirical_success_rate: Optional[float] = None
-
-    # "How sure were we this task succeeded?" — NOT confidence in the rate.
-    outcome_label_confidence: Optional[float] = None
-
-    task_diversity: Optional[float] = None
-    difficulty_coverage: Optional[float] = None
-    recency_coverage: Optional[float] = None
-
-    evidence_ids: List[str] = field(default_factory=list)
-
-    @classmethod
-    def from_domain_stats(cls, capability: str, stats: Dict[str, Any]) -> "CapabilityEvidence":
-        """Lift statistical observation into structured evidence. No inference."""
-        return cls(
-            capability=capability,
-            successes=int(stats.get("successes", 0) or 0),
-            failures=int(stats.get("failures", 0) or 0),
-            attempts=int(stats.get("total_attempts", 0) or 0),
-            empirical_success_rate=stats.get("success_rate"),
-            outcome_label_confidence=stats.get("avg_outcome_label_confidence"),
-        )
-
-    @property
-    def is_measured(self) -> bool:
-        return self.attempts > 0
-
-    @property
-    def support(self) -> str:
-        """Qualitative sample support. Names the sparsity the ratio hides."""
-        if self.attempts == 0:
-            return "none"
-        if self.attempts < 3:
-            return "anecdotal"
-        if self.attempts < 10:
-            return "sparse"
-        return "moderate"
 
 
 @dataclass
@@ -525,10 +467,10 @@ class IntrinsicMotivationSystem:
                 params=(_row_id, reward_value, task_id[:64], _meta),
                 commit=True,
             )
-            # Accumulate on the EVENT reward, not the drive level — writing to
+            # The EVENT reward, not the drive level — writing to
             # total_intrinsic_reward here meant calculate_motivation() erased it.
-            self.profile.accumulated_event_reward += reward_value
-            self.profile.event_reward_count += 1
+            # Read back from the world's log, which this reward is now part of.
+            await self._read_event_rewards()
             logger.debug(
                 f"Persisted intrinsic reward: task={task_id[:8]} "
                 f"type={task_type} reward={reward_value:.3f} success={success}"
@@ -567,8 +509,11 @@ class IntrinsicMotivationSystem:
             self._embedding_service = get_embedding_service()
 
             await self.load_profile()
-            await self._restore_event_rewards()
+            await self._read_event_rewards()
             await self._load_affect()   # restore persistent mood — wake in the mood it earned
+            # and the appraisal it is felt through: the world's, one for every instance.
+            from core.agents.autonomous.appraisal import get_appraisal_system
+            await get_appraisal_system().join_world(self.db)
 
             self.active = True
             logger.info("Intrinsic motivation system initialized")
@@ -2054,9 +1999,9 @@ class IntrinsicMotivationSystem:
 
             # STATISTICAL OBSERVATION — deliberately NOT a competence estimate.
             # 4/4 causal successes is an empirical success rate of 1.000; it is
-            # not "causal reasoning capability = 1.000". Consumers that need a
-            # capability estimate must build one from CapabilityEvidence, which
-            # carries the sample size, diversity and recency this cannot.
+            # not "causal reasoning capability = 1.000". How well the substrate
+            # can do something is a belief, moved by every outcome through the
+            # belief system; a rate is one reading of its outcomes, not that.
             stats = {
                 "success_rate": successes / total,
                 "failure_rate": failures / total,
@@ -2225,18 +2170,33 @@ class IntrinsicMotivationSystem:
         appraisal actually produces an emotion; otherwise the current (possibly
         rehydrated) emotion is retained — a restart alone does not change the
         feeling. The resulting STATE is persisted and returned.
-        """
-        import math
-        from datetime import datetime, timezone
-        at = datetime.now(timezone.utc)
 
+        THE WORLD'S AFFECT. There is one, like the appraisal it is felt from:
+        the event is folded onto what the world's row holds, under its lock,
+        and this instance comes away holding the world's.
+        """
         # --- the named emotion + cause, from the substrate's own appraisal ---
         try:
             from core.agents.autonomous.appraisal import get_appraisal_system
-            ap_state = get_appraisal_system().current_state
+            appraisal = get_appraisal_system()
+            # This instance's own updates reach the world's appraisal first, so
+            # the emotion read here is the world's.
+            await appraisal.settled()
+            ap_state = appraisal.current_state
         except Exception as e:
             logger.debug("affect: appraisal unreadable: %s", e)
             ap_state = None
+        fitness = await self.sense_fitness()
+        async with self._world_affect():
+            self._fold_affect(ap_state, fitness)
+        return self.affect_state()
+
+    def _fold_affect(self, ap_state, now: "Fitness") -> None:
+        """One event, folded into the affect held here: the emotion from the
+        appraisal, the mood from the change in fitness since the last reading."""
+        import math
+        from datetime import datetime, timezone
+        at = datetime.now(timezone.utc)
         (emotion, intensity, cause,
          about, about_domain) = self._affect_from_appraisal(ap_state)
         if emotion is not None:
@@ -2285,7 +2245,6 @@ class IntrinsicMotivationSystem:
                 self._affect_about_domain = None
 
         # --- the mood valence from the fitness trend (the substrate's own state) ---
-        now = await self.sense_fitness()
         prev = self._last_fitness
         self._last_fitness = now
         delta, _used = (None, [])
@@ -2305,8 +2264,6 @@ class IntrinsicMotivationSystem:
         self._baseline_valence = max(-1.0, min(1.0, self._baseline_valence))
         self._mood_arousal = max(0.0, min(1.0, self._mood_arousal))
         self._last_affect_at = at
-        await self._persist_affect()
-        return self.affect_state()
 
     # ── persistent mood (core affect) — STATE, decayed on read, not a loop ─────
     #: Event-integration weights. α pulls mood toward the felt valence per EVENT;
@@ -2450,7 +2407,9 @@ class IntrinsicMotivationSystem:
         )
 
     async def _ensure_affect_table(self) -> None:
-        if not self.db:
+        # Once per process: every event takes the world's row, and ALTER TABLE
+        # locks the table even when the column is already there.
+        if not self.db or getattr(self, "_affect_schema_ready", False):
             return
         await self.db.execute_query(
             """
@@ -2466,6 +2425,7 @@ class IntrinsicMotivationSystem:
                 baseline_valence DOUBLE PRECISION NOT NULL DEFAULT 0,
                 version          INTEGER NOT NULL DEFAULT 0,
                 event_count      INTEGER NOT NULL DEFAULT 0,
+                last_fitness     JSONB,
                 updated_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
                 CONSTRAINT affect_state_singleton CHECK (id = 1)
             )
@@ -2476,70 +2436,97 @@ class IntrinsicMotivationSystem:
         for col, ddl in (("emotion", "TEXT"), ("intensity", "DOUBLE PRECISION"),
                          ("cause", "TEXT"), ("about", "TEXT"),
                          ("about_domain", "TEXT"),
-                         ("version", "INTEGER NOT NULL DEFAULT 0")):
+                         ("version", "INTEGER NOT NULL DEFAULT 0"),
+                         ("last_fitness", "JSONB")):
             await self.db.execute_query(
                 f"ALTER TABLE unified.affect_state ADD COLUMN IF NOT EXISTS {col} {ddl}",
                 commit=True,
             )
+        self._affect_schema_ready = True
 
-    async def _persist_affect(self) -> None:
-        """Write the current affect STATE to Postgres so it rehydrates on restart —
-        the named emotion + cause + version, not just the mood reading."""
+    _AFFECT_COLUMNS = ("emotion, intensity, cause, about, about_domain, mood_valence, "
+                       "mood_arousal, baseline_valence, version, event_count, "
+                       "last_fitness, updated_at")
+
+    @asynccontextmanager
+    async def _world_affect(self):
+        """Hold the world's affect for the block: its row locked and taken in
+        here, and what the block leaves here written back to it. One instance's
+        event is folded onto what every other instance left, never over it.
+
+        The last fitness reading is the world's too: the mood moves with the
+        change in fitness since ANY instance last read it, so a change two
+        instances both notice is felt once."""
         if not self.db:
+            # Never initialised: a motivation system with no store holds an
+            # affect of its own and nothing reaches the world's.
+            yield
             return
-        try:
-            await self.db.execute_query(
-                """
-                INSERT INTO unified.affect_state
-                    (id, emotion, intensity, cause, about, about_domain,
-                     mood_valence, mood_arousal,
-                     baseline_valence, version, event_count, updated_at)
-                VALUES (1, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, now())
-                ON CONFLICT (id) DO UPDATE SET
-                    emotion=$1, intensity=$2, cause=$3, about=$4,
-                    about_domain=$5, mood_valence=$6,
-                    mood_arousal=$7, baseline_valence=$8, version=$9,
-                    event_count=$10, updated_at=now()
-                """,
-                params=(self._affect_emotion, self._affect_intensity, self._affect_cause,
-                        self._affect_about, self._affect_about_domain,
-                        self._mood_valence, self._mood_arousal, self._baseline_valence,
-                        self._affect_version, self._affect_event_count),
-                commit=True,
-            )
-        except Exception as e:
-            logger.warning("affect persist failed: %s", e)
+        await self._ensure_affect_table()
+        async with self.db.get_connection(store="runtime") as conn:
+            async with conn.transaction():
+                await conn.execute("INSERT INTO unified.affect_state (id) VALUES (1) "
+                                   "ON CONFLICT (id) DO NOTHING")
+                row = await conn.fetchrow(f"SELECT {self._AFFECT_COLUMNS} FROM "
+                                          "unified.affect_state WHERE id = 1 FOR UPDATE")
+                self._take_affect(row)
+                yield
+                fitness = self._last_fitness
+                await conn.execute(
+                    """
+                    UPDATE unified.affect_state SET
+                        emotion=$1, intensity=$2, cause=$3, about=$4, about_domain=$5,
+                        mood_valence=$6, mood_arousal=$7, baseline_valence=$8,
+                        version=$9, event_count=$10, last_fitness=$11::jsonb,
+                        updated_at=$12
+                    WHERE id = 1
+                    """,
+                    self._affect_emotion, self._affect_intensity, self._affect_cause,
+                    self._affect_about, self._affect_about_domain,
+                    self._mood_valence, self._mood_arousal, self._baseline_valence,
+                    self._affect_version, self._affect_event_count,
+                    (None if fitness is None else json.dumps(
+                        {"competence": fitness.competence, "coherence": fitness.coherence,
+                         "certainty": fitness.certainty})),
+                    self._last_affect_at)
+
+    def _take_affect(self, row: Dict[str, Any]) -> None:
+        """The world's affect, as its row holds it, taken in here."""
+        self._affect_emotion = row["emotion"]
+        self._affect_intensity = float(row["intensity"]) if row["intensity"] is not None else None
+        self._affect_cause = row["cause"]
+        self._affect_about = row["about"]
+        self._affect_about_domain = row["about_domain"]
+        self._affect_version = int(row["version"] or 0)
+        self._mood_valence = float(row["mood_valence"])
+        self._mood_arousal = float(row["mood_arousal"])
+        self._baseline_valence = float(row["baseline_valence"])
+        self._affect_event_count = int(row["event_count"])
+        # the decay anchor, so time spent OFFLINE fades the mood too: a mood
+        # earned yesterday should read faded when the substrate wakes.
+        self._last_affect_at = row["updated_at"]
+        fitness = row["last_fitness"]
+        if isinstance(fitness, str):
+            fitness = json.loads(fitness)
+        self._last_fitness = (None if fitness is None else Fitness(
+            competence=fitness["competence"], coherence=fitness["coherence"],
+            certainty=fitness["certainty"]))
 
     async def _load_affect(self) -> None:
-        """Restore mood + baseline from Postgres on startup. No row ⇒ honest
+        """Restore the world's affect from Postgres on startup. No row ⇒ honest
         cold-start neutral (never a fabricated prior mood)."""
         if not self.db:
             return
         try:
             await self._ensure_affect_table()
             row = await self.db.execute_query(
-                "SELECT emotion, intensity, cause, about, about_domain, "
-                "mood_valence, mood_arousal, "
-                "baseline_valence, version, event_count, updated_at "
-                "FROM unified.affect_state WHERE id=1",
+                f"SELECT {self._AFFECT_COLUMNS} FROM unified.affect_state WHERE id=1",
                 fetch_one=True,
             )
             if row:
                 # rehydrate the affect STATE as a fact — the substrate resumes in
                 # this emotion; no re-appraisal happens merely because it restarted.
-                self._affect_emotion = row["emotion"]
-                self._affect_intensity = float(row["intensity"]) if row["intensity"] is not None else None
-                self._affect_cause = row["cause"]
-                self._affect_about = row["about"]
-                self._affect_about_domain = row["about_domain"]
-                self._affect_version = int(row["version"] or 0)
-                self._mood_valence = float(row["mood_valence"])
-                self._mood_arousal = float(row["mood_arousal"])
-                self._baseline_valence = float(row["baseline_valence"])
-                self._affect_event_count = int(row["event_count"])
-                # restore the decay anchor so time spent OFFLINE fades the mood too:
-                # a mood earned yesterday should read faded when the substrate wakes.
-                self._last_affect_at = row["updated_at"]
+                self._take_affect(row)
                 self._affect_loaded = True
                 logger.info("Affect rehydrated: emotion=%s about=%s cause=%s v=%d mood_valence=%.3f baseline=%.3f (n=%d)",
                             self._affect_emotion, self._affect_about,
@@ -3169,8 +3156,11 @@ class IntrinsicMotivationSystem:
             logger.error(f"Failed to load goal embeddings from DB: {e}")
             return []
 
-    async def _restore_event_rewards(self, window: int = 100) -> None:
-        """Reload recent event rewards so drive state survives a restart.
+    async def _read_event_rewards(self, window: int = 100) -> None:
+        """The world's recent event rewards: the newest `window` in the reward
+        log every instance writes to. Read at start, so drive state survives a
+        restart, and after every reward, so the baseline is the world's rather
+        than a running sum of what this instance happened to see.
 
         unified.intrinsic_motivation already held every reward ever computed and
         NOTHING read them back: the only query against this table filters
@@ -3179,7 +3169,7 @@ class IntrinsicMotivationSystem:
         been reset to zero.
         """
         if not self.db:
-            logger.warning("Cannot restore event rewards: no database handle")
+            logger.warning("Cannot read event rewards: no database handle")
             return
         try:
             # get_database_manager() hands back an UNINITIALISED manager; whether
@@ -3205,12 +3195,12 @@ class IntrinsicMotivationSystem:
                 return
             self.profile.accumulated_event_reward = sum(values)
             self.profile.event_reward_count = len(values)
-            logger.info(
-                "Restored %d event rewards (mean %.4f) from unified.intrinsic_motivation",
+            logger.debug(
+                "Read the world's %d newest event rewards (mean %.4f) from unified.intrinsic_motivation",
                 len(values), self.profile.mean_event_reward,
             )
         except Exception as e:
-            logger.warning(f"Could not restore event rewards: {e}")
+            logger.warning(f"Could not read event rewards: {e}")
 
     async def _get_theme_count_from_db(self, theme: str) -> int:
         """Get theme repetition count from database"""

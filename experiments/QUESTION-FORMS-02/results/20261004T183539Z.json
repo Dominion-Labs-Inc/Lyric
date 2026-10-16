@@ -1,0 +1,236 @@
+{
+  "experiment": "QUESTION-FORMS-02",
+  "claim": "With happenings held as events, Lyric answers questions about where something happens in shapes english_31 teaches and in shapes no lesson asks about, and questions about what happened: what was done, who did it, and whether it was done.",
+  "hypothesis": "Any question in these groups read otherwise or answered wrongly, or a write to the main store, shows here.",
+  "started_at": "2026-10-04T18:35:39.482223+00:00",
+  "duration_seconds": 919.578,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/Lyric/venv_lyric/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/Lyric",
+    "shadow_mode": null,
+    "git_commit": "a3aad59e25603e309479c542053a1e733fb70ce7",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "lyric_dev",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "lyric_dev",
+        "model": "lyric_dev",
+        "user_context": "lyric_dev",
+        "learning": "lyric_dev"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "environment",
+        "database": "environment",
+        "user": "environment",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "pool_idle_seconds": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 44,
+    "database_verified": null,
+    "database_verified_reason": "no initialized connection in this process"
+  },
+  "summary": {
+    "checks": 16,
+    "passed": 7,
+    "failed": 9,
+    "outcome": "FAIL"
+  },
+  "metrics": [
+    {
+      "name": "shapes english_31 asks about: answered right",
+      "value": "3/5",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "shapes no lesson asks about: answered right",
+      "value": "0/3",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "things that happened: answered right",
+      "value": "0/4",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "answers",
+      "value": [
+        {
+          "asked": "Where does a fip live?",
+          "reply": "I remember: A fip is an animal.\nI hold live but nothing said about it yet.",
+          "shapes": "shapes english_31 asks about"
+        },
+        {
+          "asked": "Where does a snell come from?",
+          "reply": "I remember: A snell comes from a city.\nI hold come but nothing said about it yet.\nA snell is a bird.",
+          "shapes": "shapes english_31 asks about"
+        },
+        {
+          "asked": "Who does the plonk belong to?",
+          "reply": "The plonk belongs to Nella.",
+          "shapes": "shapes english_31 asks about"
+        },
+        {
+          "asked": "Where is the trel kept?",
+          "reply": "The trel is kept in a bag.",
+          "shapes": "shapes english_31 asks about"
+        },
+        {
+          "asked": "Where do brabs sleep?",
+          "reply": "Brabs sleep in boxes.",
+          "shapes": "shapes english_31 asks about"
+        },
+        {
+          "asked": "Where does a kelt hide?",
+          "reply": "I remember: A kelt hides in a box.\nI hold hide but nothing said about it yet.\nA kelt is an animal.",
+          "shapes": "shapes no lesson asks about"
+        },
+        {
+          "asked": "Where does a morp grow?",
+          "reply": "I remember: A morp is a plant.\nI hold grow but nothing said about it yet.",
+          "shapes": "shapes no lesson asks about"
+        },
+        {
+          "asked": "Where does the blip rest?",
+          "reply": "I remember: The blip rests in the bag.\nI hold rest but nothing said about it yet.\nA blip is an animal.",
+          "shapes": "shapes no lesson asks about"
+        },
+        {
+          "asked": "What did the kelt chase?",
+          "reply": "I remember: A kelt is an animal.\nI hold chase but nothing said about it yet.\nI hold nothing for 2026-10-04T18:50:51Z. Tell me what it is and I will keep it.",
+          "shapes": "things that happened"
+        },
+        {
+          "asked": "Who chased the blip?",
+          "reply": "I remember: A blip is an animal.\nI hold chase but nothing said about it yet.\nI hold nothing for 2026-10-04T18:50:52Z. Tell me what it is and I will keep it.",
+          "shapes": "things that happened"
+        },
+        {
+          "asked": "Did the fip kick the trel?",
+          "reply": "I remember: The fip kicked the trel.\nA fip is an animal.\nI hold kick but nothing said about it yet.\nA trel is a pen.\nI hold nothing for 2026-10-04T18:50:54Z. Tell me what it is and I will keep it.",
+          "shapes": "things that happened"
+        },
+        {
+          "asked": "What did the fip kick?",
+          "reply": "I remember: The fip kicked the trel.\nI hold kick but nothing said about it yet.\nA fip is an animal.\nI hold nothing for 2026-10-04T18:50:56Z. Tell me what it is and I will keep it.",
+          "shapes": "things that happened"
+        }
+      ],
+      "unit": "",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "the run is in the sandbox, emptied first",
+      "passed": true,
+      "detail": "connected to lyric_dev; reset exit 0",
+      "at": "2026-10-04T18:36:09.572548+00:00"
+    },
+    {
+      "label": "the 31 lessons are learned, none refused",
+      "passed": true,
+      "detail": "english_31.json the last",
+      "at": "2026-10-04T18:49:51.447195+00:00"
+    },
+    {
+      "label": "the facts are learned, none refused",
+      "passed": true,
+      "detail": "{'learned': 17, 'linked': 39, 'already': 0, 'understood': 0, 'refused': 0, 'total': 18, 'repair_item_based_lexical': 10, 'repair_phrase_in_slot': 7, 'repair_lexical_item_based': 1, 'said': 33}",
+      "at": "2026-10-04T18:50:23.032520+00:00"
+    },
+    {
+      "label": "'Where does a fip live?': in a kitchen",
+      "passed": false,
+      "detail": "I remember: A fip is an animal.\nI hold live but nothing said about it yet.",
+      "at": "2026-10-04T18:50:27.892041+00:00"
+    },
+    {
+      "label": "'Where does a snell come from?': a city",
+      "passed": false,
+      "detail": "I remember: A snell comes from a city.\nI hold come but nothing said about it yet.\nA snell is a bird.",
+      "at": "2026-10-04T18:50:32.622299+00:00"
+    },
+    {
+      "label": "'Who does the plonk belong to?': Nella",
+      "passed": true,
+      "detail": "The plonk belongs to Nella.",
+      "at": "2026-10-04T18:50:33.493284+00:00"
+    },
+    {
+      "label": "'Where is the trel kept?': in a bag",
+      "passed": true,
+      "detail": "The trel is kept in a bag.",
+      "at": "2026-10-04T18:50:35.385639+00:00"
+    },
+    {
+      "label": "'Where do brabs sleep?': in boxes",
+      "passed": true,
+      "detail": "Brabs sleep in boxes.",
+      "at": "2026-10-04T18:50:36.266764+00:00"
+    },
+    {
+      "label": "'Where does a kelt hide?': in a box",
+      "passed": false,
+      "detail": "I remember: A kelt hides in a box.\nI hold hide but nothing said about it yet.\nA kelt is an animal.",
+      "at": "2026-10-04T18:50:41.276301+00:00"
+    },
+    {
+      "label": "'Where does a morp grow?': in a city",
+      "passed": false,
+      "detail": "I remember: A morp is a plant.\nI hold grow but nothing said about it yet.",
+      "at": "2026-10-04T18:50:45.775881+00:00"
+    },
+    {
+      "label": "'Where does the blip rest?': in the bag",
+      "passed": false,
+      "detail": "I remember: The blip rests in the bag.\nI hold rest but nothing said about it yet.\nA blip is an animal.",
+      "at": "2026-10-04T18:50:51.139010+00:00"
+    },
+    {
+      "label": "'What did the kelt chase?': the blip",
+      "passed": false,
+      "detail": "I remember: A kelt is an animal.\nI hold chase but nothing said about it yet.\nI hold nothing for 2026-10-04T18:50:51Z. Tell me what it is and I will keep it.",
+      "at": "2026-10-04T18:50:52.662856+00:00"
+    },
+    {
+      "label": "'Who chased the blip?': the kelt",
+      "passed": false,
+      "detail": "I remember: A blip is an animal.\nI hold chase but nothing said about it yet.\nI hold nothing for 2026-10-04T18:50:52Z. Tell me what it is and I will keep it.",
+      "at": "2026-10-04T18:50:54.484824+00:00"
+    },
+    {
+      "label": "'Did the fip kick the trel?': yes",
+      "passed": false,
+      "detail": "I remember: The fip kicked the trel.\nA fip is an animal.\nI hold kick but nothing said about it yet.\nA trel is a pen.\nI hold nothing for 2026-10-04T18:50:54Z. Te",
+      "at": "2026-10-04T18:50:56.871381+00:00"
+    },
+    {
+      "label": "'What did the fip kick?': the trel",
+      "passed": false,
+      "detail": "I remember: The fip kicked the trel.\nI hold kick but nothing said about it yet.\nA fip is an animal.\nI hold nothing for 2026-10-04T18:50:56Z. Tell me what it is ",
+      "at": "2026-10-04T18:50:58.316210+00:00"
+    },
+    {
+      "label": "the main model's store is untouched",
+      "passed": true,
+      "detail": "290096 rows before, 290096 after",
+      "at": "2026-10-04T18:50:59.054837+00:00"
+    }
+  ],
+  "notes": []
+}

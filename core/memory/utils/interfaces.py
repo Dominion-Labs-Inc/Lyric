@@ -2,10 +2,9 @@
 Memory system interfaces for storage and context management
 """
 
-import asyncio
 import uuid
 from abc import ABC, abstractmethod
-from typing import Dict, Any, List, Optional, Set, Tuple, Union
+from typing import Dict, Any, FrozenSet, List, Optional, Set, Tuple
 from dataclasses import dataclass, field
 from enum import Enum
 from datetime import datetime
@@ -24,13 +23,33 @@ class Origin:
     `through` names the door or the work it came through ("conversation",
     "task", "see", "teaching", ...). `person` is the person it came from, as an
     actor id, or None for the substrate's own; it has no default, so saying
-    "none" is a decision, not an omission."""
+    "none" is a decision, not an omission.
+
+    `context` is which of the person's contexts it belongs to: `personal`, or
+    `work`, owned by the organization (`organization`) the work is done for --
+    as the device, account or connector it came through says. Nothing of the
+    substrate's own has one (docs/research/SEPARATION_MAP.md §11.1)."""
     through: str
     person: Optional[str]
+    context: Optional[str] = None
+    organization: Optional[str] = None
+
+    #: The contexts a person's things belong to.
+    CONTEXTS = ("personal", "work")
 
     def __post_init__(self):
         if not self.through or not str(self.through).strip():
             raise ValueError("an origin must name what it came through")
+        if self.person is None:
+            if self.context is not None or self.organization is not None:
+                raise ValueError("the substrate's own has no person's context")
+            return
+        if self.context is None:
+            object.__setattr__(self, "context", "personal")
+        if self.context not in self.CONTEXTS:
+            raise ValueError(f"a person's context is one of {self.CONTEXTS}, not {self.context!r}")
+        if (self.context == "work") != bool(self.organization):
+            raise ValueError("work belongs to an organization, and only work does")
 
     @classmethod
     def own(cls, through: str) -> "Origin":
@@ -38,13 +57,28 @@ class Origin:
         return cls(through=through, person=None)
 
     @classmethod
-    def of(cls, actor: Optional[str], through: str) -> "Origin":
+    def of(cls, actor: Optional[str], through: str, *, context: Optional[str] = None,
+           organization: Optional[str] = None) -> "Origin":
         """From an actor as the code holds one: a person's actor id, or the
-        substrate's (`SUBSTRATE_ACTOR`, or None where the code already means it)."""
+        substrate's (`SUBSTRATE_ACTOR`, or None where the code already means it).
+        A person's `context` is personal unless it is said to be work."""
         from core.agents.autonomous.shared_types import is_substrate_actor
         if is_substrate_actor(actor):
             return cls.own(through)
-        return cls(through=through, person=str(actor))
+        return cls(through=through, person=str(actor), context=context, organization=organization)
+
+    @property
+    def owner(self) -> Optional[str]:
+        """Whose what came this way is: the person's for their personal context, the organization's for work done
+        for it (its Work Context, `shared_types.work_owner`), None for the substrate's own. Ownership follows where
+        it came from -- the identity, the authorization and the organizational context -- never the device
+        (docs/research/SEPARATION_MAP.md §11.13)."""
+        if self.person is None:
+            return None
+        if self.context == "work":
+            from core.agents.autonomous.shared_types import work_owner
+            return work_owner(self.organization)
+        return self.person
 
     @property
     def theirs(self) -> str:
@@ -63,7 +97,12 @@ class Origin:
         return "person" if self.person else "world"
 
     def to_dict(self) -> Dict[str, Any]:
-        return {"through": self.through, "person": self.person}
+        out: Dict[str, Any] = {"through": self.through, "person": self.person}
+        if self.person:
+            out["context"] = self.context
+            if self.organization:
+                out["organization"] = self.organization
+        return out
 
 
 #: Where a part of an experience came from:
@@ -97,6 +136,30 @@ class Part:
 
     def to_dict(self) -> Dict[str, Any]:
         return {"role": self.role, "source": self.source, "content": self.content}
+
+
+@dataclass(frozen=True)
+class Telling:
+    """What someone told Lyric, handed to the memory agent to take in (`MemoryAgent.take_in_telling`;
+    docs/research/SEPARATION_MAP.md §11.10).
+
+    `facts` are what the telling tells as so, the situation and its known things bound (`Meaning.bound`); `rules` its
+    conditionals, each `(antecedent, consequent)` with a side's parts. `speaker` is what the person is called in the
+    conversation they told it in (their beliefs about themselves are kept under it). `theirs` are the particular
+    things that are the person's own (`printer_1`, their printer); `names` the terms written as names, which are
+    theirs unless the world holds them ("Ava", a daughter; not "Paris")."""
+    sentence: str
+    origin: Origin
+    facts: Tuple[Any, ...] = ()
+    rules: Tuple[Tuple[Dict[str, Any], Dict[str, Any]], ...] = ()
+    speaker: str = ""
+    theirs: FrozenSet[str] = frozenset()
+    names: FrozenSet[str] = frozenset()
+    quality: float = 0.9
+
+    def __post_init__(self):
+        if not self.origin.person:
+            raise ValueError("a telling is someone's: its origin names the person")
 
 
 @dataclass(frozen=True)
@@ -190,7 +253,7 @@ class TaskOutcomeRecord:
             raise ValueError(f"Missing fields in TaskOutcomeRecord: {', '.join(missing)}")
 
         # Basic type checks
-        for field in [
+        for name in [
             "task_id",
             "task_type",
             "task_description",
@@ -198,8 +261,8 @@ class TaskOutcomeRecord:
             "domain",
             "task_source",
         ]:
-            if not isinstance(data[field], str):
-                raise ValueError(f"Field '{field}' must be a string")
+            if not isinstance(data[name], str):
+                raise ValueError(f"Field '{name}' must be a string")
 
         if not isinstance(data["confidence"], (int, float)):
             raise ValueError("Field 'confidence' must be a number")
@@ -498,6 +561,26 @@ class ContextData:
     timestamp: float
     relevance_score: float = 0.0
     active: bool = True
+
+
+#: How fast a memory's importance fades with its age: importance × e^(−0.01 × days).
+IMPORTANCE_DECAY_PER_DAY = 0.01
+
+
+def decayed_importance(importance: float, created_at: Any, now: Optional[datetime] = None) -> float:
+    """A memory's importance now: as it formed, faded with its age (`IMPORTANCE_DECAY_PER_DAY`).
+
+    WORKED OUT WHERE IT IS READ, NEVER WRITTEN BACK. Maintenance wrote it back every cycle as importance ×
+    e^(−0.01 × the whole age), so each hour applied the whole age's fading again: main's lesson memories, formed at
+    0.75, stood at 0.27 five days later (2026-10-11), and the UPDATE of every memory timed out on a store of a
+    million. `importance_score` is the importance a memory formed with."""
+    import math
+    if created_at is None:
+        return float(importance)
+    born = created_at if isinstance(created_at, datetime) else datetime.fromtimestamp(float(created_at))
+    now = now or (datetime.now(born.tzinfo) if born.tzinfo else datetime.now())
+    days = max(0.0, (now - born).total_seconds() / 86400.0)
+    return float(importance) * math.exp(-IMPORTANCE_DECAY_PER_DAY * days)
 
 
 @dataclass

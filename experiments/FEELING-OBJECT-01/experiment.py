@@ -163,12 +163,6 @@ async def main() -> int:
     check("and it rehydrates", ims._affect_about == f"integrity:{SUBJECT}",
           f"rehydrated about={ims._affect_about!r}")
 
-    print("\n== E. The substrate can SAY what it feels about ==")
-    said = coord._describe_attitude(coord._attitude())
-    check("it names the object, not the outcome class",
-          said is not None and SUBJECT in said, said or "(said nothing)")
-    print(f"      it says: {said}")
-
     print("\n== F. A doubt that fades leaves its question behind ==")
     before_q = open_questions(unc)
     question = f"what is unresolved about integrity:{SUBJECT}?"

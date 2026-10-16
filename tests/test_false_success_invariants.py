@@ -68,7 +68,6 @@ def test_a_failed_cost_estimate_is_not_free():
 
 def test_placeholders_raise_instead_of_returning_invented_metrics():
     """Two placeholders returned fixed accuracy/advantage figures as success."""
-    from core.capability import CapabilityUnavailable
     from core.quantum.hybrid_processor import (
         HybridWorkflowManager, QuantumClassicalBridge)
 
@@ -77,10 +76,10 @@ def test_placeholders_raise_instead_of_returning_invented_metrics():
 
     async def _both():
         # returned final_loss 0.1 / accuracy 0.85 / training_time 1.5
-        with pytest.raises(CapabilityUnavailable):
+        with pytest.raises(NotImplementedError):
             await bridge._classical_ml_training(None, None)
         # returned the fixed string "Enhanced quantum reasoning result"
-        with pytest.raises(CapabilityUnavailable):
+        with pytest.raises(NotImplementedError):
             await manager._handle_reasoning(None)
 
     asyncio.run(_both())

@@ -261,7 +261,10 @@ async def main() -> int:
     check("a belief it would form or move is refused, and no belief moved",
           served.get("belief_refused") and served.get("belief_move_refused") and served.get("beliefs_unchanged"),
           f"{served.get('beliefs_held')} beliefs held; refusals counted {len(frozen_after)}")
-    check("maintenance ran on people's memory only", served.get("decay_ran") is True, f"cleaned {served.get('cleaned')}")
+    # Maintenance's write is the cleanup: a memory's importance fades where it is read since 2026-10-11, and no longer
+    # by a write of every memory.
+    check("maintenance ran on people's memory only", isinstance(served.get("cleaned"), int),
+          f"cleaned {served.get('cleaned')}")
 
     say_line("\n== F. Frozen ==")
     after = await releases.verify(development, 1)

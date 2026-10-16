@@ -1,0 +1,237 @@
+"""Lyric as the inhabitant of its world.
+
+Lyric runs by itself and attaches to the world (Tet, which runs in its own containers) as its
+inhabitant: it proves it holds the inhabitant's key, and from then on takes what the world holds FOR
+it. Everything the world hands over has passed the gate and carries the gate-verified identity of the
+person who sent it, which is the actor everything of theirs is kept under.
+
+    message           one conversational turn -> the front door (`handle_user_request`)
+    reward_allowance  a person's reward allowance -> the appraisal authority
+    operating_mode    how Lyric operates for a person -> the capability faculty
+    shared_learning   whether each kind of a person's or an organization's work goes into shared learning -> the
+                      learning authority
+    hearing           what a person's device hears while Listening is on, and their wake phrase to set it up ->
+                      Lyric's ears on people's devices (`core.perception.live.DeviceEars`)
+
+The world's address and the inhabitant's key come from the environment (TET_WORLD_ADDRESS,
+TET_OPERATOR_PRIVATE_KEY). Neither has a default: without them Lyric is not attached to a world, and
+`attach` says so.
+
+Run alone, this attaches the appraisal authority only (no turns are taken):
+    ./venv_lyric/bin/python3 -m core.integration.world_inhabitant
+"""
+from __future__ import annotations
+
+import asyncio
+import base64
+import json
+import logging
+import os
+import sys
+import threading
+from pathlib import Path
+from typing import Any, Callable, Dict, Optional
+
+logger = logging.getLogger(__name__)
+
+#: The principal the world's gate knows its inhabitant as.
+INHABITANT_PRINCIPAL = "operator_7"
+
+#: The tenancy of a person who belongs to no organization, in the identities the world hands over
+#: (`<organization>:<person>` or `individual:<person>`, Tet's `access.INDIVIDUAL`).
+INDIVIDUAL = "individual"
+
+#: Where the Tet package is when it is not installed: the folder Lyric's own folder sits in.
+_BESIDE = Path(__file__).resolve().parents[3]
+
+
+def _tet():
+    """The world's own client for its inhabitant, and the inhabitant's key."""
+    try:
+        from Tet.walls._config import operator_private_key
+        from Tet.walls.lyric_main import serve_messages
+    except ImportError:
+        sys.path.insert(0, str(_BESIDE))
+        from Tet.walls._config import operator_private_key
+        from Tet.walls.lyric_main import serve_messages
+    return serve_messages, operator_private_key
+
+
+class WorldInhabitant:
+    """Lyric's attachment to its world."""
+
+    def __init__(self, coordinator=None) -> None:
+        #: The running Lyric, whose front door takes a person's turn. None when only the appraisal
+        #: authority is attached: a message is then refused, by name, never answered by something else.
+        self._coordinator = coordinator
+        self._loop: Optional[asyncio.AbstractEventLoop] = None
+        self._thread: Optional[threading.Thread] = None
+        #: Lyric's ears on people's devices (`DeviceEars`), made when the first device is heard.
+        self._ears = None
+
+    def attach(self, world_address: Optional[str] = None, key=None) -> None:
+        """Start taking what the world holds for Lyric. Called from Lyric's running loop: each thing
+        pulled is handled on that loop, where everything of Lyric's runs."""
+        address = world_address or os.environ.get("TET_WORLD_ADDRESS")
+        if not address:
+            raise RuntimeError("TET_WORLD_ADDRESS is not set: Lyric is not attached to a world")
+        serve_messages, operator_private_key = _tet()
+        self._loop = asyncio.get_running_loop()
+        self._thread = threading.Thread(
+            target=serve_messages, name="world-inhabitant", daemon=True,
+            args=(address, INHABITANT_PRINCIPAL, key if key is not None else operator_private_key(),
+                  {"message": self._on_loop(self._message),
+                   "reward_allowance": self._on_loop(self._reward_allowance),
+                   "operating_mode": self._on_loop(self._operating_mode),
+                   "shared_learning": self._on_loop(self._shared_learning),
+                   "hearing": self._on_loop(self._hearing),
+                   "device": self._on_loop(self._device)}))
+        self._thread.start()
+        logger.info("Lyric attached to its world at %s as its inhabitant", address)
+
+    def _on_loop(self, turn) -> Callable[[str, str], Any]:
+        """`turn`, run on Lyric's loop from the thread that pulls from the world."""
+        def take(identity: str, payload: str):
+            return asyncio.run_coroutine_threadsafe(turn(identity, payload), self._loop).result()
+        return take
+
+    async def _message(self, identity: str, text: str) -> Dict[str, Any]:
+        if self._coordinator is None:
+            return {"refused": "Lyric is not taking turns in this process"}
+        reply = await self._coordinator.handle_user_request(
+            text, source="api", metadata={"actor_identity": identity})
+        return {key: reply.get(key) for key in ("success", "answer", "task_id") if key in reply}
+
+    async def _reward_allowance(self, identity: str, payload: str) -> Dict[str, Any]:
+        """A person's reward allowance, for the appraisal authority: nothing in the payload asks what
+        it is, a whole number sets it. A refusal is the authority's own, said back to the person."""
+        from core.agents.autonomous.appraisal import get_appraisal_system
+        appraisal = get_appraisal_system()
+        asked = str(payload or "").strip()
+        if not asked:
+            return await appraisal.reward_allowance(identity)
+        try:
+            if not asked.isdigit():
+                raise ValueError("a reward allowance is a whole number")
+            return await appraisal.set_reward_allowance(identity, int(asked))
+        except ValueError as refused:
+            return {**await appraisal.reward_allowance(identity), "refused": str(refused)}
+
+    async def _operating_mode(self, identity: str, payload: str) -> Dict[str, Any]:
+        """How Lyric operates for a person, for the capability faculty: nothing in the payload asks what it is, a
+        mode (observe, assist or delegate) sets it. What the person's offering or role allows them to choose is the
+        world's to decide before it hands one over; a refusal is the faculty's own, said back."""
+        from core.capabilities import get_capabilities
+        capabilities = get_capabilities()
+        asked = str(payload or "").strip()
+        if not asked:
+            return {"settings": await capabilities.settings_for(identity)}
+        try:
+            return {"settings": await capabilities.set_operating_mode(identity, asked)}
+        except ValueError as refused:
+            return {"settings": await capabilities.settings_for(identity), "refused": str(refused)}
+
+    async def _shared_learning(self, identity: str, payload: str) -> Dict[str, Any]:
+        """Whether what Lyric learns from this person's work goes into shared learning (Context and privacy), for
+        the learning authority, one switch for each kind of work: nothing in the payload asks where they are, "on" or
+        "off" sets every one, and "<kind>:on" or "<kind>:off" one of them. A person on their own has their own
+        switches; a person in an organization sees its Work Context's, and which of its people may set them is the
+        world's to decide before it hands one over. A refusal is the authority's own, said back."""
+        from core.agents.autonomous.shared_types import work_owner
+        from core.learning.unified_learning_system import get_learning_authority
+        tenancy, sep, person = str(identity or "").partition(":")
+        if not (sep and tenancy and person):
+            return {"refused": "a shared learning switch belongs to a signed-in person or their organization"}
+        owner = identity if tenancy == INDIVIDUAL else work_owner(tenancy)
+        authority = get_learning_authority()
+        asked = str(payload or "").strip().lower()
+        if not asked:
+            return {"shared_learning": await authority.shared_learning(owner)}
+        category, _, setting = asked.rpartition(":")
+        try:
+            if setting not in ("on", "off"):
+                raise ValueError("shared learning is on or off")
+            return {"shared_learning": await authority.set_shared_learning(
+                owner, setting == "on", by=identity, category=category or None)}
+        except ValueError as refused:
+            return {"shared_learning": await authority.shared_learning(owner), "refused": str(refused)}
+
+    async def _hearing(self, identity: str, payload: str) -> Dict[str, Any]:
+        """What a person's device hears, for Lyric's ears on people's devices (`DeviceEars`): a JSON object with
+          `stream` and `pcm`   the next half second its microphone heard while Listening or voice mode is on
+                               (16-bit mono at `rate`, as base64), answered with what was said to Lyric on that stream
+                               since last asked; with `attend`, voice mode is on there and what the person says is
+                               taken as said to Lyric without the wake phrase (`DeviceEars.hear`);
+          `stream` and `end`   it stopped listening;
+          `lesson` and `pcm`   one time the person said the wake phrase (or its rival) to set Listening up, taught in
+                               their voice, answered with how far setup has come;
+          `ask`                how far setup has come.
+        A refusal is the ears' own, said back."""
+        if self._coordinator is None:
+            return {"refused": "Lyric is not listening in this process"}
+        try:
+            said = json.loads(payload or "")
+        except ValueError:
+            return {"refused": "what a device hears comes as a JSON object"}
+        if not isinstance(said, dict):
+            return {"refused": "what a device hears comes as a JSON object"}
+        if self._ears is None:
+            from core.perception.live import DeviceEars
+            self._ears = DeviceEars(self._coordinator)
+        try:
+            if said.get("ask"):
+                return {"setup": await self._ears.setup(identity)}
+            sound = base64.b64decode(str(said.get("pcm") or ""), validate=True)
+            rate = int(said.get("rate") or 0)
+            if said.get("lesson"):
+                return {"setup": await self._ears.teach(identity, str(said["lesson"]).strip().lower(), sound, rate)}
+            stream = str(said.get("stream") or "").strip()
+            if not stream:
+                raise ValueError("what a device hears names the stream it is from")
+            if said.get("end"):
+                return await self._ears.end(identity, stream)
+            return await self._ears.hear(identity, stream, sound, rate, attend=bool(said.get("attend")))
+        except (ValueError, RuntimeError) as refused:
+            return {"refused": str(refused)}
+
+    async def _device(self, identity: str, payload: str) -> Dict[str, Any]:
+        """What a person's device says, from Lyric's own code running on it. A `report`: what the device
+        is, what exists on it and what the person set, which situates Lyric in it (`situate_device`) and
+        answers with what was learned. A `location`: a position fix, perceived as the person's."""
+        if self._coordinator is None:
+            return {"refused": "Lyric is not taking in devices in this process"}
+        try:
+            said = json.loads(payload or "{}")
+        except ValueError:
+            return {"refused": "a device's report is JSON"}
+        if not isinstance(said, dict):
+            return {"refused": "a device's report is a JSON object"}
+        try:
+            if "report" in said:
+                return await self._coordinator.situate_device(said["report"], actor_identity=identity)
+            if "location" in said:
+                from core.memory import Origin
+                fix = dict(said["location"])
+                await self._coordinator.process_input(
+                    str(fix.get("device") or "device"), "location", fix,
+                    origin=Origin.of(identity, "device"))
+                return {"received": True}
+        except ValueError as refused:
+            return {"refused": str(refused)}
+        return {"refused": "a device sends a report or a location"}
+
+
+async def _alone() -> None:
+    """Attach the appraisal authority to the world, with no running Lyric behind it."""
+    from core.agents.autonomous.appraisal import get_appraisal_system
+    from core.database import get_database_manager
+    db = get_database_manager()
+    await db.initialize()
+    await get_appraisal_system().join_world(db)
+    WorldInhabitant().attach()
+    await asyncio.Event().wait()
+
+
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
+    asyncio.run(_alone())

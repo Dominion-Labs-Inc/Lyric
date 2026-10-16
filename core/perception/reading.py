@@ -100,11 +100,58 @@ def kind_of(path: str) -> Optional[str]:
     return "text" if raw and is_text(raw) else None
 
 
+def _cell_text(value: Any) -> str:
+    """A cell as the words it shows: nothing as the empty string, a whole number
+    without a trailing ".0", a date in its ISO form."""
+    if value is None:
+        return ""
+    if isinstance(value, float) and value.is_integer():
+        return str(int(value))
+    if hasattr(value, "isoformat"):
+        return value.isoformat()
+    return " ".join(str(value).split())
+
+
+def table_of(name: str, rows: Iterable[Tuple[int, Sequence[Any]]]) -> Optional[Dict[str, Any]]:
+    """A table as reading measures it: its `headings`, the first row with two or
+    more filled cells, and each later row with a filled cell, as `{"row": n,
+    "cells": [...]}` where n is where the row stands in the file. None for what is
+    not a table: no row of headings, or no row under it.
+
+    WHERE EACH CELL STANDS IS MEASURED, NOT WHAT IT MEANS: the heading it is under
+    and the row it is on. What a heading says each cell is to its row is for the
+    substrate's reader to tell (`core.semantics.document_reader`). A row longer
+    than its headings keeps its extra cells, so a cell under no heading is seen
+    to be unread rather than dropped."""
+    headings: Optional[List[str]] = None
+    out: List[Dict[str, Any]] = []
+    for number, cells in rows:
+        cells = [_cell_text(c) for c in cells]
+        if headings is None:
+            if sum(1 for c in cells if c) >= 2:
+                while cells and not cells[-1]:
+                    cells.pop()
+                headings = cells
+            continue
+        if any(cells):
+            while len(cells) > len(headings) and not cells[-1]:
+                cells.pop()
+            out.append({"row": number, "cells": cells + [""] * (len(headings) - len(cells))})
+    if headings is None or not out:
+        return None
+    return {"name": name, "headings": headings, "rows": out}
+
+
 def read_document(path: str) -> Dict[str, Any]:
     """A document read into its pages, with what it really is: `kind`, `named`
     (what its name said, when that differs), `sha256`, `pages`, and `lossy`
     when its text was not valid UTF-8. A file with no written words reading can
-    open raises."""
+    open raises.
+
+    Its `tables` too: each sheet of a workbook, each table of a Word file and a
+    .csv file, as rows under their headings (`table_of`). A table's words are
+    also on its pages, as they always were, so what a document is known again by
+    does not change with how its tables are read."""
     p = Path(path)
     raw = p.read_bytes()
     named = DOCUMENT_READERS.get(p.suffix.lower())
@@ -124,25 +171,34 @@ def read_document(path: str) -> Dict[str, Any]:
             f"no reader for {p.name}: it holds no written words the substrate can "
             f"open, and it will not guess at its contents")
     lossy = False
+    tables: List[Dict[str, Any]] = []
     if kind == "pdf":
         from pypdf import PdfReader
         pages = [(page.extract_text() or "").strip() for page in PdfReader(io.BytesIO(raw)).pages]
     elif kind == "docx":
         import docx
+        document = docx.Document(io.BytesIO(raw))
         # A .docx has no pages until it is laid out; its paragraphs are the
         # structure it really has, so they are what is reported.
-        pages = [para.text.strip() for para in docx.Document(io.BytesIO(raw)).paragraphs
-                 if para.text.strip()]
+        pages = [para.text.strip() for para in document.paragraphs if para.text.strip()]
+        for index, grid in enumerate(document.tables, 1):
+            table = table_of(f"Table {index}", ((number, [cell.text for cell in row.cells])
+                                                for number, row in enumerate(grid.rows, 1)))
+            if table:
+                tables.append(table)
     elif kind == "xlsx":
         import openpyxl
         book = openpyxl.load_workbook(io.BytesIO(raw), data_only=True, read_only=True)
         pages = []
         for sheet in book.worksheets:
-            rows = [" ".join(str(c) for c in row if c is not None)
-                    for row in sheet.iter_rows(values_only=True)]
+            grid = list(sheet.iter_rows(values_only=True))
+            rows = [" ".join(str(c) for c in row if c is not None) for row in grid]
             body = "\n".join(r for r in rows if r.strip())
             if body:
                 pages.append(f"{sheet.title}\n{body}")
+            table = table_of(sheet.title, enumerate(grid, sheet.min_row or 1))
+            if table:
+                tables.append(table)
         book.close()
     else:
         # Encoding is DECLARED, never guessed silently: an undecodable byte is
@@ -152,8 +208,17 @@ def read_document(path: str) -> Dict[str, Any]:
             pages = [raw.decode("utf-8")]
         except UnicodeDecodeError:
             pages, lossy = [raw.decode("utf-8", errors="replace")], True
+        # A .csv declares nothing in its bytes; its name is the evidence that its
+        # lines are rows of comma-separated cells. The file is its one table, so
+        # the table has no name of its own.
+        if p.suffix.lower() == ".csv":
+            import csv
+            table = table_of("", enumerate(csv.reader(io.StringIO(pages[0])), 1))
+            if table:
+                tables.append(table)
     return {"kind": kind, "named": named if named and named != kind else None,
-            "sha256": hashlib.sha256(raw).hexdigest(), "pages": pages, "lossy": lossy}
+            "sha256": hashlib.sha256(raw).hexdigest(), "pages": pages, "lossy": lossy,
+            "tables": tables}
 
 
 # ── the trace a reading keeps ───────────────────────────────────────────────

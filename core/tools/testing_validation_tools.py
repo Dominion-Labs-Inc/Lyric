@@ -800,7 +800,7 @@ if __name__ == "__main__":
 # ============================================================================
 
 from core.tools.tool_registry import Tool, ToolResult, ToolParameter, ToolCategory
-from core.tools.capabilities import Capability, ToolCapabilityProfile, CapabilityMetadata, RiskLevel
+from core.tools.tool_registry import Primitive, PrimitiveProfile, PrimitiveUse
 
 
 class RunPytestTool(Tool):
@@ -816,12 +816,12 @@ class RunPytestTool(Tool):
             ToolParameter(name="cwd", type="string", description="Directory to run pytest from (defaults to the current process directory)", required=False, default=None),
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="run_pytest",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.RUN_TESTS,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.RUN_TESTS,
                     description="Run pytest test suites"
                 )
             ]
@@ -888,12 +888,12 @@ class RunUnittestTool(Tool):
             ToolParameter(name="cwd", type="string", description="Directory to run unittest from (defaults to the current process directory)", required=False, default=None),
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="run_unittest",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.RUN_TESTS,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.RUN_TESTS,
                     description="Run unittest test suites"
                 )
             ]
@@ -950,12 +950,12 @@ class CheckSyntaxTool(Tool):
             ToolParameter(name="code", type="string", description="Python code to check", required=True)
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="check_syntax",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.LINT_CODE,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.LINT_CODE,
                     description="Check Python syntax for errors"
                 )
             ]
@@ -986,12 +986,12 @@ class ValidateJSONTool(Tool):
             ToolParameter(name="json_data", type="string", description="JSON string to validate", required=True)
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="validate_json",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.VALIDATE_DATA,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.VALIDATE_DATA,
                     description="Validate JSON data format"
                 )
             ]
@@ -1022,12 +1022,12 @@ class ValidateYAMLTool(Tool):
             ToolParameter(name="yaml_data", type="string", description="YAML string to validate", required=True)
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="validate_yaml",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.VALIDATE_DATA,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.VALIDATE_DATA,
                     description="Validate YAML data format"
                 )
             ]
@@ -1058,12 +1058,12 @@ class LintPythonTool(Tool):
             ToolParameter(name="code", type="string", description="Python code to lint", required=True)
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="lint_python",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.LINT_CODE,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.LINT_CODE,
                     description="Lint Python code for style issues"
                 )
             ]
@@ -1089,12 +1089,12 @@ class TypeCheckTool(Tool):
             ToolParameter(name="code", type="string", description="Python code to type check", required=True)
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="type_check",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.LINT_CODE,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.LINT_CODE,
                     description="Type check Python code"
                 )
             ]
@@ -1121,24 +1121,19 @@ class BenchmarkCodeTool(Tool):
             ToolParameter(name="iterations", type="number", description="Number of iterations", required=False, default=1000)
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="benchmark_code",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.BENCHMARK,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.BENCHMARK,
                     description="Benchmark code performance"
                 ),
-                CapabilityMetadata(
-                    capability=Capability.VALIDATE_APPROACH,
+                PrimitiveUse(
+                    primitive=Primitive.VALIDATE_APPROACH,
                     description="Validate approach effectiveness through benchmarking",
                     input_types=["code", "benchmark_config"],
-                    output_types=["benchmark_results"],
-                    latency="high",
-                    cost="medium",
-                    reliability="high",
-                    risk_level=RiskLevel.LOW,
-                    priority=7
+                    output_types=["benchmark_results"]
                 )
             ]
         )
@@ -1167,12 +1162,12 @@ class GenerateMockTool(Tool):
             ToolParameter(name="class_name", type="string", description="Class to mock", required=True)
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="generate_mock",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.GENERATE_CODE,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.GENERATE_CODE,
                     description="Generate mock objects for testing"
                 )
             ]
@@ -1207,24 +1202,19 @@ class RunCoverageTool(Tool):
             ToolParameter(name="output_format", type="string", description="Output format: term, html, xml, json (default: term)", required=False, default="term")
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="run_coverage",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.TEST_CODE,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.TEST_CODE,
                     description="Run code coverage analysis"
                 ),
-                CapabilityMetadata(
-                    capability=Capability.COVERAGE_ANALYSIS,
+                PrimitiveUse(
+                    primitive=Primitive.COVERAGE_ANALYSIS,
                     description="Analyze test coverage across the codebase",
                     input_types=["test_suite", "source"],
-                    output_types=["coverage_report"],
-                    latency="high",
-                    cost="medium",
-                    reliability="high",
-                    risk_level=RiskLevel.LOW,
-                    priority=8
+                    output_types=["coverage_report"]
                 )
             ]
         )
@@ -1398,12 +1388,12 @@ class ValidateXMLTool(Tool):
             ToolParameter(name="xml_data", type="string", description="XML string to validate", required=True)
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="validate_xml",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.VALIDATE_DATA,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.VALIDATE_DATA,
                     description="Validate XML data format"
                 )
             ]
@@ -1435,12 +1425,12 @@ class ValidateSchemaTool(Tool):
             ToolParameter(name="schema", type="object", description="JSON schema", required=True)
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="validate_schema",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.VALIDATE_DATA,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.VALIDATE_DATA,
                     description="Validate data against schemas"
                 )
             ]
@@ -1476,12 +1466,12 @@ class LoadTestTool(Tool):
             ToolParameter(name="body", type="string", description="Optional request body for POST/PUT", required=False)
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="load_test",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.SIMULATE_LOAD,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.SIMULATE_LOAD,
                     description="Perform load testing on systems"
                 )
             ]
@@ -1686,12 +1676,12 @@ class IntegrationTestRunnerTool(Tool):
             ToolParameter(name="timeout", type="number", description="Test execution timeout in seconds (default: 300)", required=False, default=300)
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="integration_test_runner",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.RUN_TESTS,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.RUN_TESTS,
                     description="Run integration test suites"
                 )
             ]
@@ -1892,12 +1882,12 @@ class TestDataGeneratorTool(Tool):
             ToolParameter(name="count", type="number", description="Number of records", required=False, default=10)
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="test_data_generator",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.GENERATE_CODE,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.GENERATE_CODE,
                     description="Generate test data"
                 )
             ]
@@ -1942,24 +1932,19 @@ class FuzzTestingTool(Tool):
             ToolParameter(name="timeout_per_test", type="number", description="Timeout per test in seconds (default: 1)", required=False, default=1)
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="fuzz_testing",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.TEST_CODE,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.TEST_CODE,
                     description="Perform fuzz testing"
                 ),
-                CapabilityMetadata(
-                    capability=Capability.FUZZ_TEST,
+                PrimitiveUse(
+                    primitive=Primitive.FUZZ_TEST,
                     description="Run fuzz tests to find edge case vulnerabilities",
                     input_types=["target_function", "input_space"],
-                    output_types=["crash_cases"],
-                    latency="high",
-                    cost="high",
-                    reliability="high",
-                    risk_level=RiskLevel.MEDIUM,
-                    priority=7
+                    output_types=["crash_cases"]
                 )
             ]
         )
@@ -2194,24 +2179,19 @@ class MutationTestingTool(Tool):
             ToolParameter(name="timeout", type="number", description="Timeout per test run in seconds (default: 30)", required=False, default=30)
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="mutation_testing",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.TEST_CODE,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.TEST_CODE,
                     description="Run mutation testing"
                 ),
-                CapabilityMetadata(
-                    capability=Capability.MUTATION_TEST,
+                PrimitiveUse(
+                    primitive=Primitive.MUTATION_TEST,
                     description="Run mutation tests to evaluate test suite quality",
                     input_types=["source_code", "test_suite"],
-                    output_types=["mutation_score"],
-                    latency="high",
-                    cost="high",
-                    reliability="high",
-                    risk_level=RiskLevel.LOW,
-                    priority=7
+                    output_types=["mutation_score"]
                 )
             ]
         )
@@ -2486,12 +2466,12 @@ class StaticSecurityAnalysisTool(Tool):
             ToolParameter(name="code", type="string", description="Code to analyze", required=True)
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="static_security_analysis",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.ANALYZE_CODE,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.ANALYZE_CODE,
                     description="Perform static security analysis"
                 )
             ]
@@ -2537,12 +2517,12 @@ class GoldenTestHarnessTool(Tool):
             ToolParameter(name="ignore_whitespace", type="boolean", description="Ignore whitespace differences (default: true)", required=False, default=True)
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="golden_test_harness",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.RUN_TESTS,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.RUN_TESTS,
                     description="Run golden tests"
                 )
             ]

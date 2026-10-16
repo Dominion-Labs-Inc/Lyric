@@ -36,7 +36,7 @@ import logging
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 import asyncpg
 
@@ -789,30 +789,6 @@ def reset_acting_actor(token) -> None:
     """Release the binding set by `set_acting_actor`."""
     _acting_actor.reset(token)
 
-
-
-#: WHICH TASK the current act is a step of, as `(task id, description)`. Bound
-#: beside the intent and the actor, and for the same reason: the tool registry is
-#: where every tool run passes, whoever calls it, and a run is recorded there
-#: once -- attributed to the task it served, or to none when the caller had no
-#: task (a conversation looking something up).
-_acting_task: "contextvars.ContextVar[Optional[Tuple[str, str]]]" = contextvars.ContextVar(
-    "lyric_acting_task", default=None)
-
-
-def set_acting_task(task_id: Optional[str], description: str = ""):
-    """Bind the task the current act serves. Returns the reset token."""
-    return _acting_task.set((str(task_id), str(description or "")) if task_id else None)
-
-
-def get_acting_task() -> Optional[Tuple[str, str]]:
-    """`(task id, description)` of the task the current act serves, or None."""
-    return _acting_task.get()
-
-
-def reset_acting_task(token) -> None:
-    """Release the binding set by `set_acting_task`."""
-    _acting_task.reset(token)
 
 
 def get_acting_intent() -> Optional[str]:

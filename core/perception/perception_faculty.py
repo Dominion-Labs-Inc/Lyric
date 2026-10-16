@@ -266,6 +266,20 @@ class PerceptionFaculty:
         #: How near the taught voices lie to one another (`speech.voice_reach`),
         #: kept with them so it is measured once per teaching, not per hearing.
         self._voice_reach: Optional[tuple] = None
+        #: THE SOUNDS WORDS ARE MADE OF, taught by hearing sentences told which phone
+        #: is said when: each lesson's frames and their phones, in the order taught.
+        #: The hearing process keeps them between hearings and is sent only those it
+        #: lacks (`_phones_sent` of them, under this faculty's `_phones_token`).
+        self._phone_lessons: List[tuple] = []
+        self._phones_sent = 0
+        self._phones_token = __import__("uuid").uuid4().hex
+        #: How each word is said, as taught (word -> its ways, as phones), and how
+        #: often real text uses it; `_said_version` moves when either changes.
+        self._said_as: Dict[str, List[str]] = {}
+        self._said_used: Dict[str, int] = {}
+        self._said_version = 0
+        #: How many pronunciations the memory agent had told when they were last read.
+        self._said_seen = 0
         #: Moves whenever what was taught changes, so a listener holding a copy
         #: (the live ear) knows to take it again.
         self._taught_version = 0
@@ -321,30 +335,21 @@ class PerceptionFaculty:
                                  origin: "Origin") -> None:
         """Submit a percept as evidence. Never fails perceiving itself.
 
-        Dispatched on modality: a sensor reading, an image, a video, a sound and
-        a document read each carry structure a bare component/status envelope
-        cannot (a typed value and unit, perceived individuals, recognised
-        labels, temporal events, what the words said), so each has its own
+        Dispatched on modality: a sensor reading, an image, a video, a sound,
+        a document read, a device and a location fix each carry structure a bare
+        component/status envelope cannot (a typed value and unit, perceived
+        individuals, recognised labels, temporal events, what the words said,
+        what a person set on a device, a position), so each has its own
         producer. Anything else -- a named
         component in a named state, a corpus arriving -- takes the general
         `submit_perception` path. The producer decides what is nameable; an
         unrecognised modality is not coerced into one that loses its structure.
-        Whose it is travels with it."""
+        Whose it is travels with it. Handed to memory, which hands it on
+        (`MemoryAgent.take_in_percept`)."""
         try:
-            from core.domain import evidence_producers as ep
-
-            producer = {
-                "sensor": ep.submit_sensor_reading,
-                "image": ep.submit_image,
-                "video": ep.submit_video,
-                "audio": ep.submit_audio,
-                "document": ep.submit_reading,
-            }.get(str(modality or "").strip().lower())
-            if producer is not None:
-                await producer(subject, content or {}, memory_id=memory_id, origin=origin)
-            else:
-                await ep.submit_perception(subject, modality, content or {},
-                                           memory_id=memory_id, origin=origin)
+            from core.agents.memory_agent import memory_agent
+            await memory_agent().take_in_percept(subject, modality, content or {},
+                                                 memory_id=memory_id, origin=origin)
             self._admitted += 1
         except Exception as e:
             logger.error("perception from %s could not be recorded as evidence: %s: %s",
@@ -354,7 +359,7 @@ class PerceptionFaculty:
              origin: "Origin", confidence: Optional[float] = None) -> Any:
         """Take a percept into what the substrate is aware of perceiving now,
         WITHOUT admitting it as evidence: for a percept whose evidence its own
-        owner already admitted (a recognition rides `learn_fact`). `confidence`
+        owner already admitted (a recognition rides `recognize`, through the one door). `confidence`
         is what was measured of it, or None when nothing was."""
         from core.agents.autonomous.shared_types import PerceptionData
         percept = PerceptionData(source=subject, data_type=modality,
@@ -418,6 +423,17 @@ class PerceptionFaculty:
         voices = await agent.lessons_taught(agent.VOICE_TAG, "person")
         songs = await agent.lessons_taught(agent.SONG_TAG, "song")
         things = await agent.lessons_taught(agent.THING_TAG, "thing")
+        sounds_said = await agent.lessons_taught(agent.PHONES_TAG, "phones")
+        self._phone_lessons = [found for archives in sounds_said.values() for found in
+                               (speech.unpack_phones(b) for b in archives) if found is not None]
+        self._phones_sent = 0
+        said_as: Dict[str, List[str]] = {}
+        used: Dict[str, int] = {}
+        for word, phones, count in await agent.stated_pronunciations():
+            said_as.setdefault(word, []).append(phones)
+            used[word] = max(used.get(word, 0), count)
+        self._said_as, self._said_used = said_as, used
+        self._said_version += 1
         kept = lambda archives: [e for e in (speech.unpack(b) for b in archives) if e is not None]
         self._words = {w: kept(archives) for w, archives in words.items() if kept(archives)}
         self._voices = {p: kept(archives) for p, archives in voices.items() if kept(archives)}
@@ -521,6 +537,9 @@ class PerceptionFaculty:
             "pages": len(pages),
             "words": words,
             "text": pages,
+            # Its tables as rows under their headings, for the reader to tell
+            # what each row states (`document_reader.tables_stated`).
+            "tables": read.get("tables") or [],
             "properties": {"has_format": form, "has_pages": len(pages)},
             "caption": f"{len(pages)} page(s), {words} word(s), {form} document",
             "trace": _encode(read["trace"]) if read.get("trace") else None,
@@ -629,17 +648,21 @@ class PerceptionFaculty:
         # Known-instance recognition rides on the same observation.
         await self._read_library()
         if modality == "audio":
-            heard = await self._hearing.run(senses.listen, str(p), self._hearing_library(), taught)
+            heard = await self._listen(str(p), taught)
             # Named from the CONTENT, not from the caller -- see `_percept_subject`.
             content = self._audio_content(
                 heard, _percept_subject(label, heard["desc"].get("sha256")), taught)
             content["senses"] = ["hearing"]
+            if taught is not None and (lesson or {}).get("theirs"):
+                # GIVEN AS THEIRS: a person's own wake phrase, said to set up Listening, is taught for their ears
+                # alone and never taken as the world's (`MemoryAgent.take_in_lesson`).
+                content["lesson"]["theirs"] = True
             return "audio", content
         if modality == "video":
             # A clip is seen and heard AT ONCE, each sense in its own process.
             seen, track = await asyncio.gather(
                 self._sight.run(senses.watch, str(p)),
-                self._hearing.run(senses.listen, str(p), self._hearing_library(), None, True),
+                self._listen(str(p), None, True),
                 return_exceptions=True)
             if isinstance(seen, BaseException):
                 raise seen
@@ -675,10 +698,52 @@ class PerceptionFaculty:
     def _hearing_library(self) -> Dict[str, Any]:
         """What hearing matches against, as this faculty holds it, for the
         hearing process: words, voices and songs taught (and the songs' tunes),
-        and known sounds."""
+        known sounds, the lessons of sounds the process lacks, and how words are
+        said."""
         return {"words": self._words, "voices": self._voices, "reach": self._voice_reach,
                 "songs": self._songs, "tunes": self._tunes,
-                "sounds": {name: marks for name, (marks, _table) in self._sounds.items()}}
+                "sounds": {name: marks for name, (marks, _table) in self._sounds.items()},
+                # The sounds and how words are said go to hearing only while it names words (`speech.WORDS_HEARD`).
+                **({"phones": {"token": self._phones_token, "have": self._phones_sent,
+                               "new": self._phone_lessons[self._phones_sent:]},
+                    "said_as": {"version": self._said_version, "words": self._said_as,
+                                "used": self._said_used}} if speech.WORDS_HEARD else {})}
+
+    async def _listen(self, *args: Any) -> Dict[str, Any]:
+        """`senses.listen` in hearing's process, with the lessons of sounds it lacks and how words are said as
+        last taught. A process started again holds no lessons, says so, and is sent them all once."""
+        from core.memory import get_memory_agent
+        agent = await get_memory_agent()
+        told = getattr(agent, "pronunciations_told", 0)
+        if told != self._said_seen:
+            # Pronunciations were taught since they were read: read again, as they are held.
+            said_as: Dict[str, List[str]] = {}
+            used: Dict[str, int] = {}
+            for word, phones, count in await agent.stated_pronunciations():
+                said_as.setdefault(word, []).append(phones)
+                used[word] = max(used.get(word, 0), count)
+            self._said_as, self._said_used = said_as, used
+            self._said_version += 1
+            self._said_seen = told
+        sending = len(self._phone_lessons)
+        try:
+            heard = await self._hearing.run(senses.listen, args[0], self._hearing_library(), *args[1:])
+        except Exception:
+            # The process took in what it was sent before what it was asked failed (a lesson refused).
+            self._phones_sent = sending
+            raise
+        if heard.get("need_phones"):
+            self._phones_sent = 0
+            sending = len(self._phone_lessons)
+            heard = await self._hearing.run(senses.listen, args[0], self._hearing_library(), *args[1:])
+        self._phones_sent = sending
+        return heard
+
+    @property
+    def taught_sounds(self) -> int:
+        """How many frames of the sounds words are made of are taught, in all."""
+        return sum(len(labels) for _frames, labels in self._phone_lessons)
+
 
     async def describe_picture(self, path: str) -> Dict[str, Any]:
         """Sight's measurement of one picture, in sight's own process, with
@@ -748,7 +813,7 @@ class PerceptionFaculty:
     #: it was, or which song it is, with the memory tag that marks a hearing as
     #: that lesson and the memory agent's name for it.
     LESSONS = {"word": "SPOKEN_WORD_TAG", "person": "VOICE_TAG", "song": "SONG_TAG",
-               "thing": "THING_TAG"}
+               "thing": "THING_TAG", "phones": "PHONES_TAG"}
     #: A thing shown is known again when this many of its keypoints agree on one
     #: geometry (`MemoryAgent.SIGHT_MIN_AGREE`); it must have twice as many.
     THING_MIN_KEYPOINTS = 20
@@ -763,8 +828,8 @@ class PerceptionFaculty:
         keys = [k for k in cls.LESSONS if str(lesson.get(k) or "").strip()]
         if len(keys) != 1:
             raise ValueError("a lesson says which word was said (`word`), whose voice it was "
-                             "(`person`), which song it is (`song`) or which thing is shown "
-                             "(`thing`), one of them")
+                             "(`person`), which song it is (`song`), which thing is shown "
+                             "(`thing`) or which sounds are said when (`phones`), one of them")
         key = keys[0]
         label = " ".join(str(lesson[key]).split())
         return key, (label.lower() if key == "word" else label)
@@ -783,6 +848,13 @@ class PerceptionFaculty:
             if shown is None:
                 return False
             self._instances[_term(label)] = shown["descriptors"]
+            self._taught_version += 1
+            return True
+        if key == "phones":
+            found = speech.unpack_phones(decode_trace(content["trace"]))
+            if found is None:
+                return False
+            self._phone_lessons.append(found)
             self._taught_version += 1
             return True
         example = speech.unpack(decode_trace(content["trace"]))
@@ -1281,8 +1353,9 @@ class PerceptionFaculty:
 
     @staticmethod
     def _speech_content(heard: Dict[str, Any]) -> Dict[str, Any]:
-        """The speech heard, under the percept's own keys."""
-        return {k: heard[k] for k in ("said", "heard_text", "spoken_by") if heard.get(k)}
+        """The speech heard, under the percept's own keys: with the ways it can be taken (`heard_texts`) where words
+        in it are not clearly one word, for the listener to choose among (`live`, `derived_reader.heard_which`)."""
+        return {k: heard[k] for k in ("said", "heard_text", "heard_texts", "spoken_by") if heard.get(k)}
 
     @staticmethod
     def _music_content(heard: Dict[str, Any]) -> Dict[str, Any]:
@@ -1357,7 +1430,9 @@ class PerceptionFaculty:
             key, label = lesson
             caption += {"word": f'; taught: how the word "{label}" sounds',
                         "person": f"; taught: how {label}'s voice sounds",
-                        "song": f'; taught: the song "{label}"'}[key]
+                        "song": f'; taught: the song "{label}"',
+                        "phones": f"; taught: how the {len(speech.phones_told(label))} sounds said in it "
+                                  f"sound"}[key]
         return {
             **self._speech_content(spoken),
             **found,

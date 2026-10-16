@@ -577,14 +577,18 @@ lists, `entropy`, a 95% `credible_interval`, and temporal-decay fields (`decay_r
 
 ### 5.2 The update (`update_belief`, `:275`)
 
-An **odds-form Bayesian update with an exponential likelihood ratio**, decay-first:
+A **Bayesian update in log-odds with an exponential likelihood ratio**, decay-first, with
+no cap (2026-10-07: it was clamped short of certainty each step, so past five or six
+witnesses every claim stood the same):
 
-1. Decay the prior toward 0.5 by the time since last evidence (5.3).
-2. `LR = exp(±_LR_STRENGTH · evidence_weight)` with `_LR_STRENGTH = 3.0` — quality 0
-   ⇒ LR 1.0 (no update), quality 1.0 ⇒ LR ≈ 20× (support) or 0.05× (against).
-3. `posterior_odds = prior_odds · LR`, `posterior = odds/(1+odds)`, clamped off 0/1.
-4. **Regime-shift detection**: a crossing of the 0.5 threshold flags a reversal,
-   feeding domain volatility (5.5).
+1. Decay the log-odds toward 0 (even odds) by the time since last evidence (5.3).
+2. `step = ±_LR_STRENGTH · evidence_weight` (`evidence_step`) with `_LR_STRENGTH = 3.0` —
+   quality 0 ⇒ no move, quality 1.0 ⇒ a likelihood ratio of e³ ≈ 20× (support) or 0.05×
+   (against).
+3. `log_odds += step`; the posterior is read from it (`probability_of`, a stable sigmoid).
+   Nothing is clamped: evidence adds, so ten witnesses hold a claim more firmly than five.
+4. **Regime-shift detection**: a change of sign of the log-odds (a crossing of 0.5) flags a
+   reversal, feeding domain volatility (5.5).
 5. Recompute **Shannon binary entropy** (`_calculate_entropy`, `:406`) and a normal-
    approximation credible interval; propagate constraints if the change exceeds 0.05.
 
@@ -595,8 +599,9 @@ recursing with cycle detection.
 
 ### 5.3 Temporal decay (three paths)
 
-The functional form everywhere is drift toward maximum uncertainty:
-`P ← P + (0.5 − P)·(1 − exp(−λ·Δt))`.
+The functional form everywhere is drift toward maximum uncertainty, in log-odds:
+`L ← L·exp(−λ·Δt)`, so a belief many sources hold keeps proportionally as much as one a
+few hold.
 - **`_apply_temporal_decay`** (`:413`) — the per-belief primitive, called inside every
   update, clocked on `last_evidence_time`, λ from domain volatility.
 - **`apply_temporal_decay_to_all_beliefs`** (`:1459`) — the batch pass driven by

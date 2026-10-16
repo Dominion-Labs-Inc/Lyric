@@ -61,9 +61,7 @@ except ImportError:
         return os.getenv("GITHUB_TOKEN")
 
 from .tool_registry import Tool, ToolParameter, ToolResult, ToolCategory, ToolSafety
-from .capabilities import (
-    ToolCapabilityProfile, CapabilityMetadata, Capability, RiskLevel
-)
+from .tool_registry import PrimitiveProfile, PrimitiveUse, Primitive
 
 
 logger = logging.getLogger(__name__)
@@ -174,14 +172,11 @@ class EncryptFileTool(Tool):
             )
         ]
 
-        self.capability_profile = ToolCapabilityProfile(
+        self.primitive_profile = PrimitiveProfile(
             tool_name="encrypt_file",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.ENCRYPT_DATA,
-                    risk_level=RiskLevel.HIGH,
-                    priority=8,
-                    approval_level="autonomous"
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.ENCRYPT_DATA
                 )
             ],
             requires_filesystem=True,
@@ -285,20 +280,14 @@ class DecryptFileTool(Tool):
             )
         ]
 
-        self.capability_profile = ToolCapabilityProfile(
+        self.primitive_profile = PrimitiveProfile(
             tool_name="decrypt_file",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.DECRYPT_DATA,
-                    risk_level=RiskLevel.HIGH,
-                    priority=8,
-                    approval_level="autonomous"
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.DECRYPT_DATA
                 ),
-                CapabilityMetadata(
-                    capability=Capability.READ_DATA,
-                    risk_level=RiskLevel.HIGH,
-                    priority=8,
-                    approval_level="autonomous"
+                PrimitiveUse(
+                    primitive=Primitive.READ_DATA
                 )
             ],
             requires_filesystem=True,
@@ -403,20 +392,14 @@ class GeneratePasswordTool(Tool):
             )
         ]
 
-        self.capability_profile = ToolCapabilityProfile(
+        self.primitive_profile = PrimitiveProfile(
             tool_name="generate_password",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.ENCRYPT_DATA,
-                    risk_level=RiskLevel.MEDIUM,
-                    priority=7,
-                    approval_level="autonomous"
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.ENCRYPT_DATA
                 ),
-                CapabilityMetadata(
-                    capability=Capability.GENERATE_CODE,
-                    risk_level=RiskLevel.MEDIUM,
-                    priority=7,
-                    approval_level="autonomous"
+                PrimitiveUse(
+                    primitive=Primitive.GENERATE_CODE
                 )
             ],
             requires_filesystem=False,
@@ -492,20 +475,14 @@ class HashDataTool(Tool):
             )
         ]
 
-        self.capability_profile = ToolCapabilityProfile(
+        self.primitive_profile = PrimitiveProfile(
             tool_name="hash_data",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.HASH_DATA,
-                    risk_level=RiskLevel.LOW,
-                    priority=7,
-                    approval_level="autonomous"
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.HASH_DATA
                 ),
-                CapabilityMetadata(
-                    capability=Capability.VALIDATE_DATA,
-                    risk_level=RiskLevel.LOW,
-                    priority=7,
-                    approval_level="autonomous"
+                PrimitiveUse(
+                    primitive=Primitive.VALIDATE_DATA
                 )
             ],
             requires_filesystem=False,
@@ -577,14 +554,11 @@ class ValidateCertificateTool(Tool):
             )
         ]
 
-        self.capability_profile = ToolCapabilityProfile(
+        self.primitive_profile = PrimitiveProfile(
             tool_name="validate_certificate",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.VALIDATE_DATA,
-                    risk_level=RiskLevel.LOW,
-                    priority=7,
-                    approval_level="autonomous"
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.VALIDATE_DATA
                 )
             ],
             requires_filesystem=False,
@@ -666,26 +640,17 @@ class ScanSecretsTool(Tool):
             )
         ]
 
-        self.capability_profile = ToolCapabilityProfile(
+        self.primitive_profile = PrimitiveProfile(
             tool_name="scan_secrets",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.SCAN_SECURITY,
-                    risk_level=RiskLevel.LOW,
-                    priority=9,
-                    approval_level="autonomous"
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.SCAN_SECURITY
                 ),
-                CapabilityMetadata(
-                    capability=Capability.MANAGE_SECRETS,
-                    risk_level=RiskLevel.LOW,
-                    priority=9,
-                    approval_level="autonomous"
+                PrimitiveUse(
+                    primitive=Primitive.MANAGE_SECRETS
                 ),
-                CapabilityMetadata(
-                    capability=Capability.DETECT_THREAT,
-                    risk_level=RiskLevel.LOW,
-                    priority=8,
-                    approval_level="autonomous"
+                PrimitiveUse(
+                    primitive=Primitive.DETECT_THREAT
                 )
             ],
             requires_filesystem=True,
@@ -802,20 +767,14 @@ class CheckIPThreatIntelligenceTool(Tool):
             )
         ]
 
-        self.capability_profile = ToolCapabilityProfile(
+        self.primitive_profile = PrimitiveProfile(
             tool_name="check_ip_threat_intelligence",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.DETECT_THREAT,
-                    risk_level=RiskLevel.LOW,
-                    priority=8,
-                    approval_level="autonomous"
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.DETECT_THREAT
                 ),
-                CapabilityMetadata(
-                    capability=Capability.ASSESS_RISK,
-                    risk_level=RiskLevel.LOW,
-                    priority=8,
-                    approval_level="autonomous"
+                PrimitiveUse(
+                    primitive=Primitive.ASSESS_RISK
                 )
             ],
             requires_filesystem=False,
@@ -904,14 +863,11 @@ class BlockIPAddressTool(Tool):
             )
         ]
 
-        self.capability_profile = ToolCapabilityProfile(
+        self.primitive_profile = PrimitiveProfile(
             tool_name="block_ip_address",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.BLOCK_THREAT,
-                    risk_level=RiskLevel.HIGH,
-                    priority=9,
-                    approval_level="team_lead"
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.BLOCK_THREAT
                 )
             ],
             requires_filesystem=False,
@@ -984,14 +940,11 @@ class UnblockIPAddressTool(Tool):
             )
         ]
 
-        self.capability_profile = ToolCapabilityProfile(
+        self.primitive_profile = PrimitiveProfile(
             tool_name="unblock_ip_address",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.BLOCK_THREAT,
-                    risk_level=RiskLevel.MEDIUM,
-                    priority=8,
-                    approval_level="autonomous"
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.BLOCK_THREAT
                 )
             ],
             requires_filesystem=False,
@@ -1036,14 +989,11 @@ class GetActiveBlocksTool(Tool):
         self.safety_level = ToolSafety.SAFE
         self.parameters = []
 
-        self.capability_profile = ToolCapabilityProfile(
+        self.primitive_profile = PrimitiveProfile(
             tool_name="get_active_blocks",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.MONITOR_SYSTEM,
-                    risk_level=RiskLevel.LOW,
-                    priority=6,
-                    approval_level="autonomous"
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.MONITOR_SYSTEM
                 )
             ],
             requires_filesystem=False,
@@ -1125,20 +1075,14 @@ class CreateWAFRuleTool(Tool):
             )
         ]
 
-        self.capability_profile = ToolCapabilityProfile(
+        self.primitive_profile = PrimitiveProfile(
             tool_name="create_waf_rule",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.GENERATE_CODE,
-                    risk_level=RiskLevel.HIGH,
-                    priority=8,
-                    approval_level="autonomous"
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.GENERATE_CODE
                 ),
-                CapabilityMetadata(
-                    capability=Capability.UPDATE_STRATEGY,
-                    risk_level=RiskLevel.HIGH,
-                    priority=8,
-                    approval_level="autonomous"
+                PrimitiveUse(
+                    primitive=Primitive.UPDATE_STRATEGY
                 )
             ],
             requires_filesystem=False,
@@ -1221,14 +1165,11 @@ class ApplyRateLimitTool(Tool):
             )
         ]
 
-        self.capability_profile = ToolCapabilityProfile(
+        self.primitive_profile = PrimitiveProfile(
             tool_name="apply_rate_limit",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.BLOCK_THREAT,
-                    risk_level=RiskLevel.MEDIUM,
-                    priority=8,
-                    approval_level="autonomous"
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.BLOCK_THREAT
                 )
             ],
             requires_filesystem=False,
@@ -1289,14 +1230,11 @@ class BlockCountryTool(Tool):
             )
         ]
 
-        self.capability_profile = ToolCapabilityProfile(
+        self.primitive_profile = PrimitiveProfile(
             tool_name="block_country",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.BLOCK_THREAT,
-                    risk_level=RiskLevel.HIGH,
-                    priority=8,
-                    approval_level="autonomous"
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.BLOCK_THREAT
                 )
             ],
             requires_filesystem=False,
@@ -1344,20 +1282,14 @@ class GetSecurityMetricsTool(Tool):
         self.safety_level = ToolSafety.SAFE
         self.parameters = []
 
-        self.capability_profile = ToolCapabilityProfile(
+        self.primitive_profile = PrimitiveProfile(
             tool_name="get_security_metrics",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.ANALYZE_PERFORMANCE,
-                    risk_level=RiskLevel.LOW,
-                    priority=7,
-                    approval_level="autonomous"
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.ANALYZE_PERFORMANCE
                 ),
-                CapabilityMetadata(
-                    capability=Capability.MONITOR_SYSTEM,
-                    risk_level=RiskLevel.LOW,
-                    priority=7,
-                    approval_level="autonomous"
+                PrimitiveUse(
+                    primitive=Primitive.MONITOR_SYSTEM
                 )
             ],
             requires_filesystem=False,
@@ -1402,20 +1334,14 @@ class GetBlockHistoryTool(Tool):
             )
         ]
 
-        self.capability_profile = ToolCapabilityProfile(
+        self.primitive_profile = PrimitiveProfile(
             tool_name="get_block_history",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.READ_DATA,
-                    risk_level=RiskLevel.LOW,
-                    priority=6,
-                    approval_level="autonomous"
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.READ_DATA
                 ),
-                CapabilityMetadata(
-                    capability=Capability.TRACK_PROGRESS,
-                    risk_level=RiskLevel.LOW,
-                    priority=6,
-                    approval_level="autonomous"
+                PrimitiveUse(
+                    primitive=Primitive.TRACK_PROGRESS
                 )
             ],
             requires_filesystem=False,
@@ -1497,20 +1423,14 @@ class AddInternalThreatTool(Tool):
             )
         ]
 
-        self.capability_profile = ToolCapabilityProfile(
+        self.primitive_profile = PrimitiveProfile(
             tool_name="add_internal_threat",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.DETECT_THREAT,
-                    risk_level=RiskLevel.MEDIUM,
-                    priority=7,
-                    approval_level="autonomous"
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.DETECT_THREAT
                 ),
-                CapabilityMetadata(
-                    capability=Capability.TRACK_PROGRESS,
-                    risk_level=RiskLevel.MEDIUM,
-                    priority=7,
-                    approval_level="autonomous"
+                PrimitiveUse(
+                    primitive=Primitive.TRACK_PROGRESS
                 )
             ],
             requires_filesystem=False,
@@ -1592,58 +1512,35 @@ class SanitizeInputTool(Tool):
             )
         ]
 
-        self.capability_profile = ToolCapabilityProfile(
+        self.primitive_profile = PrimitiveProfile(
             tool_name="sanitize_input",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.VALIDATE_DATA,
-                    risk_level=RiskLevel.LOW,
-                    priority=8,
-                    approval_level="autonomous"
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.VALIDATE_DATA
                 ),
-                CapabilityMetadata(
-                    capability=Capability.VERIFY_SAFETY,
+                PrimitiveUse(
+                    primitive=Primitive.VERIFY_SAFETY,
                     description="Verify input and code safety",
                     input_types=["content"],
-                    output_types=["safety_report"],
-                    latency="medium",
-                    cost="low",
-                    reliability="high",
-                    risk_level=RiskLevel.LOW,
-                    priority=9
+                    output_types=["safety_report"]
                 ),
-                CapabilityMetadata(
-                    capability=Capability.ASSESS_ETHICS,
+                PrimitiveUse(
+                    primitive=Primitive.ASSESS_ETHICS,
                     description="Assess ethical implications of security actions",
                     input_types=["action"],
-                    output_types=["ethics_assessment"],
-                    latency="low",
-                    cost="low",
-                    reliability="high",
-                    risk_level=RiskLevel.LOW,
-                    priority=7
+                    output_types=["ethics_assessment"]
                 ),
-                CapabilityMetadata(
-                    capability=Capability.DETECT_MISALIGNMENT,
+                PrimitiveUse(
+                    primitive=Primitive.DETECT_MISALIGNMENT,
                     description="Detect misaligned or unauthorized activity patterns",
                     input_types=["activity_log"],
-                    output_types=["misalignment_report"],
-                    latency="medium",
-                    cost="medium",
-                    reliability="high",
-                    risk_level=RiskLevel.LOW,
-                    priority=8
+                    output_types=["misalignment_report"]
                 ),
-                CapabilityMetadata(
-                    capability=Capability.VALIDATE_ALIGNMENT,
+                PrimitiveUse(
+                    primitive=Primitive.VALIDATE_ALIGNMENT,
                     description="Validate that actions align with security policy",
                     input_types=["action", "policy"],
-                    output_types=["alignment_result"],
-                    latency="low",
-                    cost="low",
-                    reliability="high",
-                    risk_level=RiskLevel.LOW,
-                    priority=8
+                    output_types=["alignment_result"]
                 )
             ],
             requires_filesystem=False,
@@ -1731,20 +1628,14 @@ class ValidateEmailTool(Tool):
             )
         ]
 
-        self.capability_profile = ToolCapabilityProfile(
+        self.primitive_profile = PrimitiveProfile(
             tool_name="validate_email",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.VALIDATE_INPUT,
-                    risk_level=RiskLevel.LOW,
-                    priority=6,
-                    approval_level="autonomous"
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.VALIDATE_INPUT
                 ),
-                CapabilityMetadata(
-                    capability=Capability.VALIDATE_DATA,
-                    risk_level=RiskLevel.LOW,
-                    priority=6,
-                    approval_level="autonomous"
+                PrimitiveUse(
+                    primitive=Primitive.VALIDATE_DATA
                 )
             ],
             requires_filesystem=False,
@@ -1791,20 +1682,14 @@ class ValidateURLTool(Tool):
             )
         ]
 
-        self.capability_profile = ToolCapabilityProfile(
+        self.primitive_profile = PrimitiveProfile(
             tool_name="validate_url",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.VALIDATE_INPUT,
-                    risk_level=RiskLevel.LOW,
-                    priority=6,
-                    approval_level="autonomous"
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.VALIDATE_INPUT
                 ),
-                CapabilityMetadata(
-                    capability=Capability.VALIDATE_DATA,
-                    risk_level=RiskLevel.LOW,
-                    priority=6,
-                    approval_level="autonomous"
+                PrimitiveUse(
+                    primitive=Primitive.VALIDATE_DATA
                 )
             ],
             requires_filesystem=False,
@@ -1851,20 +1736,14 @@ class CheckMaliciousPatternsTool(Tool):
             )
         ]
 
-        self.capability_profile = ToolCapabilityProfile(
+        self.primitive_profile = PrimitiveProfile(
             tool_name="check_malicious_patterns",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.DETECT_THREAT,
-                    risk_level=RiskLevel.LOW,
-                    priority=7,
-                    approval_level="autonomous"
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.DETECT_THREAT
                 ),
-                CapabilityMetadata(
-                    capability=Capability.EXTRACT_PATTERNS,
-                    risk_level=RiskLevel.LOW,
-                    priority=7,
-                    approval_level="autonomous"
+                PrimitiveUse(
+                    primitive=Primitive.EXTRACT_PATTERNS
                 )
             ],
             requires_filesystem=False,
@@ -1909,14 +1788,11 @@ class SanitizeFilenameTool(Tool):
             )
         ]
 
-        self.capability_profile = ToolCapabilityProfile(
+        self.primitive_profile = PrimitiveProfile(
             tool_name="sanitize_filename",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.VALIDATE_DATA,
-                    risk_level=RiskLevel.LOW,
-                    priority=7,
-                    approval_level="autonomous"
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.VALIDATE_DATA
                 )
             ],
             requires_filesystem=False,
@@ -2108,14 +1984,11 @@ class ValidateSQLInputTool(Tool):
             )
         ]
 
-        self.capability_profile = ToolCapabilityProfile(
+        self.primitive_profile = PrimitiveProfile(
             tool_name="validate_sql_input",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.VALIDATE_DATA,
-                    risk_level=RiskLevel.LOW,
-                    priority=8,
-                    approval_level="autonomous"
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.VALIDATE_DATA
                 )
             ],
             requires_filesystem=False,
@@ -2317,20 +2190,14 @@ class CheckRateLimitTool(Tool):
         ]
         self.parameters += _log_source_parameters()
 
-        self.capability_profile = ToolCapabilityProfile(
+        self.primitive_profile = PrimitiveProfile(
             tool_name="check_rate_limit",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.VALIDATE_DATA,
-                    risk_level=RiskLevel.LOW,
-                    priority=6,
-                    approval_level="autonomous"
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.VALIDATE_DATA
                 ),
-                CapabilityMetadata(
-                    capability=Capability.MONITOR_SYSTEM,
-                    risk_level=RiskLevel.LOW,
-                    priority=6,
-                    approval_level="autonomous"
+                PrimitiveUse(
+                    primitive=Primitive.MONITOR_SYSTEM
                 )
             ],
             requires_filesystem=False,
@@ -2450,26 +2317,17 @@ class DetectIntrusionTool(Tool):
         ]
         self.parameters += _log_source_parameters()
 
-        self.capability_profile = ToolCapabilityProfile(
+        self.primitive_profile = PrimitiveProfile(
             tool_name="detect_intrusion",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.DETECT_INTRUSION,
-                    risk_level=RiskLevel.LOW,
-                    priority=9,
-                    approval_level="autonomous"
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.DETECT_INTRUSION
                 ),
-                CapabilityMetadata(
-                    capability=Capability.DETECT_THREAT,
-                    risk_level=RiskLevel.LOW,
-                    priority=9,
-                    approval_level="autonomous"
+                PrimitiveUse(
+                    primitive=Primitive.DETECT_THREAT
                 ),
-                CapabilityMetadata(
-                    capability=Capability.SCAN_SECURITY,
-                    risk_level=RiskLevel.LOW,
-                    priority=8,
-                    approval_level="autonomous"
+                PrimitiveUse(
+                    primitive=Primitive.SCAN_SECURITY
                 )
             ],
             requires_filesystem=False,
@@ -2628,20 +2486,14 @@ class AnalyzeAnomalyTool(Tool):
         ]
         self.parameters += _log_source_parameters()
 
-        self.capability_profile = ToolCapabilityProfile(
+        self.primitive_profile = PrimitiveProfile(
             tool_name="analyze_anomaly",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.DETECT_ANOMALY,
-                    risk_level=RiskLevel.LOW,
-                    priority=8,
-                    approval_level="autonomous"
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.DETECT_ANOMALY
                 ),
-                CapabilityMetadata(
-                    capability=Capability.EXTRACT_PATTERNS,
-                    risk_level=RiskLevel.LOW,
-                    priority=8,
-                    approval_level="autonomous"
+                PrimitiveUse(
+                    primitive=Primitive.EXTRACT_PATTERNS
                 )
             ],
             requires_filesystem=False,
@@ -2844,20 +2696,14 @@ class MonitorLogsTool(Tool):
         ]
         self.parameters += _log_source_parameters()
 
-        self.capability_profile = ToolCapabilityProfile(
+        self.primitive_profile = PrimitiveProfile(
             tool_name="monitor_logs",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.MONITOR_LOGS,
-                    risk_level=RiskLevel.LOW,
-                    priority=8,
-                    approval_level="autonomous"
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.MONITOR_LOGS
                 ),
-                CapabilityMetadata(
-                    capability=Capability.TRACK_PROGRESS,
-                    risk_level=RiskLevel.LOW,
-                    priority=8,
-                    approval_level="autonomous"
+                PrimitiveUse(
+                    primitive=Primitive.TRACK_PROGRESS
                 )
             ],
             requires_filesystem=False,
@@ -3047,20 +2893,14 @@ class DetectBruteForceTool(Tool):
         ]
         self.parameters += _log_source_parameters()
 
-        self.capability_profile = ToolCapabilityProfile(
+        self.primitive_profile = PrimitiveProfile(
             tool_name="detect_brute_force",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.DETECT_THREAT,
-                    risk_level=RiskLevel.LOW,
-                    priority=9,
-                    approval_level="autonomous"
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.DETECT_THREAT
                 ),
-                CapabilityMetadata(
-                    capability=Capability.EXTRACT_PATTERNS,
-                    risk_level=RiskLevel.LOW,
-                    priority=9,
-                    approval_level="autonomous"
+                PrimitiveUse(
+                    primitive=Primitive.EXTRACT_PATTERNS
                 )
             ],
             requires_filesystem=False,
@@ -3188,20 +3028,14 @@ class AnalyzeTrafficPatternTool(Tool):
         ]
         self.parameters += _log_source_parameters()
 
-        self.capability_profile = ToolCapabilityProfile(
+        self.primitive_profile = PrimitiveProfile(
             tool_name="analyze_traffic_pattern",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.ANALYZE_PERFORMANCE,
-                    risk_level=RiskLevel.LOW,
-                    priority=8,
-                    approval_level="autonomous"
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.ANALYZE_PERFORMANCE
                 ),
-                CapabilityMetadata(
-                    capability=Capability.DETECT_ANOMALY,
-                    risk_level=RiskLevel.LOW,
-                    priority=8,
-                    approval_level="autonomous"
+                PrimitiveUse(
+                    primitive=Primitive.DETECT_ANOMALY
                 )
             ],
             requires_filesystem=False,
@@ -3371,14 +3205,11 @@ class AutoRespondThreatTool(Tool):
             )
         ]
 
-        self.capability_profile = ToolCapabilityProfile(
+        self.primitive_profile = PrimitiveProfile(
             tool_name="auto_respond_threat",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.BLOCK_THREAT,
-                    risk_level=RiskLevel.HIGH,
-                    priority=9,
-                    approval_level="team_lead"
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.BLOCK_THREAT
                 )
             ],
             requires_filesystem=False,
@@ -3497,31 +3328,20 @@ class HuntThreatsTool(Tool):
         ]
         self.parameters += _log_source_parameters()
 
-        self.capability_profile = ToolCapabilityProfile(
+        self.primitive_profile = PrimitiveProfile(
             tool_name="hunt_threats",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.DETECT_THREAT,
-                    risk_level=RiskLevel.MEDIUM,
-                    priority=9,
-                    approval_level="autonomous"
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.DETECT_THREAT
                 ),
-                CapabilityMetadata(
-                    capability=Capability.CAUSAL_REASONING,
-                    risk_level=RiskLevel.MEDIUM,
-                    priority=9,
-                    approval_level="autonomous"
+                PrimitiveUse(
+                    primitive=Primitive.CAUSAL_REASONING
                 ),
-                CapabilityMetadata(
-                    capability=Capability.ANALYZE_THREAT,
+                PrimitiveUse(
+                    primitive=Primitive.ANALYZE_THREAT,
                     description="Proactively analyze and hunt for threats",
                     input_types=["indicators"],
-                    output_types=["threat_report"],
-                    latency="high",
-                    cost="medium",
-                    reliability="high",
-                    risk_level=RiskLevel.LOW,
-                    priority=9
+                    output_types=["threat_report"]
                 )
             ],
             requires_filesystem=False,
@@ -3898,20 +3718,14 @@ class DetectZeroDayTool(Tool):
         ]
         self.parameters += _log_source_parameters()
 
-        self.capability_profile = ToolCapabilityProfile(
+        self.primitive_profile = PrimitiveProfile(
             tool_name="detect_zero_day",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.DETECT_THREAT,
-                    risk_level=RiskLevel.MEDIUM,
-                    priority=9,
-                    approval_level="autonomous"
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.DETECT_THREAT
                 ),
-                CapabilityMetadata(
-                    capability=Capability.PREDICT_CONSEQUENCES,
-                    risk_level=RiskLevel.MEDIUM,
-                    priority=9,
-                    approval_level="autonomous"
+                PrimitiveUse(
+                    primitive=Primitive.PREDICT_CONSEQUENCES
                 )
             ],
             requires_filesystem=True,

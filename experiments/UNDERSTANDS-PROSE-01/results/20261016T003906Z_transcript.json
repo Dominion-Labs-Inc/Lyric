@@ -1,0 +1,480 @@
+[
+ {
+  "text": "whales",
+  "told": "Whales are mammals.",
+  "read": true,
+  "reply": "Noted - Whales are mammals."
+ },
+ {
+  "text": "whales",
+  "told": "They live in the ocean.",
+  "read": false,
+  "reply": "I understood 'live in the ocean', but not how 'They' fits with it."
+ },
+ {
+  "text": "whales",
+  "told": "A whale breathes air through a blowhole.",
+  "read": false,
+  "reply": "Part of that is about something I have no name for yet, so I did not hold it."
+ },
+ {
+  "text": "whales",
+  "told": "Whales feed their young with milk.",
+  "read": false,
+  "reply": "Part of that is about something I have no name for yet, so I did not hold it."
+ },
+ {
+  "text": "whales",
+  "told": "The blue whale is the largest animal on Earth.",
+  "read": false,
+  "reply": "Noted - The largest belongs to the blue whale.\nNoted - I'll hold that about blue_whale_1.\nNoted - I'll hold that about largest_1.\nPart of that is about something I have no name for yet, so I did not hold it."
+ },
+ {
+  "text": "whales",
+  "asked": "Are whales mammals?",
+  "gold": "yes",
+  "result": "right",
+  "reply": "Yes. Whales are mammals."
+ },
+ {
+  "text": "whales",
+  "asked": "Do whales live in the ocean?",
+  "gold": "yes",
+  "result": "not answered",
+  "reply": "I remember: A whale is a cetacean.\nWhales are cetaceans. Whales are mammals.\nI hold things about live that I have not been taught to say yet.\nOceans are body of water. An ocean is part of a hydrosphere."
+ },
+ {
+  "text": "whales",
+  "asked": "Do whales breathe air?",
+  "gold": "yes",
+  "result": "not answered",
+  "reply": "I remember: A whale is a cetacean.\nWhales are cetaceans. Whales are mammals.\nI hold things about breathe that I have not been taught to say yet.\nAir is a gas."
+ },
+ {
+  "text": "whales",
+  "asked": "Where do whales live?",
+  "gold": [
+   "ocean",
+   "sea"
+  ],
+  "result": "not answered",
+  "reply": "I remember: A whale is a cetacean.\nI hold things about live that I have not been taught to say yet.\nWhales are cetaceans. Whales are mammals."
+ },
+ {
+  "text": "whales",
+  "asked": "What is the largest animal on Earth?",
+  "gold": [
+   "blue whale"
+  ],
+  "result": "not answered",
+  "reply": "I remember: Dinocerata is an animal order.\nI hold largest but nothing said about it yet.\nAnimals are organisms. An animal is made of animal tissue. An animal is a member of an animal kingdom.\nA the terrestrial planet is a member of a solar system."
+ },
+ {
+  "text": "whales",
+  "asked": "Is a blue whale an animal?",
+  "gold": "yes",
+  "result": "right",
+  "reply": "Yes. A blue whale is a kind of animal."
+ },
+ {
+  "text": "photosynthesis",
+  "told": "Photosynthesis is the process by which plants make food from light.",
+  "read": false,
+  "reply": "I understood 'Photosynthesis is the process' and 'which plants make food from light', but not how 'by' fits with it."
+ },
+ {
+  "text": "photosynthesis",
+  "told": "Plants take in carbon dioxide and water.",
+  "read": false,
+  "reply": "I understood 'Plants take in carbon dioxide' and 'water', but not how 'and' fits with it."
+ },
+ {
+  "text": "photosynthesis",
+  "told": "They release oxygen.",
+  "read": false,
+  "reply": "I understood 'release' and 'oxygen', but not how 'They' fits with it."
+ },
+ {
+  "text": "photosynthesis",
+  "told": "Chlorophyll is the green pigment that absorbs the light.",
+  "read": false,
+  "reply": "Noted - I'll hold that about light_1.\nPart of that is about something I have no name for yet, so I did not hold it."
+ },
+ {
+  "text": "photosynthesis",
+  "asked": "Do plants release oxygen?",
+  "gold": "yes",
+  "result": "not answered",
+  "reply": "I remember: An air plant is a plant.\nA plant is a kind of organism. A plant is a member of a plant kingdom.\nI hold things about transmit turn that I have not been taught to say yet.\nOxygen is a chemical element. Oxygen is a gas."
+ },
+ {
+  "text": "photosynthesis",
+  "asked": "Do plants take in carbon dioxide?",
+  "gold": "yes",
+  "result": "not answered",
+  "reply": "I remember: Carbon dioxide is a kind of dioxide.\nA plant is a kind of organism. A plant is a member of a plant kingdom.\nI hold things about take that I have not been taught to say yet.\nCarbon dioxide is a kind of dioxide. Carbon dioxide is a greenhouse gas."
+ },
+ {
+  "text": "photosynthesis",
+  "asked": "Is chlorophyll a pigment?",
+  "gold": "yes",
+  "result": "right",
+  "reply": "Yes. Chlorophyll is pigment."
+ },
+ {
+  "text": "photosynthesis",
+  "asked": "Is chlorophyll green?",
+  "gold": "yes",
+  "result": "not answered",
+  "reply": "I remember: Chlorophyll is pigment."
+ },
+ {
+  "text": "photosynthesis",
+  "asked": "What absorbs the light?",
+  "gold": [
+   "chlorophyll"
+  ],
+  "result": "not answered",
+  "reply": "I understood 'absorbs the light', but not how 'What' fits with it."
+ },
+ {
+  "text": "python",
+  "told": "Python is a high-level, general-purpose programming language.",
+  "read": false,
+  "reply": "I understood 'Python is a high', 'level', 'general', 'purpose' and 'programming language', but not how they go together."
+ },
+ {
+  "text": "python",
+  "told": "Its design philosophy emphasizes code readability with the use of significant indentation.",
+  "read": false,
+  "reply": "I understood 'Its design philosophy emphasizes code readability with the use', 'significant' and 'indentation', but not how 'of' fits with it."
+ },
+ {
+  "text": "python",
+  "told": "Python is dynamically typed and garbage-collected.",
+  "read": false,
+  "reply": "I understood 'Python is dynamically typed', 'garbage' and 'collected', but not how 'and' fits with it."
+ },
+ {
+  "text": "python",
+  "told": "It supports multiple programming paradigms, including structured, object-oriented and functional programming.",
+  "read": false,
+  "reply": "I understood 'It supports multiple programming paradigms', 'including', 'structured', 'object', 'oriented', 'functional' and 'programming', but not how 'and' fits with it."
+ },
+ {
+  "text": "python",
+  "told": "Guido van Rossum began working on Python in the late 1980s.",
+  "read": false,
+  "reply": "Noted - I'll hold that about decade_eighty_1.\nNoted - The decade eighty is late.\nPart of that is about something I have no name for yet, so I did not hold it."
+ },
+ {
+  "text": "python",
+  "asked": "Is Python a programming language?",
+  "gold": "yes",
+  "result": "not answered",
+  "reply": "I do not know whether a python is a programming language."
+ },
+ {
+  "text": "python",
+  "asked": "Is Python dynamically typed?",
+  "gold": "yes",
+  "result": "not answered",
+  "reply": "I do not know whether a python is a dynamically typed."
+ },
+ {
+  "text": "python",
+  "asked": "Does Python support functional programming?",
+  "gold": "yes",
+  "result": "not answered",
+  "reply": "I understood 'Python support functional programming', but not how 'Does' fits with it."
+ },
+ {
+  "text": "python",
+  "asked": "Who began working on Python?",
+  "gold": [
+   "guido",
+   "van rossum"
+  ],
+  "result": "not answered",
+  "reply": "I understood 'began working on Python', but not how 'Who' fits with it."
+ },
+ {
+  "text": "sorted",
+  "told": "The function sorted returns a new list.",
+  "read": false,
+  "reply": "I read that more than one way, and I will not guess which you meant"
+ },
+ {
+  "text": "sorted",
+  "told": "It does not change the original list.",
+  "read": false,
+  "reply": "Part of that is about something I have no name for yet, so I did not hold it."
+ },
+ {
+  "text": "sorted",
+  "told": "The argument key is a function that is applied to each element.",
+  "read": false,
+  "reply": "I understood 'The argument key is a function that is applied' and 'element', but not how 'to each' fits with it."
+ },
+ {
+  "text": "sorted",
+  "asked": "Does sorted return a new list?",
+  "gold": "yes",
+  "result": "not answered",
+  "reply": "I read that more than one way, and I will not guess which you meant"
+ },
+ {
+  "text": "sorted",
+  "asked": "Does sorted change the original list?",
+  "gold": "no",
+  "result": "not answered",
+  "reply": "I read that more than one way, and I will not guess which you meant"
+ },
+ {
+  "text": "sorted",
+  "asked": "Is key a function?",
+  "gold": "yes",
+  "result": "not answered",
+  "reply": "I do not know whether a key is a function."
+ },
+ {
+  "text": "primes",
+  "told": "A prime number is a natural number greater than 1 that has no divisors other than 1 and itself.",
+  "read": false,
+  "reply": "I understood 'A prime number', 'is a natural number greater than 1', 'that has no divisors', '1' and 'itself', but not how 'other than' and 'and' fit with it."
+ },
+ {
+  "text": "primes",
+  "told": "Seven is a prime number.",
+  "read": true,
+  "reply": "Noted - Septenaries are prime number."
+ },
+ {
+  "text": "primes",
+  "told": "Every prime number greater than 2 is odd.",
+  "read": false,
+  "reply": "I understood 'Every prime number' and '2 is odd', but not how 'greater than' fits with it."
+ },
+ {
+  "text": "primes",
+  "asked": "Is seven a natural number?",
+  "gold": "yes",
+  "result": "right",
+  "reply": "Yes."
+ },
+ {
+  "text": "primes",
+  "asked": "Is seven odd?",
+  "gold": "yes",
+  "result": "right",
+  "reply": "Yes."
+ },
+ {
+  "text": "primes",
+  "asked": "Is seven greater than 1?",
+  "gold": "yes",
+  "result": "right",
+  "reply": "Yes."
+ },
+ {
+  "text": "primes",
+  "asked": "Is eight a prime number?",
+  "gold": "no",
+  "result": "right",
+  "reply": "No."
+ },
+ {
+  "text": "valve",
+  "told": "If the valve is closed, the tank is full.",
+  "read": true,
+  "reply": "Noted - I'll hold that as a rule."
+ },
+ {
+  "text": "valve",
+  "told": "The valve is closed.",
+  "read": true,
+  "reply": "Noted - The valve is closed.\nNoted - I'll hold that about valve_1."
+ },
+ {
+  "text": "valve",
+  "asked": "Is the tank full?",
+  "gold": "yes",
+  "result": "not answered",
+  "reply": "I remember: A tank is a kind of containerful.\nI hold things about full that I have not been taught to say yet.\nA tank is a kind of vessel."
+ },
+ {
+  "text": "valve",
+  "asked": "Is the valve closed?",
+  "gold": "yes",
+  "result": "right",
+  "reply": "Yes. The valve is closed."
+ },
+ {
+  "text": "eiffel",
+  "told": "The Eiffel Tower was built in 1889.",
+  "read": false,
+  "reply": "Part of that is about something I have no name for yet, so I did not hold it."
+ },
+ {
+  "text": "eiffel",
+  "told": "It is in Paris.",
+  "read": false,
+  "reply": "I understood 'It' and 'is in Paris', but not how they go together."
+ },
+ {
+  "text": "eiffel",
+  "told": "Paris is the capital of France.",
+  "read": false,
+  "reply": "I understood 'Paris is the capital' and 'France', but not how 'of' fits with it."
+ },
+ {
+  "text": "eiffel",
+  "asked": "Is the Eiffel Tower in Paris?",
+  "gold": "yes",
+  "result": "not answered",
+  "reply": "Part of that is about something I have no name for yet, so I did not hold it."
+ },
+ {
+  "text": "eiffel",
+  "asked": "Is the Eiffel Tower in France?",
+  "gold": "yes",
+  "result": "not answered",
+  "reply": "Part of that is about something I have no name for yet, so I did not hold it."
+ },
+ {
+  "text": "eiffel",
+  "asked": "When was the Eiffel Tower built?",
+  "gold": [
+   "1889"
+  ],
+  "result": "not answered",
+  "reply": "I understood 'the Eiffel Tower built', but not how 'When was' fits with it."
+ },
+ {
+  "text": "eiffel",
+  "asked": "Is Paris the capital of France?",
+  "gold": "yes",
+  "result": "not answered",
+  "reply": "I understood 'Is Paris the capital' and 'France', but not how 'of' fits with it."
+ },
+ {
+  "text": "anomalies",
+  "told": "We propose a new method for detecting anomalies in network traffic.",
+  "read": false,
+  "reply": "Part of that is about something I have no name for yet, so I did not hold it."
+ },
+ {
+  "text": "anomalies",
+  "told": "The method learns a model of normal traffic from unlabeled data.",
+  "read": false,
+  "reply": "I understood 'The method learns a model' and 'normal traffic from unlabeled data', but not how 'of' fits with it."
+ },
+ {
+  "text": "anomalies",
+  "told": "In experiments on three datasets, it detects more attacks than earlier methods.",
+  "read": false,
+  "reply": "I understood 'In experiments on three datasets', 'it detects', 'attacks', 'earlier' and 'methods', but not how 'more' and 'than' fit with it."
+ },
+ {
+  "text": "anomalies",
+  "asked": "Does the method detect anomalies?",
+  "gold": "yes",
+  "result": "not answered",
+  "reply": "I remember: An anomaly is a person.\nI hold things about method that I have not been taught to say yet.\nI hold things about detect that I have not been taught to say yet.\nAnomalies are persons."
+ },
+ {
+  "text": "anomalies",
+  "asked": "Does the method learn from unlabeled data?",
+  "gold": "yes",
+  "result": "not answered",
+  "reply": "I remember: Labeled is the opposite of unlabeled.\nI hold things about method that I have not been taught to say yet.\nA data is a kind of collection. A data is a kind of directory.\nI hold things about learn that I have not been taught to say yet.\nI hold things about unlabeled that I have not been taught to say yet."
+ },
+ {
+  "text": "anomalies",
+  "asked": "What does the method detect?",
+  "gold": [
+   "anomal",
+   "attack"
+  ],
+  "result": "not answered",
+  "reply": "I remember: A technique is a kind of method.\nI hold things about detect that I have not been taught to say yet.\nI hold things about method that I have not been taught to say yet."
+ },
+ {
+  "text": "lockout",
+  "told": "The server logged a failed login from 10.0.0.5.",
+  "read": false,
+  "reply": "I read that more than one way, and I will not guess which you meant"
+ },
+ {
+  "text": "lockout",
+  "told": "The account was locked after five failed attempts.",
+  "read": false,
+  "reply": "Noted - I'll hold that about record_history_1.\nPart of that is about something I have no name for yet, so I did not hold it."
+ },
+ {
+  "text": "lockout",
+  "told": "The attacker used a list of common passwords.",
+  "read": false,
+  "reply": "I understood 'attacker', 'a list' and 'common passwords', but not how 'The', 'used' and 'of' fit with it."
+ },
+ {
+  "text": "lockout",
+  "asked": "Was the account locked?",
+  "gold": "yes",
+  "result": "not answered",
+  "reply": "I remember: A history is a kind of record.\nEmbrace interlock is a clasp embrace."
+ },
+ {
+  "text": "lockout",
+  "asked": "Did the server log a failed login?",
+  "gold": "yes",
+  "result": "not answered",
+  "reply": "I remember: A server is a kind of computer.\nA server is a kind of computer. A server is part of a computer network.\nI hold things about flunk fail that I have not been taught to say yet.\nI hold nothing for log ae, login. Tell me what it is and I will keep it."
+ },
+ {
+  "text": "lockout",
+  "asked": "How many failed attempts were there?",
+  "gold": [
+   "five",
+   "5"
+  ],
+  "result": "not answered",
+  "reply": "I understood 'many failed attempts were there', but not how 'How' fits with it."
+ },
+ {
+  "text": "hiring",
+  "told": "The company hired three engineers in May.",
+  "read": false,
+  "reply": "Noted - I'll hold that about company_1.\nPart of that is about something I have no name for yet, so I did not hold it."
+ },
+ {
+  "text": "hiring",
+  "told": "Two of them work in Berlin.",
+  "read": false,
+  "reply": "I understood 'Two' and 'them work in Berlin', but not how 'of' fits with it."
+ },
+ {
+  "text": "hiring",
+  "asked": "Did the company hire engineers?",
+  "gold": "yes",
+  "result": "not answered",
+  "reply": "I remember: A biosafety level 3 is a kind of biosafety level.\nEach company is an institution.\nI hold hire but nothing said about it yet.\nAn engineer is a person."
+ },
+ {
+  "text": "hiring",
+  "asked": "How many engineers did the company hire?",
+  "gold": [
+   "three",
+   "3"
+  ],
+  "result": "not answered",
+  "reply": "I understood 'many engineers did the company hire', but not how 'How' fits with it."
+ },
+ {
+  "text": "hiring",
+  "asked": "Do two of the engineers work in Berlin?",
+  "gold": "yes",
+  "result": "not answered",
+  "reply": "I understood 'Do' and 'two of the engineers work in Berlin', but not how they go together."
+ }
+]

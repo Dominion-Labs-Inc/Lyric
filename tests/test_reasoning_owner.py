@@ -105,21 +105,33 @@ def test_a_persons_hypothesis_is_theirs_and_not_the_substrates_own_work():
         token = _token("zhyp")
         system = HypothesisTestingSystem()
         assert await system.initialize()
+        from core.reasoning.hypothesis_testing import EvidenceType
+        from core.reasoning.bayesian_uncertainty import get_uncertainty_system
+        claim = f"the {token} valve is stuck"
         try:
-            hypothesis = await system.generate_hypothesis(
-                claim=f"the {token} valve is stuck", domain="plumbing", owner="alice")
+            hypothesis = await system.generate_hypothesis(claim=claim, domain="plumbing", owner="alice")
             kept = await _owners(db, "hypotheses", "claim", token)
-            believed = await get_scoped_context_store().belief("alice", f"the {token} valve is stuck")
-            return hypothesis.owner, kept, believed
+            untested = await get_scoped_context_store().belief("alice", claim)
+            await system.collect_evidence(hypothesis.hypothesis_id, f"the {token} valve did not turn",
+                                          {"turned": False}, EvidenceType.OBSERVATIONAL, supports=True)
+            believed = await get_scoped_context_store().belief("alice", claim)
+            world = get_uncertainty_system().belief_for_claim(claim)
+            return hypothesis.owner, kept, untested, believed, world
         finally:
             await db.execute_query("DELETE FROM unified.hypotheses WHERE claim LIKE $1", (f"%{token}%",),
                                    commit=True, store="model")
+            await db.execute_query("DELETE FROM unified.evidence WHERE description LIKE $1", (f"%{token}%",),
+                                   commit=True, store="model")
             await db.execute_query("DELETE FROM unified.scoped_beliefs WHERE scope_actor = 'alice' AND claim LIKE $1",
                                    (f"%{token}%",), commit=True)
+            await db.execute_query("DELETE FROM memory_hot.memory_hot WHERE user_id = 'alice' AND content LIKE $1",
+                                   (f"%{token}%",), commit=True)
 
-    owner, kept, believed = asyncio.run(run())
+    owner, kept, untested, believed, world = asyncio.run(run())
     assert owner == "alice" and kept == ["alice"], (owner, kept)
-    assert believed is not None, "a person's hypothesis is believed in their context"
+    assert untested is None, "an untested hypothesis is a claim under test, not yet believed"
+    assert believed is not None, "its evidence moves a belief in her context"
+    assert world is None, "and none in the world's store"
 
 
 def test_the_substrate_does_not_take_up_a_persons_stalled_hypothesis(monkeypatch):

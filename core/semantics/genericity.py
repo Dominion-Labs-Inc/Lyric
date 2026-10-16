@@ -406,7 +406,19 @@ def classes_implied_by(surface: str, subject: str, relation: str,
     it. `isa` and `has_property` are typed relations the substrate synthesises;
     they are never words anyone said, and recording them would teach it that
     "isa" is an English verb.
+
+    ONLY WHAT WAS SAID IS EVIDENCE OF HOW ENGLISH USES A WORD. A fact taught
+    with no sentence (no frame says it: WordNet's "giraffe defined with tall",
+    "tall similar to high") is remembered as its claim, the triple the door
+    writes, and a claim is no English: read as one, its every term was a thing,
+    and "tall" was a NOUN 279 times against the one ADJECTIVE WordNet states, so
+    no adjective it taught could stand where qualities do (2026-10-12). Such a
+    proposition implies no class.
     """
+    from core.semantics.cognitive_ingress import shape_proposition
+    if obj is not None and str(surface or "").strip() == " ".join(
+            p for p in shape_proposition(subject, relation, obj)[:3] if p):
+        return {}
     implied: Dict[str, str] = {}
 
     def record(term: Optional[str], word_class: str) -> None:

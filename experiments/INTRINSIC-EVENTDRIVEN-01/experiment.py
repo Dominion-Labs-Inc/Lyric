@@ -13,6 +13,7 @@ Run: ./venv_lyric/bin/python3 scratchpad/bench_eventdriven.py
 from __future__ import annotations
 import asyncio, os, sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
+from core.integration.universal_domain_master import UniversalDomainMaster  # noqa: E402
 
 from experiments._evidence import RunRecord  # noqa: E402
 
@@ -51,7 +52,7 @@ async def main() -> int:
           and gk.metadata.get("frontier") == "knowledge" and "drive" not in gk.metadata,
           f"desc={gk.description!r} md={gk.metadata}")
     gc = p._pursuit_to_goal({"frontier": "capability", "domain": "test_cap",
-                             "target": "the substrate has learned the operators of domain test_cap",
+                             "target": UniversalDomainMaster.COMPETENCE_CLAIM + "test_cap",
                              "entropy": 0.9, "score": 0.8})
     check("capability → a competence DRIVE goal (_execute_drive_goal reads drive/domain_id/scope)",
           gc is not None and gc.metadata.get("drive") == "competence"
@@ -100,7 +101,7 @@ async def main() -> int:
     # a fresh unknown capability belief so the frontier has something to pursue
     SEED_DOM = "test_evtdriven_cap"
     b = unc.create_belief(
-        f"the substrate has learned the operators of domain {SEED_DOM}", SEED_DOM, prior=0.5)
+        f"{UniversalDomainMaster.COMPETENCE_CLAIM}{SEED_DOM}", SEED_DOM, prior=0.5)
     pursuits = await coord._intrinsic_pursuits(limit=50)
     seeded_is_pursuit = any(pp.get("domain") == SEED_DOM for pp in pursuits)
 

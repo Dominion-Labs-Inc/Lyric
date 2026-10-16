@@ -28,7 +28,7 @@ could tell which had happened.
 from __future__ import annotations
 
 import re
-from typing import Dict, FrozenSet
+from typing import Dict, FrozenSet, Optional
 
 _NORMALISE_STRIP = re.compile(r"[^a-z0-9 _-]+")
 _WS = re.compile(r"\s+")
@@ -79,6 +79,10 @@ ICS_MASS_NOUNS: FrozenSet[str] = frozenset({
     "analytics", "semantics", "kinetics", "photonics", "cybernetics",
 })
 
+#: Plurals English uses as an uncounted singular ("the data is"): WordNet lists them as plurals of `datum` and
+#: `medium`, and taken so, every `compress_data` and `filter_data` the store holds would be found under another name.
+MASS_PLURAL_FORMS: FrozenSet[str] = frozenset({"data", "media"})
+
 #: Words a document uses about itself. `introduction_of_lifepo4` is document
 #: structure, not a thing that exists independently of the document.
 STRUCTURAL_PREFIXES = ("introduction_of_", "overview_of_", "review_of_",
@@ -120,8 +124,56 @@ def normalise(label: str) -> str:
     return s.strip().replace(" ", "_")
 
 
+_NOUN_LEMMAS: Optional[FrozenSet[str]] = None
+
+
+def _wordnet_singular(word: str) -> Optional[str]:
+    """What WordNet says a word is as a noun: itself, where WordNet lists it ("proboscis", "news", "aesthetics");
+    the noun it is a plural of, where WordNet knows one ("cacti", `cactus`; "boxes", `box`); None where WordNet does
+    not know the word. Raises if WordNet is not installed: the door does not guess where it was told to know.
+
+    THE PLURAL FIRST. A word WordNet knows as another noun's plural is that noun, even where WordNet also lists the
+    word itself ("humans", a sense of its own: kept apart, "Socrates is a human." and "All humans are mortal." name
+    two things and nothing follows). A word with no such noun behind it stays as written ("proboscis": "probosci"
+    names nothing). Not yet told apart: a thing named by a plural of its own beside the singular's ("blues", the
+    music, as `blue`), merged as the spelling rule merged it."""
+    global _NOUN_LEMMAS
+    from nltk.corpus import wordnet as wn
+    if _NOUN_LEMMAS is None:
+        _NOUN_LEMMAS = frozenset(lemma.lower() for synset in wn.all_synsets("n")
+                                 for lemma in synset.lemma_names() if "_" not in lemma)
+    # A plural made with "s" never ends in "ss" (one ending in "s" takes "es": "bosses"), so "boss" is no plural of
+    # `bos`, the genus of cattle, however WordNet's rule strips it; and no plural ends in "ing", whatever WordNet's
+    # list of exceptions holds ("crying" for `cry`).
+    plural_of = [form for form in wn._morphy(word, wn.NOUN) if form != word and form in _NOUN_LEMMAS
+                 and not (word.endswith("ss") and form == word[:-1]) and not word.endswith("ing")]
+    if plural_of:
+        return plural_of[0]
+    return word if word in _NOUN_LEMMAS else None
+
+
 def singularise(word: str) -> str:
-    """Reduce a plural to its singular. Grammatical variation only."""
+    """Reduce a plural to its singular. Grammatical variation only.
+
+    WORDNET DECIDES WHERE IT KNOWS THE WORD. Spelling cannot: "atlas" is one and "areas" many, "genus" one and
+    "menus" many. Stripping a final "s" by rule stored 4,213 of WordNet's nouns under another name ("proboscis" as
+    `probosci`, "genus" as `genu`) and gave 599 names to two things each ("news" and "new", "aesthetics" and
+    "aesthetic"), at the one door every fact enters through. A word WordNet lists as a noun stays as written; one it
+    knows as a noun's plural is that noun. The rules below decide only a word WordNet does not know.
+
+    A SINGULAR IS WRITTEN THE SAME AGAIN. A name written at the door is written again wherever it is taken in
+    (`concept_ingestion` writes the label it is handed), so the singular must be one the door leaves as it is.
+    "peoples" is the plural of "people" (a people), and "people" of "person": one step at a time, WordNet's
+    peoples, the human beings of a particular nation, came in as `people` and was stored as `person`, and a person
+    was held a kind of group (2026-10-11). A word whose singular the door would read again as another word's plural
+    is its own: five of WordNet's ("peoples", "gentes", "limina", "terata", "ephemerae")."""
+    once = _singular_once(word)
+    return once if once == word or _singular_once(once) == once else word
+
+
+def _singular_once(word: str) -> str:
+    """One step of `singularise`: the singular a word is the plural of, by WordNet where it knows the word, by
+    spelling where it does not."""
     if word in IRREGULAR_SINGULARS:
         return IRREGULAR_SINGULARS[word]
     if word in PLURAL_EXCEPTIONS:
@@ -131,8 +183,13 @@ def singularise(word: str) -> str:
     #   -ics  physics   -> physic     (a mass noun, not a plural)
     if word.endswith("sis") or word.endswith("xis"):
         return word
-    if word in ICS_MASS_NOUNS:
+    if word in ICS_MASS_NOUNS or word in MASS_PLURAL_FORMS:
         return word
+    # A word of three letters or fewer is left as written, as the rule below leaves it: "ms" and "ts" are units, and
+    # WordNet's "m" and "t" (letters) would take them.
+    known = _wordnet_singular(word) if len(word) > 3 else None
+    if known is not None:
+        return known
     if word.endswith("ies") and len(word) > 4:
         return word[:-3] + "y"
     if word.endswith("sses") or word.endswith("shes") or word.endswith("ches"):

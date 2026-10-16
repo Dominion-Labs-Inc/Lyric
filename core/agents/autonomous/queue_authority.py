@@ -477,6 +477,32 @@ class QueueAuthority:
         await self._announce_ended(queued)
         return True
 
+    async def hold_for_person(self, task_id: str) -> bool:
+        """A job waits for the person it is for to answer (BLOCKED): owed, kept
+        through a restart, and not drawn while it waits. False for a job that
+        is not owed here."""
+        queued = self.tasks_by_id.get(task_id)
+        if queued is None or queued.status not in ACTIVE_STATUSES:
+            return False
+        async with self.lock:
+            queued.status = TaskStatus.BLOCKED
+            queued.started_at = None
+        await self._persist_queued(queued)
+        return True
+
+    async def resume_task(self, task_id: str) -> bool:
+        """A job held for its person, answered: back in the queue where its
+        priority puts it. Not a retry, so it is not counted as one."""
+        queued = self.tasks_by_id.get(task_id)
+        if queued is None or queued.status != TaskStatus.BLOCKED:
+            return False
+        async with self.lock:
+            queued.status = TaskStatus.PENDING
+            self._sequence += 1
+            await self.queue.put((-queued.priority.value, self._sequence, queued))
+        await self._persist_queued(queued)
+        return True
+
     async def requeue_task(self, task_id: str) -> bool:
         queued = self.tasks_by_id.get(task_id)
         if queued is None:
@@ -717,8 +743,9 @@ class QueueAuthority:
     async def restore_pending(self) -> Dict[str, int]:
         """Rehydrate accepted-but-unfinished work from the durable store on boot.
 
-        PENDING/PLANNED/BLOCKED/AWAITING_VERIFICATION jobs re-enter the queue as
-        they were. IN_PROGRESS jobs were interrupted mid-run by the restart —
+        PENDING/PLANNED/AWAITING_VERIFICATION jobs re-enter the queue as they
+        were. A BLOCKED job is waiting for its person (`hold_for_person`): it is
+        held again, owed and not drawn, until they answer. IN_PROGRESS jobs were interrupted mid-run by the restart —
         they are reset to PENDING and re-queued (restart the interrupted work),
         and their durable row is corrected to PENDING so a second crash can't
         double-count them. Terminal jobs stay as history and are not restored.
@@ -744,6 +771,15 @@ class QueueAuthority:
                 held = self.tasks_by_id.get(task.id)
                 if held is not None and held.status in ACTIVE_STATUSES:
                     continue    # already owed here; not restored a second time
+                if r["status"] == TaskStatus.BLOCKED.value:
+                    # Waiting for its person when the substrate stopped: it
+                    # waits for them still, owed here and not drawn.
+                    async with self.lock:
+                        self.tasks_by_id[task.id] = QueuedTask(
+                            task=task, priority=self._priority_to_task_priority(task.priority),
+                            added_at=datetime.now(), status=TaskStatus.BLOCKED)
+                    restored += 1
+                    continue
                 interrupted = (r["status"] == TaskStatus.IN_PROGRESS.value)
                 if interrupted:
                     task.status = TaskStatus.PENDING
@@ -1110,17 +1146,6 @@ class QueueAuthority:
             next_due=next_due, priority=priority)
         logger.info("scheduled recurring job %s every %.0fs", name, interval_s)
 
-    def run_now(self, name: str) -> bool:
-        """Make a scheduled job due on the NEXT tick — the substrate pulling its
-        own periodic work forward (e.g. reflect BECAUSE something just failed,
-        rather than waiting out the interval). This is the authority-owned form
-        of the coordinator's old `_mark_reflection_due`. False if unknown."""
-        job = self._scheduled.get(name)
-        if job is None:
-            return False
-        job.next_due = time.monotonic()
-        logger.info("scheduled job %s made due now", name)
-        return True
 
     def scheduled_jobs(self) -> List[str]:
         return list(self._scheduled)
@@ -1212,11 +1237,21 @@ class QueueAuthority:
             self._scheduler_task.cancel()
             try:
                 await self._scheduler_task
-            except (asyncio.CancelledError, Exception):
+            except asyncio.CancelledError:
                 pass
-        for task in list(self._await_jobs.values()):
-            if not task.done():
-                task.cancel()
+        # WHAT IS STILL RUNNING ENDS BEFORE THIS RETURNS. A scheduled run already
+        # under way, or a job still owed its result, went on after the queue
+        # stopped -- and met the database closing behind it: a meta-learning pass
+        # at shutdown failed ten queries, and each failure could not even be
+        # recorded. Cancelled, then waited for, so nothing of the queue's outlives
+        # it.
+        running = [job.running for job in self._scheduled.values()
+                   if job.running is not None and not job.running.done()]
+        running += [task for task in self._await_jobs.values() if not task.done()]
+        for task in running:
+            task.cancel()
+        if running:
+            await asyncio.gather(*running, return_exceptions=True)
         self._await_jobs.clear()
 
     async def get_statistics(self) -> Dict[str, Any]:

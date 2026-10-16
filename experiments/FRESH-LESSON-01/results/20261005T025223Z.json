@@ -1,0 +1,293 @@
+{
+  "experiment": "FRESH-LESSON-01",
+  "claim": "Taught one lesson no experiment has taught or tested, Lyric holds every fact it states as a fact, a belief and a memory; reads sentences it was never taught, in shapes it already had and in two it learned from three sentences each; answers questions from what it was taught, passing what a kind can do down to its members and making nothing up; keeps it across a restart; does not grow surer from being told again; and moves a belief when told otherwise.",
+  "hypothesis": "Any fact refused, missing from the graph or moving no belief; any sentence read otherwise than written here; a new shape read before it was taught or not read after; a wrong or made-up answer; a reading lost on restart; a belief moved by the same lesson again or not moved by its contradiction; or a write to the main store, each shows here.",
+  "started_at": "2026-10-05T02:52:23.299469+00:00",
+  "duration_seconds": 970.103,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/Lyric/venv_lyric/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/Lyric",
+    "shadow_mode": null,
+    "git_commit": "0a27c570eda188a24bb63d1968f8fd104a8f4cb6",
+    "postgres": {
+      "host": "localhost",
+      "database": null,
+      "port": "5433"
+    },
+    "git_uncommitted_changes": 7,
+    "database_verified": null,
+    "database_verified_reason": "no initialized connection in this process"
+  },
+  "summary": {
+    "checks": 32,
+    "passed": 29,
+    "failed": 3,
+    "outcome": "FAIL"
+  },
+  "metrics": [
+    {
+      "name": "beliefs in what the lesson denies",
+      "value": {
+        "wug isa fish": 0.05468131721594078
+      },
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "answers",
+      "value": [
+        {
+          "asked": "What is a wug?",
+          "reply": "A wug is a bird."
+        },
+        {
+          "asked": "Is a wug a bird?",
+          "reply": "Yes. A wug is a bird."
+        },
+        {
+          "asked": "Is a wug a fish?",
+          "reply": "No. A wug is not a fish."
+        },
+        {
+          "asked": "Is a wug an animal?",
+          "reply": "Yes. Wugs are animals."
+        },
+        {
+          "asked": "Can a wug fly?",
+          "reply": "Yes. A wug can fly."
+        },
+        {
+          "asked": "Can a dax swim?",
+          "reply": "Yes. A dax can swim."
+        },
+        {
+          "asked": "Where is the blicket?",
+          "reply": "The blicket is in the box."
+        },
+        {
+          "asked": "What is a blicket made of?",
+          "reply": "A blicket is made of wood."
+        },
+        {
+          "asked": "Is Nella a person?",
+          "reply": "Yes. Nella is a person."
+        },
+        {
+          "asked": "Who owns the wug?",
+          "reply": "Nella has a wug."
+        },
+        {
+          "asked": "Is a blicket big?",
+          "reply": "I do not know whether the blicket is big."
+        },
+        {
+          "asked": "Where does a snorf live?",
+          "reply": "I understood 'does a snorf live', but not how 'Where' fits with it. I have remembered what you said."
+        },
+        {
+          "asked": "Who does the blicket belong to?",
+          "reply": "I understood 'does the blicket belong', but not how 'Who' and 'to' fit with it. I have remembered what you said."
+        }
+      ],
+      "unit": "",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "the run is in the sandbox, emptied first",
+      "passed": true,
+      "detail": "connected to lyric_dev; reset exit 0",
+      "at": "2026-10-05T02:52:50.666908+00:00"
+    },
+    {
+      "label": "the 30 lessons are learned, none refused",
+      "passed": false,
+      "detail": "{'english_21.json': {'learned': 36, 'linked': 88, 'already': 3, 'understood': 23, 'refused': 1, 'total': 57, 'repair_lexical_item_based': 23, 'repair_add_links': 20, 'repair_phrase_in_slot': 6, 'repair_substitution': 3, 'repair_holophrase': 1, 'repair_item_based_lexical': 1, 'said': 72}}",
+      "at": "2026-10-05T03:06:30.461047+00:00"
+    },
+    {
+      "label": "the two new shapes are not read before the lesson",
+      "passed": true,
+      "detail": "[None, None, None, 'unread', 'unread', 'unread']",
+      "at": "2026-10-05T03:06:30.690531+00:00"
+    },
+    {
+      "label": "every sentence of the lesson is learned, none refused",
+      "passed": true,
+      "detail": "{'learned': 13, 'linked': 34, 'already': 5, 'understood': 13, 'refused': 0, 'total': 27, 'repair_item_based_lexical': 11, 'repair_add_links': 8, 'repair_phrase_in_slot': 1, 'repair_lexical_item_based': 2, 'said': 28}",
+      "at": "2026-10-05T03:06:59.676317+00:00"
+    },
+    {
+      "label": "every fact the lesson states is in the concept graph",
+      "passed": true,
+      "detail": "26 of 26; missing: []",
+      "at": "2026-10-05T03:06:59.704979+00:00"
+    },
+    {
+      "label": "every fact it states as true moved a belief above even",
+      "passed": true,
+      "detail": "25 beliefs",
+      "at": "2026-10-05T03:06:59.705026+00:00"
+    },
+    {
+      "label": "each new word is a memory found by meaning",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-05T03:06:59.891622+00:00"
+    },
+    {
+      "label": "each new word is held in the lesson's domain",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-05T03:06:59.891642+00:00"
+    },
+    {
+      "label": "each new word has the class its use shows: a noun",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-05T03:06:59.891651+00:00"
+    },
+    {
+      "label": "never-taught sentences in shapes the lessons teach are read as written here",
+      "passed": true,
+      "detail": "8 of 8",
+      "at": "2026-10-05T03:07:00.163688+00:00"
+    },
+    {
+      "label": "the new shape 'lives in', learned from three sentences, reads three it never had",
+      "passed": true,
+      "detail": "3 of 3",
+      "at": "2026-10-05T03:07:00.367406+00:00"
+    },
+    {
+      "label": "the new shape 'belongs to', learned from three sentences, reads three it never had",
+      "passed": true,
+      "detail": "3 of 3",
+      "at": "2026-10-05T03:07:00.487068+00:00"
+    },
+    {
+      "label": "'What is a wug?': says a wug is a bird",
+      "passed": true,
+      "detail": "A wug is a bird.",
+      "at": "2026-10-05T03:07:01.544444+00:00"
+    },
+    {
+      "label": "'Is a wug a bird?': yes",
+      "passed": true,
+      "detail": "Yes. A wug is a bird.",
+      "at": "2026-10-05T03:07:02.240133+00:00"
+    },
+    {
+      "label": "'Is a wug a fish?': no",
+      "passed": true,
+      "detail": "No. A wug is not a fish.",
+      "at": "2026-10-05T03:07:02.889818+00:00"
+    },
+    {
+      "label": "'Is a wug an animal?': yes: a wug is a bird, a bird an animal",
+      "passed": true,
+      "detail": "Yes. Wugs are animals.",
+      "at": "2026-10-05T03:07:03.522310+00:00"
+    },
+    {
+      "label": "'Can a wug fly?': yes: birds can fly",
+      "passed": true,
+      "detail": "Yes. A wug can fly.",
+      "at": "2026-10-05T03:07:06.975022+00:00"
+    },
+    {
+      "label": "'Can a dax swim?': yes: fish can swim",
+      "passed": true,
+      "detail": "Yes. A dax can swim.",
+      "at": "2026-10-05T03:07:07.839336+00:00"
+    },
+    {
+      "label": "'Where is the blicket?': in the box",
+      "passed": true,
+      "detail": "The blicket is in the box.",
+      "at": "2026-10-05T03:07:08.878293+00:00"
+    },
+    {
+      "label": "'What is a blicket made of?': wood",
+      "passed": true,
+      "detail": "A blicket is made of wood.",
+      "at": "2026-10-05T03:07:10.199984+00:00"
+    },
+    {
+      "label": "'Is Nella a person?': yes: Nella is a girl, a girl a person",
+      "passed": true,
+      "detail": "Yes. Nella is a person.",
+      "at": "2026-10-05T03:07:11.137460+00:00"
+    },
+    {
+      "label": "'Who owns the wug?': Nella",
+      "passed": true,
+      "detail": "Nella has a wug.",
+      "at": "2026-10-05T03:07:13.180829+00:00"
+    },
+    {
+      "label": "'Is a blicket big?': not yes: nothing taught says so",
+      "passed": true,
+      "detail": "I do not know whether the blicket is big.",
+      "at": "2026-10-05T03:07:15.719662+00:00"
+    },
+    {
+      "label": "'Where does a snorf live?': in a house (a question shape never taught)",
+      "passed": false,
+      "detail": "I understood 'does a snorf live', but not how 'Where' fits with it. I have remembered what you said.",
+      "at": "2026-10-05T03:07:16.241721+00:00"
+    },
+    {
+      "label": "'Who does the blicket belong to?': Nella (a question shape never taught)",
+      "passed": false,
+      "detail": "I understood 'does the blicket belong', but not how 'Who' and 'to' fit with it. I have remembered what you said.",
+      "at": "2026-10-05T03:07:17.176107+00:00"
+    },
+    {
+      "label": "a new process reads every sentence it read right before, the same way",
+      "passed": true,
+      "detail": "exit 0; lost: []",
+      "at": "2026-10-05T03:07:31.719981+00:00"
+    },
+    {
+      "label": "taught again, no sentence is learned anew",
+      "passed": true,
+      "detail": "{'learned': 0, 'linked': 0, 'already': 27, 'understood': 27, 'refused': 0, 'total': 27, 'said': 0}",
+      "at": "2026-10-05T03:07:53.215524+00:00"
+    },
+    {
+      "label": "taught again, the belief does not move",
+      "passed": true,
+      "detail": "wug isa bird: 0.9453186827840592 then 0.9453186827840592",
+      "at": "2026-10-05T03:07:53.215586+00:00"
+    },
+    {
+      "label": "a weaker source saying the opposite moves the belief down",
+      "passed": true,
+      "detail": "wug isa bird: 0.9453186827840592 then 0.6429479876301225",
+      "at": "2026-10-05T03:08:30.322473+00:00"
+    },
+    {
+      "label": "asked again after it, 'Is a wug a bird?': still yes: the belief stands at 0.97",
+      "passed": true,
+      "detail": "Yes. A wug is a bird.",
+      "at": "2026-10-05T03:08:32.819982+00:00"
+    },
+    {
+      "label": "and the reply does not deny it as well",
+      "passed": true,
+      "detail": "Yes. A wug is a bird.",
+      "at": "2026-10-05T03:08:32.820039+00:00"
+    },
+    {
+      "label": "the main model's store is untouched",
+      "passed": true,
+      "detail": "0 rows before, 0 after",
+      "at": "2026-10-05T03:08:33.355065+00:00"
+    }
+  ],
+  "notes": []
+}

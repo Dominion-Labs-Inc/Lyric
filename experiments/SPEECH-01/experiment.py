@@ -52,6 +52,8 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO))
 os.environ.setdefault("POSTGRES_DATABASE", "lyric_dev")
+# Speech is off in the substrate unless said (`speech.WORDS_HEARD`); this experiment measures it, so it is on here.
+os.environ.setdefault("LYRIC_SPEECH", "on")
 
 from experiments._evidence import RunRecord  # noqa: E402
 

@@ -1,0 +1,192 @@
+{
+  "experiment": "DEVICE-01",
+  "claim": "Lyric learns a device it operates through as it learns where it runs: the kind is its own knowledge of that place, the device and its settings are the person's.",
+  "hypothesis": "situate_device registers a new kind once, holds what exists there with polarity, keeps the person's part scoped, and location fixes are the person's perceptions at a ~110 m grain.",
+  "started_at": "2026-10-03T03:52:15.038181+00:00",
+  "duration_seconds": 99.466,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/Lyric/venv_lyric/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/Lyric",
+    "shadow_mode": null,
+    "git_commit": "13ffbcb24e5583b0900806970fedefb3baaa8d6c",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "lyric_dev",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "lyric_dev",
+        "model": "lyric_dev",
+        "user_context": "lyric_dev",
+        "learning": "lyric_dev"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "environment",
+        "database": "environment",
+        "user": "environment",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "pool_idle_seconds": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 39,
+    "database_verified": "lyric_dev",
+    "database_verified_reason": "asked the server"
+  },
+  "summary": {
+    "checks": 20,
+    "passed": 20,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [
+    {
+      "name": "rows written by this run (before cleanup)",
+      "value": 458,
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "rows left after cleanup",
+      "value": 0,
+      "unit": "",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "a new kind of device is a new environment domain",
+      "passed": true,
+      "detail": "environment_1a5e5ec1dc56bc98 Device testos d01b155a280 26 model d01b155a280",
+      "at": "2026-10-03T03:53:08.598756+00:00"
+    },
+    {
+      "label": "the encounter is announced once, with what the device answered",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-03T03:53:08.598767+00:00"
+    },
+    {
+      "label": "the answer says what it offers and what it lacks",
+      "passed": true,
+      "detail": "{\"environment\": \"environment_1a5e5ec1dc56bc98\", \"kind\": \"testos d01b155a280 26 model d01b155a280\", \"novel\": true, \"offers\": [\"background location d01b155a280\", \"location d01b155a280\"], \"lacks\": [\"messages d01b155a280\"], \"device\": \"Test phone d01b155a280\", \"settings\": {\"location d01b155a280\": \"grante",
+      "at": "2026-10-03T03:53:08.598780+00:00"
+    },
+    {
+      "label": "it holds that this kind offers location",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-03T03:53:09.184388+00:00"
+    },
+    {
+      "label": "it holds that this kind does NOT offer messages (negative polarity)",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-03T03:53:09.184424+00:00"
+    },
+    {
+      "label": "it holds what the kind is",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-03T03:53:09.184429+00:00"
+    },
+    {
+      "label": "a device has no folder to count: no file counts held",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-03T03:53:09.184432+00:00"
+    },
+    {
+      "label": "the same kind, someone else's device: not new, the same domain, no new encounter",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-03T03:53:09.235440+00:00"
+    },
+    {
+      "label": "the person's device is an instance of its model, in its kind's environment",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-03T03:53:09.236554+00:00"
+    },
+    {
+      "label": "what they allowed is held as allowed; what they refused, as refused",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-03T03:53:09.236619+00:00"
+    },
+    {
+      "label": "nothing of the person's device is in the shared graph",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-03T03:53:09.241545+00:00"
+    },
+    {
+      "label": "a fix is held as the person's: the device located at a position",
+      "passed": true,
+      "detail": "['25762n_80192w']",
+      "at": "2026-10-03T03:53:09.335710+00:00"
+    },
+    {
+      "label": "a fix 30 m away is the same position; one 900 m out is not evidence",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-03T03:53:09.335720+00:00"
+    },
+    {
+      "label": "the position holds its latitude and its signed longitude",
+      "passed": true,
+      "detail": "[('latitude', '25.762'), ('longitude', '-80.192')]",
+      "at": "2026-10-03T03:53:09.336753+00:00"
+    },
+    {
+      "label": "nothing of where the person was is in the shared graph",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-03T03:53:09.337746+00:00"
+    },
+    {
+      "label": "the device route situates a report and answers with what was learned",
+      "passed": true,
+      "detail": "{\"environment\": \"environment_1a5e5ec1dc56bc98\", \"kind\": \"testos d01b155a280 26 model d01b155a280\", \"novel\": false, \"offers\": [\"background location d01b155a280\", \"location d01b155a280\"], \"lacks\": [\"mes",
+      "at": "2026-10-03T03:53:09.391072+00:00"
+    },
+    {
+      "label": "the device route takes a location",
+      "passed": true,
+      "detail": "{\"received\": true}",
+      "at": "2026-10-03T03:53:09.433053+00:00"
+    },
+    {
+      "label": "the device route refuses what is not JSON, and what is neither",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-03T03:53:09.433086+00:00"
+    },
+    {
+      "label": "a report that does not say what runs the device is refused",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-03T03:53:09.433099+00:00"
+    },
+    {
+      "label": "everything this run wrote is removed",
+      "passed": true,
+      "detail": "{}",
+      "at": "2026-10-03T03:53:54.503400+00:00"
+    }
+  ],
+  "notes": [
+    "nonce d01b155a280; database lyric_dev",
+    "held of the kind: [('form', 'phone_d01b155a280', 'positive'), ('machine', 'model_d01b155a280', 'positive'), ('manufacturer', 'maker_d01b155a280', 'positive'), ('offers', 'background_location_d01b155a280', 'positive'), ('offers', 'location_d01b155a280', 'positive'), ('offers', 'messages_d01b155a280', 'negative'), ('platform', 'testos_d01b155a280', 'positive'), ('release', '26', 'positive')]",
+    "held for the person: [('test_phone_d01b155a280', 'allows', 'background_location_d01b155a280', 'negative'), ('test_phone_d01b155a280', 'allows', 'location_d01b155a280', 'positive'), ('test_phone_d01b155a280', 'instance of', 'model_d01b155a280', 'positive'), ('test_phone_d01b155a280', 'operates in', 'environment_1a5e5ec1dc56bc98', 'positive')]",
+    "tables written: \"memory_hot\".\"memory_hot\", \"unified\".\"beliefs\", \"unified\".\"concept_aliases\", \"unified\".\"concept_domains\", \"unified\".\"concept_evidence\", \"unified\".\"concept_identity_relations\", \"unified\".\"concept_relations\", \"unified\".\"concepts\", \"unified\".\"domains\", \"unified\".\"evidence_envelopes\", \"unified\".\"knowledge_updates\", \"unified\".\"scoped_beliefs\", \"unified\".\"scoped_concept_relations\""
+  ]
+}

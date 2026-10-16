@@ -16,7 +16,7 @@ from __future__ import annotations
 import logging
 from typing import Dict, FrozenSet, List, Optional, Sequence, Set, Tuple
 
-from core.reasoning.relation_algebra import Answer, Edge, answer, derive_from
+from core.reasoning.relation_algebra import FALSE, UNKNOWN, Answer, Derivation, Edge, answer, derive_from
 from core.semantics.relation_types import SemanticRelation
 
 logger = logging.getLogger(__name__)
@@ -398,7 +398,7 @@ async def observed_instance_features(db, subject: str) -> Tuple[List[str], List[
 
 async def answer_over_graph(db, subject: str, relation: SemanticRelation, obj: str,
                             *, context_licenses: FrozenSet[SemanticRelation] = frozenset(),
-                            max_hops: int = 6, actor=None) -> Answer:
+                            max_hops: int = 6, actor=None, not_taken_in: Sequence[str] = ()) -> Answer:
     """Answer `subject relation obj` against the live concept graph, open-world.
 
     Query terms are normalised the SAME way the ingress normalised them on the
@@ -412,18 +412,213 @@ async def answer_over_graph(db, subject: str, relation: SemanticRelation, obj: s
 
     `actor` selects WHOSE context is in scope: None answers over the shared mind
     alone (the default); a user's id overlays that user's scoped edges, so the
-    substrate can answer from what THAT user told it — never from another's."""
+    substrate can answer from what THAT user told it — never from another's.
+
+    `not_taken_in` is what the asker told and was not taken in whole, as said: what memory holds of what it names is
+    then known not to be all there is, and no answer closes the world on it (`_kinds_exclude`)."""
+    from core.reasoning.relation_algebra import inverse
     from core.semantics.cognitive_ingress import normalize_term
     subject, obj = normalize_term(subject), normalize_term(obj)
     edges = await load_subgraph(db, [subject], max_hops=max_hops, actor=actor)
+    # A FACT HELD FROM THE OTHER END: "incoming is the opposite of outgoing" answers "Is outgoing the opposite of
+    # incoming?", by the relation's inverse (itself, for a symmetric one), but the walk goes out from the subject
+    # and never reached it (UNDERSTANDS-WORDNET-01: of 100 opposites, those held the other way round all unknown).
+    # Only that relation back to the subject is taken from the object's end: its other edges are the object's, and
+    # its kinds are no kinds of the subject's.
+    back = inverse(relation)
+    if back is not None:
+        held = {(e.subject, e.relation, e.obj) for e in edges}
+        edges = list(edges) + [e for e in await load_subgraph(db, [obj], max_hops=1, actor=actor)
+                               if e.relation is back and e.obj == subject
+                               and (e.subject, e.relation, e.obj) not in held]
     # Denials on the subject AND on every class it belongs to, so an inherited
     # disjointness refutes an instance: "no mammal is a bird" is a denial on
     # `mammal`, and `rex isa mammal`, so "is rex a bird?" is FALSE. The ISA
     # closure is exactly the subject plus the objects the positive edges reach.
     denial_roots = {subject} | {e.obj for e in edges}
     negatives = await load_denials(db, sorted(denial_roots), actor=actor)
-    return answer(subject, relation, obj, edges,
-                  context_licenses=context_licenses, negatives=negatives)
+    edges, negatives = _as_believed(edges, negatives)
+    found = answer(subject, relation, obj, edges,
+                   context_licenses=context_licenses, negatives=negatives)
+    if found.verdict == UNKNOWN and relation in _KIND_OF:
+        excluded = await _kinds_exclude(db, subject, relation, obj, edges, actor=actor, not_taken_in=not_taken_in)
+        if excluded is not None:
+            return excluded
+    return found
 
 
-__all__ = ["load_subgraph", "load_denials", "answer_over_graph", "instance_predicates"]
+def _as_believed(edges, negatives):
+    """The edges and denials as memory BELIEVES them: a fact held both ways -- taught, and later denied by another
+    source -- goes to the algebra only the way its evidence stands. Held as two edges, the denial always won (a
+    denial refutes), so one weaker source saying "a wug is not a bird" turned the answer while the belief stood at
+    0.97 for it. The way it stands is the one the gate holds it by: the side whose independent witnesses weigh
+    more (`BayesianUncertaintySystem.witness_weight`), each counted once, decay and propagation aside. A fact held
+    one way only is left as it is."""
+    from core.reasoning.bayesian_uncertainty import BayesianUncertaintySystem, get_uncertainty_system
+    held = {(e.subject, e.relation, e.obj) for e in edges}
+    both = {(n.subject, n.relation, n.obj) for n in negatives} & held
+    if not both:
+        return edges, negatives
+    drop_edges, drop_denials = set(), set()
+    for fact in both:
+        subject, relation, obj = fact
+        belief = get_uncertainty_system().belief_for_claim(f"{subject} {getattr(relation, 'value', relation)} {obj}")
+        if belief is None:
+            continue
+        holds = (BayesianUncertaintySystem.witness_weight(belief, supports=True)
+                 > BayesianUncertaintySystem.witness_weight(belief, supports=False))
+        (drop_denials if holds else drop_edges).add(fact)
+    return ([e for e in edges if (e.subject, e.relation, e.obj) not in drop_edges],
+            [n for n in negatives if (n.subject, n.relation, n.obj) not in drop_denials])
+
+
+#: The relations that say what a thing is: a kind of something, or one of a kind.
+_KIND_OF = frozenset({SemanticRelation.ISA, SemanticRelation.INSTANCE_OF})
+
+#: The edges INTO named concepts, in `_SUBGRAPH_SQL`'s row shape: what is held to be of a kind.
+_BELOW_SQL = (
+    "SELECT c1.name AS subj, cr.relation AS rel, c2.name AS obj, cr.polarity AS pol "
+    "FROM unified.concept_relations cr "
+    "JOIN unified.concepts c1 ON cr.source_concept_id = c1.concept_id "
+    "JOIN unified.concepts c2 ON cr.target_concept_id = c2.concept_id "
+    "WHERE c2.name = ANY($1)")
+
+
+async def held_below(db, kind: str, *, max_hops: int = 24, actor=None) -> Set[str]:
+    """`kind` and everything held to be a kind of it or one of it, all the way down: what memory holds is a `kind`.
+    `actor`'s own tellings count for a walk done on their behalf, as in `load_subgraph`. Deeper than any chain of
+    kinds WordNet holds (about 20), so a thing under a kind by a long chain is found under it: the bridge's short
+    upward walk may not reach "metal" from "copper", and copper is still no thing apart from metal."""
+    found, frontier = {kind}, [kind]
+    for _ in range(max_hops):
+        if not frontier:
+            break
+        nxt = []
+        for edge in await edges_into(db, frontier, actor=actor):
+            if edge.relation in _KIND_OF and edge.subject not in found:
+                found.add(edge.subject)
+                nxt.append(edge.subject)
+        frontier = nxt
+    return found
+
+
+async def edges_into(db, names: Sequence[str], *, actor=None) -> List[Edge]:
+    """The typed POSITIVE edges held INTO `names`: what is said of something else with one of them as its object
+    ("a welcome follows thanks", into `thanking`). `load_subgraph` reads from a thing outward; this reads what
+    points at it. `actor`'s own tellings are included for a read done on their behalf."""
+    names = [str(n) for n in names]
+    rows = list(await db.execute_query(_BELOW_SQL, (names,), fetch_all=True) or [])
+    if actor:
+        from core.learning.scoped_context_store import get_scoped_context_store
+        told = await get_scoped_context_store().edges_naming(actor, names)
+        rows += [row for row in told if row.get("obj") in names]
+    edges = []
+    for row in rows:
+        edge, denied = _typed_edge(row)
+        if edge is not None and not denied:
+            edges.append(edge)
+    return edges
+
+
+async def _kinds_exclude(db, subject: str, relation: SemanticRelation, obj: str, edges: Sequence[Edge], *,
+                         actor=None, not_taken_in: Sequence[str] = ()) -> Optional[Answer]:
+    """FALSE when `subject` and `obj` are kinds that exclude each other; None when that is not known.
+
+    THE STRONG DISJOINTNESS ASSUMPTION (Schlobach 2005): kinds neither of which is a kind of the other exclude each
+    other unless something is known to be both, as a child takes two names for things to name different things
+    (Markman 1989). "Is a grandfather clock a beer?" is no: memory holds what a grandfather clock is and what a beer
+    is, neither is a kind of the other, and nothing held is both. "Is a canine a domestic animal?" is not: the dog is
+    both. Measured on WordNet, a pair of near kinds neither under the other has something held as both 1.3% of the
+    time (`docs/research/REPLYING_TO_WHAT_IS_MEANT.md`).
+
+    The open-world rule stands for everything else. Only what things are a kind of is closed this way, and only when
+    memory holds what BOTH are and places them under something in common, so a thing it holds nothing of, or
+    nothing that bears on the other, is still unknown. The answer's basis is `disjoint`,
+    never confused with a denial held (`observed`) or derived through one; its path is what the subject is held to be.
+
+    NOR WHEN THE ASKER SAID MORE OF EITHER THAN WAS TAKEN IN (`not_taken_in`). The world is closed on what memory holds
+    of the two, and that is all there is only while nothing more was said of them. Told "Python is a high-level,
+    general-purpose programming language." and unable to read it, then asked "Is Python a programming language?",
+    memory holds a python that is a snake, and the closed world answered No, against what it had just been told
+    (UNDERSTANDS-PROSE-01, 2026-10-14). What was not read reached no concepts, so it is judged by its words.
+    """
+    own = sorted((e for e in edges if e.subject == subject and e.relation in _KIND_OF), key=lambda e: e.obj)
+    if not own:
+        return None
+    if _named_in_any(subject, not_taken_in) or _named_in_any(obj, not_taken_in):
+        return None
+    # ONLY WHERE THE TWO ARE PLACED AMONG THE SAME KINDS: something is above both. Kinds under one kind exclude
+    # each other; a thing told to be of a kind memory places nowhere ("a zeb is a wug") is not known to be apart
+    # from anything.
+    above_subject = await kinds_above(db, subject, actor=actor)
+    above_obj = await kinds_above(db, obj, actor=actor)
+    if not above_obj or not (above_subject & above_obj):
+        return None
+    if await held_as_both(db, subject, obj, actor=actor) is not None:
+        return None
+    return Answer(FALSE, "disjoint", Derivation(Edge(subject, relation, obj), (own[0],), ("disjoint kinds",)))
+
+
+def _named_in_any(name: str, sentences: Sequence[str]) -> bool:
+    """Whether one of these sentences says every word of a concept's name, case and number aside: "Whales live in
+    the ocean." names `whale`, "The argument key is a function." names `key`."""
+    if not sentences:
+        return False
+    from core.semantics.cognitive_ingress import normalize_term
+    from core.semantics.sentence_machine import form_of
+    wanted = str(name).replace("_", " ").lower().split()
+    if not wanted:
+        return False
+    for sentence in sentences:
+        said = {piece.text.lower() for piece in form_of(str(sentence))}
+        said |= {normalize_term(word) for word in said}
+        if all(word in said for word in wanted):
+            return True
+    return False
+
+
+async def kinds_above(db, name: str, *, max_hops: int = 24, actor=None) -> Set[str]:
+    """Everything `name` is held to be a kind of or one of, all the way up; not `name` itself. Only what a thing IS
+    is followed, where `load_subgraph` follows every relation: a definition's links reach most of memory in a few
+    steps."""
+    found: Set[str] = set()
+    frontier = [name]
+    for _ in range(max_hops):
+        if not frontier:
+            break
+        rows = list(await db.execute_query(_SUBGRAPH_SQL, (frontier,), fetch_all=True) or [])
+        rows += await _scoped_rows(actor, frontier)
+        nxt = []
+        for row in rows:
+            edge, denied = _typed_edge(row)
+            if edge is None or denied or edge.relation not in _KIND_OF or edge.obj in found:
+                continue
+            found.add(edge.obj)
+            nxt.append(edge.obj)
+        frontier = nxt
+    return found
+
+
+async def held_as_both(db, first: str, second: str, *, max_hops: int = 24, actor=None) -> Optional[str]:
+    """Something memory holds to be both a `first` and a `second`, the nearest under `first` (of several as near,
+    the first by name); None when nothing held is both. "canine" and "domestic animal": the dog. One of the two
+    itself, when it is a kind of the other."""
+    under_second = await held_below(db, second, max_hops=max_hops, actor=actor)
+    found, frontier = {first}, [first]
+    for _ in range(max_hops + 1):
+        both = sorted(name for name in frontier if name in under_second)
+        if both:
+            return both[0]
+        nxt = []
+        for edge in await edges_into(db, frontier, actor=actor):
+            if edge.relation in _KIND_OF and edge.subject not in found:
+                found.add(edge.subject)
+                nxt.append(edge.subject)
+        if not nxt:
+            return None
+        frontier = nxt
+    return None
+
+
+__all__ = ["load_subgraph", "load_denials", "answer_over_graph", "instance_predicates", "held_below", "edges_into",
+           "held_as_both", "kinds_above"]

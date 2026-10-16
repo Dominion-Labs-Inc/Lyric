@@ -20,7 +20,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from core.agents.autonomous.shared_types import TaskType            # noqa: E402
 from core.learning.learning_interfaces import LearningType          # noqa: E402
 from core.learning.meta_learning import (                           # noqa: E402
-    TASK_TYPE_TO_FAMILY, TaskFamily, task_family_for_task_type)
+    TaskFamily, task_family_for_task_type)
 from core.learning.unified_learning_system import (                 # noqa: E402
     _LEARNING_TYPE_TO_TASK_FAMILY)
 
@@ -48,20 +48,6 @@ def test_unknown_task_type_is_none_not_a_guess():
     assert task_family_for_task_type(None) is None
 
 
-def test_one_authority_for_the_translation():
-    """The coordinator must delegate rather than hold a second copy.
-
-    Two tables that can disagree about what family a task belongs to is the
-    duplicate-authority defect; the coordinator's copy is the one that was
-    unreachable from UnifiedLearningSystem.
-    """
-    from core.agents.autonomous.autonomous_coordinator import AutonomousCoordinator
-
-    coordinator = AutonomousCoordinator.__new__(AutonomousCoordinator)
-    for task_type in TaskType:
-        assert coordinator._task_family_for(task_type) is \
-            task_family_for_task_type(task_type), (
-                f"coordinator and module disagree about {task_type}")
 
 
 def test_substrate_learning_types_are_mapped():

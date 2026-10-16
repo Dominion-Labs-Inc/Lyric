@@ -26,7 +26,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from .tool_registry import Tool, ToolParameter, ToolResult, ToolCategory, ToolSafety
-from .capabilities import Capability, CapabilityMetadata, ToolCapabilityProfile
+from .tool_registry import Primitive, PrimitiveUse, PrimitiveProfile
 
 
 logger = logging.getLogger(__name__)
@@ -225,20 +225,15 @@ class ReadFileTool(Tool):
             )
         ]
 
-        # Capability-based discovery metadata
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="read_file",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.READ_DATA,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.READ_DATA,
                     description="Read data from local files",
                     input_types=["file_path"],
-                    output_types=["text", "binary"],
-                    context_matchers={"data_source": "file"},
-                    latency="low",
-                    cost="low",
-                    reliability="high",
-                    priority=10  # Prefer for file paths
+                    output_types=["text", "binary"]  # Prefer for file paths
                 )
             ],
             requires_filesystem=True,
@@ -413,12 +408,12 @@ class WriteFileTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="write_file",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.WRITE_DATA,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.WRITE_DATA,
                     description="Write data to files"
                 )
             ]
@@ -599,11 +594,11 @@ class PatchFileTool(Tool):
                 required=True
             ),
         ]
-        self.capability_profile = ToolCapabilityProfile(
+        self.primitive_profile = PrimitiveProfile(
             tool_name="patch_file",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.WRITE_DATA,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.WRITE_DATA,
                     description="Patch files with targeted string replacement"
                 )
             ]
@@ -724,12 +719,12 @@ class ListDirectoryTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="list_directory",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.LIST_DATA,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.LIST_DATA,
                     description="List directory contents"
                 )
             ]
@@ -836,12 +831,12 @@ class CreateDirectoryTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="create_directory",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.WRITE_DATA,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.WRITE_DATA,
                     description="Create directories"
                 )
             ]
@@ -926,12 +921,12 @@ class SearchFilesTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="search_files",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.SEARCH_DATA,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.SEARCH_DATA,
                     description="Search for files by criteria"
                 )
             ]
@@ -1038,12 +1033,12 @@ class MoveFileTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="move_file",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.MOVE_DATA,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.MOVE_DATA,
                     description="Move or rename files"
                 )
             ]
@@ -1151,12 +1146,12 @@ class CopyFileTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="copy_file",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.COPY_DATA,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.COPY_DATA,
                     description="Copy files or directories"
                 )
             ]
@@ -1268,12 +1263,12 @@ class DeleteFileTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="delete_file",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.DELETE_DATA,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.DELETE_DATA,
                     description="Delete files or directories"
                 )
             ]
@@ -1402,12 +1397,12 @@ class AtomicWriteFileTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="atomic_write_file",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.WRITE_DATA,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.WRITE_DATA,
                     description="Atomically write data to files"
                 )
             ]
@@ -1581,15 +1576,15 @@ class ValidatePathTool(Tool):
             )
         ]
 
-        self.capability_profile = ToolCapabilityProfile(
+        self.primitive_profile = PrimitiveProfile(
             tool_name="validate_path",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.VALIDATE_DATA,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.VALIDATE_DATA,
                     description="Validate file paths"
                 ),
-                CapabilityMetadata(
-                    capability=Capability.VALIDATE_INPUT,
+                PrimitiveUse(
+                    primitive=Primitive.VALIDATE_INPUT,
                     description="Detect path traversal in an untrusted path"
                 )
             ]
@@ -1719,12 +1714,12 @@ class CalculateChecksumTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="calculate_checksum",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.VALIDATE_DATA,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.VALIDATE_DATA,
                     description="Validate file integrity with checksums"
                 )
             ]
@@ -1821,12 +1816,12 @@ class GetFileInfoTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="get_file_info",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.READ_DATA,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.READ_DATA,
                     description="Read file metadata and information"
                 )
             ]
@@ -1921,12 +1916,12 @@ class CompressFileTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="compress_file",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.COMPRESS_DATA,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.COMPRESS_DATA,
                     description="Compress files and directories"
                 )
             ]
@@ -2009,12 +2004,12 @@ class DecompressFileTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="decompress_file",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.DECOMPRESS_DATA,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.DECOMPRESS_DATA,
                     description="Decompress archive files"
                 )
             ]
@@ -2104,16 +2099,16 @@ class FindDuplicateFilesTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="find_duplicate_files",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.SEARCH_DATA,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.SEARCH_DATA,
                     description="Search for and identify duplicate files"
                 ),
-                CapabilityMetadata(
-                    capability=Capability.VALIDATE_DATA,
+                PrimitiveUse(
+                    primitive=Primitive.VALIDATE_DATA,
                     description="Search for and identify duplicate files"
                 )
             ]
@@ -2209,16 +2204,16 @@ class SyncDirectoryTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="sync_directory",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.COPY_DATA,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.COPY_DATA,
                     description="Synchronize directories with validation"
                 ),
-                CapabilityMetadata(
-                    capability=Capability.VALIDATE_DATA,
+                PrimitiveUse(
+                    primitive=Primitive.VALIDATE_DATA,
                     description="Synchronize directories with validation"
                 )
             ]

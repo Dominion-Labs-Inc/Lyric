@@ -652,7 +652,7 @@ async def get_team_health_metrics() -> Dict[str, Any]:
 # =============================================================================
 try:
     from .tool_registry import Tool, ToolParameter, ToolResult, ToolCategory, ToolSafety
-    from .capabilities import Capability, ToolCapabilityProfile, CapabilityMetadata, RiskLevel
+    from .tool_registry import Primitive, PrimitiveProfile, PrimitiveUse
 
     class GetSlackUsersTool(Tool):
         """Get list of users in Dominion Labs Slack workspace"""
@@ -673,12 +673,12 @@ try:
                 )
             ]
 
-            # Capability profile
-            self.capability_profile = ToolCapabilityProfile(
+            # What this tool performs
+            self.primitive_profile = PrimitiveProfile(
                 tool_name="get_slack_users",
-                capabilities=[
-                    CapabilityMetadata(
-                        capability=Capability.READ_DATA,
+                primitives=[
+                    PrimitiveUse(
+                        primitive=Primitive.READ_DATA,
                         description="GetSlackUsers capability"
                     )
                 ]
@@ -712,12 +712,12 @@ try:
                 )
             ]
 
-            # Capability profile
-            self.capability_profile = ToolCapabilityProfile(
+            # What this tool performs
+            self.primitive_profile = PrimitiveProfile(
                 tool_name="get_slack_channels",
-                capabilities=[
-                    CapabilityMetadata(
-                        capability=Capability.READ_DATA,
+                primitives=[
+                    PrimitiveUse(
+                        primitive=Primitive.READ_DATA,
                         description="GetSlackChannels capability"
                     )
                 ]
@@ -757,12 +757,12 @@ try:
                 )
             ]
 
-            # Capability profile
-            self.capability_profile = ToolCapabilityProfile(
+            # What this tool performs
+            self.primitive_profile = PrimitiveProfile(
                 tool_name="search_slack_messages",
-                capabilities=[
-                    CapabilityMetadata(
-                        capability=Capability.SEARCH_DATA,
+                primitives=[
+                    PrimitiveUse(
+                        primitive=Primitive.SEARCH_DATA,
                         description="SearchSlackMessages capability"
                     )
                 ]
@@ -814,24 +814,19 @@ try:
                 )
             ]
 
-            # Capability profile
-            self.capability_profile = ToolCapabilityProfile(
+            # What this tool performs
+            self.primitive_profile = PrimitiveProfile(
                 tool_name="get_channel_history",
-                capabilities=[
-                    CapabilityMetadata(
-                        capability=Capability.READ_DATA,
+                primitives=[
+                    PrimitiveUse(
+                        primitive=Primitive.READ_DATA,
                         description="GetChannelHistory capability"
                     ),
-                    CapabilityMetadata(
-                        capability=Capability.RECEIVE_MESSAGE,
+                    PrimitiveUse(
+                        primitive=Primitive.RECEIVE_MESSAGE,
                         description="Receive and read messages from Slack channels",
                         input_types=["channel_id", "filters"],
-                        output_types=["messages"],
-                        latency="medium",
-                        cost="low",
-                        reliability="high",
-                        risk_level=RiskLevel.LOW,
-                        priority=8
+                        output_types=["messages"]
                     )
                 ]
             )
@@ -870,12 +865,12 @@ try:
                 )
             ]
 
-            # Capability profile
-            self.capability_profile = ToolCapabilityProfile(
+            # What this tool performs
+            self.primitive_profile = PrimitiveProfile(
                 tool_name="monitor_team_activity",
-                capabilities=[
-                    CapabilityMetadata(
-                        capability=Capability.ANALYZE_PERFORMANCE,
+                primitives=[
+                    PrimitiveUse(
+                        primitive=Primitive.ANALYZE_PERFORMANCE,
                         description="MonitorTeamActivity capability"
                     )
                 ]
@@ -901,12 +896,12 @@ try:
             self.safety_level = ToolSafety.SAFE
             self.parameters = []
 
-            # Capability profile
-            self.capability_profile = ToolCapabilityProfile(
+            # What this tool performs
+            self.primitive_profile = PrimitiveProfile(
                 tool_name="get_team_health_metrics",
-                capabilities=[
-                    CapabilityMetadata(
-                        capability=Capability.ANALYZE_PERFORMANCE,
+                primitives=[
+                    PrimitiveUse(
+                        primitive=Primitive.ANALYZE_PERFORMANCE,
                         description="Get team health metrics"
                     )
                 ]
@@ -951,12 +946,12 @@ try:
                 )
             ]
 
-            # Capability profile
-            self.capability_profile = ToolCapabilityProfile(
+            # What this tool performs
+            self.primitive_profile = PrimitiveProfile(
                 tool_name="post_slack_message",
-                capabilities=[
-                    CapabilityMetadata(
-                        capability=Capability.SEND_MESSAGE,
+                primitives=[
+                    PrimitiveUse(
+                        primitive=Primitive.SEND_MESSAGE,
                         description="PostSlackMessage capability"
                     )
                 ]
@@ -993,12 +988,12 @@ try:
                 )
             ]
 
-            # Capability profile
-            self.capability_profile = ToolCapabilityProfile(
+            # What this tool performs
+            self.primitive_profile = PrimitiveProfile(
                 tool_name="get_user_presence",
-                capabilities=[
-                    CapabilityMetadata(
-                        capability=Capability.READ_DATA,
+                primitives=[
+                    PrimitiveUse(
+                        primitive=Primitive.READ_DATA,
                         description="GetUserPresence capability"
                     )
                 ]

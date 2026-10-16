@@ -204,12 +204,13 @@ async def main() -> int:
         check("the lesson is read and taught", report.read == len(LESSON)
               and taught.get("admitted", 0) + taught.get("already", 0) == len(LESSON),
               f"read={report.read} taught={taught}")
-        rule = await L.learn_rule(
+        from core.learning.unified_learning_system import Evidence
+        rule = await L.consider_rule(
             {"subject": "valve", "relation": "is", "obj": "closed"},
             {"subject": "pump", "relation": "is", "obj": "overheating"},
-            surface="if the valve is closed then the pump is overheating", domain=DOMAIN)
-        check("the conditional is held", bool(getattr(rule, "admitted", False)),
-              f"{getattr(rule, 'refusals', None)}")
+            surface="if the valve is closed then the pump is overheating", domain=DOMAIN,
+            evidence=Evidence.from_provenance(Lesson().provenance(), 0.9))
+        check("the conditional is held", rule.admitted, f"{rule.standing}: {rule.reasons}")
         after_teach = await measure(d)
         # THE LESSON IS KEPT BETWEEN RUNS, so a run either teaches it for the first
         # time or re-teaches what is held -- and each has its own correct result.

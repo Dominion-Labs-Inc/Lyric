@@ -21,7 +21,7 @@ pixels, genuinely perceived.
 from __future__ import annotations
 import os
 for k, v in {"POSTGRES_PORT": "5433", "POSTGRES_USER": "stefan",
-             "POSTGRES_DATABASE": "lyric_db", "LYRIC_NO_WATCHDOG": "1"}.items():
+             "POSTGRES_DATABASE": "lyric_dev", "LYRIC_NO_WATCHDOG": "1"}.items():
     os.environ.setdefault(k, v)
 import asyncio, contextlib, io, json, re, sys
 from uuid import uuid4
@@ -103,8 +103,11 @@ async def main() -> int:
         r = regions[0]
         feats = [r["color"], r["shape"], r["size"]]
         perceived[name] = feats
-        await coord.learning.learn_facts(
-            [(sid(name), "isa", f) for f in feats], domain="perception")
+        from core.learning.unified_learning_system import Evidence
+        await coord.learning.consider_many(
+            [(sid(name), "isa", f) for f in feats], domain="perception",
+            evidence=Evidence(source="sense:sight", key=f"sight:{name}", source_type="PERCEPTION",
+                              quality=0.9, producer="perception"))
 
     print("=== perceived features (from real pixels) ===", flush=True)
     for name, feats in perceived.items():

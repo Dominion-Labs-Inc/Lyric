@@ -1,0 +1,324 @@
+{
+  "experiment": "FRESH-LESSON-02",
+  "claim": "Taught a second lesson no experiment has taught or tested, written after the first one's fixes, Lyric holds every fact it states as a fact, a belief and a memory; reads sentences it was never taught, in shapes it had and in two it learned from three sentences each; answers questions from what was taught, including who holds a relation to a thing, and says it does not know what was never stated; keeps it across a restart; does not grow surer from being told again; and keeps its answer when a weaker source says otherwise, while the belief moves.",
+  "hypothesis": "Any fact refused, missing from the graph or moving no belief; any sentence read otherwise than written here; a new shape read before it was taught or not read after; a wrong, made-up or crashed answer; a reading lost on restart; a belief moved by the same lesson again, or not moved by the contradiction; an answer turned by the weaker source; or a write to the main store, each shows here.",
+  "started_at": "2026-10-04T16:58:20.587555+00:00",
+  "duration_seconds": 952.598,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/Lyric/venv_lyric/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/Lyric",
+    "shadow_mode": null,
+    "git_commit": "a3aad59e25603e309479c542053a1e733fb70ce7",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "lyric_dev",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "lyric_dev",
+        "model": "lyric_dev",
+        "user_context": "lyric_dev",
+        "learning": "lyric_dev"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "environment",
+        "database": "environment",
+        "user": "environment",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "pool_idle_seconds": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 38,
+    "database_verified": null,
+    "database_verified_reason": "no initialized connection in this process"
+  },
+  "summary": {
+    "checks": 33,
+    "passed": 30,
+    "failed": 3,
+    "outcome": "FAIL"
+  },
+  "metrics": [
+    {
+      "name": "beliefs in what the lesson denies",
+      "value": {
+        "zanth isa dog": 0.47640778705276454
+      },
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "answers",
+      "value": [
+        {
+          "asked": "What is a zanth?",
+          "reply": "A zanth is a cat."
+        },
+        {
+          "asked": "Is a zanth a cat?",
+          "reply": "Yes. A zanth is a cat."
+        },
+        {
+          "asked": "Is a zanth a dog?",
+          "reply": "No. A zanth is not a dog."
+        },
+        {
+          "asked": "Is a zanth an animal?",
+          "reply": "Yes. Zanths are animals."
+        },
+        {
+          "asked": "Can a zanth climb?",
+          "reply": "Yes. The zanth can climb too."
+        },
+        {
+          "asked": "Can a plib run?",
+          "reply": "Yes. Plibs can run."
+        },
+        {
+          "asked": "Is a morv a vehicle?",
+          "reply": "Yes. A morv is a vehicle."
+        },
+        {
+          "asked": "What is a morv made of?",
+          "reply": "A morv is made of metal."
+        },
+        {
+          "asked": "Is Yuli a person?",
+          "reply": "Yes. Yuli is a person."
+        },
+        {
+          "asked": "Who owns the zanth?",
+          "reply": "Yuli has a zanth."
+        },
+        {
+          "asked": "Is the plib near the door?",
+          "reply": "Yes. The plib is near the door."
+        },
+        {
+          "asked": "Is a morv fast?",
+          "reply": "I hold nothing for fast. Tell me and I will keep it."
+        },
+        {
+          "asked": "Where is a trilp found?",
+          "reply": "I understood 'Where is a trilp', but not how 'found' fits with it. I have remembered what you said."
+        },
+        {
+          "asked": "Where does a lumo come from?",
+          "reply": "I understood 'does a lumo come', but not how 'Where' and 'from' fit with it. I have remembered what you said."
+        }
+      ],
+      "unit": "",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "the run is in the sandbox, emptied first",
+      "passed": true,
+      "detail": "connected to lyric_dev; reset exit 0",
+      "at": "2026-10-04T16:58:50.576897+00:00"
+    },
+    {
+      "label": "the 30 lessons are learned, none refused",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-04T17:12:12.498554+00:00"
+    },
+    {
+      "label": "the two new shapes are not read before the lesson",
+      "passed": true,
+      "detail": "['unread', 'unread', 'unread', None, None, None]",
+      "at": "2026-10-04T17:12:12.911599+00:00"
+    },
+    {
+      "label": "every sentence of the lesson is learned, none refused",
+      "passed": true,
+      "detail": "{'learned': 14, 'linked': 32, 'already': 6, 'understood': 13, 'refused': 0, 'total': 28, 'repair_item_based_lexical': 12, 'repair_add_links': 7, 'repair_phrase_in_slot': 1, 'repair_lexical_item_based': 2, 'said': 28}",
+      "at": "2026-10-04T17:12:42.674898+00:00"
+    },
+    {
+      "label": "every fact the lesson states is in the concept graph",
+      "passed": true,
+      "detail": "27 of 27; missing: []",
+      "at": "2026-10-04T17:12:42.712895+00:00"
+    },
+    {
+      "label": "every fact it states as true moved a belief above even",
+      "passed": true,
+      "detail": "26 beliefs",
+      "at": "2026-10-04T17:12:42.712977+00:00"
+    },
+    {
+      "label": "each new word is a memory found by meaning",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-04T17:12:42.936719+00:00"
+    },
+    {
+      "label": "each new word is held in the lesson's domain",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-04T17:12:42.936762+00:00"
+    },
+    {
+      "label": "each new word has the class its use shows: a noun",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-04T17:12:42.936780+00:00"
+    },
+    {
+      "label": "never-taught sentences in shapes the lessons teach are read as written here",
+      "passed": true,
+      "detail": "8 of 8",
+      "at": "2026-10-04T17:12:44.202588+00:00"
+    },
+    {
+      "label": "the new shape 'is found in', learned from three sentences, reads three it never had",
+      "passed": true,
+      "detail": "3 of 3",
+      "at": "2026-10-04T17:12:45.466539+00:00"
+    },
+    {
+      "label": "the new shape 'comes from', learned from three sentences, reads three it never had",
+      "passed": true,
+      "detail": "3 of 3",
+      "at": "2026-10-04T17:12:46.303177+00:00"
+    },
+    {
+      "label": "'What is a zanth?': says a zanth is a cat",
+      "passed": true,
+      "detail": "A zanth is a cat.",
+      "at": "2026-10-04T17:12:47.665120+00:00"
+    },
+    {
+      "label": "'Is a zanth a cat?': yes",
+      "passed": true,
+      "detail": "Yes. A zanth is a cat.",
+      "at": "2026-10-04T17:12:49.215033+00:00"
+    },
+    {
+      "label": "'Is a zanth a dog?': no",
+      "passed": true,
+      "detail": "No. A zanth is not a dog.",
+      "at": "2026-10-04T17:12:50.873790+00:00"
+    },
+    {
+      "label": "'Is a zanth an animal?': yes: a zanth is a cat, a cat an animal",
+      "passed": true,
+      "detail": "Yes. Zanths are animals.",
+      "at": "2026-10-04T17:12:52.458314+00:00"
+    },
+    {
+      "label": "'Can a zanth climb?': yes: cats can climb",
+      "passed": true,
+      "detail": "Yes. The zanth can climb too.",
+      "at": "2026-10-04T17:12:54.031161+00:00"
+    },
+    {
+      "label": "'Can a plib run?': yes: dogs can run",
+      "passed": true,
+      "detail": "Yes. Plibs can run.",
+      "at": "2026-10-04T17:12:55.154796+00:00"
+    },
+    {
+      "label": "'Is a morv a vehicle?': yes: a morv is a car, a car a vehicle",
+      "passed": true,
+      "detail": "Yes. A morv is a vehicle.",
+      "at": "2026-10-04T17:12:56.378888+00:00"
+    },
+    {
+      "label": "'What is a morv made of?': metal",
+      "passed": true,
+      "detail": "A morv is made of metal.",
+      "at": "2026-10-04T17:12:57.655664+00:00"
+    },
+    {
+      "label": "'Is Yuli a person?': yes: Yuli is a boy, a boy a person",
+      "passed": true,
+      "detail": "Yes. Yuli is a person.",
+      "at": "2026-10-04T17:12:58.581320+00:00"
+    },
+    {
+      "label": "'Who owns the zanth?': Yuli",
+      "passed": true,
+      "detail": "Yuli has a zanth.",
+      "at": "2026-10-04T17:13:03.330220+00:00"
+    },
+    {
+      "label": "'Is the plib near the door?': yes",
+      "passed": true,
+      "detail": "Yes. The plib is near the door.",
+      "at": "2026-10-04T17:13:04.721606+00:00"
+    },
+    {
+      "label": "'Is a morv fast?': not known: 'I do not know whether ...'",
+      "passed": false,
+      "detail": "I hold nothing for fast. Tell me and I will keep it.",
+      "at": "2026-10-04T17:13:07.550533+00:00"
+    },
+    {
+      "label": "'Where is a trilp found?': in a city (a question shape never taught)",
+      "passed": false,
+      "detail": "I understood 'Where is a trilp', but not how 'found' fits with it. I have remembered what you said.",
+      "at": "2026-10-04T17:13:08.409024+00:00"
+    },
+    {
+      "label": "'Where does a lumo come from?': a city (a question shape never taught)",
+      "passed": false,
+      "detail": "I understood 'does a lumo come', but not how 'Where' and 'from' fit with it. I have remembered what you said.",
+      "at": "2026-10-04T17:13:09.192036+00:00"
+    },
+    {
+      "label": "a new process reads every sentence it read right before, the same way",
+      "passed": true,
+      "detail": "exit 0; lost: []",
+      "at": "2026-10-04T17:13:25.526219+00:00"
+    },
+    {
+      "label": "taught again, no sentence is learned anew",
+      "passed": true,
+      "detail": "{'learned': 0, 'linked': 0, 'already': 28, 'understood': 28, 'refused': 0, 'total': 28, 'said': 0}",
+      "at": "2026-10-04T17:13:46.938939+00:00"
+    },
+    {
+      "label": "taught again, the belief does not move",
+      "passed": true,
+      "detail": "zanth isa cat: 0.9969648025282306 then 0.9969648025282306",
+      "at": "2026-10-04T17:13:46.939005+00:00"
+    },
+    {
+      "label": "a weaker source saying the opposite moves the belief down",
+      "passed": true,
+      "detail": "zanth isa cat: 0.9969648025282306 then 0.9701703182206561",
+      "at": "2026-10-04T17:14:10.510241+00:00"
+    },
+    {
+      "label": "asked again after it, 'Is a zanth a cat?': still yes: the weaker source dents the belief, not the answer",
+      "passed": true,
+      "detail": "Yes. A zanth is a cat.",
+      "at": "2026-10-04T17:14:12.557506+00:00"
+    },
+    {
+      "label": "and the reply does not deny it as well",
+      "passed": true,
+      "detail": "Yes. A zanth is a cat.",
+      "at": "2026-10-04T17:14:12.557567+00:00"
+    },
+    {
+      "label": "the main model's store is untouched",
+      "passed": true,
+      "detail": "290096 rows before, 290096 after",
+      "at": "2026-10-04T17:14:13.245651+00:00"
+    }
+  ],
+  "notes": []
+}

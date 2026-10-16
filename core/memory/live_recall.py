@@ -76,7 +76,9 @@ import asyncio
 import logging
 import time
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Sequence, Set
+from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
+
+from core.memory.utils.interfaces import decayed_importance
 
 logger = logging.getLogger(__name__)
 
@@ -131,6 +133,9 @@ class Recalled:
     #: teacher retracted is worse than recalling nothing. Reversible: feedback
     #: merges newest-wins, so a later "yes, that's right" clears it.
     corrected: bool = False
+    #: The facts the memory claims, decided once when it was stored (`claim_facts`): what recall weighs it by,
+    #: never its text read again (`harvest`).
+    facts: Tuple[list, ...] = ()
 
     @property
     def corroboration(self) -> int:
@@ -152,6 +157,22 @@ class Harvest:
 
     def texts(self, limit: int = 3) -> List[str]:
         return [m.text for m in self.memories[:limit]]
+
+
+def _said_as(recalled: "Recalled") -> str:
+    """What a memory says, as words: two memories saying the same words say one thing."""
+    return " ".join(recalled.text.lower().split())
+
+
+def _one_of_each(ranked: List["Recalled"]) -> List["Recalled"]:
+    """The best-ranked memory of each wording, in order."""
+    seen: Set[str] = set()
+    out = []
+    for recalled in ranked:
+        if _said_as(recalled) not in seen:
+            seen.add(_said_as(recalled))
+            out.append(recalled)
+    return out
 
 
 def _text_of(item: Any) -> str:
@@ -261,8 +282,10 @@ class LiveRecall:
             if existing is None:
                 existing = Recalled(
                     memory_id=memory_id, text=text,
-                    importance=float(getattr(item, "importance_score", 0) or 0),
-                    similarity=score, corrected=corrected)
+                    importance=decayed_importance(float(getattr(item, "importance_score", 0) or 0),
+                                                  getattr(item, "created_at", None)),
+                    similarity=score, corrected=corrected,
+                    facts=tuple((meta or {}).get("claim_facts") or ()) if isinstance(meta, dict) else ())
                 found[memory_id] = existing
             else:
                 existing.similarity = max(existing.similarity, score)
@@ -302,15 +325,33 @@ class LiveRecall:
         own = {mid: m for mid, m in self._landed.get(subject, {}).items()
                if not m.corrected}
         if claim:
-            from core.semantics.claim_shape import read_shape
+            from core.semantics.claim_shape import ClaimShape, read_shape, shape_of
+            from core.semantics.derived_reader import Meaning, MeaningFact
+
+            # THE ASKED SENTENCE IS READ; WHAT IS REMEMBERED IS NOT, AGAIN. A memory's claim was read once, when it was
+            # stored, and kept with it (`claim_facts`); one stored with none claimed nothing readable then. Read
+            # again here, every recalled memory went back through the whole reader each turn: 27 s of a 40 s
+            # answer to "Is a senior an adult?" with all of WordNet held (2026-10-10).
+            def stored_shape(recalled: Recalled) -> ClaimShape:
+                try:
+                    facts = tuple(MeaningFact.from_list(f) for f in recalled.facts)
+                except (TypeError, ValueError):
+                    return ClaimShape()
+                return shape_of(Meaning("tell", facts)) if facts else ClaimShape()
 
             asked_shape = read_shape(claim)
             for recalled in own.values():
-                recalled.agrees = asked_shape.agrees_with(read_shape(recalled.text))
+                recalled.agrees = asked_shape.agrees_with(stored_shape(recalled))
 
         ranked = sorted(own.values(),
                         key=lambda m: (m.similarity, m.corroboration, m.importance),
                         reverse=True)
+        # THE SAME WORDS ARE ONE THING REMEMBERED. A sentence held in several
+        # memories (the telling, the happening it told of, the pursuit it was
+        # part of) took every place recall offers: "The kelt chased the blip."
+        # three times, and "The kelt said that the blip ran." never reached the
+        # answer to "Did the blip run?". The best of each is kept.
+        ranked = _one_of_each(ranked)
 
         # INHERITED CONTEXT, RANKED BENEATH ITS OWN. A branch may lean on what
         # the subject it came from gathered, and must never outrank it: what
@@ -324,6 +365,7 @@ class LiveRecall:
                                                   m.importance),
                                    reverse=True):
                 if (not recalled.corrected and recalled.memory_id not in own
+                        and _said_as(recalled) not in {_said_as(m) for m in ranked + inherited}
                         and len(ranked) + len(inherited) < limit):
                     inherited.append(recalled)
             parent = self._arose_from.get(parent)

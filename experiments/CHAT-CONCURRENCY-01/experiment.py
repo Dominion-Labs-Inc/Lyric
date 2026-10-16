@@ -45,7 +45,7 @@ async def main() -> int:
     # Teach the SHARED mind a 2-hop chain (bare Conversation = curriculum = universal).
     n = uuid.uuid4().hex[:6]
     R, B = f"robin{n}", f"bird{n}"
-    teach = Conversation(); teach._learning = coord.learning
+    teach = Conversation()
     await teach.teach(f"a {R} is a {B}")
     await teach.teach(f"a {B} is an animal")
     question = f"is a {R} an animal?"

@@ -16,7 +16,6 @@ from .interfaces import QuantumProvider, QuantumConfig, QuantumExecutionResult
 from .quantum_algorithms import QuantumNeuralNetwork, QuantumOptimization, QuantumMLData
 from .ibm_quantum_provider import IBMQuantumProvider
 
-from core.capability import not_implemented
 
 logger = logging.getLogger(__name__)
 
@@ -184,11 +183,10 @@ class QuantumClassicalBridge:
         Nothing was trained. An accuracy figure is exactly the kind of number a
         caller records, reports and later reasons about.
         """
-        raise not_implemented(
-            "classical_ml_training",
+        raise NotImplementedError(
+            "classical_ml_training: "
             "HybridQuantumProcessor._classical_ml_training is a placeholder; "
-            "it returned fixed loss/accuracy figures for training that never ran",
-        )
+            "it returned fixed loss/accuracy figures for training that never ran")
     
     async def _classical_optimization(self, 
                                     objective_function: Callable,
@@ -458,12 +456,11 @@ class HybridWorkflowManager:
         with...". A placeholder that reports success is worse than a missing
         method: the caller records a completed reasoning task and moves on.
         """
-        raise not_implemented(
-            "quantum_reasoning",
+        raise NotImplementedError(
+            "quantum_reasoning: "
             "HybridQuantumProcessor._handle_reasoning was never implemented; "
             "core/reasoning/unified_quantum_reasoning_system.py is the system "
-            "it was meant to bridge to",
-        )
+            "it was meant to bridge to")
     
     def _assess_quantum_suitability(self, task: HybridTask) -> bool:
         """Assess if task is suitable for quantum processing"""

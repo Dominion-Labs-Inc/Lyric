@@ -22,7 +22,7 @@ file with a `.txt` extension arrived differing only in magnitude*. So the substr
 feel doubt and be unable to say what it doubted, and a feeling with no object can only be
 waited out.
 
-## The eight properties
+## The seven properties
 
 | | |
 |---|---|
@@ -30,10 +30,11 @@ waited out.
 | **B** | that object reaches appraisal as `about` / `about_domain` |
 | **C** | the feeling carries it |
 | **D** | it survives a restart, like the feeling it belongs to |
-| **E** | the substrate can SAY it, in its own words |
 | **F** | a faded doubt leaves its question behind, idempotently |
 | **G** | no object ⇒ no question — counted as lost, never invented |
 | **H** | a partial update does not erase the object |
+
+Property E (the substrate can SAY it, in its own words) was removed 2026-10-08 with `_describe_attitude`: what Lyric feels is not described to anyone in that sense. The letters are kept so earlier results still line up.
 
 **F is the asymmetry worth the whole experiment.** Fading is alleviation by TIME, and for
 satisfaction that is harmless — it was about something finished. Doubt is not symmetric

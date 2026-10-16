@@ -618,6 +618,7 @@ SHAPES-LEARN-03's sets, whole and partial.
   held construction reads the pair but for one slot, and what the meaning adds there, about that slot's thing, is a
   phrase pair (`_what_the_slot_adds`). It is learned as a pair is: read by a held phrase, generalized over the held
   fillers inside it (a slot for each), or held whole (`_phrase_repair`), and linked to the slot.
+  The frame as the sentence writes it, when held and no longer believed, is revived by the pair (`_repair`), here and in item-based → lexical (2026-10-05; before, both dropped a held frame first, and English-21's "You can open the box." was refused).
 - **What a reading supposes** counts the words taken as new names, not the names: "blue ball" as one new name
   supposes more than "ball" beside the known "blue".
 - **english_03**, 21 pairs: words before a thing (in five frames), several of them, where a thing is, whose it is,

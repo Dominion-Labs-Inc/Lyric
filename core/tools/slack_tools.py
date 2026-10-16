@@ -293,7 +293,7 @@ async def notify_team(
 # Import Tool base classes for registry integration
 try:
     from .tool_registry import Tool, ToolParameter, ToolResult, ToolCategory, ToolSafety
-    from .capabilities import Capability, ToolCapabilityProfile, CapabilityMetadata, RiskLevel
+    from .tool_registry import Primitive, PrimitiveProfile, PrimitiveUse
 
     class AskForClarificationTool(Tool):
         """Ask Dominion Labs team for clarification on internal tasks"""
@@ -331,68 +331,43 @@ try:
                 )
             ]
 
-            # Capability profile
-            self.capability_profile = ToolCapabilityProfile(
+            # What this tool performs
+            self.primitive_profile = PrimitiveProfile(
                 tool_name="ask_for_clarification",
-                capabilities=[
-                    CapabilityMetadata(
-                        capability=Capability.ASK_HUMAN,
+                primitives=[
+                    PrimitiveUse(
+                        primitive=Primitive.ASK_HUMAN,
                         description="AskForClarification capability"
                     ),
-                    CapabilityMetadata(
-                        capability=Capability.REQUEST_CLARIFICATION,
+                    PrimitiveUse(
+                        primitive=Primitive.REQUEST_CLARIFICATION,
                         description="Request clarification from human operators",
                         input_types=["question", "context"],
-                        output_types=["clarification_response"],
-                        latency="high",
-                        cost="low",
-                        reliability="high",
-                        risk_level=RiskLevel.LOW,
-                        priority=9
+                        output_types=["clarification_response"]
                     ),
-                    CapabilityMetadata(
-                        capability=Capability.LEARN_FROM_HUMAN,
+                    PrimitiveUse(
+                        primitive=Primitive.LEARN_FROM_HUMAN,
                         description="Learn from human feedback and guidance",
                         input_types=["question", "what_tried"],
-                        output_types=["learned_knowledge"],
-                        latency="high",
-                        cost="low",
-                        reliability="high",
-                        risk_level=RiskLevel.LOW,
-                        priority=8
+                        output_types=["learned_knowledge"]
                     ),
-                    CapabilityMetadata(
-                        capability=Capability.RECEIVE_FEEDBACK,
+                    PrimitiveUse(
+                        primitive=Primitive.RECEIVE_FEEDBACK,
                         description="Receive feedback from human operators",
                         input_types=["question", "task"],
-                        output_types=["feedback"],
-                        latency="high",
-                        cost="low",
-                        reliability="high",
-                        risk_level=RiskLevel.LOW,
-                        priority=8
+                        output_types=["feedback"]
                     ),
-                    CapabilityMetadata(
-                        capability=Capability.REQUEST_EXPERTISE,
+                    PrimitiveUse(
+                        primitive=Primitive.REQUEST_EXPERTISE,
                         description="Request expert knowledge from human team",
                         input_types=["question", "context"],
-                        output_types=["expert_guidance"],
-                        latency="high",
-                        cost="low",
-                        reliability="high",
-                        risk_level=RiskLevel.LOW,
-                        priority=7
+                        output_types=["expert_guidance"]
                     ),
-                    CapabilityMetadata(
-                        capability=Capability.REQUEST_OVERSIGHT,
+                    PrimitiveUse(
+                        primitive=Primitive.REQUEST_OVERSIGHT,
                         description="Request human oversight for decisions requiring approval",
                         input_types=["question", "task"],
-                        output_types=["oversight_response"],
-                        latency="high",
-                        cost="low",
-                        reliability="high",
-                        risk_level=RiskLevel.MEDIUM,
-                        priority=9
+                        output_types=["oversight_response"]
                     )
                 ]
             )
@@ -469,24 +444,19 @@ try:
                 )
             ]
 
-            # Capability profile
-            self.capability_profile = ToolCapabilityProfile(
+            # What this tool performs
+            self.primitive_profile = PrimitiveProfile(
                 tool_name="report_security_finding",
-                capabilities=[
-                    CapabilityMetadata(
-                        capability=Capability.SEND_MESSAGE,
+                primitives=[
+                    PrimitiveUse(
+                        primitive=Primitive.SEND_MESSAGE,
                         description="ReportSecurityFinding capability"
                     ),
-                    CapabilityMetadata(
-                        capability=Capability.REQUEST_OVERSIGHT,
+                    PrimitiveUse(
+                        primitive=Primitive.REQUEST_OVERSIGHT,
                         description="Request human oversight for security decisions",
                         input_types=["context"],
-                        output_types=["oversight_request"],
-                        latency="high",
-                        cost="low",
-                        reliability="high",
-                        risk_level=RiskLevel.LOW,
-                        priority=9
+                        output_types=["oversight_request"]
                     )
                 ]
             )
@@ -552,35 +522,25 @@ try:
                 )
             ]
 
-            # Capability profile
-            self.capability_profile = ToolCapabilityProfile(
+            # What this tool performs
+            self.primitive_profile = PrimitiveProfile(
                 tool_name="notify_dominion_labs_team",
-                capabilities=[
-                    CapabilityMetadata(
-                        capability=Capability.SEND_MESSAGE,
+                primitives=[
+                    PrimitiveUse(
+                        primitive=Primitive.SEND_MESSAGE,
                         description="NotifyDominionLabsTeam capability"
                     ),
-                    CapabilityMetadata(
-                        capability=Capability.EXPLAIN_TO_HUMAN,
+                    PrimitiveUse(
+                        primitive=Primitive.EXPLAIN_TO_HUMAN,
                         description="Explain system operations and findings to human team",
                         input_types=["notification", "context"],
-                        output_types=["delivery_confirmation"],
-                        latency="medium",
-                        cost="low",
-                        reliability="high",
-                        risk_level=RiskLevel.LOW,
-                        priority=8
+                        output_types=["delivery_confirmation"]
                     ),
-                    CapabilityMetadata(
-                        capability=Capability.TEACH_CONCEPT,
+                    PrimitiveUse(
+                        primitive=Primitive.TEACH_CONCEPT,
                         description="Communicate conceptual information to team members",
                         input_types=["notification", "title"],
-                        output_types=["delivery_confirmation"],
-                        latency="medium",
-                        cost="low",
-                        reliability="high",
-                        risk_level=RiskLevel.LOW,
-                        priority=6
+                        output_types=["delivery_confirmation"]
                     )
                 ]
             )

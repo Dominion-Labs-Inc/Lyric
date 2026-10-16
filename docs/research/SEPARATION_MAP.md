@@ -447,6 +447,10 @@ Learning from work also barely happens. LEARNED-WORK-01 (09-26) found that after
 
 ### 10.2 The way to separate: split each experience, then gate what is learned
 
+**Superseded in part by §11 (2026-10-06).** Whose a part is is decided by what it is about, not by where it came
+from; and a fact a person tells is judged by whether it is true, like any other evidence. The "never the person's
+word, and never several people's" rule and the table's last row below no longer hold.
+
 An experience is not given to one owner. It is split into parts, and each part is decided by two questions.
 
 **1. Whose is it?** This is decided by where the part came from, not by who was there.
@@ -621,3 +625,420 @@ writer is routed to it, and the build order, are in `MEMORY_AGENT_MAP.md`.
 **Added decision.**
 8. **Turning off learning from tasks.** Can a deployment, or a person, turn it off? Classified work may need to.
    Proposed: yes, per deployment. The person's episode is still kept as theirs.
+
+## 11. Truth, not who said it: one intake, one split, one gate (designed 2026-10-06; built 2026-10-07, see 11.11)
+
+### 11.1 The decision
+
+The teammate, 2026-10-06:
+- "The whole point is not that what a user tells Lyric shouldn't be admitted as fact. The point is: is it true or not."
+- "The system needs to be able to separate facts about the world from facts about the user." A user sends Lyric a
+  picture of a printer and says "this is a printer": "that's a freaking fact for the whole world."
+- "Learning from task failures and Lyric overcoming tasks belong to the world, not only the user, because Lyric can
+  encounter the same situation with 50 other users."
+- "It's supposed to be a learning authority, which is the one learning path; then the coordinator, who is Lyric, has
+  that one conversation path."
+- "We're going to give Lyric the same knowledge that an LLM carries up until today's date, however long it takes to
+  train or learn."
+
+From the same day's work on the user-facing platform: a person's knowledge is personal or work; an organization owns
+its users' work knowledge and every memory that comes with it; Lyric learns the personal side from how the person
+uses it, never by combing their mail, calls or location.
+
+**What this changes in §10.** §10.2 decided whose a part is by where it came from, and kept a person's word out of
+world knowledge for good. Both go. A part is decided by **what it is about**; a world claim is decided by **whether
+it is true**, and a person's word is evidence like a page or a sensor, weighed by its record.
+
+**What it keeps.** 09-24: "Learning is one path no outside user ever touches." It still holds: the person never
+touches learning. Their experience goes to memory, and the one learning path decides, by evidence, what the world
+learns from it. Requirement 3 of 09-27 also holds: nothing is taken as fact without evidence for it.
+
+### 11.2 Three owners, one direction
+
+```
+ a person, a page, a sensor, a tool run, Lyric's own work
+                     |
+                     v
+ LYRIC (the coordinator): ONE conversation path, perceiving and acting.
+   Answers from what is held: world knowledge, and this person's context.
+   Calls no learning method. Hands every experience to memory, whole.
+                     |
+                     v
+ THE MEMORY AGENT: the one writer and reader of memory.
+   1. The person's part goes into their context at once (personal, or work owned by the organization),
+      so serving them never waits.
+   2. The split: what each part is ABOUT (11.3).
+   3. The lift: a method's particulars become variables.
+   4. World candidates go to the learning authority, with their evidence.
+                     |
+                     v
+ THE LEARNING AUTHORITY, with the belief system: the ONE learning path.
+   The gate: is it TRUE (11.4)? Admits to world knowledge, holds a candidate, or refuses,
+   and records the decision.
+```
+
+The memory agent keeps no judge of truth (the rule of 09-01). The learning authority writes no person's context.
+
+### 11.3 What it is about: the split
+
+Every part is read into meaning by the one reader (a sentence, a document), or arrives structured (a percept, a tool's
+output, a device report). Its facts are judged term by term.
+
+- **A kind** is a general concept: printer, dog, Bluetooth pairing, a timeout.
+- **A particular** is an individual: a named person ("Ava", "Dan"), a thing pointed at ("this", "my printer", "our
+  server"), an address, a path, an account, an organization's system.
+  - It is **public** when the world knows it independently of the person: held in world knowledge from a world
+    source, or found by research (Paris, the HP LaserJet 4000, the Bluetooth 5.3 specification).
+  - Otherwise it belongs to the context it came from: the person's (personal), or the organization's (work).
+
+**The rule.** A fact whose terms are all kinds or public particulars is **about the world**. A fact with any
+particular of a person or an organization is **about them**. An experience holding both is split, part by part.
+
+**Personal or work** follows where it came from, as the platform decided: a work device, work account or the
+organization's connector makes it work, owned by the organization; otherwise it is personal. When a person leaves an
+organization, the work stays with it.
+
+**The cases:**
+
+| Experience | About the person (their context) | About the world (to the gate) |
+|---|---|---|
+| A picture of a printer, "this is a printer" | that this thing is their printer, where it is | what a printer looks like: the picture's object as an example of the kind, its surroundings left out |
+| "Find a place for Ava's 8th birthday party" | Ava is their daughter, turning 8 | what the research found about venues, once its sources pass |
+| "Our VPN is vpn.northwind.com" (work) | Northwind's VPN address, owned by Northwind | nothing |
+| "Paris is in France." | that they said it (nothing about them) | Paris is in France |
+| "A wug is a small bird." | that they said it | a wug is a small bird, judged by the gate |
+| A build failed, then passed once NODE_ENV was set | their project, their build | the failure and its fix, lifted: "an unset environment variable fails a build that reads it" |
+| A device report | the device's name, what they set on it | what the kind of device offers (its kind fields only) |
+| "That's right", after a telling | that they confirmed it | evidence on the claim it judges |
+
+**What changes in the code.** `lift.person_terms` (`core/memory/lift.py:99`) takes every word a person supplied as
+theirs, so "printer", said by a person, would make a printer lesson theirs. It becomes the person's **particulars**.
+`Part` (`core/memory/utils/interfaces.py:86`) keeps where a part came from and gains what it is about. `Origin`
+(`interfaces.py:15`) gains its context: personal, or work and the organization.
+
+### 11.4 Is it true: the gate
+
+A world claim carries its evidence: each observation with its **source**, an **independence key**, its **kind** and
+its **quality**.
+
+- **Kinds of evidence:**
+  - a person's telling;
+  - a page or document (its site);
+  - Lyric's own perception (the sense, the instance);
+  - a measured outcome (the run and what checked it);
+  - Lyric's own reasoning, which derives from evidence and is never itself a root (a name is never a premise:
+    RECOGNISE-01, property E).
+- **Consistency with what is held.** Checked before anything moves:
+  - the concept graph's denials and disjointness;
+  - Z3 over held rules;
+  - conflicting values.
+
+  A contradiction keeps both sides as beliefs and lets the evidence decide. It never silently overwrites.
+- **Independence.** The same person, the same page, the same site, or copied text counts once (source dependence:
+  Dong, Berti-Equille & Srivastava 2009). A repeat adds nothing; `observe_claim` already keys observations.
+- **Reliability is learned, per source.** When a source's claims later settle for or against, its reliability moves
+  (Dawid & Skene 1979; TruthFinder, Yin, Han & Yu 2008; Knowledge-Based Trust, Dong et al. 2015). A person is a source
+  like a page: being a person neither proves nor disqualifies a claim.
+- **Standing.** The posterior gives a world claim its standing:
+  - a **candidate**: usable, and said with its uncertainty;
+  - **held**;
+  - **settled**.
+- **Settled knowledge is hard to move.** Contradicting it takes independent evidence whose combined reliability
+  exceeds what settled it. A flood of new, unproven sources cannot do it (poisoning of web-scale data: Carlini et al.,
+  IEEE S&P 2024), and what one source can put through in a period is limited.
+- **Methods, failures and fixes:**
+  - the outcome is checked by something other than Lyric's own report;
+  - from the first checked success the method is a candidate everyone's work can use, so the second of 50 users
+    does not relearn it;
+  - it is learned once it works again on a different task (the §10.2 rule, kept).
+- **The gate is as strong as what Lyric knows to check against.** The plan to teach Lyric what an LLM knows, through
+  this one path, is what gives it that.
+
+### 11.5 What it rests on
+
+- **Truth discovery and source reliability:**
+  - Dawid & Skene, *Applied Statistics* 28, 1979;
+  - Yin, Han & Yu, "Truth discovery with multiple conflicting information providers on the web", *IEEE TKDE* 20,
+    2008;
+  - Dong, Berti-Equille & Srivastava, "Integrating conflicting data: the role of source dependence", *VLDB* 2009;
+  - Dong et al., "Knowledge-Based Trust: estimating the trustworthiness of web sources", *VLDB* 2015;
+  - Li et al., "A survey on truth discovery", *SIGKDD Explorations* 17, 2016.
+- **What is general and what is particular:** explanation-based generalization (Mitchell, Keller & Kedar-Cabelli,
+  1986) and the lift, as in §10.3.
+- **Where information may go:** contextual integrity (Nissenbaum, 2004); a person's and an organization's
+  particulars never leave their context.
+- **Why the particulars test is strict:** Carlini et al., "The Secret Sharer", USENIX Security 2019, and
+  "Extracting training data from large language models", USENIX Security 2021.
+- **Why one source cannot rewrite settled knowledge:** Carlini et al., "Poisoning web-scale training datasets is
+  practical", IEEE S&P 2024.
+
+### 11.6 Every path, mapped (read in the code 2026-10-06)
+
+**The conversation path** (`Conversation`, `autonomous_coordinator.py:21170-24135`; the front door
+`handle_user_request` → `_take_turn` → `Conversation.understand`, `:16515`):
+
+| Path today | Where | Change |
+|---|---|---|
+| Told a world fact: the reader's facts go to `learn_fact` as the person; held as an edge and a 0.9 belief in their scope, walked as true for them; lifted to the world when a different person tells the same claim, or Lyric already holds it | `teach` `:22679`, `_ingest` `:22553`; `_learn_scoped_fact` `unified_learning_system.py:4559-4647`; overlay `concept_graph_reasoning.py:78` | `teach` hands the telling to memory. Their context keeps that they said it, and any facts about them. The world claim goes to the gate. Promotion by a second teller is removed |
+| The only check on a told fact: refuses an "is a" the graph already denies | `_admissible_world_fact` `:21440` | Replaced by the gate's consistency check |
+| Told "if … then …": held as the person's scoped belief | `teach` `:22759`; `_learn_scoped_rule` `unified_learning_system.py:3877` | As a told fact |
+| Told a fact naming the speaker: held about them | `_learn_about_user` `:21412` | Kept, written by the memory agent, decided by the split |
+| A sentence it cannot read: kept as theirs | `remember_told` `:22710` | Kept |
+| A question with a word not held: research on by default; the first page whose title names it; its first "X is a Y" admitted as world knowledge | `understand(look_up=True)` `:23310`; `_research_phrase` `:22909`, admitted `:23066` | The research episode (question, each source, what it said) goes to memory; the gate weighs the sources and admits what they establish |
+| "That's right" / "that's wrong": moves a SHARED belief on the verdict sentence's own text | `_take_feedback` `:23155`; `learn_from_feedback` `unified_learning_system.py:1105-1213`, `:1196` | Evidence on the claim it judges, through the gate, as that person's observation |
+| The exchange remembered as the person's | `_answer_from_what_is_held` `:17217` | Kept |
+| A turn and a research handed to the pool | `_hand_over` `:23224` | Kept; the one door out of the conversation |
+
+**Lyric's other paths** (`AutonomousCoordinator`, `:6611-20460`):
+
+| Path today | Where | Change |
+|---|---|---|
+| A person teaches by showing or saying ("this is a printer", a word, a voice, a song): kept as theirs; recognition for everyone reads only Lyric's own lessons | `learn_word` … `learn_thing` `:8576-8629`; `lessons_taught` `memory_agent.py:4281` | Split: the example of the kind goes to the gate, and once admitted every recognition uses it. A person's voice is theirs (a particular) |
+| Recognition from a person's percept: held in their scope, never promoted | `recognise_sensed` `:15308` | Split as above |
+| A task failure: remembered as the person's only | `_execute_and_validate_task` `:16390` | The failure and what overcame it go to memory, are lifted, and reach the world through the gate |
+| A task outcome to the learner as the task's owner | `_expand_one_outcome` `:12969` | Through memory and the lift |
+| Executed actions: before and after recorded with no owner; concepts from them accepted into the shared graph | `_record_execution_demonstration` `:19299-19397` | Through memory with the task's owner: the method is lifted, the person's particulars stay theirs |
+| A device report: every key of `kind` becomes a world fact; a `root` would scan that path | `situate_device` `:11108`, `:11134` | Only the kind fields go to the world; the rest is the person's; no scan from a report |
+| Lyric's own host: files, tools and what files say | `_react_investigate_environment` `:11213`; `_ingest_environment_entry` `:10997` | Through memory and the gate, with perception as its evidence (its own observation, so it passes at once) |
+| Experiment findings; kinds described from Lyric's own observations | `record_finding` `:15062`; `describe_kind` `:15120` | Same: handed over, not learned by the coordinator |
+| Reasoning and prediction memories under whoever asked | `reason_about` `:9826`; `:10005`; `:10132` | Kept |
+
+**The learning authority** (`core/learning/unified_learning_system.py`):
+
+| Today | Where | Change |
+|---|---|---|
+| `learn_fact` routes by actor: a person's facts to their scope, everyone else's to the world | `:3014-3036` | Takes candidates from memory and routes by the gate. A person's context is the memory agent's |
+| Any learning example or feedback that carries a claim is admitted to the world as "user supplied", whoever it came from | `_route_declarative_takeaway` `:3914` | Closed: one door into world knowledge |
+| `observe_claim` moves a shared belief with no source of its own | `:4019` | Every observation names its source and independence key |
+
+**Reasoning:** the abstract engine's probabilistic strategy creates a shared belief at 0.5 for each claim a person's
+question targets (`abstract_reasoning_engine.py:1611`). Measured before changing: if it is reached for a person, it
+moves to their context.
+
+### 11.7 The checks, written before building
+
+- **PATHS-02** (static and live, extending PATHS-01):
+  - no knowledge door is called outside the learning authority;
+  - the coordinator and `Conversation` call none;
+  - every experience reaches the pool;
+  - there is one conversation path.
+- **SPLIT-01:** the cases of 11.3 and more, each with its expected destination (world, personal, work, nothing),
+  frozen before the run.
+- **TRUTH-01:**
+  - a true new claim from one person becomes a world candidate, and is used for another person, said with its
+    uncertainty;
+  - a claim contradicting settled knowledge is refused even when five people tell it;
+  - agreeing independent sources raise a claim, and the same page read twice does not;
+  - a source proved wrong loses reliability;
+  - "that's right" moves the claim it judges.
+- **CANARY-01:** secrets planted in a person's personal and work context never appear in world knowledge, world
+  memory, or any answer to another person.
+- **FIFTY-01:** the same failure met by different users is overcome once; the second user's task uses the fix.
+- **ORG-01:** when a person leaves, the work stays with the organization and the personal goes with them.
+
+All on the sandbox; main untouched.
+
+### 11.8 Build order
+
+0. **Done 2026-10-06: the meaning says what is particular.** "The X" is written as a known thing
+   (`docs/TEACHING.md` §12d); until then a person's "The printer is broken." read like a fact about every printer.
+1. **Which known thing.** "The printer" is the printer talked of, or the one the person's context holds; a told
+   particular with no name gets one in the context it belongs to (a discourse referent: Kamp 1981; Heim 1982). Held
+   facts and answers about "the X" rest on it: QUESTION-FORMS-02 and UNASSERTED-01, which tell facts about "the kelt",
+   wait on it.
+2. `Origin` gains its context; `Part` gains what it is about.
+3. The memory agent's split by aboutness; `person_terms` becomes particulars; the person's context is written by the
+   memory agent at once.
+4. The gate, in the learning authority with the belief system: evidence per source, independence, learned
+   reliability, consistency, standing.
+5. Every path in 11.6 re-routed: Lyric hands over, and the learning methods are called only by the authority.
+6. Promotion by a second teller and the declarative side door removed.
+7. The checks in 11.7, each run and recorded.
+
+### 11.10 As it will be built: known things, the intake, the split, the gate (2026-10-07)
+
+**Known things** (step 1). Lyric, listening, finds which thing "the X" is; the memory agent holds it.
+- **A particular's name** is its kind and its number in the context that holds it: the person's first printer is
+  `printer 1` in their context. It is said back as "the printer" (`given instance_of`, its kind).
+- **Finding it**, for each `given instance_of(?t, X)`:
+  1. the X talked of in this conversation, latest first;
+  2. else the X the person's context holds, the one last spoken of;
+  3. else the X the world holds where there is one of it (the sun, the sky);
+  4. else, told of: a new X in the context the telling belongs to; asked of: Lyric does not know which X, and says
+     so.
+- **Lyric's own lessons:** a lesson is one telling, so "the kelt" across a lesson is one kelt, the lesson's, in the
+  world (Lyric's own teaching). QUESTION-FORMS-02 and UNASSERTED-01 rest on this.
+
+**The intake** (steps 2–3). The conversation makes one call for a telling, `MemoryAgent.take_in_telling`:
+- it passes the sentence, its meaning with the situation and the known things bound, the origin (the person, and
+  their context: personal or work) and the evidence (the telling);
+- it is answered at once, so the next turn answers from it;
+- what was held for the person, and what went to the gate, come back for the reply.
+
+The memory agent's split, fact by fact:
+- **about the person** when it names the speaker or the listener, a particular in a person's or organization's
+  context, or a name the world does not hold;
+- **about the world** when every term is a kind or a particular the world holds.
+
+The person's part is written to their context. A world claim goes to the gate, with the telling as its evidence.
+
+**The gate** (step 4). `learning_authority.consider(claim, evidence)` returns a decision: its standing (candidate,
+held, settled), or a refusal and why.
+- Consistency against what is held (denials, disjointness, held rules) comes first.
+- Each observation keeps its source and independence key, so repeats count once.
+- Admitting writes the world: concepts, links and the belief. Nothing else writes the world from a telling.
+
+**Answering** (unchanged in place). A question binds its known things the same way, then answers from the world and
+this person's context; what it has no way to settle stays a question about which.
+
+### 11.9 Decisions for the teammate
+
+**Answered 2026-10-06:**
+- **2.** Lyric does not say where what it knows came from. It does only when it looked something up for the question,
+  such as a web search about an event after what it was taught: "remember we are going to teach up until today or
+  tomorrow ... say an event happens a week from now and the user is asking Lyric about it and Lyric looks it up."
+- **5.** "We're going to work on sources later; we need to get this done first." Build this now.
+
+**Taken as defaults until said otherwise:**
+- **1.** A new claim with nothing against it is a candidate Lyric uses, and says plainly.
+- **3.** Every source weighs the same until the sources work; independence and consistency hold from the start.
+- **4.** A person's context carries personal or work, personal by default; ownership by an organization comes with
+  the platform's organizations.
+
+The questions as asked:
+
+1. **A new claim from one source with nothing against it:** a candidate (usable, said with its uncertainty) or held
+   at once?
+2. **How Lyric says candidate knowledge to another person:** as known, or with where it came from ("I've been told")?
+3. **People's reliability:** learned per person like a page's, from their record?
+4. **Organizations in the backend:** now, with this, or after?
+5. **The LLM-level knowledge:** which sources, and whether it is taught before or after this gate is built? Taught
+   after, it passes through the gate like everything else.
+
+### 11.11 As built (2026-10-07)
+
+**Lyric hands over.** Nothing in `autonomous_coordinator.py` puts a claim into knowledge (PATHS-02, read from the
+source). What Lyric meets goes to the memory agent's intake:
+
+| What Lyric met | Memory's intake | Where memory takes it |
+|---|---|---|
+| a telling | `take_in_telling` | split fact by fact: the speaker's, the person's (personal or work), or the gate |
+| "That's right" / "That's wrong" | `take_in_verdict`, then the telling again | the memories it made flagged; the claim told again, the same witness revising its word |
+| a sentence that did not read | `take_in_unread` | remembered as theirs, nothing held as said |
+| a page found by research | `take_in_research` | the gate, the page the source and its site the independence key |
+| what a learned classifier named a thing | `take_in_recognised` | their context for a thing in their percept; the gate for one Lyric met |
+| a percept, a device report, a threat | `take_in_percept` | the modality's producer, which holds the owner's part and takes the world's to the gate |
+| a lesson shown or said | `take_in_lesson` | the world's lessons when it is of a kind and nothing remembered says otherwise |
+| Lyric's own observation | `take_in_observed` | the gate |
+| an act, seen before and after | `take_in_demonstration`, `take_in_transition` | the demonstration store (with its owner); the transition projected, a person's lifted |
+| a task's outcome, remembered | `take_outcome_to_learning` | the learning authority, as the task owner's experience |
+| one of its tools, a tool's use | `take_in_tool`, `take_in_tool_use` | the producers (a use keeps the names of what was given, never the values) |
+
+The learning authority's classifier only says what it names a thing (`name_instance`); it writes nothing.
+Lyric's own bookkeeping stays a call on the learning authority: crediting its own choice of task type
+(`update_strategy_effectiveness`), closing a gap it verified (`resolve_known_unknown`), and the triggers of the
+authority's own induction. None of them carries a claim about the world or a person.
+
+**A task's completion belief is the task's.** It was a belief in the world's store, its claim the task's goal in
+the words of whoever set it. It is computed on the task with the one belief kernel and stored with the task.
+
+**A person's context records which of their contexts.** The context tables and the table of what people say of
+themselves keep `context` (personal or work) and `organization`, written from the origin by every writer. Work is
+owned by the organization: §11.13.
+
+**The gate** (`UnifiedLearningSystem.consider`, `consider_many`, `consider_rule`, `consider_envelope`):
+- a claim is named in the store's own terms, so one claim has one belief however it was spelled;
+- a person's word has 120 new claims an hour on every path (single, bulk, rule), counting claims in known words;
+- **settled needs corroboration**: past the belief system's bar AND at least two independent witnesses on that
+  side. One witness at a telling's quality reaches 0.937, past the bar, and was standing as settled;
+- **a claim held against what the world holds is held only when its independent witnesses outweigh** the ones
+  holding the other side (`witness_weight`: each witness once, by its latest word, its quality its weight).
+  Until then it is refused where that side is settled, doubted where it is not, and counted either way. An
+  inherited denial is weighed by the held claim that denies it. Answers, where a fact is held both ways, go by
+  the same weights.
+
+**What Lyric overcame is a method from the first task that worked** (FIFTY-01, 16/16).
+- Memory lifts the first task of a shape that worked, its outcome counted, at once into the world's method
+  (`MemoryAgent._lift`, `lift.lift_one`). It keeps as constants only what is no one's particular (`_no_ones`):
+  - its tools' own words (a truth value, a value the tool declares; `lift.vocabulary`);
+  - what the world holds a thing under (11.3).
+- The task's files, texts and names are variables.
+- What its fix changed is kept on the method (`fixes`) and given to the next plan, anyone's, before its first
+  attempt (`Capabilities.known_fix`).
+- Tasks of the shape that waited become its witnesses.
+- A person's own method still forms beside it from two of their tasks (the residue test).
+- Recall before acting serves the task's person (their own, their organizations', Lyric's), not Lyric alone.
+
+**Beliefs are held in log-odds, with no cap.**
+- Each observation adds `±3·quality` (`evidence_step`) and the posterior is read from the log-odds
+  (`probability_of`).
+- Decay shrinks the log-odds in proportion.
+- The clamp just short of certainty is gone (`clamp_posterior`, `posterior_from_evidence`), so ten witnesses hold
+  a claim more firmly than five, and a few contrary ones no longer bring a well-held claim near 0.5.
+- `unified.beliefs.log_odds` stores it; a person's context stores it too.
+
+**Re-run on the uncapped kernel and the first-success lift (2026-10-07):** PATHS-02 15/15, TRUTH-01 18/18, SPLIT-01
+17/17, ORG-01 20/20, INSTANCES-01 11/11, FIFTY-01 16/16, CAPABILITY-EMERGE-01 43/43.
+
+**Checks (2026-10-07, final code):** PATHS-02 15/15, SPLIT-01 17/17, TRUTH-01 18/18, ORG-01 20/20, PATHS-01
+24/24, SYSTEM-CONVERSATION-01 34/34, ACTOR-IDENTITY-01 8/8, CANARY-01 57/59 (its two misses are reasoning records
+that were never written: the kinds of thinking settled nothing, so there was nothing to check the owner of; no leak
+anywhere in it). ENGLISH-01 28/28, QUESTION-FORMS-02 16/16, UNASSERTED-01 10/10: nothing regressed.
+
+### 11.12 Open, and what each waits on (2026-10-07)
+
+- **Source reliability** (a source proved wrong losing weight) waits for the sources work (11.9, 3 and 5).
+- **A person's declared write has no account under Law 2.** FIFTY-01's first run sent a person's writes through
+  the front door, and Law 2 refused each one: "no account of why". Two things follow:
+  - methods (lifted only from declared plans) form for persons only from reads;
+  - the supervised flow (a person confirming each act) cannot run a write.
+
+  What would close this is the constitution judging the substrate's intention in a request it took on, not only a
+  planner's route. The teammate's order puts that after learning from experience and reasoning to a belief.
+
+### 11.13 Shared World Context: a composition, not a store (2026-10-07)
+
+The teammate, 2026-10-07: Shared World Context "is the runtime composition of the knowledge Lyric is authorized to
+reason over for a particular person", of three independently owned domains: World Knowledge (Lyric's shared model),
+Personal Context (the individual's), and Work Context(s) (an organization's or a client's). They keep their
+ownership, storage, provenance and access boundaries and are never merged or copied into one another. A device is an
+interface; ownership comes from the source, identity, authorization and organizational context. Every instance of
+one person resolves to the same composition; coworkers share their organization's Work Context and never each
+other's Personal Context; a person who leaves takes the Work Context out of their composition, and it stays the
+organization's. "Do not create a fourth category ... Add a composition/authorization layer over the existing World
+Knowledge, Personal Context, and Work Context stores."
+
+**What 11.11 had wrong.** A work telling was held under the person, tagged with the organization: the organization
+did not own it, a coworker could not be answered from it, and it left with the person.
+
+**Owners.**
+
+| Domain | Owner | Where it is kept |
+|---|---|---|
+| World Knowledge | Lyric's own (no person) | the model: concepts, links, beliefs, Lyric's memories |
+| Personal Context | the person's actor id | their rows of the context tables and of memory |
+| Work Context | the organization, `org:<organization>` (`shared_types.work_owner`) | the organization's rows of the same tables |
+
+`Origin.owner` says which: what comes through a person's work for an organization is the organization's, every
+memory that comes with it included (`MemoryAgent._owner_from`, a task's origin from the request's context, a pursuit
+read back with its context).
+
+**Authorization.** `unified.work_authorizations` (person, organization, authorized, revoked), written only by the
+memory agent: `authorize_work` when the authenticated front door takes a request through a person's work context
+for an organization (a work context claimed without a verified identity is refused); `unlink_work` when the
+authenticated identity says they no longer act for it (`metadata.unlink_work` at the front door). Unlinking
+removes nothing: the Work Context stays the organization's.
+
+**Composition.** `MemoryAgent.shared_world_context(actor)`: Lyric's own, the person's, and `org:<o>` for each
+organization they are authorized for now; for Lyric's own work, its own only. Every reader composes through it:
+memory search (`PostgresStorage._actor_predicate`), in-process visibility (`shared_types.visible_to`), the context
+store's readers and the reasoner's overlay (`ScopedContextStore._composed`), and what a speaker said of themselves
+(`MemoryAgent.said_of_themselves`). Nothing is copied: a coworker reads the organization's rows where they are.
+
+**Each turn's context is its own request's.** A session's conversation is held across turns; a turn's context is
+set from that turn's request, personal where it names none (CANARY-01 found a work turn's context carried into the
+person's next personal turn on the same session). **Reasoning done at work is the organization's:** the reasoning
+context carries the organization, and what the kinds of thinking write down (arguments, causes, hypotheses, the
+reasoning memory) is filed under it.
+
+**Checked by** ORG-01 (and SPLIT-01's work case, CANARY-01's work secret).

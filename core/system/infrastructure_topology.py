@@ -83,10 +83,6 @@ class InfrastructureTopology:
         # pointing at the wrong instance.
         self.add_service('postgresql-lyric', ServiceTier.CRITICAL, 5433, depends_on=[])
 
-        # Lyric - system operator
-        self.add_service('torinai-chat', ServiceTier.CRITICAL, 9080, depends_on=['postgresql-lyric'])
-        self.add_service('torinai-api', ServiceTier.CRITICAL, 9001, depends_on=['postgresql-lyric'])
-
         # === IMPORTANT TIER ===
         # Core services depend on PostgreSQL and route through API Gateway
         self.add_service('employee-auth', ServiceTier.IMPORTANT, 8101, depends_on=['postgresql-lyric'])
@@ -96,24 +92,14 @@ class InfrastructureTopology:
         self.add_service('smtp-sender', ServiceTier.IMPORTANT, 8105, depends_on=[])
         self.add_service('user-settings', ServiceTier.IMPORTANT, 8106, depends_on=['postgresql-lyric'])
 
-        # AgentSO - SOC platform (uses separate PostgreSQL instance)
+        # The shared PostgreSQL instance on 5432 (AgentSO's, which is retired)
         self.add_service('postgresql-agentso', ServiceTier.IMPORTANT, 5432, depends_on=[])
-        self.add_service('agentso', ServiceTier.IMPORTANT, 8107, depends_on=['postgresql-agentso'])
-        self.add_service('agentso-web', ServiceTier.IMPORTANT, 3010, depends_on=['agentso'])
 
-        # Cloud services
-        self.add_service('cloud-storage', ServiceTier.IMPORTANT, 8401, depends_on=['postgresql-lyric'])
+        # Payments
         self.add_service('payment-service', ServiceTier.IMPORTANT, 8500, depends_on=['postgresql-lyric'])
 
         # Redis - caching layer
         self.add_service('redis', ServiceTier.IMPORTANT, 6379, depends_on=[])
-
-        # === OPTIONAL TIER ===
-        # AI services
-
-        # Monitoring stack
-        self.add_service('prometheus', ServiceTier.OPTIONAL, 9090, depends_on=[])
-        self.add_service('grafana', ServiceTier.OPTIONAL, 3000, depends_on=['prometheus'])
 
         # Build reverse dependencies (who depends on me?)
         for service_name, node in self.services.items():

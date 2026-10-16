@@ -131,8 +131,9 @@ def declared_parameters(tool) -> List[Any]:
 def action_binding(tool_name: str, tool, observe) -> Optional[OperatorBinding]:
     """One operator, derived from what the tool declares about itself.
 
-    ITS ARGUMENTS ARE THE TOOL'S RESOURCE PARAMETERS, in declared order. Those
-    are the only ones whose values appear as terms in the observed world, and an
+    ITS ARGUMENTS ARE THE TOOL'S RESOURCE PARAMETERS, in declared order, then
+    its payloads as fingerprints (`payload_term`). Resources are the only
+    arguments whose values appear as terms in the observed world, and an
     argument that appears nowhere in the world is one induction can never
     connect to a precondition or an effect. It is also what keeps this operator
     the SAME operator `ActFrame` names when the substrate watches itself act --
@@ -163,11 +164,25 @@ def action_binding(tool_name: str, tool, observe) -> Optional[OperatorBinding]:
         return None
     declared = declared_parameters(tool)
     names = [str(p.name) for p in resources]
+    # The act's payloads follow its places, as `ActFrame` names them, so the
+    # operator the substrate performs is the one it watched itself perform.
+    payload_names = [str(p.name) for p in payload_parameters(tool)]
 
     def parameters(args: Sequence[str]) -> Dict[str, Any]:
         supplied: Dict[str, Any] = {}
         for name, raw, declared_param in zip(names, args, resources):
             supplied[name] = _coerce(_decode(str(raw)), declared_param)
+        for name, raw in zip(payload_names, list(args)[len(names):]):
+            digest = _decode(str(raw))
+            text = payload_for(digest)
+            if text is None:
+                # A fingerprint is not the text. An act whose payload the
+                # substrate does not hold cannot be performed, and is refused
+                # here, before anything is done, rather than sent without it.
+                raise LookupError(
+                    f"{tool_name}: the text with fingerprint {digest} is not held, "
+                    f"so this act cannot be performed")
+            supplied[name] = text
         for parameter in declared:
             if parameter.name not in supplied:
                 default = getattr(parameter, "default", None)
@@ -293,14 +308,15 @@ def sensed_fact(measure: str, kind: str, value: str, measured: Any) -> Fact:
 
 
 #: What the self's perception MEASURES about a thing: what kind it is, its size,
-#: and which thing it is. Its name, extension and depth are read off the path
-#: itself and change only when the path does, so as facts they would only
-#: restate the term they are about.
-SENSED_MEASURES = ("kind", "size", "identity")
+#: which thing it is, and for a file what it holds. Its name, extension and depth
+#: are read off the path itself and change only when the path does, so as facts
+#: they would only restate the term they are about.
+SENSED_MEASURES = ("kind", "size", "identity", "content")
 
 #: The measures that say what a thing is LIKE, as opposed to which thing it is:
-#: two copies of one file are alike and are two things.
-DESCRIBING_MEASURES = ("kind", "size")
+#: two copies of one file are alike, in kind, size and what they hold, and are
+#: two things.
+DESCRIBING_MEASURES = ("kind", "size", "content")
 
 #: What the self's perception states when it looks at a place and nothing is
 #: there. A fact of its own rather than a kind called "none": nothing is not a
@@ -683,7 +699,17 @@ def _proposer_for(domain_id: str, world: "ToolObservedWorld") -> Callable[[], Li
                 if taken:
                     rounds[index].append(Fact(binding.predicate,
                                               (_encode(thing), _encode(taken[turn % len(taken)]))))
-        return [act for acts in rounds for act in acts]
+
+        # An act that puts something into the world is practised with a text of
+        # its own, different each time, so what it carries can be seen to land.
+        payload_count = {binding.predicate: len(payload_parameters(registry.get_tool(binding.tool_name)))
+                         for binding, *_ in practisable}
+        proposed: List[Fact] = []
+        for k, act in enumerate(a for acts in rounds for a in acts):
+            extra = tuple(_encode(payload_term(f"practice {turn}.{k}.{i}\n"))
+                          for i in range(payload_count.get(act.predicate, 0)))
+            proposed.append(Fact(act.predicate, act.args + extra) if extra else act)
+        return proposed
 
     return propose
 
@@ -743,6 +769,40 @@ _OBSERVER_WARM: set = set()
 PAYLOAD_PARAMS = frozenset({
     "content", "code", "command", "data", "body", "text", "payload", "sql",
 })
+
+def payload_parameters(tool) -> List[Any]:
+    """The declared parameters that carry what an act PUTS INTO the world (the
+    text a write is given), in declared order. Nothing can be pointed at them, so
+    they are not resources; but they are what the act is FOR, since a write is
+    right when the file then holds its payload. They join the act as the
+    payload's fingerprint (`payload_term`)."""
+    return [p for p in declared_parameters(tool)
+            if str(getattr(p, "type", "")).lower() == "string"
+            and str(p.name).lower() in PAYLOAD_PARAMS]
+
+
+#: The texts the substrate has been given to put into the world, by fingerprint,
+#: so an act that names one by its fingerprint can be performed. Held in this
+#: process: a planned write names the text its goal was given.
+_PAYLOADS: Dict[str, str] = {}
+
+
+def payload_term(text: Any) -> str:
+    """The fingerprint an act carries for a payload, in the form the self's
+    sense gives what a file holds, so `CONTENT(file, x)` and the act's argument
+    agree exactly when the file holds the payload. The text is kept by it. An
+    absent payload is the empty text, so an act's arity does not vary."""
+    from core.agents.autonomous.autonomous_coordinator import text_digest
+    text = text if isinstance(text, str) else ""
+    digest = text_digest(text)
+    _PAYLOADS[digest] = text
+    return digest
+
+
+def payload_for(digest: str) -> Optional[str]:
+    """The text held under a payload fingerprint, or None."""
+    return _PAYLOADS.get(digest)
+
 
 #: tool -> the predicates its reports were OBSERVED to produce. Grown from real
 #: readings, never declared. Empty after a restart, which costs one wide
@@ -890,16 +950,7 @@ async def observe_resources(
     registry = get_tool_registry()
 
     async def one(observer: str, parameter: str, value: str):
-        # A READING IS RECORDED AS ONE. The registry records every tool run for
-        # learning, attributed to the task the run serves; these serve none --
-        # they are the substrate looking at the world around an act -- so they
-        # say so, rather than reading as anonymous tool use.
-        from core.reasoning.intent_authority import set_acting_task, reset_acting_task
-        token = set_acting_task("observation", f"observing {parameter}={value} with {observer}")
-        try:
-            result = await registry.execute_tool(observer, {parameter: value})
-        finally:
-            reset_acting_task(token)
+        result = await registry.execute_tool(observer, {parameter: value})
         if not getattr(result, "success", False):
             # A REFUSAL IS NOT A READING. The constitution is wired to
             # `execute_tool`, so it judges these observations too. An act it
@@ -1073,8 +1124,14 @@ class ActFrame:
         if not resources:
             return None
 
+        # WHAT THE ACT WAS ASKED TO PUT INTO THE WORLD follows the places it
+        # names, as the payload's fingerprint, so the act and the self's reading
+        # of the file can be compared (`payload_term`). Not a resource: nothing
+        # here looks at it, and it adds no kind to the domain.
+        payloads = [payload_term(parameters.get(p.name)) for p in payload_parameters(tool)]
         action = Fact(predicate_for(tool_name),
-                      tuple(_encode(value) for _kind, value in resources))
+                      tuple(_encode(value) for _kind, value in resources)
+                      + tuple(_encode(digest) for digest in payloads))
         domain_id = derived_domain_id(kind for kind, _ in resources)
 
         # A kind the self senses is read by that sense alone; any other kind by

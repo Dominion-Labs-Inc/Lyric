@@ -313,9 +313,22 @@ def _formulas(text: str, spans: List[Tuple[int, int]]) -> List[Tuple[int, int]]:
     return out
 
 
+#: What stands for a quotation in the sentence around it, as one piece: the quoted words are a sentence of their own,
+#: read apart (`derived_reader.set_apart`), and "Tom said, “…”" is what is left of `Tom said, "The dog barked."`.
+QUOTED = "“…”"
+
+
 def form_of(text: str) -> Tuple[Piece, ...]:
-    """The pieces of `text`, in order, with nothing lost or changed."""
+    """The pieces of `text`, in order, with nothing lost or changed; a quotation set apart (`QUOTED`) is one."""
     text = str(text or "")
+    if QUOTED in text:
+        parts = text.split(QUOTED)
+        out: List[Piece] = []
+        for at, part in enumerate(parts):
+            out.extend(form_of(part))
+            if at < len(parts) - 1:
+                out.append(Piece(QUOTED, parts[at + 1][:1].isspace()))
+        return tuple(out)
     n = len(text)
     return tuple(Piece(text[start:end], end < n and text[end].isspace())
                  for start, end in _formulas(text, _spans(text)))
@@ -328,7 +341,7 @@ def surface_of(pieces) -> str:
 
 
 
-__all__ = ["Piece", "form_of", "surface_of", "tokenize",
+__all__ = ["Piece", "form_of", "surface_of", "tokenize", "QUOTED",
            "COPULAS", "DETERMINERS", "NEGATORS", "SUBORDINATORS",
            "PREPOSITIONS", "PRONOUNS", "CONJUNCTIONS", "AUXILIARIES",
            "RELATIVES", "QUANTIFIERS", "MODALS", "PASSIVE_AUXILIARIES",

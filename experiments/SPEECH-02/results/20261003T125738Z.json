@@ -1,0 +1,451 @@
+{
+  "experiment": "SPEECH-02",
+  "claim": "The words the English lessons are written in can be taught to the substrate by hearing them said, each lesson kept as a hearing in the shared mind and read back exactly; and said by people it was never taught by, a word it names firmly is the word said.",
+  "hypothesis": "H1 every example of a real word said is taught, none refused, each a hearing of its own saying which word it taught. H2 a fresh faculty reads every example back exactly. H3 a firm reading of a word said by an untaught speaker is right; how many are named at all is measured.",
+  "started_at": "2026-10-03T12:57:38.428996+00:00",
+  "duration_seconds": 298.754,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/Lyric/venv_lyric/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/Lyric",
+    "shadow_mode": null,
+    "git_commit": "a3aad59e25603e309479c542053a1e733fb70ce7",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "lyric_dev",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "lyric_dev",
+        "model": "lyric_dev",
+        "user_context": "lyric_dev",
+        "learning": "lyric_dev"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "environment",
+        "database": "environment",
+        "user": "environment",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "pool_idle_seconds": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 13,
+    "database_verified": "lyric_dev",
+    "database_verified_reason": "asked the server"
+  },
+  "summary": {
+    "checks": 12,
+    "passed": 10,
+    "failed": 2,
+    "outcome": "FAIL"
+  },
+  "metrics": [
+    {
+      "name": "lesson words",
+      "value": 904,
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "lesson words with no clip to teach or hear",
+      "value": [
+        "x",
+        "y",
+        "z",
+        "cat's",
+        "dog's",
+        "cubed",
+        "earwig",
+        "where's",
+        "factorial",
+        "subtract",
+        "sqrt",
+        "teacher's",
+        "pliers",
+        "snowing",
+        "swum",
+        "cos"
+      ],
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "words taught",
+      "value": 100,
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "seconds to teach",
+      "value": 138.1,
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "seconds per lesson",
+      "value": 0.46,
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "refused",
+      "value": [],
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "rows teaching wrote, by table",
+      "value": {
+        "unified.memory_media": 300,
+        "unified.performance_logs": 305,
+        "unified.performance_logs_2026_10": 305,
+        "unified.domains": 1,
+        "unified.concept_aliases": 1514,
+        "unified.concept_domains": 1075,
+        "unified.concept_evidence": 3919,
+        "unified.concept_identity_relations": 320,
+        "unified.concepts": 1070,
+        "unified.evidence_envelopes": 300,
+        "unified.concept_relations": 4477,
+        "unified.beliefs": 4478,
+        "memory_hot.memory_hot": 301,
+        "unified.experience_pool": 300
+      },
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "relations teaching wrote, first 40",
+      "value": [
+        [
+          "s02dc75ddthe0xb353cc2b2c",
+          "has_format",
+          "wav"
+        ],
+        [
+          "s02dc75ddthe0xb353cc2b2c",
+          "has_codec",
+          "pcm_s16le"
+        ],
+        [
+          "s02dc75ddthe0xb353cc2b2c",
+          "lasts",
+          "1.6"
+        ],
+        [
+          "s02dc75ddthe0xb353cc2b2c",
+          "has_sample_rate",
+          "22050"
+        ],
+        [
+          "s02dc75ddthe0xb353cc2b2c",
+          "has_channels",
+          "1"
+        ],
+        [
+          "s02dc75ddthe0xb353cc2b2c",
+          "hearing_is",
+          "clear"
+        ],
+        [
+          "s02dc75ddthe0xb353cc2b2c",
+          "background_is",
+          "quiet"
+        ],
+        [
+          "s02dc75ddthe0xb353cc2b2c",
+          "contains",
+          "s02dc75ddthe0xb353cc2b2c_unpitchedabrupt"
+        ],
+        [
+          "s02dc75ddthe0xb353cc2b2c_unpitchedabrupt",
+          "isa",
+          "unpitched"
+        ],
+        [
+          "s02dc75ddthe0xb353cc2b2c_unpitchedabrupt",
+          "isa",
+          "abrupt"
+        ],
+        [
+          "s02dc75ddthe0xb353cc2b2c_unpitchedabrupt",
+          "starts_at",
+          "0.743"
+        ],
+        [
+          "s02dc75ddthe0xb353cc2b2c_unpitchedabrupt",
+          "lasts",
+          "0.139"
+        ],
+        [
+          "s02dc75ddthe0xb353cc2b2c_unpitchedabrupt",
+          "level",
+          "-25.4"
+        ],
+        [
+          "s02dc75ddthe1x523f5fe033",
+          "has_format",
+          "wav"
+        ],
+        [
+          "s02dc75ddthe1x523f5fe033",
+          "has_codec",
+          "pcm_s16le"
+        ],
+        [
+          "s02dc75ddthe1x523f5fe033",
+          "lasts",
+          "1.6"
+        ],
+        [
+          "s02dc75ddthe1x523f5fe033",
+          "has_sample_rate",
+          "22050"
+        ],
+        [
+          "s02dc75ddthe1x523f5fe033",
+          "has_channels",
+          "1"
+        ],
+        [
+          "s02dc75ddthe1x523f5fe033",
+          "hearing_is",
+          "clear"
+        ],
+        [
+          "s02dc75ddthe1x523f5fe033",
+          "background_is",
+          "quiet"
+        ],
+        [
+          "s02dc75ddthe1x523f5fe033",
+          "contains",
+          "s02dc75ddthe1x523f5fe033_lowgradual"
+        ],
+        [
+          "s02dc75ddthe1x523f5fe033_lowgradual",
+          "isa",
+          "pitched"
+        ],
+        [
+          "s02dc75ddthe1x523f5fe033_lowgradual",
+          "isa",
+          "low_pitched"
+        ],
+        [
+          "s02dc75ddthe1x523f5fe033_lowgradual",
+          "isa",
+          "gradual"
+        ],
+        [
+          "s02dc75ddthe1x523f5fe033_lowgradual",
+          "starts_at",
+          "0.697"
+        ],
+        [
+          "s02dc75ddthe1x523f5fe033_lowgradual",
+          "lasts",
+          "0.244"
+        ],
+        [
+          "s02dc75ddthe1x523f5fe033_lowgradual",
+          "level",
+          "-26.7"
+        ],
+        [
+          "s02dc75ddthe1x523f5fe033_lowgradual",
+          "pitch_hz",
+          "118.3"
+        ],
+        [
+          "s02dc75ddthe2x5cc5c8f851",
+          "has_format",
+          "wav"
+        ],
+        [
+          "s02dc75ddthe2x5cc5c8f851",
+          "has_codec",
+          "pcm_s16le"
+        ],
+        [
+          "s02dc75ddthe2x5cc5c8f851",
+          "lasts",
+          "1.6"
+        ],
+        [
+          "s02dc75ddthe2x5cc5c8f851",
+          "has_sample_rate",
+          "22050"
+        ],
+        [
+          "s02dc75ddthe2x5cc5c8f851",
+          "has_channels",
+          "1"
+        ],
+        [
+          "s02dc75ddthe2x5cc5c8f851",
+          "hearing_is",
+          "clear"
+        ],
+        [
+          "s02dc75ddthe2x5cc5c8f851",
+          "background_is",
+          "quiet"
+        ],
+        [
+          "s02dc75ddthe2x5cc5c8f851",
+          "contains",
+          "s02dc75ddthe2x5cc5c8f851_unpitchedabrupt"
+        ],
+        [
+          "s02dc75ddthe2x5cc5c8f851_unpitchedabrupt",
+          "isa",
+          "unpitched"
+        ],
+        [
+          "s02dc75ddthe2x5cc5c8f851_unpitchedabrupt",
+          "isa",
+          "abrupt"
+        ],
+        [
+          "s02dc75ddthe2x5cc5c8f851_unpitchedabrupt",
+          "starts_at",
+          "0.755"
+        ],
+        [
+          "s02dc75ddthe2x5cc5c8f851_unpitchedabrupt",
+          "lasts",
+          "0.104"
+        ]
+      ],
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "heard",
+      "value": {
+        "not named": 192,
+        "heard": 200,
+        "named wrongly": 4,
+        "right, firmly": 2,
+        "right, weakly": 2
+      },
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "named right",
+      "value": "4/200",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "named wrongly, most often",
+      "value": [
+        "ball as a (1)",
+        "one as what (1)",
+        "twelve as a (1)",
+        "my as five (1)"
+      ],
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "seconds to hear a word",
+      "value": 0.14,
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "rows left after cleanup, by table",
+      "value": {},
+      "unit": "",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "the run is in the sandbox",
+      "passed": true,
+      "detail": "lyric_dev",
+      "at": "2026-10-03T12:58:31.705778+00:00"
+    },
+    {
+      "label": "no real word said is refused",
+      "passed": true,
+      "detail": "0 of 300: []",
+      "at": "2026-10-03T13:00:50.711964+00:00"
+    },
+    {
+      "label": "every example taught is a hearing remembered on its own",
+      "passed": true,
+      "detail": "300 memories for 300 lessons",
+      "at": "2026-10-03T13:00:50.712199+00:00"
+    },
+    {
+      "label": "each lesson is a hearing in the shared mind, tagged a spoken word, saying which word it taught",
+      "passed": true,
+      "detail": "0 wrong: []",
+      "at": "2026-10-03T13:01:12.405652+00:00"
+    },
+    {
+      "label": "its trace keeps exactly what was measured of the example, never the recording",
+      "passed": true,
+      "detail": "0 wrong: []",
+      "at": "2026-10-03T13:01:12.405717+00:00"
+    },
+    {
+      "label": "every word taught by hearing is a word the reader holds, written the same",
+      "passed": true,
+      "detail": "0 not: []",
+      "at": "2026-10-03T13:01:12.406289+00:00"
+    },
+    {
+      "label": "every taught word, with every example",
+      "passed": true,
+      "detail": "300 examples of 100 words, against 300",
+      "at": "2026-10-03T13:01:13.348752+00:00"
+    },
+    {
+      "label": "exactly as they were taught",
+      "passed": true,
+      "detail": "300 of 300",
+      "at": "2026-10-03T13:01:54.511383+00:00"
+    },
+    {
+      "label": "a word named firmly is the word said",
+      "passed": false,
+      "detail": "1 firm and wrong: [('twelve', [('a', 0.537)])]",
+      "at": "2026-10-03T13:02:35.645981+00:00"
+    },
+    {
+      "label": "most words said by an untaught speaker are named",
+      "passed": false,
+      "detail": "4 of 200",
+      "at": "2026-10-03T13:02:35.646002+00:00"
+    },
+    {
+      "label": "everything the run wrote to the sandbox is removed",
+      "passed": true,
+      "detail": "{}",
+      "at": "2026-10-03T13:02:36.736505+00:00"
+    },
+    {
+      "label": "the main model's store is untouched",
+      "passed": true,
+      "detail": "290096 rows before, 290096 after",
+      "at": "2026-10-03T13:02:37.172315+00:00"
+    }
+  ],
+  "notes": [
+    "Spoken words held before this run: 0."
+  ]
+}

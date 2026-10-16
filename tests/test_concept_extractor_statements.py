@@ -30,7 +30,7 @@ def _tell(*facts):
 @pytest.fixture(autouse=True)
 def taught(monkeypatch):
     """What memory would hold after these pairs were taught, handed to the reader as memory would hand it over."""
-    view = PatternInventory(score=lambda item: (0.9, 1))
+    view = PatternInventory(score=lambda item: (0.9, 1, True))
     for sentence, meaning in [
             ("A robin is a bird.", _tell(("isa", "robin", "bird"))),
             ("A sparrow is a bird.", _tell(("isa", "sparrow", "bird"))),

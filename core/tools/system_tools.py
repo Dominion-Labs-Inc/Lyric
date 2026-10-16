@@ -28,7 +28,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
 from .tool_registry import Tool, ToolParameter, ToolResult, ToolCategory, ToolSafety
-from .capabilities import Capability, ToolCapabilityProfile, CapabilityMetadata
+from .tool_registry import Primitive, PrimitiveProfile, PrimitiveUse
 
 
 logger = logging.getLogger(__name__)
@@ -131,12 +131,12 @@ class ClipboardTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="clipboard",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.MANAGE_PROCESS,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.MANAGE_PROCESS,
                     description="Clipboard capability"
                 )
             ]
@@ -351,12 +351,12 @@ class NotificationTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="notification",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.MANAGE_PROCESS,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.MANAGE_PROCESS,
                     description="Notification capability"
                 )
             ]
@@ -563,11 +563,11 @@ class ListUsbDevicesTool(Tool):
             )
         ]
 
-        self.capability_profile = ToolCapabilityProfile(
+        self.primitive_profile = PrimitiveProfile(
             tool_name="list_usb_devices",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.MANAGE_PROCESS,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.MANAGE_PROCESS,
                     description="Inspect attached hardware"
                 )
             ]
@@ -673,12 +673,12 @@ class InstalledSoftwareTool(Tool):
                 required=False, default="",
             ),
         ]
-        self.capability_profile = ToolCapabilityProfile(
+        self.primitive_profile = PrimitiveProfile(
             tool_name="installed_software",
-            capabilities=[
-                CapabilityMetadata(capability=Capability.LIST_DATA,
+            primitives=[
+                PrimitiveUse(primitive=Primitive.LIST_DATA,
                                    description="Enumerate installed software"),
-                CapabilityMetadata(capability=Capability.MANAGE_PROCESS,
+                PrimitiveUse(primitive=Primitive.MANAGE_PROCESS,
                                    description="Inspect the system"),
             ],
         )
@@ -806,12 +806,12 @@ class SystemInfoTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="system_info",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.MANAGE_PROCESS,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.MANAGE_PROCESS,
                     description="SystemInfo capability"
                 )
             ]
@@ -900,12 +900,12 @@ class FileWatcherTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="file_watcher",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.MANAGE_PROCESS,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.MANAGE_PROCESS,
                     description="FileWatcher capability"
                 )
             ]
@@ -982,12 +982,12 @@ class ListAvailableToolsTool(Tool):
             ToolParameter("search", "string", "Search for tools matching this keyword", required=False)
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="list_available_tools",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.MANAGE_PROCESS,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.MANAGE_PROCESS,
                     description="ListAvailables capability"
                 )
             ]

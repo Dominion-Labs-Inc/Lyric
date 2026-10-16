@@ -122,11 +122,11 @@ async def main() -> int:
         for batch in range(4):
             for i in range(8):
                 name = f"ss01{tag}b{batch}i{i}"
-                await coord.learning.learn_fact(
+                await coord.learning.consider(
                     name, "isa", f"ss01kind{tag}",
                     surface=f"a {name} is a ss01kind{tag}",
-                    domain=f"selfstate01{tag}", provenance=provenance,
-                    quality=0.95)
+                    domain=f"selfstate01{tag}",
+                    evidence=Evidence.from_provenance(provenance, 0.95))
             await asyncio.sleep(FAST_CADENCE_S * 1.6)
 
     after = coord.appraisal.current_state

@@ -30,7 +30,7 @@ Every induction is the learning authority's own `induce_category`.
 from __future__ import annotations
 import os
 for k, v in {"POSTGRES_PORT": "5433", "POSTGRES_USER": "stefan",
-             "POSTGRES_DATABASE": "lyric_db", "LYRIC_NO_WATCHDOG": "1"}.items():
+             "POSTGRES_DATABASE": "lyric_dev", "LYRIC_NO_WATCHDOG": "1"}.items():
     os.environ.setdefault(k, v)
 import asyncio, contextlib, io, json, random, sys, time
 from uuid import uuid4
@@ -119,8 +119,11 @@ async def main() -> int:
             seen = perceive(target)
             if frozenset(seen) != feats:
                 raise RuntimeError(f"{name}: catalogued {sorted(feats)}, perceived {sorted(seen)}")
-            await coord.learning.learn_facts(
-                [(name, "isa", f) for f in seen], domain=DOMAIN)
+            from core.learning.unified_learning_system import Evidence
+            await coord.learning.consider_many(
+                [(name, "isa", f) for f in seen], domain=DOMAIN,
+                evidence=Evidence(source="sense:sight", key=f"sight:{name}", source_type="PERCEPTION",
+                                  quality=0.9, producer="perception"))
             return name
 
         def body(rule):

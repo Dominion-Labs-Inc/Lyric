@@ -39,7 +39,7 @@ import time
 from pathlib import Path
 
 for _k, _v in {"POSTGRES_PORT": "5433", "POSTGRES_USER": "stefan",
-               "POSTGRES_DATABASE": "lyric_db", "LYRIC_NO_WATCHDOG": "1",
+               "POSTGRES_DATABASE": "lyric_dev", "LYRIC_NO_WATCHDOG": "1",
                "LYRIC_SHADOW_MODE": "1"}.items():
     os.environ.setdefault(_k, _v)
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
@@ -61,26 +61,27 @@ def check(label, got, want):
 async def main():
     quiet = io.StringIO()
     with contextlib.redirect_stdout(quiet), contextlib.redirect_stderr(quiet):
-        from core.learning.unified_learning_system import UnifiedLearningSystem
+        from core.learning.unified_learning_system import Evidence, UnifiedLearningSystem
         from core.main import get_system
         from core.semantics.cognitive_ingress import (CognitiveIngress,
                                                       get_cognitive_ingress,
                                                       Provenance)
 
         # A -- the flag cannot be passed by anyone.
-        learn_params = inspect.signature(UnifiedLearningSystem.learn_facts).parameters
+        learn_params = inspect.signature(UnifiedLearningSystem.consider_many).parameters
         admit_params = inspect.signature(CognitiveIngress.admit_relation).parameters
 
         system = get_system()
         await system.initialize()
         learning = system.autonomous_coordinator.learning
 
-        # B -- teach the way a CORPUS pass teaches: through learn_facts, in bulk,
+        # B -- teach the way a CORPUS pass teaches: through consider_many, in bulk,
         # with no per-fact conversation anywhere near it.
         subject = f"zelkarn{STAMP}"
         parent = "tree"
-        await learning.learn_facts([(subject, "isa", parent)],
-                                   domain="remember01", quality=0.9)
+        await learning.consider_many([(subject, "isa", parent)], domain="remember01", evidence=Evidence(
+            source=f"corpus:remember01{STAMP}", key=f"remember01{STAMP}", source_type="IMPORTED_KNOWLEDGE",
+            quality=0.9))
         # The admission itself, to read `memories`/`memory_id` rather than trust
         # a count that cannot tell a stored memory from a declined one.
         prov = Provenance(producer="learning", source_id=f"remember01{STAMP}",
@@ -100,7 +101,7 @@ async def main():
     OUT.append("\n" + "=" * 72)
     OUT.append("A  THE FLAG IS GONE")
     OUT.append("=" * 72)
-    check("learn_facts has no `remember` parameter", "remember" in learn_params, False)
+    check("consider_many has no `remember` parameter", "remember" in learn_params, False)
     check("admit_relation has no `remember` parameter", "remember" in admit_params, False)
 
     OUT.append("\n" + "=" * 72)

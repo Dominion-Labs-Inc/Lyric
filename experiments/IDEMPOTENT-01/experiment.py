@@ -17,7 +17,7 @@ posterior every time. Measured on the live store before the fix:
 The substrate was near-certain of a tool's declared signature because it had
 rebooted 674 times. One witness, counted 674 times.
 
-The identity already existed and was dropped at the seam: `submit_tool_capability`
+The identity already existed and was dropped at the seam: `submit_tool_declaration`
 stamps `evidence_id=_stable_id("toolcap", name)` — identical on every boot — and
 the comment beside it says "the envelope id already collapses them in the store".
 It did, for the concept layer. It never reached the belief layer, because
@@ -49,7 +49,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 for _k, _v in {"POSTGRES_PORT": "5433", "POSTGRES_USER": "stefan",
-               "POSTGRES_DATABASE": "lyric_db", "LYRIC_NO_WATCHDOG": "1",
+               "POSTGRES_DATABASE": "lyric_dev", "LYRIC_NO_WATCHDOG": "1",
                "LYRIC_SHADOW_MODE": "1"}.items():
     os.environ.setdefault(_k, _v)
 sys.path.insert(0, str(ROOT))
@@ -63,6 +63,7 @@ async def _teach_and_report(subject: str, source_id: str) -> dict:
         from core.database import get_database_manager
         from core.main import get_system
         from core.semantics.cognitive_ingress import Provenance
+        from core.learning.unified_learning_system import Evidence
 
         system = get_system()
         await system.initialize()
@@ -70,11 +71,11 @@ async def _teach_and_report(subject: str, source_id: str) -> dict:
         db = get_database_manager()
 
         claim = f"{subject} isa idempotentkind"
-        await learning.learn_facts(
-            [(subject, "isa", "idempotentkind")],
-            domain="idempotent01", quality=0.9,
-            provenance=Provenance(producer="idempotent01", source_id=source_id,
-                                  source_type="USER_SUPPLIED"))
+        await learning.consider_many(
+            [(subject, "isa", "idempotentkind")], domain="idempotent01",
+            evidence=Evidence.from_provenance(
+                Provenance(producer="idempotent01", source_id=source_id,
+                           source_type="USER_SUPPLIED"), 0.9))
         # Beliefs are written through; read the committed row.
         us = __import__("core.reasoning.bayesian_uncertainty",
                         fromlist=["get_uncertainty_system"]).get_uncertainty_system()
@@ -86,13 +87,14 @@ async def _teach_and_report(subject: str, source_id: str) -> dict:
                     await us.flush_belief(belief.belief_id)
 
         row = await db.execute_query(
-            "SELECT posterior_probability p, update_count u, "
-            "       COALESCE(jsonb_array_length(evidence_for), 0) e "
+            "SELECT belief_id, posterior_probability p, update_count u "
             "FROM unified.beliefs WHERE lower(claim) = lower($1) LIMIT 1",
             (claim,), fetch_one=True)
+        from core.agents.memory_agent import memory_agent
+        stored_for = (await memory_agent().belief_evidence(row["belief_id"]))[0] if row else []
     return {"posterior": float(row["p"]) if row else None,
             "updates": int(row["u"]) if row else None,
-            "evidence": int(row["e"]) if row else None} if row else {}
+            "evidence": len(stored_for) if row else None} if row else {}
 
 
 def _phase(subject: str, source_id: str) -> dict:

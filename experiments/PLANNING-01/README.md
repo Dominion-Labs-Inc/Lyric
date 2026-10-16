@@ -40,7 +40,9 @@ afterwards:
    *outside* the try and propagates.
 2. **Template confidence was invented** — `0.7` adjusted by task *count* (+0.2 if ≤3 tasks). It now reads
    the substrate's measured tool success rate from `tool_usage_history` via
-   `AdaptiveToolLearning.metrics_summary()`.
+   `AdaptiveToolLearning.metrics_summary()`. **2026-10-04:** that learner was archived with the old
+   capability discovery; the rate and the latency are now read from the tool runs held in task and
+   pursuit memories (`MemoryAgent.tool_runs`, surfaced by `UnifiedLearningSystem.tool_usage`).
 3. **Template durations were hardcoded constants** (30/20/60 minutes per templated task, summed). They now
    come from measured tool latency, or are reported as `unmeasured`.
 

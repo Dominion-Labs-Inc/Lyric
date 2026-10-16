@@ -19,7 +19,7 @@ import os
 import psutil
 import socket
 import time
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Tuple
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -317,10 +317,10 @@ class HealthMonitor:
                                      'metric_prefixes': ('tools_total', 'tools_eager',
                                                          'tools_lazy', 'tools_loaded',
                                                          'tools_categories',
-                                                         'tools_capabilities_indexed')},
-                                 'usage_record': {
-                                     'module': 'core.learning.adaptive_tool_learning',
-                                     'description': 'Persisted tool outcome history',
+                                                         'tools_primitives_indexed')},
+                                 'failure_record': {
+                                     'module': 'core.tools.tool_registry',
+                                     'description': 'Persisted tool failure history',
                                      'metric_prefixes': ('tools_recorded_', 'tools_session_')},
                              }},
         'domain':           {'type': 'cognitive', 'category': 'knowledge',
@@ -399,9 +399,18 @@ class HealthMonitor:
         # substrate process tree's RSS as a % of total RAM: only a genuine
         # substrate runaway trips them. The system-wide `memory_*` values are kept
         # for the informational metric/history only, no longer for the verdict.
+        #
+        # CPU THE SAME WAY. Graded on the whole machine, eight replay workers in
+        # another process held it over 70% and the substrate teaching beside them
+        # reported itself degraded, which Law 3 read as harm: three "constitutional
+        # drift" alerts in one morning for load that was not the substrate's
+        # (2026-10-09). `substrate_cpu_*` grade the substrate's own process tree as
+        # a share of the machine; `cpu_*` stay for the informational metric.
         self.thresholds = {
             'cpu_warning': 70.0,
             'cpu_critical': 90.0,
+            'substrate_cpu_warning': 70.0,
+            'substrate_cpu_critical': 90.0,
             'memory_warning': 75.0,
             'memory_critical': 90.0,
             'substrate_memory_warning': 55.0,
@@ -1587,6 +1596,14 @@ class HealthMonitor:
         },
     }
 
+    #: A sub-component's DECISIONS, recorded and never graded. The memory filter's `storage_rate` and
+    #: `rejection_rate` are its verdicts on what it was offered, not how well it runs: graded as health, the filter
+    #: declining one memory of the two it was asked about scored memory 0.83, DEGRADED with no issue to name, and
+    #: that reading reached the constitution as harm (Law 3 at 0.00, "drift", 2026-10-08). A decision is not a fault.
+    _DECISION_READINGS: Dict[str, tuple] = {
+        'memory_filter': ('storage_rate', 'rejection_rate'),
+    }
+
     @classmethod
     def _subcomponent_specs(cls, component: str) -> Dict[str, Dict[str, Any]]:
         """Declared sub-components: hand-written plus probe-derived, merged."""
@@ -1703,6 +1720,10 @@ class HealthMonitor:
                 no_activity = bool(counters) and all(c == 0 for c in counters)
 
                 for key, value in stats.items():
+                    if key in self._DECISION_READINGS.get(sub, ()):
+                        metrics[f"{sub}_{key}"] = value
+                        metrics.setdefault('_not_applicable', []).append(f"{sub}_{key}")
+                        continue
                     if no_activity and key.endswith('_rate'):
                         # Undefined, not unread: declared so, as `_record_rate` declares
                         # its own. Left undeclared, an idle part's rates counted as
@@ -1790,13 +1811,13 @@ class HealthMonitor:
             metrics['tools_loaded'] = stats['loaded_tools']
             metrics['tools_session_uses'] = stats['session_uses']
             metrics['tools_categories'] = len(registry.category_index)
-            metrics['tools_capabilities_indexed'] = len(registry.capability_index)
+            metrics['tools_primitives_indexed'] = len(registry.primitive_index)
 
             # Declared rather than name-inferred: an empty registry and a
-            # missing capability index are not equally severe, and neither
+            # missing primitive index are not equally severe, and neither
             # distinction survives being encoded in a key suffix.
             has_tools = metrics['tools_total'] > 0
-            has_index = metrics['tools_capabilities_indexed'] > 0
+            has_index = metrics['tools_primitives_indexed'] > 0
             declared.append(HealthMetric(
                 name='tools_available', raw_value=True, normalized=1.0,
                 weight=1.0, required=True, critical=True))
@@ -1806,53 +1827,27 @@ class HealthMonitor:
                 required=True, critical=True,
                 reason=None if has_tools else 'registry empty — the agent cannot act'))
             declared.append(HealthMetric(
-                name='tools_capability_index_populated',
-                raw_value=metrics['tools_capabilities_indexed'],
+                name='tools_primitive_index_populated',
+                raw_value=metrics['tools_primitives_indexed'],
                 normalized=invariant(has_index), weight=0.6,
                 required=True, critical=False,
-                reason=None if has_index else 'discovery cannot rank tools'))
+                reason=None if has_index else 'no tool is filed under what it performs'))
 
             if not has_tools:
                 issues.append('Tool registry is empty — the agent has no tools to act with')
             if not has_index:
-                issues.append('Capability index empty — tool discovery cannot rank tools')
+                issues.append('Primitive index empty — no tool is filed under what it performs')
 
-            # PERSISTED history. The registry's own counters are per-process and
+            # PERSISTED failures. The registry's own counters are per-process and
             # reset on restart, so they cannot answer what the system has done.
+            # A run's outcome is learned from where every experience is: the
+            # pursuit's memory and the run's evidence, not a tool table.
             from core.database import get_database_manager
             db = get_database_manager()
             recorded = await db.execute_query(
-                """SELECT (SELECT count(*) FROM unified.tool_error_events)  AS errors,
-                          (SELECT count(*) FROM unified.tool_usage_history) AS uses""",
+                "SELECT count(*) AS errors FROM unified.tool_error_events",
                 fetch_all=True)
-            row = recorded[0]
-            metrics['tools_recorded_errors'] = int(row['errors'])
-            metrics['tools_recorded_uses'] = int(row['uses'])
-
-            # Recording failures but not successes biases every downstream
-            # judgement toward failure. Stated as a health finding because the
-            # asymmetry is invisible in either number on its own.
-            if metrics['tools_recorded_errors'] > 0 and \
-                    metrics['tools_recorded_uses'] <= 1:
-                issues.append(
-                    f"Tool outcomes are recorded asymmetrically: "
-                    f"{metrics['tools_recorded_errors']} errors but "
-                    f"{metrics['tools_recorded_uses']} usage record(s) — "
-                    f"successes are not being written, so tool learning sees "
-                    f"only failures")
-
-            # Whether outcomes are recorded at all is a health property of the
-            # registry, not just a note: with no usage records the learning and
-            # ranking paths downstream have nothing to read.
-            errors = metrics['tools_recorded_errors']
-            uses = metrics['tools_recorded_uses']
-            symmetric = not (errors > 0 and uses <= 1)
-            declared.append(HealthMetric(
-                name='tools_outcomes_recorded_symmetrically',
-                raw_value={'errors': errors, 'uses': uses},
-                normalized=invariant(symmetric), weight=0.6,
-                required=False, critical=False,
-                reason=None if symmetric else 'only failures are being recorded'))
+            metrics['tools_recorded_errors'] = int(recorded[0]['errors'])
 
             self._declared_metrics['tools'] = declared
 
@@ -2169,7 +2164,11 @@ class HealthMonitor:
             metrics['profiler_components'] = prof_stats.get('components_profiled', 0)
             metrics['profiler_avg_time_ms'] = prof_stats.get('avg_time_ms', 0.0)
 
-            if prof_stats.get('avg_time_ms', 0) > 5000:
+            # AN AVERAGE OF A FEW IS NOT A LATENCY. Four searches made while the
+            # word-class view was being rebuilt at boot (18.7 s, 6.7, 4.5, 3.0)
+            # averaged over 5 s, learning graded degraded, and Law 3 read it as
+            # harm (2026-10-09); a minute later the same searches took 0.1-2.6 s.
+            if prof_stats.get('total_profiles', 0) >= 100 and prof_stats.get('avg_time_ms', 0) > 5000:
                 issues.append(f"High average operation latency: {prof_stats['avg_time_ms']:.0f}ms")
 
         except Exception as _prof_err:
@@ -2262,11 +2261,18 @@ class HealthMonitor:
                 metrics['queue_tasks_requeued'] = tq_metrics.get('tasks_requeued', 0)
 
                 total_finished = metrics['queue_total_completed'] + metrics['queue_tasks_failed']
-                if total_finished > 0:
+                if total_finished >= 10:
                     failure_rate = metrics['queue_tasks_failed'] / total_finished
                     metrics['task_failure_rate'] = round(failure_rate, 3)
-                    if failure_rate > 0.5 and total_finished >= 10:
+                    if failure_rate > 0.5:
                         issues.append(f"High task failure rate: {failure_rate:.0%} ({metrics['queue_tasks_failed']} failed / {total_finished} finished)")
+                elif total_finished > 0:
+                    # TOO FEW TO GRADE. The issue above has always waited for ten finished tasks; the rate was set
+                    # from the first and the evaluator graded it, so one exploration no path could take (1 failed of
+                    # 1) graded agents degraded, which Law 3 read as harm: a drift alert from one honest gap
+                    # (2026-10-09). The counts stay as information.
+                    metrics['task_failure_rate'] = None
+                    metrics.setdefault('_not_applicable', []).append('task_failure_rate')
                 else:
                     # UNDEFINED, not 0%. No finished task means no
                     # failure rate exists; 0.0 clears the >0.5 gate above and
@@ -2289,9 +2295,10 @@ class HealthMonitor:
                     cstat = await constitution.get_constitution_status()
                     metrics['constitution_active'] = cstat.get('active')
                     metrics['constitution'] = cstat.get('metrics', {})
-                    last_avg = (cstat.get('metrics') or {}).get('last_average_compliance')
-                    if last_avg is not None and last_avg < 0.75:
-                        issues.append(f"Constitutional alignment low: {last_avg:.0%}")
+                    # THE CONSTITUTION'S VERDICT IS ITS OWN, reported by it, and NOT an issue of this component's.
+                    # It was one: alignment low -> agents' health down -> learning reads that as a capability
+                    # regression -> overall health degraded -> Law 3 fails -> alignment low. The constitution judging
+                    # health that holds its own verdict kept itself in drift (2026-10-08).
                 except Exception as _ce:
                     logger.debug('constitution metrics unavailable: %s', _ce)
 
@@ -2338,15 +2345,29 @@ class HealthMonitor:
             metrics['integrity_protected_modules'] = int(integrity.get('protected', 0))
             metrics['integrity_protected_files'] = len(integrity.get('files') or [])
             metrics['integrity_unprotected'] = unprotected
+            # NOT TAKEN YET IS NOT NEVER TAKEN. The baseline is taken when
+            # coordination starts (`start_coordination`); a check in the boot
+            # window before it read critical, the learning authority filed
+            # that as security regressing below its baseline, learning graded
+            # degraded, and Law 3 read it as harm: three drift alerts in the
+            # first minute of a boot (2026-10-09). Before coordination has
+            # started the reading is not yet measurable; after it, an empty
+            # baseline is critical as it always was.
+            from core.agents.autonomous.autonomous_coordinator import (
+                get_autonomous_coordinator)
+            coordinator = await get_autonomous_coordinator()
+            pending = not armed and getattr(coordinator, 'coordination_task', None) is None
+            metrics['integrity_pending'] = pending
             covered = armed and not unprotected
-            declared.append(HealthMetric(
-                name='integrity_armed', raw_value=covered,
-                normalized=invariant(covered), weight=1.0,
-                required=True, critical=True,
-                reason=None if covered else (
-                    'integrity baseline not yet taken' if not armed
-                    else f'unprotected: {", ".join(unprotected)}')))
-            if not armed:
+            if not pending:
+                declared.append(HealthMetric(
+                    name='integrity_armed', raw_value=covered,
+                    normalized=invariant(covered), weight=1.0,
+                    required=True, critical=True,
+                    reason=None if covered else (
+                        'integrity baseline not yet taken' if not armed
+                        else f'unprotected: {", ".join(unprotected)}')))
+            if not armed and not pending:
                 issues.append('Integrity baseline not taken — tampering with the '
                               'machinery that judges would go undetected')
             if unprotected:
@@ -2966,6 +2987,32 @@ class HealthMonitor:
 
         return metrics, issues
 
+    @staticmethod
+    def _cpu_sample(seconds: float) -> Tuple[float, float]:
+        """The machine's CPU and the substrate's own (this process and its
+        children, as a share of the machine), over the same `seconds`. Blocks
+        for them, so it is run off the loop."""
+        tree = [psutil.Process()]
+        try:
+            tree += tree[0].children(recursive=True)
+        except psutil.Error:
+            pass
+        psutil.cpu_percent(None)
+        for process in tree:
+            try:
+                process.cpu_percent(None)
+            except psutil.Error:
+                continue
+        time.sleep(seconds)
+        machine = psutil.cpu_percent(None)
+        used = 0.0
+        for process in tree:
+            try:
+                used += process.cpu_percent(None)
+            except psutil.Error:
+                continue
+        return machine, round(used / (psutil.cpu_count() or 1), 1)
+
     async def get_system_health(self) -> Dict[str, Any]:
         """
         Get overall system health
@@ -2977,7 +3024,7 @@ class HealthMonitor:
             # Collect system metrics
             # SAMPLED OFF THE EVENT LOOP. A one-second sample taken on it stopped every other task of the
             # substrate for that second, each time health was asked: measured, 17.8 s of a 398 s teaching run.
-            cpu_percent = await asyncio.to_thread(psutil.cpu_percent, 1)
+            cpu_percent, substrate_cpu_percent = await asyncio.to_thread(self._cpu_sample, 1.0)
             memory = psutil.virtual_memory()
             disk = psutil.disk_usage('/')
 
@@ -3027,10 +3074,11 @@ class HealthMonitor:
             # Determine overall status
             issues = []
 
-            if cpu_percent > self.thresholds['cpu_critical']:
-                issues.append(f"CRITICAL: CPU at {cpu_percent}%")
-            elif cpu_percent > self.thresholds['cpu_warning']:
-                issues.append(f"WARNING: CPU at {cpu_percent}%")
+            # The substrate's own CPU, as its memory is (see the threshold note).
+            if substrate_cpu_percent > self.thresholds['substrate_cpu_critical']:
+                issues.append(f"CRITICAL: Substrate CPU at {substrate_cpu_percent}% of the machine")
+            elif substrate_cpu_percent > self.thresholds['substrate_cpu_warning']:
+                issues.append(f"WARNING: Substrate CPU at {substrate_cpu_percent}% of the machine")
 
             # Graded on the SUBSTRATE's footprint, not the machine's (see the
             # threshold note). The message names it explicitly so a reader never
@@ -3061,11 +3109,15 @@ class HealthMonitor:
             # plus synthetic OS-level components
             components: dict = {}
 
-            # Synthetic: CPU
-            if cpu_percent > self.thresholds.get('cpu_critical', 95):
-                components['cpu'] = {'status': 'critical', 'cpu_percent': cpu_percent, 'issues': [f'CPU at {cpu_percent}%']}
-            elif cpu_percent > self.thresholds.get('cpu_warning', 80):
-                components['cpu'] = {'status': 'degraded', 'cpu_percent': cpu_percent, 'issues': [f'High CPU: {cpu_percent}%']}
+            # Synthetic: CPU — the SUBSTRATE's, with the machine's alongside for context.
+            if substrate_cpu_percent > self.thresholds['substrate_cpu_critical']:
+                components['cpu'] = {'status': 'critical', 'substrate_cpu_percent': substrate_cpu_percent,
+                                     'cpu_percent': cpu_percent,
+                                     'issues': [f'Substrate CPU at {substrate_cpu_percent}% of the machine']}
+            elif substrate_cpu_percent > self.thresholds['substrate_cpu_warning']:
+                components['cpu'] = {'status': 'degraded', 'substrate_cpu_percent': substrate_cpu_percent,
+                                     'cpu_percent': cpu_percent,
+                                     'issues': [f'High substrate CPU: {substrate_cpu_percent}% of the machine']}
 
             # Synthetic: RAM — the SUBSTRATE's footprint, not the machine's.
             # `memory_percent` (system-wide) is reported alongside for context, but
@@ -3103,7 +3155,8 @@ class HealthMonitor:
             return {
                 'status': overall_status.value,
                 'timestamp': datetime.now().isoformat(),
-                'cpu_percent': cpu_percent,
+                'cpu_percent': cpu_percent,  # system-wide, informational only
+                'substrate_cpu_percent': substrate_cpu_percent,  # what the verdict grades
                 'memory_percent': memory.percent,  # system-wide, informational only
                 'substrate_memory_percent': substrate_memory_percent,  # what the verdict grades
                 'substrate_memory_gb': substrate_memory_gb,

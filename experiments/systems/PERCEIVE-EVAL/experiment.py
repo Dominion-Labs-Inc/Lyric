@@ -19,7 +19,7 @@ Every image is a real file with real pixels; no answers are given to the reasone
 from __future__ import annotations
 import os
 for k, v in {"POSTGRES_PORT": "5433", "POSTGRES_USER": "stefan",
-             "POSTGRES_DATABASE": "lyric_db", "LYRIC_NO_WATCHDOG": "1"}.items():
+             "POSTGRES_DATABASE": "lyric_dev", "LYRIC_NO_WATCHDOG": "1"}.items():
     os.environ.setdefault(k, v)
 import asyncio, contextlib, io, json, sys
 from uuid import uuid4
@@ -113,8 +113,11 @@ async def main() -> int:
             regions = [r for r in d["regions"] if r["area_fraction"] <= 0.9]
             r = regions[0]
             feats = [r["color"], r["shape"], r["size"]]
-            await coord.learning.learn_facts(
-                [(name, "isa", f) for f in feats], domain="perceval")
+            from core.learning.unified_learning_system import Evidence
+            await coord.learning.consider_many(
+                [(name, "isa", f) for f in feats], domain="perceval",
+                evidence=Evidence(source="sense:sight", key=f"sight:{name}", source_type="PERCEPTION",
+                                  quality=0.9, producer="perception"))
             return name, {"drawn_shape": shape, "drawn_color": DRAWN_FAMILY[id(color)],
                           "perceived_color": r["color"], "perceived_shape": r["shape"]}
 

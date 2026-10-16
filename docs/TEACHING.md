@@ -414,9 +414,9 @@ SELECT COUNT(*) FROM unified.concept_relations WHERE relation IN ('isa','is a');
 SELECT ROUND(posterior_probability::numeric,2) p, COUNT(*)
   FROM unified.beliefs GROUP BY p ORDER BY 2 DESC LIMIT 8;
 
--- provenance is in evidence_for, NOT evidence  (the `evidence` column is null)
-SELECT e->>'source' src, COUNT(*), ROUND(AVG((e->>'quality')::numeric),3)
-  FROM unified.beliefs, LATERAL jsonb_array_elements(evidence_for) e
+-- provenance is in each belief's evidence rows (unified.belief_evidence, one per observation, since 2026-10-08)
+SELECT entry->>'source' src, COUNT(*), ROUND(AVG((entry->>'quality')::numeric),3)
+  FROM unified.belief_evidence WHERE supports
   GROUP BY src ORDER BY 2 DESC;
 
 -- idempotence: this must NOT climb across runs
@@ -590,6 +590,204 @@ volume alone would be a lie — the substrate would believe it is competent
 because it was fed. The exam is what earns it, and it is the next piece.
 
 ---
+
+## 12a · A happening told of is one event
+
+Decided 2026-10-04 (the teammate). A told meaning's unknown is named only when it is a happening: one of a kind
+(`instance_of(?v0, eat)`) that the meaning says something was done by or done to (`done_by`, `done_to`). It is held as
+one event named from its telling (`teaching.told_events`: the kind and eight hex digits of the sentence and its
+meaning), so the same sentence taught again names the same event and two tellings name two. "The wug ate a fep." is
+held as `eat_…` instance_of `eat`, done by `wug`, done to `fep`; "Some shoe is black." names no shoe and stays `open`.
+When it happened (`precedes(?v0, ?now)`) is not held, since nothing names the time it was told. Questions about events
+are answered from the events held (`Conversation._asked_of_events`): an event holding everything the question names
+answers it, said as the telling with the unknowns filled in. The time a question names is not asked of the event, and
+is kept in the answer, so "What did the kelt chase?" is answered "The kelt chased the blip.". Such a telling is read as
+a frame with a phrase in one slot ("The ?slot0 ?slot1." and "chased the ?slot0"), and is said the same way
+(`derived_reader._compositions`).
+
+## 12b · What a sentence does not tell as so is not held
+
+Decided 2026-10-05 (the teammate), for quotations and then for what someone says, tells, thinks, believes, hopes or
+asks. A fact a sentence states but does not tell as so is marked `unasserted` (`MeaningFact.unasserted`, beside
+`condition` and `alternative`) and is never held as holding (`Meaning.asserted` leaves it out):
+
+- what someone said: `Tom said, "The dog barked."` and "Tom said that the dog barked." hold a saying, done by Tom,
+  before now; that the dog barked is what he said, and the barking is not named as an event (`teaching.told_events`,
+  `_bucket_meaning`);
+- what someone thinks, believes, hopes or asks ("Tom asked if the dog barked."), and what someone tells or asks
+  another to do ("Tom asked Rex to open the door.");
+- what someone wants, likes or tries to do ("Tom wants to swim.", "Tom tried to open the door.");
+- what a doing is for ("Tom opened the door to help Rex."), and what something is or is not enough to do ("The box
+  is too big to lift.").
+
+"Tom knows that the dog barked.", "The dog started to bark.", "Tom let the dog run." and "because" tell their
+happening as so. The lessons mark it (english_15, 18, 20 and 39); the learner learns frames whose places hold it, and
+what fills such a place is not told as so either ("will bark" in "Tom says that the dog will bark.", `_composed`).
+
+The quoted words are a sentence of their own: the reader sets the quotation apart (`derived_reader.set_apart`; what
+is left is `Tom said, “…”`), reads it as a sentence, and holds what it was taken to mean as not told as so
+(`_with_quotation`). A taught pair with a quotation is learned as the two pairs it is, the sentence around it and the
+quoted sentence (`quoted_pairs`), and counted as one sentence taught. Said back, a meaning no sentence says whole has
+its quoted sentence put inside quotation marks (`_said_with_quotation`).
+
+A modal or a denial is said by the meaning itself, not by the mark: "Tom might go." is a going that is `possible`,
+"The dog did not bark." a barking that is `false` (english_9, 12, 20).
+
+## 12c · What was heard after what
+
+Decided 2026-10-06 (the teammate: "fix it"). A construction holds its slots' fillers each apart: "Tom might open the
+box." and "The cat often climbs." made one phrase, "?slot0 ?slot1", and which second word goes with which first is
+not in it, so it was said "Tom may opens the box.". Teaching now keeps, for every sentence learned, each word heard
+right after the one before it (`PatternInventory.hear`, remembered by `MemoryAgent.remember_heard`: one memory per
+word, tagged `heard_after`, read back into the language view at every warm). Heard is heard: a sentence taught
+again adds nothing.
+
+Saying puts a word only where a word like it was heard (`derived_reader._unheard`, `heard_like`): the word itself,
+or a word of its kind (their concepts having stood in one slot) written as it is among its concept's forms (the
+form the others are made from, or the same change from it: `word_form`). Where a sentence says the meaning with
+every word where words like it were heard, none putting a word where nothing like it was is said ("Rex kicked the
+ball not.", "The fip does did not chase the kelt."); of the rest, the one with more words heard exactly comes
+first ("Tom might open the box.", as taught, before "Tom may open the box."). A word heard only by its likeness is
+how a learner says what it was never told ("A lynx is an animal."), and is not set aside. Reading does not use it.
+
+One word before is not always enough: "opened" was heard after "not" ("Tom has not opened the door yet.") as "kick"
+was ("Rex did not kick the ball."). So each word is also heard after the two before it (the word's memory holds,
+for each word heard before it, what followed the two), and a word right after two of a construction's own words is
+held against them where anything was heard after them: "chased" never after "did not". A word linked to a slot and
+heard right after the construction's own words before it is said there before one in the slot's shape: "The fip did
+not chase the kelt." read "chase" into a phrase whose fillers were "chased" and "kicked", and the phrase's shape
+had said it "did not chased" (UNASSERTED-01's fifth run).
+
+## 12d · "The X" is a particular thing, already known
+
+Decided 2026-10-06 (the teammate: "ok", to fixing the lessons). Lyric decides whether something it is told is about
+the world or about the person by its meaning (`docs/research/SEPARATION_MAP.md` §11.3): a fact about kinds is about
+the world, and a fact about a particular thing is someone's. So the meaning must say which. Until now the lessons wrote
+"the X" as the kind X: "The door is open." was `has_property(door, open)`, the same as a fact about every door, and a
+person's "The printer is broken." would reach the world as "printers are broken". 1,184 of the 2,879 sentences in
+english_01–39 have "the"; "my X" and "this" were already written as particulars (`instance_of(?x, hat)`,
+`owned_by(?x, ?speaker)`).
+
+**The rules.**
+
+1. **A particular, already known.** "The X" names one X the speaker and the listener both know: a variable for it,
+   introduced by `instance_of(?a, X)` marked `given` (`MeaningFact.given`), and the sentence's facts said of the
+   variable.
+   - "The door is open." → `given instance_of(?a, door)`, `has_property(?a, open)`.
+   - "The book is in the box." → `given instance_of(?a, book)`, `given instance_of(?b, box)`,
+     `located_in(?a, ?b)`.
+   - "Tom kicked the ball." → the kicking done to `?b`, `given instance_of(?b, ball)`.
+   - "Is the stove hot?" asks it of the known stove.
+
+   One of a kind is no exception: "the sky" and "the sun" are the known sky and sun.
+2. **The kind itself.** Where the sentence speaks of the kind, the kind's name stays: "Every bird except the
+   penguin can fly." (penguins), "The tiger is a mammal.".
+3. **Said of someone named.** "Tom, the teacher, is tall.": the kind is said of Tom (`isa(tom, teacher)`), as now.
+4. **Not a thing.** "the same as", "the opposite of", "to the left of", "the first", "the biggest": as now.
+5. **A known group.** "The dogs can swim.", "None of the dogs can fly.": the group, `given instance_of(?g, dog)`,
+   and what is said of it.
+
+**`given`** marks a fact the sentence takes as known, not one it tells (a presupposition: Frege 1892; Strawson 1950;
+familiarity, Heim 1982). It is the difference between "the dog" and "a dog" (`instance_of(?u, dog)`, a dog not known
+before), so the learner learns "the" and "a" as different words, and says them back as they were meant. A `given`
+fact is true of the thing; it is not news. Which known thing "the X" is, is the conversation's to find: the X
+talked of, or the one the person's context holds.
+
+A known thing named only inside an "if", or only inside what someone said, is part of what the condition or the
+saying holds (`Tom said, "The dog barked."`), as a filler's facts are where its place is (`_composed`). Possessives
+("my hat", "Tom's ball", "the teacher's hat") and "this" and "that" were particulars already, and are left unmarked:
+nothing the lessons teach says them another way.
+
+**Done 2026-10-06.** `scripts/known_the.py` rewrote 1,060 sentences of english_01–39 (the 47 "the" it leaves are
+"the left of", "the sum of", "the square root" and the like). The reader carries the mark wherever it builds or
+compares facts; the repair that generalized two pairs into one frame had dropped `unasserted`, and now keeps every
+mark. A phrase may no longer hold an unknown the rest of its sentence names (`_tied`): "helped herself", learned from
+"The girl helped herself.", would have pointed "herself" at nobody. In memory, english_01–39 teach 2,896 pairs, none
+refused, all 2,896 read back as taught; of 300 taught sentences with "the", 242 are said back first as taught and 291
+among what is said (300 without: 236 and 281). Expected meanings written before this (ENGLISH-01's and the fresh
+lessons' never-taught sentences, the reading tests) are read through the same rule (`known_the.known`).
+
+**What the first pass missed (2026-10-11).** It followed "the" only to a term the meaning held outright, so where
+the lesson had already written the thing as a variable of its kind, "the" made nothing known: "The small cup is
+hot.", "The dog that barked is big.", "The house where Tom lived is big.", and the head of "The cup that is on the
+table is hot." (the table was marked, the cup not). Those still read as some cup or some dog. `known_the.py` now
+follows "the" to the first noun it governs, known already or not, and marks that thing's `instance_of` given (rule
+1); 41 sentences in english_03, 06, 13, 15, 17, 22 and 23. Left as written, by rule 4: ranks ("the fourth book"),
+superlatives ("the tallest boy"), a function's value ("the sine of zero"). Left open: a part of a known group
+("Some of the cats are small.", "One of the dogs barked."), where marking the group known would say all of them;
+how a part of a known group is written is not decided.
+
+**Main learned english_01-39 before this section existed** (taught 2026-10-06 12:20 local; `known_the.py` written
+after), so its constructions read "the X" as the kind: "The valve is closed." was `has_property(valve, closed)`, and
+a person's valve went to the world's gate as valves. `scripts/withdraw_lesson_pairs.py` takes back what the old pairs
+taught (`UnifiedLearningSystem.withdraw_pairs`): each observation is keyed by its lesson and its pair, so the words
+of pairs no longer taught are found exactly; a construction or link that rested on nothing else is let go, the rest
+keep their other evidence. Then english_01-39 are taught again on top, and the rewritten pairs are learned.
+
+**What "the" had covered (2026-10-07).** With "the X" the kind, "Where does a fip live?" read through "Where does the
+dog sleep?": the two meant the same. Written apart, the singular kind in that question was taught nowhere, and
+QUESTION-FORMS-02's "Where does a fip live?" no longer read. english_31 now teaches it ("Where does a dog live?",
+"Where does a cat sleep?", "Where does a bird come from?"), beside the name, the known thing and the plural.
+
+## 12e · A lesson's term is the concept memory holds for what the word means there
+
+Decided 2026-10-11 ("move on to the name gaps"). The lessons are examples of English and hold no facts, so a term in
+a lesson's meaning is a name: what it names is what memory holds under that name, and WordNet taught memory its
+senses under names of its own (`WordNetSource._sense_names`). Written as words, the lessons named things memory does
+not hold, or holds as something else:
+
+- **Nothing.** "An eagle is a raptor." was `isa(eagle, raptor)`, and no concept is named `raptor`. WordNet holds the
+  bird of prey under `bird of prey`, its first word. So the lesson taught that the word "raptor" names a thing nothing
+  is known of, and "A wug is a raptor." left "Is a wug a bird?" unanswered. Likewise bike, clothes, house cat, race
+  car, sheep dog, song bird, theft, toad, goodness, melting, famous, shiny and snowing.
+- **Another part of speech.** The opening of a door was `opening`, WordNet's adjective ("the opening chapter"); rain
+  was `raining`, the adjective "falling like rain"; metal was the verb "to cover with metal"; "put down" was the noun
+  "put-down" (the door writes both alike).
+- **Another sense.** "July is a month." named the 30-day time unit, `month`, where July is a calendar month; "A
+  clinic is a building." named the medical institution.
+
+**The rule.** Each term is written as the concept the word means there: the sense the teacher states, under the name
+WordNet gives it. "An eagle is a raptor." is `isa(eagle, bird of prey)`, and the lesson teaches that "raptor" names
+the bird of prey memory knows. A word names its sense; it is not the sense's name. The lessons' own names (Tom, Rex,
+Kim), variables and expressions, and the grammar's own terms (`often`, `usually`, `allowed`, `hypothetical`,
+`enough`) are left as they are.
+
+**Done 2026-10-11.** 239 sentences in 24 lessons rewritten (238 after "Little is a size." was put back, 2026-10-12): raptor → bird of prey, bike → bicycle, toad → frog
+(WordNet's only "toad"), house cat → domestic cat, race car → car racer, sheep dog → shepherd dog, song bird →
+songbird, clothes → apparel, theft → larceny, melting → thaw, goodness → quality good, famous → celebrated, shiny →
+glistening, metal → metallic element, seeing → visual perception, opening → to open, raining → precipitate rain,
+snowing → precipitate snow, greeting → greet, thanking → thank, put down → put; and by sentence, month → calendar
+month, study → knowledge domain discipline, a garment size → property size ("Large is a size."; little is a size as magnitude is, `size`), clinic → medical building clinic, a drink → food
+drink, water's liquid → fluid liquid, a feeling → feeling happiness, virtue → good virtue, wisdom → trait wisdom,
+trousers → trouser, pliers → compound lever pliers. Before and after, WordNet names all 117,659 senses alike, as it
+must: the store was taught under those names. Two sentences were left as they were for that reason. "A meter is a
+measure." and "Running is a sport." written in their senses take "measure" and "running" out of the lessons as nouns,
+and the name a word keeps across parts of speech follows the lessons (`_lesson_parts`): four senses would be named
+otherwise, and main would hold them under the old names.
+
+**Main** holds the old pairs. `scripts/withdraw_lesson_pairs.py` takes them back (239 standing), and the rewritten
+sentences are taught on top (`logs/renamed_lessons/`), as for §12d.
+
+## 12f · WordNet's names are recorded, and a rename is made on purpose
+
+WordNet's senses are taught under the names `WordNetSource._sense_names` gives them, and those names follow from
+WordNet, the stated senses (`data/lessons/senses.json`) and how the lessons use their words (`_lesson_parts`: the
+name a word keeps across parts of speech). A store keeps the names it was taught under. An edit to any of the three
+can rename a sense, and teaching after it would hold the sense twice, under its old name and its new.
+
+Found 2026-10-12. `_lesson_parts` counted a degree's kind ("faster", "the most famous": `instance_of(?d, fast)`) as
+a thing's, so every adjective the lessons compare counted as a noun there. "fast", "old" and "deep" stayed with the
+nouns: fasting, past times, the deep. "Cars are fast." read as cars being abstinences, and "Tom is old." made Tom a
+past time. A degree's kind now counts as an adjective's, and six senses are named otherwise.
+
+**The record.** `data/lessons/wordnet_names.tsv.gz` holds the names the stores were taught under.
+`tests/test_lesson_terms.py` fails when WordNet names a sense otherwise. `scripts/wordnet_names.py --diff --was F`
+lists the moved senses and writes `F`. `scripts/repair_renamed_senses.py --was F` takes back what WordNet taught
+under the old names: its facts, their observations and records, the word pairs that taught a word to name an old
+name, and those claims' counts of use. Then `teach.py --source wordnet --sense …` teaches the senses again under their
+names, and `wordnet_names.py --write` records them, once every store is repaired. Proved on the sandbox: taught under
+the old names, repaired and taught again, "fast" is the adjective (like quick, the opposite of slow), fasting is
+`abstinence fast`, a kind of self-denial, and no word for fasting still names `fast`.
 
 ## 13 · Open
 

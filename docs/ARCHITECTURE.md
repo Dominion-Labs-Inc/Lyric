@@ -171,7 +171,9 @@ Each links to its exhaustive method reference.
   are its doors; a door takes in a thing when its sense can, and then every sense that can does.
   The senses measure (classical CV, classical signal processing, the opening of a text; no
   model) in `PerceptionFaculty` (`vision`, `hearing`, `reading`), which admits what they took
-  in (`admit_percept`), the **sole admitter** — every sense (and sensors) admitted once, on one
+  in (`admit_percept`), the **sole admitter** — every sense (and sensors, and what a person's device
+  reports: `submit_device`, a device and what the person set on it; `submit_location`, a position held at
+  about 110 m and named as coordinates are written, `25.762N 80.192W`) admitted once, on one
   contract (`evidence_producers._submit_perceived`), as evidence about that memory, and held in
   its awareness of what is being perceived now. READING IS THE SUBSTRATE'S OWN (READ-01): a
   file of written words — PDF, Word, Excel, any text, by what its bytes are — is opened in
@@ -227,6 +229,41 @@ Each links to its exhaustive method reference.
   felt. A percept also **feeds the emotional state** — not by a perception-specific hook,
   but because a percept moves beliefs, and belief movement is read by the epistemic
   channel (below) like movement from any other source.
+- **Capabilities** — `core/capabilities.py` (`coord.capabilities`). What the substrate can do,
+  learned from experience. A capability is a METHOD the memory agent lifted from tasks of the same
+  shape done in different pursuits (`core/memory/lift.py`, MEMORY_AGENT_MAP §10.8): their steps,
+  each a tool with its arguments, every value that differed made a variable. It is never declared,
+  never inferred from words, and never there because a tool exists. Tools are the means: they
+  perform PRIMITIVES (`tool_registry.Primitive`, the operations every person has from the first
+  day), and a capability may use many tools. A method keeps nothing whose only source is people's
+  material, or it stays in that person's context (the residue test). STANDING is read from
+  beliefs: the world's from the shared belief that the method works, moved by every counted
+  outcome from everyone (reliability, not how many people used it); a person's from their own
+  belief in the same claim, moved only by their outcomes. Settled in favour by the belief system's
+  own bar (`UNSTABLE_ENTROPY`) is unlocked; a later failure withdraws it. World first: a world
+  capability unlocks for a person only while it is unlocked for the world; a method that is only one
+  person's unlocks for them on their own standing. `may_act_for` answers "on its own"
+  (the substrate's own work; or unlocked for that person and appraisal's disposition at that moment
+  does not say to back off or escalate), "supervised" (each act confirmed by the person) or "not
+  offered" (not raised for a person unasked before the world unlock). A person's own method is used
+  for that person only. The SCORE has two parts, reported side by side: the standing belief, and the
+  capability's REWARD, the mean reward its counted outcomes carried. Each finished task's experience is
+  evaluated by the `ExperienceEvaluator` (outcome quality, and the intrinsic reward from the drives with
+  the motivation system's own weights); both go to appraisal, and the reward kept with the task is the
+  valence appraisal gave that experience, lifted by people's reward as felt valence is. `discover(actor)`
+  reports them. The faculty reads; the memory agent writes the methods and when each standing crossed, and
+  the belief system computes every belief. DOING ONE FOR SOMEONE: before a task's declared steps run
+  (`_execute_declared_tools`), `recognise` finds the method the plan is an instance of, and `may_act_for` is
+  asked before each act, with the disposition read at that moment. Not offered: the work is refused.
+  Supervised: the act waits; the run so far is kept on the task (`capability_run`), the job is held for
+  the person (`QueueAuthority.hold_for_person`, BLOCKED: durable, not drawn, held again after a restart),
+  and they are asked once for that act (`speak_to`, why `confirm`; the turn records the job it asks about).
+  "Yes." or "No." is read as a verdict on what was said before (`has_property(?previous, true|false)`,
+  taught in English-01 and -16), and answers the question when the substrate's question is the most recent
+  thing a verdict could be about (`Conversation._question_referent`): yes confirms that one act and puts the
+  job back (`go_on_with`, `resume_task`), no stops it (`stop_work`). Asked what it is doing, it says the
+  question a held job waits on, which is how a person answers after a restart has emptied the
+  conversation. Every act, confirmed or on its own, still goes through the constitution.
 - **Governance** — [`architecture/security.md`](architecture/security.md). The substrate's own law,
   held by the `Constitution` inside the coordinator and applied at the single gate every tool call
   passes (`tool_registry.execute_tool`); self-defense is the Constitution and `ThreatSense`

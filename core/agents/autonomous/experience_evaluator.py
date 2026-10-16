@@ -263,15 +263,7 @@ class ExperienceEvaluator:
         # ========================================
         # 3. CONSTITUTIONAL ALIGNMENT (0.0-1.0)
         # ========================================
-        action_type = context.get('type', 'unknown')
-        action_params = context.get('params', {})
-        risk_level = outcome.get('risk_level', 'low')
-
-        # Build evaluation context for constitution
-        eval_context = self._build_eval_context(context, action, outcome)
-        constitutional_alignment = await self._calculate_constitutional_alignment(
-            eval_context
-        )
+        constitutional_alignment = self._constitutional_alignment(outcome)
 
         # Ensure [0.0, 1.0] bounds (safety check)
         constitutional_alignment = max(0.0, min(1.0, constitutional_alignment))
@@ -540,34 +532,26 @@ class ExperienceEvaluator:
 
         return max(0.0, min(1.0, quality))
 
-    async def _calculate_constitutional_alignment(
-        self,
-        eval_context: Dict[str, Any]
-    ) -> float:
-        """Calculate constitutional alignment score (0.0-1.0)"""
+    @staticmethod
+    def _constitutional_alignment(outcome: Dict[str, Any]) -> float:
+        """How far the work kept the five laws (0.0-1.0), read from what the
+        constitution SAID of the acts it made: the judgement kept on the outcome
+        when one spoke. A law that refused an act is the law the work failed (a
+        block 0, a replan or redirect 0.5); a law that said nothing failed
+        nothing.
 
-        if not self.constitution:
-            # Without constitution, assume moderate alignment
-            return 0.80
-
-        # Get law compliance scores from constitution
-        law_scores = await self.constitution.calculate_law_compliance_scores(eval_context)
-
-        # Average across all 5 laws (law_1_compliance through law_5_compliance)
-        if law_scores:
-            compliance_values = [
-                law_scores.get('law_1_compliance', 0.90),
-                law_scores.get('law_2_compliance', 0.90),
-                law_scores.get('law_3_compliance', 0.90),
-                law_scores.get('law_4_compliance', 0.90),
-                law_scores.get('law_5_compliance', 0.90)
-            ]
-            alignment = sum(compliance_values) / len(compliance_values)
-        else:
-            # Default to good alignment if no scores available
-            alignment = 0.85
-
-        return alignment
+        The work is not judged again here. It was: the task's type was handed to
+        the constitution as though it were an act ("optimization"), refused under
+        Law 2 for having no account, and that refusal written to the audit trail
+        as though it had happened. And where nothing could be scored, numbers were
+        assumed (0.80, 0.85, 0.90 a law)."""
+        scores = {law: 1.0 for law in range(1, 6)}
+        judgment = (outcome or {}).get("judgment") or {}
+        law = judgment.get("law_number")
+        verdict = str(judgment.get("verdict") or "").lower()
+        if law in scores and verdict and verdict != "allow":
+            scores[law] = 0.0 if verdict == "block" else 0.5
+        return sum(scores.values()) / len(scores)
 
     async def _calculate_system_health_impact(
         self,
@@ -645,24 +629,6 @@ class ExperienceEvaluator:
 
         return False
 
-    def _build_eval_context(self, context: Dict[str, Any], action: Dict[str, Any], outcome: Dict[str, Any]) -> Dict[str, Any]:
-        """Build evaluation context for constitutional alignment"""
-        return {
-            # Action context
-            'action_type': context.get('type', 'unknown'),
-            'action_params': action,
-            'context': context,
-
-            # Outcome context
-            'outcome': outcome,
-            'risk_level': outcome.get('risk_level', 'low'),
-
-            # Evaluation metadata
-            'explanation': outcome.get('explanation', ''),
-            'value_alignment': outcome.get('value_alignment', 0.90),
-            'resource_impact': outcome.get('resource_impact', 0.10)
-        }
-
     def _log_evaluation(self, exp: EvaluatedExperience) -> None:
         """Log evaluation results"""
 
@@ -696,7 +662,9 @@ class ExperienceEvaluator:
                 f"Poor evaluation: {exp.task_type} ({exp.outcome_quality:.2f}) | {summary}"
             )
         else:
-            logger.error(
+            # A measurement of the work, not a failure of the substrate (ERROR is
+            # captured as one, `failure_events`).
+            logger.warning(
                 f"Failed evaluation: {exp.task_type} ({exp.outcome_quality:.2f}) | {summary}"
             )
 

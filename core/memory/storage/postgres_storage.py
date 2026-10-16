@@ -28,21 +28,22 @@ Performance:
 - Semantic similarity search: 5,000ms (MySQL Python loop) → 50ms (pgvector HNSW index)
 """
 
-from core.capability import raise_if_structural
+from core.structural_defects import raise_if_structural
 import logging
 import json
-import uuid
-from typing import Dict, Any, List, Optional, Set, Tuple
+from typing import TYPE_CHECKING, Dict, Any, List, Optional, Set, Tuple
 from datetime import datetime, timedelta
-from dataclasses import asdict
 
 from core.database.unified_database_postgres import LyricUnifiedDatabasePostgres
 from core.memory.utils.interfaces import (
+    IMPORTANCE_DECAY_PER_DAY,
     MemoryItem,
     MemoryType,
     MemoryStatus,
-    MemoryPriority
 )
+
+if TYPE_CHECKING:
+    from core.memory.utils.interfaces import RetrievalScope
 
 logger = logging.getLogger(__name__)
 
@@ -228,7 +229,7 @@ class PostgresStorage:
         except Exception as e:
             logger.error(f"PostgresStorage initialization failed: {e}")
             self.metrics['failed_operations'] += 1
-            return False
+            raise
 
     async def store_memory(self, memory: MemoryItem) -> bool:
         """
@@ -400,7 +401,7 @@ class PostgresStorage:
             except Exception as notify_error:
                 logger.warning(f"Failed to send memory storage error notification: {notify_error}")
 
-            return False
+            raise
 
     async def get_memory(self, memory_id: str) -> Optional[MemoryItem]:
         """
@@ -478,7 +479,7 @@ class PostgresStorage:
             except Exception as notify_error:
                 logger.warning(f"Failed to send memory retrieval error notification: {notify_error}")
 
-            return None
+            raise
 
     #: The fields `update_memory` knows how to write. Anything else is refused.
     _UPDATABLE = frozenset({"content", "embedding", "confidence_score", "status",
@@ -653,7 +654,7 @@ class PostgresStorage:
         except Exception as e:
             logger.error(f"Failed to update memory {memory_id}: {e}")
             self.metrics['failed_operations'] += 1
-            return False
+            raise
 
     async def store_batch(
         self,
@@ -695,7 +696,7 @@ class PostgresStorage:
         except Exception as e:
             logger.error(f"Failed to store batch: {e}")
             self.metrics['failed_operations'] += 1
-            return False
+            raise
 
     async def search_by_content(
         self,
@@ -726,7 +727,7 @@ class PostgresStorage:
                     'continue as though it had')
 
         try:
-            actor_sql, actor_params = self._actor_predicate(actor, 2)
+            actor_sql, actor_params = await self._actor_predicate(actor, 2)
             limit_idx = 2 + len(actor_params)
             rows = []
             for store in self._stores_for(actor):
@@ -756,7 +757,7 @@ class PostgresStorage:
             raise_if_structural(e, 'postgres_storage.search_by_content')
             logger.error(f"Failed to search by content: {e}")
             self.metrics['failed_operations'] += 1
-            return []
+            raise
 
     async def update_metadata(
         self,
@@ -794,7 +795,7 @@ class PostgresStorage:
         ids = [str(i) for i in (memory_ids or ()) if i]
         if not ids:
             return set()
-        actor_sql, actor_params = self._actor_predicate(actor, 2, own_only=True)
+        actor_sql, actor_params = await self._actor_predicate(actor, 2, own_only=True)
         branches = [f"SELECT memory_id FROM {table} WHERE memory_id = ANY($1::text[]){actor_sql}"
                     for table in ("memory_hot.memory_hot", "memory_cold.memory_cold")]
         rows = []
@@ -890,7 +891,9 @@ class PostgresStorage:
                 param_idx += 1
 
             if min_importance:
-                predicate += f" AND importance_score >= ${param_idx}"
+                # The importance NOW, faded with age as `decayed_importance` fades it; the column holds it as formed.
+                predicate += (f" AND importance_score * EXP(-{IMPORTANCE_DECAY_PER_DAY} * EXTRACT(EPOCH FROM "
+                              f"(NOW() - created_at)) / 86400.0) >= ${param_idx}")
                 params.append(min_importance)
                 param_idx += 1
 
@@ -899,7 +902,7 @@ class PostgresStorage:
                 params.append(status.value)
                 param_idx += 1
 
-            actor_sql, actor_params = self._actor_predicate(actor, param_idx)
+            actor_sql, actor_params = await self._actor_predicate(actor, param_idx)
             predicate += actor_sql
             params.extend(actor_params)
             param_idx += len(actor_params)
@@ -949,20 +952,21 @@ class PostgresStorage:
             raise_if_structural(e, 'postgres_storage.search_memories')
             logger.error(f"Failed to search memories: {e}")
             self.metrics['failed_operations'] += 1
-            return []
+            raise
 
-    @staticmethod
-    def _actor_predicate(actor: Optional[str], param_idx: int, *,
-                         own_only: bool = False) -> Tuple[str, List[str]]:
+    async def _actor_predicate(self, actor: Optional[str], param_idx: int, *,
+                               own_only: bool = False) -> Tuple[str, List[Any]]:
         """WHOSE MEMORIES MAY ENTER THIS COGNITION -- one rule for every way
         memory is searched, as (` AND ...` SQL, its params from `$param_idx`).
 
-        `actor` is the task's owner. A task acting FOR A USER may see that
-        user's memories and the substrate's own shared knowledge -- never
-        another user's. A task that is the SUBSTRATE'S OWN work (actor None or
-        the substrate id) sees only the substrate's memories: health, security
-        and idle-loop cognition must not be coloured by whoever happened to be
-        connected.
+        `actor` is the task's owner. A task acting FOR A USER may see what is
+        in their Shared World Context (`MemoryAgent.shared_world_context`): the
+        substrate's own shared knowledge, their own memories, and the memories
+        of each organization whose Work Context they are authorized for --
+        never another user's, nor an organization's they are not authorized for.
+        A task that is the SUBSTRATE'S OWN work (actor None or the substrate id)
+        sees only the substrate's memories: health, security and idle-loop
+        cognition must not be coloured by whoever happened to be connected.
 
         Rows written before actors existed carry NULL/'' and are the
         substrate's, so they surface for the substrate and for every user.
@@ -972,19 +976,22 @@ class PostgresStorage:
         memory hidden from a user by meaning was handed to them by wording
         (measured 2026-09-26, SYSTEM-CONVERSATION-01).
 
-        `own_only` narrows a user to THEIR OWN rows, for deduplication: a
-        user's memory may be seen beside the substrate's, but merging it INTO a
-        substrate memory would write the user's content into the shared one."""
+        `own_only` narrows an owner to THEIR OWN rows, for deduplication and
+        for changing a memory: a user's memory may be seen beside the
+        substrate's or an organization's, but merging it INTO one of those, or
+        rewriting one, would reach past what they own."""
         from core.agents.autonomous.shared_types import (SUBSTRATE_ACTOR,
                                                          is_substrate_actor)
+        from core.agents.memory_agent import memory_agent
         if is_substrate_actor(actor):
             return (f" AND (user_id IS NULL OR user_id = '' "
                     f"OR user_id = ${param_idx})", [SUBSTRATE_ACTOR])
         if own_only:
             return f" AND user_id = ${param_idx}", [actor]
-        return (f" AND (user_id = ${param_idx} "
+        owners = [o for o in await memory_agent().shared_world_context(actor) if o != SUBSTRATE_ACTOR]
+        return (f" AND (user_id = ANY(${param_idx}::text[]) "
                 f"OR user_id IS NULL OR user_id = '' "
-                f"OR user_id = ${param_idx + 1})", [actor, SUBSTRATE_ACTOR])
+                f"OR user_id = ${param_idx + 1})", [owners, SUBSTRATE_ACTOR])
 
     async def semantic_search(
         self,
@@ -1037,7 +1044,7 @@ class PostgresStorage:
                 params.append(memory_type.value)
                 param_idx += 1
 
-            actor_sql, actor_params = self._actor_predicate(
+            actor_sql, actor_params = await self._actor_predicate(
                 actor, param_idx, own_only=own_only)
             predicate += actor_sql
             params.extend(actor_params)
@@ -1116,7 +1123,7 @@ class PostgresStorage:
         except Exception as e:
             logger.error(f"pgvector semantic search failed: {e}")
             self.metrics['failed_operations'] += 1
-            return []
+            raise
 
     async def delete_memory(self, memory_id: str) -> bool:
         """
@@ -1161,7 +1168,7 @@ class PostgresStorage:
         except Exception as e:
             logger.error(f"Failed to delete memory: {e}")
             self.metrics['failed_operations'] += 1
-            return False
+            raise
 
     async def get_old_memories(
         self,
@@ -1211,7 +1218,7 @@ class PostgresStorage:
             # `except` must not turn a wiring defect into an empty result.
             raise_if_structural(e, 'postgres_storage.get_old_memories')
             logger.error(f"Failed to get old memories: {e}")
-            return []
+            raise
 
     async def get_memory_from_cold(self, memory_id: str) -> Optional[MemoryItem]:
         """
@@ -1255,7 +1262,7 @@ class PostgresStorage:
         except Exception as e:
             logger.error(f"Failed to get memory from cold tier: {e}")
             self.metrics['failed_operations'] += 1
-            return None
+            raise
 
     async def migrate_to_cold(self, memory_id: str) -> bool:
         """
@@ -1352,7 +1359,7 @@ class PostgresStorage:
         except Exception as e:
             logger.error(f"Failed to migrate memory to cold tier: {e}")
             self.metrics['failed_operations'] += 1
-            return False
+            raise
 
     async def restore_from_cold(self, memory_id: str) -> bool:
         """
@@ -1405,7 +1412,7 @@ class PostgresStorage:
         except Exception as e:
             logger.error(f"Failed to restore memory from cold tier: {e}")
             self.metrics['failed_operations'] += 1
-            return False
+            raise
 
     async def log_archive(
         self,
@@ -1439,7 +1446,7 @@ class PostgresStorage:
 
         except Exception as e:
             logger.error(f"Failed to log archive: {e}")
-            return False
+            raise
 
     async def get_statistics(self) -> Dict[str, Any]:
         """
@@ -1603,10 +1610,10 @@ class PostgresStorage:
             )
 
         except Exception as e:
-            logger.error(f"Failed to parse memory row: {e}")
-            import traceback
-            traceback.print_exc()
-            return None
+            # A ROW THAT DOES NOT PARSE IS A MEMORY EVERY SEARCH WOULD SKIP: returned as None, it was left out of
+            # each result as though it were not there.
+            logger.error(f"Failed to parse memory row {row.get('memory_id')}: {e}")
+            raise
 
     async def migrate_to_cold_tier(self, cutoff_date: datetime) -> int:
         """
@@ -1664,6 +1671,9 @@ class PostgresStorage:
         """
         Clean up low-importance expired memories from hot tier
 
+        Judged on the importance a memory FORMED with (`importance_score`), not as faded with age: faded, every memory
+        is below any threshold in time, and age alone is no reason to forget.
+
         Args:
             cutoff_date: Delete memories older than this
             importance_threshold: Delete memories with importance below this
@@ -1701,39 +1711,6 @@ class PostgresStorage:
         except Exception as e:
             logger.error(f"Failed to cleanup memories: {e}")
             return 0
-
-    async def apply_memory_decay(self) -> bool:
-        """
-        Apply temporal decay to all memories in hot tier
-
-        Updates importance scores based on age and access patterns
-        Formula: importance * exp(-0.01 * age_days)
-        """
-        try:
-            if not self.db:
-                logger.error("Database not initialized")
-                return False
-
-            # PostgreSQL version of decay formula, once in every store
-            for store in self.db.maintained_stores():
-                await self.db.execute_query(
-                    """
-                    UPDATE memory_hot
-                    SET importance_score = importance_score * EXP(-0.01 * EXTRACT(DAY FROM (NOW() - created_at)))
-                    WHERE status IN ('raw', 'processed')
-                    AND EXTRACT(DAY FROM (NOW() - created_at)) > 1
-                    """,
-                    use_hot_tier=True,
-                    commit=True,
-                    store=store,
-                )
-
-            logger.info(f"Applied decay to memories in hot tier")
-            return True
-
-        except Exception as e:
-            logger.error(f"Failed to apply memory decay: {e}")
-            return False
 
     async def query_memories_by_timerange(
         self,
@@ -1792,7 +1769,7 @@ class PostgresStorage:
 
         except Exception as e:
             logger.error(f"Failed to query memories by timerange: {e}")
-            return []
+            raise
 
     async def close(self) -> None:
         """Close database connection"""

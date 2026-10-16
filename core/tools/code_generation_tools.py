@@ -25,9 +25,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from pathlib import Path
 
 from .tool_registry import Tool, ToolParameter, ToolResult, ToolCategory, ToolSafety
-from .capabilities import (
-    ToolCapabilityProfile, CapabilityMetadata, Capability, RiskLevel
-)
+from .tool_registry import PrimitiveProfile, PrimitiveUse, Primitive
 
 
 logger = logging.getLogger(__name__)
@@ -296,14 +294,12 @@ class GenerateFunctionTool(Tool):
             )
         ]
 
-        self.capability_profile = ToolCapabilityProfile(
+        self.primitive_profile = PrimitiveProfile(
             tool_name="generate_function",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.GENERATE_CODE,
-                    risk_level=RiskLevel.LOW,
-                    description="Synthesize functions from I/O examples by verification",
-                    priority=8
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.GENERATE_CODE,
+                    description="Synthesize functions from I/O examples by verification"
                 )
             ],
             requires_network=False,
@@ -379,14 +375,12 @@ class RefactorCodeTool(Tool):
             ToolParameter(name="log_level", type="string", description="'logging' goal: DEBUG/INFO/WARNING/ERROR", required=False, default="INFO"),
         ]
 
-        self.capability_profile = ToolCapabilityProfile(
+        self.primitive_profile = PrimitiveProfile(
             tool_name="refactor_code",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.REFACTOR_CODE,
-                    risk_level=RiskLevel.MEDIUM,
-                    description="Refactor code via owned AST transforms",
-                    priority=8
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.REFACTOR_CODE,
+                    description="Refactor code via owned AST transforms"
                 )
             ],
             requires_network=False,
@@ -520,14 +514,12 @@ class AddDocstringTool(Tool):
             )
         ]
 
-        self.capability_profile = ToolCapabilityProfile(
+        self.primitive_profile = PrimitiveProfile(
             tool_name="add_docstring",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.DOCUMENT_CODE,
-                    risk_level=RiskLevel.LOW,
-                    description="Add structural docstrings from the signature",
-                    priority=7
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.DOCUMENT_CODE,
+                    description="Add structural docstrings from the signature"
                 )
             ],
             requires_network=False,
@@ -651,14 +643,12 @@ class AddTypeHintsTool(Tool):
             )
         ]
 
-        self.capability_profile = ToolCapabilityProfile(
+        self.primitive_profile = PrimitiveProfile(
             tool_name="add_type_hints",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.GENERATE_CODE,
-                    risk_level=RiskLevel.LOW,
-                    description="Add type hints by static AST inference",
-                    priority=7
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.GENERATE_CODE,
+                    description="Add type hints by static AST inference"
                 )
             ],
             requires_network=False,
@@ -843,14 +833,12 @@ class FormatCodeTool(Tool):
             )
         ]
 
-        self.capability_profile = ToolCapabilityProfile(
+        self.primitive_profile = PrimitiveProfile(
             tool_name="format_code",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.FORMAT_CODE,
-                    risk_level=RiskLevel.LOW,
-                    description="Format Python code using black or autopep8",
-                    priority=7
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.FORMAT_CODE,
+                    description="Format Python code using black or autopep8"
                 )
             ],
             requires_network=False,
@@ -938,20 +926,16 @@ class FixLintingErrorsTool(Tool):
             ),
         ]
 
-        self.capability_profile = ToolCapabilityProfile(
+        self.primitive_profile = PrimitiveProfile(
             tool_name="fix_linting_errors",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.LINT_CODE,
-                    risk_level=RiskLevel.MEDIUM,
-                    description="Auto-fix common linting errors in Python files",
-                    priority=7
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.LINT_CODE,
+                    description="Auto-fix common linting errors in Python files"
                 ),
-                CapabilityMetadata(
-                    capability=Capability.WRITE_DATA,
-                    risk_level=RiskLevel.MEDIUM,
-                    description="Write corrected code back to file",
-                    priority=5
+                PrimitiveUse(
+                    primitive=Primitive.WRITE_DATA,
+                    description="Write corrected code back to file"
                 )
             ],
             requires_network=False,
@@ -1062,14 +1046,12 @@ class GenerateTestTool(Tool):
             ToolParameter(name="max_cases", type="number", description="Max cases per function", required=False, default=5),
         ]
 
-        self.capability_profile = ToolCapabilityProfile(
+        self.primitive_profile = PrimitiveProfile(
             tool_name="generate_test",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.GENERATE_TESTS,
-                    risk_level=RiskLevel.MEDIUM,
-                    description="Generate tests from observed behavior",
-                    priority=8
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.GENERATE_TESTS,
+                    description="Generate tests from observed behavior"
                 )
             ],
             requires_network=False,
@@ -1251,20 +1233,16 @@ class MigrateCodeTool(Tool):
             )
         ]
 
-        self.capability_profile = ToolCapabilityProfile(
+        self.primitive_profile = PrimitiveProfile(
             tool_name="migrate_code",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.TRANSFORM_DATA,
-                    risk_level=RiskLevel.MEDIUM,
-                    description="Migrate code between versions or patterns",
-                    priority=7
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.TRANSFORM_DATA,
+                    description="Migrate code between versions or patterns"
                 ),
-                CapabilityMetadata(
-                    capability=Capability.REFACTOR_CODE,
-                    risk_level=RiskLevel.MEDIUM,
-                    description="Refactor code during migration",
-                    priority=6
+                PrimitiveUse(
+                    primitive=Primitive.REFACTOR_CODE,
+                    description="Refactor code during migration"
                 )
             ],
             requires_network=False,
@@ -1337,14 +1315,12 @@ class GenerateClassTool(Tool):
             ToolParameter(name="include_docstrings", type="boolean", description="Include the class docstring (default: True)", required=False, default=True)
         ]
 
-        self.capability_profile = ToolCapabilityProfile(
+        self.primitive_profile = PrimitiveProfile(
             tool_name="generate_class",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.GENERATE_CODE,
-                    risk_level=RiskLevel.MEDIUM,
-                    description="Assemble Python classes from a structural spec",
-                    priority=8
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.GENERATE_CODE,
+                    description="Assemble Python classes from a structural spec"
                 )
             ],
             requires_network=False,
@@ -1478,14 +1454,12 @@ class GenerateModuleTool(Tool):
             ToolParameter(name="functions", type="array", description="Function specs (dicts with 'signature' and optional 'body')", required=False),
         ]
 
-        self.capability_profile = ToolCapabilityProfile(
+        self.primitive_profile = PrimitiveProfile(
             tool_name="generate_module",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.GENERATE_CODE,
-                    risk_level=RiskLevel.MEDIUM,
-                    description="Assemble Python modules from structured components",
-                    priority=8
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.GENERATE_CODE,
+                    description="Assemble Python modules from structured components"
                 )
             ],
             requires_network=False,
@@ -1588,20 +1562,16 @@ class AddLoggingTool(Tool):
             ToolParameter(name="log_level", type="string", description="Default log level", required=False, default="INFO", enum=["DEBUG", "INFO", "WARNING", "ERROR"])
         ]
 
-        self.capability_profile = ToolCapabilityProfile(
+        self.primitive_profile = PrimitiveProfile(
             tool_name="add_logging",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.GENERATE_CODE,
-                    risk_level=RiskLevel.LOW,
-                    description="Add logging statements to code using AST analysis",
-                    priority=7
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.GENERATE_CODE,
+                    description="Add logging statements to code using AST analysis"
                 ),
-                CapabilityMetadata(
-                    capability=Capability.ANALYZE_CODE,
-                    risk_level=RiskLevel.LOW,
-                    description="Analyze code structure to determine logging points",
-                    priority=6
+                PrimitiveUse(
+                    primitive=Primitive.ANALYZE_CODE,
+                    description="Analyze code structure to determine logging points"
                 )
             ],
             requires_network=False,
@@ -1768,20 +1738,16 @@ class OptimizeCodeTool(Tool):
             ToolParameter(name="optimization_level", type="number", description="Optimization level 1-3 (1=safe, 2=moderate, 3=aggressive)", required=False, default=2)
         ]
 
-        self.capability_profile = ToolCapabilityProfile(
+        self.primitive_profile = PrimitiveProfile(
             tool_name="optimize_code",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.REFACTOR_CODE,
-                    risk_level=RiskLevel.MEDIUM,
-                    description="Optimize code for better performance",
-                    priority=7
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.REFACTOR_CODE,
+                    description="Optimize code for better performance"
                 ),
-                CapabilityMetadata(
-                    capability=Capability.ANALYZE_CODE,
-                    risk_level=RiskLevel.LOW,
-                    description="Analyze code structure for optimization opportunities",
-                    priority=6
+                PrimitiveUse(
+                    primitive=Primitive.ANALYZE_CODE,
+                    description="Analyze code structure for optimization opportunities"
                 )
             ],
             requires_network=False,
@@ -1977,20 +1943,16 @@ class ConvertToAsyncTool(Tool):
             ToolParameter(name="await_functions", type="array", description="Function names that should be awaited (e.g., ['requests.get', 'time.sleep'])", required=False)
         ]
 
-        self.capability_profile = ToolCapabilityProfile(
+        self.primitive_profile = PrimitiveProfile(
             tool_name="convert_to_async",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.TRANSFORM_DATA,
-                    risk_level=RiskLevel.MEDIUM,
-                    description="Convert synchronous code to async/await pattern",
-                    priority=7
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.TRANSFORM_DATA,
+                    description="Convert synchronous code to async/await pattern"
                 ),
-                CapabilityMetadata(
-                    capability=Capability.REFACTOR_CODE,
-                    risk_level=RiskLevel.MEDIUM,
-                    description="Refactor code for async execution",
-                    priority=7
+                PrimitiveUse(
+                    primitive=Primitive.REFACTOR_CODE,
+                    description="Refactor code for async execution"
                 )
             ],
             requires_network=False,
@@ -2161,20 +2123,16 @@ class ExtractMethodTool(Tool):
             ToolParameter(name="end_line", type="number", description="Ending line number of block to extract (1-indexed)", required=True)
         ]
 
-        self.capability_profile = ToolCapabilityProfile(
+        self.primitive_profile = PrimitiveProfile(
             tool_name="extract_method",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.REFACTOR_CODE,
-                    risk_level=RiskLevel.MEDIUM,
-                    description="Extract code blocks into separate methods",
-                    priority=7
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.REFACTOR_CODE,
+                    description="Extract code blocks into separate methods"
                 ),
-                CapabilityMetadata(
-                    capability=Capability.ANALYZE_CODE,
-                    risk_level=RiskLevel.LOW,
-                    description="Analyze variable dependencies for extraction",
-                    priority=6
+                PrimitiveUse(
+                    primitive=Primitive.ANALYZE_CODE,
+                    description="Analyze variable dependencies for extraction"
                 )
             ],
             requires_network=False,
@@ -2316,20 +2274,16 @@ class InlineVariableTool(Tool):
             ToolParameter(name="line_number", type="number", description="Line number of assignment to inline (optional, uses first if not specified)", required=False)
         ]
 
-        self.capability_profile = ToolCapabilityProfile(
+        self.primitive_profile = PrimitiveProfile(
             tool_name="inline_variable",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.REFACTOR_CODE,
-                    risk_level=RiskLevel.MEDIUM,
-                    description="Inline variables by replacing usages with values",
-                    priority=6
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.REFACTOR_CODE,
+                    description="Inline variables by replacing usages with values"
                 ),
-                CapabilityMetadata(
-                    capability=Capability.ANALYZE_CODE,
-                    risk_level=RiskLevel.LOW,
-                    description="Analyze variable usage patterns",
-                    priority=5
+                PrimitiveUse(
+                    primitive=Primitive.ANALYZE_CODE,
+                    description="Analyze variable usage patterns"
                 )
             ],
             requires_network=False,
@@ -2501,20 +2455,16 @@ class RenameSymbolTool(Tool):
             ToolParameter(name="symbol_type", type="string", description="Symbol type: variable, function, class, or auto (default: auto)", required=False, default="auto")
         ]
 
-        self.capability_profile = ToolCapabilityProfile(
+        self.primitive_profile = PrimitiveProfile(
             tool_name="rename_symbol",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.REFACTOR_CODE,
-                    risk_level=RiskLevel.MEDIUM,
-                    description="Rename symbols with scope awareness",
-                    priority=7
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.REFACTOR_CODE,
+                    description="Rename symbols with scope awareness"
                 ),
-                CapabilityMetadata(
-                    capability=Capability.ANALYZE_CODE,
-                    risk_level=RiskLevel.LOW,
-                    description="Analyze code scope for safe renaming",
-                    priority=6
+                PrimitiveUse(
+                    primitive=Primitive.ANALYZE_CODE,
+                    description="Analyze code scope for safe renaming"
                 )
             ],
             requires_network=False,
@@ -2647,14 +2597,12 @@ class ImplementAlgorithmTool(Tool):
             ToolParameter(name="language", type="string", description="Only 'python' is available", required=False, default="python"),
         ]
 
-        self.capability_profile = ToolCapabilityProfile(
+        self.primitive_profile = PrimitiveProfile(
             tool_name="implement_algorithm",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.GENERATE_CODE,
-                    risk_level=RiskLevel.LOW,
-                    description="Provide canonical algorithm implementations from a registry",
-                    priority=8
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.GENERATE_CODE,
+                    description="Provide canonical algorithm implementations from a registry"
                 )
             ],
             requires_network=False,
@@ -2719,14 +2667,12 @@ class GenerateSymbolicMathTool(Tool):
             ToolParameter(name="order", type="number", description="For series: number of terms (default 6)", required=False, default=6),
         ]
 
-        self.capability_profile = ToolCapabilityProfile(
+        self.primitive_profile = PrimitiveProfile(
             tool_name="generate_symbolic_math",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.GENERATE_CODE,
-                    risk_level=RiskLevel.LOW,
-                    description="Symbolic math via the substrate CAS faculty",
-                    priority=7
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.GENERATE_CODE,
+                    description="Symbolic math via the substrate CAS faculty"
                 )
             ],
             requires_network=False,
@@ -2789,14 +2735,12 @@ class GenerateNumericalCodeTool(Tool):
             ToolParameter(name="description", type="string", description="Alias for 'operation'", required=False),
         ]
 
-        self.capability_profile = ToolCapabilityProfile(
+        self.primitive_profile = PrimitiveProfile(
             tool_name="generate_numerical_code",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.GENERATE_CODE,
-                    risk_level=RiskLevel.LOW,
-                    description="Provide NumPy/SciPy operation implementations from a registry",
-                    priority=7
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.GENERATE_CODE,
+                    description="Provide NumPy/SciPy operation implementations from a registry"
                 )
             ],
             requires_network=False,
@@ -2852,14 +2796,12 @@ class GenerateMathProofTool(Tool):
             ToolParameter(name="proof_style", type="string", description="Preferred style (the authority selects the actual strategy)", required=False, default="direct", enum=["direct", "contradiction", "induction", "contrapositive"])
         ]
 
-        self.capability_profile = ToolCapabilityProfile(
+        self.primitive_profile = PrimitiveProfile(
             tool_name="generate_math_proof",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.GENERATE_CODE,
-                    risk_level=RiskLevel.LOW,
-                    description="Prove theorems via the substrate reasoning authority",
-                    priority=6
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.GENERATE_CODE,
+                    description="Prove theorems via the substrate reasoning authority"
                 )
             ],
             requires_network=False,
@@ -2931,14 +2873,12 @@ class GenerateDesignPatternTool(Tool):
             ToolParameter(name="use_case", type="string", description="Optional note recorded with the result", required=False)
         ]
 
-        self.capability_profile = ToolCapabilityProfile(
+        self.primitive_profile = PrimitiveProfile(
             tool_name="generate_design_pattern",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.GENERATE_CODE,
-                    risk_level=RiskLevel.LOW,
-                    description="Provide canonical design-pattern implementations from a registry",
-                    priority=8
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.GENERATE_CODE,
+                    description="Provide canonical design-pattern implementations from a registry"
                 )
             ],
             requires_network=False,
@@ -2997,14 +2937,12 @@ class GenerateAPIClientTool(Tool):
             ToolParameter(name="auth_type", type="string", description="Authentication type", required=False, default="bearer", enum=["bearer", "api_key", "basic", "none"])
         ]
 
-        self.capability_profile = ToolCapabilityProfile(
+        self.primitive_profile = PrimitiveProfile(
             tool_name="generate_api_client",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.GENERATE_CODE,
-                    risk_level=RiskLevel.LOW,
-                    description="Assemble an API client class from a structured spec",
-                    priority=8
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.GENERATE_CODE,
+                    description="Assemble an API client class from a structured spec"
                 )
             ],
             requires_network=False,
@@ -3129,20 +3067,16 @@ class ScaffoldApplicationTool(Tool):
             ToolParameter(name="framework", type="string", description="Framework to use", required=False)
         ]
 
-        self.capability_profile = ToolCapabilityProfile(
+        self.primitive_profile = PrimitiveProfile(
             tool_name="scaffold_application",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.BUILD_PROTOTYPE,
-                    risk_level=RiskLevel.MEDIUM,
-                    description="Scaffold complete application structures",
-                    priority=8
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.BUILD_PROTOTYPE,
+                    description="Scaffold complete application structures"
                 ),
-                CapabilityMetadata(
-                    capability=Capability.GENERATE_CODE,
-                    risk_level=RiskLevel.MEDIUM,
-                    description="Generate application boilerplate code",
-                    priority=7
+                PrimitiveUse(
+                    primitive=Primitive.GENERATE_CODE,
+                    description="Generate application boilerplate code"
                 )
             ],
             requires_network=False,
@@ -3217,14 +3151,12 @@ class SynthesizeFromExamplesTool(Tool):
             ToolParameter(name="function_name", type="string", description="Name for synthesized function", required=False, default="synthesized_function"),
         ]
 
-        self.capability_profile = ToolCapabilityProfile(
+        self.primitive_profile = PrimitiveProfile(
             tool_name="synthesize_from_examples",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.GENERATE_CODE,
-                    risk_level=RiskLevel.LOW,
-                    description="Synthesize a program from input/output examples, model-free",
-                    priority=8
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.GENERATE_CODE,
+                    description="Synthesize a program from input/output examples, model-free"
                 )
             ],
             requires_network=False,
@@ -3289,14 +3221,12 @@ class GeneratePropertyTestTool(Tool):
             ToolParameter(name="module", type="string", description="Module the tests import from", required=False, default="solution"),
         ]
 
-        self.capability_profile = ToolCapabilityProfile(
+        self.primitive_profile = PrimitiveProfile(
             tool_name="generate_property_test",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.GENERATE_TESTS,
-                    risk_level=RiskLevel.LOW,
-                    description="Generate Hypothesis property tests from a signature",
-                    priority=8
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.GENERATE_TESTS,
+                    description="Generate Hypothesis property tests from a signature"
                 )
             ],
             requires_network=False,
@@ -3438,14 +3368,12 @@ class ApplyPatchTool(Tool):
             ToolParameter(name="patch", type="string", description="Unified diff patch", required=True)
         ]
 
-        self.capability_profile = ToolCapabilityProfile(
+        self.primitive_profile = PrimitiveProfile(
             tool_name="apply_patch",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.TRANSFORM_DATA,
-                    risk_level=RiskLevel.MEDIUM,
-                    description="Apply unified diff patches to code",
-                    priority=6
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.TRANSFORM_DATA,
+                    description="Apply unified diff patches to code"
                 )
             ],
             requires_network=False,
@@ -3527,20 +3455,16 @@ class CompileTypecheckGateTool(Tool):
             ToolParameter(name="strict", type="boolean", description="Use strict type checking", required=False, default=False)
         ]
 
-        self.capability_profile = ToolCapabilityProfile(
+        self.primitive_profile = PrimitiveProfile(
             tool_name="compile_typecheck_gate",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.VALIDATE_DATA,
-                    risk_level=RiskLevel.LOW,
-                    description="Validate code syntax and type correctness",
-                    priority=7
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.VALIDATE_DATA,
+                    description="Validate code syntax and type correctness"
                 ),
-                CapabilityMetadata(
-                    capability=Capability.ANALYZE_CODE,
-                    risk_level=RiskLevel.LOW,
-                    description="Analyze code for type errors",
-                    priority=7
+                PrimitiveUse(
+                    primitive=Primitive.ANALYZE_CODE,
+                    description="Analyze code for type errors"
                 )
             ],
             requires_network=False,
@@ -3630,20 +3554,16 @@ class RepositoryRefactorTool(Tool):
             ToolParameter(name="dry_run", type="boolean", description="Perform dry run without modifying files", required=False, default=True)
         ]
 
-        self.capability_profile = ToolCapabilityProfile(
+        self.primitive_profile = PrimitiveProfile(
             tool_name="repository_refactor",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.REFACTOR_CODE,
-                    risk_level=RiskLevel.HIGH,
-                    description="Perform repository-wide refactoring operations",
-                    priority=9
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.REFACTOR_CODE,
+                    description="Perform repository-wide refactoring operations"
                 ),
-                CapabilityMetadata(
-                    capability=Capability.WRITE_DATA,
-                    risk_level=RiskLevel.HIGH,
-                    description="Modify multiple files across repository",
-                    priority=8
+                PrimitiveUse(
+                    primitive=Primitive.WRITE_DATA,
+                    description="Modify multiple files across repository"
                 )
             ],
             requires_network=False,
@@ -3689,20 +3609,16 @@ class LicenseAttributionCheckTool(Tool):
             ToolParameter(name="expected_license", type="string", description="Expected license type", required=False, enum=["MIT", "Apache-2.0", "GPL-3.0", "BSD-3-Clause"])
         ]
 
-        self.capability_profile = ToolCapabilityProfile(
+        self.primitive_profile = PrimitiveProfile(
             tool_name="license_attribution_check",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.VALIDATE_DATA,
-                    risk_level=RiskLevel.LOW,
-                    description="Check code for proper license headers and attribution",
-                    priority=6
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.VALIDATE_DATA,
+                    description="Check code for proper license headers and attribution"
                 ),
-                CapabilityMetadata(
-                    capability=Capability.ANALYZE_CODE,
-                    risk_level=RiskLevel.LOW,
-                    description="Analyze code for license compliance",
-                    priority=6
+                PrimitiveUse(
+                    primitive=Primitive.ANALYZE_CODE,
+                    description="Analyze code for license compliance"
                 )
             ],
             requires_network=False,

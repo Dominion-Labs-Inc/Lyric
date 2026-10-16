@@ -1,0 +1,121 @@
+{
+  "experiment": "SENSE-RELATED-01",
+  "claim": "How many of the other things said a sense is connected to, added to how often the sense is met as ACT-R's spreading activation, takes more of the senses WordNet's authors tagged than taken first with frequency only on a tie, and more than the most frequent sense alone.",
+  "hypothesis": "The strict order (B) taking as many tagged senses as the activation (C), or the activation taking no more than the most frequent sense (A), would each show here.",
+  "started_at": "2026-10-12T00:59:28.316772+00:00",
+  "duration_seconds": 152.416,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/Lyric/venv_lyric/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/Lyric",
+    "shadow_mode": null,
+    "git_commit": "0a27c570eda188a24bb63d1968f8fd104a8f4cb6",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "lyric_db",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "lyric_db",
+        "model": "lyric_db",
+        "user_context": "lyric_db",
+        "learning": "lyric_db"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "dotenv:.env.postgres",
+        "database": "dotenv:.env.postgres",
+        "user": "dotenv:.env.postgres",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "pool_idle_seconds": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 353,
+    "database_verified": null,
+    "database_verified_reason": "not verified"
+  },
+  "summary": {
+    "checks": 2,
+    "passed": 2,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [
+    {
+      "name": "A most frequent sense",
+      "value": "93472/159784",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "A most frequent sense, coarse",
+      "value": "112553/159784",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "A most frequent sense, where connections differ",
+      "value": "56571/99944",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "B strict: connected first, then frequency",
+      "value": "100630/159784",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "B strict: connected first, then frequency, coarse",
+      "value": "119315/159784",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "B strict: connected first, then frequency, where connections differ",
+      "value": "63729/99944",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "C one activation, ACT-R's spreading activation",
+      "value": "104298/159784",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "C one activation, ACT-R's spreading activation, coarse",
+      "value": "122236/159784",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "C one activation, ACT-R's spreading activation, where connections differ",
+      "value": "67375/99944",
+      "unit": "",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "the activation takes more tagged senses than the strict order",
+      "passed": true,
+      "detail": "104298 against 100630",
+      "at": "2026-10-12T01:02:00.733048+00:00"
+    },
+    {
+      "label": "the activation takes more tagged senses than the most frequent sense",
+      "passed": true,
+      "detail": "104298 against 93472",
+      "at": "2026-10-12T01:02:00.733067+00:00"
+    }
+  ],
+  "notes": []
+}

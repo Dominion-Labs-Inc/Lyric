@@ -60,7 +60,7 @@ async def check_tool_projection():
     registry = get_tool_registry()
     result = await registry.execute_tool(
         "list_directory", {"directory_path": str(Path(__file__).resolve().parent)})
-    projection = await registry.project_capabilities()
+    projection = await registry.project_primitives()
     return {"tool_invocation_succeeded": result.success,
             "projection": projection,
             "passed": result.success and projection["projected"] > 0

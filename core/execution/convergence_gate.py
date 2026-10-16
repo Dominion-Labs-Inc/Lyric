@@ -37,6 +37,10 @@ from enum import Enum
 logger = logging.getLogger(__name__)
 
 
+class ConvergenceStagnationError(RuntimeError):
+    """Uncertainty stayed above its threshold, unmoved, for three iterations past the tenth."""
+
+
 class ConvergenceState(Enum):
     """Convergence verification states"""
     NOT_STARTED = "not_started"           # No iterations yet

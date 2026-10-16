@@ -1,0 +1,187 @@
+{
+  "experiment": "SENSE-SAID-01",
+  "claim": "What a word is said of, added to how often each sense is met as one activation, takes more of the senses WordNet's authors tagged than how often each sense is met alone; taken first, with frequency only on a tie, it takes fewer.",
+  "hypothesis": "The listener's activation (E) taking no more tagged senses than the most frequent sense (A), or the strict order (B) taking as many, would each show here.",
+  "started_at": "2026-10-01T21:47:17.666590+00:00",
+  "duration_seconds": 22.486,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/Lyric/venv_lyric/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/Lyric",
+    "shadow_mode": null,
+    "git_commit": "5745a0d88f9dbd85456e17740eb00a2282263b0a",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "lyric_db",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "lyric_db",
+        "model": "lyric_db",
+        "user_context": "lyric_db",
+        "learning": "lyric_db"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "dotenv:.env.postgres",
+        "database": "dotenv:.env.postgres",
+        "user": "dotenv:.env.postgres",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "pool_idle_seconds": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 18,
+    "database_verified": null,
+    "database_verified_reason": "not verified"
+  },
+  "summary": {
+    "checks": 2,
+    "passed": 2,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [
+    {
+      "name": "A most frequent sense: done_to",
+      "value": "1742/3078",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "A most frequent sense: done_to, coarse",
+      "value": "2078/3078",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "A most frequent sense: has_property",
+      "value": "5492/9576",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "A most frequent sense: has_property, coarse",
+      "value": "6567/9576",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "B strict: said of first, then frequency: done_to",
+      "value": "1373/3078",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "B strict: said of first, then frequency: done_to, coarse",
+      "value": "1711/3078",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "B strict: said of first, then frequency: has_property",
+      "value": "4072/9576",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "B strict: said of first, then frequency: has_property, coarse",
+      "value": "5132/9576",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "C activation at Resnik's kind: done_to",
+      "value": "1740/3078",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "C activation at Resnik's kind: done_to, coarse",
+      "value": "2074/3078",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "C activation at Resnik's kind: has_property",
+      "value": "5228/9576",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "C activation at Resnik's kind: has_property, coarse",
+      "value": "6368/9576",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "D activation at the sense's own kind: done_to",
+      "value": "1634/3078",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "D activation at the sense's own kind: done_to, coarse",
+      "value": "2007/3078",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "D activation at the sense's own kind: has_property",
+      "value": "5273/9576",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "D activation at the sense's own kind: has_property, coarse",
+      "value": "6358/9576",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "E activation over every kind (the listener's): done_to",
+      "value": "1797/3078",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "E activation over every kind (the listener's): done_to, coarse",
+      "value": "2127/3078",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "E activation over every kind (the listener's): has_property",
+      "value": "5630/9576",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "E activation over every kind (the listener's): has_property, coarse",
+      "value": "6682/9576",
+      "unit": "",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "the listener's activation takes more tagged senses than the most frequent sense, for both relations",
+      "passed": true,
+      "detail": "done_to 1797 against 1742, has_property 5630 against 5492",
+      "at": "2026-10-01T21:47:40.152542+00:00"
+    },
+    {
+      "label": "the strict order takes fewer than the most frequent sense, for both relations",
+      "passed": true,
+      "detail": "done_to 1373 against 1742, has_property 4072 against 5492",
+      "at": "2026-10-01T21:47:40.152557+00:00"
+    }
+  ],
+  "notes": []
+}

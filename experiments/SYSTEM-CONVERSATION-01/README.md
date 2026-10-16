@@ -1,5 +1,12 @@
 # SYSTEM-CONVERSATION-01 — what a speaker tells is theirs
 
+> **Changed 2026-10-07 (the gate, `docs/research/SEPARATION_MAP.md` §11).** What a conversation is told is no
+> longer kept out of the world because a person said it: memory splits it by what it is about. "A vex… is a
+> mammal" is a claim about a kind and goes to the world's gate, so the speaker's-context checks now tell names
+> the world does not hold ("Vex… is a mammal.", "Glint… Heron is a glint… bird."). F is now "a speaker's context
+> refuses what the world's door refuses" (memory's `hold_for_person`). G (promotion by a second teller) is
+> removed with promotion itself. The record below is the 2026-09-26 finding as it was.
+
 **Finding (2026-09-26): behaviour 37/37; one wiring finding (`beliefs_about_user`, called by nothing).**
 A conversation session is a user actor, so what it is told lands in that speaker's scoped context, never the
 shared mind. Two speakers, fresh nonce words each run, everything said through `understand`.

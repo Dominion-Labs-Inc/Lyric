@@ -1,0 +1,99 @@
+{
+  "experiment": "LEARNED-WORK-01",
+  "claim": "After a lesson it did not already hold, the substrate knows what it was taught and says so, says what it was not taught, can say what it can and cannot do, does multi-step work built on the lesson, and is different after it has tried.",
+  "hypothesis": "Confidence that does not follow what was taught, a gap answered as if known, a task it cannot do claimed as doable (or the reverse), work that ignores the lesson, or confidence that does not move after doing would each show here.",
+  "started_at": "2026-10-05T00:08:09.452141+00:00",
+  "duration_seconds": 299.744,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/Lyric/venv_lyric/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/Lyric",
+    "shadow_mode": null,
+    "git_commit": "5cf57463f35b0096bff911066510d577dc598266",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "lyric_dev",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "lyric_dev",
+        "model": "lyric_dev",
+        "user_context": "lyric_dev",
+        "learning": "lyric_dev"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "dotenv:.env.postgres",
+        "database": "environment",
+        "user": "dotenv:.env.postgres",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "pool_idle_seconds": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 5,
+    "database_verified": null,
+    "database_verified_reason": "no initialized connection in this process"
+  },
+  "summary": {
+    "checks": 2,
+    "passed": 2,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [
+    {
+      "name": "user",
+      "value": "learned-work-wupco",
+      "unit": "",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "the lesson is read and held",
+      "passed": true,
+      "detail": "read=8 taught={'admitted': 8, 'already': 0, 'refused': 0, 'total': 8}",
+      "at": "2026-10-05T00:09:13.294695+00:00"
+    },
+    {
+      "label": "the rule is held",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-10-05T00:09:13.297292+00:00"
+    }
+  ],
+  "notes": [
+    "OBSERVED \u2014 before the lesson \u2014 the taught facts: {'cathodic protection isa corrosion control method': None, 'cathodic protection prevents corrosion': None, 'sacrificial anode isa anode': None, 'sacrificial anode part_of cathodic protection system': None, 'sacrificial anode made_of zinc': None, 'moisture causes corrosion': None, 'corrosion causes pipeline failure': None, 'coating prevents corrosion': None}",
+    "OBSERVED \u2014 before the lesson \u2014 confidence in the domain: {'competence': None, 'operating': {'attempts': 0, 'wins': 0, 'earned': 0.5}}",
+    "OBSERVED \u2014 stores moved by the lesson: {'memories': 24, 'concepts': 10, 'graph_edges': 8, 'beliefs': 9, 'knowledge_updates': 8, 'held_rules': 1}",
+    "OBSERVED \u2014 after the lesson \u2014 the taught facts (posterior, updates): {'cathodic protection isa corrosion control method': (0.945, 1), 'cathodic protection prevents corrosion': (0.945, 1), 'sacrificial anode isa anode': (0.945, 1), 'sacrificial anode part_of cathodic protection system': (0.945, 1), 'sacrificial anode made_of zinc': (0.945, 1), 'moisture causes corrosion': (0.945, 1), 'corrosion causes pipeline failure': (0.945, 1), 'coating prevents corrosion': (0.945, 1)}",
+    "OBSERVED \u2014 after the lesson \u2014 confidence in the domain: {'competence': 0.5, 'operating': {'attempts': 0, 'wins': 0, 'earned': 0.5}}",
+    "OBSERVED \u2014 before the work \u2014 confidence in the domain: {'competence': 0.5, 'operating': {'attempts': 0, 'wins': 0, 'earned': 0.5}}",
+    "OBSERVED \u2014 D1 tool runs: {}",
+    "OBSERVED \u2014 D1 learned: []",
+    "OBSERVED \u2014 D1 file: not written",
+    "OBSERVED \u2014 D2 steps as run: [('RESEARCH', False)]",
+    "OBSERVED \u2014 D2 tool runs: {}",
+    "OBSERVED \u2014 D2 learned: []",
+    "OBSERVED \u2014 D2 file: not written",
+    "OBSERVED \u2014 D2 file \u2014 lesson terms it uses: []",
+    "OBSERVED \u2014 confidence in the domain: before the work -> after: {'competence': 0.5, 'operating': {'attempts': 0, 'wins': 0, 'earned': 0.5}} -> {'competence': 0.5, 'operating': {'attempts': 0, 'wins': 0, 'earned': 0.5}}",
+    "OBSERVED \u2014 the taught facts after the work (posterior, updates): {'cathodic protection isa corrosion control method': (0.945, 1), 'cathodic protection prevents corrosion': (0.945, 1), 'sacrificial anode isa anode': (0.945, 1), 'sacrificial anode part_of cathodic protection system': (0.945, 1), 'sacrificial anode made_of zinc': (0.945, 1), 'moisture causes corrosion': (0.945, 1), 'corrosion causes pipeline failure': (0.945, 1), 'coating prevents corrosion': (0.945, 1)}",
+    "OBSERVED \u2014 second attempt: steps as run: [('RESEARCH', False)] (first: [('RESEARCH', False)])",
+    "OBSERVED \u2014 second attempt: tool runs: {}",
+    "OBSERVED \u2014 second attempt: file: not written",
+    "OBSERVED \u2014 confidence in the domain after the second attempt: {'competence': 0.5, 'operating': {'attempts': 0, 'wins': 0, 'earned': 0.5}}",
+    "OBSERVED \u2014 stores moved: {'memories': 48, 'concepts': 13, 'graph_edges': 17, 'beliefs': 10, 'knowledge_updates': 8, 'held_rules': 1}",
+    "OBSERVED \u2014 knowledge ledger by cause: [('learning.bulk_teach.teaching', 'new', 8)]",
+    "OBSERVED \u2014 tool runs (runs, successes): {}",
+    "OBSERVED \u2014 open questions it registered: []",
+    "OBSERVED \u2014 this person's own context: [('inspection_segment_14x6400b03a81', 'has format', 'txt'), ('inspection_segment_14x6400b03a81', 'has pages', '1'), ('inspection_segment_14x6400b03a81', 'mentions', 'sacrificial_anode'), ('sacrificial_anode', 'has property', 'depleted')]"
+  ]
+}

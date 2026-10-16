@@ -124,7 +124,10 @@ async def main() -> int:
             "ON cr.source_concept_id = c.concept_id WHERE c.name = 'mammal' "
             "AND cr.relation = 'isa' AND cr.target_surface = 'animal' LIMIT 1", (), fetch_one=True)
         if not held:
-            await coord.learning.learn_fact("mammal", "isa", "animal", domain="general")
+            from core.learning.unified_learning_system import Evidence
+            await coord.learning.consider("mammal", "isa", "animal", domain="general", evidence=Evidence(
+                source="experiment:SENSES-TOGETHER-01", key="SENSES-TOGETHER-01",
+                source_type="IMPORTED_KNOWLEDGE", quality=0.9))
             EV.note("taught 'a mammal is an animal' (left in place, as SYSTEM-CONVERSATION-01 does)")
         await A.understand(f"a {V} is a mammal", look_up=False)
         sounds, frames = iter(stim["sounds"]), iter(stim["frames"])

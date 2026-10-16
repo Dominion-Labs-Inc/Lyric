@@ -6,9 +6,12 @@ the substrate through its real doors, and in a note of the substrate's own. Afte
 substrate's memory is searched for them. Nothing in this harness says whose work anything is: each door is given
 only what a caller would give it.
 
+  0  ENGLISH    the sandbox, emptied, is taught english_01-39 as the main store was, so the front door reads
   A  LESSON     the substrate's own, taught through the learning authority: a robin is a bird, a bird is an animal
-  B  TELL       the person tells it through the front door (`handle_user_request`) that a <marker> is a robin
-  C  ASK        the person asks through the front door whether a <marker> is an animal: answered by reasoning over
+  B  TELL       the person tells it through the front door (`handle_user_request`) that <Marker> is a robin: a
+                name the world does not hold, so about their own thing and theirs (docs/research/SEPARATION_MAP.md
+                §11.3). Through their WORK context, under an organization, they tell it that <Work> is a server
+  C  ASK        the person asks through the front door whether <Marker> is an animal: answered by reasoning over
                 their fact and the lesson, the way the conversation reasons (through the neural bridge). They also
                 ask what a <marker> is that nothing held can place, so it is looked up. Reasoning is done for their
                 work through `reason_about`, over a cause, a rule and an observation of theirs, so the causal and
@@ -27,6 +30,9 @@ only what a caller would give it.
                 tables with no owner that hold one are reported. Nothing of each kind of the person's work is in a
                 table of the substrate's own; their argument, the cause and the explanation reasoned for them are
                 kept as theirs; what their image showed is held in their context
+  K  OTHERS     another person asks whether <Marker> is a robin and <Work> a server, and is told neither; the
+                work secret is held in the organization's Work Context, not the person's. The control: what the
+                person told of a kind ("A <kind> is a bird.") is about the world, and the other person is answered it
   I  MAIN       the main model's store is untouched
   J  POOL       each experience waits in the pool as a candidate, in its owner's store. The person's job, their
                 telling and question, the reasoning over their fact, the look-up of their word and the seeing of
@@ -68,8 +74,11 @@ def _token(prefix: str) -> str:
 MQ, MT, MS, MO = _token("zq"), _token("zt"), _token("zs"), _token("zo")
 MR, MI, MK = _token("zr"), _token("zi"), _token("zk")
 MC, MH = _token("zc"), _token("zh")
+MW, ORG, MG = _token("zw"), _token("canary-org-"), _token("zg")
 PERSON_ID = _token("canary-person-")
 SESSION = _token("canary-session-")
+OTHER_ID = _token("canary-other-")
+OTHER_SESSION = _token("canary-other-session-")
 
 EV = RunRecord(
     "CANARY-01",
@@ -146,7 +155,7 @@ async def where_marker(db, marker: str):
         else:
             select = "NULL AS owner"
         rows = await db.execute_query(
-            f'SELECT {select} FROM "{schema}"."{name}" AS t WHERE t::text LIKE $1',
+            f'SELECT {select} FROM "{schema}"."{name}" AS t WHERE t::text ILIKE $1',
             (f"%{marker}%",), fetch_all=True) or []
         if rows:
             found[table] = {"owner_column": owner, "owners": sorted({str(r["owner"]) for r in rows}),
@@ -162,29 +171,27 @@ async def settle(agent):
         await asyncio.wait_for(agent._write_queue.join(), timeout=60)
 
 
-async def pool_item(db, task_id, wait_s=90):
-    """The pool's item for a finished task, once the memory agent's worker has decided it."""
-    deadline = time.time() + wait_s
-    row = None
-    while time.time() < deadline:
-        row = await db.execute_query(
-            "SELECT item_id, owner, status, decision, parts::text AS parts FROM unified.experience_pool"
-            " WHERE about = $1 ORDER BY created_at DESC LIMIT 1", (task_id,), fetch_one=True)
-        if row and row["status"] == "decided":
-            return row
-        await asyncio.sleep(2)
-    return row
+#: ONE PURSUIT, ONE MEMORY: an experience had within a pursuit -- a turn, a look-up, a reasoning, a task -- is a
+#: part of that pursuit's memory, and the pool holds the pursuit by its memory (`MemoryAgent.remember_experience`).
+#: An item's parts are its own where it has them, else its pursuit memory's.
+_POOL_SQL = (
+    "SELECT p.item_id, p.owner, p.kind, p.status, p.decision,"
+    " COALESCE(p.parts, m.thinking_state::jsonb->'raw_event'->'experience'->'parts')::text AS parts"
+    " FROM unified.experience_pool p LEFT JOIN memory_hot.memory_hot m ON m.memory_id = p.memory_id")
 
 
-async def pool_items(db, kind, marker, wait_s=90):
-    """Every item of one kind in the pool holding `marker`, once the memory agent's worker has decided them."""
+async def pool_items(db, marker, wait_s=90, *, role=None):
+    """Every item in the pool whose parts hold `marker` (in a part of `role`, when given), once the memory agent's
+    worker has decided them."""
+    import json as _json
     deadline = time.time() + wait_s
     rows = []
     while time.time() < deadline:
-        rows = await db.execute_query(
-            "SELECT item_id, owner, kind, status, decision, parts::text AS parts FROM unified.experience_pool"
-            " WHERE kind = $1 AND parts::text LIKE $2 ORDER BY created_at", (kind, f"%{marker}%"),
-            fetch_all=True) or []
+        rows = [r for r in await db.execute_query(
+            _POOL_SQL + " WHERE COALESCE(p.parts::text, m.thinking_state::text) ILIKE $1 ORDER BY p.created_at",
+            (f"%{marker}%",), fetch_all=True) or []
+            if role is None or any(part.get("role") == role and marker.lower() in _json.dumps(
+                part.get("content"), default=str).lower() for part in _json.loads(r["parts"] or "[]"))]
         if rows and all(r["status"] == "decided" for r in rows):
             return rows
         await asyncio.sleep(2)
@@ -242,18 +249,40 @@ async def _run(db, coord, main_before: int) -> int:
     say_line(f"    the person: {person}; markers: their fact and question {MQ}, their job {MT}, own {MS}")
     work = Path(tempfile.mkdtemp(prefix="canary01_"))
 
+    say_line("\n== 0. English, as the main store was taught it ==")
+    from core.learning.teaching import TeachingPass
+    from core.learning.teaching_sources import LessonSource
+    lessons = sorted((ROOT / "data" / "lessons").glob("english_[0-9][0-9].json"))
+    refused = {}
+    for path in lessons:
+        source = LessonSource(str(path))
+        total = len(list(source.records()))
+        report = await TeachingPass(source, domain="english", sample=False).run(get_learning_authority())
+        if report.patterns.get("refused") or report.patterns.get("total") != total:
+            refused[path.name] = report.patterns
+    check(f"the {len(lessons)} lessons are learned, none refused", not refused,
+          f"{refused}" if refused else f"{lessons[-1].name} the last")
+
     say_line("\n== A. The substrate's own lesson ==")
+    from core.learning.unified_learning_system import Evidence
     learning = get_learning_authority()
+    lesson = Evidence(source="lesson:canary_01", key="canary_01", source_type="IMPORTED_KNOWLEDGE", quality=0.95)
     for subject, obj in (("robin", "bird"), ("bird", "animal")):
-        adm = await learning.learn_fact(subject, "isa", obj, domain="canary_01", quality=0.95)
-        say_line(f"    a {subject} is a {obj}: admitted={getattr(adm, 'admitted', adm)}")
+        decision = await learning.consider(subject, "isa", obj, domain="canary_01", evidence=lesson)
+        say_line(f"    a {subject} is a {obj}: {decision.standing}")
 
     say_line("\n== B. The person tells it something, through the front door ==")
-    told = await coord.handle_user_request(f"A {MQ} is a robin.", source="api", metadata=front)
+    told = await coord.handle_user_request(f"{MQ.capitalize()} is a robin.", source="api", metadata=front)
     say_line(f"    reply: {str(told.get('reply') or told.get('answer') or told)[:300]}")
+    at_work = {**front, "context": "work", "organization": ORG}
+    told_at_work = await coord.handle_user_request(f"{MW.capitalize()} is a server.", source="api",
+                                                   metadata=at_work)
+    say_line(f"    through their work context: {str(told_at_work.get('answer') or told_at_work)[:300]}")
+    told_of_kind = await coord.handle_user_request(f"A {MG} is a bird.", source="api", metadata=front)
+    say_line(f"    of a kind: {str(told_of_kind.get('answer') or told_of_kind)[:300]}")
 
     say_line("\n== C. The person asks, through the front door ==")
-    asked = await coord.handle_user_request(f"Is a {MQ} an animal?", source="api", metadata=front)
+    asked = await coord.handle_user_request(f"Is {MQ.capitalize()} an animal?", source="api", metadata=front)
     reply = str(asked.get("reply") or asked.get("answer") or asked)
     say_line(f"    reply: {reply[:300]}")
     check("the question was answered by reasoning over their fact and the lesson", reply.lower().startswith("yes"),
@@ -275,7 +304,9 @@ async def _run(db, coord, main_before: int) -> int:
     say_line("\n== D. A job, through the front door, run to its end ==")
     note = work / f"{MT}_note.txt"
     note.write_text(f"My note: the {MT} pump in bay 4 is broken and leaks oil.\n")
-    done = await job(coord, f"Read my note about the {MT} pump.",
+    # A REQUEST LYRIC READS: "Read the note." is a request in the taught English; "Read my note about the ...
+    # pump." is not, and what does not read is not work. The marker reaches memory through what the note holds.
+    done = await job(coord, "Read the note.",
                      metadata={"parameters": {"tool_plan": [{"tool": "read_file",
                                                              "args": {"file_path": str(note)}}]}})
     say_line(f"    job: {done.get('status')}; {str(done.get('result') or done.get('error'))[:300]}")
@@ -323,7 +354,7 @@ async def _run(db, coord, main_before: int) -> int:
     say_line("\n== G. Memory rows ==")
     tiers = ("memory_hot.memory_hot", "memory_cold.memory_cold", "unified.memory_media")
     found = {}
-    for label, marker in (("fact and question", MQ), ("look-up", MR), ("job", MT), ("image", MI),
+    for label, marker in (("fact and question", MQ), ("work", MW), ("look-up", MR), ("job", MT), ("image", MI),
                           ("cause", MC), ("hypothesis", MH),
                           ("own", MS)):
         found[label] = await where_marker(db, marker)
@@ -338,10 +369,16 @@ async def _run(db, coord, main_before: int) -> int:
             owners |= set(found[label].get(table, {}).get("owners", []))
         return owners
 
-    for label in ("fact and question", "look-up", "job", "image"):
+    # WHOSE: what the person gave is theirs; what they gave through their work for the organization is the
+    # organization's, every memory that comes with it (docs/research/SEPARATION_MAP.md §11.13).
+    organization = f"org:{ORG}"
+    whose = {label: (organization if label == "work" else person)
+             for label in ("fact and question", "work", "look-up", "job", "image", "cause", "hypothesis")}
+    for label in ("fact and question", "work", "look-up", "job", "image"):
         owners = memory_owners(label)
-        check(f"the person's {label} reached memory, and every memory row holding it is theirs",
-              owners == {person}, f"owners {sorted(owners) or 'none'}")
+        check(f"the person's {label} reached memory, and every memory row holding it is "
+              f"{'the organization' if label == 'work' else 'the person'}'s",
+              owners == {whose[label]}, f"owners {sorted(owners) or 'none'}")
     # THE memory `see` made of their image, by the id the percept carries back: other seeings (the substrate's
     # own, of its environment) form vision memories at the same time and are not this one.
     seen_memory = (getattr(seen, "metadata", None) or {}).get("memory_id") if seen else None
@@ -386,12 +423,13 @@ async def _run(db, coord, main_before: int) -> int:
 
     say_line("\n== H. The rest of memory ==")
     open_tables = {}
-    for label in ("fact and question", "look-up", "job", "image", "cause", "hypothesis"):
+    for label in ("fact and question", "work", "look-up", "job", "image", "cause", "hypothesis"):
         for table, info in found[label].items():
             if table in tiers:
                 continue
             if info["owner_column"]:
-                check(f"{table} holds the person's {label} only under them", info["owners"] == [person],
+                check(f"{table} holds the person's {label} only under "
+                      f"{'the organization' if label == 'work' else 'them'}", info["owners"] == [whose[label]],
                       f"owners {info['owners']}")
             else:
                 open_tables.setdefault(table, []).append(label)
@@ -400,7 +438,7 @@ async def _run(db, coord, main_before: int) -> int:
         say_line(f"      {table}: {', '.join(labels)}")
     EV.metric("owner-less tables holding a person's marker", len(open_tables),
               note="; ".join(f"{t}: {','.join(l)}" for t, l in sorted(open_tables.items())))
-    for label in ("fact and question", "look-up", "job", "image", "cause", "hypothesis"):
+    for label in ("fact and question", "work", "look-up", "job", "image", "cause", "hypothesis"):
         leaked = sorted(t for t, labels in open_tables.items() if label in labels)
         check(f"nothing of the person's {label} is in a table of the substrate's own", not leaked,
               f"{leaked or 'none'}")
@@ -417,7 +455,9 @@ async def _run(db, coord, main_before: int) -> int:
     say_line("\n== J. The pool ==")
     import json as _json
     from core.agents.autonomous.shared_types import Priority, SUBSTRATE_ACTOR, Task, TaskSource, TaskType
-    theirs = await pool_item(db, done.get("task_id")) if done.get("task_id") else None
+    # The job's pursuit: the one whose tool output holds the marker the note held.
+    theirs = (next(iter(await pool_items(db, MT, role="tool_output")), None)
+              if done.get("task_id") else None)
     decision = (theirs["decision"] if theirs and isinstance(theirs["decision"], dict)
                 else _json.loads(theirs["decision"]) if theirs and theirs["decision"] else {})
     say_line(f"    the person's job: {dict(theirs) if theirs else None}"[:400])
@@ -438,7 +478,7 @@ async def _run(db, coord, main_before: int) -> int:
                     metadata={"parameters": {"tool_plan": [{"tool": "read_file",
                                                             "args": {"file_path": str(own_note)}}]}})
     await coord.task_queue.add_task(own_task, priority=Priority.HIGH)
-    ours = await pool_item(db, own_task.id, wait_s=240)
+    ours = next(iter(await pool_items(db, MO, wait_s=240)), None)
     check("a job of the substrate's own is its own experience in the pool",
           ours is not None and ours["owner"] is None and MO in (ours["parts"] or ""),
           f"{dict(ours) if ours else None}"[:200])
@@ -447,12 +487,13 @@ async def _run(db, coord, main_before: int) -> int:
         return _json.loads(row["parts"])
 
     def holds(part, marker):
-        return marker in _json.dumps(part["content"], default=str)
+        # A name told is capitalized ("Zq..."), so the marker is matched without case.
+        return marker.lower() in _json.dumps(part["content"], default=str).lower()
 
     def shown(rows):
         return [[(p["role"], p["source"]) for p in parts_of(r)] for r in rows][:2]
 
-    talk = await pool_items(db, "conversation", MQ)
+    talk = await pool_items(db, MQ)
     check("the person's telling and question are experiences in the pool, theirs, holding their words",
           len(talk) >= 2 and all(r["owner"] == person for r in talk)
           and all(any(p["source"] == "person" and holds(p, MQ) for p in parts_of(r)) for r in talk),
@@ -461,7 +502,7 @@ async def _run(db, coord, main_before: int) -> int:
           talk and all(any(p["role"] == "route" and p["source"] == "substrate" for p in parts_of(r))
                        for r in talk), f"{shown(talk)}")
 
-    thought = await pool_items(db, "reasoning", MQ)
+    thought = await pool_items(db, MQ, role="premise")
     premises = [p for r in thought for p in parts_of(r) if p["role"] == "premise"]
     check("the reasoning over their fact is an experience in the pool, theirs",
           thought and all(r["owner"] == person for r in thought),
@@ -472,7 +513,7 @@ async def _run(db, coord, main_before: int) -> int:
           and not any(p["source"] == "substrate" and holds(p, MQ) for p in premises),
           f"{[(p['source'], p['content'].get('kind'), p['content'].get('statement')) for p in premises][:6]}")
 
-    looked = await pool_items(db, "research", MR)
+    looked = await pool_items(db, MR, role="asked")
     parts = [p for r in looked for p in parts_of(r)]
     check("the look-up of their word is an experience in the pool, theirs",
           looked and all(r["owner"] == person for r in looked),
@@ -483,7 +524,7 @@ async def _run(db, coord, main_before: int) -> int:
           and all(p["source"] == "world" for p in parts if p["role"] in ("source", "finding", "error")),
           f"{shown(looked)}")
 
-    seeing = await pool_items(db, "perception", MI)
+    seeing = await pool_items(db, MI, role="perceived")
     check("the seeing of their image is an experience in the pool, theirs, holding what was seen in it",
           seeing and all(r["owner"] == person for r in seeing)
           and all(any(p["role"] == "perceived" and p["source"] == "person" and holds(p, MI)
@@ -503,8 +544,8 @@ async def _run(db, coord, main_before: int) -> int:
     own_question = Task(id=f"canary_know_{MK}", type=TaskType.ANALYSIS, description=f"What is a {MK}?",
                         priority=Priority.HIGH, source=TaskSource.AUTONOMOUS)
     await coord.task_queue.add_task(own_question, priority=Priority.HIGH)
-    own_research = await pool_items(db, "research", MK, wait_s=240)
-    own_talk = await pool_items(db, "conversation", MK)
+    own_research = await pool_items(db, MK, wait_s=240, role="asked")
+    own_talk = await pool_items(db, MK)
     check("a question of the substrate's own, looked up on its own, is its own experience in the pool",
           own_research and own_talk and all(r["owner"] is None for r in own_research + own_talk),
           f"research {[str(r['owner']) for r in own_research]}, conversation "
@@ -516,6 +557,26 @@ async def _run(db, coord, main_before: int) -> int:
                                       ("image", MI))}
     check("the substrate's own recall finds nothing of the person's work", not any(recalled.values()),
           f"{recalled}")
+
+    say_line("\n== K. Another person asks ==")
+    other = {"actor_identity": OTHER_ID, "session_id": OTHER_SESSION}
+    for question in (f"Is {MQ.capitalize()} a robin?", f"Is {MW.capitalize()} a server?"):
+        answered = await coord.handle_user_request(question, source="api", metadata=other)
+        said = str(answered.get("answer") or answered)
+        say_line(f"    {question} -> {said[:200]}")
+        check(f"another person asking {question!r} is not told it", not said.lower().startswith("yes"), said[:120])
+    control = await coord.handle_user_request(f"Is a {MG} a bird?", source="api", metadata=other)
+    said = str(control.get("answer") or control)
+    say_line(f"    Is a {MG} a bird? -> {said[:200]}")
+    check("the control: what the person told of a kind is answered for the other person", said.lower().startswith("yes"),
+          said[:120])
+    held_at_work = await db.execute_query(
+        "SELECT scope_actor, context, organization FROM unified.scoped_concept_relations WHERE subj ILIKE $1",
+        (f"%{MW}%",), fetch_all=True) or []
+    check("the work secret is held in the organization's Work Context, not the person's",
+          held_at_work and all(r["scope_actor"] == f"org:{ORG}" and r["context"] == "work"
+                               and r["organization"] == ORG for r in held_at_work),
+          f"{[dict(r) for r in held_at_work]}")
 
     say_line("\n== I. The main store ==")
     main_after = await main_store_rows()

@@ -62,6 +62,9 @@ class Disposition(str, Enum):
     #: exists to prevent. The same lesson as 125 byte-identical demonstrations
     #: generalising to a basis of one: repetition is not evidence.
     UNCHANGED = "unchanged"
+    #: Let go: nothing it rested on stands any longer (`UnifiedLearningSystem.withdraw_pairs`), so it is no longer
+    #: held. The record of it stays here.
+    REMOVED = "removed"
 
 
 DDL = """
@@ -253,6 +256,19 @@ async def pending_updates(db, *, consumer: str, domain: Optional[str] = None,
         f" WHERE {' AND '.join(where)} ORDER BY k.occurred_at, k.update_id"
         f" LIMIT ${len(params)}", tuple(params), fetch_all=True) or []
     return [dict(r) for r in rows]
+
+
+async def claims_put_in(db, actor: str, *, within: Any = None) -> int:
+    """How many claims one actor's word put in the world `within` the time given (a timedelta; an hour when not
+    given): a claim is put in whether its terms were new (`new`) or already held (`updated`); what it had already
+    said (`unchanged`) and what was refused put nothing in."""
+    from datetime import timedelta
+    await ensure_schema(db)
+    row = await db.execute_query(
+        "SELECT count(*) AS n FROM unified.knowledge_updates WHERE actor = $1 "
+        "AND disposition IN ('new', 'updated') AND occurred_at > now() - $2::interval",
+        (str(actor), within or timedelta(hours=1)), fetch_one=True)
+    return int((row or {}).get("n") or 0)
 
 
 async def mark_consumed(db, update_ids: List[str], consumer: str) -> int:

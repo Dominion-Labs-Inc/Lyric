@@ -29,11 +29,23 @@ Storing them would create the duplicate-authority defect this module prevents.
 Every field is sourced from something already measured elsewhere. Where a signal
 is genuinely unavailable it is None — never imputed to a middling default, so
 "unmeasured" stays distinguishable from "measured and neutral".
+
+WORLD SCOPED
+------------
+There is one appraisal, the world's: every instance of the model and every
+person it works for move the same one, and none holds its own. It is kept in
+the store (`unified.appraisal_state`, one row) and each update is folded onto
+what the row holds, under its lock, so what one instance felt is what the next
+one feels from. A person has no appraisal of their own; what is done for them
+is felt by the world's.
 """
 
 from __future__ import annotations
 
+import asyncio
+import json
 import logging
+import math
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Dict, List, Optional
@@ -156,6 +168,14 @@ class AppraisalState:
     # invented, so there is none, and consumers treat this as weight, not mood.
     stakes: Optional[float] = None             # [0,1]
 
+    # HOW MUCH THE PEOPLE IT WORKS FOR REWARD IT: the mean of their reward
+    # allowances, on the cap's scale (`set_reward_allowance`). Not a reading of
+    # Lyric's own: the appraisal does not need it. It leans on what Lyric feels
+    # by at most PEOPLE_SHARE (`felt_valence`), and never stands in for a
+    # feeling Lyric does not have. Set when an allowance changes, carried
+    # otherwise; an allowance holds until it is changed, so it does not fade.
+    people_reward: Optional[float] = None      # [0,1]
+
     # WHY it ended this way. Structured, not a float — reuses OutcomeClass,
     # which already encodes the credit invariant (only some classes may move a
     # posterior). Identical failures with different causes must appraise
@@ -202,14 +222,34 @@ class AppraisalState:
     sources: Dict[str, Any] = field(default_factory=dict)
     unmeasured: List[str] = field(default_factory=list)
     updated_at: datetime = field(default_factory=datetime.now)
+    #: When each thing held here was last measured, so each loses its hold on
+    #: its own clock (`_faded`). A state made without it was measured whole
+    #: when it was made.
+    measured_at: Dict[str, datetime] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        if not self.measured_at:
+            made = _aware(self.updated_at)
+            self.measured_at = {name: made for name in _CLOCKED
+                                if getattr(self, name) is not None}
 
     # ------------------------------------------------------------------
     # Derived interpretations — NOT stored state
     # ------------------------------------------------------------------
     @property
+    def felt_valence(self) -> Optional[float]:
+        """Valence as felt: Lyric's own, lifted by people's reward by at most
+        PEOPLE_SHARE. Only ever lifted: a person can only reward, so a low
+        allowance lifts less and never takes anything away. With no valence of
+        Lyric's own there is none: people's reward is never a feeling by itself."""
+        if self.valence is None or self.people_reward is None:
+            return self.valence
+        return min(1.0, self.valence + PEOPLE_SHARE * self.people_reward)
+
+    @property
     def eagerness(self) -> Optional[float]:
         """Positive valence + activation + controllability + competence."""
-        parts = _known(self._pos(self.valence), self.activation,
+        parts = _known(self._pos(self.felt_valence), self.activation,
                        self.goal_congruence, self.controllability)
         return _mean(parts)
 
@@ -234,7 +274,7 @@ class AppraisalState:
         # stalled, uncontrollable task read as highly frustrated — but being
         # unable to move something you never controlled is not frustration.
         core = _mean(_known(
-            self._neg(self.valence),
+            self._neg(self.felt_valence),
             None if self.progress is None else 1.0 - self.progress,
         ))
         if core is None:
@@ -246,7 +286,7 @@ class AppraisalState:
     @property
     def satisfaction(self) -> Optional[float]:
         """Positive valence + progress + competence."""
-        return _mean(_known(self._pos(self.valence), self.progress, self.competence))
+        return _mean(_known(self._pos(self.felt_valence), self.progress, self.competence))
 
     @staticmethod
     def _pos(v: Optional[float]) -> Optional[float]:
@@ -273,6 +313,7 @@ class AppraisalState:
             "mood_arousal": self.mood_arousal,
             "mood_baseline": self.mood_baseline,
             "stakes": self.stakes,
+            "people_reward": self.people_reward,
             "attribution": self.attribution,
             "about": self.about,
             "about_domain": self.about_domain,
@@ -284,6 +325,7 @@ class AppraisalState:
             "escalation_pressure": round(self.escalation_pressure, 4),
             "caution_pressure": round(self.caution_pressure, 4),
             "derived": {
+                "felt_valence": self.felt_valence,
                 "eagerness": self.eagerness,
                 "doubt": self.doubt,
                 "frustration": self.frustration,
@@ -292,6 +334,32 @@ class AppraisalState:
             "unmeasured": list(self.unmeasured),
             "updated_at": self.updated_at.isoformat(),
         }
+
+    #: What the world's row keeps: the measured variables and what they are
+    #: about. The pressures and the named emotions are derived from these, so
+    #: they are derived again on reading, never stored beside them.
+    _RECORDED = ("valence", "activation", "confidence", "epistemic_opportunity",
+                 "progress", "controllability", "competence", "goal_congruence",
+                 "agency", "integrity", "risk", "mood_valence", "mood_arousal",
+                 "mood_baseline", "stakes", "people_reward", "attribution",
+                 "attribution_confidence", "about", "about_domain", "sources",
+                 "unmeasured")
+
+    def to_record(self) -> Dict[str, Any]:
+        record = {name: getattr(self, name) for name in self._RECORDED}
+        record["updated_at"] = self.updated_at.isoformat()
+        record["measured_at"] = {name: when.isoformat()
+                                 for name, when in self.measured_at.items()}
+        return record
+
+    @classmethod
+    def from_record(cls, record: Dict[str, Any]) -> "AppraisalState":
+        state = cls(**{name: record[name] for name in cls._RECORDED if name in record},
+                    updated_at=datetime.fromisoformat(record["updated_at"]),
+                    measured_at={name: datetime.fromisoformat(when) for name, when
+                                 in (record.get("measured_at") or {}).items()})
+        _derive_pressures(state)
+        return state
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -303,6 +371,132 @@ class AppraisalState:
 # itself has inertia but RECOVERS, so one bad week cannot permanently bias
 # disposition.
 APPRAISAL_DECAY = 0.6   # weight on the incoming appraisal vs the previous one
+
+# ── What people add: their reward ──────────────────────────────────────────
+#
+# A person sets one reward allowance, for the whole of what Lyric holds of them
+# (not capability by capability). A person can only reward; there is no other
+# side. The allowances' mean is `people_reward`.
+#
+# The bounds are Lyric's and the same for everyone. No allowance goes below the
+# threshold: the appraisal is one for the world, so an allowance under it would
+# affect the entire system. The cap is the most one person can reward.
+REWARD_THRESHOLD = 25
+REWARD_CAP = 100
+
+#: The most people's reward can lift what Lyric feels (`felt_valence`). The
+#: appraisal does not need it: it is made of Lyric's own experience, and
+#: people's reward only lifts it a little. At this share, every person at the
+#: cap against Lyric's own worst outcome still leaves that outcome felt as bad
+#: (-1.0 becomes -0.9), and one person is this share divided among everyone.
+PEOPLE_SHARE = 0.1
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# Fading: each thing held loses its hold on its own clock
+# ══════════════════════════════════════════════════════════════════════════
+#
+# The world's appraisal outlives the process that felt it, so it has to stop
+# standing for NOW on its own; otherwise a caution from last week wakes at full
+# strength and raises the proof bar on work it has nothing to do with. Not one
+# clock for all: how long something stays true depends on what it is.
+#
+# A FEELING fades. Valence eases toward nothing-good-or-bad on the clock the
+# named emotion it is the core of already fades on, and is gone with the outcome
+# it is about. The mood fields ease toward the substrate's usual as the mood
+# itself does. Those clocks are the motivation system's, read from it, not copied.
+#
+# A READING does not fade toward a value. Easing a competence toward some
+# middling number would invent one, which this module refuses everywhere. A
+# measurement stands for what it measured until it is too old to stand for
+# now, and then it is unmeasured. These are how long, by what each one is about:
+
+_MINUTE, _HOUR, _DAY = 60.0, 3600.0, 86400.0
+
+#: Seconds a reading stands for now.
+_STANDS: Dict[str, float] = {
+    # The situation it is in: what it is looking at and what being wrong would
+    # cost there. Gone when the situation is.
+    "risk": 30 * _MINUTE,
+    "stakes": 30 * _MINUTE,
+    # What just happened: the outcome, why it ended so, what it was about. As
+    # long as the feeling about it lasts (valence below).
+    "progress": _HOUR,
+    "goal_congruence": _HOUR,
+    "attribution": _HOUR,
+    "attribution_confidence": _HOUR,
+    "about": _HOUR,
+    "about_domain": _HOUR,
+    # The drive behind acting, measured on every motivation cycle; an hour
+    # without one means it is no longer being measured.
+    "activation": _HOUR,
+    # Its model of the world: moves as it learns, not with each act.
+    "confidence": 6 * _HOUR,
+    "epistemic_opportunity": 6 * _HOUR,
+    # Its own conduct: whether its acts change things, whether it chose, whether
+    # it was true to itself.
+    "controllability": _DAY,
+    "agency": _DAY,
+    "integrity": _DAY,
+    # What it can do, measured over many attempts (at least five).
+    "competence": 3 * _DAY,
+}
+
+#: The feelings: they fade rather than stand.
+_FELT = ("valence", "mood_valence", "mood_arousal", "mood_baseline")
+
+_CLOCKED = tuple(_STANDS) + _FELT
+
+
+def _aware(when: datetime) -> datetime:
+    """A time with its zone; a time without one was this machine's."""
+    return when if when.tzinfo is not None else when.astimezone()
+
+
+def _faded(state: AppraisalState, at: Optional[datetime] = None) -> AppraisalState:
+    """`state` as it stands at `at` (now): each feeling faded, each reading that
+    is too old for what it is unmeasured, and the pressures derived again."""
+    from core.agents.autonomous.intrinsic_motivation import IntrinsicMotivationSystem as felt
+    at = _aware(at or datetime.now())
+    fields = {name: getattr(state, name) for name in AppraisalState._RECORDED}
+    gone: List[str] = []
+
+    def age(name: str) -> float:
+        when = state.measured_at.get(name)
+        return 0.0 if when is None else max(0.0, (at - _aware(when)).total_seconds())
+
+    for name, stands in _STANDS.items():
+        if fields[name] is not None and age(name) > stands:
+            fields[name] = None
+            gone.append(name)
+
+    # Valence eases toward nothing-good-or-bad, and stands as long as the outcome
+    # it is the feeling about does. Not gone for being small: a neutral outcome
+    # just measured is a measurement, and reading it as unmeasured would lose it.
+    if fields["valence"] is not None:
+        if age("valence") > _STANDS["attribution"]:
+            fields["valence"] = None
+            gone.append("valence")
+        else:
+            fields["valence"] *= math.exp(-age("valence") / felt._EMOTION_HALFLIFE_S)
+    # The mood eases toward the substrate's usual, which is a trait and does
+    # not fade.
+    if fields["mood_valence"] is not None:
+        usual = fields["mood_baseline"] or 0.0
+        fields["mood_valence"] = usual + (fields["mood_valence"] - usual) * math.exp(
+            -age("mood_valence") / felt._MOOD_HALFLIFE_S)
+    if fields["mood_arousal"] is not None:
+        fields["mood_arousal"] *= math.exp(-age("mood_arousal") / felt._AROUSAL_HALFLIFE_S)
+
+    fields["unmeasured"] = list(state.unmeasured) + [n for n in gone
+                                                     if n not in state.unmeasured]
+    faded = AppraisalState(**fields, updated_at=state.updated_at,
+                           measured_at={n: w for n, w in state.measured_at.items()
+                                        if n not in gone})
+    if gone:
+        faded.sources = {**faded.sources, "faded": gone}
+    _derive_pressures(faded)
+    return faded
 
 
 def build_appraisal(
@@ -611,11 +805,17 @@ def build_appraisal(
     )
 
     _derive_pressures(state)
+    return _onto(previous, state)
 
-    if previous is not None:
-        state = _blend(previous, state)
-        _derive_pressures(state)
 
+def _onto(previous: Optional[AppraisalState],
+          incoming: AppraisalState) -> AppraisalState:
+    """`incoming` folded onto `previous` as it stands now (faded), its pressures
+    derived from the result."""
+    if previous is None:
+        return incoming
+    state = _blend(previous, incoming, _faded(previous))
+    _derive_pressures(state)
     return state
 
 
@@ -630,8 +830,8 @@ def _derive_pressures(s: AppraisalState) -> None:
     An unmeasured variable contributes nothing and is excluded from the
     normaliser, so a missing signal never silently reads as zero.
     """
-    neg = AppraisalState._neg(s.valence)
-    pos = AppraisalState._pos(s.valence)
+    neg = AppraisalState._neg(s.felt_valence)
+    pos = AppraisalState._pos(s.felt_valence)
     attr = s.attribution
 
     # Attribution classes that mean "the situation, not our approach".
@@ -746,7 +946,8 @@ def _derive_pressures(s: AppraisalState) -> None:
     s.approach_pressure = (_mean(_approach) or 0.0)
 
 
-def _blend(previous: AppraisalState, incoming: AppraisalState) -> AppraisalState:
+def _blend(previous: AppraisalState, incoming: AppraisalState,
+           faded: AppraisalState) -> AppraisalState:
     """Two timescales: affect has inertia but recovers.
 
     The slow, persistent trace lives in the motivation profile
@@ -754,62 +955,61 @@ def _blend(previous: AppraisalState, incoming: AppraisalState) -> AppraisalState
     fast-moving layer: it carries recent history forward but decays toward the
     present, so a bad stretch biases disposition temporarily rather than
     permanently.
-    """
-    def mix(old: Optional[float], new: Optional[float]) -> Optional[float]:
-        if new is None:
-            return old          # unmeasured now -> keep what we had
-        if old is None:
-            return new
-        return APPRAISAL_DECAY * new + (1.0 - APPRAISAL_DECAY) * old
 
-    return AppraisalState(
-        valence=mix(previous.valence, incoming.valence),
-        activation=mix(previous.activation, incoming.activation),
-        confidence=mix(previous.confidence, incoming.confidence),
-        epistemic_opportunity=mix(previous.epistemic_opportunity,
-                                  incoming.epistemic_opportunity),
-        progress=mix(previous.progress, incoming.progress),
-        controllability=mix(previous.controllability, incoming.controllability),
-        competence=mix(previous.competence, incoming.competence),
-        goal_congruence=mix(previous.goal_congruence, incoming.goal_congruence),
-        agency=mix(previous.agency, incoming.agency),
-        integrity=mix(previous.integrity, incoming.integrity),
-        risk=mix(previous.risk, incoming.risk),
-        mood_valence=mix(previous.mood_valence, incoming.mood_valence),
-        mood_arousal=mix(previous.mood_arousal, incoming.mood_arousal),
-        mood_baseline=mix(previous.mood_baseline, incoming.mood_baseline),
-        stakes=mix(previous.stakes, incoming.stakes),
-        # Attribution is a fact about the LAST outcome: never SMOOTHED (it is
-        # categorical — there is no average of "strategy_failure" and
-        # "infrastructure_failure"), but carried forward when the new update
-        # says nothing about it, exactly like every other field here.
-        #
-        # It used to be taken from `incoming` unconditionally, and `attribution`
-        # is set only when an update supplies an `outcome_class`. So every
-        # PARTIAL update erased it — a bearing refresh (`update(epistemic=...,
-        # world_bearing=...)`) silently discarded the attribution of the last
-        # real outcome, and with it the `_strategy` / `_external` branches that
-        # decide replan, escalation and whether exploration is damped. A None
-        # here means "this update has nothing to say about attribution", not
-        # "the last failure had no cause".
-        attribution=(incoming.attribution if incoming.attribution is not None
-                     else previous.attribution),
-        attribution_confidence=(incoming.attribution_confidence
-                                if incoming.attribution_confidence is not None
-                                else previous.attribution_confidence),
-        # The object is carried forward for the same reason the attribution is,
-        # and the two move together: a partial update that says nothing about
-        # what the situation concerns has not made the situation object-less.
-        # Dropping it here would re-open the gap this field closes — the feeling
-        # would survive the next bearing refresh while the thing it is about
-        # would not.
-        about=(incoming.about if incoming.about is not None
-               else previous.about),
-        about_domain=(incoming.about_domain if incoming.about_domain is not None
-                      else previous.about_domain),
-        sources=incoming.sources,
-        unmeasured=incoming.unmeasured,
-    )
+    What is measured now is mixed with what was held AS IT STANDS NOW
+    (`faded`), so a reading too old to stand is replaced, not averaged in. What
+    is not measured now is carried as it was measured, with when it was, so it
+    goes on fading from then rather than starting again.
+    """
+    values: Dict[str, Any] = {}
+    measured_at: Dict[str, datetime] = {}
+    for name in _MIXED + _CARRIED:
+        new = getattr(incoming, name)
+        if new is None:
+            # unmeasured now -> keep what we had, from when we had it
+            values[name] = getattr(previous, name)
+            if name in previous.measured_at:
+                measured_at[name] = previous.measured_at[name]
+            continue
+        old = getattr(faded, name)
+        if name in _MIXED and old is not None:
+            new = APPRAISAL_DECAY * new + (1.0 - APPRAISAL_DECAY) * old
+        values[name] = new
+        if name in incoming.measured_at:
+            measured_at[name] = incoming.measured_at[name]
+    return AppraisalState(**values, sources=incoming.sources,
+                          unmeasured=incoming.unmeasured, measured_at=measured_at)
+
+
+#: Mixed: the new reading weighed against the held one.
+_MIXED = ("valence", "activation", "confidence", "epistemic_opportunity",
+          "progress", "controllability", "competence", "goal_congruence",
+          "agency", "integrity", "risk", "mood_valence", "mood_arousal",
+          "mood_baseline", "stakes")
+
+#: Carried: facts about the LAST outcome, taken new when an update names them
+#: and carried forward when it does not.
+#:
+#: Attribution is never SMOOTHED (it is categorical — there is no average of
+#: "strategy_failure" and "infrastructure_failure"). It used to be taken from
+#: `incoming` unconditionally, and `attribution` is set only when an update
+#: supplies an `outcome_class`. So every PARTIAL update erased it — a bearing
+#: refresh (`update(epistemic=..., world_bearing=...)`) silently discarded the
+#: attribution of the last real outcome, and with it the `_strategy` /
+#: `_external` branches that decide replan, escalation and whether exploration
+#: is damped. A None here means "this update has nothing to say about
+#: attribution", not "the last failure had no cause".
+#:
+#: The object is carried forward for the same reason the attribution is, and
+#: the two move together: a partial update that says nothing about what the
+#: situation concerns has not made the situation object-less. Dropping it would
+#: re-open the gap this field closes — the feeling would survive the next
+#: bearing refresh while the thing it is about would not. Both now lapse on
+#: their own clock (`_STANDS`) instead.
+_CARRIED = ("attribution", "attribution_confidence", "about", "about_domain",
+            # People's reward is set when an allowance changes and holds until the
+            # next one does; an update of Lyric's own says nothing about it.
+            "people_reward")
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -827,9 +1027,27 @@ class AppraisalSystem:
     (reconstructable), while `history` is the durable record of appraisal
     events. The slow experiential baseline lives in the motivation profile's
     persisted accumulated_event_reward, not here.
+
+    THE WORLD'S. Once joined to the store (`join_world`, at start), this holds
+    the world's appraisal: it wakes in it, and every update is folded onto the
+    world's row as well as here, so `current_state` is the world's as of this
+    instance's last update. An AppraisalSystem that never joined is a
+    calculator: nothing it is told reaches the world.
     """
 
     HISTORY_MAX = 200
+
+    #: The world's appraisal: one row, whatever the number of instances. Its
+    #: `state` is None until something has been appraised.
+    _WORLD_DDL = [
+        """CREATE TABLE IF NOT EXISTS unified.appraisal_state (
+               id          INTEGER PRIMARY KEY DEFAULT 1,
+               state       JSONB,
+               version     BIGINT NOT NULL DEFAULT 0,
+               updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+               CONSTRAINT appraisal_state_singleton CHECK (id = 1))""",
+        "INSERT INTO unified.appraisal_state (id) VALUES (1) ON CONFLICT (id) DO NOTHING",
+    ]
 
     #: The core appraisal variables, each with what it answers. This is the
     #: faculty's own account of what it is made of — a first-class faculty that
@@ -847,6 +1065,7 @@ class AppraisalSystem:
         "integrity": "was I true to myself across this act",
         "risk": "how costly would being wrong be",
         "stakes": "does what I am looking at bear on an interest my law protects",
+        "people_reward": "how much do the people I work for reward me",
     }
 
     #: The behavioural pressures, and what each one means the substrate should
@@ -862,8 +1081,144 @@ class AppraisalSystem:
     }
 
     def __init__(self) -> None:
-        self.current_state: Optional[AppraisalState] = None
+        #: What was felt and measured, each part with when; read through
+        #: `current_state`, which is this as it stands now.
+        self._state: Optional[AppraisalState] = None
         self.history: List[Dict[str, Any]] = []
+        #: The database the world's appraisal is kept in, once joined.
+        self._world = None
+        #: The version of the world's row `current_state` was last taken from.
+        self._world_version = 0
+        #: Updates on their way to the world's row.
+        self._sharing: set = set()
+        #: The last update's own appraisal, before blending (see `update`).
+        self.last_appraised: Optional[AppraisalState] = None
+
+    @property
+    def current_state(self) -> Optional[AppraisalState]:
+        """The appraisal as it stands NOW: each feeling faded and each reading
+        that is too old for what it is unmeasured (`_faded`)."""
+        return None if self._state is None else _faded(self._state)
+
+    @current_state.setter
+    def current_state(self, state: Optional[AppraisalState]) -> None:
+        self._state = state
+
+    async def join_world(self, db) -> None:
+        """Hold the world's appraisal from now on: take what its row holds, and
+        fold every later update onto it."""
+        await db.ensure_schema("appraisal_state", self._WORLD_DDL, store="runtime")
+        row = await db.execute_query(
+            "SELECT state, version FROM unified.appraisal_state WHERE id = 1",
+            fetch_one=True, store="runtime")
+        self._world = db
+        self._take_world(row)
+
+    def _take_world(self, row: Optional[Dict[str, Any]]) -> None:
+        if not row or row["state"] is None or row["version"] <= self._world_version:
+            return
+        record = row["state"]
+        self.current_state = AppraisalState.from_record(
+            record if isinstance(record, dict) else json.loads(record))
+        self._world_version = row["version"]
+
+    #: Each person's reward allowance. Runtime, beside the appraisal it feeds:
+    #: it is a setting of theirs on the world's appraisal, not something they
+    #: told Lyric, so it is not their context.
+    _ALLOWANCE_DDL = [
+        """CREATE TABLE IF NOT EXISTS unified.reward_allowances (
+               person     TEXT PRIMARY KEY,
+               allowance  INTEGER NOT NULL,
+               set_at     TIMESTAMPTZ NOT NULL DEFAULT now())""",
+    ]
+
+    def _joined(self):
+        if self._world is None:
+            raise RuntimeError("the appraisal has not joined the world's (join_world); "
+                               "a reward allowance is the world's to hold")
+        return self._world
+
+    async def reward_allowance(self, person: str) -> Dict[str, Any]:
+        """One person's reward allowance (None until they set one) and the
+        bounds it moves between."""
+        db = self._joined()
+        await db.ensure_schema("reward_allowances", self._ALLOWANCE_DDL, store="runtime")
+        row = await db.execute_query(
+            "SELECT allowance FROM unified.reward_allowances WHERE person = $1",
+            (str(person),), fetch_one=True, store="runtime")
+        return {"allowance": row["allowance"] if row else None,
+                "threshold": REWARD_THRESHOLD, "cap": REWARD_CAP}
+
+    async def set_reward_allowance(self, person: str, allowance: int) -> Dict[str, Any]:
+        """Set one person's reward allowance, and with it what people's reward is
+        for the world: the mean of everyone's, so one person is one voice
+        however often they set it. Refused outside the bounds, never moved to
+        the nearest one: a person is told, not corrected behind their back."""
+        from core.agents.autonomous.shared_types import is_substrate_actor
+        if is_substrate_actor(person):
+            raise ValueError("a reward allowance is a person's; Lyric does not reward itself")
+        if isinstance(allowance, bool) or not isinstance(allowance, int):
+            raise ValueError("a reward allowance is a whole number")
+        if not REWARD_THRESHOLD <= allowance <= REWARD_CAP:
+            raise ValueError(f"a reward allowance is between {REWARD_THRESHOLD} and "
+                             f"{REWARD_CAP}; {allowance} is not")
+        db = self._joined()
+        await db.ensure_schema("reward_allowances", self._ALLOWANCE_DDL, store="runtime")
+        async with db.get_connection(store="runtime") as conn:
+            async with conn.transaction():
+                # The world's row is locked first, so two people setting theirs at
+                # once each see the other's in the mean.
+                row = await conn.fetchrow(
+                    "SELECT state, version FROM unified.appraisal_state "
+                    "WHERE id = 1 FOR UPDATE")
+                await conn.execute(
+                    "INSERT INTO unified.reward_allowances (person, allowance) VALUES ($1, $2) "
+                    "ON CONFLICT (person) DO UPDATE SET allowance = EXCLUDED.allowance, "
+                    "set_at = now()", str(person), allowance)
+                mean = await conn.fetchval("SELECT avg(allowance) FROM unified.reward_allowances")
+                record = row["state"]
+                state = (AppraisalState() if record is None else AppraisalState.from_record(
+                    record if isinstance(record, dict) else json.loads(record)))
+                state.people_reward = float(mean) / REWARD_CAP
+                version = row["version"] + 1
+                await conn.execute(
+                    "UPDATE unified.appraisal_state SET state = $1::jsonb, "
+                    "version = $2, updated_at = now() WHERE id = 1",
+                    json.dumps(state.to_record(), default=str), version)
+        if version > self._world_version:
+            self.current_state, self._world_version = state, version
+        return {"allowance": allowance, "threshold": REWARD_THRESHOLD, "cap": REWARD_CAP}
+
+    async def settled(self) -> None:
+        """Wait until every update made here has reached the world's row (or
+        failed to, which `_share` reports)."""
+        if self._sharing:
+            await asyncio.gather(*list(self._sharing), return_exceptions=True)
+
+    async def _share(self, incoming: AppraisalState) -> None:
+        """Fold one update onto the world's row, under its lock, so concurrent
+        instances each fold onto what the others left rather than overwrite it."""
+        try:
+            async with self._world.get_connection(store="runtime") as conn:
+                async with conn.transaction():
+                    row = await conn.fetchrow(
+                        "SELECT state, version FROM unified.appraisal_state "
+                        "WHERE id = 1 FOR UPDATE")
+                    record = row["state"]
+                    world = (None if record is None else AppraisalState.from_record(
+                        record if isinstance(record, dict) else json.loads(record)))
+                    state = _onto(world, incoming)
+                    version = row["version"] + 1
+                    await conn.execute(
+                        "UPDATE unified.appraisal_state SET state = $1::jsonb, "
+                        "version = $2, updated_at = now() WHERE id = 1",
+                        json.dumps(state.to_record(), default=str), version)
+        except Exception as error:
+            logger.error("an appraisal did not reach the world's; this instance "
+                         "now feels apart from it: %s", error)
+            return
+        if version > self._world_version:
+            self.current_state, self._world_version = state, version
 
     def standing(self) -> Dict[str, Any]:
         """HOW THE SUBSTRATE STANDS, and how it came to stand that way.
@@ -880,7 +1235,8 @@ class AppraisalSystem:
         state = self.current_state
         if state is None:
             return {"appraised": False,
-                    "why": "nothing has been appraised yet in this process",
+                    "why": ("nothing has been appraised yet" if self._world is not None
+                            else "nothing has been appraised yet in this process"),
                     "dimensions": {name: {"measured": False, "value": None,
                                           "answers": question}
                                    for name, question in self.DIMENSIONS.items()},
@@ -893,6 +1249,8 @@ class AppraisalSystem:
                 "value": value,
                 "answers": question,
                 "from": state.sources.get(name),
+                "measured_at": (state.measured_at[name].isoformat()
+                                if name in state.measured_at else None),
             }
         return {
             "appraised": True,
@@ -906,13 +1264,28 @@ class AppraisalSystem:
             "attribution": state.attribution,
             "unmeasured": list(state.unmeasured),
             "updates": len(self.history),
+            "world": ({"version": self._world_version} if self._world is not None
+                      else None),
             "updated_at": state.updated_at.isoformat(),
         }
 
     def update(self, **signals) -> AppraisalState:
-        """Produce the next appraisal, blended onto the current one."""
-        state = build_appraisal(previous=self.current_state, **signals)
-        self.current_state = state
+        """Produce the next appraisal, blended onto the current one, and once
+        joined, onto the world's."""
+        incoming = build_appraisal(**signals)
+        #: The appraisal of the experience this update was about, before it is
+        #: blended onto the current state: what that one experience was felt as.
+        self.last_appraised = incoming
+        if self._world is not None:
+            # Asked before anything changes: the world's row is written from the
+            # running loop, and an update with none to write from would leave
+            # this instance feeling something the world never did.
+            loop = asyncio.get_running_loop()
+            task = loop.create_task(self._share(incoming))
+            self._sharing.add(task)
+            task.add_done_callback(self._sharing.discard)
+        self._state = _onto(self._state, incoming)
+        state = self.current_state
         self.history.append(state.to_dict())
         if len(self.history) > self.HISTORY_MAX:
             del self.history[: -self.HISTORY_MAX]

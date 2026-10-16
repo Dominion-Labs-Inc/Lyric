@@ -60,7 +60,8 @@ def test_a_formula_in_a_sentence_is_one_piece(sentence, pieces):
 def test_a_formula_is_one_thing_however_it_is_spaced():
     assert classify_literal("2+3").canonical == classify_literal("2 + 3").canonical == "2 + 3"
     assert classify_literal("1,000,000").canonical == "1000000"
-    assert classify_literal("9/11") is None and classify_literal("3pm") is None
+    assert classify_literal("9/11") is None and classify_literal("3D") is None
+    assert classify_literal("3pm").kind == "time", "a time of day, not a formula: no mark in it does anything"
 
 
 @pytest.mark.parametrize("formula, answer", [
@@ -126,3 +127,21 @@ def test_a_meaning_about_numbers_is_worked_and_one_about_things_is_not():
     given = Meaning("ask", (F("equals", "2x + 3", "7", True, True), F("equals", "x", "?v0")), ("?v0",))
     assert mathematics_of(given).answer == ["2"]
     assert mathematics_of(Meaning("ask", (F("isa", "dog", "?x"),), ("?x",))) is None
+
+
+def test_what_kind_of_number_a_number_is_is_decided_as_the_kind_is_defined():
+    """"Is seven a natural number?" is arithmetic's to answer, as WordNet defines the kind ("the number 1 and any
+    other number obtained by adding 1 to it repeatedly"), not looked up: looked up, 7 (a digit) and natural numbers
+    (an integer) were kinds apart, and the answer was No."""
+    from core.semantics.derived_reader import Meaning, MeaningFact as F
+
+    def answered(subject, kind, positive=True):
+        worked = mathematics_of(Meaning("ask", (F("isa", subject, kind, positive),)))
+        return worked.answer if worked else None
+    assert answered("7", "natural number") == ["true"]
+    assert answered("7", "natural_number") == ["true"], "as memory writes the kind's name"
+    assert answered("0", "natural number") == ["false"]
+    assert answered("-3", "integer") == ["true"] and answered("2.5", "integer") == ["false"]
+    assert answered("7", "prime number") == ["true"] and answered("9", "prime") == ["false"]
+    assert answered("7", "natural number", positive=False) == ["false"]
+    assert answered("dog", "natural number") is None, "a thing is no number to decide"

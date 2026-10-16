@@ -17,9 +17,7 @@ import re
 from typing import Dict, Any, List, Optional, Callable
 from dataclasses import dataclass, field
 from core.tools.tool_registry import Tool, ToolResult, ToolParameter as RegistryToolParameter
-from core.tools.capabilities import (
-    ToolCapabilityProfile, CapabilityMetadata, Capability, RiskLevel
-)
+from core.tools.tool_registry import PrimitiveProfile, PrimitiveUse, Primitive
 
 logger = logging.getLogger(__name__)
 
@@ -742,31 +740,21 @@ class GenerateEmbeddingTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="generate_embedding",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.GENERATE_EMBEDDING,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.GENERATE_EMBEDDING,
                     description="Generate vector embeddings for semantic understanding",
                     input_types=["text"],
-                    output_types=["embedding_vector"],
-                    latency="low",
-                    cost="low",
-                    reliability="high",
-                    risk_level=RiskLevel.LOW,
-                    priority=9
+                    output_types=["embedding_vector"]
                 ),
-                CapabilityMetadata(
-                    capability=Capability.TRANSFORM_DATA,
+                PrimitiveUse(
+                    primitive=Primitive.TRANSFORM_DATA,
                     description="Transform text into numerical vector representations",
                     input_types=["text"],
-                    output_types=["vector"],
-                    latency="low",
-                    cost="low",
-                    reliability="high",
-                    risk_level=RiskLevel.LOW,
-                    priority=7
+                    output_types=["vector"]
                 )
             ],
             requires_filesystem=False,
@@ -828,42 +816,27 @@ class RunInferenceTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="run_inference",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.RUN_INFERENCE,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.RUN_INFERENCE,
                     description="Execute ML model inference on provided input",
                     input_types=["model_name", "input_data"],
-                    output_types=["inference_result"],
-                    latency="medium",
-                    cost="medium",
-                    reliability="high",
-                    risk_level=RiskLevel.LOW,
-                    priority=8
+                    output_types=["inference_result"]
                 ),
-                CapabilityMetadata(
-                    capability=Capability.GENERATE_EMBEDDING,
+                PrimitiveUse(
+                    primitive=Primitive.GENERATE_EMBEDDING,
                     description="Generate predictions using ML models",
                     input_types=["model_name", "data"],
-                    output_types=["prediction"],
-                    latency="medium",
-                    cost="medium",
-                    reliability="high",
-                    risk_level=RiskLevel.LOW,
-                    priority=7
+                    output_types=["prediction"]
                 ),
-                CapabilityMetadata(
-                    capability=Capability.SUMMARIZE_TEXT,
+                PrimitiveUse(
+                    primitive=Primitive.SUMMARIZE_TEXT,
                     description="Summarize text using ML inference",
                     input_types=["text", "max_length"],
-                    output_types=["summary"],
-                    latency="medium",
-                    cost="medium",
-                    reliability="high",
-                    risk_level=RiskLevel.LOW,
-                    priority=8
+                    output_types=["summary"]
                 )
             ],
             requires_filesystem=False,
@@ -927,42 +900,27 @@ class AnalyzeTrainingDataTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="analyze_training_data",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.VALIDATE_DATA,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.VALIDATE_DATA,
                     description="Analyze training data quality and distribution",
                     input_types=["dataset", "data_type"],
-                    output_types=["quality_analysis"],
-                    latency="medium",
-                    cost="low",
-                    reliability="high",
-                    risk_level=RiskLevel.LOW,
-                    priority=8
+                    output_types=["quality_analysis"]
                 ),
-                CapabilityMetadata(
-                    capability=Capability.ANALYZE_PERFORMANCE,
+                PrimitiveUse(
+                    primitive=Primitive.ANALYZE_PERFORMANCE,
                     description="Assess dataset quality metrics and identify issues",
                     input_types=["dataset"],
-                    output_types=["analysis_report"],
-                    latency="medium",
-                    cost="low",
-                    reliability="high",
-                    risk_level=RiskLevel.LOW,
-                    priority=7
+                    output_types=["analysis_report"]
                 ),
-                CapabilityMetadata(
-                    capability=Capability.DETECT_ANOMALY,
+                PrimitiveUse(
+                    primitive=Primitive.DETECT_ANOMALY,
                     description="Detect anomalies and quality issues in training data",
                     input_types=["dataset"],
-                    output_types=["anomaly_report"],
-                    latency="medium",
-                    cost="low",
-                    reliability="medium",
-                    risk_level=RiskLevel.LOW,
-                    priority=7
+                    output_types=["anomaly_report"]
                 )
             ],
             requires_filesystem=False,
@@ -1018,31 +976,21 @@ class GetModelInfoTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="get_model_info",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.GET_SYSTEM_INFO,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.GET_SYSTEM_INFO,
                     description="Get information about available AI models",
                     input_types=["model_name"],
-                    output_types=["model_metadata"],
-                    latency="low",
-                    cost="low",
-                    reliability="high",
-                    risk_level=RiskLevel.LOW,
-                    priority=7
+                    output_types=["model_metadata"]
                 ),
-                CapabilityMetadata(
-                    capability=Capability.LIST_DATA,
+                PrimitiveUse(
+                    primitive=Primitive.LIST_DATA,
                     description="List available models and their specifications",
                     input_types=[],
-                    output_types=["model_list"],
-                    latency="low",
-                    cost="low",
-                    reliability="high",
-                    risk_level=RiskLevel.LOW,
-                    priority=6
+                    output_types=["model_list"]
                 )
             ],
             requires_filesystem=False,
@@ -1108,31 +1056,21 @@ class SemanticSimilarityTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="semantic_similarity",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.ANALYZE_SIMILARITY,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.ANALYZE_SIMILARITY,
                     description="Calculate semantic similarity between two text inputs",
                     input_types=["text1", "text2"],
-                    output_types=["similarity_score"],
-                    latency="low",
-                    cost="low",
-                    reliability="high",
-                    risk_level=RiskLevel.LOW,
-                    priority=8
+                    output_types=["similarity_score"]
                 ),
-                CapabilityMetadata(
-                    capability=Capability.ANALOGICAL_REASONING,
+                PrimitiveUse(
+                    primitive=Primitive.ANALOGICAL_REASONING,
                     description="Compare conceptual similarity between texts",
                     input_types=["text1", "text2"],
-                    output_types=["comparison_result"],
-                    latency="low",
-                    cost="low",
-                    reliability="high",
-                    risk_level=RiskLevel.LOW,
-                    priority=7
+                    output_types=["comparison_result"]
                 )
             ],
             requires_filesystem=False,
@@ -1197,42 +1135,27 @@ class ExtractEntitiesTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="extract_entities",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.EXTRACT_ENTITIES,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.EXTRACT_ENTITIES,
                     description="Extract named entities including people, organizations, locations, and dates",
                     input_types=["text"],
-                    output_types=["entity_list"],
-                    latency="medium",
-                    cost="low",
-                    reliability="high",
-                    risk_level=RiskLevel.LOW,
-                    priority=8
+                    output_types=["entity_list"]
                 ),
-                CapabilityMetadata(
-                    capability=Capability.EXTRACT_PATTERNS,
+                PrimitiveUse(
+                    primitive=Primitive.EXTRACT_PATTERNS,
                     description="Identify and extract structured patterns from text",
                     input_types=["text"],
-                    output_types=["pattern_matches"],
-                    latency="medium",
-                    cost="low",
-                    reliability="high",
-                    risk_level=RiskLevel.LOW,
-                    priority=7
+                    output_types=["pattern_matches"]
                 ),
-                CapabilityMetadata(
-                    capability=Capability.PARSE_DATA,
+                PrimitiveUse(
+                    primitive=Primitive.PARSE_DATA,
                     description="Parse and categorize textual information",
                     input_types=["text"],
-                    output_types=["parsed_entities"],
-                    latency="medium",
-                    cost="low",
-                    reliability="high",
-                    risk_level=RiskLevel.LOW,
-                    priority=7
+                    output_types=["parsed_entities"]
                 )
             ],
             requires_filesystem=False,

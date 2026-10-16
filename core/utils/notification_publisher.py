@@ -84,6 +84,10 @@ def _make_serializable(obj: Any) -> Any:
     return obj
 
 
+#: Whether this process has said it publishes nothing (no NOTIFY_TOKEN).
+_UNPUBLISHED_SAID = False
+
+
 def _gateway_base() -> str:
     base = os.getenv('GATEWAY_BASE')
     if base:
@@ -134,8 +138,17 @@ async def publish_notification(
     gateway_success = False
     headers = {'Content-Type': 'application/json'}
     token = notify_token or os.getenv('NOTIFY_TOKEN')
-    if token:
-        headers['X-Notify-Token'] = token
+    if not token:
+        # A PROCESS WITHOUT THE TOKEN IS NOT ONE THAT PUBLISHES. The gateway
+        # refuses it (401), so every attempt was three warnings and nothing
+        # sent -- and it was aimed at the live gateway from sandbox and
+        # experiment runs. Said once per process.
+        global _UNPUBLISHED_SAID
+        if not _UNPUBLISHED_SAID:
+            logger.info("this process publishes no notifications: NOTIFY_TOKEN is not set")
+            _UNPUBLISHED_SAID = True
+        return False
+    headers['X-Notify-Token'] = token
 
     for attempt in range(max_retries):
         try:

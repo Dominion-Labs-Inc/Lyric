@@ -86,7 +86,10 @@ def is_licensed(r1: SemanticRelation, r2: SemanticRelation, *,
 
 
 def inverse(r: SemanticRelation) -> Optional[SemanticRelation]:
-    return get_spec(r).inverse
+    """The relation `B r' A` holds by when `A r B` does: the one declared, or, for a symmetric relation, itself ("hot
+    is the opposite of cold", so cold is the opposite of hot)."""
+    spec = get_spec(r)
+    return spec.inverse or (r if spec.symmetric else None)
 
 
 @dataclass(frozen=True)
@@ -137,7 +140,7 @@ def inverse_edges(edges: Sequence[Edge]) -> List[Derivation]:
     is stored as derived, with provenance, not asserted as seen."""
     out = []
     for e in edges:
-        inv = get_spec(e.relation).inverse
+        inv = inverse(e.relation)
         if inv is None:
             continue
         # AN INVERSE CARRIES THE EVIDENCE OF THE EDGE IT WAS DERIVED FROM: it

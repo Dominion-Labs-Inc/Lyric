@@ -46,6 +46,10 @@ DECADE = "decade"
 DATE = "date"
 #: A moment, to the second, in UTC: the time a conversation says "now" at.
 MOMENT = "moment"
+#: A time of day as a clock writes it: "7:30", "7 a.m.", "7:30 p.m.", "19:30". Held with its half of the day where
+#: the writing says it ("7:00 p.m." for "7 p.m." and "19:00"); written bare from 1 to 12 ("7:30"), it is held as
+#: written, since whether it is morning or evening the writing does not say.
+TIME = "time"
 #: A written mathematical expression -- `2 + 3`, `x^2 - 4`, `sqrt(16)` -- as one term: what it comes to is a
 #: quantity, and it is read by the rules of mathematics' writing (`arithmetic_reading.read_expression`), so the
 #: same expression written two ways (`2+3`, `2 + 3`) is one thing.
@@ -54,7 +58,7 @@ EXPRESSION = "expression"
 #: kind -> the concept type the store files it under.
 _CONCEPT_TYPE = {
     CARDINAL: QUANTITY, DECIMAL: QUANTITY, ORDINAL: QUANTITY,
-    YEAR: QUANTITY, DECADE: QUANTITY, DATE: TEMPORAL, MOMENT: TEMPORAL, EXPRESSION: QUANTITY,
+    YEAR: QUANTITY, DECADE: QUANTITY, DATE: TEMPORAL, MOMENT: TEMPORAL, TIME: TEMPORAL, EXPRESSION: QUANTITY,
 }
 
 
@@ -86,11 +90,13 @@ _GROUPED = re.compile(r"^[+-]?\d{1,3}(?:,\d{3})+$")
 #: Two numbers of one or two digits about a slash name a thing more often than they divide (`9/11`, `24/7`), and
 #: stay unread as the names they are.
 _SLASH_NAME = re.compile(r"^\d{1,2}/\d{1,2}$")
-#: The marks and names that make an expression do something: without one, `3pm` and `3D` are words with a number in
-#: them; `10 mod 3` and `log 100` do something by name.
+#: The marks and names that make an expression do something: without one, `3D` is a word with a number in it and
+#: `3pm` a time of day; `10 mod 3` and `log 100` do something by name.
 _OPERATES = re.compile(r"[-+*/^×÷·⋅−√∛!%|()]|\b(?:mod|sin|cos|tan|cot|sec|csc|log|ln|lg|exp|sqrt|cbrt|abs|lim)\b",
                        re.IGNORECASE)
 _ISO_DATE = re.compile(r"^(\d{4})-(\d{1,2})-(\d{1,2})$")
+#: A month and day with no year, as ISO 8601 writes one: `--10-06`.
+_ISO_MONTH_DAY = re.compile(r"^--(\d{2})-(\d{2})$")
 #: A moment only as ISO writes one in UTC, to the second: `2026-09-29T21:45:00Z`. A time with no zone is not
 #: read, since which moment it is depends on where it was written.
 _ISO_MOMENT = re.compile(r"^(\d{4})-(\d{2})-(\d{2})t(\d{2}):(\d{2}):(\d{2})z$")
@@ -98,6 +104,10 @@ _ISO_MOMENT = re.compile(r"^(\d{4})-(\d{2})-(\d{2})t(\d{2}):(\d{2}):(\d{2})z$")
 #: month/day-ambiguous, and are in fact the names of things -- so they stay
 #: unread here and the door refuses them as the proper names they are.
 _SLASH_DATE = re.compile(r"^(\d{1,2})/(\d{1,2})/(\d{2,4})$")
+#: A clock time: hours and minutes ("7:30"), or an hour or hours and minutes with "a.m." or "p.m." ("7 p.m.",
+#: "7:30 a.m.", "7pm"), its periods written or not.
+_CLOCK = re.compile(r"^(\d{1,2}):([0-5]\d)$")
+_CLOCK_HALF = re.compile(r"^(\d{1,2})(?::([0-5]\d))?\s*([ap])\.?\s?m\.?$")
 
 _MONTHS = {m: i for i, m in enumerate(
     ["january", "february", "march", "april", "may", "june", "july",
@@ -118,6 +128,11 @@ def _valid_date(year: int, month: int, day: int) -> Optional[date]:
         return date(year, month, day)
     except ValueError:                       # 2026-02-31 is not a day
         return None
+
+
+def _clock(hour: int, minute: int) -> str:
+    """A time of day whose half of the day is known, as it is held: "7:30 p.m.", "12:00 a.m." for midnight."""
+    return f"{hour % 12 or 12}:{minute:02d} {'a.m.' if hour < 12 else 'p.m.'}"
 
 
 def classify_literal(term: str) -> Optional[Literal]:
@@ -151,6 +166,13 @@ def classify_literal(term: str) -> Optional[Literal]:
             return None
         return Literal(MOMENT, moment.strftime("%Y-%m-%dT%H:%M:%SZ"), moment, surface)
 
+    m = _ISO_MONTH_DAY.match(low)
+    if m:
+        month, day = int(m.group(1)), int(m.group(2))
+        if 1 <= month <= 12 and _valid_date(2000, month, day):     # 2000 had a February 29
+            return Literal(DATE, f"--{month:02d}-{day:02d}", (month, day), surface)
+        return None
+
     m = _ISO_DATE.match(low)
     if m:
         d = _valid_date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
@@ -168,6 +190,23 @@ def classify_literal(term: str) -> Optional[Literal]:
             return Literal(DATE, d.isoformat(), d, surface)
         return None
 
+    m = _CLOCK_HALF.match(low)
+    if m:
+        hour, minute = int(m.group(1)), int(m.group(2) or 0)
+        if not 1 <= hour <= 12:
+            return None                      # "13 p.m." is no time
+        day_hour = hour % 12 + (12 if m.group(3) == "p" else 0)
+        return Literal(TIME, _clock(day_hour, minute), (day_hour, minute), surface)
+
+    m = _CLOCK.match(low)
+    if m:
+        hour, minute = int(m.group(1)), int(m.group(2))
+        if hour > 23:
+            return None
+        if hour == 0 or hour > 12:           # a 24-hour clock says which half of the day
+            return Literal(TIME, _clock(hour, minute), (hour, minute), surface)
+        return Literal(TIME, f"{hour}:{minute:02d}", (None, minute), surface)
+
     for pattern in (_MONTH_DAY, _DAY_MONTH):
         m = pattern.match(low)
         if m:
@@ -180,9 +219,10 @@ def classify_literal(term: str) -> Optional[Literal]:
                     return None
                 return Literal(DATE, d.isoformat(), d, surface)
             # A day with no year is a recurring calendar point; keep it as the
-            # month-day it is rather than inventing a year.
+            # month-day it is rather than inventing a year, written as ISO 8601
+            # writes a month and day alone ("--10-06"): "10-06" reads as 10 - 06.
             if 1 <= day <= 31:
-                return Literal(DATE, f"{month:02d}-{day:02d}", (month, day), surface)
+                return Literal(DATE, f"--{month:02d}-{day:02d}", (month, day), surface)
             return None
 
     if _DECIMAL.match(low):

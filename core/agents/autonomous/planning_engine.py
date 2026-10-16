@@ -4,7 +4,7 @@ Planning Engine - Simplified goal and task planning
 Consolidates all planning functionality from the monolithic controller
 """
 
-from core.capability import raise_if_structural
+from core.structural_defects import raise_if_structural
 import asyncio
 import json
 import re
@@ -1238,10 +1238,10 @@ class PlanningEngine:
         success rate and average latency.
 
         Read THROUGH THE LEARNING AUTHORITY, which owns what the substrate has
-        learned and surfaces tool performance as part of it. The planner does not
-        reach into the tool-metrics collector behind its owner's back. Never
-        invents: when nothing is recorded it says so, and the caller reports the
-        absence."""
+        learned and reads tool performance from what its experiences hold (the
+        tool runs in its task and pursuit memories). The planner does not read
+        memory behind its owner's back. Never invents: when nothing is held it
+        says so, and the caller reports the absence."""
         try:
             from core.learning import get_learning_authority
             metrics = await get_learning_authority().get_learning_metrics()

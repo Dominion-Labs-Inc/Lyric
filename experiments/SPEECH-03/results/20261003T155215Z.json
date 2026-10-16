@@ -1,0 +1,160 @@
+{
+  "experiment": "SPEECH-03",
+  "claim": "Taught the sounds words are made of, from forty speakers, and nothing of the words themselves, the ear's measurements name a word said in a sentence by a speaker it never heard more often than whole-word matching does with sixty speakers teaching each word.",
+  "hypothesis": "A frame measured with its neighbours is given its phone no more often than a frame measured as the ear measures words; or the word that fits a stretch best by its phones is the word said no more often than whole-word matching reached; or the word said is among the best five less than three times in four.",
+  "started_at": "2026-10-03T15:52:15.825732+00:00",
+  "duration_seconds": 404.628,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/Lyric/venv_lyric/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/Lyric",
+    "shadow_mode": null,
+    "git_commit": "a3aad59e25603e309479c542053a1e733fb70ce7",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "lyric_db",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "lyric_db",
+        "model": "lyric_db",
+        "user_context": "lyric_db",
+        "learning": "lyric_db"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "dotenv:.env.postgres",
+        "database": "dotenv:.env.postgres",
+        "user": "dotenv:.env.postgres",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "pool_idle_seconds": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 16,
+    "database_verified": null,
+    "database_verified_reason": "not verified"
+  },
+  "summary": {
+    "checks": 3,
+    "passed": 3,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [
+    {
+      "name": "taught frames",
+      "value": 565618,
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "teaching speakers",
+      "value": 40,
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "frames given their phone, with the frames around it",
+      "value": "15044/30927",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "frames given their phone, as the ear measures a word",
+      "value": "10029/30927",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "candidate words",
+      "value": 100,
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "words in sentences: the word said, or one said the same, fits best",
+      "value": "135/246",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "words in sentences: the very word fits best",
+      "value": "131/246",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "words in sentences: among the best five",
+      "value": "197/246",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "words in sentences: taken most often for another",
+      "value": [
+        "i as by (3)",
+        "the as that (2)",
+        "in as than (2)",
+        "and as than (2)",
+        "it as and (2)",
+        "are as of (2)",
+        "open as opened (2)",
+        "run as ran (2)",
+        "the as than (1)",
+        "to as twelve (1)",
+        "and as opened (1)",
+        "to as does (1)"
+      ],
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "MSWC words alone: the right word fits best",
+      "value": "63/300",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "MSWC words alone: among the best five",
+      "value": "133/300",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "seconds",
+      "value": 403,
+      "unit": "",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "a frame measured with the frames around it is given its phone more often than as the ear measures a word",
+      "passed": true,
+      "detail": "48.6% against 32.4% of 30927 frames, 40 phones",
+      "at": "2026-10-03T15:57:20.119910+00:00"
+    },
+    {
+      "label": "the word that fits best by its phones is the word said more often than whole-word matching reached",
+      "passed": true,
+      "detail": "54.9% of 246 against 38.3% (SPEECH-02, sixty speakers a word); no word was taught as a word",
+      "at": "2026-10-03T15:57:53.190776+00:00"
+    },
+    {
+      "label": "the word said is among the best five three times in four",
+      "passed": true,
+      "detail": "80.1% of 246",
+      "at": "2026-10-03T15:57:53.190804+00:00"
+    }
+  ],
+  "notes": [
+    "C is measured, not checked: one word said alone through another microphone is too little to tell the microphone from the word, and the phones were taught from read speech through other microphones."
+  ]
+}

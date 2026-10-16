@@ -60,13 +60,6 @@ _ROOT = os.path.dirname(_HERE)
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 
-# ── Fast-init bypass: skip capability regex during tool registration ─────────
-# Without this, 80+ ConnectorTool inits each run 100+ regex ops → ~8 seconds.
-# The env var is checked at the top of infer_capability_from_task() in
-# capabilities.py and returns {} immediately when set.
-import os as _os
-_os.environ["LYRIC_FAST_INIT"] = "1"
-
 # ── suppress noisy startup logs ─────────────────────────────────────────────
 import logging
 logging.getLogger("Lyric").setLevel(logging.ERROR)

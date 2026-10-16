@@ -283,7 +283,7 @@ class ConceptExtractor:
 
     #: Structural forms, each with a `_read_<form>` reader. Order is the order
     #: readers run; a producer may carry more than one form.
-    FORMS = ("concepts", "operator", "observation", "statements", "capability")
+    FORMS = ("concepts", "operator", "observation", "statements", "tool")
 
     #: Kept as the name of the first form for callers that referenced it.
     STRUCTURED_KEY = "concepts"
@@ -520,9 +520,9 @@ class ConceptExtractor:
             relationships=tuple(edges.get(label, ())),
         ) for label, kind in sorted(proposals.items())]
 
-    # ---- form: capability -----------------------------------------------
+    # ---- form: tool -----------------------------------------------------
 
-    def _read_capability(self, form, envelope: EvidenceEnvelope) -> List[ConceptCandidate]:
+    def _read_tool(self, form, envelope: EvidenceEnvelope) -> List[ConceptCandidate]:
         """A DECLARED operator: a tool, what it needs, and what it provides.
 
         Every tool is an operator the substrate can invoke, and its parameter
@@ -538,16 +538,16 @@ class ConceptExtractor:
         distinguishable from one that has actually done work.
         """
         if not isinstance(form, dict):
-            self.last_failure = f"capability form is {type(form).__name__}, not an object"
+            self.last_failure = f"tool form is {type(form).__name__}, not an object"
             return []
 
         tool = str(form.get("tool") or "").strip()
         domain = str(form.get("domain") or "").strip()
         if not tool:
-            self.last_failure = "capability form names no tool"
+            self.last_failure = "tool form names no tool"
             return []
         if not domain:
-            self.last_failure = f"capability {tool!r} carries no domain"
+            self.last_failure = f"tool {tool!r} carries no domain"
             return []
 
         edges: List[Tuple[str, str]] = []
@@ -564,7 +564,7 @@ class ConceptExtractor:
 
         if not edges:
             self.last_failure = (
-                f"tool {tool!r} declares neither parameters nor capabilities; "
+                f"tool {tool!r} declares neither parameters nor primitives; "
                 f"an operator with no structure cannot support a correspondence")
             return []
 
@@ -696,13 +696,15 @@ _WS = re.compile(r"\s+")
 class ConceptResolver:
     """Normalisation, identity and domain attachment. Owned by the substrate."""
 
-    #: Labels that are artefacts of how a task was worded rather than things.
-    #: Rejected explicitly so the reason appears in the result.
-    _NON_CONCEPTS = frozenset({
-        "thing", "things", "it", "this", "that", "data", "result", "results",
-        "output", "value", "item", "items", "object", "objects", "test",
-        "example", "sample", "todo", "unknown", "none", "null",
-    })
+    # WHAT NAMES NOTHING IS NOT LISTED HERE. A list of "placeholder words" stood
+    # here ("thing", "data", "value", "item", "object", "test", "example" ...),
+    # from when concepts were pulled out of the wording of tasks. It refused
+    # WordNet's `object`, the kind above every physical thing, so "object whole
+    # is an object" was held with no concept behind its object and nothing above
+    # it was reached; and it refused a folder named `data`. Whether a word names
+    # a thing is what English taught says, asked at the one door
+    # (`cognitive_ingress.admissible`): "it", "this" and "that" build sentences
+    # and name nothing there.
 
     MIN_LABEL_LEN = 2
     MAX_LABEL_LEN = 64
@@ -759,7 +761,7 @@ class ConceptResolver:
     def reject_reason(self, candidate: ConceptCandidate, *,
                       document_derived: bool = False) -> Optional[str]:
         # A recognised number or date is a typed literal, not a mis-read word:
-        # the "too short", "placeholder word" and "bare number" tests are about
+        # the "too short" and "bare number" tests are about
         # words and do not apply to it. It still needs a domain, checked below.
         from core.semantics.literals import classify_literal
         is_literal = (candidate.concept_kind in (ConceptType.QUANTITY, ConceptType.TEMPORAL)
@@ -772,8 +774,6 @@ class ConceptResolver:
                 return f"label {candidate.label!r} too short after normalisation"
             if len(norm) > self.MAX_LABEL_LEN:
                 return f"label {candidate.label!r} exceeds {self.MAX_LABEL_LEN} chars"
-            if norm in self._NON_CONCEPTS or self._singularise(norm) in self._NON_CONCEPTS:
-                return f"{norm!r} is a placeholder word, not a concept"
             if norm.isdigit():
                 return f"{norm!r} is a bare number"
         if not candidate.domain_candidates:
@@ -861,6 +861,13 @@ class ConceptIngestionService:
             await db.execute_query(
                 "CREATE INDEX IF NOT EXISTS ix_cr_evidence "
                 "ON unified.concept_relations (evidence_id)", (), commit=True)
+            # WHAT IS HELD OF A RELATION AND ITS OBJECT, asked on every admission too: whether the store now holds
+            # it both ways (`CognitiveIngress._contradiction_check`), which knows the subject only as the end of its
+            # concept id. Without this each check read the whole table, and a corpus's facts grow it as they arrive:
+            # WordNet's 636,000 would each have read up to that many.
+            await db.execute_query(
+                "CREATE INDEX IF NOT EXISTS ix_cr_relation_target "
+                "ON unified.concept_relations (relation, target_surface)", (), commit=True)
             ConceptIngestionService._evidence_index_ready = True
 
     # ---- identity -------------------------------------------------------
@@ -920,11 +927,20 @@ class ConceptIngestionService:
         #    lithium_iron_phosphate) is NOT resolvable this way and is left
         #    split until an explicit alias source supplies it — an unmerged
         #    pair is recoverable, a wrongly merged one is not.
+        #
+        #    A DOCUMENT'S LABELS ONLY, as every other habit of an extractor is
+        #    collapsed only there (`_DOCUMENT_SOURCES`): a curated resource names
+        #    each of its concepts, and a name is its own. Tried on WordNet's, it
+        #    fused 328 of them with whatever short word their initials spell:
+        #    `common_unicorn_plant` and a party into `cup`, `aegean_island_rhodes`
+        #    into `air`, `acute_lymphocytic_leukemia` into `all`, and `age` into
+        #    `adorned_gilt_edged` -- 1,825 facts on the wrong things (2026-10-11).
         proposed = self.resolver.canonical_label(
             candidate.domain_candidates[0],
             document_derived=document_derived) \
             if candidate.domain_candidates else None
-        acronym = await self._acronym_match(name, candidate.concept_kind, proposed)
+        acronym = await self._acronym_match(name, candidate.concept_kind, proposed) \
+            if document_derived else None
         if acronym:
             await self._record_alias(name, acronym, "acronym")
             return ConceptIdentity(
@@ -1181,8 +1197,10 @@ class ConceptIngestionService:
                 await registry.initialize()
             known = {registry._domain_key(d) for d in registry.domains}
         except Exception as e:
-            logger.warning("Domain registry unavailable during resolution: %s", e)
-            return proposals[0]
+            # Without the registry there is nothing to prefer a known domain
+            # by; the first proposal taken in its place filed concepts under a
+            # domain the store may not hold.
+            raise RuntimeError(f"the domain registry could not be read to resolve {proposals}: {e}") from e
 
         for d in proposals:
             if d in known:
@@ -1258,7 +1276,8 @@ class ConceptIngestionService:
         if rows:
             return rows[0]["concept_id"]
 
-        return await self._acronym_match(name)
+        # By initials only for a document's labels, as a concept's own name is (`resolve_identity`).
+        return await self._acronym_match(name) if document_derived else None
 
     async def _record_relations(
         self,
@@ -1561,10 +1580,10 @@ class ConceptIngestionService:
             await identity_service.relate_qualified_name(
                 identity.concept_id, identity.name, identity.domain)
         except Exception as e:
-            from core.capability import raise_if_structural
-            raise_if_structural(e, "concept_ingestion.add_membership")
-            logger.debug("membership recording skipped for %s: %s",
-                         identity.concept_id, e)
+            # A concept with no membership is not reached from its domain, nor
+            # its bare name from its qualified senses: the knowledge is written
+            # and cannot be found. That is an error of the write, not a skip.
+            raise RuntimeError(f"the memberships of {identity.concept_id} could not be recorded: {e}") from e
 
         created = before is None
         promoted = status.value if (before and before != status.value) else None

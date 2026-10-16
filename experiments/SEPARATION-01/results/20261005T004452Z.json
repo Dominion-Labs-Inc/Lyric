@@ -1,0 +1,277 @@
+{
+  "experiment": "SEPARATION-01",
+  "claim": "Staging serves a frozen release of the model taught in development, and keeps its runtime, the model and each person's context in separate databases: what was taught is in the release, what a person tells it lands in that person's context, what the substrate remembers while serving waits in the learning store, and no search, answer or research done for one owner reaches another's.",
+  "hypothesis": "A statement refused or sent to a database without its table; a write the frozen release refused; a lesson row in user context or the learning store; a person's fact or memory in the release or the learning store; the substrate's new memory in the release or read back while serving; a search or answer for one person reaching the other's context; a research topic carrying a person's context; memory in runtime; a changed release; or any row written to development by staging or to the main line would each show here.",
+  "started_at": "2026-10-05T00:44:52.473592+00:00",
+  "duration_seconds": 90.412,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/Lyric/venv_lyric/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/Lyric",
+    "shadow_mode": null,
+    "git_commit": "5cf57463f35b0096bff911066510d577dc598266",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "lyric_dev",
+      "environment": "staging",
+      "release": 1,
+      "databases": {
+        "runtime": "lyric_dev_staging_runtime",
+        "model": "lyric_dev_model_v1",
+        "user_context": "lyric_dev_staging_user_context",
+        "learning": "lyric_dev_staging_learning"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "environment",
+        "database": "environment",
+        "user": "environment",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "pool_idle_seconds": "dotenv:.env.postgres",
+        "environment": "environment",
+        "release": "environment"
+      }
+    },
+    "git_uncommitted_changes": 13,
+    "database_verified": null,
+    "database_verified_reason": "not verified"
+  },
+  "summary": {
+    "checks": 33,
+    "passed": 29,
+    "failed": 4,
+    "outcome": "FAIL"
+  },
+  "metrics": [
+    {
+      "name": "rows_runtime",
+      "value": 399,
+      "unit": "rows",
+      "note": ""
+    },
+    {
+      "name": "rows_model",
+      "value": 9678,
+      "unit": "rows",
+      "note": ""
+    },
+    {
+      "name": "rows_user_context",
+      "value": 6,
+      "unit": "rows",
+      "note": ""
+    },
+    {
+      "name": "rows_learning",
+      "value": 1,
+      "unit": "rows",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "release 1 is cut from development and staged",
+      "passed": true,
+      "detail": "staging",
+      "at": "2026-10-05T00:45:46.389578+00:00"
+    },
+    {
+      "label": "it is read-only and intact",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-10-05T00:45:46.389620+00:00"
+    },
+    {
+      "label": "it holds no person's memory and no person's context table",
+      "passed": true,
+      "detail": "0 people's memories, 0 context tables",
+      "at": "2026-10-05T00:45:46.426289+00:00"
+    },
+    {
+      "label": "this process is staging serving release 1",
+      "passed": true,
+      "detail": "staging, release 1",
+      "at": "2026-10-05T00:45:47.106250+00:00"
+    },
+    {
+      "label": "it checked its release before serving",
+      "passed": true,
+      "detail": "lyric_dev_model_v1",
+      "at": "2026-10-05T00:45:47.106271+00:00"
+    },
+    {
+      "label": "it holds one pool per store, each for its own database",
+      "passed": true,
+      "detail": "['lyric_dev_model_v1', 'lyric_dev_staging_learning', 'lyric_dev_staging_runtime', 'lyric_dev_staging_user_context']",
+      "at": "2026-10-05T00:45:47.106282+00:00"
+    },
+    {
+      "label": "each pool reaches the database it is for",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-05T00:45:47.109255+00:00"
+    },
+    {
+      "label": "the tools that reach its own databases are not carried",
+      "passed": false,
+      "detail": "329 tools; reaching its databases: ['mysql_query']",
+      "at": "2026-10-05T00:45:47.707257+00:00"
+    },
+    {
+      "label": "the substrate is running",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-05T00:45:57.798632+00:00"
+    },
+    {
+      "label": "no statement was refused, reached a database without its table, or tried to change the release during boot",
+      "passed": false,
+      "detail": "logged 1: [\"core.agents.autonomous.autonomous_coordinator: messages owed could not be armed again: table(s) no store holds: ['unified.outbox']; classify them in postgres_config.STORE_TABLES\"]; raised 1: [\"_route: table(s) no store holds: ['unified.outbox']; classify them in postgres_config.STORE_TABLES\"]; frozen []",
+      "at": "2026-10-05T00:46:17.799755+00:00"
+    },
+    {
+      "label": "the lesson's patterns are memories in the release",
+      "passed": true,
+      "detail": "9",
+      "at": "2026-10-05T00:46:17.933627+00:00"
+    },
+    {
+      "label": "its facts about the world are in the release",
+      "passed": true,
+      "detail": "2 robin facts",
+      "at": "2026-10-05T00:46:17.933640+00:00"
+    },
+    {
+      "label": "its beliefs and ledger entries are in the release",
+      "passed": true,
+      "detail": "10 english beliefs, 9 pattern updates",
+      "at": "2026-10-05T00:46:17.933643+00:00"
+    },
+    {
+      "label": "nothing of the lesson is in user context or the learning store",
+      "passed": true,
+      "detail": "{'user_context': {}, 'learning': {}}",
+      "at": "2026-10-05T00:46:18.002157+00:00"
+    },
+    {
+      "label": "each person's fact is in user context",
+      "passed": true,
+      "detail": "{'user:alice:separation01': 1, 'user:bob:separation01': 1}",
+      "at": "2026-10-05T00:46:21.691015+00:00"
+    },
+    {
+      "label": "neither person's fact is in the release",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-10-05T00:46:21.717025+00:00"
+    },
+    {
+      "label": "each person's memory is in user context, and only there",
+      "passed": true,
+      "detail": "{'mem_50d48236bd5d4091ac545b9d8202201c': ['user_context'], 'mem_619917dc291f452c95d85d81ebe1f14d': ['user_context']}",
+      "at": "2026-10-05T00:46:21.799829+00:00"
+    },
+    {
+      "label": "the substrate's new memory is in the learning store, not the release",
+      "passed": true,
+      "detail": "['learning']",
+      "at": "2026-10-05T00:46:21.799837+00:00"
+    },
+    {
+      "label": "the release holds the memory development made",
+      "passed": true,
+      "detail": "{'mem_000e1ba25a144844b82340f7331b53f0'}",
+      "at": "2026-10-05T00:46:21.839639+00:00"
+    },
+    {
+      "label": "Alice finds her memory and the release's, not Bob's",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-05T00:46:21.839644+00:00"
+    },
+    {
+      "label": "Bob finds his memory and the release's, not Alice's",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-05T00:46:21.839647+00:00"
+    },
+    {
+      "label": "the substrate's own search finds the release's memory, and neither a person's nor what it remembered while serving",
+      "passed": true,
+      "detail": "{'mem_000e1ba25a144844b82340f7331b53f0'}",
+      "at": "2026-10-05T00:46:21.839649+00:00"
+    },
+    {
+      "label": "for Alice, her context answers it",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-05T00:46:21.862509+00:00"
+    },
+    {
+      "label": "for Bob and for the substrate, it does not",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-05T00:46:21.862513+00:00"
+    },
+    {
+      "label": "research topics come from the release and carry no person's context",
+      "passed": true,
+      "detail": "8 topics",
+      "at": "2026-10-05T00:46:21.862734+00:00"
+    },
+    {
+      "label": "runtime holds the substrate's running records",
+      "passed": true,
+      "detail": "9 tables",
+      "at": "2026-10-05T00:46:21.984819+00:00"
+    },
+    {
+      "label": "and no memory at all",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-05T00:46:21.984835+00:00"
+    },
+    {
+      "label": "no statement was refused or reached a database without its table during the whole run",
+      "passed": false,
+      "detail": "logged 1: [\"core.agents.autonomous.autonomous_coordinator: messages owed could not be armed again: table(s) no store holds: ['unified.outbox']; classify them in postgres_config.STORE_TABLES\"]; raised 1: [\"_route: table(s) no store holds: ['unified.outbox']; classify them in postgres_config.STORE_TABLES\"]",
+      "at": "2026-10-05T00:46:21.984843+00:00"
+    },
+    {
+      "label": "nothing tried to change the frozen release",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-10-05T00:46:21.984849+00:00"
+    },
+    {
+      "label": "none of the errors the substrate recorded is a missing table, a refusal or a frozen write",
+      "passed": false,
+      "detail": "1 recorded; structural: [\"messages owed could not be armed again: table(s) no store holds: ['unified.outbox']; classify them i\"]",
+      "at": "2026-10-05T00:46:22.001099+00:00"
+    },
+    {
+      "label": "the release is still exactly what was cut",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-10-05T00:46:22.373315+00:00"
+    },
+    {
+      "label": "development received nothing from staging",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-05T00:46:22.564336+00:00"
+    },
+    {
+      "label": "the main line is untouched",
+      "passed": true,
+      "detail": "(0, []) before, (0, []) after (rows, releases)",
+      "at": "2026-10-05T00:46:22.744127+00:00"
+    }
+  ],
+  "notes": []
+}

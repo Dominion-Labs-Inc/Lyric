@@ -1,0 +1,461 @@
+{
+ "name": "fresh-lesson-03",
+ "about": "A third lesson no experiment taught or tested, written after the fixes FRESH-LESSON-01 and -02 led to, and frozen before its own first run: facts stated about the world, with words WordNet and the 30 lessons do not have (larth, fosk, brell, jimp, talo, quib, smeb, gloth, voth, prenk, dorv; 'larth' ends in -th and is taught in the plural, 'Larths'), and two shapes the 30 lessons never use: 'X is kept in Y' and 'X sleeps in Y', three sentences of each.",
+ "quality": 0.95,
+ "examples": false,
+ "records": [
+  {
+   "sentence": "A horse is an animal.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "isa",
+      "horse",
+      "animal",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "A cow is an animal.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "isa",
+      "cow",
+      "animal",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "Horses can run.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "capable_of",
+      "horse",
+      "run",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "A rose is a flower.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "isa",
+      "rose",
+      "flower",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "A flower is a plant.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "isa",
+      "flower",
+      "plant",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "A teacher is a person.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "isa",
+      "teacher",
+      "person",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "A larth is a horse.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "isa",
+      "larth",
+      "horse",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "Larths are brown.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "has_property",
+      "larth",
+      "brown",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "A fosk is a cow.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "isa",
+      "fosk",
+      "cow",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "A brell is a flower.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "isa",
+      "brell",
+      "flower",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "A jimp is a chair.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "isa",
+      "jimp",
+      "chair",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "A jimp is made of glass.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "made_of",
+      "jimp",
+      "glass",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "The jimp is behind the door.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "behind",
+      "jimp",
+      "door",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "Talo is a teacher.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "isa",
+      "talo",
+      "teacher",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "Talo has a larth.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "owns",
+      "talo",
+      "larth",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "A fosk is not a horse.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "isa",
+      "fosk",
+      "horse",
+      false
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "The larth kicked the ball.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "instance_of",
+      "?v0",
+      "kick",
+      true
+     ],
+     [
+      "done_by",
+      "?v0",
+      "larth",
+      true
+     ],
+     [
+      "done_to",
+      "?v0",
+      "ball",
+      true
+     ],
+     [
+      "precedes",
+      "?v0",
+      "?now",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "A quib is an animal.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "isa",
+      "quib",
+      "animal",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "A smeb is a flower.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "isa",
+      "smeb",
+      "flower",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "A gloth is a plant.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "isa",
+      "gloth",
+      "plant",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "A voth is an animal.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "isa",
+      "voth",
+      "animal",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "A prenk is an animal.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "isa",
+      "prenk",
+      "animal",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "A dorv is an animal.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "isa",
+      "dorv",
+      "animal",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "A quib is kept in a room.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "located_in",
+      "quib",
+      "room",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "A smeb is kept in a school.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "located_in",
+      "smeb",
+      "school",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "A gloth is kept in a box.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "located_in",
+      "gloth",
+      "box",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "A voth sleeps in a room.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "located_in",
+      "voth",
+      "room",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "A prenk sleeps in a box.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "located_in",
+      "prenk",
+      "box",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "A dorv sleeps in a school.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "located_in",
+      "dorv",
+      "school",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  }
+ ]
+}

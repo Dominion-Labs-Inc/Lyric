@@ -1,0 +1,9 @@
+{
+  "name": "fresh-lesson-01-contradiction",
+  "about": "One later source, weaker than the lesson, saying the opposite of one fact the lesson taught: the belief in that fact must move, not stay put and not be overwritten.",
+  "quality": 0.75,
+  "examples": false,
+  "records": [
+    {"sentence": "A wug is not a bird.", "meaning": {"act": "tell", "facts": [["isa", "wug", "bird", false]], "asked": []}}
+  ]
+}

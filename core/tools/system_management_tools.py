@@ -24,7 +24,7 @@ from typing import Any, Dict, List
 from pathlib import Path
 
 from .tool_registry import Tool, ToolParameter, ToolResult, ToolCategory, ToolSafety
-from .capabilities import Capability, ToolCapabilityProfile, CapabilityMetadata, RiskLevel
+from .tool_registry import Primitive, PrimitiveProfile, PrimitiveUse
 
 
 logger = logging.getLogger(__name__)
@@ -83,12 +83,12 @@ class SetEnvironmentVariableTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="set_environment_variable",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.MANAGE_PROCESS,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.MANAGE_PROCESS,
                     description="SetEnvironmentVariable capability"
                 )
             ]
@@ -174,12 +174,12 @@ class GetEnvironmentVariableTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="get_environment_variable",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.MANAGE_PROCESS,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.MANAGE_PROCESS,
                     description="GetEnvironmentVariable capability"
                 )
             ]
@@ -244,24 +244,19 @@ class ModifyConfigFileTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="modify_config_file",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.MANAGE_PROCESS,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.MANAGE_PROCESS,
                     description="ModifyConfigFile capability"
                 ),
-                CapabilityMetadata(
-                    capability=Capability.MANAGE_CONFIG,
+                PrimitiveUse(
+                    primitive=Primitive.MANAGE_CONFIG,
                     description="Modify and manage system configuration files",
                     input_types=["config_path", "key", "value"],
-                    output_types=["status"],
-                    latency="low",
-                    cost="low",
-                    reliability="high",
-                    risk_level=RiskLevel.HIGH,
-                    priority=8
+                    output_types=["status"]
                 )
             ]
         )
@@ -342,12 +337,12 @@ class ReloadConfigTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="reload_config",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.MANAGE_PROCESS,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.MANAGE_PROCESS,
                     description="Reload a service's configuration"
                 )
             ]
@@ -396,24 +391,19 @@ class CheckDependenciesTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="check_dependencies",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.MANAGE_PROCESS,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.MANAGE_PROCESS,
                     description="CheckDependencies capability"
                 ),
-                CapabilityMetadata(
-                    capability=Capability.MANAGE_DEPENDENCIES,
+                PrimitiveUse(
+                    primitive=Primitive.MANAGE_DEPENDENCIES,
                     description="Check and manage system dependencies",
                     input_types=["requirements"],
-                    output_types=["dependency_status"],
-                    latency="medium",
-                    cost="low",
-                    reliability="high",
-                    risk_level=RiskLevel.LOW,
-                    priority=7
+                    output_types=["dependency_status"]
                 )
             ]
         )
@@ -510,12 +500,12 @@ class UpdateSystemTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="update_system",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.MANAGE_PROCESS,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.MANAGE_PROCESS,
                     description="UpdateSystem capability"
                 )
             ]
@@ -597,24 +587,19 @@ class ManageDockerTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="manage_docker",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.MANAGE_PROCESS,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.MANAGE_PROCESS,
                     description="ManageDocker capability"
                 ),
-                CapabilityMetadata(
-                    capability=Capability.MANAGE_DOCKER,
+                PrimitiveUse(
+                    primitive=Primitive.MANAGE_DOCKER,
                     description="Manage Docker containers and images",
                     input_types=["container_config"],
-                    output_types=["container_status"],
-                    latency="medium",
-                    cost="medium",
-                    reliability="high",
-                    risk_level=RiskLevel.HIGH,
-                    priority=8
+                    output_types=["container_status"]
                 )
             ]
         )

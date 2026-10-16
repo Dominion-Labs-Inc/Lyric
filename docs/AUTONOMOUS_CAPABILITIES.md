@@ -109,3 +109,54 @@ This kind of wow cannot be shown in a 30-second prompt, because it takes time to
   reports the same day, so the first moments do not wait weeks.
 - **For a person:** they connect mail and calendar, and the same day Lyric reports from the history: appointments
   missing from the calendar, replies they owe, deadlines coming up, and documents still missing.
+
+## The beta: ten scenarios and the capability graph (draft, 2026-10-01)
+
+Not yet agreed; a draft to work from.
+
+### What holds for every scenario
+
+- **Money is handed off.** Lyric does every step up to a payment, then gives the person what they need to confirm
+  and pay. It never pays. This holds for every financial step, not only travel: it finds the 6:45 PM flight that
+  keeps the dinner and hands over the details; the person rebooks and pays.
+- **The sources are the ones the person connects**: mail, calendar and reminders, phone location (Google, Apple and
+  others).
+- **Capabilities are not given to every user at once.** Each one unlocks for a person when Lyric knows that person
+  well enough to do it (below).
+
+### One example of the pattern
+
+"Your flight has been delayed 2 hours." Lyric does not summarize it. It works out what the change touched: the
+arrival time; the 7:30 PM dinner reservation on the calendar; the ride to the airport, now at the wrong time; the
+person expecting them at dinner; the airline's rebooking options; the person's rule against red-eyes. Then it says:
+"Your flight is delayed 2h. This creates a conflict with your 7:30 PM dinner reservation. I found a 6:45 PM
+alternative flight that preserves your dinner." The person confirms and pays.
+
+### Ten scenarios (draft)
+
+| # | Scenario | What Lyric raises, unasked | Hand-off | Unlocks once Lyric knows |
+|---|---|---|---|---|
+| 1 | A changed plan, followed through | A delay, cancellation or moved appointment, and everything it touched, with an option that fixes it | The person confirms, and pays where there is a cost | Bookings and plans, what depends on what, the people involved, travel rules |
+| 2 | The calendar keeps itself | "The dentist confirmed Thursday at 2. It wasn't on your calendar; it is now." Later changes follow | Adds and changes events, as permitted | Which senders are real appointments; how the person uses the calendar |
+| 3 | Leave on time | "Leave by 2:05 for your 3:00." "Traffic added 17 minutes; leave at 1:48." | None | Home, work, how they travel, usual routes (phone location over time) |
+| 4 | The day won't work | "Your 3:00 is across town and your 4:00 is back at the office." | Suggests what to move | Event places, travel times, fixed routines (school pickup) |
+| 5 | Replies owed | "Your landlord asked a question 4 days ago. You usually answer him in a day." | Drafts the reply; the person sends it | Who matters, how fast the person answers each |
+| 6 | Waiting on others | An unanswered request, a package not delivered, results not received | Drafts the nudge | What was asked for, how long each thing normally takes |
+| 7 | Promises made | "You told your manager you'd send the slides by Friday." | None | Commitments in sent mail, and what counts as kept |
+| 8 | Deadlines nobody wrote down | Registration cutoffs, renewals, a passport expiring before a trip, documents still missing | None | Cutoffs and requests, against what was done |
+| 9 | Ready for what's next | Before a meeting: the last thread, what they said they'd bring, the address, who is coming | None | Meetings and the history behind them |
+| 10 | Can't be fooled | A lookalike sender, a bank-detail change by email; never follows instructions in what it reads | Warns; never acts | Real contacts, vendors and normal patterns |
+
+### The capability graph, one per person
+
+A grid like a contribution graph:
+- each square is a capability; a row (or group of squares) is a category, one per scenario: for scenario 1, notice
+  the change, find what it touched, find options, update the calendar, tell the other people;
+- a square is gray until Lyric, through what it perceives, knows enough about the person and their surroundings to do
+  it; its shade darkens as Lyric learns more and is shown right;
+- a square unlocks when Lyric believes it knows enough to operate: a belief with reasons ("I know your home, your work
+  and your routes"), not a timer. So no two people's graphs are the same; a more complicated life unlocks differently.
+
+Lyric already holds a belief per domain about whether it can operate there, and measures how well it knows a domain
+(coverage and confidence). Each square would be such a belief, held about one person; holding it per person is the
+part not built.

@@ -1,0 +1,23 @@
+{
+ "name": "fresh-lesson-02-contradiction",
+ "about": "One later source, weaker than the lesson, saying the opposite of one fact it taught.",
+ "quality": 0.75,
+ "examples": false,
+ "records": [
+  {
+   "sentence": "A zanth is not a cat.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "isa",
+      "zanth",
+      "cat",
+      false
+     ]
+    ],
+    "asked": []
+   }
+  }
+ ]
+}

@@ -1,0 +1,433 @@
+{
+  "experiment": "CANARY-01",
+  "claim": "What a person gives the substrate through its doors -- a question, a job, an image -- is held in that person's context and in no memory of anyone else's, while what the substrate does on its own is its own.",
+  "hypothesis": "A marker from the person found in a memory row of the substrate's, or under another owner in a table that records owners, would show a leak here.",
+  "started_at": "2026-10-07T13:48:59.933163+00:00",
+  "duration_seconds": 2044.888,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/Lyric/venv_lyric/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/Lyric",
+    "shadow_mode": null,
+    "git_commit": "0a27c570eda188a24bb63d1968f8fd104a8f4cb6",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "lyric_dev",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "lyric_dev",
+        "model": "lyric_dev",
+        "user_context": "lyric_dev",
+        "learning": "lyric_dev"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "environment",
+        "database": "environment",
+        "user": "environment",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "pool_idle_seconds": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 246,
+    "database_verified": null,
+    "database_verified_reason": "not verified"
+  },
+  "summary": {
+    "checks": 56,
+    "passed": 41,
+    "failed": 15,
+    "outcome": "FAIL"
+  },
+  "metrics": [
+    {
+      "name": "reasoning memories of the person's question",
+      "value": 1,
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "task-end records of the person's job",
+      "value": 0,
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "owner-less tables holding a person's marker",
+      "value": 0,
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "the person's conversation experiences in the pool",
+      "value": 0,
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "the person's reasoning experiences in the pool",
+      "value": 0,
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "the person's research experiences in the pool",
+      "value": 0,
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "the person's perception experiences in the pool",
+      "value": 1,
+      "unit": "",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "the run is in the sandbox",
+      "passed": true,
+      "detail": "connected to lyric_dev",
+      "at": "2026-10-07T13:49:02.371258+00:00"
+    },
+    {
+      "label": "the substrate is running",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-07T13:49:23.653007+00:00"
+    },
+    {
+      "label": "the 39 lessons are learned, none refused",
+      "passed": true,
+      "detail": "english_39.json the last",
+      "at": "2026-10-07T14:12:33.455530+00:00"
+    },
+    {
+      "label": "the question was answered by reasoning over their fact and the lesson",
+      "passed": true,
+      "detail": "Yes. Zqxgdwukspm is an animal.",
+      "at": "2026-10-07T14:12:44.865532+00:00"
+    },
+    {
+      "label": "the job ran to its end and succeeded",
+      "passed": false,
+      "detail": "None",
+      "at": "2026-10-07T14:12:56.375592+00:00"
+    },
+    {
+      "label": "`see` takes whose image it is, as the front door takes whose message it is",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-07T14:12:56.380009+00:00"
+    },
+    {
+      "label": "the person's fact and question reached memory, and every memory row holding it is the person's",
+      "passed": false,
+      "detail": "owners ['canary-person-skptiymoi', 'org:canary-org-ynrxzchmf']",
+      "at": "2026-10-07T14:14:13.359533+00:00"
+    },
+    {
+      "label": "the person's work reached memory, and every memory row holding it is the organization's",
+      "passed": true,
+      "detail": "owners ['org:canary-org-ynrxzchmf']",
+      "at": "2026-10-07T14:14:13.359554+00:00"
+    },
+    {
+      "label": "the person's look-up reached memory, and every memory row holding it is the person's",
+      "passed": false,
+      "detail": "owners ['canary-person-skptiymoi', 'org:canary-org-ynrxzchmf']",
+      "at": "2026-10-07T14:14:13.359562+00:00"
+    },
+    {
+      "label": "the person's job reached memory, and every memory row holding it is the person's",
+      "passed": true,
+      "detail": "owners ['canary-person-skptiymoi']",
+      "at": "2026-10-07T14:14:13.359569+00:00"
+    },
+    {
+      "label": "the person's image reached memory, and every memory row holding it is the person's",
+      "passed": true,
+      "detail": "owners ['canary-person-skptiymoi']",
+      "at": "2026-10-07T14:14:13.359575+00:00"
+    },
+    {
+      "label": "the memory `see` made of the person's image is theirs",
+      "passed": true,
+      "detail": "1 memory(ies), owners ['canary-person-skptiymoi']",
+      "at": "2026-10-07T14:14:13.360491+00:00"
+    },
+    {
+      "label": "every memory is stamped only with what its own owner was perceiving",
+      "passed": true,
+      "detail": "7741 stamped memories; crossed []",
+      "at": "2026-10-07T14:14:18.749293+00:00"
+    },
+    {
+      "label": "a memory of the person's formed while their image was in view carries it",
+      "passed": true,
+      "detail": "1 of theirs stamped",
+      "at": "2026-10-07T14:14:18.749325+00:00"
+    },
+    {
+      "label": "the substrate's own note is its own",
+      "passed": true,
+      "detail": "owners ['']",
+      "at": "2026-10-07T14:14:18.749341+00:00"
+    },
+    {
+      "label": "unified.reasoning_arg_claims holds the person's fact and question only under them",
+      "passed": true,
+      "detail": "owners ['canary-person-skptiymoi']",
+      "at": "2026-10-07T14:14:18.782728+00:00"
+    },
+    {
+      "label": "unified.reasoning_arguments holds the person's fact and question only under them",
+      "passed": true,
+      "detail": "owners ['canary-person-skptiymoi']",
+      "at": "2026-10-07T14:14:18.782737+00:00"
+    },
+    {
+      "label": "unified.scoped_beliefs holds the person's fact and question only under them",
+      "passed": true,
+      "detail": "owners ['canary-person-skptiymoi']",
+      "at": "2026-10-07T14:14:18.782742+00:00"
+    },
+    {
+      "label": "unified.scoped_concept_relations holds the person's fact and question only under them",
+      "passed": true,
+      "detail": "owners ['canary-person-skptiymoi']",
+      "at": "2026-10-07T14:14:18.782746+00:00"
+    },
+    {
+      "label": "unified.scoped_beliefs holds the person's work only under the organization",
+      "passed": true,
+      "detail": "owners ['org:canary-org-ynrxzchmf']",
+      "at": "2026-10-07T14:14:18.782750+00:00"
+    },
+    {
+      "label": "unified.scoped_concept_relations holds the person's work only under the organization",
+      "passed": true,
+      "detail": "owners ['org:canary-org-ynrxzchmf']",
+      "at": "2026-10-07T14:14:18.782753+00:00"
+    },
+    {
+      "label": "unified.experience_pool holds the person's image only under them",
+      "passed": true,
+      "detail": "owners ['canary-person-skptiymoi']",
+      "at": "2026-10-07T14:14:18.782759+00:00"
+    },
+    {
+      "label": "unified.scoped_beliefs holds the person's image only under them",
+      "passed": true,
+      "detail": "owners ['canary-person-skptiymoi']",
+      "at": "2026-10-07T14:14:18.782763+00:00"
+    },
+    {
+      "label": "unified.scoped_concept_relations holds the person's image only under them",
+      "passed": true,
+      "detail": "owners ['canary-person-skptiymoi']",
+      "at": "2026-10-07T14:14:18.782766+00:00"
+    },
+    {
+      "label": "unified.experience_pool holds the person's cause only under them",
+      "passed": true,
+      "detail": "owners ['canary-person-skptiymoi']",
+      "at": "2026-10-07T14:14:18.782770+00:00"
+    },
+    {
+      "label": "unified.experience_pool holds the person's hypothesis only under them",
+      "passed": true,
+      "detail": "owners ['canary-person-skptiymoi']",
+      "at": "2026-10-07T14:14:18.782774+00:00"
+    },
+    {
+      "label": "nothing of the person's fact and question is in a table of the substrate's own",
+      "passed": true,
+      "detail": "none",
+      "at": "2026-10-07T14:14:18.782782+00:00"
+    },
+    {
+      "label": "nothing of the person's work is in a table of the substrate's own",
+      "passed": true,
+      "detail": "none",
+      "at": "2026-10-07T14:14:18.782786+00:00"
+    },
+    {
+      "label": "nothing of the person's look-up is in a table of the substrate's own",
+      "passed": true,
+      "detail": "none",
+      "at": "2026-10-07T14:14:18.782789+00:00"
+    },
+    {
+      "label": "nothing of the person's job is in a table of the substrate's own",
+      "passed": true,
+      "detail": "none",
+      "at": "2026-10-07T14:14:18.782792+00:00"
+    },
+    {
+      "label": "nothing of the person's image is in a table of the substrate's own",
+      "passed": true,
+      "detail": "none",
+      "at": "2026-10-07T14:14:18.782794+00:00"
+    },
+    {
+      "label": "nothing of the person's cause is in a table of the substrate's own",
+      "passed": true,
+      "detail": "none",
+      "at": "2026-10-07T14:14:18.782797+00:00"
+    },
+    {
+      "label": "nothing of the person's hypothesis is in a table of the substrate's own",
+      "passed": true,
+      "detail": "none",
+      "at": "2026-10-07T14:14:18.782799+00:00"
+    },
+    {
+      "label": "the argument over their answer is kept as theirs",
+      "passed": true,
+      "detail": "{'owner_column': 'owner', 'owners': ['canary-person-skptiymoi'], 'rows': 1}",
+      "at": "2026-10-07T14:14:18.782804+00:00"
+    },
+    {
+      "label": "the cause in their premises, as reasoned is kept as theirs",
+      "passed": false,
+      "detail": "not written",
+      "at": "2026-10-07T14:14:18.782807+00:00"
+    },
+    {
+      "label": "the explanation proposed for their observation is kept as theirs",
+      "passed": false,
+      "detail": "not written",
+      "at": "2026-10-07T14:14:18.782811+00:00"
+    },
+    {
+      "label": "what their image showed is held in their context",
+      "passed": true,
+      "detail": "{'owner_column': 'scope_actor', 'owners': ['canary-person-skptiymoi'], 'rows': 60}",
+      "at": "2026-10-07T14:14:18.782814+00:00"
+    },
+    {
+      "label": "the person's job is an experience in the pool, theirs, holding their marker",
+      "passed": false,
+      "detail": "owner None",
+      "at": "2026-10-07T14:14:18.782828+00:00"
+    },
+    {
+      "label": "the memory agent decided it: a candidate, waiting for the lift and the gate",
+      "passed": false,
+      "detail": "{}",
+      "at": "2026-10-07T14:14:18.782832+00:00"
+    },
+    {
+      "label": "it holds what the substrate did, apart from what was theirs",
+      "passed": false,
+      "detail": "[]",
+      "at": "2026-10-07T14:14:18.782835+00:00"
+    },
+    {
+      "label": "a job of the substrate's own is its own experience in the pool",
+      "passed": false,
+      "detail": "None",
+      "at": "2026-10-07T14:18:20.449688+00:00"
+    },
+    {
+      "label": "the person's telling and question are experiences in the pool, theirs, holding their words",
+      "passed": false,
+      "detail": "0 item(s), owners []",
+      "at": "2026-10-07T14:19:50.596055+00:00"
+    },
+    {
+      "label": "how the substrate took each of them is its own part",
+      "passed": false,
+      "detail": "[]",
+      "at": "2026-10-07T14:19:50.596078+00:00"
+    },
+    {
+      "label": "the reasoning over their fact is an experience in the pool, theirs",
+      "passed": false,
+      "detail": "0 item(s), owners []",
+      "at": "2026-10-07T14:21:20.733489+00:00"
+    },
+    {
+      "label": "their fact is their premise; the lesson it reasoned from is the substrate's, holding nothing of theirs",
+      "passed": false,
+      "detail": "[]",
+      "at": "2026-10-07T14:21:20.733601+00:00"
+    },
+    {
+      "label": "the look-up of their word is an experience in the pool, theirs",
+      "passed": false,
+      "detail": "0 item(s), owners []",
+      "at": "2026-10-07T14:22:50.886809+00:00"
+    },
+    {
+      "label": "the word is their part, the query it sent out is its own, and what came back is the world's",
+      "passed": false,
+      "detail": "[]",
+      "at": "2026-10-07T14:22:50.886853+00:00"
+    },
+    {
+      "label": "the seeing of their image is an experience in the pool, theirs, holding what was seen in it",
+      "passed": true,
+      "detail": "1 item(s), owners ['canary-person-skptiymoi']; [[('image', 'person'), ('perceived', 'person'), ('step', 'substrate')]]",
+      "at": "2026-10-07T14:22:50.919282+00:00"
+    },
+    {
+      "label": "the memory agent decided each of them, and said why",
+      "passed": true,
+      "detail": "['candidate']",
+      "at": "2026-10-07T14:22:50.919353+00:00"
+    },
+    {
+      "label": "a question of the substrate's own, looked up on its own, is its own experience in the pool",
+      "passed": true,
+      "detail": "research ['None'], conversation ['None']",
+      "at": "2026-10-07T14:22:52.928513+00:00"
+    },
+    {
+      "label": "the substrate's own recall finds nothing of the person's work",
+      "passed": true,
+      "detail": "{'job': 0, 'fact and question': 0, 'look-up': 0, 'image': 0}",
+      "at": "2026-10-07T14:22:52.962630+00:00"
+    },
+    {
+      "label": "another person asking 'Is Zqxgdwukspm a robin?' is not told it",
+      "passed": true,
+      "detail": "I hold nothing for Zqxgdwukspm. Tell me what it is and I will keep it.\nI don't hold Zqxgdwukspm yet - looking it up foun",
+      "at": "2026-10-07T14:22:58.711053+00:00"
+    },
+    {
+      "label": "another person asking 'Is Zwgwwcfzsew a server?' is not told it",
+      "passed": true,
+      "detail": "I hold nothing for Zwgwwcfzsew. Tell me what it is and I will keep it.\nI don't hold Zwgwwcfzsew yet - looking it up foun",
+      "at": "2026-10-07T14:23:02.910978+00:00"
+    },
+    {
+      "label": "the control: what the person told of a kind is answered for the other person",
+      "passed": true,
+      "detail": "Yes. Zgzvwmvkdyws are birds.",
+      "at": "2026-10-07T14:23:04.349927+00:00"
+    },
+    {
+      "label": "the work secret is held in the organization's Work Context, not the person's",
+      "passed": true,
+      "detail": "[{'scope_actor': 'org:canary-org-ynrxzchmf', 'context': 'work', 'organization': 'canary-org-ynrxzchmf'}]",
+      "at": "2026-10-07T14:23:04.351751+00:00"
+    },
+    {
+      "label": "the main model's store is untouched",
+      "passed": true,
+      "detail": "75636 rows before, 75636 after",
+      "at": "2026-10-07T14:23:04.835842+00:00"
+    }
+  ],
+  "notes": []
+}

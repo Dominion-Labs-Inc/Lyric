@@ -68,25 +68,13 @@ logger = logging.getLogger(__name__)
 #:              engine that owns causality, taking the MINIMUM confidence along
 #:              the chain.
 #:
-#: NOT fact-yielding. Some because of what the kind IS -- abduction offers
-#: "what would BEST explain", a counterfactual states what did NOT happen,
-#: probabilistic and fuzzy answer by degree -- and two because of what the
-#: implementation actually does:
-#:
-#:   INDUCTIVE   reads as fact-yielding and is not. `_premises_are_similar` is
-#:               Jaccard word overlap > 0.3 and `_identify_pattern` returns
-#:               common words, so the "generalisation" is over a word bag, not
-#:               over structure. "The cat sat on the mat" and "The dog sat on
-#:               the mat" group, and their shared words become a pattern. A real
-#:               generalisation would be a fact; this is not yet one.
-#:   ANALOGICAL  the only strategy never rebuilt. `_extract_structure` splits on
-#:               whitespace under its own comment, "would use NLP in practice",
-#:               so a STRUCTURAL analogy is decided by word overlap.
-#:
-#: The root of both: no strategy in `abstract_reasoning_engine` consults the
-#: substrate's sentence reader. They reason over raw premise strings, so where
-#: a kind needs structure it has none to work with and reaches for token
-#: overlap. Fix that and INDUCTIVE can be revisited.
+#: NOT fact-yielding, because of what the kind IS: abduction offers "what would
+#: BEST explain", a counterfactual states what did NOT happen, probabilistic and
+#: fuzzy answer by degree, induction generalises from examples and analogy
+#: transfers from a like thing -- each proposes. INDUCTIVE and ANALOGICAL work
+#: over the premises' structure (`abstract_reasoning_engine._held_facts`: one
+#: relation between two named things), never their words; their conclusions are
+#: not verified (`_reason_by_kind`).
 _FACT_YIELDING_KINDS = frozenset({"deductive", "logical", "causal"})
 
 
@@ -1714,7 +1702,8 @@ class NeuralSymbolicBridge:
         """
         self._update_stats(request, result)
 
-        if self.memory_agent and request.cached_memories is None:
+        from core.memory.remembering import remembered
+        if self.memory_agent and request.cached_memories is None and remembered():
             asyncio.create_task(self._capture_reasoning_memory(request, result))
 
         return result
@@ -1727,7 +1716,13 @@ class NeuralSymbolicBridge:
         engagement refreshes one intent across turns and sessions. Splits at
         record time: the query and its context are the actor's CONTENT; the
         reasoning skeleton is substrate-wide SHAPE. Returns the Intent or None.
+
+        None where what happens now is not remembered (`core.memory.remembering`): an intent is the record of an
+        engagement, and an engagement no one keeps leaves none.
         """
+        from core.memory.remembering import remembered
+        if not remembered():
+            return None
         try:
             from core.reasoning.intent_authority import (
                 get_intent_authority, continuity_goal, continuity_thread,
@@ -2569,8 +2564,12 @@ class NeuralSymbolicBridge:
             # shared graph, and no one else's. Absent (substrate/idle cognition)
             # it answers over the shared mind alone.
             actor = (request.task_metadata or {}).get("actor")
+            # What the asker told and was not taken in whole: memory is known
+            # not to hold all that was said of what it names, so no answer
+            # closes the world on it (`_kinds_exclude`).
+            not_taken_in = tuple((request.task_metadata or {}).get("not_taken_in") or ())
             ans = await answer_over_graph(db, subj, relation, obj, max_hops=4,
-                                          actor=actor)
+                                          actor=actor, not_taken_in=not_taken_in)
         except Exception as e:
             logger.debug("concept-graph query failed: %s", e)
             return None
@@ -3857,6 +3856,7 @@ class NeuralSymbolicBridge:
             domain=str((request.task_metadata or {}).get("domain") or "general"),
             problem_type="reasoning_request",
             actor=(request.task_metadata or {}).get("actor"),
+            organization=(request.task_metadata or {}).get("organization"),
             # THE CONTEXT IS SPLIT BY WHAT EACH ITEM IS.
             #
             # A flat list of strings was not enough. Abduction searches
@@ -4032,8 +4032,9 @@ class NeuralSymbolicBridge:
         meta = {
             # THE CREDIT-ASSIGNMENT CONTRACT. Every result must carry these
             # five, so a verdict and an inability are told apart by metadata
-            # rather than by confidence -- both can be low.
-            "verified": True,
+            # rather than by confidence -- both can be low. Only a kind that
+            # yields facts verifies: an induction or an analogy proposes.
+            "verified": best.reasoning_type.value in _FACT_YIELDING_KINDS,
             "formalized": False,   # derived, not propositionally formalized
             "reason": REASON_DERIVED_BY_KIND,
             "model_required": False,
@@ -4209,7 +4210,9 @@ class NeuralSymbolicBridge:
                 logger.info("reasoning not kept: the request does not say "
                             "whose reasoning it is (task_metadata['actor'])")
                 return
-            origin = Origin.of(actor, "reasoning")
+            organization = (request.task_metadata or {}).get("organization")
+            origin = Origin.of(actor, "reasoning", context="work" if organization else None,
+                               organization=organization)
 
             # THE EXPERIENCE, WHOLE. The question, what it was given to reason
             # with, and the answer are the asker's -- and so is every premise that

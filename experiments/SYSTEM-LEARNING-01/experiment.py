@@ -42,7 +42,7 @@ async def main() -> int:
     written = {"memories": set(), "beliefs": set()}
     try:
         from core.learning import get_learning_authority
-        from core.learning.unified_learning_system import get_unified_learning_system
+        from core.learning.unified_learning_system import Evidence, get_unified_learning_system
         from core.semantics.cognitive_ingress import Provenance
         L = get_learning_authority()
 
@@ -56,12 +56,14 @@ async def main() -> int:
         print("\n== B. A told fact enters once and moves a belief ==")
         prov = Provenance(producer="experiment", source_id="SYSTEM-LEARNING-01",
                           source_type="USER_SUPPLIED")
-        adm = await L.learn_fact("isoprobe_finch", "isa", "isoprobe_bird", domain=DOMAIN,
-                                 provenance=prov, surface="an isoprobe finch is an isoprobe bird")
+        told = Evidence.from_provenance(prov, 0.9)
+        decision = await L.consider("isoprobe_finch", "isa", "isoprobe_bird", domain=DOMAIN, evidence=told,
+                                    surface="an isoprobe finch is an isoprobe bird")
+        adm = decision.admission
         if getattr(adm, "memory_id", None):
             written["memories"].add(adm.memory_id)
-        check("the fact is admitted", bool(getattr(adm, "admitted", False)),
-              f"created={getattr(adm, 'concepts_created', None)} "
+        check("the fact is admitted", decision.admitted,
+              f"standing={decision.standing} created={getattr(adm, 'concepts_created', None)} "
               f"reinforced={getattr(adm, 'concepts_reinforced', None)} memory={getattr(adm, 'memory_id', None)}")
         belief = L.belief_for_claim("isoprobe_finch isa isoprobe_bird")
         if belief is not None:
@@ -77,8 +79,8 @@ async def main() -> int:
         check("the relation is in the concept graph the reasoner walks",
               rel is not None and int(rel["n"]) >= 1, f"isa edges from isoprobe_finch: {rel and rel['n']}")
 
-        adm2 = await L.learn_fact("isoprobe_finch", "isa", "isoprobe_bird", domain=DOMAIN,
-                                  provenance=prov, surface="an isoprobe finch is an isoprobe bird")
+        adm2 = (await L.consider("isoprobe_finch", "isa", "isoprobe_bird", domain=DOMAIN, evidence=told,
+                                 surface="an isoprobe finch is an isoprobe bird")).admission
         if getattr(adm2, "memory_id", None):
             written["memories"].add(adm2.memory_id)
         check("telling it again does not admit it twice",
@@ -88,9 +90,9 @@ async def main() -> int:
 
         print("\n== C. A malformed fact is refused, not repaired ==")
         try:
-            bad = await L.learn_fact("", "isa", "isoprobe_bird", domain=DOMAIN, provenance=prov)
-            refused = not getattr(bad, "admitted", True)
-            detail = f"admitted={getattr(bad, 'admitted', None)} refusals={getattr(bad, 'refusals', None)}"
+            bad = await L.consider("", "isa", "isoprobe_bird", domain=DOMAIN, evidence=told)
+            refused = not bad.admitted
+            detail = f"standing={bad.standing} reasons={bad.reasons}"
         except (ValueError, TypeError) as e:
             refused, detail = True, f"raised {type(e).__name__}: {e}"
         check("an empty subject is refused", refused, detail)

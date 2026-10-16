@@ -1,0 +1,170 @@
+{
+  "experiment": "UNASSERTED-01",
+  "claim": "Told what someone said or wants, and a happening denied or one that might be, Lyric does not answer them as happened; told what happened, it does.",
+  "hypothesis": "A question about something said, wanted, denied or possible answered as happened, the happening that was told not answered as happened, or a write to the main store, shows here.",
+  "started_at": "2026-10-07T05:38:56.268283+00:00",
+  "duration_seconds": 942.372,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/Lyric/venv_lyric/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/Lyric",
+    "shadow_mode": null,
+    "git_commit": "0a27c570eda188a24bb63d1968f8fd104a8f4cb6",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "lyric_dev",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "lyric_dev",
+        "model": "lyric_dev",
+        "user_context": "lyric_dev",
+        "learning": "lyric_dev"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "environment",
+        "database": "environment",
+        "user": "environment",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "pool_idle_seconds": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 181,
+    "database_verified": null,
+    "database_verified_reason": "no initialized connection in this process"
+  },
+  "summary": {
+    "checks": 10,
+    "passed": 10,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [
+    {
+      "name": "what happened: answered right",
+      "value": "2/2",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "what was said or wanted: answered right",
+      "value": "2/2",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "what was denied or might be: answered right",
+      "value": "2/2",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "answers",
+      "value": [
+        {
+          "asked": "Did the kelt chase the blip?",
+          "reply": "Yes. The kelt chased the blip.",
+          "shapes": "what happened"
+        },
+        {
+          "asked": "What did the kelt chase?",
+          "reply": "The kelt chased the blip.",
+          "shapes": "what happened"
+        },
+        {
+          "asked": "Did the blip run?",
+          "reply": "I remember: The kelt said that the blip ran.\nA blip is an animal.\nI hold nothing for run. Tell me what it is and I will keep it.",
+          "shapes": "what was said or wanted"
+        },
+        {
+          "asked": "Did the fip kick the trel?",
+          "reply": "I remember: The fip wants to kick the trel.\nA trel is a toy.\nA fip is an animal.\nI hold nothing for kick. Tell me what it is and I will keep it.",
+          "shapes": "what was said or wanted"
+        },
+        {
+          "asked": "Did the fip chase the kelt?",
+          "reply": "The fip did not chase the kelt.",
+          "shapes": "what was denied or might be"
+        },
+        {
+          "asked": "Did the kelt chase the fip?",
+          "reply": "The kelt might chase the fip.",
+          "shapes": "what was denied or might be"
+        }
+      ],
+      "unit": "",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "the run is in the sandbox, emptied first",
+      "passed": true,
+      "detail": "connected to lyric_dev; reset exit 0",
+      "at": "2026-10-07T05:39:14.105528+00:00"
+    },
+    {
+      "label": "the 31 lessons are learned, none refused",
+      "passed": true,
+      "detail": "english_31.json the last",
+      "at": "2026-10-07T05:53:43.631277+00:00"
+    },
+    {
+      "label": "the facts are learned, none refused",
+      "passed": true,
+      "detail": "{'learned': 7, 'linked': 22, 'already': 0, 'understood': 1, 'refused': 0, 'total': 9, 'repair_item_based_lexical': 4, 'repair_add_links': 1, 'repair_phrase_in_slot': 1, 'repair_lexical_item_based': 3, 'said': 21, 'heard': 50}",
+      "at": "2026-10-07T05:54:04.136501+00:00"
+    },
+    {
+      "label": "'Did the kelt chase the blip?': yes",
+      "passed": true,
+      "detail": "Yes. The kelt chased the blip.",
+      "at": "2026-10-07T05:54:09.265166+00:00"
+    },
+    {
+      "label": "'What did the kelt chase?': the blip; a chase of the fip not said as happened",
+      "passed": true,
+      "detail": "The kelt chased the blip.",
+      "at": "2026-10-07T05:54:26.621434+00:00"
+    },
+    {
+      "label": "'Did the blip run?': not as happened: the kelt said so",
+      "passed": true,
+      "detail": "I remember: The kelt said that the blip ran.\nA blip is an animal.\nI hold nothing for run. Tell me what it is and I will keep it.",
+      "at": "2026-10-07T05:54:31.063204+00:00"
+    },
+    {
+      "label": "'Did the fip kick the trel?': not as happened: the fip wants to",
+      "passed": true,
+      "detail": "I remember: The fip wants to kick the trel.\nA trel is a toy.\nA fip is an animal.\nI hold nothing for kick. Tell me what it is and I will keep it.",
+      "at": "2026-10-07T05:54:35.062660+00:00"
+    },
+    {
+      "label": "'Did the fip chase the kelt?': not as happened: the fip did not",
+      "passed": true,
+      "detail": "The fip did not chase the kelt.",
+      "at": "2026-10-07T05:54:36.759125+00:00"
+    },
+    {
+      "label": "'Did the kelt chase the fip?': not as happened: the kelt might",
+      "passed": true,
+      "detail": "The kelt might chase the fip.",
+      "at": "2026-10-07T05:54:38.057248+00:00"
+    },
+    {
+      "label": "the main model's store is untouched",
+      "passed": true,
+      "detail": "64476 rows before, 64476 after",
+      "at": "2026-10-07T05:54:38.599908+00:00"
+    }
+  ],
+  "notes": []
+}

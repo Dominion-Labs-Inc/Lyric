@@ -13,9 +13,10 @@ What the teacher chooses is WHICH acts to show:
     free place a precondition;
   * the world observed twice with nothing done.
 
-Writing OVER a file is not shown here. What it changes is what the file holds,
-and the self does not yet perceive a file's content, so such a demonstration
-would show no change at all.
+The act carries what it was asked to write as a fingerprint, measured as the
+self measures what a file holds, so the lesson is that the file then holds
+exactly that. Writing OVER a file is not shown here: what it does depends on what
+was there, and one rule for this act cannot yet say both; it is not yet taught.
 
 Run:  POSTGRES_DATABASE=lyric_dev ./venv_lyric/bin/python3 experiments/fs_write_teach.py
 """
@@ -88,7 +89,7 @@ async def main():
 
     teaching = await get_intent_authority().form(
         "goal", SUBSTRATE_ACTOR, continuity_goal(f"fs_write_teach_{_uuid.uuid4().hex[:8]}"),
-        shape={"proved": True, "operator": f"{OPERATOR}(?p)", "operators": [f"{OPERATOR}(?p)"],
+        shape={"proved": True, "operator": f"{OPERATOR}(?p, ?c)", "operators": [f"{OPERATOR}(?p, ?c)"],
                "goal_conditions": ["KIND(?p, Ffile)"], "rule_ids": [],
                "domain": DOMAIN, "steps": 1, "grounding_complete": True},
         content={"aim": "learn WRITE_FILE by writing real files", "bindings": [{}]})

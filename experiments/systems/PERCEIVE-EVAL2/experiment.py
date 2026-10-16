@@ -28,7 +28,7 @@ after, so no other domain's learned state is touched.
 from __future__ import annotations
 import os
 for k, v in {"POSTGRES_PORT": "5433", "POSTGRES_USER": "stefan",
-             "POSTGRES_DATABASE": "lyric_db", "LYRIC_NO_WATCHDOG": "1"}.items():
+             "POSTGRES_DATABASE": "lyric_dev", "LYRIC_NO_WATCHDOG": "1"}.items():
     os.environ.setdefault(k, v)
 import asyncio, contextlib, io, json, sys, time
 from uuid import uuid4
@@ -149,9 +149,12 @@ async def main() -> int:
                              "perceived_shape": region["shape"],
                              "perceived_colour": region["color"]})
             t0 = time.perf_counter()
-            await coord.learning.learn_facts(
+            from core.learning.unified_learning_system import Evidence
+            await coord.learning.consider_many(
                 [(name, "isa", f) for f in (region["color"], region["shape"], region["size"])],
-                domain=DOMAIN)
+                domain=DOMAIN,
+                evidence=Evidence(source="sense:sight", key=f"sight:{name}", source_type="PERCEPTION",
+                                  quality=0.9, producer="perception"))
             timings["teach_ms"].append((time.perf_counter() - t0) * 1000)
             return name
 

@@ -202,6 +202,41 @@ async def test_reinterpretation_cannot_add_roots():
             "DELETE FROM unified.evidence_envelopes WHERE evidence_id = 'oracle_reinterp_root'", commit=True)
 
 
+@pytest.mark.asyncio
+async def test_a_curated_name_is_its_own_whatever_its_initials_spell():
+    """Acronym identity is a document's habit and is resolved only for a document's labels. A curated resource names
+    each of its concepts: WordNet's `common_unicorn_plant` was fused into `cup` and `age` into `adorned_gilt_edged`
+    by their initials, 1,825 facts on the wrong things. The same label from a research finding still resolves."""
+    from core.domain.concept_ingestion import ConceptCandidate, ConceptIngestionService
+    from core.domain.domain_types import ConceptType
+
+    db = await _db()
+    svc = ConceptIngestionService(db)
+    candidate = ConceptCandidate(label="zeta zonal quench", concept_kind=ConceptType.ENTITY,
+                                 domain_candidates=("oracle_domain",), evidence_ids=("oracle_curated",),
+                                 extraction_confidence=1.0, extractor="oracle")
+    try:
+        await db.execute_query(
+            """INSERT INTO unified.concepts
+                   (concept_id, name, domain, description, concept_kind,
+                    epistemic_status, root_evidence_count, created_at)
+               VALUES ('oracle_domain:zzq','zzq','oracle_domain','',
+                       'entity','OBSERVED',1, NOW())
+               ON CONFLICT (concept_id) DO NOTHING""", commit=True)
+        curated = await svc.resolve_identity(candidate, document_derived=False)
+        assert curated.name == "zeta_zonal_quench" and curated.concept_id != "oracle_domain:zzq", (
+            "a curated name is its own, whatever short word its initials spell")
+        await db.execute_query("DELETE FROM unified.concept_aliases WHERE alias = 'zeta_zonal_quench'", commit=True)
+        found = await svc.resolve_identity(candidate, document_derived=True)
+        assert found.concept_id == "oracle_domain:zzq", "a document's label still resolves by its initials"
+    finally:
+        await db.execute_query(
+            "DELETE FROM unified.concept_aliases WHERE alias IN ('zeta_zonal_quench', 'zzq') "
+            "OR concept_id LIKE 'oracle_domain:%'", commit=True)
+        await db.execute_query(
+            "DELETE FROM unified.concepts WHERE domain = 'oracle_domain'", commit=True)
+
+
 def test_extractors_are_registered_not_appended():
     """Production ownership path, and it must be idempotent by name."""
     from core.domain.concept_ingestion import ConceptIngestionService, ConceptExtractor
@@ -393,3 +428,93 @@ def test_category_tails_collapse_only_for_document_labels():
     # came from gets the reading that cannot destroy meaning: an unmerged pair
     # is recoverable, a wrongly merged one is not.
     assert r.canonical_label("cathode_material") == "cathode_material"
+
+
+@pytest.mark.asyncio
+async def test_a_curated_name_merged_by_its_initials_is_given_back_its_own_concept():
+    """`scripts/repair_acronym_merges.py` on one merge: what the curated observation wrote on the concept its initials
+    spell is taken off it, the alias goes, and read again the observation lands on its own concept, with the link
+    another concept made to it."""
+    import importlib.util
+    import json as _json
+    spec = importlib.util.spec_from_file_location(
+        "repair_acronym_merges", Path(__file__).resolve().parents[1] / "scripts" / "repair_acronym_merges.py")
+    repair_module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(repair_module)
+
+    db = await _db()
+    said = {"concepts": [
+        {"label": "zeta zonal quench", "kind": "entity", "domains": ["oracle_domain"],
+         "relationships": [["isa", "oracle_thing", "positive"]]},
+        {"label": "oracle_thing", "kind": "entity", "domains": ["oracle_domain"]}]}
+    pointing = {"concepts": [
+        {"label": "oracle_pointer", "kind": "entity", "domains": ["oracle_domain"],
+         "relationships": [["part of", "zeta zonal quench", "positive"]]}]}
+    try:
+        for cid, name in (("oracle_domain:zzq", "zzq"), ("oracle_domain:oracle_thing", "oracle_thing"),
+                          ("oracle_domain:oracle_pointer", "oracle_pointer")):
+            await db.execute_query(
+                """INSERT INTO unified.concepts (concept_id, name, domain, description, concept_kind,
+                       epistemic_status, root_evidence_count, relationships, created_at)
+                   VALUES ($1, $2, 'oracle_domain', '', 'entity', 'OBSERVED', 1, $3::jsonb, NOW())
+                   ON CONFLICT (concept_id) DO NOTHING""",
+                (cid, name, _json.dumps([["isa", "oracle_thing", "positive"]] if name == "zzq" else [])), commit=True)
+        for evidence_id, data in (("oracle_curated_merge", said), ("oracle_curated_pointer", pointing)):
+            await db.execute_query(
+                """INSERT INTO unified.evidence_envelopes (evidence_id, source_type, source_id, producer, content,
+                       structured_data, derived_from, observed_at)
+                   VALUES ($1, 'imported_knowledge', 'oracle', 'oracle', $3, $2::jsonb, '[]'::jsonb, NOW())
+                   ON CONFLICT (evidence_id) DO NOTHING""", (evidence_id, _json.dumps(data), evidence_id), commit=True)
+        await db.execute_query(
+            """INSERT INTO unified.concept_evidence (concept_id, evidence_id, root_evidence_id, extraction_confidence,
+                   extractor) VALUES ('oracle_domain:zzq', 'oracle_curated_merge', 'oracle_curated_merge', 1.0, 'oracle')
+               ON CONFLICT DO NOTHING""", commit=True)
+        for source, relation, target, surface, evidence_id in (
+                ("oracle_domain:zzq", "isa", "oracle_domain:oracle_thing", "oracle_thing", "oracle_curated_merge"),
+                ("oracle_domain:oracle_pointer", "part of", "oracle_domain:zzq", "zeta zonal quench",
+                 "oracle_curated_pointer")):
+            await db.execute_query(
+                """INSERT INTO unified.concept_relations (source_concept_id, relation, target_concept_id,
+                       target_surface, evidence_id, extractor, polarity)
+                   VALUES ($1, $2, $3, $4, $5, 'oracle', 'positive') ON CONFLICT DO NOTHING""",
+                (source, relation, target, surface, evidence_id), commit=True)
+        await db.execute_query(
+            "INSERT INTO unified.concept_aliases (alias, concept_id, alias_kind) "
+            "VALUES ('zeta_zonal_quench', 'oracle_domain:zzq', 'acronym') ON CONFLICT DO NOTHING", commit=True)
+
+        done = await repair_module.repair(apply=True, only=("zeta_zonal_quench",), report=lambda line: None)
+        assert done["found"] == {"aliases": 1, "observations": 1, "surfaces": 1}, done
+        assert done["left"] == 0 and done["waiting"] == 0, done
+        on_zzq = await db.execute_query(
+            "SELECT relation FROM unified.concept_relations WHERE source_concept_id = 'oracle_domain:zzq'",
+            fetch_all=True)
+        assert not on_zzq, "the merged name's fact is off the concept its initials spell"
+        row = await db.execute_query("SELECT relationships FROM unified.concepts WHERE concept_id = 'oracle_domain:zzq'",
+                                     fetch_all=True)
+        held = row[0]["relationships"]
+        assert (_json.loads(held) if isinstance(held, str) else held) == []
+        own = await db.execute_query(
+            "SELECT c.concept_id, r.relation, t.name FROM unified.concepts c "
+            "JOIN unified.concept_relations r ON r.source_concept_id = c.concept_id "
+            "JOIN unified.concepts t ON t.concept_id = r.target_concept_id WHERE c.name = 'zeta_zonal_quench'",
+            fetch_all=True)
+        assert [(r["relation"], r["name"]) for r in own] == [("isa", "oracle_thing")], own
+        pointed = await db.execute_query(
+            "SELECT target_concept_id FROM unified.concept_relations WHERE source_concept_id = 'oracle_domain:oracle_pointer'",
+            fetch_all=True)
+        assert pointed[0]["target_concept_id"] == own[0]["concept_id"], "the link to it now reaches it"
+    finally:
+        ids = ("oracle_curated_merge", "oracle_curated_pointer")
+        await db.execute_query("DELETE FROM unified.concept_relations WHERE evidence_id = ANY($1::text[])",
+                               (list(ids),), commit=True)
+        await db.execute_query("DELETE FROM unified.concept_evidence WHERE evidence_id = ANY($1::text[])",
+                               (list(ids),), commit=True)
+        await db.execute_query("DELETE FROM unified.concept_domains WHERE concept_id LIKE 'oracle_domain:%' "
+                               "OR concept_id LIKE '%:zeta_zonal_quench' OR evidence_id = ANY($1::text[])",
+                               (list(ids),), commit=True)
+        await db.execute_query("DELETE FROM unified.concept_aliases WHERE concept_id LIKE 'oracle_domain:%' "
+                               "OR alias IN ('zeta_zonal_quench', 'zzq', 'oracle_thing', 'oracle_pointer')", commit=True)
+        await db.execute_query("DELETE FROM unified.concepts WHERE domain = 'oracle_domain' "
+                               "OR name = 'zeta_zonal_quench'", commit=True)
+        await db.execute_query("DELETE FROM unified.evidence_envelopes WHERE evidence_id = ANY($1::text[])",
+                               (list(ids),), commit=True)

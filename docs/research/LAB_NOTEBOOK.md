@@ -16,6 +16,107 @@ Conventions:
 
 ---
 
+## 2026-10-03 — The self perceives what a file holds; five file operators taught with it
+
+**Objective.** Teach the operations a completion benchmark needs. The first three (move,
+copy, delete) said nothing about what a file HOLDS, and a write recorded only
+`WRITE_FILE(path)`: the substrate could not tell a write that put the right thing in a file
+from one that did not.
+
+**Hypothesis.** If the path sense also measures a file's content (a fingerprint of its
+bytes) and an act carries the fingerprint of what it was asked to write, measured the same
+way, then induction learns that a write leaves the file holding exactly its payload, and
+that a move and a copy carry content while a delete removes it.
+
+**Built.**
+- `perceive_entry(path, content=True)` measures `content` (`content_digest`: SHA-256 of
+  the bytes, files up to 64 MB). The path SENSE asks for it, so every act the self watches
+  sees it; the environment scan does not, because it would read every file it passes.
+  `SENSED_MEASURES` and `DESCRIBING_MEASURES` gain `content`.
+- `tool_domain.payload_parameters` / `payload_term` / `payload_for`: a payload (the text a
+  write is given) joins the act after its places, as its fingerprint (`text_digest`, the
+  same form), and the text is held by it so a planned act can be performed.
+  `ActFrame.open` and `action_binding` name the same arguments; a binding whose payload
+  text is not held refuses before acting; practice gives a payload-bearing act a text of
+  its own.
+- Teachers: `fs_mkdir_teach.py`, `fs_write_teach.py` (new files only; writing OVER a file
+  is a second case of the same act and is not yet taught).
+
+**Result** (`lyric_dev`, the path domain cleared of my earlier rules and re-taught; each
+operator one executable rule, validated on a held-out success):
+
+| operator | learned |
+|---|---|
+| MOVE_FILE | needs `ABSENT(dst)`; carries CONTENT, IDENTITY, KIND, SIZE to dst; src ABSENT |
+| COPY_FILE | needs `ABSENT(dst)`; dst gets the source's CONTENT, KIND, SIZE and a new IDENTITY |
+| DELETE_FILE | CONTENT, IDENTITY, KIND, SIZE removed; ABSENT |
+| CREATE_DIRECTORY | needs `ABSENT`; a new directory |
+| WRITE_FILE | `ABSENT(p) ∧ WRITE_FILE(p, c) → CONTENT(p, c)`, KIND file, new IDENTITY, SIZE |
+
+**Verdict.** Confirmed. `CONTENT(p, c)` in the WRITE rule is bound by the act's own
+argument: the rule states that the file then holds what was written.
+
+**Not yet.** Overwrite, append and in-place edit (the resulting content depends on what
+was there); git; goals of several steps; the payload texts are held in the process only.
+Still untraced: `memory_agent.search_memories` / `store_memory` logged `CancelledError`
+in these runs. The key guards of 2026-10-01 remain unverified end to end.
+
+---
+
+## 2026-10-02 — Lyric learns the devices it operates through (DEVICE-01)
+
+**Objective.** The phone app (Lyric Beta) brings devices into Lyric's reach. The owner's direction: Lyric
+should not be taught what a device can do; it looks for itself, as part of learning where it operates and
+what is structurally allowed there, beyond what a person has allowed or configured, for a phone, tablet,
+laptop, TV or appliance alike.
+
+**Hypothesis (before the run).** A device can situate Lyric the way its host does, through the same
+registration: its kind (platform, major release, model, form) as an ENVIRONMENT domain met once, what exists
+there held by the encounter's reaction as the substrate's own knowledge (a capability that is not there as a
+fact with negative polarity), the device and what the person set held in the person's context, and a
+location fix perceived as theirs at a ~110 m grain, with nothing of the person reaching the shared graph.
+
+**Method.** Extended, not added beside: `_situate` → `_register_environment` (shared by host and devices);
+`situate_device`; `_react_investigate_environment` holds every observed fact and the surface; perception
+producers `submit_device` and `submit_location`, registered in `admit_percept`'s dispatch; a third world
+inhabitant route, `device`; Tet: the `device` intent (held for the inhabitant) and `world.device` for every
+role. DEVICE-01 on lyric_dev: a made-up kind carrying the run's nonce, a second person's device of the same
+kind, three location fixes (one 30 m from the first, one with 900 m accuracy), the inhabitant route.
+
+**Result.** First run 13/20, second run 20/20 (2026-10-03T03:4x UTC records). Confirmed.
+
+**Errors, with their causes.**
+- The device was said to be its kind with `is_a`. The learning door refuses that relation outright
+  ("'is a' carries a determiner, so it is a phrase that was cut mid-term"), and the kind's label was five
+  words ("a clause, not a name"). Cause: assuming the relation's name instead of asking the door. Lyric's
+  relation for an individual and its kind is `instance_of`; the device is now an instance of its model.
+- A position named `25.762,-80.192` was stored as `25762_80192`: a name keeps letters and digits, not
+  points and signs, so west and east longitudes collapse into one concept. Now named as coordinates are
+  written, `25.762N 80.192W` (stored `25762n_80192w`), always three places, with the latitude and longitude
+  kept as signed numbers on it.
+- Refusals at the learning door are returned, not raised, and the perception path logs and moves on, so a
+  refused fact disappears without a sound. The experiment found both defects only because it read back what
+  was held. The checks now ask the door (`shape_proposition`) for its own forms instead of spelling them.
+- The encounter event declared `facts: int = 0` while every producer sent the facts as a dict; not a runtime
+  fault (the enforcement checks the payload's class, not its fields), corrected to `Dict[str, Any]`.
+
+**What it establishes.** A kind of device is learned once by the substrate from what the device itself
+answers, and is the same knowledge for everyone with that kind; Android devices answer with their full system
+feature list (`getPlatformFeaturesAsync`), so nothing in the app enumerates what a platform can do. What a
+person's device is, what they allowed and where it was stay theirs.
+
+**What it does not establish.** Nothing has run end to end through Tet yet: the world needs the new intent
+(its restart) and Lyric its restart; the app's background location needs a development build. Places and
+departures are not yet learned from positions. In production the substrate's own learning is frozen
+(separation plan §9.4), so a kind of device met there would be registered but its facts refused until the
+§10 gate exists.
+
+**Verified.** `experiments/systems/DEVICE-01` (RunRecord, README, index row); 458 rows written, removed by the
+run's nonce, the kind's domain and the test person's id, 0 left. Two belief rows matching the tag pattern
+were another session's language lessons, not this run's.
+
+---
+
 ## 2026-10-01 — The SEG paper revised; one authority over the substrate's keys
 
 ### Part 1 — SEG paper, section 9
@@ -12785,3 +12886,2904 @@ checks), with the owner's go.
   implementer, no user). `handle_failure` and its strategies are unchanged. Stored failures hold no
   `component_failure` row in either store. `tests/test_recovery_path_taxonomy.py` 3/3.
 - `core/health/health_interfaces.py` has no importer at all (`IHealthMonitor`, `IHealthManager` remain).
+- **Test datasets, committed in full.** Entry (1) said test_data's datasets were committed; only parts 1–3 of 9
+  were. Parts 4–9 (6.26 GB, 28,986 files: music/genres, vocadito, giantsteps, humtrans, speech/LibriSpeech,
+  vision/ukbench) are committed now, each part 0.84–1.22 GB, under GitHub's 2 GB limit for one push. Nothing is
+  pushed.
+
+## 2026-10-01 (3) — The lessons teach different links in different runs; not hash order, not today's fixes
+
+- **What differs.** For six english_01/04 pairs, main (taught 09-30) and the sandbox (SENSE-01, 10-01) hold a
+  different link for the same sentence, e.g. "Ducks can fly.": main linked `?slot0 takes "Ducks"`, the sandbox
+  `?slot1 takes "fly"`. Each store reads the other slot through its kind and links it later (english_13 adds the
+  missing one), so the totals match: 580 english-01 items in both, and the sandbox's english-13 "missing" item is
+  this, not a lost store.
+- **Replay** (in memory, no database, no beliefs): english_01–13 through `dr.readings_of` and `dr.REPAIRS` as
+  `learn_patterns` does them, 2,913 items, about 7 s.
+  - Under PYTHONHASHSEED 1 and 2: identical, item for item and in order. **Not hash order.**
+  - With the code of 28a34a7 (what the sandbox ran) and with today's (with the reader fixes): identical.
+    **Today's fixes do not change what the lessons teach.**
+  - Against the stores: the replay agrees with main on four of the six and with the sandbox on the other two.
+- **So the same code taught different links live than in the replay.** What the live path has that the replay does
+  not: belief scores moved by every observation, the word classes warmed from memory, and whatever else the running
+  substrate reads while it is taught (the file sense read documents through the same view during SENSE-01).
+  Not yet told apart.
+- **Not yet checked:** whether both stores read all six sentences to their meaning.
+- **Tracked down: the belief system's temporal decay runs on the wall clock.** Replayed WITH beliefs (in memory,
+  every observation `learn_patterns` makes, the belief system never initialized so nothing is written):
+  - two runs differ, under different seeds AND under the same seed: at "A toad is an animal." the substitution
+    repair linked "amphibian" in one run and "frog" in the other;
+  - the readings chosen per pair are identical across runs, so it is not reading order;
+  - with `_apply_temporal_decay` switched off in the replay process: two runs (seeds 1 and 2) identical, 2,913 items.
+- **Mechanism.** `update_belief` first drifts the posterior toward 0.5 by `λ·(now − last_evidence_time)` (λ = 0.01
+  per hour). Between two observations in one teaching pass that is milliseconds: a drift around 1e-9. Two
+  constructions with the same evidence end up microscopically apart, and `_frame_substitution` (and the other ranks
+  by `-view.score`) take the larger as decisive. Which wins depends on how fast the machine ran at that moment:
+  main and the sandbox, and any two instances, learn different links from the same lessons.
+- **Not yet fixed.** The decision is how decay should treat time that cannot matter (see the options given).
+- **Decision: left as it is.** Whole-hour decay would not settle it: a teaching run of the size planned lasts hours,
+  so ties between items taught in different hours would still fall to timing. Instances will learn slightly
+  different links from the same lessons. In every replay (with and without beliefs, english_01–13), every pair
+  read to its meaning after it was learned: 0 left unread.
+
+## 2026-10-01 (4) — The listener measured: 7/16 against an LLM's bar
+
+- **Run:** SENSE-01 `--k-only` (new): K alone on the sandbox as it stands, with no reset and no re-taught lessons. WordNet's
+  1,111 records about K's 28 words, their senses (91 named apart) and the kinds above them, then WordNet's usage,
+  then K. `results/20261001T165100Z.json`. Main untouched (290,095 rows before and after).
+- **Result:** **K 7/16; heard 1/2.**
+  - Right: bat, crane (bird and device), bank (slope), plant, "All fish can swim.", trunk after "A tree is a plant.".
+  - Wrong:
+    - "mouse", three times: taken as `person mouse` (a sense named apart). That was in "A mouse is a rodent.", where
+      `isa(mouse, rodent)` was taught, and in "A mouse is a device." and after "A computer is a machine.".
+    - "The table is red.": taken as `array table`, though senses.json names the furniture `table`.
+    - "The trunk is long." after an elephant: `baggage trunk`. "The wing is long." after a plane and after a bird:
+      `helping wing` both times.
+    - "The bank is big." after "Tom has money.": the slope (expected: WordNet holds nothing of money kept in a bank).
+    - "Tom ate the fish.": read as a REQUEST, with "Tom ate" as the act: a reading fault, not a sense choice.
+    - Heard: "A mouse is a rodent." against "A moose is a rodent." left open.
+- **Pattern, not yet traced:** where a word has senses named apart, a named-apart sense beat the bare-named one
+  four times, even where the fact itself was taught. Evidence held of kinds on either side (`held` = 1) may be
+  reaching remote senses through shared high kinds.
+- **Usage** landed on 666 of 33,149 word–sense pairs; 32,483 name no construction yet.
+- **Cost:** 0.19 s per record here; all 199,763 of WordNet's records would take about 10.5 h at this rate.
+- **Main is not taught.** The listener does not meet the bar.
+- **Traced (read-only, lyric_dev; DB, beliefs and memory agent only, no substrate).** The listener mostly never got
+  the right sense to choose: the READER offers no reading with it.
+  - "A mouse is a rodent." reads one way, `person mouse`; "A mouse is a device.": five readings, all `person mouse`.
+    The animal's only lexical is the plural "Mice" ("Mice are rodents."); the computer mouse's is a capitalized,
+    bare "Mouse" ("Mouse is an electronic device.", not English); the person's is the only lowercase "mouse"
+    ("A mouse is a person."), so "a mouse" can only be the person.
+  - "wing": ten lexicals "Wing" (said "Wing is a …"), one lowercase "wing" (`helping wing`): "The wing is long." reads
+    one way.
+  - "The trunk is long.": two choices (`baggage trunk`, `trunk`); `snout proboscis` is not among them.
+  - Where the right sense IS read and held, it wins: "A bat is a mammal." `bat` held=2 over `club bat` held=1.
+  - "The table is red.": all four senses read, none held, none related; usage decides (`array table` 60 uses,
+    `table` 50). Telling them apart needs knowing that colour belongs to physical things.
+- **Cause: how WordNet's facts are SAID decides which word form is linked to each sense.** `TeachingPass._said` took
+  the first sentence `say` gave that writes the source's words: a count noun said bare and capitalized at the start
+  ("Wing is an airfoil."), or only in the plural ("Mice are rodents."). Each links the sense to a form ordinary
+  sentences ("the wing", "a mouse") never use. Taught into main, this would hold for every such word.
+
+## 2026-10-01 (5) — WordNet's facts said as English says them (fix 1 of the K trace)
+
+Reproduced in memory: english_01–27 replayed into a view, then `TeachingPass._said` on K's words' records, as
+`_teach` says them before any is learned.
+- **Bare counted nouns.** Before WordNet, `mouse` is held only as "Mice" ("Mice are small.") and `wing` as "wings".
+  `_said_fillers` admitted the held plural in the bare frame "?slot0 is a ?slot1." (plurals stand bare), then
+  wrote the concept's own name in its place ("mouse", counted) without asking whether the slot admits THAT word.
+  "Mouse is a rodent." and "A mouse is a rodent." then tied on every key and the frame's sha key decided.
+  Fix (`derived_reader._said_fillers`): the word written must be one the slot admits.
+- **Subject said as held.** `_said` required the source's words only for concepts not yet held, so `mouse`, held
+  as "Mice", could be said in any form: the timid-person sense came out "Mice are one." ("one" is held for `person`,
+  from "No one can fly."). Fix (`TeachingPass._said`): the record's subject is always written as the source writes it.
+- **Effect on K's words' 948 records:** 944 the same; 3 better ("A system is a group.", "A bird is a girl.",
+  "A mouse is a person."); 1 now unsaid ("Birds are meats.", taught as a fact). "A mouse is a rodent.", "A mouse is
+  an electronic device.", "A wing is an organ.", "A wing is an airfoil." `tests/test_derived_reading.py` 93/93.
+- **Still wrong:** an uncounted word after "a" ("A table is a furniture.", "a cricket equipment", "a funds"):
+  nothing taught says those words are uncounted.
+
+## 2026-10-01 (6) — Plurals no change makes, taught from WordNet (fix 2 of the K trace)
+
+- **The gap.** The reader reads a plural by a change it learned ("Ducks", `duck`) and holds an irregular one only
+  once a sentence wrote it ("Geese", "Mice", "children" from the lessons). Every other irregular plural is read by
+  the regular change: "Wolves are animals." read `isa(wolve, animal)`.
+- **Taught (`WordNetSource`, `TaughtRecord.plural`, `TeachingPass._said`).** WordNet's list of irregular noun forms
+  (`noun.exc`: 2,006 words): for each noun sense, each word it is written with that has one, a record saying the
+  sense's kind in the plural ("Wolves are canines."), marked an example of English, so its fact is not taught a
+  second time. Said by `say` like every other record: the sayer writes the plural by its learned change ("Wolfs"),
+  and the source's plural stands in its place; a plural held already ("Mice") is kept.
+- **Measured in memory** (lessons view, no database): 2,033 plural records; 1,465 said ("Mice are rodents.",
+  "Oxen are bovines.", "Children are juveniles.", "Cacti are succulents."). The rest are mostly kinds named in
+  several words, which the sayer does not put in the plural. Learned into the view: "Wolves are animals." reads
+  `isa(wolf, animal)` among wolf's senses; "Cacti are plants.", "Oxen are big." read to `cactus` and `ox`.
+  WordNet now gives 201,796 records.
+- **Known flaw, shared with fix 1:** an uncounted kind is given a guessed plural ("Teeth are meanses.", "Oxen are
+  cattles.", "All data are informations."), and learning the pair holds that word. Nothing taught says which
+  words are uncounted.
+- `tests/test_derived_reading.py` + `tests/test_word_class_sentences.py`: 94/94.
+
+## 2026-10-01 (7) — K again, on an emptied sandbox, with fixes 1 and 2: 8/16, heard 2/2
+
+- SENSE-01 `--k-only --fresh` (new: empties the sandbox and teaches english_01–27 first; all 27 learned, none
+  refused): 1,133 records about K's words in 256 s. `results/20261001T173607Z.json`. Main untouched.
+- **K 8/16 (was 7); heard 2/2 (was 1/2).** "A mouse is a rodent." now takes the animal; mouse and moose are told
+  apart both ways.
+- Still wrong: the computer mouse ("A mouse is a device.", and after "A computer is a machine.") taken as the
+  animal; "The wing is long." taken as `stage wing` after a plane and after a bird; the elephant's trunk never
+  offered; table and bank (knowledge); "Tom ate the fish." read as a request.
+
+## 2026-10-01 (8) — Uncounted words: how WordNet's nouns are used, read from real English
+
+- **The gap.** WordNet says what a noun names, never whether it is counted. A word the reader holds no sentence of
+  is guessed `count` (by its ending, else by default), so teaching said "A table is a furniture.", "A bat is a
+  cricket equipment.", and plural records taught junk ("Oxen are cattles.", "Teeth are meanses.").
+- **Read from use (`WordNetSource._uses`).** The Brown corpus (1,161,192 tagged words; NLTK, downloaded today) and
+  WordNet's own definitions and examples. Counted: after "a", "every", "one" ..., or in the plural. Uncounted: after
+  "much", "a piece of", "an amount of", or bare where a counted noun takes a determiner; a modifier of the next noun
+  ("water pipe"), a word set off by punctuation ("Yes, sir.") and a word in a title ("Bureau") set aside.
+  Uncounted within Yang's tolerance (counted uses at most N / ln N of N), as the reader decides an ending's use.
+  `plural`: only ever plural ("cattle", "clothes"); `invariant`: one form for both ("means", "deer").
+  Over WordNet's single-word nouns: 13,977 counted, 365 uncounted (money, information, evidence, music, equipment,
+  research, furniture, machinery, advice, traffic, milk, coffee ...), 291 plural; the rest unstated.
+  Noise seen: "chairman", "anniversary", "sun" read uncounted.
+- **Stated and used.** `TaughtRecord.uses` carries each record's words' uses; `say(..., uses=)` and
+  `_said_fillers` take a stated use before the ending guess, for a word no filler holds. An invariant word is
+  counted said of one and plural said of many ("Teeth are means.").
+- **Measured in memory** (lessons view): "A table is a furniture.", "A bat is a cricket equipment.", "Every bank
+  is a funds." are no longer said (no frame the lessons taught says "A … is [uncounted]."; the facts are still
+  taught). Plural records: 1,435 of 2,033 said, the 30 junk ones gone; one kind still pluralized against its use.
+  `tests/test_derived_reading.py` + `tests/test_word_class_sentences.py`: 94/94.
+- **Still wrong:** "baggage" (no use found) said "a baggage"; "Fish is a person." (the lessons hold "fish" as a
+  plural); "Syntheses are reasoned." ("?slot0 are ?slot1." holds participles, so a kind ending in "-ing" is
+  reshaped as one).
+
+## 2026-10-01 (9) — Why the wing and the computer mouse lost (traced, read-only, lyric_dev after K)
+
+- **Wing: the right senses were never offered.** All 11 "wing" lexicals count and are of the slot's kind, and
+  `_fillers` returns all 11 for "The wing is long."; `_read_pieces` reports only the readings that supposed the
+  least, and `supposed` counts `apart`, held fillers that never stood beside the slot's own (`stood_beside`). The
+  bird's `wing`, `airfoil wing`, `air unit wing` and `annex` were taught in "A ?slot0 is an ?slot1." ("an organ",
+  "an airfoil"), the others in "A ?slot0 is a ?slot1.", where the lessons' words also stand. One construction, its
+  word written as the next word's first letter asks (`twins_of`), counted as two places.
+  Fix (`PatternInventory._standing`): a slot of a frame's twins is the same place. "The wing is long." now offers 8
+  readings, and the listener takes `airfoil wing` after "A plane is a vehicle." (related 2) and the bird's `wing`
+  after "A bird is an animal." (related 1). `tests/test_derived_reading.py` + `tests/test_word_class_sentences.py`
+  94/94.
+- **Still dropped:** `flank`, `fender`, `annex` (`misfits`): `written_against` holds "wing" against them because
+  the word is no shape of the concept's name ("flank"). A synonym looks, by its spelling, like an irregular form.
+- **The computer mouse has no word link.** "A mouse is an electronic device." was learned as a frame, "A mouse is
+  an electronic ?slot0." taking "device", with "mouse" fixed inside it; "electronic" was held as a frame word
+  ("An electronic ?slot0 is a ?slot1."). No other sentence can read "mouse" as the device. Repair choice; not yet
+  traced to its cause.
+- **`held` does not tell senses apart in "A mouse is a device.":** every reading scores 1, the animal's too, through
+  facts between very general kinds of both sides (object, whole). Not yet changed.
+
+## 2026-10-01 (10) — english_28: kinds that are not counted
+
+- **The gap.** With uncounted words stated (entry 8), "A table is a furniture." was no longer said, but nothing
+  said it right: no lesson taught "A ?slot0 is ?slot1." with an uncounted kind, so those facts went in with no
+  sentence.
+- **Lesson `data/lessons/english_28.json`** (18 records, examples): "A table is furniture.", "A coat is clothing.",
+  "A necklace is jewelry.", "A coin is money." (10 in all), "Furniture is heavy.", "Clothing is soft.", "Jewelry is
+  shiny.", "Money is useful.", "A cup is not furniture.", "A shoe is not jewelry.", "Is a chair furniture?", "Is a
+  coat clothing?". Words chosen whose sense WordNet names by the word ("table" by senses.json); every kind is
+  WordNet's own (a coat is clothing, a coin is money).
+- **Plural subjects taken out.** "Chairs are furniture." put "furniture" in the kind slot of "?slot0 are ?slot1.",
+  which takes plurals, and the use model then counted furniture, clothing and money as plurals. The model learns a
+  word uncounted from it beginning a sentence bare ("Furniture is heavy."); an uncounted kind after a plural
+  subject is a case it does not tell apart yet. "Chairs are furniture." still reads, untaught.
+- **Measured in memory** (english_01–28 replayed): all 18 read to their meaning; furniture, clothing, jewelry and
+  money learned uncounted; frames "A ?slot0 is ?slot1." and "A ?slot0 is not ?slot1." take uncounted kinds.
+  WordNet's facts said: "A table is furniture.", "A bat is cricket equipment.". Read, never taught: "Chairs are
+  furniture.", "Is a sofa furniture?", "A hat is not jewelry.". `tests/test_derived_reading.py` +
+  `tests/test_word_class_sentences.py` 94/94.
+- **Main** holds english_01–27; english_28 goes in with the main run. "baggage" (no use found) is still said
+  "a baggage".
+
+## 2026-10-01 (11) — The computer mouse: a name taken apart into a frame (traced, fixed)
+
+Traced in memory (english_01–28 replayed, K's words' WordNet records said and learned in order):
+- **The step that went wrong was before the mouse.** WordNet writes `computer` also "electronic computer" (a word
+  of the sense). Its record, "An electronic computer is a kind of machine.", met `_names_within`: part of the run
+  ("computer") already named the concept, so the rest ("electronic") was taken for the frame's, as "All" in "All
+  birds" is. `lexical_item_based` then made "An electronic ?slot0 is a kind of ?slot1." (an electronic dog, a kind
+  of animal); "An electronic device is a kind of device." linked "device" to `electronic device` through it; and
+  "A mouse is an electronic device.", with "electronic device" no longer a possible name, was learned as the frame
+  "A mouse is an electronic ?slot0.", with no word of the mouse.
+- **To the learner, "All birds" and "electronic computer" are the same:** a new word beside a held name of the
+  concept. Only the teacher knows which is a name. A rule on the learner's side ("the rest must name nothing")
+  broke "All birds can fly." in `tests/test_derived_reading.py` (2 failed) and was taken back.
+- **Fix: the teacher's written names reach learning.** `learn_patterns` takes `(sentence, Meaning, names)`;
+  `TeachingPass._teach` passes each record's `words` (and its `plural`); every repair takes `names`, and
+  `_names_within` never splits a run the teacher wrote as that concept's word.
+- **Now:** "electronic computer" and "electronic device" are learned as names; "A mouse is an electronic device."
+  links "mouse" to the computer mouse ("mouse" names the animal, the computer mouse, the person and the bruise);
+  "All birds can fly." still teaches "All ?slot0 can fly.". `tests/test_derived_reading.py` +
+  `tests/test_word_class_sentences.py` 94/94.
+
+## 2026-10-01 (12) — K with every fix of the day: 11/16, heard 2/2
+
+- SENSE-01 `--k-only --fresh`: english_01–28 (all learned, none refused), then 1,133 records about K's words in
+  303 s. `results/20261001T184343Z.json`. Main untouched.
+- **K 11/16 (was 8, then 7 at the start of the day); heard 2/2.** Newly right: "The wing is long." after a plane
+  (`airfoil wing`) and after a bird (`wing`); "The mouse is small." after "A computer is a machine." (the computer
+  mouse).
+- Still wrong: "A mouse is a device." (every reading holds 1 through very general kinds, so use decides: the
+  animal); "The table is red." and "The bank is big." after money (knowledge WordNet's relations do not hold);
+  "The trunk is long." after an elephant (`snout proboscis` not offered); "Tom ate the fish." (read as a request).
+
+## 2026-10-01 (13) — A full check: does every sense of every word reach the listener?
+
+- **"A mouse is a device." traced:** the computer's mouse was not among the 15 readings. Its "mouse" was linked in
+  "A ?slot0 is an ?slot1."; through "A ?slot0 is a ?slot1." it read only through a link proposed, so it supposed one
+  more than the animal (linked through "A mouse is a rodent.") and `_read_pieces` set it aside.
+  Fix (`_read_pieces`): a reading saying the same words as a best one, of another thing, stays where it differs only
+  in links proposed; one that supposed more otherwise (`apart`, `misfits`) is still set aside.
+  Also (`MemoryAgent.listening_evidence`): "a thing is a Y" no longer earns 1 through kinds on either side: a thing's
+  kinds and Y's always meet somewhere general ("a whole is an object"), so every reading held 1. It is held (2) when
+  Y is among the thing's kinds, else not. "A mouse is a device." now takes the computer's mouse, held 2 to 0.
+- **The audit** (`"The <word> is big."` for every word the sandbox holds with 2+ senses; read-only): 24 of 70 words
+  offered every sense. Set aside: `misfits` 31 (+4 with `apart`), `apart` 7, no reading 12 (mostly the probe: verbs
+  and adjectives in a noun's place).
+  - **`misfits` were synonyms** ("bank" for `depository financial institution`, "computer" for `calculator`,
+    "machine" for `car`): `written_against` held a word that is no shape of its concept's name against a slot whose
+    words are written as named, as it does an irregular form. Fix: such a word is held against the slot only where
+    it says more than its concept (`says_more`: "flew"). 45 of 70 then offered every sense.
+  - **Twins of twins** ("An ?slot0 is an ?slot1." differs from "A ?slot0 is a ?slot1." in two words): `_standing`
+    follows twins transitively. 46 of 70.
+  - **Left:** `apart` 10 (`amphibian` the animal, `cricket bat`, `shuttlecock`, `computer system platform` ...): the
+    sense stood only in WordNet's frames, among WordNet's words, and "The ?slot0 is ?slot1." holds 17 lesson words;
+    no word stood in both. Expected to thin as all of WordNet goes in; to re-check after the main run. "snow" for
+    `snowing` is set aside as designed.
+  - `tests/test_derived_reading.py` + `tests/test_word_class_sentences.py` 94/94 after all of it.
+- **The elephant's trunk** is now offered; it is not connected to the elephant because SENSE-01's slice keeps
+  records whose SUBJECT is a probe word, and WordNet's `part_of(proboscis, elephant)` has the elephant as object.
+- **Found: the door renames concepts.** `normalize_term` → `canonical_term` → `singularise` strips a final "s" by
+  spelling: "proboscis" is stored `snout_probosci`; genus, cactus, status, virus, campus, iris, atlas, canvas lose it;
+  "news" becomes `new`; "boxes" becomes `boxe`. Over WordNet's sense names: 4,213 noun names changed, and 599
+  canonical names shared by two or more different senses ("aesthetics"/"aesthetic", "acrobatics"/"acrobatic").
+  Spelling cannot decide it ("atlas" against "areas", "genus" against "menus"). Not yet fixed.
+
+## 2026-10-01 (14) — The door's plurals: WordNet decides
+
+- **Decided: WordNet decides singular and plural at the door** (`lexical_normalization.singularise`, used by
+  `canonical_term` and so by `normalize_term`, and by four readers directly). Order: the hand-written tables
+  (people → person, analyses → analysis), "-sis"/"-xis" and the uncounted "-ics" words, then WordNet:
+  1. a word WordNet knows as another noun's plural is that noun ("humans" → `human`, "boxes" → `box`, "cacti" →
+     `cactus`, "flies" → `fly`);
+  2. else a word WordNet lists as a noun stays as written ("proboscis", "genus", "news", "atlas", "species");
+  3. else the spelling rules, for a word WordNet does not know.
+  Raises if WordNet is not installed (no guessing where the door was told to know).
+- **Two rules tried and dropped on the way:** (a) noun-first ("a word WordNet lists stays"): "humans" is also a
+  WordNet noun, so "Socrates is a human." and "All humans are mortal." named two things and the syllogism test
+  failed; (b) commoner-first by WordNet's tagged counts: 379 of WordNet's own names merged into other things ("blues"
+  into the colour, "aids" into `aid`).
+- **Measured over WordNet's 116,820 sense names:** names renamed to something that is no noun: 4,213 → 0. Different
+  names merged beyond hyphen and space: 389, all a plural-form name beside its singular ("blues"/"blue",
+  "aesthetics"/"aesthetic", "basics"/"basic"), merged as the spelling rule merged them. Telling them apart needs the
+  door to know a source's NAME from a word read in a sentence, and every lookup to follow it: a design change of
+  concept identity, not made.
+- `tests/test_lexical_normalization.py`, `test_concept_identity_oracles.py`, `test_numeric_induction.py`,
+  `test_derived_reading.py`, `test_word_class_sentences.py`: 168/168. One expectation changed: "The Beatles" read as
+  a phrase is `beatles` (WordNet has no noun "beatle"; the old rule's `beatle` was its spelling cut).
+- Main holds 6,969 concepts and 59,850 relations; any stored under a renamed form would need moving before WordNet
+  goes in (main data; needs the owner's go). Not yet checked.
+- **Main checked (read-only):** 37 of main's 6,969 concepts would have been found under another name: "data" as
+  `datum` in about 30 tool concepts (`compress_data`), "media" as `medium`, and units ("wait_ms" as `wait_m`). Kept
+  as written: `MASS_PLURAL_FORMS` (data, media: uncounted singulars in English, as the "-ics" words are), and a
+  word of three letters or fewer, as the spelling rule always left it. Now 0 of main's concepts change name; no
+  move needed. Tests 168/168.
+
+## 2026-10-01 (15) — K after the full check: 13/16, heard 2/2
+
+- SENSE-01 `--k-only --fresh` (`results/20261001T194530Z.json`), with the sense-alternative, synonym, twin and
+  "is a" fixes, the door's plurals, and parts of K's words in the slice (1,189 records, 300 s). Main untouched.
+- **K 13/16 (was 11); heard 2/2.** Newly right: "A mouse is a device." (the computer's mouse, held 2), and "The
+  trunk is long." after an elephant (`snout proboscis`, related through `part_of(proboscis, elephant)`).
+- Left: "The table is red." and "The bank is big." after money (knowledge WordNet's relations do not hold);
+  "Tom ate the fish." (read as a request).
+
+## 2026-10-01 (16) — Research: one mechanism for word senses (`docs/research/WORD_SENSES.md`)
+
+- Why: every sense failure of the day was traced and patched one at a time; full WordNet has tens of thousands of
+  words with several senses.
+- Found: people reach every meaning first and then take one (Swinney 1979); ACT-R takes a memory by ONE activation
+  (base level from use + spreading from context) against a threshold; Hirst's Polaroid Words keep candidate senses and
+  resolve them by spreading activation, selectional restrictions and negotiation; random walks over WordNet (Agirre et
+  al. 2014) reach the most-frequent-sense level with no training data (59.7/57.9 F1 against 60.1/62.3) and 80.1
+  coarse-grained; selectional preferences learned without annotation (Resnik 1997); one sense per discourse (Yarowsky
+  1995); an LLM's bar is a coarse-sense bar (lexEN 2026: frontier LLMs 95.6%, experts κ 0.537 fine-grained).
+- Proposed: structure judged per word form, never per sense (every sense reaches the listener); one activation in
+  place of the held > related > used order, with a short walk over memory's graph and selectional preferences learned
+  from memory; coarse first; the substrate checks its own coverage and round trips as a standing experiment. Not built.
+
+## 2026-10-01 (17) — Step 1 of WORD_SENSES.md: every sense reaches the listener; how it fits is evidence
+
+No new system: the reader's choice of what to report, the listener's evidence, and an experiment.
+- **Not pooling per word form, after all.** Pooling all of a word's structural history across its senses would undo a
+  cut that is real evidence: in "It will snow soon." the snowing was taught in that frame and the stuff never stood
+  there. So the history stays per sense, and stops being a cut:
+  - `_read_pieces`: a reading saying the same words as a best one, of another thing, stays whatever it supposed of
+    the words' places (links proposed, misfits, `apart`); one that read loosely or took more new names is another
+    reading of the words, and is still set aside. Readings stay best first, so "It will snow soon." still reads
+    snowing first.
+  - `meant`: evidence is now held > related > **fits** > used, `fits` being how little the reading supposed of the
+    places its words stand in (`Reading.supposed`, past reading loosely and new names).
+  - `tests/test_derived_reading.py`, `test_word_class_sentences.py`, `test_lexical_normalization.py`: 135/135.
+- **SENSE-COVERAGE-01** (new, read-only on the sandbox; RunRecord + README + index): for every word with 2+ senses,
+  a sentence through each frame the word was taught in, the other places filled with words taught there; each sense
+  reported in its own frames (A), none left out of its siblings' frames for how well it fits (B). First run, on the
+  sandbox K left: 3/3; 72 words; A 474/474; B 812 checks, 72 not reported, none for fit (63 no reading of it, 8
+  another reading of the whole sentence, 1 "A tour is a turn." naming `go` twice). The experiment's own counting was
+  corrected twice the same evening (a sense named by a frame's own word counts as reported; only the word's own
+  readings are weighed).
+- **K after step 1** (`SENSE-01 --k-only --fresh`, `results/20261001T203502Z.json`): 13/16, heard 2/2, main
+  untouched; no change. "The table is red." stays `array table`: in this sandbox the lessons' table and the data
+  table fit "The ?slot0 is ?slot1." alike, so fit does not tell them apart; table, bank and "Tom ate the fish." wait on
+  the gloss links and selectional preferences (WORD_SENSES.md, research of the same evening: Resnik 1997 learned
+  preferences from an untagged parsed corpus, 44.3% against 28.5% random on verb–object; Agirre et al. 2014 found
+  sense-linked definitions the most useful relation; the Princeton WordNet Gloss Corpus holds 117,659 of WordNet's
+  definitions and examples with their words hand-linked to senses).
+
+## 2026-10-01 (18) — Definition links: the Princeton WordNet Gloss Corpus, taught as `defined_with`
+
+- **The corpus.** Princeton's WordNet 3.0 gloss tags (2008), unpacked under NLTK's data
+  (`nltk_data/corpora/glosstag`, 830 MB; not in the repo, not pushed). Every definition's words are linked to the
+  sense they are used in: by hand (309,949 links in definitions) or, where a word has one sense, by the corpus
+  (109,261). Read from the merged XML in 15 s. Two things the corpus writes that name no sense, found by reading it:
+  `purposefully_ignored%0:00:00::` (the annotators' mark for a word left unlinked) and 38,440 satellite adjectives
+  keyed as head adjectives (`able%3:00:00:capable:00`, which WordNet's sense-key format makes type 5); read so, all
+  506,244 keys resolve.
+- **What is taught.** `WordNetSource._definition_links` and one fact per link, `defined_with` (new in
+  `relation_types`: no surface forms, nothing chains, inherits or is said through it), taught as the fact alone. The
+  financial bank is defined with money; to eat with consume and solid food; the computer's mouse with electronic
+  device, cursor and computer screen; red with color, blood, cherry, tomato. The listener's `related` already counts
+  a fact of any kind between two things, so nothing in the listener changed. Full WordNet: 436,282 such facts before
+  the fix below (of 638,078 records); about 9 hours more on main at bulk speed.
+- **SENSE-01's slice** kept a sense's records only when its name was a K word, so the financial bank
+  (`depository financial institution`, written "bank") lost everything but its kinds; it now keeps every sense its
+  words write.
+- **K** (`results/20261001T210352Z.json`): **12/16** (was 13), heard 2/2, main untouched. Traced on the sandbox it
+  left:
+  - "The mouse is small." after "A computer is a machine." newly wrong: `mouse` is ONE concept for the animal and
+    the verb "to move a computer's mouse" (`_sense_names` lets parts of speech share a name), so the verb's
+    definition made the animal related to the computer. Fixed in the source: a name shared across parts of speech
+    is defined by the sense its word names most often, as tagged (the animal for "mouse", the furniture for
+    "table"); 10,286 senses share a name so, 31,169 of 449,639 links.
+  - "The bank is big." after "Tom has money.": **"Tom has money." does not read** (no reading at all), so nothing
+    is talked of. Possessive "has" is never taught (only "A car has wheels.", a part; "Tom owns a bike.").
+  - "Tom ate the fish.": the irregular past "ate" is taught only without an object ("The cat was so hungry that it
+    ate."), and the regular past with one ("Tom opened the door."). Both "Tom" sentences are reader and lesson gaps,
+    not the listener's.
+
+## 2026-10-01 (19) — Steps 2 and 3 of WORD_SENSES.md: what words are said of, one activation (commit a86c6b38)
+
+- **What words are said of** (Resnik 1997). One memory for each word, relation and side (`MemoryAgent.remember_said`,
+  tag `said_of`), read back at every warm as a view beside the word classes. From the Brown corpus's adjective–noun,
+  verb–object and subject–verb pairs (`WordNetSource.said_of`: 59,956 pairs, 76,776 uses of 8,150 words) and from
+  every sentence learned with its meaning, by sense (`learn_patterns`); the same observation twice moves nothing.
+- **First built as a rank of its own** (held > related > said of > fit > used), measured offline before any K run
+  finished: on 12,654 adjective–noun and verb–object pairs of WordNet's hand-tagged definitions, ranking what a word
+  is said of first took 42.5% / 44.6% of the tagged senses against 57.4% / 56.6% for the most frequent sense, the
+  shape Resnik reported (44.3% against 58.2%). A difference of a thousandth undid a sense met a hundred times more.
+- **One activation** (ACT-R, rational form): base level `ln(1 + uses)` plus `ln(P(k|w)/P(k))` averaged over the
+  thing's kinds, with one use spread as anything is; both in nats, no weights. 58.8% / 58.3% (coarse 69.8% /
+  69.1% against 68.6% / 67.5%). The lift at the kind Resnik's association picks did not beat frequency (54.6% /
+  56.5%), nor the sense's most specific kind (55.1% / 53.1%). New experiment **SENSE-SAID-01** (offline, 2/2); the
+  kinds are summed in one order (two pairs in 3,078 had come out of a set's order).
+- Held, related and fit stay ranked before the activation: memory has no count to put them on its scale.
+- **Coarse senses**: where the evidence ties, things that are near kinds of each other in memory
+  (`MemoryAgent.coarse_senses`) are understood, not left open. **One sense per discourse**: a thing talked of before
+  counts in the context of the next word that names it (`listening` no longer removes it). The listener's evidence is
+  one record, `derived_reader.Heard`.
+- SENSE-01: `--listen-only` (K on the sandbox as it stands, nothing taught).
+
+## 2026-10-01 (20) — The open errors, worked through
+
+- **The two "Tom" sentences were lesson gaps, not reader faults** (traced on the sandbox, then in an in-memory replay
+  of every lesson, 20 s, matching the sandbox). "Tom has money.": possessive "has" taught only as "has a ?slot1."
+  (the article a frame word). "Tom ate the fish.": "kicked" fills the past frame as a learned phrase (a kick, before
+  now); "ate" was held only as `eat` (from "The room where Rex ate is warm."), so it could not stand there. Lesson
+  **english_29** (34 records, data, not tracked): having what is not counted or many ("Tom has water.", "Tom has
+  toys."), irregular pasts with and without objects ("Rex ate the bone.", "Tom drank milk.", "Rex slept."), with
+  enough variety that the learner generalizes (a first version of 23 left "cake" a kind of its own and "Rex ate
+  food." as "Rex ate ?slot0."). Replayed: K's two sentences read and are taken right, and so do "Tom ate the
+  cake.", "The dog drank water.", "Tom drank the juice.", never taught. Still wrong: "Rex ate rice.", "The cat ate
+  fish.", "The cat saw birds." (a verb with a bare object is a two-word phrase, and a noun stands in it only where it
+  stood beside its nouns; the lessons give few).
+- **Uncounted words** (`WordNetSource._uses`): an article stands before a whole phrase of nouns ("the board
+  chairman", "their 25th anniversary"); a bare phrase of nouns after a preposition stands bare ("for world peace");
+  a role after "be" says nothing ("is chairman"). Uncounted 363 → 300: "sun", "anniversary", "coordinator",
+  "outfit", "menace" and others no longer; milk, peace, diplomacy kept; about 25 words left unstated whose only
+  evidence was a misread compound. "chairman" stays (roles after "as", "became").
+- **One form for both** ("deer", "means"): stated so by the source and placed by the sayer where one or many stand.
+- **Plural records**: "Analyses analysis is a reasoning." (the plural put in for "An", which shares two letters
+  with "analysis"): a plural adds an ending and takes at most two of the name's letters. **Names ending in a plural**
+  ("bottom lurkers") are said of many: "All bottom lurkers are fish."
+- **"Syntheses are reasoned."**: a slot's shapes came from its learned kind, which joins things and doings through
+  words that are both ("run"), so a kind slot took "-ed". A slot is now shaped by its own fillers' changes, its
+  twins' and its frame's other places' (not those that say more, as "-ed" does); to say a word, by every place in
+  the same part of a meaning too ("All ?slot0 are ?slot1." beside "?slot0 are ?slot1."). "Reasonings are
+  thinkings.", "Syntheses are reasonings.", "Rubies are gems.". Pooling by role inside `shape_of_slot` itself
+  reached the use model and let "Wolf is a canine." through; kept to saying.
+- **The 389 plural-form names**: `WordNetSource._sense_names` now compares names as the door writes them; a name the
+  door rewrites into another's ("blues" beside "blue") is named apart by what it is a kind of ("black music blues",
+  "depression blues", "optical instrument spectacles", "immunodeficiency aids"): 389 → 0; 361 senses get names of
+  their own; one with no free qualifier keeps its name. The 164 left sharing a door form are one word written with a
+  hyphen or a space.
+- **The door** (`_wordnet_singular`, from the morning's change): "boss" became `bos`, the genus of cattle, and
+  "crying" `cry` (WordNet's exception list). A plural made with "s" never ends in "ss", and none ends in "ing".
+  Main checked read-only: 0 of its 6,969 concepts change name.
+- **Left, recorded**: "Fish is a person." (WordNet's capitalized "Fish", the person born under Pisces; a capital tells
+  it from neither "Go Fish" nor "English", and nothing shows it counted); "a baggage" (four uses in Brown, none
+  telling).
+- Tests: `test_derived_reading`, `test_word_class_sentences`, `test_lexical_normalization`,
+  `test_relation_types_and_algebra`, `test_concept_identity_oracles`: 162/162.
+
+## 2026-10-01 (21) — Research: generalizing by what things are (`docs/research/GENERALIZING_BY_KIND.md`)
+
+- Why: what was still wrong after entry 20 is two kinds of one gap. A construction learned from few words does not
+  reach a word it never held ("Rex ate rice.", "The cat ate fish."). How a word is used is unknown where nothing read
+  shows it ("a baggage", "Fish is a person.", "chairman" uncounted).
+- Found: constructions extend to new words by how well their attested instances cover the meaning around them
+  (Suttle and Goldberg 2011), by semantic coherence where types are few (Barðdal 2008), and by overhypotheses about
+  classes (Perfors et al. 2010). Countability: corpus features 94.6% against 89.7% all-counted (Baldwin and Bond
+  2003); a noun's place in an ontology 78% (Bond and Vatikiotis-Bateson 2002); BECL 2.1, 11,869 WordNet noun senses
+  labelled by hand (CC BY 4.0).
+- Measured offline on BECL's 9,537 counted or uncounted senses: the Brown model now in the source is right 89% but
+  finds 153 of 815 uncounted words (a plural counted as evidence of counting); predicting a sense from what its
+  kind's labelled senses carry, within the Tolerance Principle, decides 91% and is right 89.4%, finding 1,174 of
+  1,732 uncounted senses. All counted: 76.9%.
+- Proposed, not built: a word's use sense by sense (BECL, else its kind, else Brown's uncounted cues); the reader's
+  use of an unknown word by its kind before its ending; a slot takes the kinds its fillers are (most specific
+  covering all but N / ln N), a second way in beside distribution.
+
+## 2026-10-02 (1) — One concept per sense, across parts of speech; polysemy and dictionary scale measured
+
+- **The two K misses had one cause** (traced read-only on the sandbox the last K run left). "A crane is a device.":
+  memory held the bird crane a device (`held=2`) through wading bird → bird → *observe* → *watch* → timepiece →
+  measuring instrument → device. "bird" was one concept for the animal and to birdwatch, "watch" one for the
+  timepiece and to look. `_sense_names` named senses within each part of speech, so a noun and a verb written alike
+  shared a concept. "The table is red.": the lessons' table shared its concept with "to table a motion", whose kinds
+  red is never said of; the table no verb shares ("furniture table") had +0.08 where the shared one had −1.02.
+- **Fixed in the source** (`WordNetSource._sense_names`, `_lesson_parts`): a name stays with the part of speech the
+  lessons use the word in most (read from their meanings: a doing's kind is a verb's, a state's an adjective's, a
+  thing's or kind's a noun's), else with the part whose senses the word names most often. The other parts' senses
+  are named apart by what they are a kind of, else by another word of their own ("data file"), else by a kind
+  further up ("implement bolt"), else a verb as English names a doing ("to watch"). Numbers stay one (named by value).
+  Names shared across parts of speech: 4,801 → 245, noun and verb 2,646 → 2 ("carpet", "mask"); the rest are
+  adjectives and adverbs, which have no kinds. Over all of WordNet, a noun's or verb's kinds reach the other part
+  of speech for 2 of 94,289 names (both through "mask"). "bird" the verb is `observe bird`, "watch" `to watch`,
+  "table" `arrange table`; the lessons' "bark" (the dog's) and "close" (the doing) keep their names.
+  Tests 162/162.
+- **Polysemy against homonymy** (offline, 17,866 nouns with two or more senses, 77,086 pairs): Lyric's coarse rule
+  (near kinds meet) agrees with WordNet's lexicographer classes on 95.4% of the pairs it groups but finds 22.2% of the
+  pairs those classes group. Neither groups the regular polysemy an LLM takes for granted (the animal and its meat,
+  paper and a newspaper). With one activation, exact ties are rare, so the coarse rule is seldom reached.
+- **Dictionary scale** (in-memory replay plus every WordNet sense of ten highly ambiguous words: 392 senses, 309
+  sentences). One ambiguous word: 5–17 readings, under 20 ms. Two: 70–288, 23–161 ms. Three: 1,190–2,380, about
+  0.4 s to read and 50 ms to choose. Readings grow as the product of the words' senses, so a sentence of ordinary
+  prose with four or five ambiguous words would be read tens of thousands of ways.
+- **Fixed:** `said_selection` worked out what a word is said of once per fact; it now does it once per word per
+  call (a thousand readings asked the same few words a thousand times).
+
+## 2026-10-02 (2) — K 16/16
+
+- **K after one concept per sense** (`SENSE-01 --k-only --fresh`, `results/20261002T005558Z.json`): 15/16, heard
+  2/2, main untouched. "A crane is a device." (the lifting device) and "The table is red." (the furniture) are right.
+  Newly wrong: "The trunk is long." after "A tree is a plant." took the elephant's trunk.
+- **Traced**: both trunks were related 1. The tree's through the conversation (part of a tree); the elephant's
+  through "long", the sentence's own word, which its definition happens to use ("a long flexible snout as of an
+  elephant"). Ties went to the activation, which favored the elephant's. A thing's relation to the word its own fact
+  pairs it with is what `selected` weighs, with counts; counting it again as relatedness let one dictionary wording
+  decide. `listening` now leaves those partners out of what each thing is related to; the conversation and the
+  sentence's other things still count. Checked first that no other K sentence leaned on it ("Tom ate the fish." is
+  decided by the activation, relatedness 0 for both).
+- **K** (`--listen-only`, `results/20261002T015759Z.json`): **16/16**, heard 2/2, main untouched. Tests 162/162.
+- **SENSE-COVERAGE-01** (`results/20261002T020607Z.json`): 3/3, now over 1,420 words with two or more senses (72
+  before): A 6,820/6,820; B, of 12,233 checks, none left out for fit (3,193 cannot stand there by kind, 23 another
+  reading of the sentence). A first run counted 10 misses that were the experiment's own: it wrote the word with
+  the first construction it found, capitalized for "black" and "state" ("The milk is Black."), which reads as a
+  name; it now writes a word as it is written inside a sentence.
+
+## 2026-10-02 (3) — Countability by sense measured (COUNTABILITY-01); the questions of 2026-09-19 asked again
+
+Work picked up from `docs/HANDOFF.md`: `COMPREHENSION_SCOPE.md` and `GENERALIZING_BY_KIND.md`.
+
+### COUNTABILITY-01: step 1 of GENERALIZING_BY_KIND, measured
+
+- **What.** Offline, no store. BECL's 9,537 counted or uncounted noun senses are held out five ways by word. Each fold
+  is decided by a source given only the other folds' labels.
+- **First run** (`results/20261002T122644Z.json`, 3/3). The chain (label, kind, Brown) is right 85.2% overall,
+  against 76.8% for calling all counted and 79.2% for Brown alone. It finds 1,284 of 2,212 uncounted senses; Brown
+  alone finds 293.
+- **Its errors, read as patterns before changing anything.**
+  - "advice", "rice" and "coffee" are uncounted in Brown, and their kinds outvoted it.
+  - A scratch comparison of six orders (no record) put them all at 85.0–85.5%.
+  - Where the two disagree, Brown's "count" against the kind's "mass" is close to a coin flip (129 against 146).
+    Brown's "mass" against the kind's "count" goes to Brown about two to one.
+  - The reason: Brown's "mass" needs a majority of uses past the Tolerance Principle; its "count" needs one use.
+- **Changed.** `WordNetSource.use_of` (the per-word decision, lifted out of `records()` so the experiment runs the
+  source's own code) now puts the word uncounted in real text before the kind, for the sense the word is mostly used
+  in (`_main_sense`).
+- **Second run** (`20261002T123320Z`, 3/4). It failed for two faults, neither of them the change:
+  - The experiment's "kind first" rule decided capitalized words, which the source does not.
+  - **`_sense_uses` differed between processes.** A sense with two kinds took the first that told, in NLTK's set
+    order. The kinds are now taken in one order (`_ordered`); checked identical across two hash seeds.
+- **Third run** (`20261002T123452Z`, 4/4). The new order is right on 8,138 senses against 8,119 for the kind first,
+  and finds 1,316 uncounted against 1,282. "rice", "coffee" and "advice" are now uncounted.
+- **Open:**
+  - **Abstract nouns** (acts, communication, attributes, states, cognition) hold most of the 1,133 errors.
+  - **"fish" the food is still counted.** Its kind, food, is split, and the word's one counted use decides it.
+  - **A capitalized WordNet word is given no use,** though 134 of the 137 labelled ones are kinds ("Albanian"), not
+    names. That is the proper-noun item of COMPREHENSION_SCOPE.
+
+### COMPREHENSION-01: the questions of 2026-09-19, asked again
+
+- **Why.** `COMPREHENSION_SCOPE.md` listed four question failures and a recall failure, measured on 2026-09-19 and
+  never since. The status table first said "not measured"; it is measured now.
+- **What.** On the sandbox, with the lessons held: WordNet's records about hello, dog, clock, grandfather clock, beer,
+  bass and kennel taught first (2,504, none refused, 402 s), then one speaker asks through `Conversation.understand`
+  with no look-up. The speaker's rows are removed after a snapshot; main untouched.
+- **First run** (`results/20261002T124158Z.json`, 11/19):
+  - **Fixed since 2026-09-19:** recall about "bass" hands up bass memories only; "hello" is not looked up as a thing;
+    nothing is recited about beer.
+  - **Not fixed:**
+    - "hello" is not greeted.
+    - "is a grandfather clock a beer?" is neither answered nor declined.
+    - "where is a dog?" and "what is a dog?" both answer "Dog can mean a carnivore canine or a domestic animal.
+      Which dog do you mean?".
+  - **Three failures were the experiment's own,** both causes corrected:
+    - check F skipped three-letter words, "dog" among them;
+    - the kennel telling used "is found in", which no lesson teaches.
+- **Traced: one cause.** The reply is chosen by whether a sentence asks or tells, not by what it means.
+  - The greeting reads right (english_16) but goes down the telling path, which reports it held nothing.
+  - A question with no held answer falls through to everything held about its subject.
+  - The question of which sense comes from a concept's parents (`_sense_groups`), not from the listener.
+- **Research** (`docs/research/REPLYING_TO_WHAT_IS_MEANT.md`): adjacency pairs, the question under discussion,
+  clarification requests, and the strong disjointness assumption.
+  - Measured offline on WordNet: of 1,479 questions "is an X a Y?" with Y near X and X not under Y, something is both
+    in 1.3% (0.4% at random). So "No, unless something held is both" is rarely wrong.
+  - Proposed, not built: ask which sense only when the listener leaves it open; a question with no held answer is
+    answered about what it asked; "No" where the kinds exclude each other; a greeting answered with what an exchanges
+    lesson pairs with it.
+
+## 2026-10-02 (4) — The reply answers what was meant; every noun had become a plural; the sandbox cleared
+
+Built from `docs/research/REPLYING_TO_WHAT_IS_MEANT.md` §5, measured by COMPREHENSION-01 after each step.
+
+### What was built
+- **Which sense is the listener's to ask** (`_which_meant`); `_sense_groups` and `Resolved.senses` deleted.
+- **A question nothing held answers is answered about what it asked** (`_not_known`), through english_30: "I do not
+  know where the dog is.", "I do not know whether the dog is big.".
+- **"No" where the kinds exclude each other** (`_kinds_exclude`, basis `disjoint`): only where memory places both
+  under something in common. A telling is never refused on it. Where something held is both, that thing is said
+  (`held_as_both`). A derived "No" says the denial, where it used to name the claim it denied.
+- **A greeting, a farewell and thanks are answered** (`_answered_in_kind`) with the act english_30 says follows
+  them ("A greeting follows a greeting."). No relation was added.
+
+### What the runs found
+- **Second run** (`results/20261002T140422Z.json`, 20/22). The four failures of 2026-09-19 were answered right, and
+  two checks failed on words: "The domestic dog is inside the dog house." for the dog in the kennel.
+- **Traced: every noun was held as a plural.**
+  - A slot was "written otherwise than by name" when most of its one-word fillers were not their concept's name,
+    and such a slot is taken to take a shape.
+  - In "A ?slot0 is a ?slot1." 3,730 of 4,842 were not: other words for the concept (1,863), words of senses named
+    apart (1,412), other words sharing a stem (455).
+  - Asked whether the domain system caused it: checked, no. No name is held as more than one concept (0 of 8,788).
+- **Fixed** (`PatternInventory._written_otherwise`): the words written as names must be few enough to be exceptions
+  (the Tolerance Principle), and a filler is judged against its word's own name. Right on every slot measured:
+  "?slot0 are ?slot1." 16 of 115 names (shaped); "A ?slot0 is a ?slot1." 2,524 of 4,842 (not); the mass frame 433 of
+  915 (not; it stood at 482 against 433 under the old rule); "red cup" beside "usually runs" 9 of 20 (not: "cup"
+  was a plural through it).
+- **The sandbox was damaged by this experiment's own runs.** With nouns taken as plurals the substrate said taught
+  facts through "?slot0 is body of ?slot1." and learned what it said: 3 memories from the first run, 1,012 from the
+  second, none before.
+- **Third run** (`20261002T143236Z`, 23/23) passed with two replies still wrong ("I do not know where domestic dog
+  is."; "A domestic dog is a canine."). The checks were too loose, and now ask for the sentence itself.
+- **Fixed in saying** (`derived_reader.say`):
+  - a thing is said with the word the speaker called it by (`named`), else the word most used for it;
+  - of sentences supposing the same, one in a frame the speaker used comes first (`framed`);
+  - the reply sees every relation a concept holds, not the first four by name ("defined with" took all four for
+    `dog`).
+- **Two of that round's changes were wrong and are taken back.** Ranking sentences by use before score put a
+  much-used bare frame first ("Kennel is outbuilding."). Using a name of several words as its last word is made
+  "body of water" uncounted ("Stream is body of water."). The fifth run (`20261002T155914Z`, 26/28) taught both to
+  the rebuilt sandbox before its new check stopped at the second. A name of several words is now used as its head
+  is.
+- **The hole those two fell through was older** (since english_28 taught "A table is furniture."): nothing said a
+  counted word does not stand bare. A dry run on the sandbox, nothing written, said 410 of 2,261 facts with a
+  counted word bare ("Soul is organism."). Now a slot admits no counted word where a sentence begins, nor where a
+  held frame says the same with a counting word before the slot (`counted_beside`), and the teaching pass does not
+  say a sentence that begins with a word its source states is counted. 164, then 104 on that view, the rest
+  sentences the fifth run had already taught it.
+- **Both experiments say every record first** (`said_wrongly`) and teach nothing if a counted word would stand
+  bare.
+
+### Also fixed
+- `tests/test_conversation.py`: one test asked about a name of two words, and its own view had taught only one-word
+  names where "What is a …?" asks. It now teaches one. 15/15.
+- `WordNetSource._sense_uses` differed between processes (COUNTABILITY-01, entry (3)).
+
+### The sandbox
+- Cleared with `scripts/reset_dev_store.py` (435,328 rows, 0 after; main 290,095 before and after), then rebuilt by
+  `SENSE-01 --k-only --fresh` with english_01–30: **K 16/16**, heard 2/2, 37/37, main untouched
+  (`experiments/SENSE-01/results/20261002T145000Z.json`).
+- **37 facts were refused in that rebuild and no check saw it.** All were about "power", "name" and "front": the
+  lessons hold those words only inside frames, the door admits a fact only about what a taught meaning names, and
+  the pass admitted facts before it learned the sentences. The pass now learns each sentence first; both
+  experiments check that no fact is refused; a refused or failed fact is logged with its reason (`learn_facts`
+  counted an exception as a refusal and said nothing).
+- Cleared and rebuilt a second time after the fifth run's wrong sentences.
+- Tests after all of it: reader, conversation, written mathematics, relation algebra and the statement extractor,
+  189/189.
+
+### Later the same session: a list deleted, one dash, experiments off main
+- **`ConceptResolver._NON_CONCEPTS` deleted**, on the teammate's explicit word. It refused "thing", "data", "result",
+  "output", "value", "item", "object", "test", "example", "sample", "todo", "unknown", "none", "null", "it", "this"
+  and "that" as concepts. It refused WordNet's `object`, so nothing above "object whole" was reached and a clock
+  and a beer shared no kind; 13 kind edges in the sandbox pointed at "object" with no concept behind it. What names
+  nothing is asked at the door (`cognitive_ingress.admissible`). Tests that use the resolver: 59/59.
+- **One dash** (`said_plainly`). Nothing said to a person is written with a long dash or a doubled hyphen: a hyphen
+  only. Applied where words leave: `Conversation.say`, the front door (`handle_user_request`) and `speak_to`.
+  Markdown's own marks and options written with two hyphens are kept. Tested in `tests/test_conversation.py`.
+- **26 experiments defaulted to the main model's database** when none was named (`"POSTGRES_DATABASE": "lyric_db"`,
+  from before the sandbox existed). They now default to `lyric_dev`. Not changed: `scripts/teach.py`,
+  `scripts/rebuild_isa_wordnet.py` and `scripts/repair_double_counted_beliefs.py`, which are for the main model,
+  and `experiments/kite_ablation.py`, which reads it as its source.
+- **Asked for, not built:** documents of one kind laid out the same every time, in proper markdown. Lyric has
+  tools that write a PDF, a Word file or LaTeX from content handed to them (`core/tools/documentation_tools.py`),
+  and nothing that holds what a kind of document looks like.
+- **The rebuild's say-first check stopped it, before any of WordNet was taught** (`SENSE-01`,
+  `results/20261002T165030Z.json`, 34/35): 36 sentences flagged. Most were right English the check misjudged
+  ("Gasoline is fuel.", "Fowl is meat."): the source stated "fuel" and "meat" counted on one counted use in Brown
+  (the Brown model now counts by the Tolerance Principle, as it uncounts; COUNTABILITY-01 4/4, overall 85.3%
+  unchanged, right where it decides 87.9%), and the check took the source's word over what the lessons hold.
+  - The check now judges a fact's own terms as the sayer does: held use first, then the source's, under the
+    whole name; a capitalized word as a name.
+  - Uses are stated under the whole name ("long bone" apart from "bone").
+  - On the lessons-only sandbox, read-only: 36 flagged, then 3, then 0. Against the sentences the earlier runs
+    taught wrongly it still flags "Soul is organism.", "Kennel is outbuilding." and "A stream is body of water.".
+  - Tests 191/191.
+- **Third clean rebuild** (`SENSE-01 --k-only --fresh`, `results/20261002T173238Z.json`, 38/39):
+  - Say-first check passed: every one of the 14,011 records said right before anything was taught.
+  - **K 16/16**, heard 2/2, main untouched; no "is body of" frame.
+  - 9 facts refused of 13,800:
+    - **One a defect.** The source counted a name's words by spaces where the door also parts them at a hyphen
+      ("islamic great eastern raiders-front", five to the door). The source now counts as the door does
+      (`_term_words`), at all seven places it checks the store's limit.
+    - **Eight refused by the door's guard as designed:** facts about words the lessons use only to build sentences
+      ("be", "have", "near", "lot").
+  - "lot" the parcel of land ("a parking lot is a lot") is a real loss. Its fix is a lesson that uses "lot" as a
+    thing, not a looser door.
+  - The check now fails on any refusal but that guard, read from the ledger for the pass's own domain, and records
+    the guarded facts by name.
+- **Found, not fixed:** the substrate's scan of its own folder has file names refused as "a clause, not a name"
+  ("agent_consolidation_2026-09-01", 5 words to the door). The door counts a file name's parts as English words.
+- **COMPREHENSION-01's sixth run** (`results/20261002T185550Z.json`, 4/5) stopped at its say-first check, nothing
+  taught: 116, then 84 sentences flagged. Traced:
+  - **The check judged a word's use across all its senses.** "travel" held for one sense said nothing of "Travel
+    is a motion.", the act. It now judges per concept, as the sayer does.
+  - **The third rebuild had already taught wrong sentences** ("A manner is property.", 2 memories). "property"
+    (an attribute) had no stated use once Brown counted by the Tolerance Principle. The reader then guessed from
+    its ending ("-ty", as "beauty" and "safety") and said it bare. That Brown change is taken back
+    (COUNTABILITY-01 `20261002T190214Z`, 4/4, the third run's numbers): its reason, the check misjudging
+    "Gasoline is fuel.", is gone with the per-concept check.
+  - **A record is said with its word, and the sayer took the use of the sense the lessons hold the word for**
+    ("A stock is security.": the lessons' "security" is safety). The teaching pass now does not say a name the
+    source states is counted bare, first or after "is", and takes the next way of saying it.
+  - The check no longer judges a name after "are" ("Alewives are fish.": a plural its singular cannot show).
+- **Offline, against the 30 lessons replayed into a view of their own:** 0 of 14,293 records flagged; 69 said bare
+  on the reader's guess, read by eye and right English ("Correctness is a quality.", "A delay is inactivity.").
+  Tests 191/191.
+- **Sandbox cleared and rebuilt a fourth time** with all of it.
+
+## 2026-10-02 (5) — What saying first did not see: uses by sense, frames the learner makes, plurals
+
+### The fourth rebuild
+- `SENSE-01 --k-only --fresh` (`experiments/SENSE-01/results/20261002T191346Z.json`, 38/39): **K 16/16**, heard 2/2.
+  Every one of 14,010 records said right before anything was taught. No pair and no fact refused, apart from the
+  eight about words the lessons use only to build sentences.
+- **The failed check is the main store's row count, 290,095 before and 290,096 after. The row is not the run's.**
+  - The live substrate was started on the main database at 16:13 local, during the run.
+  - Its start seeded the one row of `unified.appraisal_state`, a table added that afternoon (`788ab1e1`).
+  - Read from the main store afterwards, read-only: that row is the only one newer than the run's start, and the
+    only connection to the main database was the live substrate's.
+  - The check now names each table whose count moved (`main_store_change`).
+
+### COMPREHENSION-01, seventh run: stopped before teaching
+`results/20261002T202323Z.json`, 4/5. The say-first check flagged 58 sentences and nothing was taught: "Travel is a
+motion.", "Control is an activity.", "A fact is information.". Traced read-only on the rebuilt sandbox.
+- **The check took the view's use of a word over the source's.** The view holds a word's use over every sense
+  written with it. "travel" is counted there (held for a trip), while the record is about the act, uncounted, and
+  the source says so. The check now takes the source's statement for the record's own sense, and the view only
+  for a name the source states nothing of.
+- **The check now judges both ways:**
+  - a counted name standing bare;
+  - an uncounted name, or one only ever plural, after "a", "an", "each" or "every";
+  - a plural-only name before "is".
+- **Judged both ways, the sandbox's own sentences were wrong the other way.** 436 of K's records said an uncounted
+  thing with "a" ("A substance is a matter.", "A work is an activity."). The sayer took a word's held use, drawn
+  from every sense, before the source's statement for this sense. The source's comes first now.
+- **A source's word for one of its own senses was said as what the view holds under that word for another.** The
+  hairdo "wave" came out as "wave to", the greeting: "A wave to is a hairdo.". Such a name is now written as it is
+  (`say(apart=...)`).
+
+### What saying first could not see: the frames the learner makes
+In an offline simulation of the rebuild (below), 9 frames had a fact's word built into them: "A ?slot0 ?slot1 is
+news.", "An ?slot0 ?slot1 is a kind of explosive.", "Every ?slot0 is a body of ?slot1.". Taught, "A ?slot0 ?slot1
+is news." then said of anything that it is news ("A sexual activity sexual intercourse is news."). The causes:
+- **The learner was not told every name the source wrote.** The teaching pass passed only names that differed
+  from the concept's own. "A news report is news." left "news report" unnamed, and the learner, holding "report"
+  for the thing, took "news" for a frame word. Every term a said sentence writes is passed now.
+- **The substitution repair hid the teacher's names.** It reused the variable `names` for its own slot names.
+- **A whole name could not hold a word that builds frames** ("body of water", "change of location"), so "of" went
+  into frames. It can now where the teacher wrote the name whole (`_may_be_new(given=True)`).
+- **With every filler held, the frame as written was not learned.** The pair "An adult male is a kind of adult."
+  went on to a frame built of its own words. `item_based_lexical` now learns the frame as written, spaced as the
+  sentence spaces it ("What's an ?slot0?", not "What 's an ?slot0?"). The 30 lessons replayed: the same frames and
+  names; 15 pairs move from one repair to the other.
+- **New check in both experiments:** no frame made while teaching holds a fact's word (`frames_wrongly`).
+- **Tried and taken back:** saying every record again after teaching. After teaching, the view's use of a word is
+  drawn from everything just taught, and that judged right sentences wrong.
+
+### Names of several words
+- A name with a preposition inside is used as the word before it: "roll of tobacco" is a roll
+  (`WordNetSource._head`, with the 38 words Brown tags mostly as prepositions). Before, "A cigaret is roll of
+  tobacco."; now "A cigarette is a roll of tobacco.".
+- A source's word must stand whole in the sentence said: "A sedative drug is a medicine." no longer counts as
+  saying "sedative".
+- Where the source states the use of a whole name, it stands: "military action" is not counted because "action"
+  is.
+
+### Plurals
+Found by reading every plural sentence the rebuild would teach. Most were there before today: the rebuilt sandbox
+holds "sandwichs".
+- **Spelling.** To say a word, a slot took only the spellings of the places in the same part of a meaning, not
+  those of the frame's other places, as its own comment says. So the second place of "?slot0 are ?slot1." had only
+  "-s": "Appendices are processs.", "Lives are historys.", "All chapeaux are headdresss.".
+- **"Men are everyone."** Any other word held for a thing counted as its plural when the two shared no stem. Now
+  only a word held as a plural counts, and the word the thing was called by is said first, in the slot's shape.
+- **"Alewives are fishs.", "Bureaux are furnitures."** A word one in both forms is now written as it is, and an
+  uncounted word takes no shape.
+- **"Wives are womans."** WordNet makes "women" by a rule and lists it nowhere. The source now gives the kind's
+  plural as Brown writes it (`_plural_written`).
+- **"Crying are utterances."** WordNet's exception list gives "crying" for "cry". A listed form is now kept only
+  where Brown writes it as a plural, or writes neither it nor any plural of the word.
+- **"A life is a lives thing.", "An adult men is a kind of adult."** The plural swap changed a word that is no
+  shape of the name. It now changes only a word written in a shape two held words show.
+
+All 105 plural sentences of K's records, read by eye: spelled as English writes them ("Wives are women.",
+"Chapeaux are headdresses.", "Phenomena are processes."). Some read oddly but are WordNet's own senses: "Mice are
+persons." (the timid person), "Mice are bruises." (a black eye).
+
+### Found, and measured: not a defect
+Two senses of "industry" (the companies, and the activity) are taught as one concept. `WordNetSource._sense_names`
+gives a word's senses one name where their kinds are named alike, and theirs are two senses both called "commercial
+enterprise". Over WordNet, 480 groups are joined only so (295 of nouns). Read, they are mostly regular polysemy, the
+sense pairs an LLM takes as one: "pea" and "watermelon" (the plant and its fruit), "bay scallop" (the animal and its
+meat), "Potawatomi" (the people and their language). The rule is kept.
+
+### Offline simulation
+A scratch script, nothing written: the 30 lessons replayed into a view of their own; then K's and COMPREHENSION-01's
+records said, checked and learned as the teaching pass does, with the view scored as learning observes it.
+- Before the fixes: 9 frames with a fact's word in K and 10 in COMPREHENSION-01's records.
+- After: K none; COMPREHENSION-01, one, which came from "An adult men is a kind of adult." (fixed since).
+
+- **A third pass, with the plural fixes in.**
+  - K: none.
+  - COMPREHENSION-01's records: 6 flagged before teaching ("Every spectacles is an optical instrument.", "Every
+    assets is a possession."), and more said wrongly that the check does not judge ("Every bandeaux is a
+    undergarment.").
+  - The cause is the one that made every noun a plural, left in one frame. After K is taught, "Every ?slot0 is an
+    ?slot1." is filled mostly by the other words a source names a thing by ("Every soul is an organism.").
+  - A word of its own, no shape of its thing's name, was counted as written in a shape. It is either another name
+    ("soul" for `person`) or an irregular form ("Geese"), and its writing cannot tell which.
+  - It now goes with the slot's other words: with the shapes where most of the words that show either way are in
+    a shape, with the names where most are names (`PatternInventory._written_otherwise`). One that says more than
+    its thing ("third", "flew") still counts as written otherwise, as `written_against` already judged.
+- **Stopped and started again:** the rebuild begun at 19:16, which had loaded the reader as it was before this.
+
+Tests (reader, conversation, written mathematics, relations, statements): 191/191, after each change.
+
+### The fifth rebuild, and the questions asked again
+- **SENSE-01 `--k-only --fresh`** (`experiments/SENSE-01/results/20261002T234125Z.json`): **40/40, K 16/16**, heard
+  2/2.
+  - Every one of 13,986 records was said right first, judged both ways.
+  - No frame made while teaching holds a fact's word.
+  - No pair was refused, and no fact apart from 7 about sentence-building words.
+  - Main untouched.
+- **COMPREHENSION-01** (`experiments/COMPREHENSION-01/results/20261003T012321Z.json`): **30/30.**
+  - Every question that failed on 2026-09-19 is answered as an LLM answers it: "Hello."; "You are welcome."; "No.
+    A grandfather clock is not a beer."; "I do not know where the dog is."; "The dog is in the kennel."; "A dog is
+    a canine. A dog is a domestic animal.".
+  - Nothing was refused, no frame made with a fact's word, and main untouched.
+
+### Still open
+- **The source's countability for abstract senses.** It states the indication sense of "evidence" counted, and
+  taught it so: "Every evidence is an indication.". This is the 15% COUNTABILITY-01 measures; abstract nouns hold
+  most of it.
+- **"industry" is one concept for two senses.** Measured (above): the naming rule that joins them groups regular
+  polysemy, and is kept.
+- **The view's use of a word was drawn from every sense, and every word, of what it names.** Closed the same night
+  (below).
+
+### Late: open items finished
+- **Countability of abstract senses: measured, source unchanged.** COUNTABILITY-01 `20261003T031802Z` (4/4) adds
+  a rule F, real text's "uncounted" for every unlabelled sense of a word and not only its main one. F finds 37 more
+  uncounted senses and gets 39 more wrong (overall 85.3% both). It is no better, so the source keeps its chain, and
+  "Every evidence is an indication." stays among the 15% the chain gets wrong.
+- **A word's use is the thing's under that word** (`PatternInventory._use_found`, `used_as(word, value)`).
+  - A thing was counted under every word for it once any one of them stood counted: "chance", counted, made
+    "luck" counted. It is now counted under the word that stood counted for it, case aside ("robin", "Robin").
+  - A bare use is counted for a sense named apart under the name its writing is judged by (`_written_as`):
+    "Travel is a motion." holds the act uncounted.
+  - The sayer asks the word's use for the thing said before its use over every thing it names, so conversation
+    (no source to state uses) speaks of each sense as it is used.
+  - Read from the sandbox, read-only: "travel" the act uncounted and the trip counted; "matter" the stuff
+    uncounted and the affair counted; "luck", "water" and "information" uncounted. Over all their senses, "water"
+    and "travel" stay counted.
+  - The test re-deriving the uses from scratch now derives them by this rule, and agrees in every order tried.
+- Tests 191/191; offline, K's 13,986 records said first with none flagged.
+- **Rebuilt on it:** SENSE-01 `20261003T034014Z` **40/40, K 16/16**; COMPREHENSION-01 `20261003T052358Z`
+  **30/30**, every reply as before. Main untouched (290,096 rows).
+
+## 2026-10-03 (1) — Spoken words at the lessons' scale: taught right, not heard across speakers (SPEECH-02)
+
+### Recordings
+- **Multilingual Spoken Words Corpus** (MLCommons, CC BY 4.0): 55,731 clips of 844 lesson words, up to 10 speakers
+  a word from dev and test and 50 from train. Each 300 MB shard was read as it streamed; only the chosen clips are
+  kept, under `data/speech/` (ignored by git).
+- MSWC keeps no word shorter than three letters. For "is", "a", "of" and the contractions, **LibriSpeech** words
+  were cut by their aligned times (`gilkeyio/librispeech-alignments`; the alignment archive the usual page links to
+  is gone): 43 words from dev-clean, 42 from test-clean.
+- 16 lesson words have no recording anywhere ("x", "cat's", "factorial").
+
+### SPEECH-02: 100 words, 3 speakers each to teach, 2 untaught to hear
+- **First run, 8/12.**
+  - **One real word refused.** "of" from a quiet LibriSpeech speaker was put in a room too loud for it. That is the
+    harness's error; each clip is now brought to one level first.
+  - **The cleanup left 564 concepts behind**, with their aliases, evidence and identity links. A hearing's
+    measurements carry no mark of the run. The cleanup now removes everything written after the run began, and the
+    first run's leftovers were removed by its own times.
+  - **By design:** 300 lessons wrote about 1,100 concepts and 4,500 relations and beliefs, a hearing's measurements
+    kept as observations.
+- **Second run, 10/12.** Every teaching check passes: 300 of 300 taught, none refused, each a hearing in the shared
+  mind with its word, traces exact, all read back exactly, everything removed, main untouched.
+- **Hearing untaught speakers fails:** 4 of 200 right, and one firm wrong ("twelve" as "a", from the last 80 ms of
+  "twelve" split off by the decoder).
+
+### Why, measured offline
+- On 100 words, the right word is nearest 22–28% of the time with 10–20 teaching speakers.
+- None of four classical alternatives to the ear's measurements does better.
+- Taking a word's 3–5 nearest examples, 60 speakers a word, or frequency warping each lifts it to about 38%. The
+  ratio test names 1–2%.
+- The ear knows a word from the voices that taught it, not from voices it never heard.
+- Next research step: hear phones, not whole words (LibriSpeech's aligned phonemes, a pronouncing dictionary).
+
+## 2026-10-03 (2) — Hearing by the sounds words are made of, measured offline (SPEECH-03)
+
+Main stays untouched; the teammate's choice was to make hearing work for untaught voices first.
+
+### What was done
+- **Research note:** `docs/research/HEARING_BY_PHONES.md`. Nothing is built into the substrate yet.
+- **Recordings:** LibriSpeech dev-clean, dev-other and test-clean with the Montreal Forced Aligner's word and
+  phoneme times (`gilkeyio/librispeech-alignments`), and the CMU Pronouncing Dictionary through `nltk` (900 of the
+  lessons' 904 words). All under `data/speech/` or `~/nltk_data`, never pushed.
+- **SPEECH-03** (`experiments/SPEECH-03/`, offline, no store): phones taught from 40 speakers' aligned frames,
+  nothing trained; a heard frame sounds like what its 25 nearest taught frames are; a stretch is fitted to each
+  candidate word's phones in order.
+
+### Measured (`20261003T155215Z`, 3/3; the same to the last word as `20261003T154529Z`)
+- **Frames given their phone:** 48.6% with the frames 60 ms either side, against 32.4% as the ear measures a word.
+- **Words cut from untaught speakers' sentences:** the word said (or one said the same) fits best 54.9% of the
+  time, and is among the best five 80.1%, of 100 candidate words. No word was taught as a word. Whole-word matching
+  reached 38.3% with sixty speakers teaching each word.
+- **MSWC words said alone, other microphones:** 21.0%, among the best five 44.3%.
+- **73 speakers** (`20261003T155918Z`): 56.1% and 21.7%. More voices change little at this size.
+
+### Found on the way
+- **Run-to-run difference.** The taught frames were chosen while walking a set, whose order changes between
+  processes; the word figure moved from 52.8% to 58.1%. Fixed by choosing in one order. The first run's record
+  (`20261003T153810Z`) was deleted with the results folder before the rerun.
+- **A word said alone** must be measured over its own frames: 3.3% over the clip, 21% over the word.
+- **RASTA** is worse than the running mean (47.2% in sentences).
+- **Homophones:** "two" taken as "to" was the top confusion; they are said the same, so it now counts as heard.
+
+### Not measured yet
+Connected speech with no word boundaries given, and the lessons' full 900 words.
+
+### Later the same day
+- **A phone lasts at least three frames** (none of 192,830 in the alignments is shorter). With that floor, words cut
+  from untaught speakers' sentences: 61.8% fit best, 85.0% among the best five (SPEECH-03 `20261003T164034Z`, 3/3).
+- **Whole sentences, no boundaries** (`offline_connected.py`): 34.2% of 1,180 words right at best, with each word
+  entered at a cost of its share of the Brown corpus.
+- **Taught again through people's microphones** (`offline_mswc.py`): MSWC teaching clips fitted to their words'
+  phones by what is taught, their frames kept. MSWC words alone 22.0% to 37.7% with 50 speakers a word.
+- **Where it stands:** teaching spoken words is correct. Hearing words from untaught voices went from 2% named
+  (whole words) to about 60% of words in sentences and 38% of words said alone, with no word taught as a word and
+  nothing trained. A sentence on its own is 34%: not yet enough to read it.
+
+### Building it in, and where it stops
+- **Built** (not yet run in the substrate): lessons of sounds as hearings (`coord.learn_phones`, tag
+  `spoken_sounds`, `speech.phones_example`, traces at half precision with each frame's phone); pronunciations as
+  taught memories like word classes (`PronunciationSource` from CMUdict with Brown usage, `learn_pronunciations`,
+  `stated_pronunciations`); the hearing process keeps the taught sounds and is sent only new lessons;
+  `speech.find_words_by_phones` gives the same spans the whole-word finder gives. SPEECH-04 written to measure it
+  on the sandbox.
+- **Measured through the substrate's own functions** (`experiments/SPEECH-03/offline_margins.py`): among about
+  1,000 candidate words, the best fit is right 47.8% on clean speech and 27.9% on harder speech, and no margin makes
+  a name certain (88.8% at 0.5, 5 of 6 at 1.0). Twenty frames a phone a lesson made a million taught frames and ten
+  seconds to hear a seven-second sentence; ten a lesson makes 317,296.
+- **Where it stops:** a frame is given its phone about half the time with nothing trained, and that caps what can
+  be named for sure. Hearing anyone's speech near 100% this way is not in reach.
+
+### SPEECH-04 and the listener: where hearing stops
+- **SPEECH-04** (`20261003T183310Z`, 10/11, sandbox): teaching right on every check (338 lessons of sounds, 1,451
+  pronunciations, read back exactly, everything removed, main untouched). Hearing untaught voices: 0 of 198 single
+  words named right, 14 of 789 words in sentences. No firm name was wrong.
+- The ear now hands each uncertain span's best three words and the sentence's likeliest ways to the listener
+  (`speech.ranked_texts`).
+- **The lessons' sentences, the listener choosing** (`offline_listener.py`): 0 of 100 heard as said, 2 of 453 words.
+- **A voice also taught from** (`offline_same_speaker.py`): 46.6%, no better than strangers; that voice alone 34.3%.
+- **Where it stops:** a frame is told from other sounds about half the time with nothing trained, whatever is
+  varied. Sentences cannot be heard this way. The case for a trained ear, which the no-model rule excludes, is the
+  owner's to weigh (`docs/research/HEARING_BY_PHONES.md` §7).
+- **Pushing on, model-free:** the sounds heard over 100–7,600 Hz instead of the telephone band: best fit 47.8% to
+  51.9%, a name at 0.5 right 88.8% to 93.5% (`speech.PHONE_BAND`). Weighing a frame's phones by how likely the
+  sound is under each (the share over the phone's share) is far worse (30.7%) and was taken out.
+- **Whole sounds against stored examples** (template matching; `offline_templates.py`): 37.5% of phone segments
+  named right against 52.7% by their frames. Not taken further.
+- **Where the curve goes:** each doubling of the taught frames has added about two points; nothing tried changes
+  the slope. From 52% of words to most would take orders of magnitude more recordings than exist here.
+
+### Speech switched off
+On the teammate's word, speech is off, not deleted: `LYRIC_SPEECH` ("on" or "off", off unless said;
+`speech.WORDS_HEARD`). Off, the ear names no word, by words taught whole or by sounds, and the taught sounds are not
+sent to the hearing process; a voice is still heard as one and as whose; lessons of words and sounds are still kept
+as memory and used once it is on. SPEECH-01, -02, -04 and LIVE-01 switch it on for themselves. Checked: the same
+recording names nothing off and "three" on; `tests/test_speech.py` 11/11.
+
+### A trained ear for sounds (SPEECH-05)
+- The teammate's reading of the rule: model-free means no LLM, nothing that takes intelligence away from Lyric; a
+  tool that only senses sounds is allowed (recorded as theirs; the owner declined added parameters on 09-30).
+- `vitouphy/wav2vec2-xls-r-300m-timit-phoneme`: 39 English sounds every 20 ms, no words, no language model.
+- Read as it reports (CTC: a mark for each sound, blanks between), offline: words in untaught speakers' sentences
+  89.0% best fit among about 1,000 (Lyric's own 51.9%); named at a clear margin 779 of 779 right; whole sentences
+  from one speaker, no boundaries, 78.2% of words right (Lyric's own 34%), most errors words that sound the same.
+- Read frame by frame instead, as Lyric's own sounds are read, it gave 70.4%: the recogniser marks each sound once.
+- Then built into the substrate behind `LYRIC_SPEECH`, measured end to end.
+- Built in (`phone_recogniser.py`, `speech.find_words_by_marks`, `senses.listen`: the recogniser, else the sounds
+  taught, else words taught whole). SPEECH-05 on the sandbox:
+  - `20261003T215032Z` 5/8 found the faculty dropping `heard_texts`: every unclear word was "...", and the live
+    loop's listener had never been handed the ways (SPEECH-04's 0 "among words that sound alike" too). Fixed.
+  - The ear now hears the whole recording (cut to the loud stretch, words alone 43.0% against 47.0%,
+    `offline_alone.py`), in pieces of 30 s, and times a word by its sounds as the search placed them.
+  - `20261003T220404Z` **7/8**: sentence words right 76.7% (offline 78.2%), words alone 47.3% (bar 40%), 2,257
+    pronunciations kept and read back, sandbox clean, main untouched.
+  - Failed as stated: a firm name wrong 16 of 557 (missed endings, two words that sound as one, pieces of long
+    words). Stretching spans by up to 80 ms leaves 8 of 512 wrong: not adopted (`offline_spans.py`).
+  - The listener chose in 12 of 143 sentences, worse than the likeliest way where it did (70 against 81 words).
+  - Found on the way:
+    - The substrate's `.env` model cache (`HF_HOME`) held only a partial copy of the recogniser; it was put there
+      whole.
+    - `AutoProcessor` asked huggingface.co for a file even with `local_files_only`; it now loads from the local
+      folder, checked with the network blocked.
+- The listener (SPEECH-06, started, stopped): it takes only ways of hearing that read whole, so it settles only
+  what the reader reads. `experiments/SPEECH-06/offline_reading.py`, read-only on the sandbox:
+  - reading every way in parts took about 4 minutes a sentence;
+  - whole reads of 27 ways went 100 sentences in 17 minutes, then did not finish sentence 101 to 120 (44 to 55
+    words, no punctuation, as speech comes) in over 70 minutes. Stopped, no tallies.
+  - Settling sound-alike words needs the ordinary English only teaching gives, so this waits for the main teaching.
+
+## 2026-10-04 (1) — Fresh lessons: learning, the sentence machine and meaning, on material nothing was tuned to
+
+### Why
+Before main is wiped and taught, the teammate asked for a short pass confirming that learning, the sentence machine
+and understanding work as intended, and said the old checks (SYSTEM-LEARNING-01, SENSE-01, COMPREHENSION-01) had been
+run and fixed against since the start and would say little. So FRESH-LESSON-01 teaches one lesson nobody had tested,
+frozen before its run:
+- facts, not examples;
+- ten words neither WordNet nor the lessons have;
+- two sentence shapes the 30 lessons never use.
+
+It checks the lesson through the one path, reading never-taught sentences, 13 questions, a restart, teaching twice,
+and a weaker source contradicting one fact. FRESH-LESSON-02 and -03 are further lessons, each written after the
+previous fixes and frozen before its own run.
+
+The same day, before this: the sandbox line was emptied (lyric_dev 413,169 rows to 0). Main's wipe was blocked by the
+session's safety check and waits for the teammate. The teammate kept the Brown corpus.
+
+### Measured
+| Run | Checks | Failed |
+|---|---|---|
+| FRESH-LESSON-01, first | stopped at the last step | graph check (the experiment's query); "Who owns the wug?"; two untaught question forms; the reply crashed after the contradiction |
+| FRESH-LESSON-02, first | 29/32 | "Is a morv fast?"; two untaught question forms. Passed by a weak check: "Yes ... No ..." after the contradiction. Unchecked: "Zanthes" |
+| FRESH-LESSON-01, second | 29/31 | two untaught question forms |
+| FRESH-LESSON-03, first | **30/32** | two untaught question forms |
+| FRESH-LESSON-02, second | 30/33 | "Is a morv fast?"; two untaught question forms ("Zanths are animals." and one "Yes" after the contradiction now right) |
+
+What holds on every lesson:
+- every fact is in the graph, a belief and a memory found by meaning;
+- the new words are held in the lesson's domain and classed nouns;
+- never-taught sentences read as written (8 of 8 each time);
+- each new shape, from three sentences, reads three sentences the lesson never had;
+- a fresh process reads all of it the same way;
+- teaching again learns nothing and moves no belief (0.99696 stays 0.99696);
+- the contradiction dents the belief to 0.970.
+
+Main untouched throughout (290,096 rows).
+
+### Fixed
+- **The reply crashed on a question with two answers.** `Conversation.say` used `named` for the names it speaks with
+  and for the names one answer lists. Now `listed`.
+- **"Who owns the wug?" was never answered.** `asked` skipped any question whose unknown was the subject. It now
+  answers from the facts naming the thing as their object.
+- **A fact held both ways was answered by whichever came first.** The belief now decides, on all three routes:
+  - the direct lookup (`asked`);
+  - the reasoner's premises (`_held_premises`);
+  - the graph walk (`concept_graph_reasoning._as_believed`), where a denial always refuted.
+- **"I hold nothing for big. Tell me and I will keep it."** A question about a held thing is answered "I do not know
+  whether ..." though a word in it names no held concept.
+- **"Zanthes", where the lesson taught "Zanths".** Where the person named a thing, the sayer kept only that very word
+  and wrote its plural by learned endings (-h becomes -hes). A taught shape of that word is kept now.
+
+Targeted tests: conversation 17/17, derived reading 93/93.
+
+### Then fixed, the same day (the teammate: nothing found is left open)
+- **"I'll run a more targeted search," said where nothing runs one.** A word no concept holds registers no gap
+  (`_register_domain_gap` registers held things only), so both replies now state the gap and promise nothing.
+- **The reasoner marked an empty analogy verified.** Induction and analogy decided by word overlap. The bridge's own
+  notes already said both were "NOT fact-yielding", yet the kinds route verified every kind.
+  - Now only a kind that yields facts verifies (`_FACT_YIELDING_KINDS`: deductive, logical, causal).
+  - Induction and analogy are rebuilt over the premises' structure (`_held_facts`: one relation between two named
+    things; the conversation's held relations now carry it):
+    - induction proposes of a kind what every instance holds ("robin" and "sparrow" both fly: perhaps every bird);
+    - analogy proposes of a thing what a like thing holds ("robin" and "wug" are birds, robin flies: perhaps the wug).
+  - Both are unverified, and propose nothing denied.
+- **One relation, two spellings.** `memory_agent.link_concepts`, the one writer of `concept_relations`, writes every
+  relation as the ingress does, with spaces; every reader already took either.
+- **"Is a morv fast?" could not be said as not known.** "fast" was held a PLURAL. It stands in the wordless phrase
+  "?slot0 ?slot1" beside "runs" and "climbed", which make that slot take a shape, so every word there was counted a
+  plural (the merge in `GENERALIZING_BY_KIND.md` §4.4). In a wordless phrase, a word written exactly as its name is no
+  plural for standing there; in a sentence's frame it still is ("Fish are animals.", "Geese", "tongs"). A first rule,
+  a plural only where shaped or counted, broke irregular and plural-only nouns, and two reader tests; reverted.
+  - "I do not know whether the morv is fast." Derived reading 93/93.
+- **Question forms of a shape learned as a statement.** No lesson taught them: none of english_01-30's 2,636
+  sentences asks "Where does ...?", "Who does ... belong to?" or "Where is ... kept?". `english_31` teaches 14 such
+  questions beside the sentences they ask about; QUESTION-FORMS-01 measures them on new words, and whether they carry
+  to verbs no lesson asks about.
+
+Tests: conversation 17/17, derived reading 93/93, reasoning (capability severance, reason-about, abduction) 28/28.
+
+## 2026-10-04 (2) — Questions about what happens and what happened; happenings held as events; the sayer composes
+
+### Why
+The fresh lessons left one thing unanswered on every lesson: the question forms of shapes learned as statements
+("Where is a quib kept?", "Where does a voth sleep?"). No lesson taught such questions: none of english_01-30's
+2,636 sentences asks "Where does ...?", "Who does ... belong to?" or "Where is ... kept?".
+
+### Measured
+| Run | Checks | What it showed |
+|---|---|---|
+| QUESTION-FORMS-01, first | 9/9 | english_31's questions, beside the sentences they ask about, are read and answered of new words. Shapes no lesson asks about: 0 of 3, measured. Its meanings dropped the verb ("Tom lives in the city." was only located_in(tom, city)), so a verb was no slot and each verb's question was learned alone |
+| QUESTION-FORMS-02, first | 7/16 | happenings held as events; every question read as asked; 9 answered by a memory recited |
+| QUESTION-FORMS-02, second | **16/16** | after the two fixes below |
+| QUESTION-FORMS-02, third | **16/16** | after the sayer's other sentences were fixed |
+| FRESH-LESSON-03, second | 31/32, invalid | taught english_31 too, which says its two new shapes as events; two passes were recall |
+| FRESH-LESSON-03, third | 30/32 | with the 30 lessons it was frozen with, as its first run: everything but the two question forms no lesson of the 30 teaches |
+
+Main untouched throughout (290,096 rows).
+
+### Decided (the teammate)
+A happening a lesson tells of is held as one event of its verb's kind, named from its telling (`teaching.told_events`):
+"The kelt chased the blip." is `chase_838bdc70`, instance of `chase`, done by `kelt`, done to `blip`. english_31 was
+rewritten to say its happenings so, as english_14 does. `docs/TEACHING.md` §12a.
+
+### Built and fixed
+- **Questions about events are answered from the events held** (`Conversation._asked_of_events`): an event holding
+  everything a question names answers it, said as the telling with the unknowns filled in.
+- **The past was asked of the event.** A question's time was bound to the clock and required of the event; when an
+  event happened is not held. The situation is left out of what the event must hold and kept in the answer: "What
+  did the kelt chase?" is "The kelt chased the blip.".
+- **The sayer could not say what the reader reads.** "The blip rests in the bag." is read as a frame with a phrase in
+  one slot ("The ?slot0 ?slot1." and "?slot0 in the ?slot1"); the sayer said only frames with a word in every slot.
+  It now composes as the reader does (`derived_reader._compositions`). The view indexes frames and phrases by the
+  kinds of fact they state: no cost where nothing composes, 1.6 ms where something does.
+- **The sayer's other sentences**, traced below the first, four faults:
+  - a phrase said where only reading would suppose it ("Tom Some of the lives in the city."): an unlinked phrase is
+    said only where it may be read (`_alike`), stood beside the slot's own (`stood_beside`), with its first word
+    written as theirs ("The kelt does chased the blip.");
+  - a doing held as a plural: the use model counted every filler of a slot taking a shape a plural, "kicked" and
+    "chases" among them, and "The kelt chases the blip." was said of the past. A slot naming a kind of happening
+    (`_names_a_doing`) gives no plural (`GENERALIZING_BY_KIND.md` §4);
+  - a word said in another shape than its slot's, where none of its kind was in the slot's shape;
+  - a word written as its name where the slot's own are written otherwise ("The fip kick trel.", beside "drank" and
+    "ate").
+- **The fresh-lesson runner** taught every lesson file, english_31 among them, which FRESH-LESSON-01 to -03 were not
+  frozen with; it teaches their 30 now. And a memory recited is no answer there either.
+
+Tests: derived reading, conversation and the event test, 111/111.
+
+### Noted
+- The meanings hold no difference between "a city" and "the city", so an answer may say either: asked "Where does a
+  snell come from?", taught "A snell comes from a city.", Lyric said "A snell comes from the city.".
+
+## 2026-10-04 (3) — Capabilities: the old discovery archived, primitives, the lift, standing
+
+### Why
+"Capability" meant seven unrelated things, the main one an LLM-era label on a tool chosen by about 600 regexes over a
+request's words, and nothing gated on experience. The owner's model: capabilities are a faculty of Lyric, they only
+EMERGE from experience, tools are the means that perform primitives, a capability unlocks for the world on
+reliability (not on how many people used it) and for a person only after the world, and a standing can be taken
+back. Plan: `~/.claude/plans/i-m-not-sure-what-fuzzy-conway.md`.
+
+### Built
+- **Archived** (`archive/superseded_capability_discovery_2026-10-04`, local; commit `5cf57463`): capability
+  profiles, tool discovery and the registry's selection section, the tool-selection learners, the coordinator's
+  capability timer, `core/capability.py` (its defect guard moved to `core/structural_defects.py`),
+  `CapabilityEvidence`, the acting-task binding. The 225-entry enum is `Primitive` in the tool registry; 812 unread
+  declaration fields and the regex inference removed; 250 tools declare exactly what they did, the 79 AgentSO
+  connector tools `HTTP_REQUEST`. The ingestion form `capability` is `tool`.
+- **A first observation counts once**, in both belief stores (MEMORY_AGENT_MAP §10.8).
+- **The lift** (`core/memory/lift.py`, `MemoryAgent._lift`): methods from tasks of the same shape in different
+  pursuits, the residue test, method memories, each counted outcome one witness (§10.8).
+- **The capabilities faculty** (`core/capabilities.py`, `coord.capabilities`): world and person standing, dated
+  crossings (the world's on the method, a person's in their own context), `may_act_for`, `discover`.
+
+### Measured (sandbox)
+Lift through the memory agent 18/18; standing 24/24 (learning → unlocked at four consistent outcomes → withdrawn
+after failures, for the world and for a person; a person's own method demonstrated, never unlocked; the live
+disposition sends an unlocked act back to the person; the same standings in a fresh process). Targeted tests 12/12
+and 7/7; TOOLS-EXTERNAL-01 27/27; SELF-PARTITION-01 23/23; LEARNED-WORK-01 2/2. CANARY-01 35/49 and SEPARATION-01
+29/33, both failing only where they fail without these changes (§10.8).
+
+### Noted
+- Lyric's per-experience reward has no intrinsic part on the live path: appraisal is fed worked-or-not per tool run;
+  `ExperienceEvaluator` (what an experience was worth to the drives) and `log_intrinsic_reward` have no callers.
+- Mood is not a term of an outcome's valence (`felt_valence` = valence + people's reward, at most `PEOPLE_SHARE`); it
+  colours decisions through the arbiter.
+- Nothing yet applies a capability deliberately to new work; a capability is recognised when an experience matches it.
+
+### Later the same day (owner's decisions)
+- **Reward wired, the whole `ExperienceEvaluator`** (his choice, after the made-up parts were laid out: the
+  outcome-quality step function, the second constitutional score with 0.80/0.85/0.90 defaults, the 0.4/0.3/0.3 health
+  weights, the extrinsic-only fallback). `_evaluate_outcome` runs it on every finished task; appraisal takes its
+  outcome quality and intrinsic reward; the task keeps the reward (the experience's own valence, `last_appraised`,
+  lifted by people's reward). Measured: a task that worked 0.50 (quality 0.75, intrinsic 0.50 from competence,
+  novelty, autonomy; curiosity skipped and named), one that failed -0.35. A method's instances keep their reward; a
+  person's record keeps the sum of theirs; the score reports standing and reward side by side.
+- **The operating verdict is every operation's**; only the domain's operating record stays domain-only. It was
+  computed only for work in a named domain, so a person's declared steps, which name none, never counted.
+- **A task's duration is measured around the work.** The task carried no start (the queue keeps it on its own
+  record), so every task read 0 s, in the evaluation and in the adaptive-type credit.
+- **A person's own method unlocks on their own standing** (his call), and is used for that person only.
+- Checks: reward 7/7, standing 32/32, CREDIT-01 26/26.
+
+## 2026-10-04 (4) — Capabilities: each act waits for the person; CAPABILITY-EMERGE-01
+
+### Built
+- **The gate.** Before a task's declared steps run, `_execute_declared_tools` asks the capabilities faculty which
+  method the plan is an instance of (`Capabilities.recognise`). Before each act it asks `may_act_for`, with
+  appraisal's disposition read at that moment.
+  - Not offered: the work is refused.
+  - Supervised: the act waits. The run so far is kept on the task (`capability_run`), and the result says what
+    waits (`awaiting_person`). `execute_task` and `_execute_operation` pass that result up without telling the
+    plan or reconciling the intent.
+  - `_wait_for_person` holds the job (`QueueAuthority.hold_for_person`) and asks once for that act
+    (`speak_to`, why `confirm`). The question reads: `For "Help me.": may I run read_file on <file>?`.
+  - When the run ends it is cleared, so a retry asks again for each act.
+- **The answer.** "Yes." and "No." are taught (English-01, -16) as a verdict on what was said before.
+  - `Conversation.about_my_work` reads one as `go` or `decline` when the substrate's question is the most recent
+    thing a verdict could be about (`_question_referent`). A turn records the job it asks about (`Turn.asking`).
+  - Feedback on a taught claim no longer reaches past such a question.
+  - `go_on_with` confirms that one act and puts the job back (`resume_task`, not a retry). `decline` stops the job
+    (`stop_work`).
+  - Asked what it is doing, it says the question a held job waits on (`_doing_said`). That is how a person answers
+    after a restart has emptied the conversation.
+- **The queue.** A BLOCKED job is restored as held: owed, and not drawn.
+  - The coordinator's `shutdown()` now stops the queue authority it started, which releases this instance's lease.
+  - Before this, a restarted process could not claim the work it owed until the 120 s lease ran out. The first
+    restart check failed on exactly that.
+
+### Measured (sandbox)
+- Scratch check of the mechanics: 26/26, of which 8 ran in a fresh process after a real restart.
+- **CAPABILITY-EMERGE-01: 45/46** (`20261005T024318Z`), sections A to I all passing:
+  - one experience lifts nothing; two people's work becomes one world method with nothing of theirs in it;
+  - ten people with nine failures: 0.03, learning; four people who all succeeded: 0.86, unlocked;
+  - demonstrated, then unlocked, then withdrawn, for the world and for a person;
+  - the score reported in its two parts;
+  - each act of Ben's job waited for his "Yes.", one act per go-ahead, and "No." stopped a second job;
+  - unasked, not offered; the substrate's own work and Ana's unlocked work ran with no question;
+  - a confirmed act that climbs out of its folder was still refused under Law 5;
+  - after a restart the job was held, not asked again, said as its question, and finished on "Yes.";
+  - it was Ben's first counted outcome on the method.
+- **Re-run on the changed code:** WORK-TALK-01 21/21 (`20261005T034248Z`); MESSAGE-01 17/17 (`20261005T034336Z`).
+
+### Found: a repair that did not revive the frame it built on
+- **What failed.** English-21 refused "You can open the box." (`does not read after phrase_in_slot`). It does so on
+  an emptied sandbox too: FRESH-LESSON-01 29/32 (`20261005T025223Z`). Two of those three failures were already
+  failing on 10-04 (the never-taught question shapes); the refusal is new.
+  - With only today's first-observation change reverted, english_01 to 21 teach with nothing refused.
+- **The trace.**
+  1. `'You can ?slot0.'` is learned from "You can go." (one observation for: 0.945).
+  2. "You may go." reads two ways, and the new `'You may ?slot0.'` is chosen. `'You can ?slot0.'` is observed
+     against as the losing competitor (lateral inhibition, by design).
+  3. Between the two observations its belief decayed slightly toward even (temporal decay), so the later evidence
+     against weighs a little more. It stands at 0.49999453569812863, read from the store. The reader keeps a
+     construction only from 0.5 (`COUNTS_FROM`), so it is no longer believed. That is right by the evidence.
+  4. "You can open the box." reads through the believed `'You may ?slot0.'` ("can" stands for its "may"), and
+     `phrase_in_slot` writes the frame as the sentence has it: `'You can ?slot0.'`, held and no longer believed.
+     It dropped a held frame before `_repair` (`new_frame = () if frame.key in view else (frame,)`). `_repair` is
+     where a held construction the pair supports again is revived, so the frame was never revived and the sentence
+     never read. `item_based_lexical` dropped held frames the same way.
+- **Why the old kernel hid it.** It counted a first observation twice (0.997), so one lost competition left the
+  construction near 0.95, still believed, and no repair ever met a frame needing revival.
+- **A first finding corrected.** Computed without decay, one for and one against gives 0.4999999999999997, and I first
+  put the refusal down to rounding. The stored value (5.5e-6 under even, not 3e-16) shows it is decay. Exact
+  log-odds would not have changed it, and the belief store was not changed.
+- **Fixed** (`core/semantics/derived_reader.py`): both repairs hand the frame as written to `_repair`, which revives
+  it when it is held and no longer believed; `phrase_in_slot` no longer gives up on a pair whose only need is that
+  revival. FRESH-LESSON-01 30/32 (`20261005T120427Z`): all 30 lessons taught, none refused; the two failures are the
+  never-taught question shapes, as on 10-04.
+  CAPABILITY-EMERGE-01 again: 45/45 (`20261005T121845Z`).
+
+### Noted
+- **The main store is empty.** `lyric_db` was emptied at 2026-10-04 22:10Z by another session's
+  `wipe_main_line.py` ("as the teammate asked"). Every main-store check since reads 0 rows before and 0 after.
+- **A stray "Yes."** In a conversation where nothing was asked, "Yes." is answered "Part of that is about something
+  I have no name for yet, so I did not hold it." It is not a go-ahead and is not made a job.
+- **english_24** refused one record when the lessons were taught in an unusual order (01–20, part of 21, then
+  21–30). With the repair fixed it teaches with none refused (FRESH-LESSON-01 `20261005T120427Z`).
+
+## 2026-10-05 (1) — English on the main model; Phase 1 begins: the comma and the apostrophe
+
+### Main taught
+- `lyric_db` was emptied on 2026-10-04 at 22:10Z (341 tables, 290,096 rows to 0, no backup, the teammate's word).
+- english_01–31 were taught into it 17:34–18:12Z, one lesson per `scripts/teach.py --source lesson` run, in order,
+  none refused (`data/teaching_runs/main_english_01_31.log`). Each had passed in the sandbox first.
+- MAIN-ENGLISH-01, read only on main: 2,659 of 2,664 taught sentences read as taught. The five are the two faults
+  below, found the same on the sandbox, so they were in what english_01–31 taught, not in Phase 1.
+- Reading main writes the profiler's timings of the substrate's own work (`unified.performance_logs`, read back by
+  the profiler and the health monitor). Nothing main knows was written.
+
+### Phase 0
+- Long sentences with no punctuation (READ-LONG-01, the sandbox, read only): reading is bounded, growing about as the
+  square of the length; 60 words took 0.45 to 6.05 s, measured while main was being taught.
+- No run-on speech read whole at any length: with no marks, the reader takes "a robin is a bird a sparrow is a bird"
+  as one sentence and does not find where each statement ends. Finding those ends is spoken English's (Phase 9).
+- UD English EWT downloaded (`data/bulk/ud_english_ewt`, CC BY-SA 4.0): 12,544 training, 2,001 dev, 2,077 test
+  sentences.
+
+### Phase 1 (ENGLISH-01)
+- EWT's use of each mark surveyed (`experiments/ENGLISH-01/survey.py`): the comma in 4,401 sentences, the apostrophe
+  in 1,937, the colon 541, quotation marks 660, the semicolon 78. english_01–31 teach no colon, semicolon,
+  quotation mark, ellipsis or abbreviation.
+- **english_32, the comma** (44 sentences): lists of three or four, two sentences joined by "and" or "but", when it
+  happened or a "when" or "because" said first, a second name for something. Each meaning one an earlier lesson
+  teaches without the comma. First run: 44 of 44 read as taught; **never-taught sentences with the comma 0 of 18
+  before the lesson, 18 of 18 after.**
+- **english_33, the apostrophe** (48 sentences): n't, 's for is, 're, 'm, 'll, 've, and 's and s' for whose.
+
+### Two faults found and fixed
+- **Reflexives were learned as names.** "Tom helped himself." was taught through "?slot0 helped ?slot1.", held from
+  "Tom helped Rex.", with a new filler "himself" naming Tom; "Rex helped himself." made a second, naming Rex; "hurt
+  itself" was held as a hurting of the cat. A new word or phrase that names, with no word of its own for it, what
+  another place of the same sentence names points back to that place, and is not held as a name
+  (`item_based_lexical`, `phrase_in_slot`, `_points_back`). The learner then makes "?slot0 helped himself." and
+  generalizes it ("?slot0 ?slot1 himself.").
+- **english_29 wrote three "a" objects as kinds** ("Rex saw a cat.", "Tom ate an apple.", "Tom made a cake."),
+  where english_22 writes an object said with "a" as some one thing. Corrected to english_22's form; "The dog chased
+  a cat." no longer reads two ways.
+- **A phrase's word read through another said in its place supposed nothing.** "a" and "the" are said in each other's
+  place where meanings do not tell them apart, so "chased the ?slot0" read "chased a cat" for nothing and tied with
+  "The ?slot0 chased a ?slot1.". A phrase's word read so is now supposed, as a frame's is (`_Filling.said_for`).
+- **Bare plurals doing things** ("Horses run.", "Horses don't swim."): english_22 taught them only as "Dogs bark.",
+  "Cats run.", "Birds fly.", each kept as a frame of its own, since a frame keeps a word of its own. Frames of slots
+  alone from any one sentence lost "Cats sleep." and slowed reading: not kept. Fixed instead by substitution: a
+  frame differing from a held one only in its one word opens that word into a slot ("?slot0 ?slot1."), what stood in
+  the held frame's slots standing in the new one's; only substitution makes a frame of slots alone (`_repair`), and
+  such a frame takes only what stood where its fillers stood (`stood_beside`, now by concept). "Horses run.", "Cows
+  swim.", "Horses don't swim." read; "Hello there." does not; "Cats sleep." no longer does ("sleep" was only taught
+  with a place). Run-on 60 words 3.74 s in memory, from 0.93 s.
+- **Days and times read by their writing**: english_37's never-taught dates had all been taught; "October 6" read
+  as "October" plus 6. The literals reader reads clock times; a day or time is named by its writing, is no new word
+  and needs no anchor; when learning it is a filler; the sayer writes it as English does. A day without a year is
+  held as "--10-06" (ISO 8601): "10-06" read back as subtraction. english_38: times of day, the ellipsis, the slash.
+- **english_34, the colon and the semicolon** (19 sentences); **english_35, a title with a period** ("Dr. Smith";
+  rewritten once as one change at a time, with each name first said alone, when the first version kept every title
+  sentence whole); **english_36, parentheses, dashes and "!"**; **english_37, money, measures written short and
+  dates**.
+- **A new number needed a word of its construction's own** to stand by: "$" is a mark, so "Tom has $4.25." did not
+  read. A number written as a number is no guess at a name, and needs no anchor (`_anchored`).
+- ENGLISH-01, fifth run (english_32–36): 18/19; every taught sentence and every never-taught one read as written but
+  "Horses don't swim.".
+- ENGLISH-01, sixth run (english_32–37): 21/22; english_37's never-taught sentences 1 of 8 before it, 8 of 8 after;
+  english_01–31 2,664 of 2,664. Still to teach in Phase 1: quotation marks, clock times, the ellipsis, the slash.
+- ENGLISH-01, third run: 9/10, every sentence english_01–31 teach read as taught (2,664 of 2,664); the comma 18 of 18
+  and the apostrophe 15 of 16 never taught. In memory with english_34: 2,775 of 2,775 taught; colon and semicolon 8
+  of 8 never taught. Derived reading and conversation tests 110/110.
+- Main still holds what english_01–31 taught before these fixes: re-taught, the old wrong constructions would still
+  read the old sentences, so nothing would be learned anew. Fixing main means emptying it and teaching
+  english_01–34 again, which waits for the teammate's word.
+- **A word in a phrase taken as less than it says**: with "?slot0 ?slot1." learned, "Tom kicked the ball." also
+  read as a kicking at no time ("kicked" linked in "?slot0 the ?slot1" where the frame around said "before now").
+  A word in a phrase's slot that says more than its concept is supposed where the reading places what it names
+  nowhere by what the word says (`_unsaid`); a phrase proposed into a slot is judged by the word it writes first.
+- **ENGLISH-01, eighth run: 25/25.** english_32–38 all read as taught; every never-taught set read as written (the
+  apostrophe 16 of 16); english_01–31 2,664 of 2,664. Tests 165/165. Left in Phase 1: quotation marks, held as said,
+  not asserted (the teammate's decision).
+
+## 2026-10-06 (1) — Phase 1 complete; what is not told as so; main taught english_01–39
+
+### Phase 1 complete on the sandbox (ENGLISH-01)
+- **english_39, quotation marks.** What someone said is held as said, never as true (the teammate's decision,
+  2026-10-05). A quotation is set apart and read as a sentence of its own; a taught pair with one is learned as the
+  two pairs it is, counted once.
+- **Ninth run crashed** teaching english_37: remembering what "--03-12" was said of, the reader read the quotation
+  in that memory's content and took the day as a kind; writing the words back made it "-03-12", a number, and the
+  meaning raised. A day or a time is now refused as a kind or a quality, as a number is.
+- **Tenth run: 28/28.** Every Phase 1 lesson read as taught, every never-taught set as written, english_01–31
+  2,664 of 2,664.
+
+### What a sentence does not tell as so (the teammate's decision, 2026-10-05)
+- "Tom said that the dog barked." held the barking as so, as the quotation no longer did; so did "Tom asked if the
+  dog barked.", "Tom thinks that ...", "Tom wants to swim.", "Tom tried to open the door.", "Tom opened the door to
+  help Rex." and "The box is too big to lift.". The mark is now `MeaningFact.unasserted` (it was `said`), and
+  english_15, 18 and 20 mark 77 sentences' facts with it; "knows that", "started to", "let" and "because" tell
+  theirs as so (TEACHING.md §12b). A phrase filling a place a frame holds as not told as so is not told as so
+  either (`_composed`, as a condition's is).
+- Eleventh run of ENGLISH-01, the lessons so changed through the one teaching path: **28/28**.
+- **UNASSERTED-01** checks it where tellings are held as fact and questions answered from them. First run 7/9: "Did
+  the fip chase the kelt?", told "The fip did not chase the kelt.", and "Did the kelt chase the fip?", told it
+  might, were both answered "Yes.": the answer from the events held said yes over an event held `false` or
+  `possible`. Now an event held with a quality the question does not name is said with it, never as a yes. Every
+  answer also ended "I hold nothing for 2026-10-06T01:55:07Z.": the question's moment was looked up as a concept
+  (QUESTION-FORMS-02's runs show it too); no longer. Second run 9/9. The first run's check for "not said as
+  happened" looked only for the active voice and passed "The fip was chased by the kelt.": corrected.
+
+### Saying
+- A phrase linked in a frame's place said its first word in any shape ("Tom asked Rex to opened the door.",
+  first). A word in a phrase that says more than the meaning holds ("opened", before now) is now not said, judged
+  as reading judges it (`_unsaid`).
+- A place borrowed the shapes of places writing the same concepts otherwise ("Tom wants swims.", from "Tom says
+  that the dog ?slot3.") and of the frame's other places ("likes"); a word saying more than its concept passed as a
+  plural ("Tom wants swam."); a doubled last letter ("swimming") was no shape of the slot's. Each fixed.
+- The sayer composes a phrase inside a phrase, as reading reads one: "The fip did not chase the kelt.", taught,
+  could not be said back before. Tried only where a frame with one phrase says nothing, the inner linked where it
+  stands, and the two stating the meaning's facts once each: "did not" with "chased the" (each a "before now") said
+  "The fip did not chased the kelt.". Before hearing, a phrase of slots alone inside another said "The fip not chase
+  the kelt." and was barred; with it, what is heard decides. UNASSERTED-01's third run read the denial with "did not"
+  and "chased the", and answered it with something remembered.
+- `main_store_rows` counted a partitioned table's rows twice (the profiler's timings: 72,923 for 62,710); each row
+  is counted once now. QUESTION-FORMS-02 16/16 after the day's changes to saying.
+- Tried and not kept: letting a taught sentence preempt every generalized one (Goldberg 2006). It also took away
+  "Horses are animals." beside "A horse is an animal.", which the meanings cannot tell apart.
+- Wrong lower alternatives ("Rex kicked the ball not.", "The fip does did not chase the kelt.") and one wrong
+  first one ("Tom may opens the box."): the view kept which word follows a frame's own word, not which word follows
+  another filler; "might open" and "often opens" made one phrase "?slot0 ?slot1". **Fixed (the teammate: "fix
+  it"):** teaching keeps what was heard after each word, one memory per word (TEACHING.md §12c), and saying puts a
+  word only where a word like it was heard. A word heard only by its likeness ranks after one heard exactly and is
+  not set aside ("A lynx is an animal.", where only "Lynxes are animals." was taught); "Tom owns a two dollars." is
+  still said, last, "a" having been heard before "million", "thousand" and "half". With hearing, a phrase of slots
+  alone may hold another ("The kelt might chase the fip.", said back). Tests 191/191.
+
+### Reading
+- "Fosks are heavy." read two ways that suppose the same: as written, and with "are" read as the "is" of "?slot0
+  is ?slot1.". Of readings the listener cannot otherwise tell apart, the one reading each word as itself is taken.
+
+### Main taught english_01–39
+- `lyric_db` emptied at 01:36Z (68,187 rows to 0, no backup, the teammate's word: after Phase 1), then
+  english_01–39 taught 01:36–02:06Z, none refused (`data/teaching_runs/main_english_01_39.log`).
+- MAIN-ENGLISH-01, second and third runs: **11/11**. 2,879 of 2,879 taught sentences read as taught; every Phase 1
+  never-taught set read as written; the fresh lessons' 24 sentences 21 of 24 (three new names held as written,
+  "Nella", where those lessons name theirs "nella"); nothing written to what main knows.
+
+## 2026-10-06 (2) — Hearing on the sandbox; the two words before; answers as told
+
+### Runs with hearing
+- ENGLISH-01, twelfth run: **28/28** with the learner hearing and remembering each sentence. Pairs not heard before
+  per lesson (english_35 15, 36 0, 37 31, 38 15, 39 1) match counting the lessons' own words: english_36's
+  sentences use only pairs earlier lessons had.
+- QUESTION-FORMS-02: **16/16** twice (with hearing; with the changes below), every answer as before.
+
+### What UNASSERTED-01 showed
+- Fifth run, 10/10 by its checks, three answers wrong in ways the checks do not look for:
+  - "The fip did not chased the kelt.": in the sandbox's store the denial was read with "did not ?slot0" holding
+    a phrase whose fillers say a doing before now, and "chase" linked there; said back, the phrase's shape kept
+    "chased". One word before could not tell it: "opened" was heard after "not" in "has not opened". Hearing now
+    keeps what followed each two words (one memory per word still), a word after two of a construction's own words
+    is held against them, and a linked word heard right there is said before one in the slot's shape. A test
+    rebuilds the store's shape in memory and fails on the code before (it said "did not chased" second).
+  - "What did the kelt chase?" led with "The kelt might chase the fip.": an event that answers as asked is now the
+    answer, one told with another quality only where none does.
+  - "Did the blip run?" recited "A blip is an animal.", recall's first claim; the claim naming most of what was
+    asked is recited now ("The kelt said that the blip ran.").
+- Sixth run, 10/10, one answer wrong: "The kelt did might chase the fip.", the possible chase said at the time
+  asked, the only sentence in that attempt. The answerer now takes a sentence with every word where words like it
+  were heard, at the time asked or at none, before any other (`say(heard=True)`).
+- Tests (derived reading, conversation, written mathematics, relations): 192/192 after the first two fixes.
+- Seventh run, **10/10**, every answer as told: "The fip did not chase the kelt.", "The kelt might chase the fip.",
+  "I remember: The kelt said that the blip ran.", "The kelt chased the blip.". Tests 192/192.
+- ENGLISH-01, thirteenth run: **28/28** with the two words before remembered; Phase 1 passes on the sandbox with
+  every change of the day. Main still holds english_01–39 as taught at 02:06Z, before hearing: what it says is
+  not yet held against what it heard until it is taught again.
+
+### Main taught again, with hearing
+- The teammate's word ("Empty and re-teach"): `lyric_db` and the three production databases emptied at 15:39Z
+  (62,710 rows; beliefs, concepts, memories, every table), then english_01–39 taught 15:39–16:20Z, none refused
+  (`data/teaching_runs/main_english_01_39_heard.log`). Main holds 835 hearing memories.
+- MAIN-ENGLISH-01, fourth run: **11/11**. 2,879 of 2,879 taught sentences read as taught; every Phase 1
+  never-taught set as written; fresh 21 of 24; nothing written (53,318 rows).
+
+## 2026-10-06 (3) — What a person tells Lyric: truth, not who said it (audit and design)
+
+- Asked whether Lyric could hold a normal conversation, I described the conversation path as storing what it is told
+  as the person's context. The teammate: the test is whether a claim is TRUE, not who said it; separate facts about
+  the world from facts about the user; a user's "this is a printer" is a fact for the whole world; task failures and
+  how they were overcome belong to the world; one learning path (the learning authority), one conversation path
+  (Lyric, the coordinator); Lyric is to be given what an LLM knows.
+- Audit, every door into knowledge read in the code (SEPARATION_MAP §11.6). Nothing judges truth:
+  - a told world fact is lifted to the world when a second person tells it (`_learn_scoped_fact`);
+  - research admits one web page's "X is a Y" as world knowledge (`_research_phrase`);
+  - "that's right" moves a shared belief on the verdict sentence's own text (`learn_from_feedback`).
+
+  The split is by who, not what it is about: a person's "this is a printer" lesson, their task failures and their
+  true world facts never reach the world; demonstrations reach it with no owner; a device report's every key becomes
+  a world fact. The coordinator calls learning methods from about ten places itself.
+- Design written for review, nothing built (SEPARATION_MAP §11): Lyric hands every experience to memory; the memory
+  agent splits by aboutness (kinds and public particulars are the world's, a person's or organization's particulars
+  theirs); the learning authority's gate judges truth by evidence per source, independence, learned reliability and
+  consistency; checks PATHS-02, SPLIT-01, TRUTH-01, CANARY-01, FIFTY-01, ORG-01; five decisions for the teammate.
+
+## 2026-10-07 (1) — "The X" is a known thing
+
+- The split of §11 judges a fact by its meaning, and the lessons wrote "the X" as the kind: "The door is open." was
+  `has_property(door, open)`, 1,184 of 2,879 sentences with "the". Asked whether Lyric learns as an LLM does: it
+  does not; it learns from the meanings it is taught, so the fix is in the lessons (the teammate: "ok").
+- Convention (TEACHING.md §12d): "the X" is `given instance_of(?t, X)`, a thing both know, with the sentence's facts
+  said of it; kept as the kind where the sentence is about the kind ("Every bird except the penguin can fly."), said
+  of someone named ("Tom, the teacher"), or not a thing ("the same as", "the sum of"). `MeaningFact.given` is a new
+  mark beside `unasserted`.
+- `scripts/known_the.py` rewrote 1,060 sentences. The repair generalizing two pairs had dropped `unasserted`; fixed.
+  Reflexives ("The girl helped herself.") were learned as a phrase holding the girl as an unknown of its own,
+  pointing "herself" at nobody; a phrase may no longer hold an unknown its sentence names (`_tied`).
+- In memory: 2,896 of 2,896 pairs taught and read back; speaking 242/300 first (with "the"), 236/300 (without).
+  Tests 192/192 (the reading tests' expected meanings read through the same rule; the two-word hearing test now
+  builds the phrase the sandbox held). ENGLISH-01, fourteenth run, 28/28.
+- Next (SEPARATION_MAP §11.8, step 1): which known thing "the X" is. QUESTION-FORMS-02 and UNASSERTED-01 tell
+  facts about "the kelt" and wait on it; main still holds the old meaning of "the".
+
+## 2026-10-07 (2) — Which known thing "the X" is (SEPARATION_MAP §11.8, step 1)
+
+- A known thing is found, in order: the X talked of in the conversation, the X the person's context holds, the X
+  the world holds where it holds one, and, told of and found nowhere, a new X in the person's context (`printer_1`).
+  Lyric's own lessons hold "the kelt" as `kelt_1`, the one kelt they know (`teaching.known_in_lesson`).
+  `Meaning.bound` takes known things; `derived_reader.as_known` says a particular back as "the kelt".
+- A person's facts about their own particular are held in their context by the memory agent
+  (`Conversation._hold_theirs`, `ScopedContextStore.particulars_of`).
+- Found on the way, each fixed: a yes/no answered "Yes." because "`blip_1` is a blip" was taken as asked; the
+  singular kind in "Where does a fip live?" was taught nowhere once "the" was apart (english_31 teaches it now);
+  recall offered one sentence three times and its own records of word use, and a turn chose among three.
+- UNASSERTED-01 tenth run 10/10 and QUESTION-FORMS-02 16/16, every answer as told. Tests 229/229.
+
+## 2026-10-07 (3) — The gate built: Lyric hands over, memory splits, one door judges; Shared World Context composed
+
+- **Lyric hands everything to memory** (`docs/research/SEPARATION_MAP.md` §11.11). Feedback, recognition, acts
+  and their projections, percepts (senses, threat sensing, tool registry), unread sentences, lessons and task outcomes
+  each reached learning or a knowledge store from the coordinator; each now goes to a `MemoryAgent.take_in_*`. The
+  learning authority's classifier only names (`name_instance`). A task's completion belief was a world belief holding
+  the person's goal text; it is computed on the task. The learning authority wrote a person's belief in a method;
+  memory does. PATHS-02 reads it from the source: 15/15.
+- **The gate, found wanting and fixed** (TRUTH-01 18/18). One 0.9 witness carries a new belief to 0.937, past the
+  belief system's bar for settled, so one person's first word was settled and everyone after was refused: settled now
+  needs two independent witnesses. The kernel clamps each step short of certainty, so the posterior forgets how many
+  sources hold a claim: the gate and the answers decide by witness weight (each witness once, by its latest word). A
+  claim was a belief per spelling: claims are named in canonical terms. The per-person hour held only for single
+  claims: now on every path, counting claims in known words.
+- **The split** (SPLIT-01 17/17): sixteen cases frozen before the run, through memory's real intake.
+- **Shared World Context** (§11.13, the teammate's spec of 10-07): World Knowledge, Personal Context and authorized
+  Work Contexts composed per person, never stored. Work is the organization's (`org:<o>`), memories included;
+  `work_authorizations` written only by memory (front door authorizes a verified work request; `unlink_work`
+  removes); every reader composes through `MemoryAgent.shared_world_context`. ORG-01 20/20. Found by ORG-01: an
+  unverified session could claim a work context (the front door's identity falls back to the session); refused now.
+  Found by CANARY-01: a session's conversation kept a work turn's context into the next personal turn; each turn now
+  takes its context from its own request.
+- **Fixed on the way:** rule tests leaking demonstrations into each other through one test domain (re-judgement
+  refuted their rules); a stale tool ledger; a pursuit concluding lost its work context; the domain-expansion tests
+  passed while the outcome was never expanded (they read the drain's last status); CANARY-01's marker search was
+  case-sensitive and its pool reads predated pursuits; PATHS-01 still named the stores' old writers (memory is the
+  one writer since 09-27); PATHS-01 and ACTOR-IDENTITY-01 taught without warming memory's view of English, so
+  nothing read.
+- **Final runs:** PATHS-02 15/15, SPLIT-01 17/17, TRUTH-01 18/18, ORG-01 20/20, PATHS-01 24/24,
+  SYSTEM-CONVERSATION-01 34/34, ACTOR-IDENTITY-01 8/8, CANARY-01 57/59 (from 35/49 on 10-05; the two misses are
+  reasoning records never written, not leaks).
+- **Nothing regressed in English:** ENGLISH-01 28/28, QUESTION-FORMS-02 16/16, UNASSERTED-01 10/10 (each on the
+  sandbox, emptied and taught first). Tests touching the changed modules (55 files): 672 passed; of the six that
+  failed, four read English the sandbox happened to hold (they pass on an emptied sandbox) and two were the
+  domain-expansion tests above.
+- **Found, not fixed (not this build's):** `test_genericity` fails two tests on formalizing English premises it
+  never teaches, with or without English in the sandbox. The listener weighs readings only by word sense and only
+  against the world, never what the person told: "is Glint... Heron a glint... bird", unpunctuated, also reads as
+  Glint... having done a "Heron". "Please read my note." reads "read" as a kind of note. Given premises, a rule and an
+  observation, `reason_about`'s kinds of thinking settled nothing once English was taught (on 10-05 they derived
+  the cause).
+- **Open:** FIFTY-01 needs a design review (memory lifts a method only from a second occurrence); source
+  reliability waits for sources; changing the belief kernel's clamp is a decision. Main is not re-taught.
+
+## 2026-10-07 (4) — Beliefs with no cap; what Lyric overcomes is a method from the first time (FIFTY-01)
+
+The teammate, on the open items of (3): "Fix belief math, there should be no cap." "We're not re-teaching until
+FIFTY-01 is corrected." Once Lyric overcomes something while working with one person, it does not need a second
+person to use it again. Both were already decided (§11.4); listing them as waiting on a decision was the fault.
+
+- **Beliefs in log-odds, no cap.**
+  - Each observation adds `±3·quality` to the belief's log-odds (`evidence_step`), and the posterior is read from it
+    (`probability_of`). Decay shrinks the log-odds in proportion.
+  - `posterior_from_evidence`, `clamp_posterior` and the floor are gone, so ten witnesses hold a claim more firmly
+    than five.
+  - `unified.beliefs` and a person's context keep `log_odds`. Propagation, contradiction repair and abstraction
+    decay move the log-odds too. A task's completion belief keeps `completion_log_odds`.
+  - Belief-kernel tests 39/39; pool and capability tests 14/14.
+- **The lift from the first task that worked.**
+  - Memory lifted a method only from a second task of the same shape in another pursuit. Now the first task of a
+    shape whose counted outcome worked is lifted at once into the world's method (`lift.lift_one`).
+  - It keeps as constants only what is no one's particular (`_no_ones`). One part is the tools' own words: a truth
+    value, or a value the tool declares the argument takes (`lift.vocabulary`, from the tool registry). The other is
+    what the world holds a thing under. A path, a text or a name is a variable.
+  - Tasks of the shape that waited are its witnesses where they are instances.
+  - Later tasks that worked widen it; a failure that is not an instance says nothing of it.
+  - A person's own method still forms beside the world's from two of their tasks sharing what only they supplied.
+- **The fix, used before acting.**
+  - What a task changed to overcome a failure (`causal_rules`) is kept on the method (`fixes`), where it is no one's.
+  - `Capabilities.known_fix` gives a plan the fix before its first attempt, when the fix makes the plan an instance
+    of the method.
+  - Recognition takes a person's own method before the world's.
+- **Recall served only Lyric.** `_recall_similar_task_experience` searched without the task's person, so a person's
+  task recalled only Lyric's own experience. It now recalls what their Shared World Context holds.
+- **Kept out of the world's method.**
+  - A fix value drawn from a person's own earlier task: the first design would have kept any value they had not
+    typed in this request.
+  - A value only because the person did not say it: a path they never typed is still theirs.
+- **FIFTY-01 16/16.**
+  - Ana's first note: a world method `WRITE_FILE(?V0, Ftrue, ?V1)`, nothing of hers.
+  - Her second, overcome by `create_dirs` true: the method keeps the fix.
+  - Her third, and Ben's, through the front door: each plan was given the fix before any act, recognised as the
+    world's method, and held for its person's go-ahead. Neither met the failure.
+  - Her own work was recalled for her; nothing of hers was recalled for him.
+- **CAPABILITY-EMERGE-01** was written to the old rule ("one experience lifts nothing"); section A now checks the
+  first-success lift and the person's own method beside the world's: 43/43.
+- **Re-run on the uncapped kernel:** PATHS-02 15/15, TRUTH-01 18/18, SPLIT-01 17/17, ORG-01 20/20, INSTANCES-01
+  11/11. Main is not re-taught.
+- **Found:** a person's declared write has no account under Law 2, so FIFTY-01's first run was refused at every
+  write ("no account of why"). Ana's two tasks are therefore recorded through the coordinator's own recorder. The
+  constitution judging the intention of a request Lyric took on is what would close it, and comes after M3 and
+  reasoning to a belief in the teammate's order. Read-class tools never fail on a boolean or a declared choice, so
+  no read could stand in.
+
+## 2026-10-07 (5) — How much real English Lyric reads (measured, nothing taught)
+
+Asked by the teammate: does Lyric understand natural language, and how much does it know.
+- **What main holds** (lyric_db, read only):
+  - 10,355 memories, from english_01–39 (2,882 lesson sentences with their meanings);
+  - 7,093 learned patterns: 861 sentence patterns with slots, 191 phrases, 58 fixed phrases, 897 word entries
+    (611 distinct words), 5,086 links of a word to a slot;
+  - 1,452 concepts and 2,450 links between them. No WordNet, ConceptNet or other world knowledge.
+  - The sandbox holds the same lessons.
+- **Real people's sentences.** 150 sentences, drawn at random from oasst1's held-out English messages written by
+  people (3–20 words each), were read on the sandbox by the one reader (`data/snapshots/read_probe_oasst1_20261007.json`).
+  - **20 of 150 found a reading; about 8 of those 20 are right** by reading them: "Are you ready?", "Bob has two
+    sons.", "That is great.", "I'll try it.", "What's the current date?", "All commands are slash commands.".
+  - Wrong readings were taken with the same confidence as right ones: "Hunter is Peter's daughter." was read as
+    owned by Hunter, "That's a good one!" as a count, an idiom literally.
+  - **Words:** 59.1% of the word tokens in those messages, and 444 of their 2,802 distinct words, are words the
+    lessons used.
+  - Reading is fast (0.48 s at most).
+- **Where this sits:** Phase 1 of the nine in `ENGLISH_CURRICULUM.md` is done (the writing system). Not yet run:
+  - every word (Phase 2);
+  - the basic shapes beyond the lessons (Phase 3);
+  - real written English taught from EWT's annotation (Phase 4);
+  - conversation, varieties, paragraphs, advanced and spoken English (Phases 5–9).
+
+## 2026-10-07 (6) — Misreadings of words never met; errors a teaching run hid
+
+The teammate, after (5): fix it, and no teaching run moves on with an error in it. Main was backed up
+(`backups/lyric_db_before_wordnet_20261007.dump`) and NOT taught.
+
+- **Why real sentences were misread.** 12 of the 20 probe sentences that read were read wrong, each built on words
+  never met taken as new names and given any role. "I am currently using Windows." became a count of "currently
+  using". The reader now lets a word never met stand as itself only in a role its writing allows
+  (`derived_reader._role_of_term`, `_may_stand_new`, `_new_stands`):
+  - never a count, an operand of arithmetic, or a degree's word (closed classes: "currently using", "Another" as an
+    addend);
+  - a doing: one word, written as the slot's own doings are ("Repeating" where "Open" stands, "column" where
+    "chased" stands, are not);
+  - a quality or a kind: not written as a name ("Peter" is no kind, "Annas" no quality);
+  - what something is `named`, or a slot that has held only names (`takes_names`): written as a name, every word
+    capitalized;
+  - a happening said as "the X" is one the listener knows, so a word never met is not one ("the dust");
+  - a word undone by a shape to a structure word is no shape of it.
+- **On the probe** (150 held-out oasst1 sentences): the 10 wrong readings of the first sample went to 2 (an idiom
+  read literally, and a known-word proposal in "The right column is the word reversed."), every right reading kept
+  ("Are you ready?", "I'll try it.", "All commands are slash commands."). A fresh sample of 150: 8 distinct
+  sentences read, 5 right, 2 partly right, 1 wrong.
+- **Tried and taken back** (each broke a designed capability its test names):
+  - a mark inside a construction never missing: speech has no commas ("if the valve is closed the tank overflows");
+  - a wordless phrase's new word only beside a taught filler: "This is my glorpy ball." reads by design.
+- **Tests:** reader, conversation, mathematics, statements 197/197; with the pool, capabilities and belief indexes
+  137/137. **ENGLISH-01 28/28** (`20261007T220257Z`): english_01–39 taught on an emptied sandbox, none refused,
+  2,667 of 2,667 earlier sentences still read as taught.
+- **Errors a run hid, now raised** (each had turned a failure into a result):
+  - the teaching pass: a failed warm of word classes (typed every copula ISA), unreadable classes, an unread
+    sentence not recorded, a failed flush (`teaching.py`); `scripts/teach.py` suppressed its flush, warm and
+    shutdown;
+  - the learner: a fact the store could not take counted as "refused", ledger writes dropped, a fan-out that did
+    not run, the stated word classes unread;
+  - the ingress: the kind-cycle guard that could not run admitted the edge unchecked; a failed contradiction
+    check returned "no contradiction"; concept ingestion, the episode, aliases and held conditionals failing were
+    each a "refusal" or a log line;
+  - concept ingestion: a registry that could not be read picked the first domain proposed; memberships skipped;
+  - the memory store: every read returned [] or None on a database error, every write False, a row that would
+    not parse was dropped from every search (`postgres_storage.py`, 17 handlers); `store_memory` read a failed write
+    as declined;
+  - memory's what-was-said and what-was-heard writes skipped a failure;
+  - the belief store's load started empty on any error, and skipped a row it could not read.
+- **Faults found in the run's own log** (ENGLISH-01 passed while these happened):
+  - **every construction read through retrieval**: under teaching it ran 62 s, timed out and came back empty, so
+    the language view could have warmed with no English. Now one indexed query by tag (`_construction_rows`, a GIN
+    index on tags), 43 ms;
+  - **shutdown**: the queue's stop left scheduled runs and owed jobs going, and they met the database pool closing
+    (10 failed queries, each failure unrecordable). They are cancelled and awaited;
+  - **a crash from the log-odds change**: the batch decay still named `decayed_prob`;
+  - **a task nothing could do was credited "wrong"** to English competence; marked `operated: False`, it earns no
+    credit. A task's own failure and a failed evaluation are WARNING, not ERROR (an ERROR is a system failure);
+  - **tool signatures offered as beliefs** with no memory, refused at the store about 8,000 times a boot; no
+    longer offered, and counted (`beliefs_with_no_memory`);
+  - **sandbox runs posted notifications to the live gateway** (401 each time); a process with no NOTIFY_TOKEN
+    publishes nothing, said once;
+  - two standing conditions of the host said every cycle, now once.
+- **Known, not errors:** construction beliefs reverse during teaching as readings compete (one witness at 0.945,
+  one loss to another reading back to 0.5); the meta-learner's low average confidence is over the strategies that
+  were tried and failed.
+- **Second run** (`ENGLISH-01` 28/28, `20261007T224727Z`): **no ERROR in the log.** Its warnings led to:
+  - **the reactions swept once per event**: a lesson announces an admission for about every second fact (english_01:
+    112), and each ran a full domain-discovery sweep and an expansion scan (162 expansions of one unexpandable
+    English outcome in six seconds). All of WordNet would have been some hundred thousand sweeps: the stalls of
+    10-01's run. The drains now settle `_COALESCE_SETTLE_S` (2 s) between passes, so a burst is one more sweep; the
+    bound is said as what it is (events kept arriving), not "a possible cascade";
+  - **the experience evaluator re-judged the task's type as an act** ("optimization would execute with no
+    account"), wrote that refusal into the constitution's audit trail, and assumed alignment numbers where none
+    could be scored. It reads the judgement the work's acts were given;
+  - **a hypothesis was a belief before it was tested**: Lyric's own refused at the store for naming no memory, a
+    person's stood at 0.82 from one invented supporting observation; evidence found the belief by scanning every
+    belief's text, so a person's never moved. Now the evidence is remembered and moves its owner's belief, about
+    that memory (`collect_evidence`); `test_reasoning_owner` checked the old behaviour and now checks ownership
+    (5/5).
+
+## 2026-10-08 (1) — All of WordNet into the sandbox: the run's errors, one by one
+
+The run (`scripts/teach.py --source wordnet --domain english`, sandbox; main untouched) is taught to its end
+before main, and each error is fixed at its cause before it is started again.
+- **Error 1, the harvest:** WordNet's `november_5.n.01`, written only as "November 5", was named "november 5", read
+  as the 5th of November, and a date is no kind: "Guy Fawkes Day is a november 5" was refused and the pass stopped.
+  A name a date or a time is written in is now named apart by what it is a kind of, as any taken name is ("day
+  november 5", "revolutionary organization 17 november"). The whole harvest then built clean: 635,806 records in
+  60 s (434,130 definition links, 146,134 kinds, 21,200 similar, 12,183 members, 8,873 parts, 8,359 instances).
+- **Word classes:** 75,834 taught at about 8 a second (one memory each); my background limit stopped the first
+  attempt at 59,134 (no error), and the teammate started it again; the reader then held 75,915 words.
+- **The run went silent for 77 minutes:** after the word classes, every fact with a meaning (157,786) is said in
+  English (`_said`), synchronously, with nothing else let run and no progress. It now gives way every 100 facts and
+  says where it is every 1,000; word classes report every 1,000 too (`scripts/watch_teaching.sh` shows a run live).
+- **Error 2, saying:** `_said_fillers` read `.value` off every filler of a slot, and a slot's fillers include phrases
+  (`fillers()` returns both; its docstring said words only). Fixed there and in `takes_names`; the docstring says
+  what it returns. All 157,786 facts are then said offline, every error collected, before the run starts again.
+
+## 2026-10-08 (2) — Teaching slowed with every sentence: each belief's evidence rewritten whole
+
+The WordNet run's patterns phase went from about 22 s per thousand sentences (1 to 25,000, the sentences the
+stopped run had already learned) to 4 to 13 minutes per thousand from 26,000, and slower each hour.
+- **Measured, not inferred:** the run held one core at 94% with its database idle; a native sample (`sample`) put
+  about 90% of its working time in one regex substitution. Path: `observe` → `observe_claim` → `_save_belief` →
+  `MemoryAgent.hold_belief` → `_KeylessWrites` → `secrets.redact`, over the belief's whole evidence list as JSON.
+  The frame most WordNet sentences read with, "A ?slot0 is a ?slot1.", held 16,310 observations (2,672,810
+  characters); one redaction of it took 0.77 s (the pattern: one alternation of 267 key forms). Ruled out by
+  measurement: reading a sentence (20–70 ms at 93,316 constructions), the inventory's cache rebuilds (4–9 ms), the
+  witness scans, the database.
+- **The cause:** a belief kept its evidence as one JSON list on its row, written again whole at every observation,
+  so each write cost what everything observed before it cost, and the redaction made each rewrite most of a second.
+- **Fixed:** each observation is a row of its own, `unified.belief_evidence` (seq, belief_id, supports, entry),
+  added in the same statement as the belief's versioned update (`hold_belief`), so a belief and its new evidence are
+  stored together or not at all; a deleted belief takes its rows (`ON DELETE CASCADE`). The lists still on rows move
+  to rows once, in one statement, at the first start (`settle_belief_evidence`; not in a frozen release). Reading a
+  belief's witnesses, witness counts and uses no longer reads every entry (`_EvidenceIndex`, kept as entries arrive).
+  The keys' pattern is a tree of the forms' beginnings: the same matches, 6.7× faster (0.80 s → 0.12 s on that text).
+- **Checked on a copy of the sandbox's beliefs** (`lyric_beliefs_check`, dropped after): 222,939 entries moved,
+  every belief's evidence in its rows in its order; every belief reloads with exactly its evidence; the index gives
+  the reading-every-entry answers for all 97,918 beliefs; a write of that frame now 2–19 ms; two instances on one
+  belief both kept (INSTANCES-01 11/11); a re-taught fact across real restarts moves nothing, a new witness does
+  (IDEMPOTENT-01); the reader's tests and the belief index tests 101/101; `test_secrets_pattern` 3/3.
+- **Found on the way and fixed:** `postgres_schemas.sql` defined hypotheses, experiments and evidence twice, so a
+  fresh database stopped at `idx_hypotheses_domain`; the second copy (never applied) is gone, the first keeps the
+  indexes the stores have. `_claims_this_hour` read the knowledge ledger before anything had made its table (a fresh
+  store failed there); it asks the ledger now (`claims_put_in`). Still open: the schema file does not make a store
+  the system can boot on (`unified.concept_relations` and more are made only by the code that uses them).
+- **Removed:** `scripts/repair_double_counted_beliefs.py`, a one-time repair of the lists, which are gone.
+
+## 2026-10-08 (3) — The loop starved, a filter read as harm, the idle tiers gone, perception kept once, operating modes
+
+- **A teaching pass starved Lyric's own loop.** Saying WordNet's facts gave way every hundred facts, three to six
+  seconds of reading each time, and a give-way is one step for everything else: every query timed out at 60 s and
+  every scheduled job at 300 s (06:37–06:41). Every long pass on the loop now gives way by time, the loop's own
+  slow-callback measure (`core/utils/give_way.py`, `GiveWay`): saying, reading each sentence taught, observing each
+  usage count and each belief fanned out, and the domain sweeps. A ticker on the same loop waited at most 357 ms.
+- **"Constitutional drift" was a filter's decision read as harm.** The memory filter declining one memory of two
+  graded memory 0.83 (its store and reject rates were two of six health signals), learning called that a capability
+  regression, overall health went "degraded", Law 3 read 0.00, alignment 73%, and the constitution's low alignment
+  was counted back against agents' health. A part's decisions are recorded, never graded (`_DECISION_READINGS`), and
+  the constitution's verdict is no longer an issue of agents' health (`health_monitor.py`).
+- **The idle-work tiers are removed** (his decision; reworked once teaching works): system review, knowledge
+  refresh, meta-learning, the learning phase, learning consolidation, analogy discovery and operator exploration,
+  with what only they used, and the strategy adaptation gate. Lyric's systems on the same scheduler stay as they ran:
+  the constitution's record, integrity and drift checks, self-state, motivation, epistemic affect, affect and system
+  awareness. Dead methods removed by his word: `calculate_law_compliance_scores`, `assess_quick_alignment`,
+  `computed_per_argument`, `_describe_attitude`, `_propose_directive_improvements`, `get_domain_insights`,
+  `_config_value`, and the conversation's `_about_speaker`, `beliefs_about_user`, `_resolves`, `_natural_claim`.
+  Applied 13:02 (`backups/idle_tier_removal_20261008/`); booted with 8 system tiers, no errors.
+- **The reader's shapes were found again for every sentence.** The never-met-word rules of 10-07 (`takes_names`,
+  `in_a_shape`) read `said_shapes` per sentence, and any construction added threw it away: 22 ms at 10,000 held,
+  152 ms at 53,716, and a patterns pass adding 2.3 a sentence. It is found again only when a filler counted moves it
+  (`_moves_said`): over all 61,761 held, 1,164 rebuilds instead of 61,761, 124 checks against a full rebuild, 0
+  mismatches; 99% of this run's new links stand in slots written as named, which move nothing.
+- **A perception is kept once.** A memory forming within 120 s of a perception copied its whole content: 928 MB of
+  document text in the sandbox's memories and 122 MB in main's (10,353 of main's 10,355 memories carry copies). It now
+  names the memory of perceiving and the digest (`MemoryAgent._perceived`); a perception no memory holds (a
+  recognition, an input) is kept whole. Test: `test_perception_owner.py`. The copies already stored are untouched.
+- **Operating modes.** A person's mode (observe, assist, delegate) is held by the capability faculty
+  (`Capabilities.set_operating_mode`, `unified.operating_modes`, runtime), handed over by the world like the reward
+  allowance (`world_inhabitant._operating_mode`; Tet intent `operating_mode`, one capability per mode granted by role:
+  viewer observe, operator up to assist, admin up to delegate; `world_runtime._mode_not_asked_for`; lyric-ui
+  Settings' picker, local only). `may_act_for` is bounded by it: Observe and no mode offer nothing unasked, Assist
+  always waits for a yes. Law 1 holds a person's work to the classes their mode permits whatever its arguments name
+  (it read settings only for an act naming a person), with the mode and classes, never who, handed to the laws.
+  Law 1 is STAGED (`backups/law1_operating_mode_20261008/`; the coordinator is protected): 12/12 on the staged copy;
+  modes on the sandbox 10/10; Tet 13/13. Not yet: offerings in Tet (a person who signs up alone is a viewer, so
+  Observe), Tet redeployed, and the experiments that act for a person given a mode for their people.
+
+## 2026-10-09 (1) — A boot step re-run on a half-started coordinator, a small pass that is small, and production next
+
+- **The word-class warm held the loop.** Since 10-08 it reads every taught word whole (`_rows_tagged`), and its passes
+  over them (75,833 stated classes, 76,816 taught memories, 305,729 constructions and links into the inventory, what is
+  said of and heard after each word) gave the loop no turn: at boot it held it 22 s past the coordinator's start timer,
+  and the same warm runs when every teaching pass ends with everything live. Each of those passes now gives way
+  (`GiveWay`), and the inventory is built by `add` one item at a time, as its constructor builds it. On the sandbox,
+  measured with a ticker: same view (75,915 words), the longest wait for a turn 1.8 s instead of about 22 s; what is
+  left is Python's own full collections over the process (0.8–1.6 s each), which any run this size has.
+- **A boot step was cut off by a clock and started again.** `ServiceInitializer` gave each of 14 services a fixed
+  timeout and three tries; the coordinator's 30 s ran out while the warm held the loop, and the retry ran
+  `initialize()` again on the half-started object (its planning engine, reasoning bridge and failed-work record
+  started twice). The timeouts and retries are gone, and the two on the databases' start: a start runs once, and one
+  that raises is logged with its traceback.
+- **`--small N`** (`teach.py`, `TeachingPass(small=True)`): N records, and of what the source states about its whole
+  vocabulary (word classes, usage, what words are said of, how they are said) only what concerns their words.
+  `--limit` alone still wrote all 75,834 word classes, one memory each, which is hours on a fresh store. `--limit` is
+  unchanged, so the experiments that teach a sample still do.
+- **Two relation surfaces were listed twice** ("consists of" under has_part and made_of; "belongs to" under member_of
+  and owned_by): the table kept the first and warned at every boot. The second listings are removed; both read as
+  before.
+- **The check, on a copy of production** (`pg_dump lyric_db | pg_restore lyric_check`, 15 s; dropped after):
+  `teach.py --source wordnet --domain english --small 1000`, 1,121 s, every phase to the session record. 0 errors,
+  0 tracebacks. Facts 992 admitted, 5 refused (definition links to words that name nothing: near, let, other, less);
+  2,182 word classes; 425 constructions learned, 431 linked; 892 said-of memories; usage 236 observed. Warnings left:
+  the two surfaces (fixed after the run started), three once-per-boot statements of what this host does not let it see
+  (network state needs root; network monitoring denied; five open ports with no fingerprint), and one exploration
+  task: the developmental drive chose to research what a taught frame means, typed it OPTIMIZATION, and no path
+  (grounded operator, state goal, operation) takes such work, so it ended as the honest gap, credit denied, after one
+  retry. That is in the coordinator (protected) and is not a teaching error.
+- `scripts/teach_and_watch.sh production|sandbox` names where it teaches; the watch shows that store's counts and
+  closes when the run ends. The sandbox is no longer taught: production (`lyric_db`) is.
+- **Production started (WordNet, `lyric_db`) and logged three constitutional drift alerts** (09:16, 09:46, 10:16): Law 3
+  read health "degraded", and health was graded on the whole machine's CPU, which the replay's eight workers (another
+  process) held over 70% until 10:54; components, disk and the substrate's memory were all inside their lines. The
+  19-minute check never reached the 30-minute constitution check, so it could not see this. Health now grades the
+  substrate's own CPU (its process tree as a share of the machine, `substrate_cpu_*`), as it already graded memory;
+  the machine's stays as information. Checked: the machine at 98% from other processes reads the substrate 0%,
+  healthy; the substrate's own children busy are seen. The checks at 10:46 and 11:16 were clean (93.3%; Law 1 at 66.7%
+  until the staged settings provider is applied). Laws 1 and 5 still take the machine's CPU and memory as the
+  substrate's resource pressure (`_check_constitutional_alignment`, protected): to stage with Law 1.
+- **The full replay finished:** all 635,806 records, 0 failures, 13,441 s (123,889 meanings said, 33,897 not said by
+  any taught frame).
+- **A check that runs the recurring jobs.** The 19-minute check missed the 30-minute constitution check, so the next
+  check drives `scripts/teach.py --small 400` from a harness that retunes every recurring job to 20 s through the
+  queue authority's own `schedule_recurring` (each of the 11 then ran 11–12 times, 0 errors) and logs to its own file
+  (a root handler set first makes `core.main`'s `basicConfig` add nothing, so production's log is untouched).
+- **It found one more drift alert:** health "degraded" from the `agents` component, which held `task_failure_rate`
+  1.0 over ONE finished task (an exploration typed SELF_IMPROVEMENT that no path takes). Its issue has always waited
+  for ten finished tasks, but the rate was set from the first and the evaluator graded it. Below ten it is now not
+  applicable, the counts kept as information: 1 failed of 1 grades UNKNOWN (not degraded); 9 failed of 12 grades
+  UNHEALTHY with its issue.
+- **Every module scanned for undefined names (pyflakes, core and scripts):** 43, of which 37 are quoted annotations
+  never evaluated. Live and fixed: `convergence_gate` raised a `ConvergenceStagnationError` that did not exist (its
+  own `except` caught the NameError, so stagnation was reported as "name not defined"); the quantum system's
+  annealing called `np.exp` with numpy never imported (`math.exp`). Dead and deleted (nothing imports them):
+  `core/intelligence/nlp_optimizer.py`, `core/learning/drift_monitoring/data_loaders.py`. Left for his word:
+  `core/service_configuration.py`, imported only by its own test.
+- **Production, patterns phase:** 134,178 sentences in 3 h 20 min, steady at 75–90 s a thousand (last night's run
+  slowed with every sentence); 0 errors. Three lesson constructions about frogs fell from 0.945 to ~0.49 (logged as
+  belief reversals): `learn_patterns` counts against the constructions of the readings it did not choose, and
+  WordNet's general "A ?slot0 is an ?slot1." won the frog sentence. By design; whether lesson constructions should
+  lose to a source this way is his call.
+- **Silent hours:** after the sentences, what each word is said of (10,261 memories) and what was heard after each
+  word (alphabetical, about 4 a second, one `store_memory` each) are written with no progress, so the run read as
+  stuck at 134,000/134,178. `remember_said` and `remember_heard` now report every 1,000 words, as their own phases
+  ("remembering what words are said of", "remembering what was heard after"), and the said-of phase too. Imported
+  and routed; the running pass still has the old code.
+- **Why a memory took a quarter of a second (profiled, cProfile, a 300-record batch on a copy of production):** of
+  832 s in `store_memory`, 820 s were `_readable_claim` → `read_text`: every memory's text read as English for the
+  claim it makes. (1) What was heard after a word and what a word is said of are the substrate's own notes, not
+  claims: 0 of 30,505 of them ever read to a claim; they now skip it, as patterns already did. (2) A fact admitted by
+  the ingress was read back out of its surface: right for isa (69/73 read, all the fact as admitted), WRONG for
+  definition links (34 of 202 read "oxyacetylene defined with mixture" as a past event done by oxyacetylene and a
+  mixture, a premise recall would hand back as knowledge). The ingress now hands the fact over as the claim made
+  (`claim_facts`), taken from the proposition as told: the parts shaped for the graph say "defined with" and
+  "slender_lori" for "slender loris". `related_to` states no fact. After: every new fact memory carries its admitted
+  fact exactly (isa 73/73, defined_with 202/202, all others), 0 event misreads; `store_memory` 832 s → 53 s, facts
+  756 s → 49 s, heard-after 35 s → 1.4 s; the batch 1,080 s → 252 s.
+- **18 ERROR lines in production (19:07, 19:37, 19:54) were my copies of it.** `pg_dump` locks every table; the
+  rule store ran its whole DDL (`ALTER TABLE ... ADD COLUMN IF NOT EXISTS`, which takes the exclusive lock even when
+  the column is there) before every read and write, and timed out behind the dump. `RuleStore.ensure_schema` now
+  runs once a store. My error monitor piped through `cut`, which buffers, so it delivered none of them.
+- **He stopped production at ~20:15** after four hours on one line: it was writing heard-after memories (to
+  "levant", 30,806) with no progress output; closing the watch did not stop it, so I stopped it at his word.
+- **Two boot-window health readings that flipped Law 3** (found with every recurring job at 20 s, so the constitution
+  check lands in the first minute): (1) security graded critical before coordination started, because the integrity
+  baseline is taken in `start_coordination`; health now reads it as pending until then (critical as before after);
+  (2) learning graded degraded on "High average operation latency" over FOUR profiled operations, searches made while
+  the word-class view was rebuilt (18.7, 6.7, 4.5, 3.0 s; a minute later 0.1-2.6 s); the average now counts from 100
+  operations. At production's 30-minute cadence neither reached a check; both were real misreadings.
+- **The final check, all of the day's fixes together** (fresh copy of production, `--small 400`, every recurring job at
+  20 s): 152 s end to end (was 1,080 s with the reading of every memory); 0 errors, 0 tracebacks, 0 exceptions in 3,885
+  lines; the 11 jobs ran 7-9 times each with 0 errors; 8 constitution checks at 93.3%, no component below healthy;
+  398/398 fact memories carry their admitted fact, 0 misreads; facts at 47 ms each (was ~170). Warnings left: the
+  host's open ports and permissions, and one exploration typed OPTIMIZATION that no path takes (the coordinator).
+
+## 2026-10-10 (1) — WordNet taught into production, whole
+
+`scripts/teach.py --source wordnet --domain english` into `lyric_db`, started 07:20, finished 21:04 (49,332 s); session
+`docs/teaching_sessions/20261011T010430Z_wordnet.md`.
+- **Facts:** 633,910: 575,982 admitted, 57,237 already held ("seen before from this source; not counted twice": WordNet
+  states some facts from two records), 691 refused (definition links to words that name nothing), 0 doubted. About
+  56 ms a fact (170 ms before `claim_facts`).
+- **Said:** 139,240 of 157,786 meanings said through taught frames (134,178 the day before, with fewer frames held);
+  4,879 constructions learned and 21,013 links new; 27,450 words' heard-after memories; 8,150 said-of memories from the
+  Brown corpus; usage observed on 16,569 constructions.
+- **The store after:** concepts 1,452 → 115,107; relations 2,450 → 578,306; beliefs 296,698 → 897,734; memories
+  1,053,448; language patterns 325,809.
+- **Log:** 2,486,290 lines, 0 tracebacks, 20 ERROR lines, all before 10:30: one search (motivation's task-outcome
+  stats, 7 rows) timed out at 07:27 without ever running on the server (the server logs every cancelled statement and
+  has none then: cause open); three constitutional drift alerts (09:20, 09:51, 10:21) from learning graded degraded on
+  average operation latency, 145 of 148 timed operations being searches stretched while saying held the loop (load,
+  not health; fix pending). Each alert also wrote a "I have drifted significantly" self-assessment memory: three false
+  memories in production, to remove by id at his word. 24 constitution checks after 10:21, all 93.3% (Law 1 waits on
+  the staged settings provider). Warnings: host notes, one exploration no path takes, one belief whose five
+  concurrent writes collided (its evidence kept for the next write).
+
+## 2026-10-10 (2) — Competence that moves, a review the substrate runs itself, and a test of understanding
+
+- **Why English competence stayed (0.5, 0) through all of WordNet:** the domain's competence belief claimed "the
+  substrate has learned the operators of domain english" and moved only on an operator learned
+  (`record_competence_evidence`, from the coordinator's exploration and induction). Teaching by telling never
+  touched it; every domain in main sat at its 0.5 prior with no update. His call: "competence needs to move", and
+  "Lyric needs to re-review what it's learned", without teaching it again.
+- **The claim is now what it means:** "the substrate is competent in domain X"
+  (`UniversalDomainMaster.COMPETENCE_CLAIM`), moved by any outcome earned there (`source=` operator_learning or
+  review). A belief under the old wording is the same belief, renamed when first met
+  (`UncertaintySystem.rename_claim`: re-indexed, written at its next flush); the lookup is by the claim index (it
+  scanned all 897,734 beliefs per call). `teach.py` reads either wording; three experiments use the constant.
+- **`UnifiedLearningSystem.review_learned(domain)`:** samples facts held as learned in the domain (beliefs on the
+  memory of being told; all 575,895 English facts carry their `claim_facts`), SAYS each as a question in the English
+  it was taught (`derived_reader.say` of the fact asked, no template in code), READS its own question back with the
+  one reader, checks it read what it meant, and ANSWERS by reasoning over what it holds (`answer_over_graph`). Each
+  outcome is competence evidence; misses are kept by why (cannot ask, unread, misread, denied, not derived) and by
+  relation; one memory holds the review, none is written per question (a turn would remember the sentence and an
+  unread one would argue down word classes). Run at the end of every teaching pass, and on its own by
+  `scripts/review.py --domain`.
+- **First look, read-only on main's view (12 facts):** "Is a net profit income?" and "Is a passive source an
+  informant?" are said, read back as meant and answerable; no definition link and no member link can be asked (no
+  taught question form), and some kinds are said in their sense-qualified names ("Is a dairy product whey a dairy
+  product?", "Is a reason find a think reason?"), which the reader then cannot read: saying uses a concept's
+  internal name where no word for it is held. 434,130 of the facts are definition links.
+- **UNDERSTANDS-WORDNET-01, first full run** (copy of main, 1,350 questions, each its own conversation, nothing
+  looked up; `results/20261011T034221Z.json`). By form, the taught facts: "Is a X a Y?" 115/124 yes (93%);
+  "Is a X a kind of Y?" 0/113 and "Is it true that a X is a Y?" 0/106 (refused: "I read that more than one way, and
+  I will not guess which you meant"); plural "Are Xs Ys?" 17 yes, 20 WRONG "no" ("Are coiners sources?" → "No. No
+  coiners is a source."), 20 unknown, of 57. "What is a X?" 92/100 right (8 marked wrong to re-check by hand: the
+  grader kept single-word class names only, and "A testa is a kind of reproductive structure" is right). Parts and
+  opposites 0/200, unread: "I hold nothing for of". Controls: 0 false yes in 450, but P2-P5 were asked "a kind of",
+  which is never read, so they measured the form again; rerun in the read form. Replies show saying defects ("An an
+  expert is a person.", "Every an asp is an animal skin.", "A true is a kind of alignment."). Median 1.35 s a
+  question, p95 9 s, one 569 s (the loop stall while the exploration "Research the substrate is competent in domain
+  english" ran; reading its text alone takes 8.8 s, so the stall is deeper in the task's execution: open).
+- **Found by it and fixed:** the word view's whole-set read (two steps: ids, then rows 2,000 by id; 57 s on a cold
+  copy, was a timeout); recall reading every recalled memory again (`live_recall.harvest` takes the stored
+  `claim_facts`: 48.5 s → 19 s on "Is a senior an adult?", profiled); the `work_authorizations` creation race
+  (through `ensure_schema`; the table does not exist in main yet).
+- **Found, open:** Law 4 counts "0/359 live goals have a proved route": each question opens a goal never concluded
+  once answered. Health again flips Law 3 from performance, not machinery: `reasoning` unhealthy on "Low reasoning
+  confidence" (most questions unsettled), `learning` on the latency average. Singularise asks WordNet at runtime;
+  Lyric's own knowledge agrees on 56.5% of 137,275 words (its plural shapes come only from words that filled a
+  taught slot), so English word forms need teaching before it can switch.
+
+## 2026-10-11 (1) — The constitution's drift self-check turned off
+
+- **Decision:** the scheduled self-check (`_check_constitutional_alignment`, every 30 min) is no longer registered.
+  It scored the laws from health and goal state, so a store still being taught read as drift (Law 3 from
+  "degraded" health on reasoning confidence and latency, Law 4 from goals never concluded), and each alert wrote a
+  drift META memory of importance 1.0 and a notification. The method is kept; one registration line brings it back.
+  Acts are still judged (`judge_act` in the tool registry), and the integrity baseline is unchanged.
+- **Applied to the live coordinator** with no substrate running: the inhabitant (`python -m
+  core.integration.world_inhabitant`) runs `_alone()`, the appraisal authority attached to the world with no
+  coordinator, so it holds no constitution, freezes no integrity baseline and cannot halt on the edit. The staged
+  Law 1 copy carries the same change and its `originals.sha256` now names the new file.
+
+## 2026-10-11 (2) — Why understanding failed: question forms never taught, plurals unlearned, competence researched
+
+- **The six false drift memories are gone from main** (his word): the three of 10-09 and the three of 10-10, through
+  `MemoryAgent.delete_memory`; nothing else named them. A deliberate stop no longer logs the word-class warm as
+  failed: `stop_memory_loops` stops a warm still in flight, and its report says so at INFO (it was an ERROR at
+  every shutdown inside a warm's first minute).
+- **Questions in forms no lesson teaches.** UNDERSTANDS-WORDNET-01's "Is a beroe a kind of ctenophore?", "Is a flower
+  part of an angiosperm?", "Is occupied the opposite of unoccupied?", "Is it true that an investigator is an
+  expert?" had no construction of their own: the reader built 11 to 55 readings from unrelated pieces ("kind" the
+  category, "the ... of" a superlative, "A" the ampere) or one wrong one, and the saying defects ("An an expert") came
+  from new names it made of them ("an expert"). english_01-39 teach these statements, and WordNet's facts went in
+  through them, but of their questions only "Is a robin a bird?" and "Are robins birds?". english_40 (112 sentences,
+  78 questions) asks of kinds, parts, members, materials and opposites, "Is it true that ...?" and "What is X part
+  of?", each beside what it asks, as english_31 did; QUESTION-FORMS-03 measures it on a copy of main.
+- **Plurals.** On main the ending `s` reads 517 of the 6,914 filler words it applies to rightly and is not productive
+  (Yang's threshold allows about 780 misses): WordNet's pass said plurals only of the nouns no change makes ("Mice
+  are rodents."), and its own words ending as plurals do ("glass", "lens", "species") swamped the lessons' few. So
+  "hawks" read as a new name; scored only over the words a change can be applied to (the base held), `s` is still
+  517 of 1,128, for main holds "arms", "acres", "areas" as names and almost no plural as a form. The wrong "no" to
+  "Are coiners sources?" was this: "coiners" a new name, then `singularise` (WordNet at runtime) made it `coiner`,
+  whose plain name is the forger's sense, and the strong disjointness assumption answered no; the coiner of words
+  was never reached. `WordFormsSource` (`--source word-forms`) says the plural of every counted noun sense in a fact
+  WordNet holds of it ("Hawks are raptors.", "Hawks are militarists."): 44,468 examples. Spelled by evidence: WordNet's
+  exceptions, then Brown, then a form the CMU dictionary writes (compounds: "headsmen", "grandchildren"; "stomachs"),
+  then the last sound (CMU), then letters only where they settle it; none made of a word ending in a consonant and
+  "s" ("spareribs"), nor of "-o" and one "z" unattested. WordNet's own pass now says them too. WORD-FORMS-01 holds
+  the bar (99% agreement of Lyric's own singular with WordNet's) for `singularise` to stop asking WordNet.
+- **The 562 s stall's trigger was a defect of 10-10's rename.** `_frontier_of` knew a competence belief only by "operators
+  of domain"; renamed "the substrate is competent in domain english", it fell to the knowledge frontier and the
+  substrate set itself to research its own competence on the web ("what is the substrate is competent in domain
+  english?"). Fixed: `UniversalDomainMaster.competence_domain` reads either wording, and the coordinator routes by it
+  (applied with no substrate running; the staged Law 1 copy carries it). The exploration log named the goal `None`.
+- **Reading holds the loop.** A sentence is read synchronously; a run reading thousands starved the substrate's own
+  work (a memory search of 118 s, a write of 31 s, a queued job timed out). Experiments now give way between
+  sentences; the reader itself still holds the loop for each one.
+- **Beliefs woke naming no memory.** `UncertaintySystem.load_from_db` read every column but `memory_id`, so after a
+  restart no belief named the memory it is a stance on: the review of what was learned found nothing held as learned
+  (0 of 0), and a belief updated after a restart would write its memory as none over the stored one (the upsert sets
+  `memory_id = EXCLUDED.memory_id`; none was yet). Loaded now.
+- **A review is one outcome.** Of 30 facts sampled, 26 had no question taught for them (a definition's word links are
+  three in four of what WordNet taught), each counted as a failure: English's competence went 0.5 → 0.0001. Then a
+  review of 200 that went 120 to 80, each question counted whole, took it to 0.99998. Now a review asks until it
+  has asked its sample, a fact with no question taught moves nothing (kept by relation, a gap in teaching), and its
+  questions share one outcome's weight: a review moves competence by at most one outcome, toward how it went.
+  On a copy: asked 200, 120 right; misread 47 and unread 33, the sayer writing internal sense names ("Is a
+  locomotion jog a motion locomotion?").
+- **Importance decayed compounding.** Maintenance rewrote every memory each hour as importance × e^(−0.01 × its whole
+  age), applying the whole age again each time: main's 10,355 memories of 10-06 (english_01-39), formed at 0.75,
+  0.60 and 0.70, stood at 0.28, 0.22 and 0.26 (one factor, 0.374, for all), below memory injection's 0.5; on a
+  million memories the UPDATE timed out instead (an ERROR every cycle). Now importance is held as formed and faded
+  where it is read (`decayed_importance`: recall's tie-break, injection's threshold, a search's minimum); cleanup
+  judges importance as formed, so age alone forgets nothing. Main's ten thousand can be put back exactly (his word).
+- **Plurals written by the teacher.** Said by the sayer, a plural example was said only where the sayer could
+  already make the plural, which is what it teaches: 285 of 1,000 unsaid ("All rushlight are candle."). The source
+  now writes it in the frame the lessons teach a kind said of many in ("Rushlights are candles.", "Hawks are birds
+  of prey."), the kind's plural by the same evidence, a kind not counted as it is ("Boars are swine."): 1,000 of
+  1,000 taught, none refused. Countability is `use_of`'s (85.5%), so some read oddly ("Cutleries are tablewares.").
+- **"a" stopped being structure.** WordNet taught "a" the ampere, so a run holding it could stand as a new name
+  ("a lockstitch"); a word held frames are built with more than it names things with ("a": 158 frames, 7 things)
+  is structure in a new name now.
+
+## 2026-10-11 (3) — Why a question never finished reading: the reader's gates had collapsed under WordNet
+
+- **What did not finish.** "Is a first amendment part of a bill of Rights?", a review question, read for over twenty
+  minutes on a copy of main and never ended. Counted on `lyric_check2`, 90 s in: 615,931 compositions, and spans
+  that are no phrase held tens of thousands of readings ("a first amendment part of a bill": 32,600), while "bill of
+  Rights" and "a bill of Rights" read to none. The readings were not ambiguity. "of" stood as a new kind or doing
+  (`instance_of(?n, of)`); "amendment" and "part" stood as counts (`has_count(?n, statement amendment)`); each was
+  multiplied by every sense of every noun ("part" 11, "bill" 10, "first" 7). A reading deadline added for this
+  overnight was undone: the cause is traced below and fixed where it is.
+- **The kinds were one kind.** 26 kinds over 139,286 fillers, the largest 139,197. A kind joined every filler of every
+  slot a filler stood in, and a word stands in slots of different parts: "three" counts in "There are three dogs."
+  and is a thing in "Three is a ?slot1." (WordNet's numbers, 77 of them); "fly", "bark", "run" are done and are
+  WordNet's insects and coverings. So counts, qualities, doings and things were one kind, `same_kind` held for nearly
+  any word in any slot, and `stood_beside` too ("amendment" stood beside "three" where things stand).
+- **Structure words named things.** `names_nothing` was false for "of", "the", "to", "for", "and", "by" and "from":
+  `_named` took every word inside a concept's name ("breach of contract", "on the road", "bait and switch"), and the
+  shape exception took any change two words show, on any stem ("of" as "o" written with "f", "is" as "i" with "s",
+  "with" as "wit" with "h"). A word naming nothing never stands as a new name; these did, everywhere.
+- **Proved before the fix**, in memory on the copy, nothing changed in code: wordless phrases taking only their linked
+  fillers, the question read in 4.5 s (from never) but wrongly ("part" still a count, through the collapsed kind in
+  frames with words); the structure words alone out of `_named` changed nothing (the shape exception still held them).
+- **Fixed in `derived_reader`:**
+  - A filler is in a kind for each part a slot takes it as (`_taken_as`): a count, a quality, a doing, or a thing (a
+    kind, a name, a thing). Inside each part kinds are learned from links alone, as before, so a kind taught for the
+    first time is its own. A kind of happening the meaning only places in time is also a kind of thing: the meaning
+    says the same of "There was a dog." as of "?slot0 twice" (one or two, before now). A state is a quality placed
+    in time (`state_of`, `relation_types`): "The box will be empty." takes what "The box is empty." takes.
+  - `stood_beside` compares places taking the filler as the slot does.
+  - A number stands where numbers stand when its writing says it is one, or its word is held only as the number's
+    name ("Fifteen is a number." reads "There are fifteen cats."); a word in a number's place of its own, a rank or
+    a power, stands where its kind does ("first" no longer counts one amendment).
+  - `_named` holds whole names only; the shape exception takes productive changes only (`written_in_shape`).
+- **After, on `lyric_check2`:** counts 7 kinds (largest 93), doings 10 (234), qualities 3 (88), things 14 (138,928);
+  `names_nothing` true for every structure word above. The question reads in 2.8 s (356 compositions) as
+  `part_of(first amendment, bill of rights)`, its one reading, and "Is it true that ...?" in 0.2 s, the same.
+  "There was a hawk.", "There are fifteen cats.", "The dog barked twice." read.
+- **Tests:** the reader's 99 pass. New: a word is in a kind for each part it stands in, and a kind taught for the
+  first time is its own; on the old reader it fails ("There are Rex dogs." read Rex-many dogs). Two references that
+  compute kinds and uses from scratch, to check the view kept as items arrive, now compute them per part.
+- **english_01-39 read as before.** QUESTION-FORMS-03's sample (600, seed 20261011), read as the conversation reads,
+  old reader and fixed on the same store. *Corrected in (4) below:* first measured with no beliefs in the process
+  (353 and 354 on `lyric_check2`, and "Could you help Rex?" taken as helping `king`), every construction read at
+  0.5 with no uses; those numbers and that reading say nothing of Lyric. With beliefs loaded as the substrate holds
+  them, on main: both readers 379 of the 600, none won and none lost, in 870 s against 413 s (slowest 404 s, "Two is
+  a number.", against 368 s, "What did I just tell you?").
+- **Word forms taught to the copy with the fixed reader, end to end.** `--small 1000` (the sample already held
+  there): understood 1,000, the closing review asked 200 and answered 179 right, every question in 1.6 s or less (it
+  had not finished its first before). `--small 1000 --head`, new to the copy: learned 1,126, linked 1,141, refused 0;
+  review 164 of 200 right, slowest 7.3 s. Both exited 0; the log holds no error, only the one-time notices of a
+  process without root (network state, port fingerprints) and the law vocabulary asked for before the warm. Every
+  miss is in how the review writes its question, not in reading it: senses' internal names said aloud ("Is a record
+  post a kind of record?"), a doing said as a thing ("Is a march a kind of accompany walk?"), a place's name with
+  "a" and no capital ("Is a sacramento river part of a california?").
+
+## 2026-10-11 (4) — Main's old lessons withdrawn on a copy; what a lost competition costs; reading measured with beliefs
+
+**Why.** Main learned english_01-39 before §12d ("the X" is a known thing), so "The valve is closed." read as valves
+in general. The plan, approved: withdraw what the old lesson pairs taught, teach the rewritten lessons on top, prove
+it on a copy, then main only on the user's word.
+
+### The harness read without beliefs
+- My reader scripts (`valve_readings`, `lessons_as_taught`) started only the memory agent. The reader takes each
+  construction's score and uses from the belief system in its process (`derived_reader._held_score`), and none was
+  loaded: every construction read at 0.5 with no uses. No entrenchment ranked readings, the listener had no
+  frequency, and constructions below even still read. "351 of 600" was the harness, not Lyric.
+- The scripts now load beliefs as `core/main.py` does at boot. Checked on one word before any number: "cat" names
+  cat, (0.5, 0) without, (1.0, 308 uses) with.
+
+### Withdrawn and taught again, on `lyric_check`
+- `scripts/withdraw_lesson_pairs.py --apply`: 7,381 words withdrawn, 271 beliefs kept on other evidence, 2,863
+  removed (and their memories), none refused.
+- english_01-39 in one `teach.py` run: exit 0, 9 of 2,882 refused, review 181 of 200 (the misses are the review's
+  question writer, as before, and "Is lose the opposite of win?" heard as the noun "win").
+- Every taught english_01-39 sentence read as the conversation reads, beliefs loaded:
+
+| Store | Read as taught (of 2,882) | 600-sample |
+|---|---|---|
+| main, as it stands | 1,743 | 379 |
+| copy, after withdrawal and teaching | 2,804 | 583 |
+
+  1,071 won (1,057 "the X" read as the known thing); 8 sentences lost, traced below.
+
+### What a lost competition costs
+- 66 beliefs crossed under even during the teach. All are the competitor step (Doumen et al. 2024, §4.2.8): when a
+  more general reading wins a pair, the others that read it are observed against. 34 were a pair turning its word
+  on a construction it made earlier ("Robins are birds.", now read through "?slot0 are ?slot1."). That is a revision
+  by `observe_claim`, and right: the learner's latest analysis of each pair counts.
+- **Fixed: a revision took back the earlier word at the step it was given**, not what it still counts for. It now
+  takes `_present_share`, as `withdraw_observation` does. Test: `test_a_word_revised_takes_back_only_what_it_still_counts_for`.
+- **Six of the 8 lost sentences:** each one's only reading went through a construction that lost competitions on
+  other pairs. "squared" names 2 was used twice and outcompeted twice, and "Five squared is twenty-five." read nothing.
+  The reader took a construction out below 0.5, its starting point, so one net loss removed it. The paper keeps one
+  until its entrenchment reaches 0.
+- **Changed (the user chose "keep while still needed"):** `PatternInventory.counts` is now whether a taught pair's
+  latest reading still goes through the construction. Its belief only ranks it. `COUNTS_FROM` is gone; the scorer
+  gives (score, uses, standing). On the copy: of 330,733 held, 56 come back and none drop out. A holophrase whose
+  every pair now reads otherwise still drops out. Tests: `test_a_construction_counts_while_a_pair_it_read_still_reads_through_it`
+  and the restated `test_a_construction_no_pair_reads_through_takes_no_part_and_the_pair_revives_it`; both fail on
+  the old rule.
+- **The other two, and one more once the general list frame read again, were the listener.** `_worded` put back
+  words only for word constructions. "?slot0 , ?slot1 , ?slot2 and cows are ?slot3 ." writes "cows" itself, so its
+  cow and the cattle the word "cows" names were two statements, and the listener chose neither. It now puts back a
+  frame's own word where a held word construction says that word names the thing. "A robin is a bird." taught to mean
+  an animal writes no word for the animal, and stays another statement. Test:
+  `test_a_word_a_frame_writes_itself_names_its_thing_as_a_word_construction_does` (fails without it).
+- **After both: 2,818 of 2,882** (600-sample 583). The only sentence main reads that the copy does not is "Cities are
+  places.": place against cognition place, with nothing to tell them apart.
+- **Why nothing told them apart:** word forms taught each sense's plural once, so "places" stood at one use naming
+  either. "place" was met 46 times naming place and 27 naming cognition place, and the listener never counted it.
+  Its base level now counts a word in all its shapes naming the same thing (`_met`, through `written_in_shape`).
+  Reading order (`readings_of`) still ranks by each construction's own uses. Test:
+  `test_a_word_in_a_shape_is_met_as_often_as_the_word_naming_the_same_thing` (fails on own uses only).
+
+### Writing a meaning one way, without trying every naming
+- "The dog barked, the cat ran and the bird flew." read for 46 s. Its 180 readings (every sense reaches the
+  listener) were each written by trying every naming of six unknowns, 720 apiece. That was 118 s of 142 s profiled.
+- `_least_namings` builds the least writing a fact at a time, following ties. The output is identical, and must be:
+  taught-pair observation keys hash it. Checked against trying every naming on 24,113 meanings (every lesson meaning,
+  20,000 generated to tie, every frame held on the copy, every reading of the three slowest sentences) and 208
+  phrases: none differ.
+- The copy read the same 2,882 results in 172 s against 234 s. That sentence takes 2.9 s, and the slowest is 3.3 s.
+
+### Main's first word read in a shape
+- On main, "What did I just tell you?" took 368 s, and 0.01 s on the copy. It was not that sentence: the first word
+  read in a shape builds `said_shapes` once, and on main that took 484 of 494 s profiled, 1.34 billion `endswith`
+  calls. Every change was scored by scanning every stem in its cell.
+- Each change now scans only the stems ending as its name side does (indexed once per cell). The changes are
+  gathered from the slots directly, not from every cell's copy of them.
+- Same output, built both ways on one warmed view: on the copy 10,833 changes and 1,576 productive, 2.0 s against
+  2.5 s; on main 64,759 and 10,446, 176 s against 343 s. Main holds six times the copy's changes; the withdrawal is
+  expected to bring it to the copy's size, to be measured on the proof copy.
+
+### Reasoning conversations on the copy (`ask.py`, the booted substrate)
+- "The valve is closed." is now held of `valve_1`, but the rule "If the valve is closed, the tank is full." does not
+  reach it, so "Is the tank full?" goes unanswered. Other gaps, unchanged:
+  - no transitivity over what was told (ring, box, bag);
+  - "cannot" is not read, so "Can a penguin fly?" gets a wrong Yes;
+  - counterfactuals and "because" are not read;
+  - no induction (feps that swim);
+  - "Is 91 a prime number?" is not known.
+
+## 2026-10-11 (5) — Main after the filtered teach; names merged by initials given back; the listener's connections made an activation; a singular written the same twice
+
+### Main after the user's filtered teach
+- After withdrawing the old pairs and teaching the 1,087 sentences main lacked (review 175/200, competence 0.65 to
+  0.72, no errors), main reads **2,814 of 2,882** taught english_01-39 sentences as taught, up from 1,743. It won
+  1,072 and lost 1 ("Where is a cow found?"). The 600-sample reads 582. The whole read takes 335 s, and the slowest
+  sentence 10.4 s ("Is the sky blue or green?").
+- `said_shapes` was rebuilt around `slots_of`: each change scans only the stems ending as its name side does. Same
+  output on main (64,759 changes, 10,446 productive), in 7.2 s against 302.5 s. That is what stalled the teach on the
+  proof copy.
+
+### Names merged by their initials (WordNet, 2026-10-10)
+- `resolve_identity` resolved a name by its initials for every label, so WordNet's names were fused with short words:
+  common_unicorn_plant went into `cup`, acute_lymphocytic_leukemia into `all`, `age` into adorned_gilt_edged and
+  `bus` into break_up_splinter. That left 329 aliases and 1,825 facts on the wrong things.
+- Initials now count only for a document's labels (`_DOCUMENT_SOURCES`). Tests:
+  `test_a_curated_name_is_its_own_whatever_its_initials_spell` and
+  `test_a_curated_name_merged_by_its_initials_is_given_back_its_own_concept`.
+- `scripts/repair_acronym_merges.py`, run by the user on main:
+  - released 329 aliases and took 1,825 links off the wrong concepts;
+  - read 3,107 observations again: 329 concepts created, 0 rejected, 0 links left waiting, 0 aliases by initials left.
+- Main then read 2,815 of 2,882.
+
+### The listener's connections, made an activation (SENSE-RELATED-01)
+- Of the 67 sentences main still missed, 23 were taken by one connection alone. `related` was a rank of its own,
+  before how often a sense is met, so:
+  - "Tom walked from the house." was the Tom of an ethnic slur, met once against 395 times for the lessons' Tom;
+  - "The dog jumped over the chair." was an andiron;
+  - "Someone kicked the ball." was a structure ball;
+  - "Mrs. Kim has a cat." was a gossip.
+- **SENSE-RELATED-01**, offline, on 159,784 hand-tagged nouns in WordNet's definitions, with the rest of each
+  definition as context. It used the listener's own `connected` relation over the relations WordNet teaches:
+
+  | Rule | Tagged sense taken |
+  |---|---|
+  | Most frequent sense | 58.5% |
+  | Connected first, as the listener did | 63.0% |
+  | ACT-R spreading activation added to the base level | **65.3%** |
+
+  Where the senses' connections differ (99,944 nouns): 56.6%, 63.8% and 67.4%. 2/2 checks passed.
+- How the activation is computed:
+  - **Strength:** ACT-R's own definition, `ln(P(i|j)/P(i))`, with `P(i|j) = 1/fan_j` (things memory holds connected
+    to j) and `P(i) = 1/m` (all things held). Each of the n context sources gives a 1/n share. No parameter is added;
+    both counts come from memory.
+  - **Fan:** counted by one recursive query over the graph (`MemoryAgent._fans`). On main, person has a fan of
+    18,465, house 4,221 and close 123, out of 115,436 things; eight names took 0.79 s. Fans are kept until the next
+    warm, as the listener's other views are.
+  - **Where it goes:** `meant` and `heard_which` add it to the activation; it is no longer a rank before it.
+- Main with it: **2,836 of 2,882**, with 21 won and none lost. All 10 Tom sentences are back, along with door, ball,
+  box, dog and cat. Test: `test_what_the_rest_is_connected_to_adds_to_how_often_a_sense_is_met_and_never_outranks_it`
+  (the andiron wins without it).
+
+### A singular written the same twice
+- WordNet names peoples.n.01 (the human beings of a particular nation) `peoples`. The door wrote that `people`,
+  ingestion wrote the label again, and it became `person`. Twelve facts landed on person or pointed to it:
+  - person isa group_person (so a person was a kind of group);
+  - person defined with community and with ethnic group;
+  - the Sioux, the Carib, the Iroquois and six others defined with person.
+- With the wrong kind, "group" was near person, and compartment box (defined with "group") was related to
+  "Somebody".
+- `singularise` takes one step only where the singular is itself as written; otherwise the word is its own.
+  - Of 149,267 WordNet words, five change: peoples, gentes, limina, terata and ephemerae.
+  - Of WordNet's sense names, only `peoples`.
+  - Test: `test_a_singular_is_written_the_same_again`.
+- Repair, two commands on main:
+  1. `scripts/repair_door_rewrites.py --sense peoples.n.01` withdraws WordNet's word on the 12 claims. All 12 rest on
+     nothing else, so they are let go with their memories. It takes the 12 observations off every concept they were on
+     and lets go of their records (`MemoryAgent.release_envelope`): taught again, an observation keeps its id, and an
+     envelope keeps the first record of its id.
+  2. `scripts/teach.py --source wordnet --domain english --sense peoples.n.01` teaches the sense's 12 facts again.
+     This is a new option (`WordNetSource.senses`), with WordNet's vocabulary statements cut to their words.
+- Proved on lyric_dev, one process per step as on main. Under the old door, person isa group_person and sioux is
+  defined with person. After the repair and the teach:
+  - person has none of peoples' facts;
+  - peoples isa group_person, and is defined with community and ethnic group;
+  - sioux is defined with peoples;
+  - no record still names people.
+- Dry run on main: 12 claims and 12 observations, one for each of the 12 records.
+- Tests: 186 passed across the reader, conversation, belief, singular and identity files.
+
+### Still missed on main (46), by cause
+- **The lessons' word has no WordNet identity (about 30).** english_01-39 are examples and hold no facts. "raptor",
+  "bike", "toad", "liquid", "drink", "study", "virtue" and "month" name values no WordNet concept has. Where the word
+  is not its sense's first-written word (bird of prey, bicycle), `_sense_names` never ties them. One stated sense,
+  "drink|n", was undone by the cross-part-of-speech step. The listener takes the WordNet sense memory holds, which is
+  often the right thing under another name.
+- **WordNet's kinds miss what its definitions say:** a bus is public transport, not a vehicle ("a vehicle carrying
+  many passengers").
+- **Structure:** "Snow is white." reads both as has_property and as isa(snow, the colour white). "He is a dog." reads
+  "He" as helium. Number sentences. "Where is a cow found?" reads "cow found" as one name.
+
+## 2026-10-11 (6) — The lessons named things memory does not hold; written as the concepts they mean
+
+### The peoples repair on main
+- The user ran both commands. The repair withdrew 12 claims and let go of 12 memories and 12 records. The teach
+  admitted 12 facts and created 1 concept, peoples. On main, person keeps only its own facts, peoples is a kind of
+  group defined with community and ethnic group, sioux is defined with peoples, and no claim or record names people.
+  The review answered 180 of 200 right, and competence in english went from 0.72 to 0.79.
+- The run took 10 minutes: 216 s teaching, 112 s of substrate reaction, and the rest starting the substrate on main and
+  reviewing. Of the 216 s, about 70 s builds all of WordNet's records to keep 12 (34 s), reads the gloss corpus (18 s)
+  and names every sense (11 s). I had said two minutes, timed on the sandbox's 2,500 concepts.
+
+### What the lessons named
+- The lessons hold no facts; a meaning's term is a name, and memory holds WordNet's senses under WordNet's names.
+  Of 532 terms in english_01-40:
+  - **28 named no concept on main** ("raptor", "bike", "toad", "house cat", "theft", "melting" and others).
+  - **Event kinds named another part of speech:** `opening`, 86 sentences, is the adjective "the opening chapter";
+    `raining` is the adjective "falling like rain"; `metal` is the verb "cover with metal"; "put down" is the noun
+    "put-down" (the door writes both alike).
+  - **Another sense:** "July is a month." named the 30-day unit, and "A clinic is a building." the institution.
+- The cause in WordNet's naming: "the sense the word names most often is named by the word" is implemented over the
+  senses where the word is written first. "month" names the calendar month 70 times in SemCor and the time unit 37,
+  but only the unit has "month" first. Tagged counts can't replace the teacher: they make "rex" a king, "whale" a
+  large person and "zoology" fauna.
+- The listener read most of the misses right under WordNet's name: isa(eagle, bird of prey), isa(july, calendar
+  month), isa(milk, food drink). The harm is elsewhere. "raptor" was taught to name a thing nothing is known of, so
+  "A wug is a raptor." made "Is a wug a bird?" unanswerable.
+
+### Rewritten (docs/TEACHING.md §12e)
+- 239 sentences in 24 lessons now name the concept the word means there. WordNet names all 117,659 senses alike
+  before and after, which the store requires.
+- Kept as they were:
+  - two sentences ("A meter is a measure.", "Running is a sport."): written in their senses, they take "measure" and
+    "running" out of the lessons as nouns, and the name a word keeps across parts of speech follows the lessons, so
+    four senses would be renamed on main;
+  - the lessons' own names, variables and expressions, and the grammar's terms;
+  - "welcome": WordNet has no sense for the reply to thanks.
+- Test: `tests/test_lesson_terms.py`. Every term names a sense WordNet teaches, and a kind of doing names a verb's
+  sense or a noun for an act, event, process or saying. It finds 17 in the lessons as they were and passes now.
+- Reader tests follow the lessons' names. "It hails." now reads as `hails`: no change of shape turns it into
+  "precipitate X".
+- On main, `withdraw_lesson_pairs.py` (now english_01-40) finds 239 standing pairs no longer taught. 1,077 more were
+  withdrawn this morning, and a withdrawn witness is not withdrawn again (`_EvidenceIndex._unsay`).
+- Teach set: `logs/renamed_lessons/`, 239 sentences. On the sandbox all 24 lessons were taught with 0 refused and no
+  errors.
+
+### Structural readings: measured, not changed
+- 10 taught sentences are undecided because their meanings differ in what is said. "Snow is white." reads as a
+  property and as isa(snow, the colour white): WordNet said its kinds of mass nouns as "X is Y.", and that frame
+  holds 13,233 uses against 154 for the property frame.
+- Weighed as senses are (what is held, fit, summed activation of the words), 6 come out right and 4 wrong: "He" as
+  helium, rust and driving as kinds, and a quarter as one-fourth (the same number in another form).
+- Summed activation compares readings built from different constructions, which is not a fair comparison. The listener
+  still declines. The fair comparison, how likely each frame is to take these words in its places, needs its own
+  measurement.
+
+### A bias seen on the way
+- "Ponies are animals." states pony.n.05 (small horses), and the listener takes the range horse, met 6 times against 2.
+  SemCor counts neither. A sense's uses are filled by how many WordNet facts mention it, not by how often the word
+  means it.
+
+## 2026-10-12 (1) — The renamed lessons on main
+
+- The user ran both commands. The withdrawal let go of 531 beliefs that rested only on pairs no longer taught. The
+  teach covered 24 lessons and 239 sentences in 61 minutes, with 0 refused and no errors. The review answered 179 of
+  200 right, and competence in english went from 0.79 to 0.83.
+- **Main reads 2,862 of 2,882** taught sentences as taught (previously 2,836). 27 were won and 1 lost, "Little is a
+  size.", which was my error. WordNet makes little a value of size itself (`size`). Only "large" is also a garment
+  size (`property size`), and I had rewritten the pair to match it. Put back in english_04: one pair to withdraw and
+  one sentence to teach (`logs/size_lesson/`).
+- **The withdrawal miscounted.** It counted a pair that this morning's run had already withdrawn and wrote it to the
+  ledger as an update: 506 updates, of which 239 withdrew anything. `withdraw_observation` was a no-op for those, so
+  no belief moved twice. `withdraw_pairs` now passes over a witness whose word is already withdrawn. Dry run on main
+  after the fix: 0, where it would have repeated the 506.
+- **The 20 still missed, by cause:**
+  - the structural choice, 10 ("Snow is white.", "He is a dog.", number words);
+  - WordNet's kinds miss a bus being a vehicle, 2;
+  - a rarer sense held or met more, 4 (softness, weakness, equality, ponies);
+  - left for naming stability, 2 (meter, running);
+  - "Where is a cow found?" read with "cow found" as one name, 1;
+  - "Little is a size.", 1, until it is taught again.
+
+## 2026-10-12 (2) — Never-taught sentences; "fast" was fasting; WordNet's names recorded
+
+- After "Little is a size." was taught again (twice, which did no harm), main reads **2,863 of 2,882**.
+- **Structure scored generatively** (ln c(frame) + over the slots ln P(filler | slot), Witten-Bell). On the 10 taught
+  sentences now undecided, it picks the taught structure in all 10, but their own pairs feed the counts. On 30
+  never-taught sentences only 3 had two structures: generative 1 right and 2 wrong, summed activation 2 right and 1
+  wrong. Not adopted.
+- **The bigger finding: never-taught sentences often get only the wrong structure.** "Cars are fast." → isa(car,
+  fast); "Bananas are yellow.", "Chalk is white." and "Silk is smooth." → kinds; "He is a teacher." → isa(helium,
+  teacher).
+  - **Cause one.** `_read_pieces` keeps, of other structures, only those supposing least. The pronoun frame "He is a
+    ?slot0." (from "He is a dog.") needs one new link, and helium needs none: WordNet linked "He" in "?slot0 is a
+    ?slot1.". Senses of the best structure reach the listener; other structures do not. Not changed yet.
+  - **Cause two, fixed.** `_lesson_parts` counted a degree's kind as a noun, so "fast", "old" and "deep" went to the
+    nouns (fasting, past times, the deep), and "fast" stood only in kind slots. A degree's kind now counts as an
+    adjective's, and six senses are named otherwise (TEACHING.md §12f).
+- **Repair for renamed senses:** `scripts/repair_renamed_senses.py`. On main, a dry run finds 249 facts, 249
+  observations, 9 word pairs and 1 count of use. Proved on the sandbox (old names taught, repaired, taught again):
+  "fast" is the adjective, `abstinence fast` is the noun, and no word for fasting names `fast`.
+- **Guard:** `data/lessons/wordnet_names.tsv.gz` records the names the stores were taught under (main's, 117,659
+  names). `test_wordnet_names_its_senses_as_the_stores_were_taught` fails on any rename, and names the six until
+  main is repaired and the record rewritten (`scripts/wordnet_names.py --write`).
+
+## 2026-10-12 (3) — A word taken back read as the domain changing
+
+- The rename repair on main logged one "Belief reversal detected … (0.937 → 0.500)" and one "Regime shift detected"
+  for each fact WordNet withdrew, with the counter rising past 240. The user's reading: the reversal detector and the
+  regime-shift counter took evidence withdrawal for a change in the domain. Traced, it is so:
+  - **0.500 is computed, not a reset.** A withdrawal takes back what the word still counts for. Taking back a belief's
+    only word leaves even.
+  - **It landed a hair past even.** The share was measured with the decay at one moment (`_present_share`), and
+    `update_belief` decayed again a moment later. The sign of the log-odds changed by about 1e-10, and the strict sign
+    test (`original_odds > 0 > log_odds`) read that as a reversal.
+  - **Every update fed the domain's rate.** `_update_domain_volatility` takes the size of each update and a step per
+    reversal, and sets the domain's decay rate λ, saved in `unified.domain_volatility` and loaded at boot. Withdrawals
+    pushed it toward its cap. The repair ran as a script and only a running substrate saves the rates, so this one
+    did not reach main.
+  - **The same misreading in learning.** A belief's first word (0.5 to 0.937) counted as a change of 0.437. Main holds
+    tools 0.0537, vision 0.0537 and environment 0.0532, exactly 0.01 + 0.1 × 0.437, and reading 0.0236. Their beliefs
+    fade to half in about 13 hours against 69 at the base.
+- **Fixed in `update_belief`.**
+  - A word taken back (`withdraws`: a withdrawal, or the first half of a revision) is measured against the log-odds
+    the update holds, at the same moment (`_share_at`). The only standing word is all the belief holds, so taking it
+    back lands exactly at even.
+  - A word taken back is no reversal and no change in the domain.
+  - A belief's first word is no change in the domain.
+  - A revision's new word is judged against what the belief held before the revision (`revised_from`), so a witness
+    turning around is still a reversal, and its full change counts.
+  - `_present_share` is gone; its two callers let the update measure.
+  - Tests: `test_a_word_taken_back_is_no_reversal_and_no_change_in_the_domain` (exactly even, no shift, no change, and
+    a turned witness reverses) and `test_learning_a_belief_is_no_change_in_its_domain`. Passed: belief 9, the group
+    48, reader 104.
+- **Main's stored rates:** `scripts/recount_domain_volatility.py` sets each to what the fixed rule gives with no change
+  of mind recorded, the base 0.01. The dry run shows four domains moving. The user runs it.
+
+## 2026-10-12 (4) — Never-taught sentences: adjectives could stand nowhere, because their class was wrong
+
+- **After the rename.** The user ran the decay-rate reset and the re-teach. All five domains are at 0.0100, and the
+  teach's substrate saved them unchanged. 249 facts admitted, 0 refused, review 182/200. On main "fast", "old" and
+  "deep" are the adjectives. Names recorded (`wordnet_names.py --write`), and the guard passes. Main reads 2,863 of
+  2,882. That read took 506 s against 257 s: an Xcode build had the load average at 164, and a plain count took 629 ms
+  against 13 ms.
+- **The test set.** 270 never-taught sentences, 30 per template, built from the lessons' frames with WordNet's
+  commonest words that main holds (`scratchpad structure_probes.py`): property ("Paper is white.", "Bananas are
+  yellow.", "The lamp is broken.", "He is tall."), kind ("Copper is metal.", "Wolves are canines.", "A violin is an
+  instrument."), pronoun ("She is a doctor.", "It is a cat."), number words. For each sentence it records every
+  structure found before `_read_pieces` keeps the least supposing, with the evidence. Choices are scored offline
+  (`structure_eval.py`). A known weakness: the adjective pool includes some determiners and numbers.
+- **Before.** The listener got 137 right, 118 wrong and 14 undecided. The right structure was found at all for 155.
+  The property templates found it for 5 of 120: no adjective but the lessons' few could stand where a quality does.
+- **Cause.** Kinds are learned from the slots fillers stood in, and WordNet says most adjectives in no sentence. The
+  reader does not use word classes, and the classes in memory were wrong anyway: main held "tall" as a NOUN 279 to 1,
+  "red" 195 to 1, "normal" 229 to 1. `classes_implied_by` reads every taught proposition as English, "the subject of
+  a predication is a thing", and an unsaid fact is remembered as its claim ("giraffe defined with tall").
+- **Fixed.**
+  1. `classes_implied_by` implies nothing for a proposition whose surface is its claim: only what was said is
+     evidence of how English uses a word. On main, classes now agree with WordNet's stated class for 74,255 of 75,834
+     words; adjectives went from 5,148 to 14,607 and verbs from 1,622 to 5,393. Tests: `tests/test_word_classes_said.py`.
+  2. `PatternInventory.of_its_class`: a held one-word filler never linked to a slot may stand there when its word is
+     observed (net positive) an ADJECTIVE and the slot takes qualities, or a VERB and it takes doings. The memory
+     agent gives the view its live class index. Frames with no words of their own keep requiring `stood_beside`.
+     Test: `test_a_held_word_stands_where_its_class_stands`.
+- **After.** The right structure is found for 252 of 270. The listener gets 171 right, 71 wrong and 28 undecided. "The
+  X is adj" went from 26 wrong to 2, and "pronoun is adj" from 29 wrong to 6. No template got worse. On the taught set
+  main still reads 2,863 of 2,882, with none lost. Tests: reader 105, word-class and learning 109.
+- **Choosing between structures: not solved; measured.** Best overall was what memory holds then the generative score,
+  212 right and 58 wrong, but every way of choosing fails somewhere:
+  - generative scores with add-one smoothing lose the kinds;
+  - interpolated Witten-Bell wins the kinds (21/21, 30/30, 9/9) and loses bare properties ("Bananas are yellow."
+    1/30).
+  The cause is in the counts: Lyric's frame uses come from what WordNet taught, and WordNet said its colour kinds as
+  "X is yellow.", so in memory "X is COLOUR" is mostly a kind. Choosing needs evidence of real use. What words are
+  said of (Brown, `said_of`) is the candidate: "yellow" said of bananas, as a property.
+
+## 2026-10-12 (5) — Preparing for new knowledge: verbs and adjectives had no words; the past tense was not productive
+
+The user: the goal is not what Lyric knows today but that what is taught next (coding, research, mathematics) is
+fully understood in sentences, paragraphs and pages. The never-taught set measures exactly that: the frames taught,
+with new words.
+
+- **Real-use evidence for the structure choice.** SemCor's count of each word naming each sense (WordNet's usage
+  witness, `wordnet_3.0:usage`) is precise: 23 wrong out of 270. But it is silent where the counts tie: 106 right.
+  Combined with what memory holds, 145 right and 21 wrong. It ties on bare properties because those readings did not
+  hold the adjective at all: "Faith is central." read `has_property(religion, workplace central)`, a telephone
+  exchange.
+- **The cause: a word names a sense only if a sentence said so.** Of WordNet's word-sense pairs, main can read
+  nouns 69.5%, adjectives 4.2%, adverbs 1.9%, verbs 0.2% (44 of 24,467). WordNet says its noun kinds as sentences and
+  its adjectives with opposites, and nothing else. `learn_usage` drops a count with no construction to land on.
+- **english_41** (60 sentences, `data/lessons/english_41.json`):
+  - "To gaze is to look." (if `instance_of(?e, gaze)` and `done_by(?e, ?x)`, then `instance_of(?e, look)`, a doing);
+  - "To be rapid is to be fast." (if `has_property(?x, rapid)`, then `has_property(?x, fast)`, a quality);
+  - each a rule, so the slots take doings and qualities, not kinds.
+  WordNet names are unchanged and the lesson-terms test passes. On the sandbox all 60 were learned, 0 refused. Of 8
+  never-taught sentences, 6 read with the right structure; the rest wanted words the sandbox does not hold.
+- **WordNet says its verb kinds and adjective likenesses through it.** `WordNetSource._records` keeps each fact taught
+  once, as before. It adds an example of English per word of the sense (`as_rule`): "To stroll is to walk.", "To
+  saunter is to walk.", "To be lovely is to be beautiful." Only satellites are said ("To be beautiful is to be lovely."
+  is not so), and number adjectives are not. That is 85,307 examples: 65,486 for verbs and 19,821 for adjectives.
+- **Sayer and reader admit alike.** `_said_fillers` used `same_kind` alone, while reading also goes by class, so "walk"
+  (a lessons verb) could not be written where english_41's verbs stood and "To stroll is to walk." was not said. It
+  now uses `_alike`.
+- **The class bridge is only for a sense that has stood nowhere.** A word's class is the word's: through it, the noun
+  "glimpse" (a glance) was a doing and "workplace central" a quality.
+- **On the sandbox,** after english_41 and seven senses: "Tom strolled." read as a strolling by Tom before now; "To
+  saunter is to walk." read through stroll; "The day is lovely." and "The cat is tiny." read as properties.
+- **Still open: the past tense is not productive on main.** No "-ed" or "-d" change is: ("d","") 3 right of 2,587,
+  ("ed","") 8 of 986. Productivity counts the fillers that stood in slots; WordNet's participial adjectives
+  ("concealed", "aged") stand as their own words, so they are exceptions, and past forms almost never stood as their
+  verbs. "glimpsed" reads as a new word "glimps". It needs a forms pass for verbs, as WordForms gave plurals "s"
+  (44,468 examples).
+- **Saying on main** is meaningful only after english_41 is taught there. Sampled against main's view as it is, verb
+  rules said 63% and adjective rules 0%.
+- Tests: 131 passed (reader, lesson terms, word classes, conversation, statements).
+- Note: `derived_reader.py` and `memory_agent.py` were changed on disk by another writer during this session. My edits
+  applied cleanly.
+
+## 2026-10-12 (6) — The verb and adjective slice on main; what kept the rest from being said and read; verb forms
+
+The user taught WordNet's verbs and adjectives to main as a slice: `--part v --part a --small 3000`. It ran 496 s
+(3,000 records, 822 examples, 711 said). The taught set still read 2,863 of 2,882, nothing won or lost. Of the
+sample's one-word verb and adjective names, 745 of 816 now name their sense. Before the slice: verbs 0.2%,
+adjectives 4.2%.
+
+Read back on main (`scratchpad slice_main.py`, the run's own sample):
+
+| | Read as taught | Said, misread | Unsaid |
+|---|---|---|---|
+| Verbs (437) | 378 | 36 | 23 |
+| Adjectives (385) | 281 | 6 | 98 |
+
+### Why the rest were not said (traced on main, 121)
+
+- **80: an adjective that stood only where things stand.** "Surprised is the opposite of unsurprised." puts
+  `surprised` in a slot that takes things, and the class bridge admitted a sense only in a part it had stood in, or
+  where it had stood nowhere. Now a sense also stands where the class of *its concept's name* stands
+  (`of_its_class`, `class_parts`). The noun sense "glimpse" is held for (`look glance`) still stays out.
+- **35: a word in its own part, refused as a counted thing.** "walk", "tell", "buy", "bright" and "soft" were kept
+  out of english_41's second slot by `slot_admits`, the uses (count, mass) of the words a slot holds. How a word is
+  counted is a thing's: a slot that takes no things now admits by no use.
+- **6: names that are frame words** ("up", "near", "used"). The same door limit refused 7 facts in the run (`have`,
+  `every`, `near`, `used_to`, `multiplied`: "made only of words that name nothing"). Not changed yet.
+
+### Why 36 verbs were misread: a rule weighed as nothing
+
+"To heighten is to increase." came back with the commonest sense of "increase", not WordNet's `change increase`.
+Main holds `isa(heighten, change increase)`, but `listening_facts` gave the listener nothing to weigh for a rule:
+both `instance_of(?e, ...)` facts were skipped. Now a rule over what is of one kind is weighed as what that kind is,
+`isa(X, Y)`. The event stands for the kind it is supposed to be.
+
+### Why never-taught rules read nothing
+
+Most of the newly sayable adjective rules were unread, not misread ("To be astonished is to be surprised."):
+
+- **A word never met, ending as a shape does** ("astonished", "glaring", "lonely"), was refused where qualities stand:
+  its writing "denied the role". Where the word's class stands in the role, its ending is its own.
+- **A word held only for a thing** ("amble", held for `walk amble`) was no new word, and stood in no slot where doings
+  do. Now, where its class stands in the slot's role and none of its senses can, it reads as a new name of itself.
+  English makes verbs of nouns all the time ("to fork", "to cache"), and technical text more than most.
+
+### Verb forms
+
+`WordNetSource._verb_written` gives each one-word verb its past, its form under way and its form now. The evidence
+is taken in this order:
+
+1. Brown's tagged text;
+2. WordNet's `verb.exc` ("stopped", "abetted");
+3. a compound of a verb with an irregular past ("reread", "outran"; "overate" cannot be read back by WordNet, so no
+   past, never "overeated");
+4. spelling, kept only where WordNet's morphology reads it back.
+
+That covers 8,200 of 8,406 verbs in the past. `in_tense` says each sense's forms in the lessons' frames, by the doer
+its own WordNet frames give it (`_DOERS`):
+
+| WordNet frame | Example |
+|---|---|
+| "Somebody ----s" | "Tom strolled." |
+| "Somebody ----s something" | "Tom parsed them." |
+| "It is ----ing" | "It drizzled." |
+| "Something ----s" | "It bloomed." |
+
+"Somebody ----s Adjective" ("seem") gets no sentence. `--source word-forms --part v` gives 57,919 examples.
+`TaughtRecord.plural` became `forms` (a plural or a verb's form). `_said`'s plural branch was dead (no sentence-less
+record carries one) and is removed.
+
+Tests:
+- `tests/test_word_forms.py` (10);
+- three reader tests (rules weighed as kinds; said by class however it stood; read by class however written).
+
+### WordNet's examples taught apart from its facts
+
+As it stood, `--source wordnet --part v --part a` would check the 108,059 facts main already holds, one by one, to
+teach 41,499 examples. The plural pass had the same problem and was given a source of its own. That source is now
+WordNet's examples in general: `WordNetExamplesSource`, `--source wordnet-examples`. It gives every example of
+English the whole pass builds (plurals, verb forms, rules), built the same way, and none of the facts. With
+`--part v --part a` that is 99,448 examples: 21,678 verb rules, 19,821 adjective rules and 57,949 verb forms.
+WORD-FORMS-01 reads its plurals as `parts=("n",)`.
+
+Brown tags "have" and "do" apart from other verbs ("had" `HVD`, "did" `DOD`). They are verbs all the same, and now
+have their forms: "Tom had them.", "redid". `have`'s facts were refused at the door because no taught meaning named
+it. Its forms name it.
+
+### The reader's changes, measured on the never-taught set
+
+Same 270 sentences, same main, this morning's reader (today's four reader changes undone) against now:
+
+| | Right | Wrong | None | Right structure found |
+|---|---|---|---|---|
+| This morning's reader | 150 | 104 | 16 | 177 |
+| Now | 161 | 92 | 17 | 204 |
+
+11 won and 0 lost. For example, "She is stained." and "It is sore." now read as properties, not as a staining under
+way. Entry (4)'s 171 right was the first class bridge, which let noun senses stand as qualities ("She is stable."
+read as being a horse stable). The bridge was narrowed later that day. The taught set is 2,863 under every version.
+
+A measurement note: the slice's sample is drawn from WordNet's record stream. Once that stream held the verb forms,
+the same seed drew other records, and a re-read of "the slice" read sentences never taught (verbs 31 as taught).
+`slice_main.py` now draws from the stream as it was taught: 822 of 822 examples the same.
+
+## 2026-10-12 (7) — WordNet's examples on main slowed from 2 minutes a thousand to an hour: `said_shapes` found whole
+
+The user's `--source wordnet-examples --part v --part a` ran at 1,000 sentences every 2 minutes up to 19,000. Then the
+pace fell: 20,000 took 14 minutes, 21,000 took 30, and 22,000 took 60.
+
+- **Where (stack samples, `kill -USR1`):** every sample was in `said_shapes`, from `in_a_shape` and `unshaped_in`
+  in `_fillers` while a phrase repair learned a verb form.
+- **Not the reader change suspected first.** Today's `_fillers` edit evaluated `in_a_shape` for every new word. With
+  the order restored, 300 verb forms on main's view (in memory, nothing written, `scratchpad learn_speed.py`) took
+  1,091 s with either reader, and `said_shapes` was found whole 38 times with either.
+- **Why:** each verb form counted in a slot written in a change ("Tom strolled.", `ed`) set `_said` to None, and the
+  next reader to ask found it whole: 65,545 changes, each over its cell, about 22 s on main. A cProfile of 40
+  sentences put 200 of 234 s there.
+- **Fix: moved, not found again.** A count for one change is a sum over the concepts in its cell, and what a concept
+  gives (`_said_part`) depends only on the changes its words show and on longer changes being productive. So
+  `_count_writing` takes the concept's parts before and after (`_said_stem`) and moves each count by the
+  difference. A change shown for the first time is scored over its cell (`_said_cell`). Productive is decided
+  again for each change touched, longest name side first (`_said_settle`), as `_settle` does for word shapes. A slot
+  written in one change more ("stopped", `ped`) has its concepts join that change's cells (`widened`). Only a slot
+  that comes to be written in a change, or stops, is found whole again.
+- **Test:** after every sentence of a mixed lesson (plurals regular, "-es", "-ies" and irregular; verbs now and
+  before now, doubled and irregular), the moved table equals the table found whole. Over the sequence it moved 38
+  times, widened 11 times, and was found whole where a slot came to be written in a change.
+- **On main's view, the same 300 verb forms:** 60 s (0.2 s each), found whole once (the first time). At the end
+  the moved table equals the table found whole: 65,585 changes, 10,582 productive.
+- The run on main kept the old code and was learning correctly, only slowly. The user restarts it; what it learned
+  is "already".
+
+## 2026-10-13 (1) — Still slower with every sentence: every phrase was tried for every run of words
+
+The restarted run passed the ~22,000 sentences already learned at about 2 minutes a thousand. New sentences then
+started at 7 minutes a thousand and climbed almost linearly, to 28 a thousand by 43,000 (06:55). The process had grown
+from 2.2 GB to 7.4 GB.
+
+- **Where (stack samples):** mostly in `_phrase_fillings` (through `counts` and `_chunkings`) while reading each
+  sentence. A cProfile of 40 sentences on main's view as it stood (in memory, nothing written) took 142 s. About
+  110 s were the phrase scan: `counts` 6.1 million calls, `_chunkings` 6.0 million.
+- **Why:** `_phrase_fillings` looped over `view.phrases()`, every phrase held, for every run of words in every
+  sentence, asking memory whether each is held (`counts`) before anything cheaper. Half of WordNet's verb forms are
+  learned "phrase in slot", so each one adds a phrase, and each sentence read tried every phrase learned before it.
+  Frames do not grow this way: they are scanned once a sentence, with the word test (`may_read`) first.
+- **Fix:** each phrase is filed under one word of its own (case aside), the one fewest phrases are filed under when
+  it is added. `phrases_reading(have)` returns the phrases filed under a word the reading has, plus any with no word
+  of its own, in the order they were held. A phrase reads words only where each word of its own is one of them
+  (`_chunkings`: as written, or stood for in another shape), so nothing that could read is left out. Results are
+  unchanged.
+  `_phrase_substitution` now asks memory last.
+- **Test:** `test_a_phrase_is_found_by_the_words_of_its_own_a_reading_has`.
+- **On main's view (300 verb forms not yet learned):** 37 s, about 0.1 s each, against about 3.5 s before. The
+  `said_shapes` table moved equals the table found whole: 72,056 changes, 11,659 productive.
+
+## 2026-10-13 (2) — Saying the rules again: every phrase of the kinds was composed with every frame
+
+Restarted with the phrase index, the run said its rules at 1,000 every ~10 s up to 19,000 (07:42). Then 20,000 took
+5 minutes, and 21,000 took 21. The database timeouts in the log were the event loop held by that work, not the
+database: `pg_stat_activity` showed nothing running.
+
+- **Where (stack samples):** `say` → `_said_whole` → `_compositions` → `_composed_meaning` / `_template_values`.
+- **Why:** to say "To stroll is to walk." the sayer takes every phrase stating the kinds of fact the frame leaves
+  unstated (`phrases_stating`) and composes each with each frame. The run before had learned tens of thousands of
+  verb-form phrases ("strolls", "parses"), each a doing of its own, so every rule tried them all. A phrase can say
+  part of a meaning only where the meaning names every concept it names (`_template_values` matches the composed
+  meaning to the meaning exactly).
+- **Fix:** `phrases_stating(kinds, within)` offers only the phrases every concept of which is in `within` (the
+  meaning's concepts), filed by kinds and one concept each (`_named_in`), in the order held. `_compositions` and
+  `_phrases_holding_phrases` ask with the meaning's concepts.
+- **Same sentences:** 100 rules from 20,000 said with this and with every phrase offered: 100 the same, 0
+  different. 16 s against 69 s.
+- **Saying right after learning was slow too.** `_shapes_of_slot` rebuilt, for every slot whose state was asked, the
+  changes of every word that says more than its concept (`_shape_groups`), over all of them. Learning touches slots,
+  so a sentence said after a sentence learned paid for it: 111 of 141 s in a profile of 60 interleaved. That set is
+  now kept as the groups grow (`_shapes_saying_more`). A pass says first and learns after, so the run did not pay
+  this; conversation after a lesson would have.
+- **In the run's order on main's view (300 examples at 46,600, not yet learned):** said in 21 s, learned in 47 s
+  (about 0.15 s each, with one `said_shapes` found whole).
+- Tests: `test_a_phrase_is_offered_to_say_a_meaning_only_where_the_meaning_names_all_it_names`; reader 111 passed.
+
+## 2026-10-13 (3) — After WordNet's verb and adjective examples: what took, what the listener lost, and asking without remembering
+
+The pass finished (24,100 s). It learned 53,998 sentences, held 44,727 already, refused 0, and could not say 415
+rules.
+
+**What took, on main:**
+
+| Readable word-sense pairs | Before | After |
+|---|---|---|
+| Verbs | 0.2% | 91.2% |
+| Adjectives | 4.2% | 74.7% |
+| Nouns | 69.5% | 90.5% |
+
+Taught verbs read in each form: "Tom strolled.", "Tom is parsing them.", "Rex computed them.". So do verbs never
+taught: "Tom blicked them." reads as a blicking by Tom, to them, before now; "Rex glorped." as a glorping before now.
+
+**What the listener lost:** taught lessons fell from 2,863 to 2,847 read as taught. All 16 were undecided ("Tom saw
+her.", "Tom ran.", "Rex ate."). There were three causes.
+
+- **Phrase kinds were never written back as words.** The pass learned each sense's past as a phrase of its own
+  ("saw", a seeing-sense before now). `_worded` wrote back only words' concepts, so the senses of "saw" were
+  separate statements, never a choice ("44 readings, 0 sense choices"). A phrase now names its kind with its own
+  words.
+- **The listener weighed the sentence around a sense.** Its base activation summed every construction, so the
+  structure a sense was read through weighed in: "?slot0 her", met 5,951 times holding a phrase, took
+  understanding (met once as "saw") over seeing (met 11 times). Now only the constructions naming the reading's own
+  senses count: a word, a phrase, or a frame that writes the sense itself.
+- **Senses about "it" were empty.** The senses came from `listening_facts`, which drops facts about "it" or "this",
+  so "It's hot." had none to weigh, and a sense met once won. They now come from the meaning itself.
+
+Lessons are back to 2,856 of 2,882.
+- Tests: `test_a_sense_is_weighed_by_how_often_it_was_met_not_by_the_sentence_around_it` (both cases).
+- Still open: ties among verb senses met once each ("Tom compiled them.", "The cat jogged."). WordNet's usage counts
+  never reached the new forms, since the examples source has no usage step. "The dog found bones." is ambiguous in
+  structure now that "bones" is also a verb (to bone up).
+
+**Asking without remembering.** UNDERSTANDS-WORDNET-01 asks through conversation, which remembers every turn, so it
+refused main and wanted a copy. The user chose a no-memory mode.
+
+- `Conversation(remembers=False)`, through `get_conversation(..., remembers=False)`, runs its turn inside
+  `core.memory.remembering.not_remembered()`.
+- Every place that keeps a trace asks `remembered()` first: the turn (`_hand_over`), what it is told (`teach`), the
+  reasoning episode, the reasoning intent, the arguments weighed, and the timing log.
+- Found by a write trace on the sandbox: the first proof run wrote 153 experience-pool rows, 102 intents, 51
+  arguments and 106 timing rows.
+- The experiment starts no substrate (its loops write) and stops the memory agent's loops after loading. It reads
+  `pg_stat_user_tables` before and after, and fails a check if any table was written to.
+- On the sandbox: "the questions wrote nothing to the store — no table written to". The conversation tests pass
+  (17/17).
+
+## 2026-10-13 (4) — Structures told apart, opposites answered, and WordNet's usage for verbs and adjectives
+
+**Structures that suppose alike.** Readings whose words were put together otherwise ("The dog found bones.": a
+dog finding bones, or founding something and boning up) all reach the listener when they supposed as little as each
+other. Before, the listener never chose among structures, and asked about every such sentence.
+
+- `meant` groups the meanings by structure (`_worded`). With more than one, it weighs each structure by its likeliest
+  reading: first what memory knows of what it says, then how probable the structure is as its parts were met
+  (`_derivation`). The senses are then told apart within the structure taken. A tie is still asked about.
+- `_derivation` is interpolated Witten–Bell per link: `ln((k + T·P(f)) / (n + T))`, where `k` is the uses of the
+  link putting this filler there, `n` the uses of the slot's links, `T` how many fillers they put there, and `P(f)`
+  how often the filler was met among everything met in the slot's part (`parts_met`).
+- **The frame itself is not weighed.** How often a frame was met is how often a source said its facts so (13,234
+  of WordNet's kinds through "?slot0 is ?slot1."), not how English says them. Weighed, it took "Faith is central."
+  for a kind of telephone exchange.
+- **Choosing structures in the reader instead failed.** The numbers tests broke. One cause was a bug: links looked up
+  by frame and slot, so every use of a phrase took one filler. Another was that a frame learned from one sentence
+  has few slots to fill and outweighs the general frames. The reader keeps its least-supposition cut; only ties
+  reach the listener.
+
+**Opposites and symmetric relations.**
+
+- `RelationSpec.of_any_part`, set for `SYNONYM_OF` and `ANTONYM_OF`: these relate concepts of any part, so a
+  frame's slot for them takes a word by its class ("hot" and "cold", adjectives, where the slot's own fillers stood
+  as things).
+- A symmetric relation is its own inverse in the algebra (`relation_algebra.inverse`). `answer_over_graph` also
+  looks at the object's edges back to the subject, so "Is cold the opposite of hot?" finds the fact stored the
+  other way round.
+- **Bug found:** `listening_evidence` compared relation names as written, and memory stores "part of" where the
+  meaning says `part_of`. A part fact was never known. Names are now made one; a symmetric fact is held either way
+  round.
+- On main: opposites read and answer Yes; "Is a flower part of an angiosperm?" and "Is a knob part of a hilt?"
+  answer Yes; unrelated pairs give no verdict.
+
+**WordNet's usage for verbs and adjectives.** `WordNetUsageSource` (`--source wordnet-usage`, `vocabulary_only`)
+teaches only SemCor's counts of how often each word names each sense, of the parts asked for. `WordNetSource.usage`
+honours `parts`. On main: 12,954 counts placed, 2,021 with no construction to land on. "Tom compiled them." now
+decides. (Where the counts land was corrected on 2026-10-14.)
+
+**No-memory mode, one more leak:** `mark_knowledge_consumed` wrote a consumption row per answer. It now asks
+`remembered()` first.
+
+## 2026-10-14 — SysML v2 models written from legacy documents (SYSML-01)
+
+**Hypothesis.** The parts a SysML model needs are already in the substrate: reading opens PDF, Word and Excel; the
+one reader and the ingress keep every fact with where it was read; the link kinds have part of, instance of and
+requires. What is missing is reading tables as tables, a kind for how parts are joined, and a writer. With those, a
+system's inventories, cable run sheets and interface tables should give a model the OMG's own SysML v2
+implementation accepts. Every element would trace to a row, and a disagreement between sources would stay
+visible instead of being settled.
+
+**Method.**
+- **Kinds** (`relation_types.py`). `connected_to` (symmetric), `has_port`/`port_of` and `has_end`. A connection is a
+  thing of its own with its ends, as an event is with its participants; a port is its owner's.
+- **Headings** (`relation_types.py`). `RelationSpec.heading_forms` and `classify_heading`: "Type", "Part of",
+  "Location", "From"/"To", "From port". They are kept apart from predicate phrases, because `classify` reads a
+  trailing single word as a span's relation ("to" would type "goes to").
+- **Tables** (`reading.py`). `tables` from workbook sheets, Word tables and .csv files, as rows under headings.
+  Pages are unchanged, so a document's trace is unchanged.
+- **One owner of what a document states** (`core/semantics/document_reader.py`). Lines go to the one reader. Rows:
+  their typed headings give facts; other headings give values (a part number is never made a link). The
+  coordinator's `_understand_words` now delegates to it and lets the rows go once read. `_read_what_was_opened`
+  reads every file a tool names in `opened`.
+- **The writer** (`core/tools/sysml_tools.py`, `generate_sysml_model`). Every element gets a `doc` naming its
+  document and row. An attribute two sources give different values is declared with no value, with both named. A
+  part only a cable names is declared as only named. A connection without two ends is not drawn; a comment says so.
+- **Validation** by the OMG SysML v2 pilot implementation (release 2026-08). It runs on Java 21 from Homebrew,
+  from `third_party/sysml-v2-pilot` through `core/tools/SysMLValidate.java`.
+
+**Result.** SYSML-01 `20261014T130401Z`, 13/13, on four synthetic documents of a fictional patrol vessel mission
+system:
+- 82 elements, each with its source;
+- the pilot implementation found 0 syntax errors, 0 semantic errors and 0 warnings;
+- the deliberate part number disagreement was kept with both rows;
+- the same documents gave a byte-identical model;
+- the substrate's own reading of the spreadsheet stated its rows with "Equipment, row 5".
+
+`tests/test_relation_types_and_algebra.py` 23/23.
+
+**Errors, with causes.**
+- The first model had 3 semantic errors. A `connection def` must declare two ends; the writer now gives each cable
+  kind two untyped ends.
+- A cable row's port fact counted as a row describing the cable's end, so a part no inventory lists looked
+  described. Facts now carry `row`, what the row is about.
+- The validator rejected even a two-line model when given the library by a relative path: the file URIs kept the
+  folder names' spaces escaped, and no library loaded. It takes an absolute path.
+- I first called the official implementation out of reach because no Java was installed, and reached for a
+  third-party parser. Java was one `brew install`.
+
+**Establishes.** Tables become a model with every element traced to its row. The disagreement is surfaced and
+not settled. The output is valid SysML v2 by the language's reference implementation.
+
+**Does not establish.**
+- Prose: the run had no memory up, so the three paragraphs stated nothing. That is the setup, not the reader:
+  a read-only probe on main with the taught English loaded (76,884 words) read 4 of 7 manual sentences and
+  stated `radar isa device`; three "connected to" / "requires" sentences read but stated nothing (cause not
+  yet found). I first reported this as the reader's limit; he questioned it, and he was right.
+- Cameo/MagicDraw import: not tried.
+- PDF tables.
+- Real legacy data, which has inconsistent headings, IDs in place of names, and merged cells.
+- The `opened` hand-over inside a running substrate.
+
+## 2026-10-14 (1) — Counts land on verb forms, plurals read as every sense, a listener that adds its evidence, and a first look at prose
+
+**Where a verb's real-use count lands.** SemCor counts a verb in every form ("had" is `have`), but the usage pass
+landed each count only on a one-word construction holding the base word. A verb held only in its forms ("had them",
+"is having them") was met in none of them. "Tom had them." was a receiving ("have" names it 7 times), not the
+having it names 1,202 times.
+
+- The source now gives each verb's forms with its count (`WordNetSource.usage`: `(word, sense, times, forms)`).
+- The count lands on every construction that says the word names the thing (`PatternInventory.saying`): the word,
+  the word in a form held for the thing ("ran" for `run`, as the lessons hold it), and the phrases naming a thing
+  of the kind in a form.
+- On main: 7,193 counts landed on phrases, then 6,264 on the lessons' one-word forms. Counts with nowhere to land
+  fell from 2,021 to 1,234. Lessons rose from 2,862 to 2,866; "Tom saw her.", "Rex ate the bone." and "Tom had
+  them." read as taught.
+- **Rejected along the way:** inferring a phrase's base word in the reader (`form_of`: the one-word name naming the
+  most of what the phrase's words name). Many verb senses hold no one-word name at all, so it fell back to
+  whatever word did. The source knows the forms; the reader should not guess them.
+
+**A held plural hid every other sense.** WordNet's kinds said of many ("Pirates are ships.") left "pirates" held for
+the ship alone. Two defects:
+
+- The reader read a word through the word it is a shape of only when the word itself was not held, and then only
+  as that word's first sense.
+- **`s` had come to say "done by what was spoken of", for every word.** Verbs taught with "it" as their doer ("It
+  dwindles.", "It incurvates.") are held as one-word phrases saying so, 21 of them written with `s` on the sandbox.
+  "A change says more once two phrases written in it say the same more" then held of every plural.
+- What a change says more of a happening is now said of happenings only (`says_more(..., doing=)`,
+  `stands_as_doing`). A Yang-tolerance test was tried first and rejected: in the lessons, the pasts held as plain
+  fillers ("jumped", "opened") count against `ed` saying "before now", though they stand where the frame says it.
+- On main, of 14 review and plural questions, 13 read to the right sense (4 before). "Are pirates a kind of
+  plunderer?" is about the pirate; "Are hawks raptors?" is about the hawk, a bird of prey. Lessons were unchanged
+  (2,862), and the full read was faster (24 minutes against 28).
+
+**The listener adds its evidence instead of ranking it.** What memory knew came first, outright. Memory knows things
+of some senses and not others, so "A bus is a vehicle." was the old car that is a bus (known a vehicle, met 3
+times) over the bus (filed under public transport, met 14). Of the 16 lesson misses, most were this.
+
+- `meant` now weighs every reading as one sum in nats (`weighed`): how often its own senses were met, what the other
+  words select, what the rest raises, how probable its structure is (`_derivation`), and three pieces of evidence
+  each at its measured worth. The three are what memory knows, what definitions say, and how much the reading
+  supposed past its words.
+- **Memory now answers through definitions too** (`listening_evidence` → `defined`): "bus — defined with — vehicle",
+  from WordNet's hand-tagged definitions (433,410 such links on main). It was never asked.
+- **Worths are measured, not set:** `ln(P(level | meant) / P(level | not meant))` with Laplace, counted on the
+  lessons where the meant reading is known (`listening_counts`), held as beliefs (`listening_claim`,
+  `learn_listening`, `--source listening`). On main:
+
+  | Evidence | Level | Worth (nats) |
+  |---|---|---|
+  | Known | held of the things themselves | +4.7 |
+  | Known | held of their kinds | +2.9 |
+  | Defined | one written with the other | +2.5 |
+  | Fit | read as taught | +6.3 |
+  | Fit | two guesses | −3.4 |
+
+- Measured with the listener's own code, today's rule replayed verbatim:
+
+  | | Lessons | Held-out half | Never-taught | Questions |
+  |---|---|---|---|---|
+  | Ranked (today's rule) | 2,866 | 1,433 of 1,441 | 197 of 270 | 13 of 13 |
+  | Added | 2,874 | 1,439 of 1,441 | 200 of 270 | 13 of 13 |
+
+  Fixed: bus, window, door, softness, weakness, running, "Tom ran.", meter, "Rex knows where the cat went.", "A
+  quarter is a number.". Lost to another true sense: valve, singing, dress, "Rex picked up the book.".
+- **With nothing counted it is worse** (2,863 lessons, 11 of 13 questions): the counts must be held before the
+  listener is.
+- **Never-taught structure is mostly lost before the listener.** The right structure is among the readings the
+  reader keeps for 206 of 270; the listener takes 200. The structure work belongs in the reader.
+
+**A first look at prose (read only, on main, in a conversation not remembered).** Five short texts: an encyclopedia
+paragraph on whales, a premise with a rule, the opening of Wikipedia's article on Python, a maths definition, and a
+paper abstract.
+
+- 2 of 18 sentences were understood.
+- What breaks reading: pronouns across sentences ("They live in the ocean."), prepositional phrases ("through a
+  blowhole"), coordination and compound modifiers ("dynamically typed and garbage-collected"), superlatives, names
+  and dates, and conditionals.
+- **Two wrong "No"s:** "Is Python a programming language?" (the snake) and "Is seven a natural number?". Where memory
+  holds no fact, the answer was No, not "I don't know".
+- **A conversation not remembered takes in nothing it is told,** because tellings are held in memory, scoped to the
+  speaker. So no text can yet be read and then asked about without writing to the store.
+- One sentence (the definition of a prime) took 406 s.
+
+## 2026-10-16 (1) — The listener's counts on main, adjuncts found in held frames, the prose baseline, and no closed world on what was not read
+
+**The listener's counts are on main.** `--source listening` counted the listener's evidence on 3,054 lesson sentences
+and held 19 of 20 counts (+19 beliefs, no traceback). Read only on main afterwards: 2,874 of 2,882 lessons read as
+taught (2,866 before), as measured offline. Misses: valve, ponies, singing, bus, "Rex picked up the book.", equality,
+dress, "Where is a cow found?". The run's log showed one CRITICAL: a constitution halt standing on main since 08:49
+that day, raised when `autonomous_coordinator.py` changed on disk while a substrate taught main.
+
+**Adjuncts found in held frames.** The reader learned frames whole, one per sentence shape: 3,054 lesson sentences made
+950 frames, and "The ?slot0 is on the ?slot1." shared nothing with "The ?slot0 on the ?slot1 is ?slot2.".
+
+- A held frame that is another held frame with a run of words added after one of its slots, its meaning the other's
+  with facts added of what that slot stands for, shows an adjunct (`Adjunct`, `_adjunct_of`). The lessons show 116:
+  where a thing is, where a happening goes, when it is, what it is done with, relative clauses.
+- Reading puts an adjunct after anything standing in any slot, and after all a frame reads, said of what it tells
+  happened. Its own slots take what the longer frame's take there, so "in the morning" (`during`) and "in the city"
+  (`located_in`) are told apart by the kinds already held. An adjunct that says what only a happening has follows
+  only a happening.
+- Each adjunct used is a link proposed, so a reading through held frames always ranks first.
+- Never taught, read right offline: "Tom kicked the ball into the box in the morning.", "Tom opened the box with a key
+  in the morning."; "The dog ate the bone in the house." reads both ways.
+
+**The prose baseline (UNDERSTANDS-PROSE-01 on main, with adjuncts): 4 of 33 sentences, 8 of 37 right, 4 wrong.** Every
+sentence not read names one piece never taught: a question word in front (7), a name not held (7), a pronoun subject
+(6), "of" (6), "and" (4), hyphenated words (3), or two readings left undecided (4). Adjuncts read parts ("live in the
+ocean", "Plants take in carbon dioxide") but no whole sentence these texts hold, because each also needs one of those.
+
+**No closed world on what was not read.** Three wrong answers were the strong disjointness assumption: python held as
+a boa, key as a device, and "Is chlorophyll green?" read only as "a kind of green", each pair meeting only at
+"entity". In each, the conversation had just been told something about the subject and could not read it. The closed
+world holds only while memory knows what the two are, so `_kinds_exclude` now declines when either is named in a
+telling the conversation did not take in whole (`Conversation._not_taken_in`, passed through the bridge). Second run:
+wrong 0 of 37, three by this; the fourth changed only by the order of a recital's words.
+
+**Agreed plan** (in `docs/HANDOFF.md` §4): phase 1, five fixes no lesson can make; phase 2, lessons for the pieces
+prose uses, written as pairs with and without each piece; phase 3, unread sentences become learning in production.
+

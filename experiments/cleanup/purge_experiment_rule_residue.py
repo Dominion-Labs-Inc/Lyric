@@ -49,7 +49,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 for _k, _v in {"POSTGRES_PORT": "5433", "POSTGRES_USER": "stefan",
-               "POSTGRES_DATABASE": "lyric_db", "LYRIC_NO_WATCHDOG": "1"}.items():
+               "POSTGRES_DATABASE": "lyric_dev", "LYRIC_NO_WATCHDOG": "1"}.items():
     os.environ.setdefault(_k, _v)
 
 HERE = Path(__file__).resolve().parent

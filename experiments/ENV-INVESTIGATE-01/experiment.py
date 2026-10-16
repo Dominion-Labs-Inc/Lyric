@@ -40,11 +40,12 @@ async def main() -> int:
     from core.agents.autonomous.autonomous_coordinator import AutonomousCoordinator as C
 
     class _Rec:
+        """Memory as the scan reaches it: what Lyric observed, taken in for the one door."""
         def __init__(self): self.calls = []
-        async def learn_fact(self, s, r, o, *, domain=None, provenance=None, quality=None):
-            self.calls.append({"s": s, "r": r, "o": o, "domain": domain, "q": quality,
-                               "prov": getattr(provenance, "source_type", None),
-                               "src": getattr(provenance, "source_id", None)})
+        async def take_in_observed(self, s, r, o, *, evidence, domain, positive=True, description="",
+                                   surface=None):
+            self.calls.append({"s": s, "r": r, "o": o, "domain": domain, "q": evidence.quality,
+                               "prov": evidence.source_type, "src": evidence.key})
             return SimpleNamespace(admitted=True)
 
     from core.perception.perception_faculty import PerceptionFaculty
@@ -60,7 +61,7 @@ async def main() -> int:
         taken = []
         async def take_in(self, path, *, actor_identity, source=None, domain=None, within=None):
             self.taken.append({"path": path, "actor_identity": actor_identity, "source": source})
-    me = _Env(); me.learning = _Rec()
+    me = _Env(); me.memory = _Rec()
 
     # build a temp world: nested dirs, text with parseable sentences, a binary, an image-by-ext
     root = tempfile.mkdtemp(prefix="envscan_")
@@ -98,11 +99,12 @@ async def main() -> int:
               PerceptionFaculty.senses_of(os.path.join(root, "notes")) == ("reading",))
 
         print("\n== what a text HOLDS is taken in by the one act, as its own perceiving ==")
-        prov = SimpleNamespace(producer="perception", source_id="environment", source_type="PERCEPTION")
-        me.learning.calls.clear(); me.taken.clear()
+        from core.semantics.cognitive_ingress import Provenance
+        prov = Provenance(producer="perception", source_id="environment", source_type="PERCEPTION")
+        me.memory.calls.clear(); me.taken.clear()
         a_entry = names["a.txt"]
         await me._ingest_environment_entry(a_entry, "environment_test", prov)
-        calls = me.learning.calls
+        calls = me.memory.calls
         struct = [c for c in calls if c["r"] in ("contains", "isa", "has_extension", "has_size_bytes")]
         check("structural facts held (contains / isa / extension / size)", len(struct) >= 3,
               f"{len(struct)} structural")
@@ -111,9 +113,9 @@ async def main() -> int:
               and all(t["actor_identity"] is None for t in me.taken), f"{me.taken}")
 
         print("\n== binary file and over-long text: metadata only, never taken in ==")
-        me.learning.calls.clear(); me.taken.clear()
+        me.memory.calls.clear(); me.taken.clear()
         await me._ingest_environment_entry(names["bin.dat"], "environment_test", prov)
-        bin_struct = [c for c in me.learning.calls if c["r"] in ("contains", "isa")]
+        bin_struct = [c for c in me.memory.calls if c["r"] in ("contains", "isa")]
         check("binary file yields structural metadata and is never taken in",
               len(bin_struct) >= 2 and not me.taken, f"taken: {me.taken}")
         bin_content = list(me.taken)

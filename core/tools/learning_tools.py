@@ -5,12 +5,7 @@ Exposes learning capabilities to all agents via tool interface.
 """
 
 from core.tools.tool_registry import Tool, ToolCategory, ToolParameter, ToolResult
-from core.tools.capabilities import (
-    Capability,
-    CapabilityMetadata,
-    ToolCapabilityProfile,
-    RiskLevel
-)
+from core.tools.tool_registry import Primitive, PrimitiveUse, PrimitiveProfile
 from typing import Dict, Any, List, Optional
 from dataclasses import asdict
 import logging
@@ -32,31 +27,21 @@ class MonitorDataDriftTool(Tool):
             ToolParameter("threshold", "number", "Drift detection threshold between 0.0 and 1.0 (default: 0.1)", required=False)
         ]
 
-        # Capability declarations
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="monitordatadrift",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.MONITOR_DRIFT,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.MONITOR_DRIFT,
                     description="Monitor objective drift and data distribution changes",
                     input_types=["datasets"],
-                    output_types=["drift_report"],
-                    latency="medium",
-                    cost="low",
-                    reliability="high",
-                    risk_level=RiskLevel.LOW,
-                    priority=9
+                    output_types=["drift_report"]
                 ),
-                CapabilityMetadata(
-                    capability=Capability.DETECT_ANOMALY,
+                PrimitiveUse(
+                    primitive=Primitive.DETECT_ANOMALY,
                     description="Detect anomalies in data",
                     input_types=["datasets"],
-                    output_types=["anomaly_report"],
-                    latency="medium",
-                    cost="low",
-                    reliability="high",
-                    risk_level=RiskLevel.LOW,
-                    priority=7
+                    output_types=["anomaly_report"]
                 )
             ],
             requires_filesystem=False,
@@ -109,20 +94,15 @@ class DetectPatternsTool(Tool):
             ToolParameter("min_confidence", "number", "Minimum confidence threshold (0.0-1.0)", required=False),
         ]
 
-        # Capability declarations
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="detectpatterns",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.DETECT_ANOMALY,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.DETECT_ANOMALY,
                     description="Detect anomalies and unusual patterns",
                     input_types=["data"],
-                    output_types=["anomaly_report"],
-                    latency="medium",
-                    cost="low",
-                    reliability="high",
-                    risk_level=RiskLevel.LOW,
-                    priority=7
+                    output_types=["anomaly_report"]
                 )
             ],
             requires_filesystem=False,
@@ -197,30 +177,20 @@ class VisualizeLearningProgressTool(Tool):
             ToolParameter("time_window", "string", "Time window: 'hour', 'day', 'week', 'month' (default: 'day')", required=False)
         ]
 
-        self.capability_profile = ToolCapabilityProfile(
+        self.primitive_profile = PrimitiveProfile(
             tool_name="visualizelearningprogress",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.VISUALIZE_DATA,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.VISUALIZE_DATA,
                     description="Visualize data and metrics",
                     input_types=["metrics", "time_series"],
-                    output_types=["visualization"],
-                    latency="low",
-                    cost="low",
-                    reliability="high",
-                    risk_level=RiskLevel.LOW,
-                    priority=8
+                    output_types=["visualization"]
                 ),
-                CapabilityMetadata(
-                    capability=Capability.TRACK_PROGRESS,
+                PrimitiveUse(
+                    primitive=Primitive.TRACK_PROGRESS,
                     description="Track progress over time",
                     input_types=["metrics"],
-                    output_types=["progress_report"],
-                    latency="low",
-                    cost="low",
-                    reliability="high",
-                    risk_level=RiskLevel.LOW,
-                    priority=8
+                    output_types=["progress_report"]
                 )
             ],
             requires_filesystem=False,
@@ -280,52 +250,32 @@ class IdentifySkillGapsTool(Tool):
             ToolParameter("required_capabilities", "object", "Required capability scores (e.g., {'reasoning': 0.9})", required=True)
         ]
 
-        self.capability_profile = ToolCapabilityProfile(
+        self.primitive_profile = PrimitiveProfile(
             tool_name="identifyskillgaps",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.ASSESS_CAPABILITY,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.ASSESS_CAPABILITY,
                     description="Assess current capabilities",
                     input_types=["capability_scores"],
-                    output_types=["assessment"],
-                    latency="low",
-                    cost="low",
-                    reliability="high",
-                    risk_level=RiskLevel.LOW,
-                    priority=9
+                    output_types=["assessment"]
                 ),
-                CapabilityMetadata(
-                    capability=Capability.IDENTIFY_BOTTLENECK,
+                PrimitiveUse(
+                    primitive=Primitive.IDENTIFY_BOTTLENECK,
                     description="Identify capability bottlenecks and gaps",
                     input_types=["current", "required"],
-                    output_types=["gap_analysis"],
-                    latency="low",
-                    cost="low",
-                    reliability="high",
-                    risk_level=RiskLevel.LOW,
-                    priority=8
+                    output_types=["gap_analysis"]
                 ),
-                CapabilityMetadata(
-                    capability=Capability.SELF_DIAGNOSE,
+                PrimitiveUse(
+                    primitive=Primitive.SELF_DIAGNOSE,
                     description="Diagnose gaps and weaknesses in current capabilities",
                     input_types=["capability_inventory"],
-                    output_types=["gap_analysis"],
-                    latency="medium",
-                    cost="low",
-                    reliability="high",
-                    risk_level=RiskLevel.LOW,
-                    priority=8
+                    output_types=["gap_analysis"]
                 ),
-                CapabilityMetadata(
-                    capability=Capability.PRIORITIZE_OBJECTIVES,
+                PrimitiveUse(
+                    primitive=Primitive.PRIORITIZE_OBJECTIVES,
                     description="Prioritize learning and improvement objectives",
                     input_types=["objectives", "constraints"],
-                    output_types=["prioritized_list"],
-                    latency="low",
-                    cost="low",
-                    reliability="high",
-                    risk_level=RiskLevel.LOW,
-                    priority=8
+                    output_types=["prioritized_list"]
                 )
             ],
             requires_filesystem=False,

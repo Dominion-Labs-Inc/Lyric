@@ -122,6 +122,12 @@ class MemoryFilter:
         # keep would leave the substrate unable to read what it was taught.
         # The tag is `derived_reader.PATTERN_TAG` (a test holds them equal).
         "language_pattern": "taught language",
+        # SO ARE WHAT EACH WORD WAS SAID OF and WHAT WAS HEARD AFTER WHAT
+        # (`MemoryAgent.SAID_OF_TAG`, `HEARD_TAG`): how English is used, kept for
+        # reading and saying. Recalled as knowledge, "Heard after chase: the"
+        # took a place an answer to "Did the blip run?" needed.
+        "said_of": "taught language",
+        "heard_after": "taught language",
     }
 
     def exemption_for(

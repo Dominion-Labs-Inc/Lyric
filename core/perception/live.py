@@ -13,7 +13,8 @@ utterance it asks one thing: was the substrate's NAME said in it? The name is a
 taught spoken word like any other (`coord.learn_word`); nothing is built in.
 An utterance with the name in it is kept, and so is one said within
 `ATTENTION_SECONDS` after a kept one in which taught words were firmly heard,
-since a person goes on talking without repeating the name -- while the room's
+since a person goes on talking without repeating the name, or while they have
+voice mode on on the device it hears (`Ear.attending`) -- while the room's
 own clicks and hum, in which no word is heard, hold nothing open. EVERYTHING ELSE IS DROPPED INSIDE THE EAR'S PROCESS: its
 sound and its words never reach the substrate, and only its length is
 reported, so the substrate can say how much it let pass.
@@ -75,6 +76,41 @@ ATTENTION_SECONDS = 8.0
 ROOM_SECONDS = 30.0
 _CHUNK = 1024                      # samples read from the device at a time
 
+#: What a person says to call Lyric through their own device: a taught spoken word like any other, taught whole, in
+#: their own voice, when they turn Listening on (`DeviceEars.teach`).
+WAKE_PHRASE = "hello lyric"
+#: Taught with it, in the same voice, so the ear has something to weigh it against: a word is named only when it
+#: clearly beats every other taught word (`speech.RATIO`), and "hello" said to someone else must not call Lyric.
+WAKE_RIVAL = "hello"
+#: How many times each is said when Listening is set up.
+WAKE_LESSONS = {WAKE_PHRASE: 3, WAKE_RIVAL: 1}
+#: The rates a device may send its sound at; the ears hear it at hearing's own (`hearing.SR`).
+DEVICE_RATES = (8000, 48000)
+
+
+def asked_in(heard_as: str, name: str) -> List[str]:
+    """THE NAME SAID TO CALL IT IS HOW IT WAS ADDRESSED, not what was asked. What was asked is what follows the name,
+    or, when the name is said last, what came before it. What came before a name that the request follows -- a sound
+    in the room, a word to someone else -- was not asked of it. A name of several words (a wake phrase) is those words
+    in order."""
+    words, called = heard_as.split(), name.split()
+
+    def without(part: List[str]) -> List[str]:
+        out, i = [], 0
+        while i < len(part):
+            if part[i:i + len(called)] == called:
+                i += len(called)
+            else:
+                out.append(part[i])
+                i += 1
+        return out
+
+    at = next((i for i in range(len(words) - len(called) + 1) if words[i:i + len(called)] == called), None)
+    if at is None:
+        return words
+    after = without(words[at + len(called):])
+    return after if after else without(words[:at])
+
 
 # ── framing, shared with the substrate side ────────────────────────────────
 
@@ -134,6 +170,10 @@ class Ear:
         self._rose = False                          # ... and whether it has risen
         self._attending_until = -1                 # stream index attention lasts to
         self._told_unnamed = False
+        self.person: Optional[str] = None           # whose device it hears, when it hears one (`_ears`)
+        #: The person has voice mode on on the device this ear hears: attention is held open as long as it is, as it
+        #: is after the name is said (`_ears`, the device's `attend`).
+        self.attending = False
 
     def teach(self, library: Dict[str, Any]) -> None:
         with self._lock:
@@ -230,7 +270,7 @@ class Ear:
             self.status(f"its name {name!r} was never taught as a spoken word, so nothing "
                         f"heard is taken as said to it")
             self._told_unnamed = True
-        if named or (talking and begins <= self._attending_until):
+        if named or (talking and (self.attending or begins <= self._attending_until)):
             self._attending_until = ends + int(ATTENTION_SECONDS * hearing.SR)
             self.heard({"samples": (np.clip(samples, -1, 1) * 32767).astype(np.int16).tobytes(),
                         "rate": hearing.SR, "named": named, "at": time.time(),
@@ -306,6 +346,59 @@ def _ear(source: str) -> None:
         ear.feed(np.frombuffer(data[:len(data) // 2 * 2], dtype=np.int16).astype(np.float32) / 32768.0)
 
 
+def _ears() -> None:
+    """The ears' program for what people's devices hear: an ear for each device's stream, all in one program, fed the
+    sound the substrate passes on (16-bit mono at hearing's rate) and taught what each person's ears listen for.
+    Tells the substrate, stream by stream, what was said to it and how much was let pass."""
+    events, commands = sys.stdout.buffer, sys.stdin.buffer
+    sys.stdout = sys.stderr
+    out_lock = threading.Lock()
+
+    def emit(message):
+        with out_lock:
+            try:
+                _send(events, message)
+            except BrokenPipeError:
+                os._exit(0)                 # the substrate is gone; so are its ears
+
+    ears: Dict[str, Ear] = {}
+    libraries: Dict[str, Dict[str, Any]] = {}
+    work: "queue.Queue[Optional[Any]]" = queue.Queue()
+
+    def listen_to_substrate():              # never let the substrate wait on hearing
+        while True:
+            message = _receive(commands)
+            work.put(message)
+            if message is None or message[0] == "stop":
+                return
+
+    threading.Thread(target=listen_to_substrate, daemon=True).start()
+    emit(("status", None, "listening to devices"))
+    while True:
+        message = work.get()
+        if message is None or message[0] == "stop":
+            return
+        if message[0] == "library":         # ("library", person, library)
+            _kind, person, library = message
+            libraries[person] = library
+            for each in ears.values():
+                if each.person == person:
+                    each.teach(library)
+        elif message[0] == "samples":       # ("samples", stream, person, 16-bit samples, voice mode on)
+            _kind, stream, person, data, attending = message
+            ear = ears.get(stream)
+            if ear is None:
+                ear = ears[stream] = Ear(heard=lambda u, s=stream: emit(("heard", s, u)),
+                                         passed=lambda t, s=stream: emit(("passed", s, t)),
+                                         status=lambda t, s=stream: emit(("status", s, t)))
+                ear.person = person
+                ear.teach(libraries.get(person) or {})
+            ear.attending = attending
+            ear.feed(np.frombuffer(data[:len(data) // 2 * 2], dtype=np.int16).astype(np.float32) / 32768.0)
+        elif message[0] == "end":           # ("end", stream): the device stopped listening
+            ears.pop(message[1], None)
+
+
 # ── the eye ─────────────────────────────────────────────────────────────────
 
 def _eye(source: str) -> None:
@@ -356,6 +449,99 @@ def _eye(source: str) -> None:
 
 
 # ── the substrate's side ────────────────────────────────────────────────────
+
+async def take_in_utterance(coord, utterance: Dict[str, Any], *, name: str, label: str, session: str,
+                            workdir: Path, actor_identity: Optional[str],
+                            picture: Optional[Path] = None) -> Dict[str, Any]:
+    """One utterance said to the substrate: heard, and the scene looked at (`picture`, when an eye looked), as one
+    moment, and -- when every word of it was heard as a taught word -- what was said given to the front door. Returns
+    the record of what came of it.
+
+    WHOSE IT IS. `actor_identity` is the person whose device heard it, None for the substrate's own microphone: what
+    a person says to it through their device is theirs, sensed and remembered as theirs, and goes to the front door
+    as their request, as their typed words do.
+
+    WHAT IT BECOMES DECIDES WHICH MEMORY IT IS PART OF. The hearing and the
+    look are sensed first and remembered after: a request they start forms
+    its pursuit, and they are parts of that pursuit's memory; what starts
+    no pursuit is remembered as its own."""
+    import soundfile as sf
+    stamp = int(utterance["at"] * 1000)
+    path = workdir / f"heard_{stamp}_{os.getpid()}_{id(utterance)}.wav"
+    samples = np.frombuffer(utterance["samples"], dtype=np.int16)
+    sf.write(str(path), samples, utterance["rate"], subtype="PCM_16")
+    jobs = [coord.sense_first(str(path), door="hear", actor_identity=actor_identity, source=label)]
+    if picture is not None:
+        jobs.append(coord.sense_first(str(picture), door="see", actor_identity=actor_identity, source=label))
+    sensed = await asyncio.gather(*jobs, return_exceptions=True)
+    heard_sensed = sensed[0]
+    if isinstance(heard_sensed, BaseException):
+        path.unlink(missing_ok=True)
+        raise heard_sensed
+    seen_sensed = sensed[1] if len(sensed) > 1 else None
+    content = heard_sensed[1] if heard_sensed is not None else {}
+    said = [s["word"] for s in content.get("said") or []]
+    supports = [s["support"] for s in content.get("said") or []]
+    text = content.get("heard_text") or ""
+
+    words = asked_in(text, name)
+    # WORDS THAT SOUND ALIKE ARE HEARD AS A PERSON HEARS THEM. The ear hands
+    # on every way what was said can be heard ("I have to go" and "I have
+    # two go"); the listener takes the one that makes sense
+    # (`derived_reader.heard_which`), and only when it can tell.
+    ways = [" ".join(asked_in(way, name)) for way in content.get("heard_texts") or []]
+    ways = [way for way in dict.fromkeys(ways) if way and "..." not in way.split()]
+    if ways:
+        from core.semantics.derived_reader import heard_which
+        which = await heard_which(ways)
+        if which is not None:
+            words = which.split()
+    # COMPLETE when every word of what was asked was heard as a taught word,
+    # or as one of the words it sounds alike to, which the listener chose.
+    complete = bool(said or ways) and bool(words) and "..." not in words
+    record: Dict[str, Any] = {
+        "at": utterance["at"], "named": utterance["named"], "heard_text": text,
+        "complete": complete,
+        "spoken_by": (content.get("spoken_by") or {}).get("person"),
+    }
+    within = None
+    if complete and words:
+        asked = " ".join(words)
+        metadata = {"conversation_id": session, "heard": True,
+                    "heard_support": round(min(supports), 3) if supports else None}
+        if actor_identity is not None:
+            metadata["actor_identity"] = actor_identity
+        reply = await coord.handle_user_request(
+            asked, source="api" if actor_identity is not None else "manual", metadata=metadata, heard=content)
+        within = reply.get("pursuit_memory_id")
+        record.update({"asked": asked, "reply": reply, "pursuit_memory": within})
+        logger.info("🗣 said to it: %r -> %s", asked,
+                    reply.get("answer") or reply.get("task_id") or reply)
+        # WHAT WAS SAID TO IT went to the front door, where what a person
+        # tells it is read; it is not read a second time as the room's words.
+        if heard_sensed is not None:
+            heard_sensed[1]["said_to_it"] = True
+    else:
+        logger.info("🗣 said to it, not all understood: %r (remembered, not acted on)", text)
+    from core.agents.autonomous.autonomous_coordinator import Met
+    moment = [Met(path=str(path), door="hear", domain="hearing", sensed=heard_sensed)]
+    if picture is not None and seen_sensed is not None \
+            and not isinstance(seen_sensed, BaseException):
+        moment.append(Met(path=str(picture), door="see", domain="vision",
+                          sensed=seen_sensed))
+    try:
+        perceived = await coord.perceive_moment(
+            moment, actor_identity=actor_identity, source=label, within=within)
+    finally:
+        for kept in (path, picture):
+            if kept is not None:
+                kept.unlink(missing_ok=True)        # memory keeps what it keeps
+    heard = perceived[0]
+    seen = perceived[1] if len(perceived) > 1 else None
+    record["heard_memory"] = (heard.metadata or {}).get("memory_id") if heard else None
+    record["seen_memory"] = (seen.metadata or {}).get("memory_id") if seen else None
+    return record
+
 
 class LiveSenses:
     """The substrate listening and looking while it runs.
@@ -479,104 +665,10 @@ class LiveSenses:
         return path
 
     async def _take_in(self, utterance: Dict[str, Any]) -> None:
-        """One utterance said to the substrate: heard, and the scene looked at,
-        as one moment, and -- when every word of it was heard as a taught word
-        -- what was said given to the front door.
-
-        WHAT IT BECOMES DECIDES WHICH MEMORY IT IS PART OF. The hearing and the
-        look are sensed first and remembered after: a request they start forms
-        its pursuit, and they are parts of that pursuit's memory; what starts
-        no pursuit is remembered as its own."""
-        import soundfile as sf
-        stamp = int(utterance["at"] * 1000)
-        path = self._dir / f"heard_{stamp}.wav"
-        samples = np.frombuffer(utterance["samples"], dtype=np.int16)
-        sf.write(str(path), samples, utterance["rate"], subtype="PCM_16")
-        picture = await self._look()
-        jobs = [self.coord.sense_first(str(path), door="hear", actor_identity=None,
-                                       source=self.label)]
-        if picture is not None:
-            jobs.append(self.coord.sense_first(str(picture), door="see", actor_identity=None,
-                                               source=self.label))
-        sensed = await asyncio.gather(*jobs, return_exceptions=True)
-        heard_sensed = sensed[0]
-        if isinstance(heard_sensed, BaseException):
-            raise heard_sensed
-        seen_sensed = sensed[1] if len(sensed) > 1 else None
-        content = heard_sensed[1] if heard_sensed is not None else {}
-        said = [s["word"] for s in content.get("said") or []]
-        supports = [s["support"] for s in content.get("said") or []]
-        text = content.get("heard_text") or ""
-
-        def asked_in(heard_as: str) -> List[str]:
-            """THE NAME SAID TO CALL IT IS HOW IT WAS ADDRESSED, not what was
-            asked. What was asked is what follows the name, or, when the name is
-            said last, what came before it. What came before a name that the
-            request follows -- a sound in the room, a word to someone else -- was
-            not asked of it."""
-            words = heard_as.split()
-            if self.name in words:
-                at = words.index(self.name)
-                after = [w for w in words[at + 1:] if w != self.name]
-                words = after if after else [w for w in words[:at] if w != self.name]
-            return words
-
-        words = asked_in(text)
-        # WORDS THAT SOUND ALIKE ARE HEARD AS A PERSON HEARS THEM. The ear hands
-        # on every way what was said can be heard ("I have to go" and "I have
-        # two go"); the listener takes the one that makes sense
-        # (`derived_reader.heard_which`), and only when it can tell.
-        ways = [" ".join(asked_in(way)) for way in content.get("heard_texts") or []]
-        ways = [way for way in dict.fromkeys(ways) if way and "..." not in way.split()]
-        if ways:
-            from core.semantics.derived_reader import heard_which
-            which = await heard_which(ways)
-            if which is not None:
-                words = which.split()
-        # COMPLETE when every word of what was asked was heard as a taught word,
-        # or as one of the words it sounds alike to, which the listener chose.
-        complete = bool(said or ways) and bool(words) and "..." not in words
-        record: Dict[str, Any] = {
-            "at": utterance["at"], "named": utterance["named"], "heard_text": text,
-            "complete": complete,
-            "spoken_by": (content.get("spoken_by") or {}).get("person"),
-        }
-        within = None
-        if complete and words:
-            asked = " ".join(words)
-            reply = await self.coord.handle_user_request(
-                asked, source="manual",
-                metadata={"conversation_id": self.session, "heard": True,
-                          "heard_support": round(min(supports), 3) if supports else None},
-                heard=content)
-            within = reply.get("pursuit_memory_id")
-            record.update({"asked": asked, "reply": reply, "pursuit_memory": within})
-            logger.info("🗣 said to it: %r -> %s", asked,
-                        reply.get("answer") or reply.get("task_id") or reply)
-            # WHAT WAS SAID TO IT went to the front door, where what a person
-            # tells it is read; it is not read a second time as the room's words.
-            if heard_sensed is not None:
-                heard_sensed[1]["said_to_it"] = True
-        else:
-            logger.info("🗣 said to it, not all understood: %r (remembered, not acted on)", text)
-        from core.agents.autonomous.autonomous_coordinator import Met
-        moment = [Met(path=str(path), door="hear", domain="hearing", sensed=heard_sensed)]
-        if picture is not None and seen_sensed is not None \
-                and not isinstance(seen_sensed, BaseException):
-            moment.append(Met(path=str(picture), door="see", domain="vision",
-                              sensed=seen_sensed))
-        try:
-            perceived = await self.coord.perceive_moment(
-                moment, actor_identity=None, source=self.label, within=within)
-        finally:
-            for kept in (path, picture):
-                if kept is not None:
-                    kept.unlink(missing_ok=True)        # memory keeps what it keeps
-        heard = perceived[0]
-        seen = perceived[1] if len(perceived) > 1 else None
-        record["heard_memory"] = (heard.metadata or {}).get("memory_id") if heard else None
-        record["seen_memory"] = (seen.metadata or {}).get("memory_id") if seen else None
-        self.account["kept"].append(record)
+        """One utterance said to the substrate, with the scene looked at as it was said (`take_in_utterance`)."""
+        self.account["kept"].append(await take_in_utterance(
+            self.coord, utterance, name=self.name, label=self.label, session=self.session,
+            workdir=self._dir, actor_identity=None, picture=await self._look()))
 
     def _told(self, message: Dict[str, Any]) -> None:
         """What the substrate said to the person here, unasked."""
@@ -601,6 +693,198 @@ class LiveSenses:
         logger.info("👂👁 live senses off")
 
 
+def _at_hearing_rate(pcm: bytes, rate: int) -> bytes:
+    """A device's 16-bit mono sound at `rate`, as the ears hear it: at hearing's own rate."""
+    from math import gcd
+
+    from scipy.signal import resample_poly
+    if not DEVICE_RATES[0] <= rate <= DEVICE_RATES[1]:
+        raise ValueError(f"a device sends its sound at {DEVICE_RATES[0]} to {DEVICE_RATES[1]} samples a second, "
+                         f"not {rate}")
+    samples = np.frombuffer(pcm[:len(pcm) // 2 * 2], dtype=np.int16).astype(np.float32)
+    if rate != hearing.SR:
+        step = gcd(hearing.SR, rate)
+        samples = resample_poly(samples, hearing.SR // step, rate // step)
+    return np.clip(samples, -32768, 32767).astype(np.int16).tobytes()
+
+
+class DeviceEars:
+    """Lyric listening through people's own devices, while they have Listening on (Context and privacy).
+
+    Each device's stream of sound comes through the world (its `hearing` crossing) and is heard by an ear of its own,
+    all of them in one program (`_ears`), so listening never holds the substrate's loop. Each ear wakes on the wake
+    phrase (`WAKE_PHRASE`) taught in its person's own voice when they set Listening up (`teach`), and listens for
+    every word taught to Lyric and to them. What it keeps is taken in as that person's, at the front door their typed
+    words go to (`take_in_utterance`); everything else is dropped inside the ear, and only its length is reported.
+    What was said to Lyric on a stream, and how much was let pass, wait for that device's next crossing."""
+
+    def __init__(self, coord) -> None:
+        self.coord = coord
+        self._program = None
+        self._tasks: set = set()
+        self._dir = Path(tempfile.mkdtemp(prefix="lyric_devices_"))
+        #: Each stream: whose it is, what was said to Lyric on it since the device last asked, and how much was kept
+        #: and let pass.
+        self._streams: Dict[str, Dict[str, Any]] = {}
+        #: The version of what Lyric has been taught that each person's ears were last taught from.
+        self._taught: Dict[str, int] = {}
+        #: Utterances are taken in one after another on each stream, in the order they were said.
+        self._order: Dict[str, asyncio.Lock] = {}
+
+    async def _ready(self) -> None:
+        if self._program is not None and self._program.returncode is None:
+            return
+        env = dict(os.environ)
+        env["PYTHONPATH"] = os.pathsep.join(
+            [str(_ROOT)] + [p for p in env.get("PYTHONPATH", "").split(os.pathsep) if p])
+        self._program = await asyncio.create_subprocess_exec(
+            sys.executable, "-m", "core.perception.live", "ears",
+            stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, cwd=str(_ROOT), env=env)
+        self._taught.clear()
+        self._spawn(self._listen())
+
+    def _spawn(self, work) -> None:
+        task = asyncio.create_task(work)
+        self._tasks.add(task)
+        task.add_done_callback(self._tasks.discard)
+
+    async def _send(self, message: Any) -> None:
+        data = pickle.dumps(message, protocol=pickle.HIGHEST_PROTOCOL)
+        self._program.stdin.write(_LENGTH.pack(len(data)) + data)
+        await self._program.stdin.drain()
+
+    @staticmethod
+    async def _lessons(person: Optional[str]) -> Dict[str, List[bytes]]:
+        """Every spoken word taught: Lyric's own (None), or Lyric's own and the ones taught in `person`'s voice."""
+        from core.memory import get_memory_agent
+        agent = await get_memory_agent()
+        return await agent.lessons_taught(agent.SPOKEN_WORD_TAG, "word", actor=person)
+
+    async def _teach_ears(self, person: str) -> None:
+        """What a person's ears listen for: every word taught, Lyric's own and the ones taught in their voice."""
+        from . import speech
+        version = self.coord.vision.taught_version
+        words = {}
+        for word, archives in (await self._lessons(person)).items():
+            examples = [e for e in (speech.unpack(b) for b in archives) if e is not None]
+            if examples:
+                words[word] = examples
+        await self._send(("library", person, {"words": words, "name": WAKE_PHRASE}))
+        self._taught[person] = version
+
+    async def hear(self, person: str, stream: str, pcm: bytes, rate: int, attend: bool = False) -> Dict[str, Any]:
+        """The next stretch of what a person's device hears. Returns what was said to Lyric on it since last asked.
+
+        `attend`: the person has voice mode on on that device (they opened it there, or said the name). Their ear then
+        keeps what they say to it as it does just after the name is said -- only where taught words are firmly heard
+        -- for as long as voice mode stays on, not only `ATTENTION_SECONDS`."""
+        sound = _at_hearing_rate(pcm, rate)
+        await self._ready()
+        if self._taught.get(person) != self.coord.vision.taught_version:
+            await self._teach_ears(person)
+        key = f"{person}\n{stream}"
+        self._streams.setdefault(key, {"person": person, "stream": stream, "said": [],
+                                       "kept_seconds": 0.0, "passed_seconds": 0.0})
+        await self._send(("samples", key, person, sound, bool(attend)))
+        return self._account(key)
+
+    async def end(self, person: str, stream: str) -> Dict[str, Any]:
+        """A device stopped listening: its ear goes, and what was said on it is answered one last time."""
+        key = f"{person}\n{stream}"
+        if self._program is not None and self._program.returncode is None:
+            await self._send(("end", key))
+        account = self._account(key)
+        self._streams.pop(key, None)
+        return account
+
+    def _account(self, key: str) -> Dict[str, Any]:
+        held = self._streams.get(key)
+        if held is None:
+            return {"said": [], "kept_seconds": 0.0, "passed_seconds": 0.0}
+        said, held["said"] = held["said"], []
+        return {"said": said, "kept_seconds": round(held["kept_seconds"], 2),
+                "passed_seconds": round(held["passed_seconds"], 2)}
+
+    async def teach(self, person: str, word: str, pcm: bytes, rate: int) -> Dict[str, Any]:
+        """One time the person said the wake phrase, or its rival, to set Listening up: a lesson heard in their
+        voice and kept in their context (`learn_word`). Returns how far their setup has come. Raises when nothing in
+        the recording could be taught."""
+        import soundfile as sf
+        if word not in WAKE_LESSONS:
+            raise ValueError(f"setting up Listening teaches {' and '.join(repr(w) for w in WAKE_LESSONS)}, "
+                             f"not {word!r}")
+        path = self._dir / f"lesson_{int(time.time() * 1000)}_{id(pcm)}.wav"
+        sf.write(str(path), np.frombuffer(_at_hearing_rate(pcm, rate), dtype=np.int16), hearing.SR,
+                 subtype="PCM_16")
+        try:
+            # `learn_word`'s own act, the lesson given as THEIRS: their voice calling Lyric is for their ears alone,
+            # never taken as the world's (`MemoryAgent.take_in_lesson`).
+            await self.coord._hear_lesson(str(path), {"word": word, "theirs": True}, actor_identity=person,
+                                          source="listening setup", domain="hearing")
+        finally:
+            path.unlink(missing_ok=True)
+        if self._program is not None and self._program.returncode is None:
+            await self._teach_ears(person)
+        return await self.setup(person)
+
+    async def setup(self, person: str) -> Dict[str, Any]:
+        """How far a person's setup has come: how many times each of its words has been taught in their own voice,
+        and how many it takes."""
+        theirs, own = await self._lessons(person), await self._lessons(None)
+        return {"taught": {w: len(theirs.get(w, [])) - len(own.get(w, [])) for w in WAKE_LESSONS},
+                "needed": dict(WAKE_LESSONS), "wake_phrase": WAKE_PHRASE}
+
+    async def _listen(self) -> None:
+        reader = self._program.stdout
+        while True:
+            try:
+                head = await reader.readexactly(_LENGTH.size)
+                kind, key, what = pickle.loads(await reader.readexactly(_LENGTH.unpack(head)[0]))
+            except asyncio.IncompleteReadError:
+                logger.error("the ears' program ended (exit %s); devices are not heard until they send again",
+                             await self._program.wait())
+                return
+            held = self._streams.get(key) if key is not None else None
+            if kind == "status":
+                logger.info("👂 %s%s", f"{key.replace(chr(10), ' ')}: " if key else "", what)
+            elif held is None:
+                continue                        # a stream that has ended since
+            elif kind == "passed":
+                held["passed_seconds"] += what
+            elif kind == "heard":
+                held["kept_seconds"] += len(what["samples"]) / 2 / what["rate"]
+                self._spawn(self._take_in(key, what))
+
+    async def _take_in(self, key: str, utterance: Dict[str, Any]) -> None:
+        held = self._streams.get(key)
+        if held is None:
+            return
+        async with self._order.setdefault(key, asyncio.Lock()):
+            try:
+                record = await take_in_utterance(
+                    self.coord, utterance, name=WAKE_PHRASE, label="device",
+                    session=f"voice:{held['stream']}", workdir=self._dir, actor_identity=held["person"])
+            except Exception as error:
+                # An utterance that could not be taken in is reported with why; the ear goes on listening.
+                logger.error("what was said to it through a device could not be taken in: %s", error, exc_info=True)
+                held["said"].append({"at": utterance["at"], "error": str(error)})
+                return
+        reply = record.get("reply") or {}
+        held["said"].append({"at": record["at"], "heard": record["heard_text"], "understood": record["complete"],
+                             "asked": record.get("asked"), "answer": reply.get("answer")})
+
+    async def stop(self) -> None:
+        for task in list(self._tasks):
+            task.cancel()
+        if self._program is not None and self._program.returncode is None:
+            try:
+                await self._send(("stop",))
+                await asyncio.wait_for(self._program.wait(), 3.0)
+            except (BrokenPipeError, ConnectionResetError, asyncio.TimeoutError):
+                self._program.kill()
+        shutil.rmtree(self._dir, ignore_errors=True)
+
+
 def sources_from_environment() -> Tuple[Optional[str], Optional[str]]:
     """Which microphone and camera the running substrate uses:
     `LYRIC_MICROPHONE` / `LYRIC_CAMERA` (a device name or index, or "off"),
@@ -612,10 +896,13 @@ def sources_from_environment() -> Tuple[Optional[str], Optional[str]]:
 
 
 if __name__ == "__main__":
-    which, source = sys.argv[1], sys.argv[2]
+    which, source = sys.argv[1], (sys.argv[2] if len(sys.argv) > 2 else None)
     code = 0
     try:
-        {"ear": _ear, "eye": _eye}[which](source)
+        if which == "ears":
+            _ears()
+        else:
+            {"ear": _ear, "eye": _eye}[which](source)
     except BaseException:
         import traceback
         traceback.print_exc()

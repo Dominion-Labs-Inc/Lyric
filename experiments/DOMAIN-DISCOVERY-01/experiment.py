@@ -88,6 +88,7 @@ async def main() -> int:
         coord = system.autonomous_coordinator
     from core.database import get_database_manager
     from core.semantics.cognitive_ingress import Provenance
+    from core.learning.unified_learning_system import Evidence
     from core.integration.universal_domain_master import get_universal_domain_master
 
     db = get_database_manager()
@@ -99,9 +100,9 @@ async def main() -> int:
                       source_type="USER_SUPPLIED")
 
     async def teach(subject, relation, obj):
-        await coord.learning.learn_fact(
+        await coord.learning.consider(
             subject, relation, obj, surface=f"a {subject} is a {obj}",
-            domain=CH, provenance=prov, quality=0.95)
+            domain=CH, evidence=Evidence.from_provenance(prov, 0.95))
 
     # ── A. registration is not the decision ──────────────────────────────
     prov_domains = await udm.provisional_domains()

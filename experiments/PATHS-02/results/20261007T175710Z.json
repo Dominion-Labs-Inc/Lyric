@@ -1,0 +1,151 @@
+{
+  "experiment": "PATHS-02",
+  "claim": "Lyric (the coordinator and its Conversation) puts no claim into knowledge: it hands what it meets to memory, memory splits it, and the learning authority is the one door into the world. The conversation calls no learning at all, and there is one conversation path.",
+  "hypothesis": "A call from Lyric to a claim door (the learning authority's, the ingress's, the person's context store's, the belief store's, an evidence producer, or memory's own person writers), any learning named inside Conversation, a claim door called from outside the learning path and memory, or a second way into Conversation.understand would each fail here.",
+  "started_at": "2026-10-07T17:57:10.174620+00:00",
+  "duration_seconds": 42.393,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/Lyric/venv_lyric/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/Lyric",
+    "shadow_mode": null,
+    "git_commit": "0a27c570eda188a24bb63d1968f8fd104a8f4cb6",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "lyric_dev",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "lyric_dev",
+        "model": "lyric_dev",
+        "user_context": "lyric_dev",
+        "learning": "lyric_dev"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "dotenv:.env.postgres",
+        "database": "environment",
+        "user": "dotenv:.env.postgres",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "pool_idle_seconds": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 277,
+    "database_verified": null,
+    "database_verified_reason": "not verified"
+  },
+  "summary": {
+    "checks": 15,
+    "passed": 15,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [
+    {
+      "name": "memory_intake_methods",
+      "value": 13,
+      "unit": "count",
+      "note": "take_in_demonstration, take_in_lesson, take_in_observed, take_in_percept, take_in_recognised, take_in_research, take_in_telling, take_in_tool, take_in_tool_use, take_in_transition, take_in_unread, take_in_verdict, take_outcome_to_learning"
+    }
+  ],
+  "checks": [
+    {
+      "label": "no call in Lyric reaches a claim door",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-07T17:57:10.334830+00:00"
+    },
+    {
+      "label": "what Lyric meets it hands to memory's intake",
+      "passed": true,
+      "detail": "take_in, take_in_demonstration, take_in_lesson, take_in_observed, take_in_percept, take_in_recognised, take_in_research, take_in_telling, take_in_transition, take_in_unread, take_in_verdict, take_outcome_to_learning",
+      "at": "2026-10-07T17:57:10.454945+00:00"
+    },
+    {
+      "label": "nothing inside Conversation names the learning authority",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-07T17:57:10.540453+00:00"
+    },
+    {
+      "label": "outside the learning path, a claim door is called only by memory, the producers memory hands percepts to, and Lyric's own reasoning conclusions over what it holds (analogy discovery's concepts, the domain master's cross-domain projections, both entered as derived candidates)",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-07T17:57:11.515248+00:00"
+    },
+    {
+      "label": "outside the learning path, a belief is created only for Lyric's own state: its competence in a domain (the domain master), patterns over its own memories (abstraction), and its own reasoning's record",
+      "passed": true,
+      "detail": "{'core/integration/universal_domain_master.py': ['learning authority .create_belief', 'learning authority .update_belief'], 'core/reasoning/hierarchical_abstraction.py': ['learning authority .create_belief'], 'core/reasoning/abstract_reasoning_engine.py': ['learning authority .learn_from_experience']}",
+      "at": "2026-10-07T17:57:12.451164+00:00"
+    },
+    {
+      "label": "the ingress's writes are called only by the learning path and memory",
+      "passed": true,
+      "detail": "['core/agents/memory_agent.py', 'core/learning/teaching.py', 'core/learning/unified_learning_system.py']",
+      "at": "2026-10-07T17:57:13.405578+00:00"
+    },
+    {
+      "label": "the evidence producers are called only by memory and the learning path",
+      "passed": true,
+      "detail": "['core/agents/memory_agent.py', 'core/learning/unified_learning_system.py']",
+      "at": "2026-10-07T17:57:14.351542+00:00"
+    },
+    {
+      "label": "only memory writes to the person's context store",
+      "passed": true,
+      "detail": "['core/agents/memory_agent.py']",
+      "at": "2026-10-07T17:57:15.285635+00:00"
+    },
+    {
+      "label": "a person's and an organization's context tables, and who is authorized for which, have one writer, memory",
+      "passed": true,
+      "detail": "{'scoped_concept_relations': ['core/agents/memory_agent.py'], 'scoped_beliefs': ['core/agents/memory_agent.py'], 'user_beliefs': ['core/agents/memory_agent.py'], 'work_authorizations': ['core/agents/memory_agent.py']}",
+      "at": "2026-10-07T17:57:15.728757+00:00"
+    },
+    {
+      "label": "there is one Conversation class",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-07T17:57:19.058491+00:00"
+    },
+    {
+      "label": "a person's turn reaches Conversation.understand only through _take_turn, and Lyric's own asking through the knowledge loop",
+      "passed": true,
+      "detail": "['_answer_from_what_is_held', '_answer_via_knowledge_loop', '_take_turn']",
+      "at": "2026-10-07T17:57:19.272064+00:00"
+    },
+    {
+      "label": "the answer from what is held is reached only from the turn",
+      "passed": true,
+      "detail": "['_take_turn']",
+      "at": "2026-10-07T17:57:19.489538+00:00"
+    },
+    {
+      "label": "memory's intake reaches the world only through the learning authority's gate, a person's context only through its own writers, and percepts through their producers",
+      "passed": true,
+      "detail": "{'take_in_telling': ['learning authority .consider', 'learning authority .consider_rule'], 'take_in_unread': ['ingress .remember_told'], 'take_in_tool': ['evidence producer submit_tool_declaration'], 'take_in_tool_use': ['evidence producer submit_tool_invocation'], 'take_in_percept': ['evidence producer submit_perception'], 'take_outcome_to_learning': ['learning authority .learn_with_domain_context'], 'take_in_transition': ['evidence producer submit_demonstration'], 'take_in_recognised': ['learning authority .consider'], 'take_in_observed': ['learning authority .consider'], 'take_in_research': ['learning authority .consider']}",
+      "at": "2026-10-07T17:57:19.595178+00:00"
+    },
+    {
+      "label": "the turn is a part of its pursuit's memory",
+      "passed": true,
+      "detail": "pursuit mem_3b06b81091ba4a668faf09093bb6b45d; reply 'Noted - Plorvex896ba is a gadget.'",
+      "at": "2026-10-07T17:57:52.482746+00:00"
+    },
+    {
+      "label": "the pursuit, concluded, waits in the pool",
+      "passed": true,
+      "detail": "1 pool rows",
+      "at": "2026-10-07T17:57:52.484646+00:00"
+    }
+  ],
+  "notes": []
+}

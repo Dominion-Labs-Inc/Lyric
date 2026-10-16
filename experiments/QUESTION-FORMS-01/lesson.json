@@ -1,0 +1,248 @@
+{
+ "name": "question-forms-01",
+ "about": "Facts with new words, in shapes english_31 asks about (lives in, belongs to, is kept in, comes from, sleep in) and in shapes it does not (hides in, grows in, rests in). Frozen before the first run.",
+ "quality": 0.95,
+ "examples": false,
+ "records": [
+  {
+   "sentence": "A fip is an animal.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "isa",
+      "fip",
+      "animal",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "A fip lives in a kitchen.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "located_in",
+      "fip",
+      "kitchen",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "A plonk is a cup.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "isa",
+      "plonk",
+      "cup",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "The plonk belongs to Nella.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "owned_by",
+      "plonk",
+      "nella",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "A trel is a pen.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "isa",
+      "trel",
+      "pen",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "The trel is kept in a bag.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "located_in",
+      "trel",
+      "bag",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "A snell is a bird.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "isa",
+      "snell",
+      "bird",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "A snell comes from a city.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "comes_from",
+      "snell",
+      "city",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "A brab is an animal.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "isa",
+      "brab",
+      "animal",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "Brabs sleep in boxes.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "located_in",
+      "brab",
+      "box",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "A kelt is an animal.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "isa",
+      "kelt",
+      "animal",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "A kelt hides in a box.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "located_in",
+      "kelt",
+      "box",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "A morp is a plant.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "isa",
+      "morp",
+      "plant",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "A morp grows in a city.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "located_in",
+      "morp",
+      "city",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "A blip is an animal.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "isa",
+      "blip",
+      "animal",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "The blip rests in the bag.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "located_in",
+      "blip",
+      "bag",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  }
+ ]
+}

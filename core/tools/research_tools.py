@@ -26,7 +26,7 @@ from collections import defaultdict
 from urllib.parse import urlparse
 
 from .tool_registry import Tool, ToolParameter, ToolResult, ToolCategory, ToolSafety
-from .capabilities import Capability, ToolCapabilityProfile, CapabilityMetadata, RiskLevel
+from .tool_registry import Primitive, PrimitiveProfile, PrimitiveUse
 from .network_tools import HttpRequestTool
 
 
@@ -172,35 +172,25 @@ class ConductResearchTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="conduct_research",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.CONDUCT_RESEARCH,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.CONDUCT_RESEARCH,
                     description="ConductResearch capability"
                 ),
-                CapabilityMetadata(
-                    capability=Capability.SUMMARIZE_TEXT,
+                PrimitiveUse(
+                    primitive=Primitive.SUMMARIZE_TEXT,
                     description="Summarize research findings and documents",
                     input_types=["text"],
-                    output_types=["summary"],
-                    latency="medium",
-                    cost="medium",
-                    reliability="high",
-                    risk_level=RiskLevel.LOW,
-                    priority=8
+                    output_types=["summary"]
                 ),
-                CapabilityMetadata(
-                    capability=Capability.EXPLORE_DOMAIN,
+                PrimitiveUse(
+                    primitive=Primitive.EXPLORE_DOMAIN,
                     description="Explore new knowledge domains through research",
                     input_types=["domain"],
-                    output_types=["domain_overview"],
-                    latency="high",
-                    cost="medium",
-                    reliability="high",
-                    risk_level=RiskLevel.LOW,
-                    priority=8
+                    output_types=["domain_overview"]
                 )
             ]
         )
@@ -595,24 +585,19 @@ class SearchAcademicTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="search_academic",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.CONDUCT_RESEARCH,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.CONDUCT_RESEARCH,
                     description="SearchAcademic capability"
                 ),
-                CapabilityMetadata(
-                    capability=Capability.SEARCH_ACADEMIC,
+                PrimitiveUse(
+                    primitive=Primitive.SEARCH_ACADEMIC,
                     description="Search academic databases for research papers",
                     input_types=["query", "filters"],
-                    output_types=["papers"],
-                    latency="high",
-                    cost="medium",
-                    reliability="high",
-                    risk_level=RiskLevel.LOW,
-                    priority=9
+                    output_types=["papers"]
                 )
             ]
         )
@@ -654,12 +639,12 @@ class SearchDataTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="search_data",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.CONDUCT_RESEARCH,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.CONDUCT_RESEARCH,
                     description="SearchData capability"
                 )
             ]
@@ -702,12 +687,12 @@ class SearchNewsTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="search_news",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.CONDUCT_RESEARCH,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.CONDUCT_RESEARCH,
                     description="SearchNews capability"
                 )
             ]

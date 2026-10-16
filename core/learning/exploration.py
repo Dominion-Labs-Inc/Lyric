@@ -305,7 +305,7 @@ class SubstrateExplorer:
                     outcome = await tools.execute_tool(binding.tool_name, params)
                     refused = _refusal(outcome)
                 except Exception as e:
-                    from core.capability import raise_if_structural
+                    from core.structural_defects import raise_if_structural
                     raise_if_structural(e, "exploration.execute_tool")
                     logger.info("exploration action %s raised: %s", action, e)
                 s_after = await registry.observe_world_async(domain_id)

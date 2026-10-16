@@ -1909,7 +1909,6 @@ Backup enabled:        True by default
 |------|-----------|-------------|
 | `meta_learning.py` | Thompson sampling + Wilson CI | Effectiveness score = 70% success + 30% speed |
 | `bandit_policy.py` | Beta distribution Thompson sampling | Speed factor = 1/(1 + avg_time/1000ms) |
-| `adaptive_tool_learning.py` | Tool-task performance history | Per-tool success rates |
 | `drift_monitoring/monitor.py` | Statistical drift detection | Concept drift significance |
 | `causal_feedback_analyzer.py` | Causal graph inference | Action-outcome attribution |
 | `frontier_foresight_methods_impl.py` | Research signal aggregation | 10-minute cache |

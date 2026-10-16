@@ -48,6 +48,8 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO))
 os.environ.setdefault("POSTGRES_DATABASE", "lyric_dev")
+# Speech is off in the substrate unless said (`speech.WORDS_HEARD`); this experiment measures it, so it is on here.
+os.environ.setdefault("LYRIC_SPEECH", "on")
 
 from experiments._evidence import RunRecord  # noqa: E402
 
@@ -174,8 +176,10 @@ async def main() -> int:
                 "AND cr.relation = 'isa' AND cr.target_surface = $2 LIMIT 1",
                 (subject, obj), fetch_one=True)
             if not held:
+                from core.learning.unified_learning_system import Evidence
                 with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
-                    await coord.learning.learn_fact(subject, "isa", obj, domain="general")
+                    await coord.learning.consider(subject, "isa", obj, domain="general", evidence=Evidence(
+                        source="experiment:LIVE-01", key="LIVE-01", source_type="IMPORTED_KNOWLEDGE", quality=0.9))
                 EV.note(f"taught 'a {subject} is a{'n' if obj[0] in 'aeiou' else ''} {obj}' "
                         f"(left in place, as SENSES-TOGETHER-01 does)")
         live = LiveSenses(coord, microphone=f"file:{stim['stream']}", camera=f"file:{JELLYFISH}",

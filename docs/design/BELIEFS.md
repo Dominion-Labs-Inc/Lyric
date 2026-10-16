@@ -20,7 +20,7 @@ what is true, how confident it is, and what it does not yet know. They are
 | `prior_probability` | P(H) before evidence |
 | `likelihood` | P(E\|H) |
 | `posterior_probability` | P(H\|E) — the current confidence |
-| `evidence_for` / `evidence_against` | the observations that moved it |
+| `evidence_for` / `evidence_against` | the observations that moved it; stored one row each in `unified.belief_evidence` (2026-10-08), added as they are made and never rewritten |
 | `uncertainty_type` | epistemic (default) vs aleatoric |
 | `entropy` | information-theoretic uncertainty |
 | `decay_rate` | domain-adaptive λ for temporal decay |

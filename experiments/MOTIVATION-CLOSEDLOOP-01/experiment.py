@@ -79,8 +79,9 @@ async def main():
     me.constitution = get_constitution()
 
     # two unknown-capability domains: max-uncertainty competence beliefs (prior 0.5 → entropy ~1.0)
-    A = unc.create_belief("the substrate has learned the operators of domain test_capA", "test_capA", prior=0.5)
-    B = unc.create_belief("the substrate has learned the operators of domain test_capB", "test_capB", prior=0.5)
+    from core.integration.universal_domain_master import UniversalDomainMaster
+    A = unc.create_belief(UniversalDomainMaster.COMPETENCE_CLAIM + "test_capA", "test_capA", prior=0.5)
+    B = unc.create_belief(UniversalDomainMaster.COMPETENCE_CLAIM + "test_capB", "test_capB", prior=0.5)
     try:
         _pursuits = await me._intrinsic_pursuits(limit=50)
         pdoms = {p["domain"]: p for p in _pursuits}
@@ -94,7 +95,6 @@ async def main():
               f"A={ent_A0:.3f} B={ent_B0:.3f}")
 
         print("\n== Select A → execute (real competence evidence, at the REAL default quality) ==")
-        from core.integration.universal_domain_master import UniversalDomainMaster
         QUALITY = UniversalDomainMaster.COMPETENCE_EVIDENCE_QUALITY   # 0.15 — the real, deliberately low default
 
         def learn_cycle():

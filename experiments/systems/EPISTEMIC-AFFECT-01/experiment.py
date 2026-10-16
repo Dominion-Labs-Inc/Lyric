@@ -24,7 +24,7 @@ decision stays evidence-vs-bar, with feeling setting only the bar (disposition).
 from __future__ import annotations
 import os
 for k, v in {"POSTGRES_PORT": "5433", "POSTGRES_USER": "stefan",
-             "POSTGRES_DATABASE": "lyric_db", "LYRIC_NO_WATCHDOG": "1"}.items():
+             "POSTGRES_DATABASE": "lyric_dev", "LYRIC_NO_WATCHDOG": "1"}.items():
     os.environ.setdefault(k, v)
 import asyncio, contextlib, io, sys, uuid
 from pathlib import Path
@@ -78,8 +78,11 @@ async def main() -> int:
     # THIS run's knowledge movement.
     uid = uuid.uuid4().hex[:8]
     out.append("== 1. a TEACHING source moves knowledge → feeling (via reasoning authority) ==")
-    await coord.learning.learn_fact(f"creature_{uid}", "isa", "animal", domain="zoology")
-    await coord.learning.learn_fact(f"creature_{uid}", "isa", "feline", domain="zoology")
+    from core.learning.unified_learning_system import Evidence
+    taught = Evidence(source="experiment:EPISTEMIC-AFFECT-01", key=f"EPISTEMIC-AFFECT-01:{uid}",
+                      source_type="IMPORTED_KNOWLEDGE", quality=0.9)
+    await coord.learning.consider(f"creature_{uid}", "isa", "animal", domain="zoology", evidence=taught)
+    await coord.learning.consider(f"creature_{uid}", "isa", "feline", domain="zoology", evidence=taught)
     sig_teach = await coord.integrate_epistemic_affect()
     out.append(f"  signal(teaching)={ {k: round(float(v),4) for k,v in sig_teach.items() if isinstance(v,(int,float))} }")
     check("teaching-moved beliefs produced an epistemic feeling signal", _moved(sig_teach))

@@ -7,7 +7,7 @@ Essential data structures
 import hashlib
 from enum import Enum
 from dataclasses import dataclass, field
-from typing import Dict, Any, List, Optional, Set
+from typing import Dict, Any, List, Optional, Sequence, Set
 from datetime import datetime
 
 
@@ -175,15 +175,35 @@ def is_substrate_actor(actor: Optional[str]) -> bool:
     return actor is None or actor == SUBSTRATE_ACTOR
 
 
-def visible_to(owner: Optional[str], actor: Optional[str]) -> bool:
-    """Whether something OWNED by `owner` may enter cognition done for `actor`.
+#: An ORGANIZATION as an owner: its Work Context, kept apart from every person's (docs/research/SEPARATION_MAP.md
+#: §11.13). What a person does or is told through their work for it is the organization's, memories included.
+WORK_OWNER_PREFIX = "org:"
 
-    The substrate's own (owner None/''/substrate) is visible to everyone; a
-    user's is visible only to that user. The same rule the memory store applies
-    in SQL (`PostgresStorage._actor_predicate`), for what is held in process."""
+
+def work_owner(organization: str) -> str:
+    """The owner an organization's Work Context is held under."""
+    if not organization or not str(organization).strip():
+        raise ValueError("a Work Context belongs to a named organization")
+    return f"{WORK_OWNER_PREFIX}{organization}"
+
+
+def is_work_owner(owner: Optional[str]) -> bool:
+    return bool(owner) and str(owner).startswith(WORK_OWNER_PREFIX)
+
+
+def visible_to(owner: Optional[str], owners: Sequence[str]) -> bool:
+    """Whether something OWNED by `owner` may enter cognition done within a
+    person's Shared World Context, given as the OWNERS composed into it
+    (`shared_world_context.composed_owners`: Lyric's own, the person's, and each
+    organization whose Work Context they are authorized for).
+
+    Lyric's own (owner None/''/substrate) is World Knowledge, in everyone's; a
+    person's is in theirs alone; an organization's in each of its authorized
+    people's. The same rule the memory store applies in SQL
+    (`PostgresStorage._actor_predicate`), for what is held in process."""
     if not owner or owner == SUBSTRATE_ACTOR:
         return True
-    return not is_substrate_actor(actor) and owner == actor
+    return owner in owners
 
 
 def store_for_owner(owner: Optional[str], substrate_store: str = "model") -> str:

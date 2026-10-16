@@ -21,6 +21,7 @@ every derivative declares the source it came from.
 from __future__ import annotations
 
 import hashlib
+import json
 import logging
 import re
 from typing import Any, Dict, List, Optional, Sequence, Tuple
@@ -80,16 +81,14 @@ def quality_from_resolution(resolution: float,
 async def _ingest_and_learn(service: Any, envelope: "EvidenceEnvelope", *,
                             domain: str, quality: float,
                             memory_id: Optional[str] = None) -> "IngestionResult":
-    """Ingest through the ONE write path, then fan the admitted relations out to
-    the lexicon and beliefs via the learning authority.
+    """Hand the envelope to the learning authority's one door
+    (`consider_envelope`): each link judged as a claim is, the rest ingested
+    through the ONE write path and fanned out to the lexicon and beliefs.
 
-    A produced fact (research, tool capability, perception) landed the concept
-    graph but nothing else -- so its words were never learned and it never moved
-    a belief. This closes that gap without a second write path: it ingests as
-    before, then hands `IngestionResult.admitted_relations` to
-    UnifiedLearningSystem.fan_out_ingested, which runs the SAME fan-out a taught
-    fact does. Every observation moves a posterior; what it believes today it can
-    revise tomorrow. Isolated -- a fan-out failure never fails the production.
+    A produced fact (research, tool capability, perception) once landed the
+    concept graph and nothing else -- its words never learned, no belief moved --
+    and, written straight, was never judged at all. Every observation moves a
+    posterior; what it believes today it can revise tomorrow.
 
     `quality` is how good the producer says its own evidence is, and every
     producer states it. It was omitted here, so the fan-out's default stood and
@@ -99,8 +98,7 @@ async def _ingest_and_learn(service: Any, envelope: "EvidenceEnvelope", *,
     `memory_id` is the memory of HAVING MET what this evidence is about, for the
     producers that met something: a belief names the memory it is about or it is
     not stored. A producer with nothing met (a tool signature read off a
-    registry) passes None and its beliefs are honestly refused."""
-    result = await service.ingest(envelope)
+    registry) passes None, and no belief is offered for what it gives."""
     # A PERCEPTION IS SOMETHING THE SUBSTRATE MET, so if the caller did not
     # already remember it, it is remembered here — in the producer's OWN
     # rendering of the observation, which is the only faithful account of it
@@ -114,15 +112,12 @@ async def _ingest_and_learn(service: Any, envelope: "EvidenceEnvelope", *,
     if memory_id is None and _is_perception(envelope):
         from core.memory import Origin
         memory_id = await _remember_percept(envelope, Origin.own("perception"))
-    try:
-        from core.learning.unified_learning_system import \
-            get_unified_learning_system
-        await get_unified_learning_system().fan_out_ingested(
-            result, domain=domain, surface=getattr(envelope, "content", "") or "",
-            quality=quality, memory_id=memory_id)
-    except Exception as error:
-        logger.debug("evidence fan-out skipped (%s): %s", domain, error)
-    return result
+    # JUDGED, NOT ONLY WRITTEN: each link of the envelope goes through the one
+    # door's judgement (`consider_envelope`), and what the world holds against
+    # stays out (docs/research/SEPARATION_MAP.md §11.4).
+    from core.learning.unified_learning_system import get_unified_learning_system
+    return await get_unified_learning_system().consider_envelope(
+        service, envelope, domain=domain, quality=quality, memory_id=memory_id)
 
 
 
@@ -169,8 +164,8 @@ async def _admit_perceived(service: Any, envelope: "EvidenceEnvelope", *, origin
 
     The substrate's own takes the one write path and the learning fan-out, as
     it always has. A PERSON'S -- their image, what was seen in it -- is theirs:
-    each edge of the observation goes through the learning authority's router
-    to their context, as what they tell does, and nothing of it enters the shared
+    each edge of the observation is held in their context by the memory agent
+    (`hold_for_person`), as what they tell of their own things is, and nothing of it enters the shared
     graph, its beliefs or the vocabulary. It enters the substrate's own
     knowledge only as an experience, through the lift and the gate. Returns the
     ingestion for the substrate's own, and None for a person's: the shared
@@ -178,25 +173,21 @@ async def _admit_perceived(service: Any, envelope: "EvidenceEnvelope", *, origin
     if origin.person is None:
         return await _ingest_and_learn(service, envelope, domain=domain,
                                        quality=quality, memory_id=memory_id)
-    from core.capability import raise_if_structural
-    from core.learning.unified_learning_system import get_unified_learning_system
-    from core.semantics.cognitive_ingress import Provenance
+    from core.structural_defects import raise_if_structural
+    from core.memory import get_memory_agent
     if memory_id is None:
         await _remember_percept(envelope, origin)
-    learning = get_unified_learning_system()
-    provenance = Provenance(producer=str(envelope.producer),
-                            source_id=str(envelope.source_id),
-                            source_type=EvidenceSourceType.PERCEPTION.name)
+    agent = await get_memory_agent()
     for concept in (envelope.structured_data or {}).get("concepts") or []:
         for edge in concept.get("relationships") or []:
             relation, obj = str(edge[0]), edge[1]
             positive = len(edge) < 3 or str(edge[2]) != "negative"
             support = edge[3] if len(edge) > 3 and edge[3] is not None else quality
             try:
-                await learning.learn_fact(
-                    str(concept["label"]), relation, str(obj), positive=positive,
-                    surface=envelope.content, provenance=provenance, domain=domain,
-                    quality=float(support), actor=origin.person)
+                await agent.hold_for_person(
+                    origin.person, str(concept["label"]), relation, str(obj), positive=positive,
+                    quality=float(support), domain=domain, surface=str(envelope.content or ""),
+                    source=str(envelope.producer), context=origin.context, organization=origin.organization)
             except Exception as error:
                 raise_if_structural(error, "evidence_producers._admit_perceived")
                 logger.warning("a person's perception could not be held in their context "
@@ -412,7 +403,7 @@ async def submit_research_result(
 
 
 __all__ = ["submit_research_result", "submit_learned_rule",
-           "submit_demonstration", "submit_tool_capability",
+           "submit_demonstration", "submit_tool_declaration",
            "submit_tool_invocation", "submit_perception",
            "submit_sensor_reading", "submit_image", "submit_video",
            "canonical_source_key"]
@@ -518,6 +509,7 @@ async def submit_demonstration(
     source_type: "EvidenceSourceType",
     producer: str,
     source_id: Optional[str] = None,
+    owner: Optional[str] = None,
 ) -> "IngestionResult":
     """Record one observed state transition as a ROOT observation.
 
@@ -542,6 +534,12 @@ async def submit_demonstration(
     which of them the action needed is precisely what induction decides. An
     observation that asserted requirement would answer the question the learner
     exists to answer.
+
+    A PERSON'S WORK (`owner`) is recorded lifted. What the envelope holds is
+    already the shape of the transition -- which predicates held, the action's,
+    what was added and removed, never their arguments -- and its account is
+    written the same way, so the files and names of their task stay theirs
+    (docs/research/SEPARATION_MAP.md §11.6).
     """
     from .concept_ingestion import (
         EvidenceEnvelope, EvidenceSourceType, get_concept_ingestion_service)
@@ -582,11 +580,13 @@ async def submit_demonstration(
                     for f in sorted(effects.delete, key=str)],
     }
 
+    def said(fact) -> str:
+        return f"{fact.predicate}/{fact.arity}" if owner else str(fact)
     rendered = "; ".join(filter(None, (
-        "holds " + ", ".join(str(f) for f in sorted(example.before, key=str)),
-        f"action {action}" if action else "no action taken",
-        "adds " + ", ".join(str(f) for f in sorted(effects.add, key=str)) if effects.add else "",
-        "removes " + ", ".join(str(f) for f in sorted(effects.delete, key=str)) if effects.delete else "",
+        "holds " + ", ".join(sorted({said(f) for f in example.before})),
+        f"action {said(action)}" if action else "no action taken",
+        "adds " + ", ".join(sorted({said(f) for f in effects.add})) if effects.add else "",
+        "removes " + ", ".join(sorted({said(f) for f in effects.delete})) if effects.delete else "",
     )))
 
     return await _ingest_and_learn(service, EvidenceEnvelope(
@@ -602,8 +602,8 @@ async def submit_demonstration(
     ), domain=domain_id, quality=PRODUCED_EVIDENCE_QUALITY)
 
 
-async def submit_tool_capability(tool, *, domain: str = "tools") -> "IngestionResult":
-    """Project one tool's DECLARED capability into the semantic layer.
+async def submit_tool_declaration(tool, *, domain: str = "tools") -> "IngestionResult":
+    """Project one tool's DECLARED primitives and parameters into the semantic layer.
 
     A tool is an operator the substrate can invoke, and its parameter list is a
     precondition list in a different notation. Until this existed, the concept
@@ -632,11 +632,12 @@ async def submit_tool_capability(tool, *, domain: str = "tools") -> "IngestionRe
             continue
         (required if getattr(parameter, "required", True) else optional).append(label)
 
-    profile = getattr(tool, "capability_profile", None)
+    # What the tool declares it performs (its primitives), by their stored values.
+    profile = getattr(tool, "primitive_profile", None)
     provides = sorted({
-        getattr(c.capability, "value", str(c.capability))
-        for c in (getattr(profile, "capabilities", None) or [])
-    }) if profile else []
+        getattr(use.primitive, "value", str(use.primitive))
+        for use in (profile.primitives if profile else [])
+    })
 
     service = get_concept_ingestion_service()
     await service._ready()
@@ -647,7 +648,7 @@ async def submit_tool_capability(tool, *, domain: str = "tools") -> "IngestionRe
         producer="tool_registry",
         content=(f"{name} requires {required or 'nothing'}, "
                  f"accepts {optional or 'nothing'}, provides {provides or 'nothing'}"),
-        structured_data={"capability": {
+        structured_data={"tool": {
             "tool": name,
             "domain": str(getattr(getattr(tool, "category", None), "value", domain)),
             "description": str(getattr(tool, "description", "") or ""),
@@ -710,7 +711,7 @@ async def submit_tool_invocation(
         producer="tool_registry",
         content=(f"{name} was invoked with {supplied or 'no arguments'} and "
                  f"{'succeeded' if succeeded else 'failed'}"),
-        structured_data={"capability": {
+        structured_data={"tool": {
             "tool": name,
             "domain": category,
             "required": supplied,
@@ -923,6 +924,142 @@ async def submit_sensor_reading(
         source_id=f"{source}:sensor",
         producer=str(source),
         content=rendered,
+        structured_data={"concepts": concepts},
+    ), origin=origin, domain=domain, quality=PRODUCED_EVIDENCE_QUALITY, memory_id=memory_id)
+
+
+
+async def submit_device(
+    source: str,
+    content: Dict[str, Any],
+    *,
+    domain: str = "device",
+    memory_id: Optional[str] = None,
+    origin: "Origin",
+) -> Optional["IngestionResult"]:
+    """A device a person operates Lyric through, and what they set on it, where its owner's words go
+    (`_admit_perceived`).
+
+    A device is: its name, its `model` (what it is an instance of: an iPhone 17 Pro), the environment domain of its kind
+    (`environment`: what runs it and what exists there, which `situate_device` learns), and the person's
+    `settings`,
+    each capability's state on this device. A state is what the device's own permission answered:
+    `granted` (the person allowed it), `denied` (they refused it), `undetermined` (never asked), or
+    `off` (turned off for the whole device). Each is held as whether the device `allows` the
+    capability: allowed, refused, or (never asked, off) not held at all, since nothing was decided.
+
+    Returns None when no device is named: settings of nothing are not evidence."""
+    from .concept_ingestion import (
+        EvidenceEnvelope, EvidenceSourceType, get_concept_ingestion_service)
+
+    payload = content or {}
+    device = str(payload.get("device") or source or "").strip()
+    if not device:
+        return None
+    rels: List[List[Any]] = []
+    concepts: List[Dict[str, Any]] = [{"label": device, "kind": "entity", "domains": [domain]}]
+    model = str(payload.get("model") or "").strip()
+    if model:
+        rels.append(["instance_of", model])
+        concepts.append({"label": model, "kind": "entity", "domains": [domain]})
+    environment = str(payload.get("environment") or "").strip()
+    if environment:
+        rels.append(["operates_in", environment])
+    for capability, state in dict(payload.get("settings") or {}).items():
+        state = str(state).strip().lower()
+        if state == "granted":
+            rels.append(["allows", str(capability)])
+        elif state in ("denied", "off"):
+            rels.append(["allows", str(capability), "negative"])
+    concepts[0]["relationships"] = rels
+
+    service = get_concept_ingestion_service()
+    await service._ready()
+    return await _admit_perceived(service, EvidenceEnvelope(
+        evidence_id=_stable_id("device", source, device, model,
+                               json.dumps(payload.get("settings") or {}, sort_keys=True)),
+        source_type=EvidenceSourceType.PERCEPTION,
+        source_id=f"{source}:device",
+        producer=str(source),
+        content=f"{device}, {model or 'a device'}",
+        structured_data={"concepts": concepts},
+    ), origin=origin, domain=domain, quality=PRODUCED_EVIDENCE_QUALITY, memory_id=memory_id)
+
+
+#: How finely a position is held: three decimal places of a degree, about 110 m of latitude. Coming
+#: back to the same place meets the same position, which is what learning a place rests on, and a day
+#: of moving does not mint a position for every fix.
+_POSITION_PLACES = 3
+
+#: A fix less accurate than this (metres) cannot say which position it is at that grain: not evidence.
+_POSITION_ACCURACY = 500.0
+
+
+async def submit_location(
+    source: str,
+    content: Dict[str, Any],
+    *,
+    domain: str = "location",
+    memory_id: Optional[str] = None,
+    origin: "Origin",
+) -> Optional["IngestionResult"]:
+    """Where a device was, as its location sensing reported it, where its owner's words go.
+
+    A fix is: the device, a latitude and a longitude (degrees), how accurate it was (metres), and when
+    (`at`, a moment in UTC). The device is `located_at` a position held at about 110 m, a concept of its
+    own with its latitude and longitude as typed quantities, so a position the device comes back to is
+    the same one and the substrate can learn the places a person goes. The position is named as
+    coordinates are written, `25.762N 80.192W`: a name keeps its letters and digits, not its points and
+    signs, so the hemisphere is said in letters and every name has three places.
+
+    Returns None when there is no device or no position. Raises when a latitude or longitude is given
+    but is not a number in range: filing it would record a place that is nowhere."""
+    from .concept_ingestion import (
+        EvidenceEnvelope, EvidenceSourceType, get_concept_ingestion_service)
+
+    payload = content or {}
+    device = str(payload.get("device") or source or "").strip()
+    if not device or payload.get("latitude") is None or payload.get("longitude") is None:
+        return None
+    try:
+        latitude, longitude = float(payload["latitude"]), float(payload["longitude"])
+    except (TypeError, ValueError) as error:
+        raise ValueError(f"a location fix needs numbers for latitude and longitude: {error}") from error
+    if not (-90.0 <= latitude <= 90.0 and -180.0 <= longitude <= 180.0):
+        raise ValueError(f"no place is at latitude {latitude}, longitude {longitude}")
+    accuracy = payload.get("accuracy")
+    if accuracy is not None and float(accuracy) > _POSITION_ACCURACY:
+        return None
+
+    lat, lon = round(latitude, _POSITION_PLACES), round(longitude, _POSITION_PLACES)
+    position = (f"{abs(lat):.{_POSITION_PLACES}f}{'N' if lat >= 0 else 'S'} "
+                f"{abs(lon):.{_POSITION_PLACES}f}{'E' if lon >= 0 else 'W'}")
+    lat_concept, lat_surface = _literal_concept(f"{lat:.{_POSITION_PLACES}f}", domain)
+    lon_concept, lon_surface = _literal_concept(f"{lon:.{_POSITION_PLACES}f}", domain)
+    rels: List[List[str]] = [["located_at", position]]
+    concepts: List[Dict[str, Any]] = [
+        {"label": device, "kind": "entity", "domains": [domain]},
+        {"label": position, "kind": "entity", "domains": [domain],
+         "relationships": [["latitude", lat_surface], ["longitude", lon_surface]]},
+        lat_concept, lon_concept,
+    ]
+    when = payload.get("at") or payload.get("observed_at")
+    if when is not None:
+        time_concept, time_surface = _literal_concept(when, domain)
+        # Only a moment becomes a temporal fact (as for a sensor reading).
+        if time_concept is not None and time_concept["kind"] == "temporal":
+            rels.append(["observed_at", time_surface])
+            concepts.append(time_concept)
+    concepts[0]["relationships"] = rels
+
+    service = get_concept_ingestion_service()
+    await service._ready()
+    return await _admit_perceived(service, EvidenceEnvelope(
+        evidence_id=_stable_id("location", source, device, position, str(when or "")),
+        source_type=EvidenceSourceType.PERCEPTION,
+        source_id=f"{source}:location",
+        producer=str(source),
+        content=f"{device} at {position}",
         structured_data={"concepts": concepts},
     ), origin=origin, domain=domain, quality=PRODUCED_EVIDENCE_QUALITY, memory_id=memory_id)
 

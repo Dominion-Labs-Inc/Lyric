@@ -4,19 +4,19 @@ Autonomous Coordinator - Main orchestrator for the autonomous system
 Replaces the monolithic master_autonomous_controller.py with clean coordination
 """
 
-from core.capability import raise_if_structural
+from core.structural_defects import raise_if_structural
 import asyncio
+import functools
 import hashlib
 import inspect
+import itertools
 import re
 from types import SimpleNamespace
 import json
 import logging
 import os
-from typing import Dict, Any, FrozenSet, List, Optional, Set, Sequence, Tuple, TYPE_CHECKING, Callable
+from typing import Dict, Any, FrozenSet, List, Mapping, Optional, Set, Sequence, Tuple, Callable
 
-if TYPE_CHECKING:  # type-only; the real symbol is imported locally where it is used at runtime
-    from core.learning.meta_learning import TaskFamily
 from datetime import datetime, timedelta, timezone
 from collections import deque, OrderedDict
 import dataclasses
@@ -45,6 +45,7 @@ if str(project_root) not in sys.path:
 
 from core.memory import (MemoryManager, MemoryItem, MemoryQuery, MemoryType, MemoryOperation, Origin,
                          Experience, Part)
+from core.agents.memory_agent import memory_agent
 from core.reasoning import (
     AbstractReasoningEngine, ReasoningContext, ReasoningType,
     create_abstract_reasoning_engine, AdvancedProofEngine
@@ -326,10 +327,12 @@ class DeficitDiagnosed:
 
 @dataclass(frozen=True)
 class EnvironmentEncountered:
-    """A place the substrate inhabits was investigated."""
+    """A place the substrate inhabits or operates through was met for the first time, with what was
+    observed of it: the host it runs on, or a kind of device. `facts` are the observations by name;
+    a device's include its `surface`, what the device offers and lacks."""
     environment_id: str
     domain: str
-    facts: int = 0
+    facts: Dict[str, Any] = field(default_factory=dict)
 
 
 #: WHAT EACH EVENT CARRIES, DECLARED ONCE AND ENFORCED.
@@ -1046,10 +1049,16 @@ def path_identity(path: str) -> str:
     return os.path.realpath(os.path.expanduser(str(path)))
 
 
-def perceive_entry(path: str) -> Optional[Dict[str, Any]]:
+def perceive_entry(path: str, *, content: bool = False) -> Optional[Dict[str, Any]]:
     """What is at one path, as the self perceives it: its name, kind, extension,
     size, and WHICH thing it is. The environment scan perceives every entry
     through this, so there is one reading of what a thing on disk is.
+
+    With `content`, a file is also measured for WHAT it holds
+    (`content_digest`). The acts the self watches look that closely, so it can
+    tell a write that put the right thing in a file from one that did not; the
+    environment scan does not, because measuring every file it passes would
+    read all of them.
 
     The identity is what the filesystem itself keeps for the thing: its device
     and inode, and its birth time where the system records one, so a number
@@ -1081,9 +1090,40 @@ def perceive_entry(path: str) -> Optional[Dict[str, Any]]:
     if born is not None:
         identity += f":{int(born * 1_000_000)}"
     name = os.path.basename(os.path.normpath(str(path)))
-    return {"path": str(path), "name": name, "kind": kind,
-            "ext": os.path.splitext(name)[1].lower().lstrip("."), "size": size,
-            "identity": identity}
+    entry = {"path": str(path), "name": name, "kind": kind,
+             "ext": os.path.splitext(name)[1].lower().lstrip("."), "size": size,
+             "identity": identity}
+    if content and kind == "file":
+        entry["content"] = content_digest(path, status.st_size)
+    return entry
+
+
+#: Above this a file's content is not measured: the fingerprint costs a full read.
+CONTENT_MEASURE_LIMIT = 64 * 1024 * 1024
+
+
+def content_digest(path: str, size: Optional[int] = None) -> Optional[str]:
+    """WHAT a file holds, as a fingerprint of its bytes: two files hold the same
+    thing exactly when these agree. Not a reading of what it says, which is the
+    reader's; a measurement, like its size. None when it is too large to measure
+    or cannot be read, which is not the same as holding nothing."""
+    if size is not None and size > CONTENT_MEASURE_LIMIT:
+        return None
+    try:
+        digest = hashlib.sha256()
+        with open(path, "rb") as f:
+            for chunk in iter(lambda: f.read(1 << 20), b""):
+                digest.update(chunk)
+        return "sha256:" + digest.hexdigest()[:16]
+    except OSError:
+        return None
+
+
+def text_digest(text: str) -> str:
+    """The same fingerprint for a text not yet in any file: what a file written
+    with exactly this text (UTF-8) would hold. An act carries it for what it was
+    asked to write, so the act and the self's reading of the file can agree."""
+    return "sha256:" + hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
 
 
 def path_within(container: str, member: str) -> bool:
@@ -1117,7 +1157,8 @@ class Sense:
 #: each. A kind is named by the head noun of the parameters that name it:
 #: `source_path`, `directory_path` and `path` all name a path.
 SENSES: Dict[str, Sense] = {"path": Sense(
-    perceive=perceive_entry, identify=path_identity, within=path_within,
+    perceive=functools.partial(perceive_entry, content=True),   # what acts touch, closely
+    identify=path_identity, within=path_within,
     relocate=path_relocated, holds=lambda entry: entry.get("kind") == "dir")}
 
 
@@ -1777,6 +1818,7 @@ _TOOL_CONSEQUENCE: Dict[str, Tuple[ActionClass, str]] = {
     "generate_property_test": (ActionClass.MODIFY, "PARTIALLY_REVERSIBLE"),
     "generate_readme": (ActionClass.MODIFY, "PARTIALLY_REVERSIBLE"),
     "generate_symbolic_math": (ActionClass.MODIFY, "PARTIALLY_REVERSIBLE"),
+    "generate_sysml_model": (ActionClass.MODIFY, "PARTIALLY_REVERSIBLE"),
     "generate_test": (ActionClass.MODIFY, "PARTIALLY_REVERSIBLE"),
     "generate_word_document": (ActionClass.MODIFY, "PARTIALLY_REVERSIBLE"),
     "link_claim_to_evidence": (ActionClass.MODIFY, "PARTIALLY_REVERSIBLE"),
@@ -2041,7 +2083,6 @@ _PAYLOAD_KEYS = ("command", "code", "script", "cmd", "shell_command",
                  "query", "sql", "sql_query", "statement")
 
 
-
 def classify_action(tool_name: str, parameters: Dict[str, Any], *,
                     sensitive: Optional["Sensitivity"] = None
                     ) -> Tuple["ActionClass", str]:
@@ -2094,7 +2135,6 @@ def classify_action(tool_name: str, parameters: Dict[str, Any], *,
     return _result(ActionClass.EXECUTE, "PARTIALLY_REVERSIBLE")
 
 
-
 def _escalate(irreversibility: str) -> str:
     """One step stronger, saturating at IRREVERSIBLE."""
     order = _IRREVERSIBILITY_ORDER
@@ -2102,7 +2142,6 @@ def _escalate(irreversibility: str) -> str:
         return order[min(order.index(irreversibility) + 1, len(order) - 1)]
     except ValueError:
         return irreversibility
-
 
 
 @dataclass(frozen=True)
@@ -2149,13 +2188,6 @@ class Sensitivity:
         return "CRITICAL" in {(self.impact_level or "").upper(),
                               (self.safety_risk or "").upper()}
 
-    @property
-    def computed_per_argument(self) -> bool:
-        """The config declines to state a fixed level for this trigger: its
-        severity depends on the arguments and must be DERIVED, not looked up.
-        Reported rather than silently read as a level."""
-        return "VARIES_BY_PARAM" in {(self.impact_level or "").upper(),
-                                     (self.safety_risk or "").upper()}
 
     def to_dict(self) -> Dict[str, Any]:
         return {"trigger_id": self.trigger_id, "impact_level": self.impact_level,
@@ -2169,7 +2201,6 @@ class Sensitivity:
     def __str__(self) -> str:
         # Stays readable where the trigger_id alone used to be printed.
         return self.trigger_id
-
 
 
 #: WHAT JUDGING READS, and so what must never be patchable at runtime.
@@ -5409,11 +5440,6 @@ class Constitution:
             violations=violations, law_compliance_scores=scores,
             standing=standing, unknown_laws=unknown)
 
-    async def assess_quick_alignment(self):
-        """The every-cycle check. It reads the same standing state; what it does
-        NOT do is invent a system state, so the readings that need one report
-        themselves untaken instead of being scored against a placeholder."""
-        return await self.assess_constitutional_alignment(system_state=None)
 
     @staticmethod
     def _resource_pressure(system_state) -> Optional[float]:
@@ -5663,24 +5689,6 @@ class Constitution:
 
         return standing
 
-    async def calculate_law_compliance_scores(self, context: Dict[str, Any]) -> Dict[str, float]:
-        """Per-law compliance for ONE act, derived from the judgement itself.
-
-        The judgement is the reading: a law that refused the act is the law the
-        act failed. Nothing is scored by keyword. Kept because callers ask for
-        per-law numbers; the verdict is the honest source of them."""
-        judgment = await self.judge(
-            str(context.get("action_kind") or "tool"),
-            str(context.get("tool_name") or context.get("action_type") or ""),
-            dict(context.get("action_params") or {}),
-            # An intent is named, never handed over; an id naming nothing is no
-            # intent, which is exactly how an unrecorded claim should read.
-            intent_id=context.get("intent_id"))
-        scores = {f"law_{i}_compliance": 1.0 for i in range(1, 6)}
-        if judgment.verdict is not Verdict.ALLOW and judgment.law_number:
-            scores[f"law_{judgment.law_number}_compliance"] = (
-                0.0 if judgment.verdict is Verdict.BLOCK else 0.5)
-        return scores
 
     async def get_constitution_status(self) -> Dict[str, Any]:
         """The health authority's view of this faculty."""
@@ -6676,10 +6684,6 @@ class AutonomousCoordinator:
         from core.agents.autonomous.intrinsic_motivation import get_intrinsic_motivation_system
         self.intrinsic_motivation = get_intrinsic_motivation_system()
 
-        # ── Knowledge cutoff tracking (persistent) ───────────────────────
-        # The last knowledge refresh: when one started and finished, and the date
-        # it brought knowledge up to. Read from the store in `initialize`.
-        self._knowledge_refresh: Dict[str, Any] = {}
         # === COMPLETION CALLBACK REGISTRY ===
         # Initialize this BEFORE register_completion_callback is called
         # Generic completion hook system - any subsystem can register completion handlers
@@ -6747,14 +6751,6 @@ class AutonomousCoordinator:
         # actually changes, and is quiet when nothing warrants pursuit.
         self._pursuit_dirty: bool = False
         self._pursuit_selection_task: Optional[asyncio.Task] = None
-
-        # Register completion callback for autonomous knowledge refresh research
-        self.register_completion_callback(
-            TaskType.RESEARCH,
-            TaskSource.AUTONOMOUS,
-            self._on_knowledge_refresh_complete,
-            "Update knowledge refresh state"
-        )
 
         # AFFECT — the reference reaction. A task outcome is a fitness-relevant
         # event, so the substrate feels it. This was hardwired at the completion
@@ -6901,6 +6897,18 @@ class AutonomousCoordinator:
         # coordinator writes to when it reads a file MUST be the ledger Law 2
         # consults when it asks whether that file was read.
         self.constitution = get_constitution()
+        #: WHAT THE SUBSTRATE CAN DO, AND FOR WHOM. The capabilities faculty
+        #: (`core.capabilities`): methods lifted from experience, their standing
+        #: for the world and for each person, and how one may be used for someone
+        #: now. Taken from its singleton, as the constitution is, because the
+        #: acting path consults the same one.
+        from core.capabilities import get_capabilities
+        self.capabilities = get_capabilities()
+        #: What each finished task's experience was worth (`ExperienceEvaluator`):
+        #: its outcome quality and the intrinsic reward from the drives, handed to
+        #: appraisal; made ready on first use, with the constitution and the
+        #: motivation system it reads (`_experience_evaluator_ready`).
+        self._experience_evaluator = None
         #: HOW THREATENED THIS SUBSTRATE FEELS. The rewrite of
         #: `core/security/threat_intelligence.py`: not an IP-reputation lookup
         #: reaching AbuseIPDB and VirusTotal, but the substrate noticing what
@@ -7023,8 +7031,6 @@ class AutonomousCoordinator:
         from core.database import LyricUnifiedDatabase
         self.db = LyricUnifiedDatabase()
         self.tool_registry = None
-        self._env_loaded = False
-        self._dotenv_values = None
         # ONE completion authority: `_execute_and_validate_task` decides "done"
         # from the `verification_state` each execution handler set by RE-OBSERVING
         # its real effect (a tool's real success, an operator that became
@@ -7080,13 +7086,6 @@ class AutonomousCoordinator:
         self._directive_max_parallel: Optional[int] = None
         self._directive_resource_id: Optional[str] = None
         # No private pool: concurrency is the queue authority's (self.task_queue).
-
-        # ── Idle review snapshots (facts-first, no LLM) ───────────────────
-        self._idle_last_system_review_at: Optional[datetime] = None
-        self._idle_system_review_snapshot: Optional[Dict[str, Any]] = None
-
-        # ── Idle knowledge refresh (web research cadence) ─────────────────
-        self._idle_last_knowledge_refresh_at: Optional[datetime] = None
 
         # Memory system - can be provided or created (will be initialized in async initialize() method)
         if 'memory' in self.config and not isinstance(self.config['memory'], dict):
@@ -7254,11 +7253,6 @@ class AutonomousCoordinator:
         # Last time a drift alert was published (to avoid spamming)
         self._last_drift_alert_at: Optional[datetime] = None
 
-        # === IDLE PRIORITY TIMESTAMPS ===
-        # Track last execution of each priority tier so the idle dispatcher
-        # can pick the highest-priority action that is actually due.
-        self._idle_last_meta_learning: Optional[datetime] = None
-
     async def initialize(self, start_loop: bool = False) -> bool:
         """
         Initialize all system modules
@@ -7274,10 +7268,8 @@ class AutonomousCoordinator:
             # faculties (neural_bridge, learning, domains…), never a held model
             # handle.
 
-            # Work state kept in the store: what permanently failed, and the
-            # last knowledge refresh.
+            # Work state kept in the store: what permanently failed.
             await self._load_failed_fingerprints()
-            await self._load_knowledge_refresh()
 
             # Initialize logging database if it was created but not yet initialized
             if self.log_db and not getattr(self.log_db, 'initialized', False):
@@ -7783,106 +7775,6 @@ class AutonomousCoordinator:
             return 0.0
         return sum(1 for exploratory in history if exploratory) / len(history)
 
-    def register_capability(self, name: str, instance: Any, config: Dict[str, Any]) -> bool:
-        """
-        Register a system capability for autonomous execution
-        
-        Capabilities are background tasks managed by the coordinator that run based on
-        system state and conditions rather than hardcoded timers. This enables true
-        adaptive intelligence where the system decides when to act.
-        
-        Args:
-            name: Unique capability identifier (e.g., 'memory_consolidation', 'pattern_learning')
-            instance: Object instance that implements the capability
-            config: Configuration dict with:
-                - priority: 'critical', 'high', 'medium', 'low' (default: 'medium')
-                - interval: Minimum seconds between executions (default: 3600)
-                - method: Name of method to invoke on instance (default: name)
-                - conditions: Dict of conditions that must be met:
-                    - min_feedback_samples: Minimum feedback count required
-                    - performance_threshold: Minimum system performance (0.0-1.0)
-                    - error_rate_max: Maximum allowed error rate
-                    - memory_usage_max: Maximum memory usage percentage
-                    - custom_check: Callable that returns bool
-        
-        Returns:
-            True if registration successful
-            
-        Example:
-            coordinator.register_capability(
-                'pattern_learning',
-                learner_instance,
-                {
-                    'priority': 'high',
-                    'interval': 3600,
-                    'method': 'run_pattern_learning',
-                    'conditions': {
-                        'min_feedback_samples': 10,
-                        'performance_threshold': 0.7
-                    }
-                }
-            )
-        """
-        try:
-            if not hasattr(self, 'registered_capabilities'):
-                self.registered_capabilities = {}
-                self.capability_last_run = {}
-            
-            if name in self.registered_capabilities:
-                logger.warning(f"Capability '{name}' already registered, replacing...")
-            
-            # Validate config
-            priority = config.get('priority', 'medium')
-            if priority not in ['critical', 'high', 'medium', 'low']:
-                logger.warning(f"Invalid priority '{priority}', defaulting to 'medium'")
-                priority = 'medium'
-            
-            interval = config.get('interval', 3600)
-            method_name = config.get('method', name)
-            
-            # Verify method exists
-            if not hasattr(instance, method_name):
-                logger.error(f"Instance does not have method '{method_name}'")
-                return False
-            
-            self.registered_capabilities[name] = {
-                'instance': instance,
-                'method': method_name,
-                'priority': priority,
-                'interval': interval,
-                'conditions': config.get('conditions', {}),
-                'registered_at': datetime.now(),
-                'status': 'active',
-                'execution_count': 0,
-                'last_result': None,
-                'last_error': None
-            }
-            
-            self.capability_last_run[name] = datetime.min  # Never run yet
-            
-            logger.info(f"✅ Registered capability: {name} (priority: {priority}, interval: {interval}s)")
-            return True
-            
-        except Exception as e:
-            logger.error(f"Failed to register capability {name}: {e}")
-            return False
-    
-    def unregister_capability(self, name: str) -> bool:
-        """Unregister a system capability"""
-        try:
-            if hasattr(self, 'registered_capabilities') and name in self.registered_capabilities:
-                del self.registered_capabilities[name]
-                if name in self.capability_last_run:
-                    del self.capability_last_run[name]
-                logger.info(f"Unregistered capability: {name}")
-                return True
-            else:
-                logger.warning(f"Capability '{name}' not found for unregistration")
-                return False
-        except Exception as e:
-            logger.error(f"Failed to unregister capability {name}: {e}")
-            return False
-    
     def register_completion_callback(
         self,
         task_type: TaskType,
@@ -7957,9 +7849,8 @@ class AutonomousCoordinator:
         authority must not have to know `SelfEventType`, and it must not depend
         on a caller having handed it a transport -- that is exactly how bulk
         teaching came to admit 300,000 facts without the substrate noticing.
-        `_evidence_emitter` below wraps this for the conversation path, which
-        holds its own emitter; the authority reaches this through the runtime
-        registry.
+        The authority reaches this through the runtime registry, whoever's claim
+        it judged.
 
         Not best-effort: if the event cannot be dispatched the caller hears
         about it, because an admission the substrate did not register is a
@@ -8310,10 +8201,13 @@ class AutonomousCoordinator:
             if drained_total:
                 logger.info("[REACT] induction drained %d signature(s) to completion",
                             drained_total)
+            await asyncio.sleep(self._COALESCE_SETTLE_S)
         if self._induction_dirty:
-            logger.warning("[REACT] induction drain hit the coalesced-pass bound "
-                           "(%d) — possible event cascade; resumes on next wake",
-                           self._COALESCE_MAX_PASSES)
+            # Settled between passes (`_COALESCE_SETTLE_S`), reaching the bound
+            # means events kept arriving that long (a teaching pass), not that the
+            # drain fed itself: said as what it is.
+            logger.info("[REACT] induction drain ran %d passes while events kept "
+                        "arriving; it resumes on the next wake", self._COALESCE_MAX_PASSES)
 
     def _wake_domain_expansion(self) -> None:
         """Producer-driven trigger: a task outcome was written, or a domain gained
@@ -8344,10 +8238,13 @@ class AutonomousCoordinator:
                 if not expanded:
                     break
                 await asyncio.sleep(0)
+            await asyncio.sleep(self._COALESCE_SETTLE_S)
         if self._domain_expansion_dirty:
-            logger.warning("[REACT] domain-expansion drain hit the coalesced-pass "
-                           "bound (%d) — possible event cascade; resumes on next wake",
-                           self._COALESCE_MAX_PASSES)
+            # Settled between passes (`_COALESCE_SETTLE_S`), reaching the bound
+            # means events kept arriving that long (a teaching pass), not that the
+            # drain fed itself: said as what it is.
+            logger.info("[REACT] domain-expansion drain ran %d passes while events kept "
+                        "arriving; it resumes on the next wake", self._COALESCE_MAX_PASSES)
 
     def _wake_domain_discovery(self) -> None:
         """Trigger: a taught proposition was admitted (declarative) or a domain
@@ -8371,10 +8268,13 @@ class AutonomousCoordinator:
             passes += 1
             self._domain_discovery_dirty = False
             await self._idle_domain_discovery_work()
+            await asyncio.sleep(self._COALESCE_SETTLE_S)
         if self._domain_discovery_dirty:
-            logger.warning("[REACT] domain-discovery drain hit the coalesced-pass "
-                           "bound (%d) — possible event cascade; resumes on next wake",
-                           self._COALESCE_MAX_PASSES)
+            # Settled between passes (`_COALESCE_SETTLE_S`), reaching the bound
+            # means events kept arriving that long (a teaching pass), not that the
+            # drain fed itself: said as what it is.
+            logger.info("[REACT] domain-discovery drain ran %d passes while events kept "
+                        "arriving; it resumes on the next wake", self._COALESCE_MAX_PASSES)
 
     async def _react_pursue_frontier(self, event: "SelfEvent") -> None:
         """The developmental drive, EVENT-DRIVEN. When the self's state changes in
@@ -8642,6 +8542,16 @@ class AutonomousCoordinator:
         return await self._hear_lesson(path, {"person": person}, actor_identity=actor_identity,
                                        source=source, domain=domain)
 
+    async def learn_phones(self, told: str, path: str, *, actor_identity: Optional[str],
+                           source: Optional[str] = None, domain: str = "hearing") -> str:
+        """Teach the sounds words are made of by HEARING them said, told which phone
+        is said when (`told`: "M 0.21 0.29|IH1 0.29 0.33|..."). The same act as
+        `learn_word`, and the same memory as any hearing: its trace keeps frames of
+        each phone (`speech.phones_example`), and from then on a word is heard by
+        its sounds (`speech.find_words_by_phones`), whoever says it."""
+        return await self._hear_lesson(path, {"phones": told}, actor_identity=actor_identity,
+                                       source=source, domain=domain)
+
     async def learn_song(self, title: str, path: str, *, actor_identity: Optional[str],
                          source: Optional[str] = None, domain: str = "hearing") -> str:
         """Teach a song by hearing it, told what it is called. The same act as
@@ -8786,8 +8696,11 @@ class AutonomousCoordinator:
             subject = content["subject"]
             subjects.append(subject)
             if percept_memory is not None and content.get("lesson"):
-                # What memory now holds, the senses know it by: never before it.
-                self.vision.hold_lesson(content)
+                # What memory now holds, the senses know it by: never before it,
+                # and for everyone only what memory takes as the world's
+                # (`MemoryAgent.take_in_lesson`).
+                if await memory_agent().take_in_lesson(content, origin, self._KEPT[modality][1]):
+                    self.vision.hold_lesson(content)
                 await self._name_what_was_heard_before(content, origin, domain)
             # THE SENSES ADMIT WHAT THEY TOOK IN, once, as evidence about the
             # memory of perceiving it. coord.process_input admits external input
@@ -8869,35 +8782,29 @@ class AutonomousCoordinator:
     async def _understand_words(self, content: Dict[str, Any]) -> None:
         """What the words met say, as the substrate's one reader reads them: the
         lines of a page read, and the words heard in a recording, each read as
-        a sentence typed or said is (`derived_reader.stated`). Each fact stated
-        between named things is kept with the line it was read from, under
-        `stated`. Words said TO the substrate (`said_to_it`) are not read here:
-        they went to the front door, where what a person tells it is read.
+        a sentence typed or said is (`derived_reader.stated`), and the rows of a
+        document's tables, each read under its headings. Each fact stated
+        between named things is kept with the line or row it was read from and
+        where that stands, under `stated` (`document_reader`). Words said TO the
+        substrate (`said_to_it`) are not read here: they went to the front door,
+        where what a person tells it is read.
 
-        THE SUBSTRATE READS WHILE IT THINKS. The reader runs in its loop, about
-        2 ms a word measured, so a long document yields between lines: a
-        question asked while it reads is not held behind the last page."""
+        A TABLE'S ROWS ARE READ, THEN LET GO. Its words are on the document's
+        pages already, so once what the rows state is under `stated`, the rows
+        are not kept a second time."""
         if "stated" in content:
             return
-        lines: List[str] = []
-        for page in content.get("text") or []:
-            lines.extend(str(page).splitlines())
+        from core.semantics.document_reader import lines_of, lines_stated, tables_stated
+        lines = lines_of(content.get("text") or [],
+                         (content.get("properties") or {}).get("has_format"))
         if content.get("heard_text") and not content.get("said_to_it"):
-            lines.append(str(content["heard_text"]))
-        if not lines:
+            lines.append((str(content["heard_text"]), "heard"))
+        tables = content.pop("tables", None) or []
+        if not lines and not tables:
             return
-        from core.semantics.derived_reader import heard_stated, live_view
-        view = live_view()
-        found: List[Dict[str, Any]] = []
-        for line in lines:
-            line = " ".join(line.split())
-            if not line:
-                continue
-            await asyncio.sleep(0)
-            for fact in await heard_stated(line, view):
-                found.append({"subject": str(fact.subject), "relation": str(fact.relation),
-                              "object": str(fact.obj), "positive": bool(fact.positive),
-                              "said": line[:300]})
+        from core.semantics.derived_reader import live_view
+        found = await lines_stated(lines, live_view())
+        found.extend(tables_stated(tables).facts)
         content["stated"] = found
 
     def _door_origin(self, path: str, door: str, actor_identity: Optional[str]):
@@ -9102,7 +9009,7 @@ class AutonomousCoordinator:
         if thing:
             # A THING SHOWN, told what it is: every earlier seeing of it now
             # shows it, as a known instance recognised in it would.
-            from core.domain.evidence_producers import quality_from_resolution, submit_image
+            from core.domain.evidence_producers import quality_from_resolution
             from core.perception.perception_faculty import _term
             # Spelled as sight names a known thing it recognises (`detections`).
             label = _term(thing)
@@ -9110,8 +9017,8 @@ class AutonomousCoordinator:
                 if not earlier.get("subject") or label in (earlier.get("named") or []):
                     continue
                 try:
-                    await submit_image(
-                        str(earlier["subject"]),
+                    await memory_agent().take_in_percept(
+                        str(earlier["subject"]), "image",
                         {"subject": earlier["subject"],
                          "detections": [{"label": label, "confidence": round(
                              quality_from_resolution(float(earlier.get("support") or 0.0)), 3)}]},
@@ -9124,13 +9031,12 @@ class AutonomousCoordinator:
         title = lesson.get("song") if isinstance(lesson, dict) else None
         if not title:
             return
-        from core.domain.evidence_producers import submit_audio
         for earlier in content.get("heard_before") or []:
             if not earlier.get("subject") or title in (earlier.get("named") or []):
                 continue
             try:
-                await submit_audio(
-                    str(earlier["subject"]),
+                await memory_agent().take_in_percept(
+                    str(earlier["subject"]), "audio",
                     {"subject": earlier["subject"],
                      "plays": [{"song": title, "support": earlier.get("support")}]},
                     domain=domain, memory_id=earlier.get("memory"), origin=origin)
@@ -9162,7 +9068,7 @@ class AutonomousCoordinator:
     def _sensed_claims(subject: str, content: Dict[str, Any]) -> List[str]:
         """The claims one sensing makes, as the belief store holds them.
 
-        Reconstructed in the SAME surface form `fan_out_ingested` wrote them
+        Reconstructed in the SAME surface form `_fan_out_ingested` wrote them
         ("<subject> <relation> <object>"), because that is the key
         `belief_for_claim` resolves — a claim spelled differently here would find
         no belief and be reported as an absence the substrate never had.
@@ -9639,6 +9545,12 @@ class AutonomousCoordinator:
             _plan = ((task.metadata or {}).get("parameters") or {}).get("tool_plan")
             if _plan:
                 meta_content["method"] = _plan
+            # The fix a capability had overcome a failure with, used before acting.
+            if (task.metadata or {}).get("known_fix"):
+                meta_content["known_fix"] = task.metadata["known_fix"]
+            # THE REWARD this experience carried (`_evaluate_outcome`), kept with it.
+            if (task.metadata or {}).get("reward"):
+                meta_content["reward"] = task.metadata["reward"]
             # CAUSAL REMEDY: if a method change FIXED a prior failure to reach this
             # success, record the conditional rule {when: the tools that were
             # failing, use: the arg change, expect: success}. Future failures match
@@ -9915,7 +9827,9 @@ class AutonomousCoordinator:
                 context=supporting,
                 task_metadata={"requested_reasoning_type": reasoning_type.value,
                                **((context or {}).get("task_metadata") or {}),
-                               "actor": origin.person or SUBSTRATE_ACTOR},
+                               "actor": origin.person or SUBSTRATE_ACTOR,
+                               # Reasoned at work: what it writes is the organization's.
+                               **({"organization": origin.organization} if origin.context == "work" else {})},
             ))
         except Exception as e:
             raise_if_structural(e, "autonomous_coordinator.reason_about")
@@ -10232,54 +10146,6 @@ class AutonomousCoordinator:
             logger.error(f"Error in enhanced prediction: {e}")
             return None
     
-    async def get_domain_insights(self, domain_name: str) -> Optional[Dict[str, Any]]:
-        """Get insights about a specific domain using the domain system"""
-        try:
-            if not self.universal_domain_master:
-                logger.warning("Universal Domain Master not available for domain insights")
-                return None
-            
-            # understand_domain() is not on UniversalDomainMaster under any
-            # name -- its public API is execute_cross_domain_query,
-            # get_statistics, initialize, shutdown. Insight about ONE domain is
-            # the registry's question anyway, so it is answered from what Lyric
-            # has actually learned about it.
-            registry = self.domain_registry
-            if registry is None:
-                from core.domain.domain_registry import get_domain_registry
-                registry = get_domain_registry()
-                self.domain_registry = registry
-            if not registry.initialized:
-                await registry.initialize()
-
-            domain = await registry.get_domain(domain_name)
-            if domain is None and not str(domain_name).startswith("domain_"):
-                domain = await registry.get_domain(f"domain_{domain_name}")
-
-            if domain is not None:
-                # Through the Master -- the authority for the domain system --
-                # not the registry directly, matching get_statistics() below.
-                similar = await self.universal_domain_master.similar_domains(
-                    domain.domain_id, threshold=0.0)
-                return {
-                    "domain": domain.domain_id,
-                    "name": domain.name,
-                    "concept_count": len(domain.concepts),
-                    "unpopulated": domain.domain_id in registry.unpopulated_domain_ids,
-                    "nearest_domains": [(d.domain_id, round(sc, 4)) for d, sc in similar[:5]],
-                    "statistics": await self.universal_domain_master.get_statistics(),
-                }
-
-            # A domain Lyric has not learned is a real answer, not a failure.
-            logger.info("No learned domain matching %r", domain_name)
-            return {"domain": domain_name, "learned": False,
-                    "reason": "not a registered domain"}
-            
-            return None
-            
-        except Exception as e:
-            logger.error(f"Error getting domain insights for {domain_name}: {e}")
-            return None
     
     # =========================================================================
     # THE SELF — the substrate's sense of itself. This coordinator IS the
@@ -10334,7 +10200,8 @@ class AutonomousCoordinator:
         return self.intrinsic_motivation
 
     def conversation(self, session: str = "default", *, db=None,
-                     actor_identity=None, source: Optional[TaskSource] = None):
+                     actor_identity=None, source: Optional[TaskSource] = None,
+                     context: Optional[str] = None, organization: Optional[str] = None):
         """This substrate holding a conversation — understanding a sentence
         against what it holds (via language/memory/reasoning) and replying. It
         uses the faculties this substrate owns, so a reply is composed through
@@ -10349,13 +10216,15 @@ class AutonomousCoordinator:
         conversation = get_conversation(session, db=db,
                                         actor_identity=actor_identity,
                                         source=source)
-        conversation._emit = self.emit
-        conversation._learning = self.learning
         conversation._disposition = self.disposition
         # A conversation created before a user authenticated picks up the verified
         # identity on the next call (idempotent), so the actor is never stale.
         if actor_identity is not None:
             conversation._actor_identity = actor_identity
+        # WHICH OF THE PERSON'S CONTEXTS this turn came through, as the device,
+        # account or connector it came by says (`Conversation.set_context`).
+        if context is not None:
+            conversation.set_context(context, organization)
         return conversation
 
     def _interoception(self) -> Optional[Dict[str, Any]]:
@@ -10516,7 +10385,12 @@ class AutonomousCoordinator:
         c = (claim or "").lower()
         if d.startswith("environment_") or d == "environment":
             return "environment"
-        if "operators of domain" in c:          # the competence-belief signature: what I CAN do
+        # THE COMPETENCE BELIEF, in either wording ("the substrate is competent in domain X", and the old "has
+        # learned the operators of domain X"): what I CAN do, moved by practice and review, never researched. Read
+        # by its old wording alone, the renamed belief fell through to knowledge, and the substrate set itself to
+        # research "the substrate is competent in domain english" on the web (2026-10-11).
+        from core.integration.universal_domain_master import UniversalDomainMaster
+        if UniversalDomainMaster.competence_domain(c) is not None:
             return "capability"
         return "knowledge"
 
@@ -11047,9 +10921,9 @@ class AutonomousCoordinator:
             if o in (None, "", []):
                 return
             try:
-                adm = await self.learning.learn_fact(
-                    str(s), r, str(o), domain=domain, provenance=prov, quality=quality)
-                if getattr(adm, "admitted", False):
+                adm = await memory_agent().take_in_observed(
+                    str(s), r, str(o), domain=domain, evidence=_observed(prov, quality))
+                if adm.admitted:
                     learned += 1
             except Exception as e:
                 raise_if_structural(e, "autonomous_coordinator._ingest_environment_entry")
@@ -11087,6 +10961,25 @@ class AutonomousCoordinator:
         investigate — the substrate begins to learn the world it was placed in, nothing hardcoded.
         NOVEL means I held no domain for this environment yet: a place I have never been."""
         obs = self._observe_environment()
+        domain_id, novel = await self._register_environment(
+            obs, name=f"Environment {obs['identity']}",
+            description="The environment the substrate currently inhabits.", origin="situate")
+        self._environment = {"identity": obs["identity"], "domain_id": domain_id,
+                             "novel": novel, "facts": obs["facts"]}
+        if novel:
+            logger.info("🌍 New environment: %s (%s@%s) — now a first-class domain %s to investigate",
+                        obs["identity"], obs["facts"].get("user"),
+                        obs["facts"].get("hostname"), domain_id)
+        return self._environment
+
+    async def _register_environment(self, obs: Dict[str, Any], *, name: str, description: str,
+                                    origin: str) -> Tuple[str, bool]:
+        """Register a place as an ENVIRONMENT domain through the one domain authority, and announce it
+        when it is NEW. Returns its domain and whether it was new.
+
+        The host the substrate runs on and each kind of device it operates through are registered the
+        same way: a domain registered records a max-uncertainty competence belief, so the place surfaces
+        as something to investigate, and its encounter's reaction holds what was observed of it."""
         domain_id = f"environment_{obs['identity']}"
         novel = True
         udm = self.universal_domain_master
@@ -11097,31 +10990,79 @@ class AutonomousCoordinator:
                     registry = await udm._registry()
                 novel = not (registry is not None and registry.domains.get(domain_id) is not None)
                 from core.domain.domain_types import DomainType
-                await udm.ensure_domain(
-                    domain_id, name=f"Environment {obs['identity']}",
-                    description="The environment the substrate currently inhabits.",
-                    domain_type=DomainType.ENVIRONMENT)
+                await udm.ensure_domain(domain_id, name=name, description=description,
+                                        domain_type=DomainType.ENVIRONMENT)
             except Exception as e:
-                raise_if_structural(e, "autonomous_coordinator._situate")
+                raise_if_structural(e, f"autonomous_coordinator.{origin}")
                 logger.info("Self: could not register environment domain: %s", e)
-        self._environment = {"identity": obs["identity"], "domain_id": domain_id,
-                             "novel": novel, "facts": obs["facts"]}
         if novel:
-            logger.info("🌍 New environment: %s (%s@%s) — now a first-class domain %s to investigate",
-                        obs["identity"], obs["facts"].get("user"),
-                        obs["facts"].get("hostname"), domain_id)
             # announce the encounter — its reaction begins the investigation (event-driven, once)
             try:
                 await self.emit(SelfEvent(
                     SelfEventType.ENVIRONMENT_ENCOUNTERED,
                     payload=EnvironmentEncountered(
-                        environment_id=obs["identity"],
-                        domain=domain_id,
-                        facts=obs["facts"]),
-                    origin="situate"))
+                        environment_id=obs["identity"], domain=domain_id, facts=obs["facts"]),
+                    origin=origin))
             except Exception as e:
-                raise_if_structural(e, "autonomous_coordinator._situate.emit")
-        return self._environment
+                raise_if_structural(e, f"autonomous_coordinator.{origin}.emit")
+        return domain_id, novel
+
+    #: What makes a kind of device the kind it is: what it is (`form`: phone, tablet, desktop, TV), what
+    #: runs it and which version, and the model. Not who owns it: every iPhone 17 Pro on iOS 26 is one
+    #: kind of place, learned once, whoever's it is.
+    _DEVICE_KIND = ("platform", "release", "machine", "form")
+    #: What a device report may say of its kind for the world to learn: the kind, and who makes it. Anything
+    #: else it says is the person's, about their device; nothing in it names a place on Lyric's host to look
+    #: through (`_react_investigate_environment` scans only a host's `root`).
+    _DEVICE_KIND_SAID = _DEVICE_KIND + ("manufacturer",)
+
+    async def situate_device(self, report: Dict[str, Any], *, actor_identity: str) -> Dict[str, Any]:
+        """Learn a device a person operates Lyric through, as the substrate learns where it runs.
+
+        The device answers for itself (`report`, from Lyric's own code running on it): what it is
+        (`kind`: platform, release, machine (the model), form, manufacturer), what exists on it at all
+        (`surface`: each capability, True or False, as the device's own APIs say), and what this person
+        set (`settings`: each capability's state).
+
+        Whose each part is follows from where it came from. What a kind of device is and what exists on
+        it is the world answering the substrate: it becomes the substrate's own knowledge of that kind of
+        place, an ENVIRONMENT domain investigated when it is new, the same for everyone who has one. The
+        device itself (its name) and what the person set are theirs: perceived with their origin, held in
+        their context, never the shared graph.
+
+        Returns what was learned, for the device to show: the kind's domain and name, whether it was
+        new, and the device as perceived for the person."""
+        said = dict(report.get("kind") or {})
+        kind = {key: said[key] for key in self._DEVICE_KIND_SAID if key in said}
+        besides = {str(key): str(value) for key, value in said.items() if key not in self._DEVICE_KIND_SAID}
+        surface = {str(k): bool(v) for k, v in dict(report.get("surface") or {}).items()}
+        release = str(kind.get("release") or "")
+        # A major version is a kind: what exists changes with it, not with each point release.
+        kind["release"] = release.split(".")[0] if release else None
+        basis = {key: kind.get(key) for key in self._DEVICE_KIND}
+        if not basis["platform"]:
+            raise ValueError("a device report must say what runs the device (its platform)")
+        identity = hashlib.sha256(json.dumps(basis, sort_keys=True, default=str).encode()).hexdigest()[:16]
+        label = " ".join(str(kind[k]) for k in ("platform", "release", "machine") if kind.get(k))
+        facts = {**{k: v for k, v in kind.items() if v not in (None, "")}, "surface": surface}
+        domain_id, novel = await self._register_environment(
+            {"identity": identity, "facts": facts}, name=f"Device {label}",
+            description="A kind of device the substrate operates through.", origin="situate_device")
+        if novel:
+            logger.info("📱 New kind of device: %s — now a first-class domain %s to investigate", label, domain_id)
+
+        # The person's: this device, and what they set on it.
+        device = str(report.get("device") or label)
+        settings = {str(k): str(v) for k, v in dict(report.get("settings") or {}).items()}
+        from core.memory import Origin
+        await self.process_input(device, "device",
+                                 {"device": device, "model": kind.get("machine"), "environment": domain_id,
+                                  "settings": settings, **({"also_said": besides} if besides else {})},
+                                 origin=Origin.of(actor_identity, "device"))
+        return {"environment": domain_id, "kind": label, "novel": novel,
+                "offers": sorted(c for c, there in surface.items() if there),
+                "lacks": sorted(c for c, there in surface.items() if not there),
+                "device": device, "settings": settings}
 
     def _perceive_self_for_law(self) -> Optional[Dict[str, Any]]:
         """What I perceive about MYSELF, for my own law to read.
@@ -11199,21 +11140,28 @@ class AutonomousCoordinator:
         prov = Provenance(producer="perception", source_id="environment", source_type="PERCEPTION")
         learned = 0
 
-        async def _hold(subject, relation, obj, quality):
+        async def _hold(subject, relation, obj, quality, positive=True):
             nonlocal learned
             if obj in (None, "", []):
                 return
             try:
-                adm = await self.learning.learn_fact(
-                    subject, relation, str(obj), domain=domain, provenance=prov, quality=quality)
-                if getattr(adm, "admitted", False):
+                adm = await memory_agent().take_in_observed(
+                    subject, relation, str(obj), positive=positive, domain=domain,
+                    evidence=_observed(prov, quality))
+                if adm.admitted:
                     learned += 1
             except Exception as e:
                 raise_if_structural(e, "autonomous_coordinator._react_investigate_environment")
 
-        # what I am: the identity facts I read to know this place
-        for relation in ("platform", "release", "machine", "hostname", "user", "root", "python"):
-            await _hold(domain, relation, facts.get(relation), 0.95)
+        # what this place is: every fact observed to know it (a host's platform, release, machine,
+        # hostname, user, root and python; a device's platform, release, machine, form, manufacturer)
+        for relation, value in facts.items():
+            if relation != "surface" and not isinstance(value, (dict, list)):
+                await _hold(domain, relation, value, 0.95)
+        # what exists here at all, as the place itself answered: a capability it offers, and one it
+        # does not (a fact too: what is structurally impossible here is not a gap to keep probing)
+        for capability, there in (facts.get("surface") or {}).items():
+            await _hold(domain, "offers", capability, 0.95, positive=bool(there))
         # what is in my world: scan it directly — recursively, bounded — and turn
         # each thing AND its readable CONTENT into knowledge. Not just the names at
         # the door: the files, their types and sizes, what the text ones STATE and
@@ -11223,9 +11171,11 @@ class AutonomousCoordinator:
         entries = self._scan_environment(root) if root else []
         files = sum(1 for e in entries if e["kind"] == "file")
         dirs = sum(1 for e in entries if e["kind"] == "dir")
-        await _hold(domain, "entry_count", len(entries), 0.9)
-        await _hold(domain, "file_count", files, 0.9)
-        await _hold(domain, "dir_count", dirs, 0.9)
+        if root:
+            # Counts of a folder looked through; a device has none to look through, not zero files.
+            await _hold(domain, "entry_count", len(entries), 0.9)
+            await _hold(domain, "file_count", files, 0.9)
+            await _hold(domain, "dir_count", dirs, 0.9)
         content = 0
         for entry in entries:
             content += await self._ingest_environment_entry(entry, domain, prov)
@@ -11390,32 +11340,6 @@ class AutonomousCoordinator:
             return IDENTITY_CORE + "\n\n" + role.strip()
         return IDENTITY_CORE
 
-    @staticmethod
-    def _describe_attitude(attitude: Dict[str, Any]) -> Optional[str]:
-        """Name the dominant feeling from the measured emotions, honestly."""
-        emotions = {k: attitude.get(k) for k in
-                    ("eagerness", "doubt", "frustration", "satisfaction")}
-        measured = {k: v for k, v in emotions.items() if isinstance(v, (int, float))}
-        if not measured:
-            return None
-        name, value = max(measured.items(), key=lambda kv: kv[1])
-        if value < 0.15:
-            return "I feel roughly even right now."
-        # WHAT it is about first, WHY second. This read `attribution` and
-        # called it "about", which conflated two different questions: the
-        # attribution is an outcome class ("strategy_failure") and answers why
-        # something went as it did, not what the feeling concerns. Outside a
-        # task there is no outcome class at all, so the substrate said what it
-        # felt and nothing about what it felt it toward.
-        about = attitude.get("about")
-        why = attitude.get("attribution")
-        if about:
-            tail = f", about {about}" + (f" (after a {why})" if why else "")
-        elif why:
-            tail = f", after a {why}"
-        else:
-            tail = ""
-        return f"Right now what I mostly feel is {name}{tail}."
 
     async def get_system_status(self) -> Dict[str, Any]:
         """Get comprehensive system status"""
@@ -11807,12 +11731,6 @@ class AutonomousCoordinator:
                 logger.warning(f"Task {tid} cancelled")
             except Exception as e:
                 logger.error(f"Task {tid} failed: {e}")
-                # "Reflect BECAUSE it is busy failing": a failure does not wait
-                # for the next 300s meta-learning tick -- it makes the
-                # self-observation tiers due right now by clearing their
-                # last-run stamp. Interval gating still prevents a storm,
-                # because the tier updates its stamp as soon as it runs.
-                self._mark_reflection_due("task_failure")
 
     def _collect_finished_jobs(self) -> None:
         """Take background jobs that finished (non-blocking) and surface each as
@@ -12042,23 +11960,12 @@ class AutonomousCoordinator:
         try:
             return bool(await self.learning.executable_producers(domain_id, predicate))
         except Exception as e:
-            from core.capability import raise_if_structural
+            from core.structural_defects import raise_if_structural
             raise_if_structural(e, "autonomous_coordinator._deficit_is_closed")
             logger.warning("[DEFICIT] could not read executable rules for %s: %s",
                            domain_id, e)
             return False
 
-    def _mark_reflection_due(self, reason: str) -> None:
-        """Pull the self-observation tiers forward — reflect BECAUSE something
-        just failed, rather than waiting out the interval. The tiers live on the
-        queue authority now, so this is `run_now` on the authority (the owner of
-        cadence), not a poke at a local last-run dict."""
-        pulled = []
-        for name in ("idle_meta_learning", "idle_system_review"):
-            if self.task_queue.run_now(name):
-                pulled.append(name)
-        if pulled:
-            logger.info(f"🪞 Reflection made due ({reason}): {', '.join(pulled)}")
 
     # (`_run_idle_exploration` retired: intrinsic pursuit is event-driven now —
     #  `_react_pursue_frontier` on state-changing events + a boot kick — so there
@@ -12082,69 +11989,6 @@ class AutonomousCoordinator:
         """
         registrations = [
             # (name, method, priority, interval_seconds)
-            ("idle_system_review",      "_idle_system_review_work",      "high",   self.config.get("idle_system_review_interval_s",  180.0)),
-            ("idle_knowledge_refresh",  "_idle_knowledge_refresh_work",  "medium", self.config.get("idle_knowledge_refresh_interval_s", 21600.0)),
-            ("idle_meta_learning",      "_idle_meta_learning_work",      "medium", self.config.get("idle_metalearning_interval_s",  300.0)),
-            # NOTE: abstraction is NO LONGER a scheduled tier. It is REASONING,
-            # owned by the reasoning authority, and fires on an EVENT — episodic
-            # memories accumulating past a threshold (memory_agent.note_episodic_stored
-            # → queue-authority bg job → bridge.abstract_over_memories, then
-            # reflection on belief churn). A 900s poll here would be a second,
-            # timer-based trigger competing with the event, so it was removed.
-            # Applies what the experience learner has established: task types
-            # with a proven record get their queued work boosted. _learning_phase
-            # is a survivor of the old timer-driven phase loop -- it was left
-            # defined but uncalled by the AI-driven rewrite, so the only path
-            # from experience to changed behaviour was never taken.
-            ("idle_learning",           "_learning_phase",               "medium", self.config.get("idle_learning_interval_s",      600.0)),
-            # The learning authority settles what learning left open: known
-            # unknowns now learned enough, decisions never closed, classifiers
-            # trained since the last pass. The authority owns the work; the
-            # queue owns the cadence.
-            ("idle_learning_consolidation", "_idle_learning_consolidation", "low", self.config.get("idle_learning_consolidation_interval_s", 900.0)),
-            # PRIORITY 4, LYRIC_REFERENCE.md:3114 — "expand domain knowledge
-            # from recent task outcomes". The producer has been writing those
-            # outcomes to META memory all along and nothing read them; this is
-            # idle_domain_expansion is now EVENT-DRIVEN (retired from the poll):
-            # writing a task-outcome META memory (`_store_task_outcome_meta_memory`),
-            # or a domain gaining content (COMPETENCE_CHANGED / EVIDENCE_ADMITTED),
-            # wakes `_coalesced_domain_expansion`, which loops `_idle_domain_expansion_work`
-            # until a pass expands nothing new. No fixed-interval tier. (The work
-            # method remains as an unscheduled callable the drain loops over.)
-            # Domain DISCOVERY: provisional operational domains (buckets of
-            # learned operators under a string id) are crystallized into
-            # first-class domains or merged into existing ones, by operator
-            # structure. This is the substrate's map of subjects growing from
-            # what it has learned; it runs in idle work because it is
-            # self-directed and consumes accumulated learning.
-            # idle_domain_discovery is now EVENT-DRIVEN (retired from the poll):
-            # EVIDENCE_ADMITTED (declarative) and COMPETENCE_CHANGED (operational)
-            # wake `_coalesced_domain_discovery`, a single-flight FULL sweep — so a
-            # dropped event costs nothing (the next event re-sweeps everything).
-            # (`_idle_domain_discovery_work` remains as an unscheduled callable.)
-            # Cross-domain ANALOGY discovery: compare concepts across the domains
-            # the substrate has learned and persist the correspondences it finds.
-            # AnalogyDiscovery.find_analogy already loads the real concept store
-            # and persists what it finds; nothing ever CALLED it, so
-            # unified.analogies / unified.concept_mappings stayed empty. This tier
-            # is that caller. Bounded per cycle so O(pairs) can never dominate.
-            ("idle_analogy_discovery",  "_idle_analogy_discovery_work",  "medium", self.config.get("idle_analogy_discovery_interval_s", 1200.0)),
-            # Operator EXPLORATION: learn the operators of a domain the substrate
-            # is not yet competent in. Which domain is chosen by intrinsic
-            # motivation -- domain competence is an epistemic belief, an
-            # under-learned domain surfaces in the unstable regions, and the
-            # motivation system ranks exactly those. Always-online, self-directed.
-            ("idle_operator_exploration", "_idle_operator_exploration_work", "medium", self.config.get("idle_operator_exploration_interval_s", 300.0)),
-            # Operator INDUCTION is now EVENT-DRIVEN (retired from the poll). A
-            # demonstration store enqueuing a signature wakes a single-flight,
-            # drain-to-completion pass (`_coalesced_induction_drain`) through the
-            # store's producer callback; OUTCOME_OBSERVED wakes it too. The drain
-            # fires the instant there is work and empties fully, so no fixed-
-            # interval tier is needed. (`_idle_operator_induction_work` remains as
-            # a callable but is no longer scheduled.)
-            # Housekeeping: prune the step-execution cooldown log. Used to run
-            # inline in the old poll dispatcher; it is periodic maintenance, so
-            # it belongs on the scheduler like every other timed job.
             # SELF-STATE refresh: the sole writer of system_state.resource_usage /
             # timestamp / performance_metrics (error_rate, goal_alignment, ...) —
             # read live by the constitution's law-compliance check. It was dead,
@@ -12211,14 +12055,13 @@ class AutonomousCoordinator:
             # become something felt. TASK_COMPLETED still fires it immediately.
             ("affect_refresh",          "_refresh_affect",               "high",   self.config.get("affect_refresh_interval_s", 60.0)),
             ("system_awareness",        "_run_system_awareness_cycle",   "medium", self.config.get("system_awareness_interval_s", 60.0)),
-            # CONSTITUTIONAL alignment: a cumulative drift check over the balance
-            # of the substrate's activity against its laws. No single
-            # event moves it, so it is genuinely periodic and lives on the
-            # scheduler (like health) rather than the cognition-cycle poll it used
-            # to be dead to. On significant/critical drift it drives a rate-limited
-            # UI notification AND a durable drift META memory the substrate reflects
-            # on — real consumers, not a computed number nobody reads.
-            ("idle_constitution_check", "_check_constitutional_alignment","low",   self.config.get("idle_constitution_interval_s", 1800.0)),
+            # CONSTITUTIONAL alignment (`_check_constitutional_alignment`) is NOT
+            # scheduled, by decision (2026-10-11): it scored the substrate's laws
+            # from health and goal state, so a store still being taught read as
+            # drift, and each alert wrote a drift memory of importance 1.0 and a
+            # notification. Acts are still judged (`judge_act`); to bring the
+            # self-check back, register ("idle_constitution_check",
+            # "_check_constitutional_alignment", "low", 1800.0) here.
         ]
 
         if self._idle_subsystems_registered:
@@ -12240,287 +12083,6 @@ class AutonomousCoordinator:
         logger.info(
             f"[IDLE] {len(registrations)} tiers scheduled on the queue authority "
             f"(scheduler running)")
-
-    # ── TIER 3: System review snapshot (deterministic, no LLM) ─────────────
-
-    async def _idle_system_review_work(self):
-        """Build a facts-first system review snapshot for the LLM.
-
-        This is intentionally non-LLM: it inventories capabilities/tools,
-        records the most recent health/security outcomes, and provides a
-        lightweight codebase inventory. The snapshot is then stored to
-        META memory so downstream tasks can retrieve it.
-        """
-        import os
-        import time as _t
-
-        now = datetime.now()
-        now_ts = _t.time()
-
-        def _count_files(root_dir: str, suffixes: tuple[str, ...], max_files: int = 5000) -> int:
-            count = 0
-            if not root_dir or not os.path.isdir(root_dir):
-                return 0
-            for base, dirs, files in os.walk(root_dir):
-                # Skip common large/noisy dirs
-                dirs[:] = [
-                    d for d in dirs
-                    if d not in {".git", "venv", "venv_lyric", "__pycache__", "logs", "tmp", "node_modules"}
-                ]
-                for name in files:
-                    if name.endswith(suffixes):
-                        count += 1
-                        if count >= max_files:
-                            return count
-            return count
-
-        snapshot: Dict[str, Any] = {
-            "event": "idle_system_review",
-            "generated_at": now.isoformat(),
-            "generated_at_ts": now_ts,
-            "uptime_seconds": int(max(0.0, now_ts - float(getattr(self, "_started_at_ts", now_ts)))),
-            "health": self._health_counts(),
-            "tools": {},
-            "codebase": {},
-            "knowledge": {},
-            "highlights": {},
-        }
-
-        # Knowledge cutoff tracking (persistent state)
-        try:
-            snapshot["knowledge"] = self._get_knowledge_cutoff_snapshot()
-        except Exception as e:
-            snapshot["knowledge"] = {"error": str(e)}
-
-        # Tool/capability inventory (safe, deterministic)
-        try:
-            from core.tools.tool_registry import get_tool_registry
-
-            registry = get_tool_registry()
-            total_factories = len(getattr(registry, "tool_factories", {}) or {})
-            total_loaded = len(getattr(registry, "tools", {}) or {})
-            total_tools = total_factories + total_loaded
-
-            coverage = {}
-            try:
-                coverage = registry.get_capability_coverage() or {}
-            except Exception:
-                coverage = {}
-
-            top_caps = sorted(coverage.items(), key=lambda kv: kv[1], reverse=True)[:12]
-            top_caps_serialized = [
-                {
-                    "capability": getattr(cap, "value", str(cap)),
-                    "providers": int(n),
-                }
-                for cap, n in top_caps
-            ]
-
-            category_index = getattr(registry, "category_index", {}) or {}
-            category_counts = {str(cat): len(names) for cat, names in category_index.items()}
-            top_categories = sorted(category_counts.items(), key=lambda kv: kv[1], reverse=True)[:10]
-
-            snapshot["tools"] = {
-                "total_tools": total_tools,
-                "lazy_factories": total_factories,
-                "loaded_tools": total_loaded,
-                "top_capabilities": top_caps_serialized,
-                "top_categories": [{"category": k, "tools": v} for k, v in top_categories],
-            }
-        except Exception as e:
-            snapshot["tools"] = {"error": str(e)}
-
-        # Lightweight codebase inventory (counts only; avoids heavy reads)
-        try:
-            lyric_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
-            snapshot["codebase"] = {
-                "root": lyric_root,
-                "py_files": {
-                    "core": _count_files(os.path.join(lyric_root, "core"), (".py",)),
-                    "services": _count_files(os.path.join(lyric_root, "services"), (".py",)),
-                    "scripts": _count_files(os.path.join(lyric_root, "scripts"), (".py",)),
-                    "tests": _count_files(os.path.join(lyric_root, "tests"), (".py",)),
-                },
-            }
-        except Exception as e:
-            snapshot["codebase"] = {"error": str(e)}
-
-        # Short highlights for quick prompting
-        try:
-            snapshot["highlights"] = {
-                "tools_total": (snapshot.get("tools") or {}).get("total_tools"),
-                "health_components_total": (snapshot.get("health") or {}).get("components_total"),
-                "health_unhealthy_total": (snapshot.get("health") or {}).get("unhealthy_total"),
-                "knowledge_refreshed_through": (snapshot.get("knowledge") or {}).get("refreshed_through_date"),
-            }
-        except Exception:
-            snapshot["highlights"] = {}
-
-        self._idle_last_system_review_at = now
-        self._idle_system_review_snapshot = snapshot
-
-        logger.info(
-            "[IDLE:REVIEW] System review snapshot updated — "
-            f"tools={snapshot.get('highlights', {}).get('tools_total')}, "
-            f"health_components={snapshot.get('highlights', {}).get('health_components_total')}"
-        )
-
-
-
-    # ── TIER 4: Knowledge refresh (autonomous research cadence) ───────────
-
-    async def _idle_knowledge_refresh_work(self):
-        """Queue a periodic research task to reduce temporal knowledge gaps.
-
-        Research is learning: what the task finds is what the substrate improves
-        by. Nothing here changes code or configuration. Where the model is a
-        frozen release, nothing is learned, so nothing is researched: the topics
-        would go out and every finding would be refused.
-        """
-        from .shared_types import Task, TaskType, TaskSource, Priority
-        import time as _t
-        from core.database import get_database_manager
-
-        if getattr(get_database_manager(), "frozen", False):
-            logger.info("[IDLE:KNOWLEDGE] Skipping — release %s is frozen and cannot learn "
-                        "what research finds", get_database_manager().release)
-            return
-
-        # Require a system review snapshot so the task has grounded context
-        snapshot = getattr(self, "_idle_system_review_snapshot", None)
-        if not snapshot:
-            logger.info("[IDLE:KNOWLEDGE] Skipping — no system review snapshot yet")
-            return
-
-        now = datetime.now()
-        now_ts = _t.time()
-
-        min_uptime_s = float(self.config.get("idle_knowledge_refresh_min_uptime_s", 900.0))
-        uptime_s = now_ts - float(getattr(self, "_started_at_ts", now_ts))
-        if uptime_s < min_uptime_s:
-            logger.info(
-                f"[IDLE:KNOWLEDGE] Skipping — uptime {int(uptime_s)}s < {int(min_uptime_s)}s"
-            )
-            return
-
-        # Optional kill-switch
-        if not bool(self.config.get("enable_idle_knowledge_refresh", True)):
-            logger.debug("[IDLE:KNOWLEDGE] Disabled by config — skipping")
-            return
-
-        # Cross-restart throttle: if we started a refresh recently, don't enqueue another.
-        try:
-            state = self._knowledge_refresh or {}
-            started_at = state.get("last_refresh_started_at")
-            if started_at:
-                from datetime import datetime as _dt
-                started_dt = _dt.fromisoformat(str(started_at))
-                interval_s = int(self.config.get("idle_knowledge_refresh_interval_s", 6 * 60 * 60))
-                if (now - started_dt).total_seconds() < interval_s:
-                    logger.info(
-                        f"[IDLE:KNOWLEDGE] Skipping — last_refresh_started_at={started_at} "
-                        f"(< interval {interval_s}s)"
-                    )
-                    return
-        except Exception:
-            pass
-
-        # Staleness gate — only refresh if our knowledge is stale.
-        # This prevents constant research even with a short idle interval.
-        # Default: refresh at most weekly.
-        max_age_days = int(self.config.get("knowledge_refresh_max_age_days", 7))
-        state = self._knowledge_refresh or {}
-        refreshed_through = (state.get("refreshed_through_date") or "")
-        try:
-            from datetime import date as _date
-            if refreshed_through:
-                refreshed_date = _date.fromisoformat(refreshed_through)
-                age_days = (now.date() - refreshed_date).days
-                if age_days < max_age_days:
-                    logger.info(
-                        f"[IDLE:KNOWLEDGE] Skipping — refreshed_through={refreshed_through} "
-                        f"(age={age_days}d < {max_age_days}d)"
-                    )
-                    return
-        except Exception:
-            # If state is malformed, fall through and refresh.
-            pass
-
-        cutoff = self._get_declared_model_cutoff_date()
-
-        # WHAT TO RESEARCH IS WHERE THE SUBSTRATE KNOWS LEAST. The domain
-        # authority's `knowledge_sparsity_map` ranks each learned domain's
-        # concepts by how connected they are; the thinnest are where a gap most
-        # likely sits, and they are what this step researches. This read a
-        # hard-coded list instead -- "recent AI agent tooling patterns
-        # (2025-2026)", "MCP ecosystem changes and interoperability", ... --
-        # topics chosen for a language model's cutoff, not from anything the
-        # substrate holds, and used whenever no list was configured. An operator
-        # may still name topics outright (`idle_knowledge_refresh_topics`); that
-        # is an instruction and is followed as given. With neither, there is
-        # nothing held to deepen, and no research is invented.
-        topic_list = [str(t) for t in (self.config.get("idle_knowledge_refresh_topics") or [])]
-        topic_source = "configured"
-        if not topic_list:
-            topic_list = await self._thinnest_knowledge_topics()
-            topic_source = "knowledge_sparsity_map"
-        if not topic_list:
-            logger.info("[IDLE:KNOWLEDGE] Skipping — no learned domain holds knowledge "
-                        "to deepen, and no topics are configured")
-            return
-        topics_str = "; ".join(topic_list[:8])
-
-        task = Task(
-            id=f"knowledge_refresh_{now.timestamp()}",
-            type=TaskType.RESEARCH,
-            description=(
-                "Conduct research to reduce temporal knowledge gaps and update internal operational knowledge.\n"
-                f"Model knowledge cutoff (declared): {cutoff}. Current date: {now.date().isoformat()}.\n\n"
-                f"Last refreshed through: {refreshed_through or 'unknown'}.\n\n"
-                "Research topics:\n"
-                f"- {topics_str}\n\n"
-                "Deliverables (STRICT):\n"
-                "1) Bullet summary of findings with source URLs\n"
-                "2) Relevance mapping to Lyric subsystems/tools\n"
-                "3) Recommendations ranked by impact/effort\n"
-                "4) If code changes are suggested, propose follow-up tasks — DO NOT modify code in this task\n\n"
-                f"System review highlights: {snapshot.get('highlights', {})}"
-            ),
-            priority=Priority.LOW,
-            source=TaskSource.AUTONOMOUS,
-            created_by="idle_knowledge_refresh",
-            metadata={
-                "trigger": "idle_priority_loop",
-                "idle_count": self._idle_count,
-                "knowledge_refresh": True,
-                "declared_cutoff": cutoff,
-                "topics": topic_list[:8],
-                "topic_source": topic_source,
-                "refreshed_through_before": refreshed_through or None,
-                "system_review_highlights": snapshot.get("highlights", {}),
-                "no_code_changes": True,
-            },
-        )
-
-        try:
-            # ONE REFRESH AT A TIME ACROSS EVERY INSTANCE: the start is claimed in
-            # the store before anything is queued, and only the claimant queues.
-            interval_s = float(self.config.get("idle_knowledge_refresh_interval_s", 6 * 60 * 60))
-            if not await self._claim_knowledge_refresh(now, task.id, interval_s):
-                logger.info("[IDLE:KNOWLEDGE] Skipping — a refresh started within "
-                            "the interval (another instance, or an earlier run)")
-                return
-            await self.intend(task, pursuit="refresh_knowledge", trigger={
-                "what": "idle knowledge refresh", "source": "substrate",
-                "content": dict(task.metadata or {})})
-            if not await self.task_queue.add_task(task, priority=Priority.LOW):
-                await self.conclude_pursuit(
-                    task, {"error": "task queue refused the work"}, completed=False)
-            self._idle_last_knowledge_refresh_at = now
-            logger.info(f"[IDLE:KNOWLEDGE] Task queued: {task.id} (topics={len(topic_list)})")
-        except Exception as e:
-            logger.warning(f"[IDLE:KNOWLEDGE] Failed to queue knowledge refresh task: {e}")
-
 
     async def _thinnest_knowledge_topics(self, limit: int = 8) -> List[str]:
         """Where the substrate's knowledge is thinnest, as research topics.
@@ -12555,14 +12117,6 @@ class AutonomousCoordinator:
     # and `permanently_failed_fps.json`. A wipe of the store left them behind, an
     # instance of the model run from another checkout never saw them, and every
     # instance rewrote each whole file with its own copy. They are rows now.
-    _WORK_STATE_DDL = (
-        """CREATE TABLE IF NOT EXISTS unified.knowledge_refresh (
-               refresh_id                 TEXT PRIMARY KEY,
-               last_refresh_started_at    TIMESTAMPTZ,
-               last_refresh_completed_at  TIMESTAMPTZ,
-               last_refresh_task_id       TEXT,
-               refreshed_through_date     DATE
-           )""",)
     #: Work that permanently failed. Each row is whoever's the work was: a
     #: person's request text is theirs, kept in their context (a per-owner
     #: table), so the table is kept in every store its rows can be kept in.
@@ -12575,84 +12129,18 @@ class AutonomousCoordinator:
                owner        TEXT
            )""",
         "ALTER TABLE unified.failed_task_fingerprints ADD COLUMN IF NOT EXISTS owner TEXT")
-    #: The one refresh record: the substrate's.
-    KNOWLEDGE_REFRESH_ID = "substrate"
-
     async def _work_state_store(self):
         from core.database import get_database_manager
         db = get_database_manager()
         if not getattr(db, "initialized", False):
             await db.initialize()
         if not getattr(self, "_work_state_schema_ready", False):
-            for ddl in self._WORK_STATE_DDL:
-                await db.execute_query(ddl, (), commit=True)
             for store in db.schema_stores("runtime"):
                 for ddl in self._FAILED_WORK_DDL:
                     await db.execute_query(ddl, (), commit=True, store=store)
             self._work_state_schema_ready = True
         return db
 
-    @staticmethod
-    def _local_iso(value) -> Optional[str]:
-        """A stored instant as the naive local ISO string the refresh gates compare
-        against `datetime.now()` (a date stays a date)."""
-        if value is None:
-            return None
-        if isinstance(value, datetime):
-            return value.astimezone().replace(tzinfo=None).isoformat()
-        return value.isoformat()
-
-    async def _load_knowledge_refresh(self) -> None:
-        """Read the knowledge-refresh record into this process's view of it."""
-        db = await self._work_state_store()
-        row = await db.execute_query(
-            "SELECT last_refresh_started_at, last_refresh_completed_at, "
-            "last_refresh_task_id, refreshed_through_date FROM unified.knowledge_refresh "
-            "WHERE refresh_id = $1", (self.KNOWLEDGE_REFRESH_ID,), fetch_one=True)
-        self._knowledge_refresh = {
-            "last_refresh_started_at": self._local_iso(row["last_refresh_started_at"]) if row else None,
-            "last_refresh_completed_at": self._local_iso(row["last_refresh_completed_at"]) if row else None,
-            "last_refresh_task_id": row["last_refresh_task_id"] if row else None,
-            "refreshed_through_date": self._local_iso(row["refreshed_through_date"]) if row else None,
-        }
-
-    async def _claim_knowledge_refresh(self, now: datetime, task_id: str,
-                                       interval_s: float) -> bool:
-        """Record that a refresh starts NOW -- only if none started within the
-        interval, in one statement. With many instances, exactly one of them
-        starts a refresh; the others are told it is taken."""
-        db = await self._work_state_store()
-        row = await db.execute_query(
-            "INSERT INTO unified.knowledge_refresh AS k (refresh_id, "
-            "last_refresh_started_at, last_refresh_task_id) VALUES ($1, $2, $3) "
-            "ON CONFLICT (refresh_id) DO UPDATE SET "
-            "last_refresh_started_at = EXCLUDED.last_refresh_started_at, "
-            "last_refresh_task_id = EXCLUDED.last_refresh_task_id "
-            "WHERE k.last_refresh_started_at IS NULL "
-            "OR k.last_refresh_started_at < EXCLUDED.last_refresh_started_at "
-            "- make_interval(secs => $4) RETURNING refresh_id",
-            (self.KNOWLEDGE_REFRESH_ID, now.astimezone(), task_id, float(interval_s)),
-            fetch_one=True)
-        if row is not None:
-            self._knowledge_refresh["last_refresh_started_at"] = now.isoformat()
-            self._knowledge_refresh["last_refresh_task_id"] = task_id
-        return row is not None
-
-    async def _complete_knowledge_refresh(self, now: datetime, task_id: Optional[str]) -> None:
-        """Record that a refresh finished, and the date it brought knowledge up to."""
-        db = await self._work_state_store()
-        await db.execute_query(
-            "INSERT INTO unified.knowledge_refresh (refresh_id, last_refresh_completed_at, "
-            "refreshed_through_date, last_refresh_task_id) VALUES ($1, $2, $3, $4) "
-            "ON CONFLICT (refresh_id) DO UPDATE SET "
-            "last_refresh_completed_at = EXCLUDED.last_refresh_completed_at, "
-            "refreshed_through_date = EXCLUDED.refreshed_through_date, "
-            "last_refresh_task_id = EXCLUDED.last_refresh_task_id",
-            (self.KNOWLEDGE_REFRESH_ID, now.astimezone(), now.date(), task_id),
-            commit=True)
-        self._knowledge_refresh["last_refresh_completed_at"] = now.isoformat()
-        self._knowledge_refresh["refreshed_through_date"] = now.date().isoformat()
-        self._knowledge_refresh["last_refresh_task_id"] = task_id
 
     async def _load_failed_fingerprints(self) -> None:
         """Read the fingerprints of the substrate's own work that permanently
@@ -12679,81 +12167,8 @@ class AutonomousCoordinator:
              (getattr(task, "description", "") or "")[:500], owner), commit=True,
             store=db.write_store(owner, "runtime"))
 
-    def _get_declared_model_cutoff_date(self) -> str:
-        """Declared model training cutoff date.
-
-        This is operator-provided (config/env). We intentionally do not try to
-        guess from model name.
-        """
-        import os
-
-        # 1. Explicit override via env var or config always wins
-        explicit = (
-            os.getenv("MODEL_KNOWLEDGE_CUTOFF_DATE")
-            or self.config.get("model_knowledge_cutoff_date")
-            or self.config.get("knowledge_cutoff_date")
-        )
-        if explicit:
-            return explicit
-
-        # The coordinator does not probe a model — there is none, and the
-        # substrate has no training cutoff of its own. The
-        # date comes from configuration (above) or this default, which callers
-        # can override; it only seeds how stale the knowledge-refresh tier
-        # assumes its world knowledge might be.
-        return self.config.get("default_knowledge_cutoff_date", "2024-09")
-
-    def _get_knowledge_cutoff_snapshot(self) -> Dict[str, Any]:
-        from datetime import date as _date
-
-        state = self._knowledge_refresh or {}
-        refreshed = state.get("refreshed_through_date")
-        days_stale = None
-        try:
-            if refreshed:
-                refreshed_date = _date.fromisoformat(str(refreshed))
-                days_stale = (_date.today() - refreshed_date).days
-        except Exception:
-            days_stale = None
-
-        return {
-            "declared_model_cutoff_date": self._get_declared_model_cutoff_date(),
-            "refreshed_through_date": refreshed,
-            "days_stale": days_stale,
-            "last_refresh_started_at": state.get("last_refresh_started_at"),
-            "last_refresh_completed_at": state.get("last_refresh_completed_at"),
-            "last_refresh_task_id": state.get("last_refresh_task_id"),
-        }
-
 
     # ── Completion callback: knowledge refresh completion ──────────────────
-
-    async def _on_knowledge_refresh_complete(
-        self,
-        task: Task,
-        result: Dict[str, Any],
-        confidence: float,
-    ):
-        """Update knowledge refresh state when a knowledge_refresh research task completes."""
-        try:
-            meta = getattr(task, "metadata", None) or {}
-            if not meta.get("knowledge_refresh", False):
-                return
-
-            now = datetime.now()
-            today = now.date().isoformat()
-            await self._complete_knowledge_refresh(now, getattr(task, "id", None))
-
-
-            logger.info(
-                f"[KNOWLEDGE] Refreshed-through updated: {today} (task={getattr(task, 'id', 'unknown')})"
-            )
-        except Exception as e:
-            logger.debug(f"Knowledge refresh completion callback error: {e}")
-
-
-
-    # ── TIER 4: Meta-learning — evaluate ALL task types ───────────────────────
 
     #: Stamped onto a task-outcome memory once its domain has been expanded.
     #: Durable dedup lives on the OUTCOME itself rather than in an in-memory
@@ -12762,13 +12177,22 @@ class AutonomousCoordinator:
     #: meta-learner would count one outcome as many independent trials.
     DOMAIN_EXPANSION_MARK = "domain_expanded_at"
 
-    # Cascade guard for the coalesced event-driven drains: a reaction whose work
-    # emits an event that re-wakes it (directly or via another drain) must not spin
-    # forever. Idempotent drains terminate on their own (a no-op re-run emits
-    # nothing), but this hard-bounds the coalesced re-run count as a safety net; if
-    # hit, the leftover work resumes on the next genuine wake and a warning surfaces
-    # the suspected cascade for investigation.
+    # Bound on the coalesced event-driven drains' re-runs per wake: a reaction whose
+    # work emits an event that re-wakes it (directly or via another drain) must not
+    # spin forever. Idempotent drains terminate on their own (a no-op re-run emits
+    # nothing); settled between passes, a drain at the bound has met events arriving
+    # for that long, and the leftover work resumes on the next wake.
     _COALESCE_MAX_PASSES = 100
+
+    # HOW LONG A DRAIN LETS EVENTS GATHER BEFORE IT SWEEPS AGAIN. Re-armed and
+    # re-run at once, a drain swept once per event: a lesson announces an
+    # admission for every second fact, so teaching ran a full domain-discovery
+    # sweep and an expansion scan dozens of times a second (162 expansions of one
+    # unexpandable outcome in six seconds), and a dictionary's hundreds of
+    # thousands of facts would have been as many sweeps. Waiting this long after a
+    # pass while events still arrive makes a burst of any size one more sweep. The
+    # reactions are deferred work; seconds of latency are theirs to have.
+    _COALESCE_SETTLE_S = 2.0
 
     async def _idle_domain_expansion_work(self):
         """PRIORITY 4 — Expand domain knowledge from recent task outcomes.
@@ -12855,7 +12279,7 @@ class AutonomousCoordinator:
         transfers = 0
         skipped: Dict[str, int] = {}
         for memory in pending:
-            status, t = await self._expand_one_outcome(memory, storage)
+            status, t = await self._expand_one_outcome(memory)
             if status == "expanded":
                 expanded += 1
                 transfers += t
@@ -12893,8 +12317,10 @@ class AutonomousCoordinator:
         # (all remaining are unmarked no_domain/domain_empty, retried on a later wake).
         return expanded
 
-    async def _expand_one_outcome(self, memory, storage) -> Tuple[str, int]:
-        """Expand ONE task-outcome memory into the domain layer.
+    async def _expand_one_outcome(self, memory) -> Tuple[str, int]:
+        """Expand ONE task-outcome memory into the domain layer: which domain its
+        task acted in is read here, and memory hands it to learning
+        (`MemoryAgent.take_outcome_to_learning`).
 
         The single per-outcome authority, shared by the idle tier and the
         reactive `_react_expand_outcome`, so both go through identical logic and
@@ -12907,7 +12333,6 @@ class AutonomousCoordinator:
         so the TaskOutcomeRecord fields (domain, outcome, confidence, task_type)
         are read from the raw dict, not from that sentence.
         """
-        from core.learning.learning_interfaces import LearningExample
         raw = (memory.thinking_state or {}).get("raw_event")
         content = raw if isinstance(raw, dict) else {}
         if not content.get("task_type"):
@@ -12920,66 +12345,8 @@ class AutonomousCoordinator:
         # bucket, and neither names a domain.
         domain = self.knowledge_domain_of(
             content.get("task_type"), content.get("knowledge_domain"))
-        if domain is None:
-            # A task that acted in no domain has nothing to expand. Marked, so it
-            # is not reconsidered on every pass.
-            if not await storage.update_memory(memory.memory_id, {
-                    "metadata": {self.DOMAIN_EXPANSION_MARK: datetime.now().isoformat(),
-                                 "domain_expansion": "no_knowledge_domain"},
-                    "metadata.merge": True}):
-                raise RuntimeError(
-                    f"task outcome {memory.memory_id} names no domain but could "
-                    f"not be marked; it would be reconsidered on every pass")
-            return ("no_knowledge_domain", 0)
-
-        result = await self.learning.learn_with_domain_context(
-            LearningExample(
-                example_id=memory.memory_id,
-                # Whose experience the task was: its outcome memory's owner.
-                actor=getattr(memory, "user_id", None) or SUBSTRATE_ACTOR,
-                inputs={
-                    "task_id": content.get("task_id"),
-                    "task_type": content.get("task_type"),
-                    "task_description": content.get("task_description"),
-                    "task_source": content.get("task_source"),
-                },
-                targets={
-                    "outcome": content.get("outcome"),
-                    "result_summary": content.get("result_summary"),
-                    "failure_reason": content.get("failure_reason"),
-                },
-                # The recorded confidence IS the quality of this example.
-                quality_score=float(content.get("confidence", 0.0) or 0.0),
-                task_type=content.get("task_type"),
-                domain=str(domain),
-                source="task_outcome",
-            ),
-            str(domain),
-        )
-
-        if not result.success:
-            # Deliberately NOT marked. An outcome that could not be expanded
-            # because its domain holds nothing yet must be reconsidered once that
-            # domain has been learned (`domain_empty` is exactly that case).
-            return ((result.metadata or {}).get("error_class") or "learning_failed", 0)
-
-        # EXPANDED means the domain layer processed this outcome — not that the
-        # learning strategy earned credit for it (separate facts).
-        cross = (result.metadata or {}).get("cross_domain") or {}
-        transfers = len(cross.get("transfers") or [])
-
-        marked = await storage.update_memory(memory.memory_id, {
-            "metadata": {self.DOMAIN_EXPANSION_MARK: datetime.now().isoformat()},
-            "metadata.merge": True,
-        })
-        if not marked:
-            # An unmarked outcome would be expanded again and the meta-learner
-            # would count the repeat as fresh evidence. Stop rather than quietly
-            # build up duplicate trials.
-            raise RuntimeError(
-                f"task outcome {memory.memory_id} was expanded but could not be "
-                f"marked; continuing would re-learn it on every pass")
-        return ("expanded", transfers)
+        return await memory_agent().take_outcome_to_learning(
+            memory, content, domain=domain, mark=self.DOMAIN_EXPANSION_MARK)
 
     async def _idle_domain_discovery_work(self):
         """Discover domains from what the substrate has learned AND been taught.
@@ -13017,184 +12384,6 @@ class AutonomousCoordinator:
                           for name, c in concept_summary["channels"].items()))
         return {"operator": summary, "declarative": concept_summary}
 
-    async def _idle_operator_exploration_work(self):
-        """Learn the operators of a domain the substrate is not yet competent in,
-        chosen by intrinsic motivation.
-
-        Domain competence is an epistemic belief. An under-learned domain sits at
-        high entropy and appears in the epistemic engine's unstable regions;
-        intrinsic motivation ranks exactly those, mixing all its drives. This
-        tier takes the top-ranked target that is an operator-domain it can
-        explore, runs ONE exploration cycle, and records the outcome as evidence
-        on that competence belief -- so the belief moves and the next choice
-        follows from it. Nothing here selects domains on its own.
-        """
-        from core.learning.exploration import (
-            SubstrateExplorer, explorable_domains, get_proposer)
-
-        udm = self.universal_domain_master  # this substrate's own domain faculty
-
-        domains = explorable_domains()
-        if not domains:
-            return {"status": "no explorable domain"}
-
-        # Every explorable domain gets a competence belief so it can surface;
-        # then intrinsic motivation decides which one is worth exploring now.
-        for d in domains:
-            await udm.ensure_competence_belief(d)
-        # Erode competence that is no longer being earned, so a domain the
-        # substrate wrongly believes it has mastered resurfaces for
-        # re-verification rather than being trusted forever.
-        await udm.refresh_competence_beliefs()
-
-        chosen = None
-        im = getattr(self, "intrinsic_motivation", None)
-        if im is not None:
-            try:
-                targets = await im.get_top_exploration_targets(limit=10)
-                chosen = await udm.select_exploration_target(domains, targets)
-            except Exception as e:
-                raise_if_structural(e, "autonomous_coordinator._idle_operator_exploration_work")
-                logger.info("exploration target ranking unavailable: %s", e)
-        if chosen is None:
-            # Motivation surfaced nothing among explorable domains; stay
-            # always-online by exploring one anyway (the belief still moves).
-            chosen = domains[0]
-
-        # Explore RECORDS demonstrations and enqueues their operators for
-        # induction; it does not induce here. Induction runs off this acting path
-        # in `_idle_operator_induction_work`, which is also what moves the
-        # competence belief -- learning changes competence, not the acting that
-        # fed it. This tier records only CONTROLLABILITY, which the acting itself
-        # establishes: did acting move the world (acted/positive) more than not
-        # acting (still/ambient)? That is what lets a later cycle drop a domain
-        # the substrate cannot steer.
-        summary = await SubstrateExplorer().explore(
-            chosen, get_proposer(chosen), max_actions=8)
-        await udm.record_controllability(
-            chosen,
-            action_attempts=summary.get("acted", 0),
-            action_effects=summary.get("positive", 0),
-            still_observations=summary.get("still_observations", 0),
-            ambient_changes=summary.get("ambient_changes", 0))
-        if im is not None:
-            try:
-                await im.mark_target_explored(f"competence:{chosen}")
-            except Exception as e:
-                raise_if_structural(e, "autonomous_coordinator._idle_operator_exploration_work")
-        logger.info("[IDLE] operator exploration: domain=%s acted=%s", chosen,
-                    summary.get("acted"))
-        return {"domain": chosen, **summary}
-
-    async def _idle_learning_consolidation(self) -> Dict[str, Any]:
-        """Scheduled tier: the learning authority's consolidation pass."""
-        return await self.learning.consolidate_learning()
-
-    async def _idle_operator_induction_work(self):
-        """Induce the operators exploration has gathered demonstrations for, off
-        the acting path, and move the competence beliefs the results earn.
-
-        This is the always-online learner. Exploration (a separate tier) only
-        acts and records; the hypothesis search -- whose cost grows with the
-        richness of the observed state -- runs HERE so no acting cycle pays for
-        it. A domain that gained a newly executable operator has become more
-        competent; one whose demonstrations did not yet yield one has not. Both
-        are recorded as competence evidence, so the belief tracks what learning
-        actually established.
-        """
-        # Drain the pending induction through this substrate's OWN learning
-        # authority (the always-online, model-free learner).
-        result = await self.learning.drain_pending_induction(limit=50)
-        by_domain = result.get("by_domain", {})
-        if not by_domain:
-            return {"drained": 0}
-
-        udm = self.universal_domain_master  # this substrate's own domain faculty
-
-        for domain_id, learned in by_domain.items():
-            await udm.record_competence_evidence(domain_id, learned=bool(learned))
-        learned_domains = [d for d, learned in by_domain.items() if learned]
-        logger.info("[IDLE] operator induction: drained=%d learned_domains=%s",
-                    result.get("drained", 0), learned_domains)
-        return {"drained": result.get("drained", 0),
-                "learned_domains": learned_domains,
-                "domains_touched": sorted(by_domain)}
-
-    async def _idle_analogy_discovery_work(self):
-        """Discover cross-domain analogies over the learned concept store, bounded.
-
-        `AnalogyDiscovery.find_analogy` already loads unified.concepts and
-        PERSISTS the best analogy and its concept mappings -- but nothing ever
-        CALLED it, so unified.analogies and unified.concept_mappings stayed empty.
-        This is that caller. It drives find_analogy over a bounded batch of
-        (source concept -> target domain) pairs each cycle, rotating a cursor so
-        coverage advances across cycles while the O(pairs) cost stays capped.
-        """
-        from core.reasoning.analogy_discovery import get_analogy_discovery
-
-        engine = get_analogy_discovery()
-        if not await engine.initialize():
-            self._analogy_status = "ENGINE_UNAVAILABLE"
-            return {"status": "analogy engine unavailable"}
-
-        domains = [d for d, cs in engine.concepts.items() if cs]
-        if len(domains) < 2:
-            # Not a failure: cross-domain analogy needs at least two populated
-            # domains. Reported so "no analogies" is distinguishable from "broken".
-            self._analogy_status = "TOO_FEW_DOMAINS"
-            return {"status": "need >=2 populated domains", "domains": len(domains)}
-
-        import itertools
-        MAX_CALLS = int(self.config.get("analogy_pairs_per_cycle", 8))
-        MAX_SRC = int(self.config.get("analogy_sources_per_domain", 3))
-
-        # The full work-list of (source concept, target domain) pairs. Bounded per
-        # source domain so one large domain cannot crowd the batch.
-        attempts = []
-        for src_dom, tgt_dom in itertools.permutations(domains, 2):
-            # Only source concepts that actually carry relationships can match on
-            # structure; a concept with none contributes nothing but cost.
-            srcs = [n for n, c in engine.concepts.get(src_dom, {}).items()
-                    if getattr(c, "relationships", None)][:MAX_SRC]
-            for sc in srcs:
-                attempts.append((sc, tgt_dom))
-        if not attempts:
-            self._analogy_status = "NO_CONCEPTS"
-            return {"status": "no source concepts"}
-
-        cur = getattr(self, "_analogy_cursor", 0) % len(attempts)
-        batch = attempts[cur:cur + MAX_CALLS] or attempts[:MAX_CALLS]
-        self._analogy_cursor = (cur + len(batch)) % len(attempts)
-
-        found = 0
-        # When a pair yields NO analogy, the diagnostic (Oracle A) explains WHY —
-        # source-resolution vs target-domain vs candidate-enumeration vs scoring —
-        # so "found 0" is an actionable stage, not a silent blank. This is the
-        # analogy-diagnostics instrument, which had no caller before.
-        _diag = None
-        fail_stages: Dict[str, int] = {}
-        for sc, tgt_dom in batch:
-            try:
-                if await engine.find_analogy(sc, tgt_dom, min_similarity=0.5):
-                    found += 1
-                else:
-                    if _diag is None:
-                        from core.reasoning.analogy_diagnostics import AnalogyDiagnostics
-                        _diag = AnalogyDiagnostics(engine)
-                    oa = await _diag.oracle_a(sc, tgt_dom)
-                    stage = oa.first_failing_stage or "A5_scoring_no_match"
-                    fail_stages[stage] = fail_stages.get(stage, 0) + 1
-            except Exception as e:
-                raise_if_structural(e, "autonomous_coordinator._idle_analogy_discovery_work")
-                logger.info("analogy %s -> %s failed: %s", sc, tgt_dom, e)
-
-        self._analogy_status = "RAN"
-        if fail_stages:
-            logger.info("[IDLE:ANALOGY] no-mapping stages: %s", dict(fail_stages))
-        logger.info("[IDLE:ANALOGY] attempted=%d found=%d (%d domains, cursor=%d/%d)",
-                    len(batch), found, len(domains), self._analogy_cursor, len(attempts))
-        return {"attempted": len(batch), "found": found, "domains": len(domains),
-                "no_mapping_stages": fail_stages}
 
     async def _rule_root_count(self, *, domain_id: str, predicate: str, arity: int) -> int:
         """The strongest confirming-root count among executable operators of a
@@ -13489,174 +12678,6 @@ class AutonomousCoordinator:
             for field in fields:
                 by_field.setdefault(field.domain_id, []).append(record)
         return by_field
-
-    async def _idle_meta_learning_work(self):
-        """
-        Evaluate strategy performance across ALL task types (not just RESEARCH).
-
-        NEW: Uses StrategyAdaptationGate for robust threshold-driven adaptation:
-          - Binomial confidence interval (95% CI)
-          - Minimum sample size (10 executions)
-          - Decay-weighted recent performance
-          - Variance analysis (instability vs. consistent poor performance)
-
-        Fixes:
-          - Previously only evaluated TaskType.RESEARCH
-          - Strategy outcomes for other task types were never reviewed
-          - Low-performing strategies never flagged for adaptation
-          - Arbitrary 0.35 threshold with no statistical rigor
-          - No weighting of recent vs. stale outcomes
-        """
-        from core.learning.meta_learning import StrategyAdaptationGate
-
-        # This guarded on self.learning -- the LearningAdapter -- which defines
-        # neither evaluate_strategies nor adapt_strategies, so the guard was
-        # always False and this entire tier returned before doing any work.
-        # Those methods live on MetaLearner, which is self.meta_learning.
-        if not self.meta_learning:
-            logger.debug("[IDLE:METALEARNING] Meta-learning not available — skipping")
-            return
-
-        from .shared_types import TaskType
-        from core.learning.meta_learning import TaskFamily
-
-        task_types = [tt.value for tt in (TaskType.RESEARCH, TaskType.ANALYSIS, TaskType.SYNTHESIS,
-                                          TaskType.EXECUTION, TaskType.PLANNING, TaskType.VALIDATION,
-                                          TaskType.LEARNING, TaskType.OPTIMIZATION)]
-
-        logger.info(f"[IDLE:METALEARNING] Evaluating strategies for {len(task_types)} task types")
-
-        evaluation_results: Dict[str, Any] = {}
-        adapted = 0
-
-        for tt_value in task_types:
-            try:
-                tt_enum = TaskType(tt_value)
-                family = self._task_family_for(tt_enum)
-                evaluation = await self.meta_learning.evaluate_strategies(family)
-                logger.debug(f"[IDLE:METALEARNING] {tt_value} ({family.value}): {evaluation}")
-
-                # ──── Robust adaptation gate ────
-                # Aggregate from the meta-learner's persisted arms — the ONE
-                # metrics authority. The parallel per-process `_strategy_outcomes`
-                # dict (an in-memory second store that started empty on every
-                # restart) has been RETIRED along with the duplicate
-                # `_execute_task_with_singleton` pipeline; execution now runs
-                # through the single `_execute_and_validate_task` path.
-                # Read through the learning authority's recommendation surface,
-                # not the meta-learner's internal maps.
-                arms = await self.learning.recommend_strategies(
-                    {"task_family": family, "strategy_prefix": self.EXECUTOR_NS})
-                total_execs = sum(a["trials"] for a in arms)
-                total_wins = sum(a["successes"] for a in arms)
-
-                # Get recent outcomes for variance/decay analysis
-                recent_outcomes = self._get_recent_task_outcomes(tt_value, limit=10)
-
-                # Check adaptation gate
-                should_adapt, gate_analysis = StrategyAdaptationGate.should_adapt(
-                    task_type=tt_value,
-                    executions=total_execs,
-                    wins=total_wins,
-                    recent_outcomes=recent_outcomes,
-                )
-
-                # Log gate analysis for transparency
-                logger.info(f"[IDLE:METALEARNING] {tt_value} adaptation gate: {gate_analysis['decision']}")
-                logger.debug(f"  Analysis: {gate_analysis}")
-
-                if should_adapt:
-                    # Trigger adaptation
-                    try:
-                        await self.meta_learning.adapt_strategies(family)
-                        adapted += 1
-
-                        reason = gate_analysis.get("adaptation_reason", "low_performance")
-                        logger.info(
-                            f"[IDLE:METALEARNING] Adapted strategies for {tt_value} "
-                            f"(reason: {reason}, execs: {total_execs}, wins: {total_wins})"
-                        )
-
-
-                    except Exception as e:
-                        logger.warning(f"[IDLE:METALEARNING] Adaptation error for {tt_value}: {e}")
-                else:
-                    logger.debug(
-                        f"[IDLE:METALEARNING] {tt_value} adaptation gate rejected: "
-                        f"reason={gate_analysis['checks_failed']}"
-                    )
-
-                evaluation_results[tt_value] = gate_analysis
-
-            except Exception as e:
-                logger.debug(f"[IDLE:METALEARNING] Error evaluating {tt_value}: {e}")
-                evaluation_results[tt_value] = f"error: {e}"
-
-        logger.info(
-            f"[IDLE:METALEARNING] Evaluation complete — "
-            f"{len(evaluation_results)} types reviewed, {adapted} adapted"
-        )
-
-        # Second-order oversight: watch whether the meta-learner is degrading
-        # its own standards. MetaMetricsMonitor had zero callers, so nothing
-        # ever checked the checker -- and it could not have answered anyway
-        # (its db handle was an un-awaited coroutine). Both are fixed; this is
-        # the call site.
-        try:
-            from core.learning.meta_metrics_monitor import get_meta_metrics_monitor
-
-            health = await get_meta_metrics_monitor().get_meta_health(self.meta_learning)
-            if health:
-                level = {"CRITICAL": logger.error, "DEGRADED": logger.warning}.get(
-                    health.overall_health, logger.info
-                )
-                level(
-                    f"[IDLE:METALEARNING] Meta-learner health: {health.overall_health} "
-                    f"(stability {health.standards_stability_score:.0f}/100, "
-                    f"{len(health.alerts)} alerts, {len(health.warnings)} warnings)"
-                )
-                for a in health.alerts:
-                    logger.warning(f"[IDLE:METALEARNING]   alert: {a}")
-        except Exception as e:
-            logger.warning(f"[IDLE:METALEARNING] Meta-health check failed: {e}")
-
-
-
-    # ── TIER 5: Memory consolidation — multi-strategy with fallbacks ──────────
-
-    async def _idle_abstraction_work(self):
-        """Tier: compress repeated experience into persistent schemas.
-
-        The admission policy lives on the memory agent, which owns the data the
-        decision depends on. This tier only supplies the schedule and surfaces
-        the outcome -- including the reason a run was declined, so a tier that
-        never does anything is visible rather than silently idle.
-        """
-        memory_agent = getattr(self, 'memory_agent', None)
-        if memory_agent is None:
-            try:
-                from core.memory import get_memory_agent
-                memory_agent = await get_memory_agent()
-            except Exception as e:
-                logger.debug(f"[IDLE:ABSTRACTION] Memory agent unavailable: {e}")
-                return {'ran': False, 'reason': 'no_memory_agent'}
-
-        if not hasattr(memory_agent, 'form_abstractions_if_due'):
-            logger.debug("[IDLE:ABSTRACTION] Memory agent has no abstraction entry point")
-            return {'ran': False, 'reason': 'no_entry_point'}
-
-        report = await memory_agent.form_abstractions_if_due()
-
-        if report.get('ran'):
-            logger.info(
-                f"[IDLE:ABSTRACTION] {report.get('schemas_formed', 0)} schema(s) from "
-                f"{report.get('new_memories', 0)} new memories "
-                f"(backlog {report.get('backlog', 0)})"
-            )
-        else:
-            logger.debug(f"[IDLE:ABSTRACTION] Skipped: {report.get('reason')}")
-
-        return report
 
     async def _run_exploration_cycle(self):
         """
@@ -13984,7 +13005,7 @@ class AutonomousCoordinator:
                                      "task_metadata": dict(intrinsic_task.metadata or {})}})
 
             # Add to task queue instead of executing directly
-            logger.info(f"🔬 Queueing exploration task: {selected_goal.id}")
+            logger.info(f"🔬 Queueing exploration task {intrinsic_task.id}: {intrinsic_task.description}")
             if not await self.task_queue.add_task(intrinsic_task, priority=Priority.LOW):
                 await self.conclude_pursuit(
                     intrinsic_task, {"error": "task queue refused the work"},
@@ -13995,81 +13016,6 @@ class AutonomousCoordinator:
             logger.error(f"Error in exploration cycle: {e}")
             await self._handle_error(e, "exploration_cycle")
 
-    async def _propose_directive_improvements(self) -> None:
-        """The substrate proposing its own operating directives from REAL measured
-        signals (self-optimization). Each proposal's parameters are DERIVED from a
-        measured signal — never invented — and judged by the Constitution before
-        it can exist. Only proposes when a signal indicates a
-        concrete adjustment AND no active directive already encodes it, so it never
-        churns. After proposing, promotes the drafts the LEARNING AUTHORITY has
-        shown to work (DRAFT → ACTIVE on measured effectiveness).
-        """
-        ds = getattr(self, "directive_system", None)
-        if ds is None:
-            return
-        from .directive_types import DirectiveCategory
-
-        # ── RESOURCE_ALLOCATION — from the task queue's MEASURED failure rate ──
-        # High failure under the current cap → back off; reliably clear with a
-        # backlog → scale up. Params are the measured decision, not a guess.
-        try:
-            qm = self.task_queue.get_metrics()
-            completed = int(qm.get("tasks_completed", 0))
-            failed = int(qm.get("tasks_failed", 0))
-            finished = completed + failed
-            if finished >= 20:  # enough evidence to act on
-                fail_rate = failed / finished
-                current = self._effective_max_parallel()
-                proposed = None
-                if fail_rate > 0.30 and current > 1:
-                    proposed = current - 1
-                elif (fail_rate < 0.05 and current < self._max_parallel_tasks
-                      and self.task_queue.get_queue_length() > current):
-                    proposed = current + 1
-                if proposed is not None:
-                    active_params, _ = await ds.select_guidance(
-                        DirectiveCategory.RESOURCE_ALLOCATION)
-                    if active_params.get("max_parallel_tasks") != proposed:
-                        await ds.create_directive(
-                            directive_name=f"resource-cap-{proposed}",
-                            category=DirectiveCategory.RESOURCE_ALLOCATION,
-                            directive_text=(f"Cap concurrent acting at {proposed} "
-                                            f"(measured failure_rate={fail_rate:.2f})"),
-                            directive_parameters={"max_parallel_tasks": proposed},
-                            created_by="self_optimization")
-        except Exception as e:
-            logger.debug("resource directive proposal skipped: %s", e)
-
-        # ── EXPLORATION_BALANCE — from the MEASURED exploration quota ──
-        # Persistently over the exploration budget → favour exploiting (raise the
-        # exploit threshold); the threshold value tracks the measured overshoot.
-        try:
-            quota = self._calculate_exploration_quota()
-            limit = float(self.config.get("exploration_quota_limit", 0.10))
-            if quota is not None and quota > limit * 1.5:
-                proposed_thr = round(min(0.95, 0.7 + quota), 2)
-                active_params, _ = await ds.select_guidance(
-                    DirectiveCategory.EXPLORATION_BALANCE)
-                if active_params.get("exploit_threshold") != proposed_thr:
-                    await ds.create_directive(
-                        directive_name=f"exploit-threshold-{proposed_thr}",
-                        category=DirectiveCategory.EXPLORATION_BALANCE,
-                        directive_text=(f"Favour exploiting learned competence "
-                                        f"(exploration quota {quota:.2f} over "
-                                        f"limit {limit:.2f})"),
-                        directive_parameters={"exploit_threshold": proposed_thr},
-                        created_by="self_optimization")
-        except Exception as e:
-            logger.debug("exploration directive proposal skipped: %s", e)
-
-        # Promote the drafts the learning authority has validated.
-        try:
-            promoted = await ds.promote_eligible_directives()
-            if promoted:
-                logger.info("[SELF_OPT] %d directive(s) promoted by the learning "
-                            "authority", promoted)
-        except Exception as e:
-            logger.debug("directive promotion skipped: %s", e)
 
     async def _handle_error(self, error: Exception, source: str):
         """
@@ -14307,30 +13253,60 @@ class AutonomousCoordinator:
             ) if getattr(self, "_started_at_ts", None) else None,
         }
 
-    def _task_family_for(self, task_type) -> 'TaskFamily':
-        """Map a coordinator TaskType onto the meta-learner's TaskFamily.
 
-        The coordinator speaks TaskType (11 values, about what work to do);
-        MetaLearner keys strategies by TaskFamily (8 values, about the kind of
-        learning problem). Nothing translated between them, which is why every
-        cross-system call passed the wrong vocabulary.
+    async def _experience_evaluator_ready(self):
+        """The experience evaluator, made ready once with what it reads: the
+        constitution and the motivation system."""
+        if self._experience_evaluator is None:
+            from .experience_evaluator import ExperienceEvaluator
+            evaluator = ExperienceEvaluator()
+            await evaluator.initialize(self.constitution, self.intrinsic_motivation)
+            self._experience_evaluator = evaluator
+        return self._experience_evaluator
 
-        DELEGATED, NOT DUPLICATED. The table now lives beside TaskFamily as
-        `meta_learning.TASK_TYPE_TO_FAMILY`, because UnifiedLearningSystem needs
-        the same translation and could not reach a dict held in this class.
+    async def _evaluate_outcome(self, task: Task, result: Any, is_complete: bool, *,
+                                duration_seconds: float) -> Dict[str, Any]:
+        """What a finished task's experience was worth, and the reward Lyric felt.
 
-        A KeyError is still raised for an unknown type, as before: this caller
-        has a real TaskType in hand, so an unmapped one is a defect in the map
-        and must not be quietly turned into some default family.
-        """
-        from core.learning.meta_learning import task_family_for_task_type
-
-        family = task_family_for_task_type(task_type)
-        if family is None:
-            raise KeyError(
-                f"No TaskFamily mapped for task type {task_type!r}; add it to "
-                f"meta_learning.TASK_TYPE_TO_FAMILY")
-        return family
+        The `ExperienceEvaluator` reads the experience: its outcome quality, and
+        its intrinsic reward from the drives (competence, novelty, autonomy, and
+        curiosity where an epistemic signal exists), weighted by the motivation
+        system's own `MotivationWeights`. Both go to appraisal, which is what
+        `build_appraisal` takes them from. The REWARD of this experience is the
+        valence appraisal gave it (`last_appraised`: the experience's own
+        appraisal, before blending), lifted by the people's reward as felt
+        valence is (`PEOPLE_SHARE` of the world's `people_reward`)."""
+        from .appraisal import PEOPLE_SHARE
+        evaluator = await self._experience_evaluator_ready()
+        metadata = task.metadata or {}
+        result_d = result if isinstance(result, dict) else {}
+        duration = float(duration_seconds)
+        task_type = getattr(getattr(task, "type", None), "value", str(getattr(task, "type", "")))
+        evaluated = await evaluator.evaluate_experience(
+            task_id=str(task.id), task_type=task_type,
+            context={"type": task_type, "params": metadata.get("parameters") or {},
+                     "task_source": getattr(getattr(task, "source", None), "value", None),
+                     "self_initiated": getattr(task, "source", None) == TaskSource.AUTONOMOUS},
+            action={"tool_plan": (metadata.get("parameters") or {}).get("tool_plan"),
+                    "tool_results_count": len(result_d.get("tools_run") or []),
+                    "iterations": int(metadata.get("retry_count") or 0)},
+            outcome={**result_d, "duration_seconds": duration,
+                     "completed_at": datetime.now().isoformat()},
+            success=bool(is_complete), duration_seconds=duration,
+            error_message=None if is_complete else (str(result_d.get("error") or "") or None))
+        verdict = metadata.get("operating_verdict") or {}
+        self.appraisal.update(outcome_quality=evaluated.outcome_quality,
+                              intrinsic_reward=evaluated.intrinsic_reward,
+                              outcome_class=verdict.get("outcome_class"),
+                              concerns=f"task {task.id}")
+        valence = getattr(self.appraisal.last_appraised, "valence", None)
+        people = getattr(self.appraisal.current_state, "people_reward", None)
+        felt = (valence if valence is None or people is None
+                else min(1.0, valence + PEOPLE_SHARE * people))
+        return {"valence": felt,
+                "outcome_quality": evaluated.outcome_quality,
+                "intrinsic_reward": evaluated.intrinsic_reward,
+                "intrinsic_components": evaluated.intrinsic_components}
 
     def _operating_verdict(
         self, result: Any, confidence: Optional[float], is_complete: bool,
@@ -14378,7 +13354,7 @@ class AutonomousCoordinator:
                            "no result to read")
 
         # ── eligibility: did this work establish anything about operating? ──
-        if result.get("planning_status") or result.get("refused"):
+        if result.get("planning_status") or result.get("refused") or result.get("operated") is False:
             return verdict(False, OutcomeClass.INSUFFICIENT_EVIDENCE,
                            "no operation was performed")
 
@@ -14629,26 +13605,25 @@ class AutonomousCoordinator:
             return f"the goal of the task is achieved: {desc}"
         return f"task {getattr(task, 'id', '?')} is complete"
 
-    def _mint_completion_belief(self, task, anchor: str):
-        """Create the task's completion belief at the LOW prior, in the task's OWN
-        domain, through the one learning authority. Stashes the belief id and the
-        anchor on the task so the evidence updates and the completion decision all
-        move the SAME belief. Returns the belief (or None if the authority is
-        unavailable — the caller then falls back to the legacy decision, never a
-        fake completion)."""
-        try:
-            domain = self._completion_domain(task)
-            belief = self.learning.create_belief(
-                anchor, domain=domain, prior=self.COMPLETION_PRIOR, source="completion")
-        except Exception as e:
-            logger.warning("could not mint completion belief for %s: %s",
-                           getattr(task, "id", "?"), e)
-            return None
+    def _open_completion(self, task, anchor: str) -> float:
+        """Open the task's completion belief at the LOW prior, on the task itself:
+        its anchor (the goal, in the words of whoever set it) and its posterior,
+        so the evidence updates and the completion decision all move the SAME
+        belief. Returns the prior.
+
+        IT IS THE TASK'S, NOT THE WORLD'S. Whether one task's goal holds is a fact
+        about that task, a particular of whoever set it, and its anchor carries
+        their names, places and codes: kept on the task, which is theirs and is
+        stored with it, and never in the world's belief store
+        (docs/research/SEPARATION_MAP.md §11.3). It is moved by the one belief
+        kernel (`evidence_step`, in log-odds), as every belief is."""
+        from core.reasoning.bayesian_uncertainty import log_odds_of
         if task.metadata is None:
             task.metadata = {}
-        task.metadata["completion_belief_id"] = belief.belief_id
         task.metadata["completion_anchor"] = anchor
-        return belief
+        task.metadata["completion_log_odds"] = log_odds_of(self.COMPLETION_PRIOR)
+        task.metadata["completion_posterior"] = self.COMPLETION_PRIOR
+        return self.COMPLETION_PRIOR
 
     #: Acceptance for DONE — the substrate must be STRONGLY confident the goal
     #: holds. NOT the belief system's ordinary 0.7 "confident-true" line: a task is
@@ -14683,32 +13658,25 @@ class AutonomousCoordinator:
         reach the bar — the high threshold itself forces the fresh SAW that
         compounds to done. Isolated; never fabricates. Groundings are stashed on
         the task for audit and for the outcome memory."""
-        belief_id = (task.metadata or {}).get("completion_belief_id")
-        if not belief_id:
-            return
-        try:
-            evidence = self._gather_did_evidence(task, result)
-            evidence += await self._saw_reobserve(task, result)
-            groundings = self._independent_groundings(evidence)
-            for g in groundings:
-                self.learning.update_belief(
-                    belief_id,
-                    {"quality": g.strength,
-                     "source": f"{g.epoch}:{g.observation_channel}:{g.provenance_key}"},
-                    evidence_supports=g.polarity)
-            if task.metadata is None:
-                task.metadata = {}
-            task.metadata["completion_evidence"] = [
-                {"epoch": g.epoch, "channel": g.observation_channel,
-                 "provenance": g.provenance_key, "supports": g.polarity,
-                 "strength": round(g.strength, 3)} for g in groundings]
-            # The completion belief is decision-critical: persist its post-evidence
-            # state DURABLY (awaited, committed) so a completion — or a reversal
-            # where SAW contradicted DID — survives a restart, not fire-and-forget.
-            await self.learning.flush_belief(belief_id)
-        except Exception as e:
-            logger.warning("completion-evidence update failed for %s: %s",
-                           getattr(task, 'id', '?'), e)
+        from core.reasoning.bayesian_uncertainty import evidence_step, probability_of
+        held = (task.metadata or {}).get("completion_log_odds")
+        if held is None:
+            raise RuntimeError(f"task {getattr(task, 'id', '?')} has no completion belief to move: "
+                               f"it was not opened before acting (`_open_completion`)")
+        evidence = self._gather_did_evidence(task, result)
+        evidence += await self._saw_reobserve(task, result)
+        groundings = self._independent_groundings(evidence)
+        for g in groundings:
+            held += evidence_step(g.strength, g.polarity)
+        # Kept on the task, which is stored with it: a completion -- or a reversal
+        # where SAW contradicted DID -- survives a restart with the task. The
+        # posterior is read from the log-odds.
+        task.metadata["completion_log_odds"] = held
+        task.metadata["completion_posterior"] = probability_of(held)
+        task.metadata["completion_evidence"] = [
+            {"epoch": g.epoch, "channel": g.observation_channel,
+             "provenance": g.provenance_key, "supports": g.polarity,
+             "strength": round(g.strength, 3)} for g in groundings]
 
     def _gather_did_evidence(self, task, result) -> List["Evidence"]:
         """DID — the intervention's OWN report that it produced the effect, through
@@ -14927,21 +13895,8 @@ class AutonomousCoordinator:
     def _decide_completion(self, task, result, verify_bar: float):
         """DONE from the substrate's completion belief: has its posterior reached
         the DEFENSIBLE acceptance (>= 0.95, raised toward 0.99 by caution)? Returns
-        (is_complete, confidence, issues). If the belief is unavailable (mint
-        failed), decide honestly from the handler's re-observation ('verified'
-        only) — never a fabricated pass."""
-        belief_id = (task.metadata or {}).get("completion_belief_id")
-        belief = self.learning.get_belief(belief_id) if belief_id else None
-        if belief is None:
-            vs = result.get('verification_state') if isinstance(result, dict) else None
-            if vs == 'verified':
-                return True, 0.85, []
-            declared_ok = isinstance(result, dict) and result.get('success') is True
-            return declared_ok, (0.5 if declared_ok else 0.0), (
-                ['completion belief unavailable; honoured at success flag only']
-                if declared_ok else
-                [(result.get('error') if isinstance(result, dict) else None) or 'not verified'])
-        posterior = float(belief.posterior_probability)
+        (is_complete, confidence, issues)."""
+        posterior = float(task.metadata["completion_posterior"])
         caution = (verify_bar / 0.85) if verify_bar > 0 else 0.0
         accept = self.COMPLETION_ACCEPT + (self.COMPLETION_ACCEPT_MAX - self.COMPLETION_ACCEPT) * caution
         if posterior + 1e-9 >= accept:
@@ -15017,16 +13972,14 @@ class AutonomousCoordinator:
         finding = str(finding or "").strip()
         if not faculty or not finding:
             return None
-        return await self.learning.learn_fact(
+        from core.learning.unified_learning_system import Evidence as _ClaimEvidence
+        return await memory_agent().take_in_observed(
             faculty, "was_found_to", finding,
             positive=bool(holds), domain=domain,
             # An experiment RAN. Its result is something observed of a real
             # system, which is what TASK_ARTIFACT already means here.
-            quality=1.0,
-            provenance=Provenance(
-                producer=f"experiment:{experiment}",
-                source_id=artifact or f"{experiment}:{run}",
-                source_type="TASK_ARTIFACT"),
+            evidence=_ClaimEvidence(source=f"experiment:{experiment}", key=artifact or f"{experiment}:{run}",
+                              source_type="TASK_ARTIFACT", quality=1.0, producer=f"experiment:{experiment}"),
             description=f"found by {experiment} run {run}")
 
     async def describe_kind(self, category: str, *, domain: str = "perception"
@@ -15058,6 +14011,7 @@ class AutonomousCoordinator:
 
         Returns the claims admitted.
         """
+        from core.learning.unified_learning_system import Evidence as _ClaimEvidence
         from core.reasoning.concept_graph_reasoning import observed_kind_description
         from core.semantics.cognitive_ingress import Provenance
         from core.database import get_database_manager
@@ -15088,16 +14042,13 @@ class AutonomousCoordinator:
         for relation, value in described:
             relation = ("has_property" if relation in _COPULAR_OBS else relation)
             try:
-                admission = await self.learning.learn_fact(
+                admission = await memory_agent().take_in_observed(
                     category, relation, value, domain=domain,
                     # Every instance agreed. The claim is as good as the
                     # observations under it, which is what the lineage states.
-                    quality=1.0,
-                    provenance=Provenance(
-                        producer="kind_description",
-                        source_id=f"observed_instances:{category}",
-                        source_type="INDUCED_RULE",
-                        derived_from=tuple(evidence)))
+                    evidence=_ClaimEvidence(source="kind_description", key=f"observed_instances:{category}",
+                                      source_type="INDUCED_RULE", quality=1.0, producer="kind_description",
+                                      derived_from=tuple(evidence)))
             except Exception as error:
                 raise_if_structural(error, "autonomous_coordinator.describe_kind")
                 logger.warning("describe_kind: %s %s %s was refused: %s",
@@ -15171,6 +14122,7 @@ class AutonomousCoordinator:
         other's answer — they are independent readings of one blob, and a
         disagreement between them is two claims the acceptance band judges on
         their own posteriors, not a tie for this method to break."""
+        from core.learning.unified_learning_system import Evidence as _ClaimEvidence, Naming as _Naming
         blobs = [str(b.get("name") or "").strip() for b in (content.get("blobs") or [])]
         blobs = [b for b in blobs if b]
         if not blobs:
@@ -15217,24 +14169,27 @@ class AutonomousCoordinator:
                         "lineage and is not admitted", blob, naming.category)
                     break
                 try:
-                    adm = await self.learning.learn_fact(
-                        blob, "isa", naming.category, domain=domain,
-                        quality=naming.confidence,
-                        provenance=Provenance(
-                            producer="rule_naming", source_id=naming.rule_id,
-                            source_type="INDUCED_RULE", derived_from=roots),
-                        actor=theirs)
+                    # What a learned rule named it, handed to memory: a thing in a
+                    # person's image is theirs and its naming held in their
+                    # context; a thing Lyric met itself is the world's, and its
+                    # naming goes to the one door.
+                    adm = await memory_agent().take_in_recognised(
+                        _Naming(blob, naming.category, _ClaimEvidence(
+                            source=f"rule:{naming.rule_id}", key=naming.rule_id,
+                            source_type="INDUCED_RULE", quality=naming.confidence,
+                            producer="rule_naming", derived_from=roots)),
+                        domain=domain, origin=origin)
                 except Exception as error:
                     raise_if_structural(
                         error, "autonomous_coordinator.recognise_sensed")
                     logger.warning("recognise: naming %s a %s was refused: %s",
                                    blob, naming.category, error)
                     continue
-                # THE GATE DECIDES, NOT THIS. `learn_fact` returns an Admission
-                # whether or not it admitted anything, so reporting the name as
-                # made because the call returned would be a recognition the
-                # substrate never actually holds — and `perceive_sensed` would
-                # then read no belief for it and call it an absence.
+                # THE GATE DECIDES, NOT THIS. A `Decision` comes back whether or
+                # not anything was held, so reporting the name as made because the
+                # call returned would be a recognition the substrate never
+                # actually holds — and `perceive_sensed` would then read no belief
+                # for it and call it an absence.
                 if not (getattr(adm, "admitted", False)
                         or getattr(adm, "already_present", False)):
                     logger.info(
@@ -15251,7 +14206,7 @@ class AutonomousCoordinator:
                 if udm is None:
                     continue
                 try:
-                    await udm.detect_knowledge_gap(domain, blob, "isa", owner=theirs)
+                    await udm.detect_knowledge_gap(domain, blob, "isa", owner=origin.owner)
                 except Exception as error:
                     raise_if_structural(
                         error, "autonomous_coordinator.recognise_sensed")
@@ -15259,17 +14214,18 @@ class AutonomousCoordinator:
                         "recognise: could not register the undetermined naming of "
                         "%s as %s: %s", blob, undet.category, error)
 
-            # THE SECOND PATH, on the same blob and the same features. It routes
-            # through `learning.recognize`, which owns turning a vote into a
-            # claim: it applies the rejection class, states the derivative
-            # provenance, and puts the confidence through the gate as evidence
-            # quality. None means the machine declined — no name, not a failure.
+            # THE SECOND PATH, on the same blob and the same features. What the
+            # learned classifier names it (`learning.name_instance`: the rejection
+            # class applied, the derivative provenance stated, the confidence its
+            # evidence's quality) is handed to memory, which takes it in where it
+            # belongs. None means the machine declined — no name, not a failure.
             if not classifier or not feats:
                 continue
             try:
-                adm = await self.learning.recognize(
-                    classifier, feats, blob, domain=domain, actor=theirs,
-                    lineage=evidence if theirs else None)
+                naming = await self.learning.name_instance(
+                    classifier, feats, blob, lineage=evidence if theirs else None)
+                adm = None if naming is None else await memory_agent().take_in_recognised(
+                    naming, domain=domain, origin=origin)
             except Exception as error:
                 raise_if_structural(
                     error, "autonomous_coordinator.recognise_sensed")
@@ -15278,13 +14234,11 @@ class AutonomousCoordinator:
                 continue
             if adm is None:
                 continue
-            if not (getattr(adm, "admitted", False)
-                    or getattr(adm, "already_present", False)):
-                logger.info("recognise: the gate declined %s (%s)",
-                            getattr(adm, "proposition", "?"),
-                            "; ".join(getattr(adm, "refusals", []) or ["no reason"]))
+            if not adm.admitted:
+                logger.info("recognise: the gate declined %s (%s)", adm.claim,
+                            "; ".join(adm.reasons) or adm.standing)
                 continue
-            voted = str(getattr(adm, "proposition", "")).split("|")[-1].strip()
+            voted = adm.claim.split(" isa ", 1)[-1].strip()
             if voted:
                 claim = f"{blob} isa {voted}"
                 if claim not in admitted:
@@ -15366,7 +14320,7 @@ class AutonomousCoordinator:
             subject=str(subject), domain=domain, percept_id=percept_id,
             decision=weakest, accept=round(accept, 4),
             verification_intensity=round(vi, 3), claims=tuple(judged),
-            owner=origin.person)
+            owner=origin.owner)
         # THE SAME EVENT recognition emits, so one reaction governs behaviour for
         # everything perceived rather than one path having a spine and the other
         # running past it.
@@ -15401,10 +14355,11 @@ class AutonomousCoordinator:
         low-confidence perception drives re-observation while a high-confidence one is
         acted on directly. Confidence steers behaviour; it is not just recorded.
         `origin` is whose percept it is: a person's recognition, its belief and
-        what follows from it are theirs."""
-        owner = origin.person
-        admission = await self.learning.recognize(
-            classifier, instance, instance_id, domain=domain, actor=owner)
+        what follows from it are theirs -- or, seen at work, the organization's."""
+        owner = origin.owner
+        naming = await self.learning.name_instance(classifier, instance, instance_id)
+        admission = None if naming is None else await memory_agent().take_in_recognised(
+            naming, domain=domain, origin=origin)
         if admission is None or not getattr(admission, "admitted", False):
             # A RECOGNITION IS A PERCEPT THAT MADE ONE CLAIM. Same declared shape
             # as a sensing, so one reaction reads both instead of each path
@@ -15420,7 +14375,7 @@ class AutonomousCoordinator:
             await self.emit(SelfEvent(SelfEventType.PERCEPT_RECOGNIZED,
                                       payload=out, origin="perceive"))
             return out
-        claim = getattr(admission, "proposition", "").replace("|", " ").strip()
+        claim = admission.claim
         held = await self._held_posterior(claim, owner) if claim else None
         posterior = held if held is not None else 0.0
         vi, accept = self._acceptance_band()
@@ -15436,7 +14391,7 @@ class AutonomousCoordinator:
             accept=round(accept, 4), verification_intensity=round(vi, 3),
             claims=(verdict,), owner=owner)
         # Record the recognition in the overall perceptual awareness — AWARENESS ONLY:
-        # its evidence already went through the gate via recognize→learn_fact, so a
+        # its evidence already went through the gate via `recognize`, so a
         # process_input here would double-admit. This lets a memory forming now stamp
         # what the substrate is currently perceiving.
         try:
@@ -15581,9 +14536,12 @@ class AutonomousCoordinator:
         try:
             domain = self._completion_domain(task)
             tags = ["task_outcome"] + ([f"domain_{domain}"] if domain else [])
+            # WHOSE EXPERIENCE: what the task's person may reason over (their own,
+            # their organizations', Lyric's own), never another person's.
             mems = await self.memory.search_memories(
                 query_text=getattr(task, "description", "") or "",
-                tags=tags, memory_type=MemoryType.META, max_results=limit)
+                tags=tags, memory_type=MemoryType.META, max_results=limit,
+                actor=getattr(task, "actor", None))
             if isinstance(mems, tuple):
                 mems = mems[1]
         except Exception as e:
@@ -15776,16 +14734,24 @@ class AutonomousCoordinator:
                             _recalled.get("successes", 0), _recalled.get("failures", 0),
                             _recalled.get("what_worked") or "")
 
-            # Mint the task's COMPLETION BELIEF (low prior — "the goal does not yet
+            # Open the task's COMPLETION BELIEF (low prior — "the goal does not yet
             # hold") before acting, anchored to the task's goal/intent (hybrid
             # authorship), so execution's real evidence moves it toward or away
-            # from done through the one learning authority.
-            _completion_anchor = self._derive_completion_anchor(task)
-            self._mint_completion_belief(task, _completion_anchor)
+            # from done by the one belief kernel, on the task itself.
+            self._open_completion(task, self._derive_completion_anchor(task))
 
             # ONE DOOR, drive goals included — `execute_task` routes them after
             # its gate (see there).
+            # How long the work took is measured here, where it runs: the queue
+            # keeps its start on its own record, not on the task.
+            _acting_started = datetime.now()
             result = await self.execute_task(task)
+            _acting_seconds = (datetime.now() - _acting_started).total_seconds()
+            if isinstance(result, dict) and result.get("awaiting_person"):
+                # AN ACT WAITS FOR THE PERSON. Nothing is decided yet: the job is
+                # held for them and goes on when they answer.
+                await self._wait_for_person(task, result)
+                return result
 
             # ================================================================
             # COMPLETION DECISION — the substrate's OWN belief, the one authority.
@@ -15843,12 +14809,9 @@ class AutonomousCoordinator:
             # Credit the adaptive task-type decision with the authoritative
             # outcome. Every task carrying an adaptive decision is queued and
             # arrives here; this is the one place its outcome is established.
-            _elapsed_ms = 0.0
-            if getattr(task, "started_at", None):
-                try:
-                    _elapsed_ms = (datetime.now() - task.started_at).total_seconds() * 1000.0
-                except TypeError:
-                    _elapsed_ms = 0.0
+            # Measured around the work itself (`_acting_seconds`); the task carries
+            # no start of its own, so reading one gave 0 ms for every task.
+            _elapsed_ms = _acting_seconds * 1000.0
             await self._record_adaptive_type_outcome(
                 task,
                 success=bool(is_complete),
@@ -15872,16 +14835,21 @@ class AutonomousCoordinator:
             _tmd = task.metadata or {}
             _prov = getattr(task, "provenance", None) or {}
             _op_domain = _prov.get("domain_id") or _tmd.get("domain_id")
-            if (isinstance(_op_domain, str) and _op_domain.strip()
-                    and not _tmd.get("drive")
-                    and getattr(self, "universal_domain_master", None) is not None):
+            # THE VERDICT IS EVERY OPERATION'S, the domain's record only a domain's.
+            # Whether an outcome counts, and what it was read from, is asked of
+            # any work that operated (`_operating_verdict` settles eligibility
+            # first); it is kept with the task, so its memory says so, and the
+            # lift counts a method's outcome by it. It was computed only for work
+            # in a named domain, so a task's declared steps done for a person,
+            # which name none, never counted for anything. A drive goal is what
+            # the substrate learns, not how it operates, and is left out.
+            _verdict = None
+            if not _tmd.get("drive"):
                 # OPERATING-CORRECTNESS is not DONE-ACCEPTANCE. The EARNED signal
                 # asks "did the operation achieve its intent?" -- and for work that
                 # carries an intent, the substrate now OWNS that answer instead of
                 # inferring it. See _operating_verdict.
                 _verdict = self._operating_verdict(result, confidence, is_complete)
-                # Kept with the task, so its memory says whether this outcome
-                # counts and what it was read from.
                 if task.metadata is None:
                     task.metadata = {}
                 task.metadata["operating_verdict"] = {
@@ -15889,6 +14857,8 @@ class AutonomousCoordinator:
                     "outcome_class": getattr(_verdict["outcome_class"], "value",
                                              _verdict["outcome_class"]),
                     "read_from": _verdict["read_from"]}
+            if (_verdict is not None and isinstance(_op_domain, str) and _op_domain.strip()
+                    and getattr(self, "universal_domain_master", None) is not None):
                 try:
                     _credited = await self.universal_domain_master.record_operating_outcome(
                         _op_domain, success=_verdict["success"],
@@ -15902,6 +14872,13 @@ class AutonomousCoordinator:
                 except Exception as _oe:
                     raise_if_structural(_oe, "autonomous_coordinator._execute_and_validate_task")
                     logger.debug("operating outcome not recorded for %s: %s", task.id, _oe)
+
+            # WHAT THIS EXPERIENCE WAS WORTH, evaluated and felt: kept with the
+            # task, so its memory holds the reward it carried (`_evaluate_outcome`).
+            if task.metadata is None:
+                task.metadata = {}
+            task.metadata["reward"] = await self._evaluate_outcome(
+                task, result, bool(is_complete), duration_seconds=_acting_seconds)
 
             # A task outcome is a fitness-relevant EVENT — the substrate reacts
             # to it here. Emitting TASK_COMPLETED runs the registered reactions;
@@ -16235,7 +15212,9 @@ class AutonomousCoordinator:
                         f"Validation failed: {issues_str}"
                     )
                     await self.conclude_pursuit(task, result, completed=False)
-                    logger.error(f"❌ Task failed: {task.id} - Issues: {issues_str}")
+                    # The work's own failure, not the substrate's: an ERROR is a
+                    # system failure (`failure_events`), and an honest outcome is not one.
+                    logger.warning(f"❌ Task failed: {task.id} - Issues: {issues_str}")
 
                     # DEDUP: Permanently block this fingerprint so it is never re-queued
                     try:
@@ -16284,7 +15263,7 @@ class AutonomousCoordinator:
                                      f"work because {issues_str}.{attempt}"),
                             memory_type=MemoryType.EPISODIC,
                             importance_score=0.7,
-                            origin=Origin.of(getattr(task, "actor", None), "task"),
+                            origin=_task_origin(task, "task"),
                             source_context={
                                 "source_system": "task_execution",
                                 "task_id": task.id,
@@ -16423,14 +15402,28 @@ class AutonomousCoordinator:
         told the moment the substrate has something to say. A result poll
         (`task_result`) is answered as it is."""
         if (metadata or {}).get("task_result"):
-            return await self._take_turn(message, source=source, priority=priority,
-                                         metadata=metadata, heard=heard)
+            return self._as_said(await self._take_turn(message, source=source, priority=priority,
+                                                       metadata=metadata, heard=heard))
         actor = self._requester(message, source=source, metadata=metadata)[2]
         if (metadata or {}).get("notices") and not str(message or "").strip():
-            return await self._with_what_waits({"success": True, "answer": ""}, actor, by="asked")
+            return self._as_said(await self._with_what_waits({"success": True, "answer": ""}, actor, by="asked"))
         reply = await self._take_turn(message, source=source, priority=priority,
                                       metadata=metadata, heard=heard)
-        return await self._with_what_waits(reply, actor, by="reply")
+        return self._as_said(await self._with_what_waits(reply, actor, by="reply"))
+
+    @staticmethod
+    def _as_said(reply: Dict[str, Any]) -> Dict[str, Any]:
+        """A reply as it leaves the front door: what it says, and each message that waited, written with one dash
+        (`said_plainly`)."""
+        if not isinstance(reply, dict):
+            return reply
+        out = dict(reply)
+        if isinstance(out.get("answer"), str):
+            out["answer"] = said_plainly(out["answer"])
+        if isinstance(out.get("messages"), list):
+            out["messages"] = [{**m, "text": said_plainly(m["text"])} if isinstance(m, dict)
+                               and isinstance(m.get("text"), str) else m for m in out["messages"]]
+        return out
 
     def _requester(self, message: str, *, source: str,
                    metadata: Optional[Dict[str, Any]]) -> Tuple[str, str, str]:
@@ -16503,6 +15496,40 @@ class AutonomousCoordinator:
         session, actor_identity, requester_actor = self._requester(
             message, source=source, metadata=metadata)
         self._last_session_of[requester_actor] = session
+
+        # WHICH OF THEIR CONTEXTS IT CAME THROUGH. A request through a person's
+        # work for an organization -- its account, device or connector, as the
+        # identity that authenticated them says -- puts that organization's Work
+        # Context into their Shared World Context (docs/research/SEPARATION_MAP.md
+        # §11.13). Only a verified identity acts for an organization: an
+        # unverified session would otherwise write into its Work Context.
+        verified = (metadata or {}).get("actor_identity")
+        if (metadata or {}).get("context") == "work":
+            organization = (metadata or {}).get("organization")
+            if not verified or not organization:
+                return {"success": False, "kind": "refused",
+                        "error": "a work context needs a verified identity and the organization it is for"}
+            await memory_agent().authorize_work(requester_actor, str(organization))
+
+        # UNLINKED: the person no longer acts for an organization, as the
+        # identity that authenticated them says. Its Work Context leaves their
+        # Shared World Context and stays the organization's; their Personal
+        # Context goes on with them. A structured request, like a result poll.
+        leaving = (metadata or {}).get("unlink_work")
+        if leaving:
+            if not verified:
+                return {"success": False, "kind": "refused",
+                        "error": "unlinking a work context needs a verified identity"}
+            was = await memory_agent().unlink_work(requester_actor, str(leaving))
+            return {"success": True, "kind": "unlinked", "organization": str(leaving), "was_authorized": was}
+
+        # EACH TURN COMES THROUGH THE CONTEXT ITS OWN REQUEST SAYS, personal where
+        # it says none. A session's conversation is held across turns, so a work
+        # turn left its context set, and the person's next personal turn on the
+        # same session was filed as the organization's (CANARY-01, 2026-10-07).
+        working = (metadata or {}).get("context") == "work"
+        self.conversation(session, actor_identity=actor_identity).set_context(
+            "work" if working else "personal", (metadata or {}).get("organization") if working else None)
 
         # WHO is speaking, when it has been VERIFIED. The membrane authenticates a
         # crossing (World Auth -> a gateway principal) and the adapter that hands a
@@ -16579,8 +15606,9 @@ class AutonomousCoordinator:
         # the substrate nothing and asked it for nothing it can name: the
         # conversation remembers it as said and says it could not be read, and no
         # task is made of it.
+        where = {"context": (metadata or {}).get("context"), "organization": (metadata or {}).get("organization")}
         if kind == "not_understood":
-            conv = self.conversation(session, actor_identity=actor_identity)
+            conv = self.conversation(session, actor_identity=actor_identity, **where)
             token = set_acting_intent(provenance.get("intent_id"))
             try:
                 understanding = await conv.understand(message)
@@ -16607,7 +15635,7 @@ class AutonomousCoordinator:
             return {**about_work, "pursuit_memory_id": pursuit_memory}
         # A REQUEST NOT TO ACT IS NOT WORK. "Don't open the box." asks for
         # nothing to be done; made into a job, it was handed to the executor.
-        conv = self.conversation(session, actor_identity=actor_identity)
+        conv = self.conversation(session, actor_identity=actor_identity, **where)
         if kind == "job" and conv.forbids(message):
             reply_text = "I won't."
             await conv.note_turn(message, reply_text, asked=False,
@@ -16619,7 +15647,7 @@ class AutonomousCoordinator:
             token = set_acting_intent(provenance.get("intent_id"))
             try:
                 answered = await self._answer_from_what_is_held(
-                    message, session=session, actor_identity=actor_identity)
+                    message, session=session, actor_identity=actor_identity, **where)
             finally:
                 reset_acting_intent(token)
             if answered is not None:
@@ -16667,10 +15695,26 @@ class AutonomousCoordinator:
         jobs = await self.task_queue.work_of(actor, limit=20)
         owed = [j for j in jobs if j["status"] in self._OWED]
         job = None
+        asking = None
         if what == "doing":
             own = sum(1 for t in self.task_queue.active_tasks()
                       if getattr(t, "actor", None) == SUBSTRATE_ACTOR)
-            reply = self._doing_said(owed, own)
+            reply, asking = self._doing_said(owed, own)
+        elif what in ("go", "decline"):
+            # An answer to the substrate's question about a job held for them.
+            # Asked about a job that no longer waits, it answers nothing here.
+            job = next((j for j in owed if j["task_id"] == which and j["status"] == "blocked"),
+                       None)
+            if job is None:
+                return None
+            if what == "go":
+                reply = (self._with_quoted("Going on with", job["asked"])
+                         if await self.go_on_with(job["task_id"], actor=actor)
+                         else self._with_quoted("I couldn't go on with this from here", job["asked"]))
+            elif await self.stop_work(job["task_id"], actor=actor):
+                reply = self._with_quoted("Stopped", job["asked"])
+            else:
+                reply = self._with_quoted("I couldn't stop this from here", job["asked"])
         elif what == "finished":
             job = self._job_meant(jobs, which)
             if job is None:
@@ -16694,10 +15738,10 @@ class AutonomousCoordinator:
                 reply = self._with_quoted("Stopped", job["asked"])
             else:
                 reply = self._with_quoted("I couldn't stop this from here", job["asked"])
-        await conv.note_turn(message, reply, asked=what not in ("stop", "keep"),
+        await conv.note_turn(message, reply, asked=what not in ("stop", "keep", "go", "decline"),
                              route={"about": "my work", "what": what, "which": which,
-                                    "job": job["task_id"] if job else None},
-                             outcome="answered")
+                                    "job": job["task_id"] if job else asking},
+                             outcome="answered", asking=asking)
         return {"success": True, "kind": "work", "about": what, "answer": reply,
                 "task_id": job["task_id"] if job else None, "source": "substrate"}
 
@@ -16733,20 +15777,32 @@ class AutonomousCoordinator:
         hours = minutes // 60
         return f"{hours} hour{'s' if hours != 1 else ''} ago"
 
-    def _doing_said(self, owed: Sequence[Dict[str, Any]], own: int) -> str:
+    def _doing_said(self, owed: Sequence[Dict[str, Any]], own: int) -> Tuple[str, Optional[str]]:
         """What the substrate is working on for this person, and how much of its
-        own, in words."""
-        if not owed:
-            said = "Nothing you asked me is running."
-        elif len(owed) == 1:
-            said = (self._with_quoted("I'm working on what you asked", owed[0]["asked"])
-                    + f" I started {self._since(owed[0]['added_at'])}.")
+        own, in words; a job held here for their go-ahead is said as the
+        question it waits on. With it, the job the reply asks them about: one
+        question said, its job; none or several, None."""
+        working, questions = [], []
+        for job in owed:
+            queued = (self.task_queue.tasks_by_id.get(job["task_id"])
+                      if job["status"] == "blocked" else None)
+            question = self._asking_to_go_on(queued.task) if queued is not None else None
+            if question:
+                questions.append((job["task_id"], question))
+            else:
+                working.append(job)
+        if not working:
+            said = "" if questions else "Nothing you asked me is running."
+        elif len(working) == 1:
+            said = (self._with_quoted("I'm working on what you asked", working[0]["asked"])
+                    + f" I started {self._since(working[0]['added_at'])}.")
         else:
-            said = f"I'm working on {len(owed)} things you asked: " + "; ".join(
-                f'"{j["asked"]}"' for j in owed) + "."
+            said = f"I'm working on {len(working)} things you asked: " + "; ".join(
+                f'"{j["asked"]}"' for j in working) + "."
         if own:
             said += f" I also have {own} thing{'s' if own != 1 else ''} of my own under way."
-        return said
+        said = " ".join(filter(None, [said.strip(), *(q for _, q in questions)]))
+        return said, (questions[0][0] if len(questions) == 1 else None)
 
     def _outcome_said(self, job: Dict[str, Any]) -> str:
         """How a job ended, in words: what it found, what went wrong, or that it
@@ -16806,6 +15862,47 @@ class AutonomousCoordinator:
         await self.task_queue.mark_told(task_id)
         return True
 
+    async def _wait_for_person(self, task: Task, result: Dict[str, Any]) -> None:
+        """An act of a capability waits for its person's go-ahead
+        (`awaiting_person`): the job is held for them (`hold_for_person`), and
+        they are asked, once for that act, in the conversation they asked in."""
+        run = task.metadata["capability_run"]
+        step = result["awaiting_person"]["step"]
+        first = run.get("asked") != step
+        run["asked"] = step
+        await self.task_queue.hold_for_person(task.id)
+        if first:
+            session = str((task.metadata or {}).get("conversation_id")
+                          or (task.metadata or {}).get("session_id") or "") or None
+            await self.speak_to(task.actor, self._asking_to_go_on(task), why=Conversation.CONFIRM,
+                                about=task.id, session=session)
+
+    def _asking_to_go_on(self, task: Task) -> Optional[str]:
+        """The question a job held for its person puts to them: the act that
+        waits, and what they asked for."""
+        index = ((task.metadata or {}).get("capability_run") or {}).get("asked")
+        plan = self._declared_plan(task)
+        if index is None or index >= len(plan):
+            return None
+        tool = plan[index].get("tool")
+        args = plan[index].get("args") or {}
+        target = next((args[k] for k in _RESOURCE_ARGS if args.get(k)), None)
+        return (f'For "{str(task.description or "").strip()}": may I run {tool}'
+                + (f" on {target}?" if target else "?"))
+
+    async def go_on_with(self, task_id: str, *, actor: str) -> bool:
+        """The person said go ahead to the act their job waits on: that act is
+        confirmed and the job goes back in the queue (`resume_task`). Only their
+        own job, held for them here; False otherwise."""
+        if not any(j["task_id"] == task_id for j in await self.task_queue.work_of(actor, limit=50)):
+            return False
+        queued = self.task_queue.tasks_by_id.get(task_id)
+        run = (queued.task.metadata or {}).get("capability_run") if queued is not None else None
+        if run is None or run.get("asked") is None or queued.status != TaskStatus.BLOCKED:
+            return False
+        run["confirmed"] = run["asked"]
+        return await self.task_queue.resume_task(task_id)
+
     async def _with_what_waits(self, reply: Dict[str, Any], actor: str, *, by: str) -> Dict[str, Any]:
         """The reply, with every message owed to this person that no listener
         took (`speak_to`), after what the turn itself answered -- delivered
@@ -16852,6 +15949,7 @@ class AutonomousCoordinator:
         (`on_message`); with none listening it waits for their next turn, or for
         a front end to ask. `why` says why it is said ("work ended",
         "reminder", ...), `about` what it is about (a task's id)."""
+        text = said_plainly(text)
         due = at if at is not None else datetime.now(timezone.utc)
         message = await self.outbox.put(actor, text, why=why, about=about,
                                         session=session or self._last_session_of.get(actor),
@@ -16970,14 +16068,16 @@ class AutonomousCoordinator:
             return "job"
 
     async def _answer_from_what_is_held(
-        self, message: str, session: str, actor_identity=None
+        self, message: str, session: str, actor_identity=None, *,
+        context: Optional[str] = None, organization: Optional[str] = None
     ) -> Optional[Dict[str, Any]]:
         """Answer out of the concept store and memory, and remember the exchange.
 
         Returns None when nothing could be assembled, so the caller falls
         through to the work path rather than replying with an apology.
         """
-        conv = self.conversation(session, actor_identity=actor_identity)
+        conv = self.conversation(session, actor_identity=actor_identity,
+                                 context=context, organization=organization)
         try:
             understanding = await conv.understand(message)
         except Exception as error:
@@ -17013,8 +16113,8 @@ class AutonomousCoordinator:
             # other speaker's recall and search -- while the reasoning record of
             # the same question was already stamped with the asker. And only the
             # asker's own open question is closed by their answer.
-            from .shared_types import is_substrate_actor as _is_substrate
-            _owner = None if _is_substrate(conv._actor) else conv._actor
+            # Whose the exchange is: the person's, or at work the organization's.
+            _owner = conv._origin("conversation").owner
             closed = None
             if understanding.answered:
                 closed = await agent.close_open(
@@ -17025,7 +16125,7 @@ class AutonomousCoordinator:
                 await agent.store_memory(
                     memory_type=MemoryType.EPISODIC,
                     content=content,
-                    origin=Origin.of(conv._actor, "conversation"),
+                    origin=conv._origin("conversation"),
                     importance_score=0.7, confidence_score=0.9,
                     tags=["user_exchange"] + (
                         ["answered"] if understanding.answered
@@ -17113,31 +16213,6 @@ class AutonomousCoordinator:
                 context["motivation_state"] = self._current_motivation
 
 
-            # Knowledge cutoff state — critical for research goal grounding
-            try:
-                kc_state = getattr(self, "_knowledge_refresh", {}) or {}
-                context["knowledge_cutoff"] = {
-                    "refreshed_through_date": kc_state.get("refreshed_through_date"),
-                    "declared_cutoff": self._get_declared_model_cutoff_date(),
-                    "last_topics_researched": kc_state.get("last_topics_researched", [])[:5],
-                }
-            except Exception as _kc_err:
-                logger.debug(f"Could not get knowledge cutoff state: {_kc_err}")
-
-            # System review snapshot — tool inventory and codebase stats
-            try:
-                snapshot = getattr(self, "_idle_system_review_snapshot", None)
-                if snapshot:
-                    context["system_review"] = snapshot.get("highlights", {})
-                    tools_data = snapshot.get("tools") or {}
-                    top_cats = tools_data.get("top_categories", [])
-                    if top_cats:
-                        context["available_tool_categories"] = [
-                            c.get("category", "") for c in top_cats[:8] if c.get("category")
-                        ]
-            except Exception as _sr_err:
-                logger.debug(f"Could not get system review snapshot: {_sr_err}")
-
             # Recently completed/verified tasks — so LLM avoids repeating them
             try:
                 recent_done: list = []
@@ -17183,10 +16258,6 @@ class AutonomousCoordinator:
 
         return context
 
-    async def _handle_idle_state(self):
-        """Legacy method - exploration is now continuous, not idle-gated.
-        Redirects to _run_exploration_cycle for backward compatibility."""
-        await self._run_exploration_cycle()
 
     async def _check_constitutional_alignment(self):
         """
@@ -17329,385 +16400,9 @@ The substrate must realign with its constitutional responsibilities immediately.
         except Exception as e:
             logger.error(f"Error checking constitutional alignment: {e}")
 
-    async def _check_constitutional_alignment_quick(self):
-        """Lightweight constitutional alignment check for every cycle."""
-        try:
-            assessment = await self.constitution.assess_quick_alignment()
-            # Only escalate logs if drift is significant or worse
-            if assessment.drift_severity in [DriftSeverity.SIGNIFICANT, DriftSeverity.CRITICAL]:
-                logger.error(
-                    f"🚨 QUICK DRIFT ALERT: severity={assessment.drift_severity.value}, "
-                    f"overall_alignment={assessment.average_compliance:.1%}"
-                )
-        except Exception as e:
-            logger.error(f"Error in quick constitutional alignment check: {e}")
     
-    def _get_recent_task_outcomes(self, task_type: str, limit: int = 10) -> List[bool]:
-        """
-        Recent OUTCOMES for a task type, oldest first -- True for a completed
-        task, False for a failed one -- for StrategyAdaptationGate's
-        decay-weighted win rate and variance analysis.
-
-        Read from the queue authority's record of tasks. This returned [] on
-        every call: the queue holds `QueuedTask` wrappers, which have no
-        `.type`, so nothing matched; and had anything matched, a status read as
-        `str(TaskStatus.COMPLETED).lower()` is "taskstatus.completed", so every
-        outcome would have been a failure -- pending and running tasks
-        included. Only finished tasks have an outcome.
-        """
-        from .shared_types import TaskStatus
-        if not self.task_queue:
-            return []
-        finished = [q for q in list(self.task_queue.tasks_by_id.values())
-                    if getattr(getattr(q.task, "type", None), "value", None) == task_type
-                    and q.status in (TaskStatus.COMPLETED, TaskStatus.FAILED)]
-        finished.sort(key=lambda q: q.completed_at or q.added_at)
-        return [q.status is TaskStatus.COMPLETED for q in finished[-limit:]]
-
-    async def _learning_phase(self):
-        """Score the cycle's intrinsic rewards and record what the cycle was.
-
-        Registered as the `idle_learning` tier. It once applied recommendations
-        from `LearningAdapter`; that adapter was retired in the
-        learning-authority collapse and the feed with it, leaving a loop over a
-        literal empty list and an applier nothing could reach. Both are gone —
-        what remains is what actually runs: curiosity, novelty and autonomy
-        rewards, exploration targets, and the cycle's procedural memory.
-        """
-        if getattr(self, "learning", None) is None:
-            logger.debug("[IDLE:LEARNING] No learning adapter — skipping")
-            self._learning_phase_status = "NO_ADAPTER"
-            return
-
-        # Set to COMPLETED only at the terminal write. A phase that boosts a
-        # priority and then dies on the reward calls did real work and lost the
-        # rest of the cycle, which must not read as a successful learning cycle.
-        self._learning_phase_status = "PARTIAL"
-
-        try:
-            # THE RECOMMENDATION FEED IS GONE, AND SO IS THE LOOP OVER IT.
-            # `LearningAdapter` emitted recommendations and this phase applied
-            # them; the adapter was retired in the learning-authority collapse
-            # and the substrate now learns continuously from action→outcome.
-            # What was left behind was `recommendations = []` and a `for` over
-            # it — a loop that could not execute, feeding an applier
-            # (`_apply_learning_recommendation`) that nothing else called.
-            # Both are deleted rather than kept as a no-op: an idle tier that
-            # reads as "apply what was learned" and cannot is a capability the
-            # system appears to have.
-            # The rest of this phase is LIVE — curiosity, novelty and autonomy
-            # rewards, exploration targets, and the cycle memory.
-            # SUM of per-event rewards fired this cycle. UNBOUNDED — four
-            # dimensions each in [-1,1] means this ranges roughly [-4,4].
-            # Deliberately NOT named total_intrinsic_reward: that name belongs
-            # to MotivationProfile's normalised drive level in [0,1], and the
-            # collision produced 'Total reward: 1.70' in a field contracted to
-            # [0,1]. Never feed this to AppraisalState.activation.
-            cycle_reward_sum = 0.0
-            
-            # Calculate novelty reward for current cycle
-            cycle_experience = {
-                "active_goals": len(self.system_state.active_goals),
-                "active_tasks": len(self.task_queue.active_tasks()),
-                "cycle_count": self.stats["cycles_completed"],
-                "resource_usage": self.system_state.resource_usage
-            }
-            novelty_reward = await self.intrinsic_motivation.calculate_novelty_reward(cycle_experience)
-            cycle_reward_sum += novelty_reward.reward_value
-            
-            # Calculate autonomy reward (coordination is self-directed)
-            autonomy_reward = await self.intrinsic_motivation.calculate_autonomy_reward({
-                "self_initiated": True,
-                # No recommendation feed remains, so this phase makes no choice
-                # of its own. It was already False on every cycle (the list was
-                # a literal empty one); stating it is not a behaviour change.
-                "choice_made": False,
-                "exploration_ratio": 0.5  # Balanced exploration/exploitation
-            })
-            cycle_reward_sum += autonomy_reward.reward_value
-            
-            # Get top exploration targets for next cycle
-            exploration_targets = await self.intrinsic_motivation.get_top_exploration_targets(limit=5)
-            
-
-            
-            # Log intrinsic motivation insights
-            if cycle_reward_sum > 0.5:
-                logger.info(f"🌟 High intrinsic motivation cycle! Cycle reward SUM (unbounded): {cycle_reward_sum:.2f}")
-
-            self._learning_phase_status = "COMPLETED"
-
-        except Exception as e:
-            self._learning_phase_status = "ABORTED"
-            logger.error(
-                f"Learning phase ABORTED — rewards and memory write for this "
-                f"cycle are lost: {e}"
-            )
-
-            import traceback
-            # The handler must not be more fragile than the path it reports on:
-            # an unguarded self.log_db here replaces the real failure with an
-            # AttributeError and hides what actually broke.
-            log_db = getattr(self, "log_db", None)
-            if log_db is not None:
-                try:
-                    await log_db.log_operation(
-                        operation_type='learning_phase_abort',
-                        component='autonomous_coordinator',
-                        message=f"{type(e).__name__}: {e}",
-                        level='ERROR',
-                        metadata={'function': '_learning_phase',
-                                  'stack_trace': traceback.format_exc()},
-                    )
-                except Exception as log_error:
-                    logger.error(f"Could not record learning phase abort: {log_error}")
-            else:
-                logger.error(
-                    "Learning phase abort not recorded: no log_db\n%s",
-                    traceback.format_exc(),
-                )
-
-    async def _execute_registered_capabilities(self):
-        """
-        Execute registered system capabilities based on conditions and intervals.
-        
-        This method enables TRUE ADAPTIVE INTELLIGENCE by allowing the coordinator to decide
-        when capabilities should run based on system state, not hardcoded timers.
-        
-        Capabilities are checked in priority order (critical > high > medium > low) and
-        executed only if:
-        1. Minimum interval has elapsed since last run
-        2. All configured conditions are met (feedback samples, performance, etc.)
-        
-        This transforms rigid "run every N seconds" into intelligent "run when needed"
-        based on system feedback, performance metrics, and resource availability.
-        """
-        if not hasattr(self, 'registered_capabilities') or not self.registered_capabilities:
-            return  # No capabilities registered yet
-        
-        try:
-            now = datetime.now()
-            
-            # Sort capabilities by priority
-            priority_order = {'critical': 0, 'high': 1, 'medium': 2, 'low': 3}
-            sorted_capabilities = sorted(
-                self.registered_capabilities.items(),
-                key=lambda x: priority_order.get(x[1]['priority'], 4)
-            )
-            
-            for cap_name, cap_config in sorted_capabilities:
-                try:
-                    # Skip if not active
-                    if cap_config['status'] != 'active':
-                        continue
-                    
-                    # Check interval - has enough time passed?
-                    last_run = self.capability_last_run.get(cap_name, datetime.min)
-                    elapsed = (now - last_run).total_seconds()
-                    interval = cap_config['interval']
-                    
-                    if elapsed < interval:
-                        continue  # Not time yet
-                    
-                    # Check all conditions
-                    conditions = cap_config['conditions']
-                    if not await self._check_capability_conditions(cap_name, conditions):
-                        logger.debug(f"Capability '{cap_name}' conditions not met, skipping")
-                        continue
-                    
-                    # Execute the capability
-                    instance = cap_config['instance']
-                    method_name = cap_config['method']
-                    method = getattr(instance, method_name)
-
-                    logger.info(f"🔧 Executing capability: {cap_name} (priority: {cap_config['priority']})")
-
-                    # Log capability execution start
-                    self.log_db.log_coordination(
-                        coordinator_type='autonomous',
-                        action='capability_execution_start',
-                        status='executing',
-                        metadata={
-                            'capability': cap_name,
-                            'priority': cap_config['priority'],
-                            'elapsed_since_last': elapsed,
-                            'execution_count': cap_config['execution_count']
-                        }
-                    )
-
-                    import time
-                    start_time = time.time()
-
-                    # Call the method (handle both async and sync)
-                    if asyncio.iscoroutinefunction(method):
-                        result = await method()
-                    else:
-                        result = method()
-
-                    execution_time = time.time() - start_time
-
-                    # Update tracking
-                    self.capability_last_run[cap_name] = now
-                    cap_config['execution_count'] += 1
-                    cap_config['last_result'] = result
-                    cap_config['last_error'] = None
-
-                    logger.info(f"✅ Capability '{cap_name}' executed successfully (run #{cap_config['execution_count']})")
-
-                    # Log successful capability execution
-                    self.log_db.log_coordination(
-                        coordinator_type='autonomous',
-                        action='capability_execution_complete',
-                        status='completed',
-                        result=f"Capability '{cap_name}' executed successfully",
-                        metadata={
-                            'capability': cap_name,
-                            'priority': cap_config['priority'],
-                            'execution_count': cap_config['execution_count'],
-                            'execution_time': execution_time
-                        }
-                    )
-
-                    # Log performance metrics
-                    self.log_db.log_performance(
-                        operation='capability_execution',
-                        duration=execution_time,
-                        success=True,
-                        details={
-                            'capability': cap_name,
-                            'priority': cap_config['priority'],
-                            'execution_count': cap_config['execution_count']
-                        }
-                    )
 
 
-                except Exception as e:
-                    logger.error(f"Error executing capability '{cap_name}': {e}")
-                    cap_config['last_error'] = str(e)
-                    cap_config['status'] = 'error'
-
-                    import traceback
-                    # Log error with full details
-                    self.log_db.log_error(
-                        error_type=type(e).__name__,
-                        error_message=str(e),
-                        module='autonomous_coordinator',
-                        function='_execute_registered_capabilities',
-                        stack_trace=traceback.format_exc(),
-                        context={
-                            'capability': cap_name,
-                            'priority': cap_config['priority'],
-                            'method': method_name
-                        }
-                    )
-                    
-        except Exception as e:
-            logger.error(f"Error in capability execution phase: {e}")
-
-            import traceback
-            # Log error with full details
-            self.log_db.log_error(
-                error_type=type(e).__name__,
-                error_message=str(e),
-                module='autonomous_coordinator',
-                function='_execute_registered_capabilities',
-                stack_trace=traceback.format_exc(),
-                context={'registered_capabilities_count': len(self.registered_capabilities) if hasattr(self, 'registered_capabilities') else 0}
-            )
-
-    async def _check_capability_conditions(self, cap_name: str, conditions: Dict[str, Any]) -> bool:
-        """
-        Check if all conditions for a capability are met.
-        
-        Args:
-            cap_name: Capability name (for logging)
-            conditions: Dict of condition checks
-        
-        Returns:
-            True if all conditions met, False otherwise
-        """
-        try:
-            # Check feedback sample minimum
-            if 'min_feedback_samples' in conditions:
-                min_samples = conditions['min_feedback_samples']
-                # Query feedback count from memory using MemoryQuery
-                try:
-                    from core.memory import MemoryQuery, MemoryType
-                    
-                    feedback_query = MemoryQuery(
-                        query_id=f"capability_check_{cap_name}_{datetime.now().timestamp()}",
-                        content="user feedback and ratings",
-                        memory_types=[MemoryType.EPISODIC],
-                        max_results=min_samples + 10,  # Fetch a bit more to ensure we get enough
-                        min_confidence=0.0
-                    )
-                    result = await self.memory.search_memories(feedback_query)
-                    
-                    # Filter for feedback-related memories
-                    feedback_count = sum(1 for m in result.memories if 'feedback' in str(m.content).lower() or 'rating' in str(m.content).lower())
-                    
-                    if feedback_count < min_samples:
-                        logger.debug(f"Capability '{cap_name}': Insufficient feedback samples ({feedback_count}/{min_samples})")
-                        return False
-                except Exception as e:
-                    logger.debug(f"Could not query feedback memories: {e}")
-                    # If we can't check, allow execution (fail open for this condition)
-            
-            # Check performance threshold
-            if 'performance_threshold' in conditions:
-                threshold = conditions['performance_threshold']
-                # Resource usage might be a dict or float
-                resource_usage = self.system_state.resource_usage
-                if isinstance(resource_usage, dict):
-                    current_performance = resource_usage.get('system_health', 1.0)
-                else:
-                    current_performance = 1.0  # Assume healthy if no data
-                
-                if current_performance < threshold:
-                    logger.debug(f"Capability '{cap_name}': Performance below threshold ({current_performance:.2f}/{threshold})")
-                    return False
-            
-            # Check error rate
-            if 'error_rate_max' in conditions:
-                max_error_rate = conditions['error_rate_max']
-                current_error_rate = self.stats.get('error_rate', 0.0)
-                
-                if current_error_rate > max_error_rate:
-                    logger.debug(f"Capability '{cap_name}': Error rate too high ({current_error_rate:.2f}/{max_error_rate})")
-                    return False
-            
-            # Check memory usage
-            if 'memory_usage_max' in conditions:
-                max_memory = conditions['memory_usage_max']
-                resource_usage = self.system_state.resource_usage
-                if isinstance(resource_usage, dict):
-                    current_memory = resource_usage.get('memory_percent', 0.0)
-                else:
-                    current_memory = 0.0  # Assume OK if no data
-                
-                if current_memory > max_memory:
-                    logger.debug(f"Capability '{cap_name}': Memory usage too high ({current_memory:.2f}/{max_memory})")
-                    return False
-            
-            # Custom check function
-            if 'custom_check' in conditions:
-                check_func = conditions['custom_check']
-                if callable(check_func):
-                    if asyncio.iscoroutinefunction(check_func):
-                        result = await check_func(self)
-                    else:
-                        result = check_func(self)
-                    
-                    if not result:
-                        logger.debug(f"Capability '{cap_name}': Custom check failed")
-                        return False
-            
-            return True  # All conditions met
-            
-        except Exception as e:
-            logger.error(f"Error checking conditions for '{cap_name}': {e}")
-            return False  # Fail safe - don't execute if condition check fails
-    
     async def _analyze_for_goal_creation(self, perception_data: PerceptionData) -> Optional[str]:
         """Analyze perception data to determine if a new goal should be created"""
         try:
@@ -17815,6 +16510,11 @@ The substrate must realign with its constitutional responsibilities immediately.
 
         await self._stop_reactions()
 
+        # The queue authority this started stops with it, releasing this
+        # instance's lease: the work still owed is claimed by the next instance
+        # at once, not when the lease runs out.
+        await self.task_queue.stop()
+
         # Shutdown modules
         modules = [
             ("Learning Adapter", self.learning),
@@ -17906,62 +16606,7 @@ The substrate must realign with its constitutional responsibilities immediately.
             logger.error(f"Failed to initialize execution faculty: {_exe}")
             return False
 
-    def _ensure_dotenv_loaded(self) -> None:
-        """Read Lyric's .env files for runtime integration checks, WITHOUT
-        mutating the process environment.
 
-        This previously called load_dotenv(), which writes every key in
-        .env.production into os.environ for the life of the process. Two things
-        followed. An operator who unset a token to disable an integration had it
-        put back by the first integration check, so the executor's answer to
-        "is it configured" could not be influenced by the environment it was
-        actually running in. And the write was global: every other component
-        thereafter saw variables that were never in the environment, attributed
-        to nobody.
-
-        Same failure as the POSTGRES_* one, same remedy: read the file into a
-        dict and resolve with explicit precedence, so the file informs the
-        answer instead of silently becoming the environment.
-        """
-        if self._env_loaded:
-            return
-        self._env_loaded = True
-
-        try:
-            from pathlib import Path
-            from dotenv import dotenv_values
-
-            base = Path(__file__).resolve()
-            # Walk up until we find Lyric root (has core/)
-            for _ in range(6):
-                if (base / "core").is_dir():
-                    break
-                base = base.parent
-
-            env_prod = base / ".env.production"
-            env_fallback = base / ".env"
-            if env_prod.exists():
-                self._dotenv_values = dict(dotenv_values(env_prod))
-            elif env_fallback.exists():
-                self._dotenv_values = dict(dotenv_values(env_fallback))
-        except Exception:
-            # Dotenv is optional; if missing, runtime checks fall back to os.environ
-            return
-
-    def _config_value(self, key: str) -> Optional[str]:
-        """Resolve one setting: process environment first, then the .env file.
-
-        A variable present in the environment wins, including when a launcher
-        set it deliberately. One that is absent falls back to the file. Nothing
-        here writes to os.environ, so asking a question never changes the
-        answer for whoever asks next.
-        """
-        import os
-        value = os.environ.get(key)
-        if value is not None:
-            return value
-        self._ensure_dotenv_loaded()
-        return (self._dotenv_values or {}).get(key)
 
 
     def _observe_world(self, domain_id: str) -> Optional[List[str]]:
@@ -18303,7 +16948,7 @@ The substrate must realign with its constitutional responsibilities immediately.
                 memory_id = await self.memory.begin_pursuit(
                     intent_id=held.intent_id, kind=pursuit,
                     aim=str(getattr(task, "description", "") or ""),
-                    origin=Origin.of(actor, "task"),
+                    origin=_task_origin(task, "task"),
                     trigger=trigger if trigger is not None else self._task_trigger(task))
                 if memory_id:
                     task.provenance["pursuit_memory_id"] = memory_id
@@ -18380,7 +17025,7 @@ The substrate must realign with its constitutional responsibilities immediately.
         """What started a piece of work, when its producer did not say: the
         task as it was made."""
         return {"what": "task",
-                "source": Origin.of(getattr(task, "actor", None), "task").theirs,
+                "source": _task_origin(task, "task").theirs,
                 "content": {"description": getattr(task, "description", None),
                             "created_by": getattr(task, "created_by", None),
                             "source": getattr(getattr(task, "source", None), "value", None),
@@ -18401,7 +17046,7 @@ The substrate must realign with its constitutional responsibilities immediately.
         its own, which the task is the whole of."""
         provenance = getattr(task, "provenance", None) or {}
         intent_id = provenance.get("intent_id")
-        origin = Origin.of(getattr(task, "actor", None), "task")
+        origin = _task_origin(task, "task")
         if not intent_id:
             memory_id = await self.memory.begin_pursuit(
                 intent_id=f"task:{task.id}", kind="work with no intent",
@@ -19204,7 +17849,8 @@ The substrate must realign with its constitutional responsibilities immediately.
                                                  domain=domain)
         await self._record_execution_demonstration(
             domain=domain, action=action, before=before, after=after,
-            observation_id=observation_id, evidence=evidence)
+            observation_id=observation_id, evidence=evidence,
+            owner=_task_origin(task, "task").owner)
 
         # Surface the substrate's OWN verdict so the coordinator trusts a
         # world-confirmed success instead of discounting it as unverified. This
@@ -19266,7 +17912,7 @@ The substrate must realign with its constitutional responsibilities immediately.
             encounter(tool_name, params or {})
             return await ActFrame.open(tool_name, params or {})
         except Exception as e:
-            from core.capability import raise_if_structural
+            from core.structural_defects import raise_if_structural
             raise_if_structural(e, "autonomous_coordinator._watch_act")
             logger.warning("could not watch %s: %s: %s",
                            tool_name, type(e).__name__, e)
@@ -19324,6 +17970,7 @@ The substrate must realign with its constitutional responsibilities immediately.
                 domain=frame.domain_id, action=frame.action,
                 before=before, after=after,
                 observation_id=observation_id,
+                owner=_task_origin(task, "task").owner,
                 evidence=RuntimeEvidence(
                     outcome=outcome, rule_id=None, operator=str(frame.action),
                     observation_id=observation_id, detail=detail))
@@ -19335,13 +17982,14 @@ The substrate must realign with its constitutional responsibilities immediately.
             # the store is reachable; `observe()` itself must never touch it.
             await refresh_earned(frame.domain_id)
         except Exception as e:
-            from core.capability import raise_if_structural
+            from core.structural_defects import raise_if_structural
             raise_if_structural(e, "autonomous_coordinator._learn_what_the_act_did")
             logger.warning("%s acted but what it did could not be kept: %s: %s",
                            tool_name, type(e).__name__, e)
 
     async def _record_execution_demonstration(
         self, *, domain, action, before, after, observation_id, evidence,
+        owner: Optional[str],
     ) -> None:
         """File one executed action as a demonstration the learner can use.
 
@@ -19355,6 +18003,10 @@ The substrate must realign with its constitutional responsibilities immediately.
         domain to draw on.
 
         `training_example_from_runtime` was built for this and had no callers.
+
+        `owner` is whose task it was, None for the substrate's own: a person's
+        demonstration is kept as theirs, and recorded in the world only lifted
+        (`submit_demonstration`, `_operator_residue`).
 
         NOT recorded when the world could not be read afterwards, and NOT
         recorded for an INDETERMINATE outcome. A demonstration carries a
@@ -19381,8 +18033,6 @@ The substrate must realign with its constitutional responsibilities immediately.
                 "acquired 21", observation_id)
             return
 
-        from core.domain.concept_ingestion import EvidenceSourceType
-        from core.domain.evidence_producers import submit_demonstration
         from core.learning.rule_store import training_example_from_runtime
 
         example = training_example_from_runtime(
@@ -19400,26 +18050,21 @@ The substrate must realign with its constitutional responsibilities immediately.
         # records the operator's own evidence. One failing must not lose the
         # other, so they are separate blocks.
         try:
-            from core.learning.unified_learning_system import get_learning_authority
-            recorded = await get_learning_authority().record_demonstration(
-                example, domain_id=domain)
+            recorded = await memory_agent().take_in_demonstration(example, domain=domain, owner=owner)
             logger.info(
                 "%s: demonstration %s for operator learning (%s)",
                 observation_id, "kept" if recorded else "already held",
                 "positive" if example.positive else "negative")
         except Exception as e:
-            from core.capability import raise_if_structural
+            from core.structural_defects import raise_if_structural
             raise_if_structural(e, "general_purpose_executor.record_demonstration")
             logger.error(
                 "%s executed but its demonstration could not be kept: %s: %s",
                 observation_id, type(e).__name__, e)
 
         try:
-            result = await submit_demonstration(
-                example, domain_id=domain,
-                source_type=EvidenceSourceType.TASK_ARTIFACT,
-                producer="substrate_execution",
-                source_id=f"{domain}:{action.predicate}")
+            result = await memory_agent().take_in_transition(
+                example, domain=domain, owner=owner, source_id=f"{domain}:{action.predicate}")
         except Exception as e:
             # Loud, never swallowed: the tool ran and the world moved, so
             # failing the execution over a projection defect would lose the
@@ -19597,8 +18242,7 @@ The substrate must realign with its constitutional responsibilities immediately.
         # something with nothing to explain it goes back to planning.
         from core.reasoning.intent_authority import (
             set_acting_intent, reset_acting_intent,
-            set_acting_actor, reset_acting_actor,
-            set_acting_task, reset_acting_task)
+            set_acting_actor, reset_acting_actor)
         _provenance = getattr(task, "provenance", None) or {}
         _intent_token = set_acting_intent(
             _provenance.get("intent_id") or (task.metadata or {}).get("intent_id"))
@@ -19607,10 +18251,6 @@ The substrate must realign with its constitutional responsibilities immediately.
         # sources own their work, user sources carry the user's id — so this
         # reads that decision rather than making a second one.
         _actor_token = set_acting_actor(getattr(task, "actor", None))
-        # WHICH TASK the run serves: the registry records every run, and
-        # attributes it to this.
-        _task_token = set_acting_task(getattr(task, "id", None),
-                                      getattr(task, "description", "") or "")
         try:
             # Reset as soon as the call returns: the binding exists for the gate,
             # and a token left set would leak this task's intent onto whatever
@@ -19625,7 +18265,6 @@ The substrate must realign with its constitutional responsibilities immediately.
                 # judged as belonging to someone who had nothing to do with it.
                 reset_acting_intent(_intent_token)
                 reset_acting_actor(_actor_token)
-                reset_acting_task(_task_token)
         except Exception as e:
             logger.debug("[substrate-tools] %s raised: %s", tool_name, e)
             # The tool did not execute: no control established over the world.
@@ -19671,6 +18310,8 @@ The substrate must realign with its constitutional responsibilities immediately.
             return {"success": False, "model_free": True, "tool": tool_name,
                     "output": getattr(result, "output", None), "error": _err,
                     "task_id": task.id, "method": "substrate_tool",
+                    # How long it ran; None when it never ran (refused).
+                    "seconds": getattr(result, "execution_time", None),
                     "judgment": ((getattr(result, "metadata", None) or {})
                                  .get("judgment") if _refused else None)}
         logger.info("[substrate-tools] task %s executed model-free via %s", task.id, tool_name)
@@ -19689,6 +18330,7 @@ The substrate must realign with its constitutional responsibilities immediately.
             "output": getattr(result, "output", None),
             "task_id": task.id,
             "method": "substrate_tool",
+            "seconds": getattr(result, "execution_time", None),
             # What ran may be the constitution's permitted form of what was asked
             # (`_carry_out_redirect`); the pursuit's record needs to know which.
             "redirected_from": (getattr(result, "metadata", None) or {}).get(
@@ -19704,10 +18346,18 @@ The substrate must realign with its constitutional responsibilities immediately.
         the task's pursuit -- one pursuit, one memory -- and as whoever the task
         is for: a person's task reads into their context. Only a file reading
         can take anything from; a failure to read is reported and never fails
-        the act that opened it."""
-        if not isinstance(output, dict) or not output.get("file_path") or "content" not in output:
+        the act that opened it. A tool that opens several files to do its work
+        (`generate_sysml_model`) names them in `opened`, and each is read."""
+        if not isinstance(output, dict):
             return
-        path = str(output["file_path"])
+        paths = [str(p) for p in output.get("opened") or []]
+        if output.get("file_path") and "content" in output:
+            paths.insert(0, str(output["file_path"]))
+        for path in dict.fromkeys(paths):
+            await self._read_opened(task, path)
+
+    async def _read_opened(self, task: Task, path: str) -> None:
+        """One file a task opened, read as `_read_what_was_opened` says."""
         if "reading" not in self.vision.senses_of(path):
             return
         from .shared_types import is_substrate_actor
@@ -19861,6 +18511,9 @@ The substrate must realign with its constitutional responsibilities immediately.
             result = await self._answer_via_knowledge_loop(task)
         if result is None:
             return None
+        if result.get("awaiting_person"):
+            # Not done and not failed: an act waits for the person's go-ahead.
+            return result
         # ── CLOSE THE PURSUIT THIS TASK OWNS ─────────────────────────────────
         #
         # This path did the task's whole work, so it is the owner and this is
@@ -19906,30 +18559,82 @@ The substrate must realign with its constitutional responsibilities immediately.
         Declines (None) when the task declares no tools, leaving the next path to
         try. Returns an honest aggregate otherwise: success only if EVERY declared
         tool executed successfully, with a per-tool breakdown either way.
+
+        A CAPABILITY, DONE FOR SOMEONE. When the plan is an instance of a
+        capability (`Capabilities.recognise`), the capabilities faculty says how
+        it may be done for the task's actor (`may_act_for`), asked before each
+        act, with appraisal's disposition read at that moment. Not offered: the
+        work is refused. Supervised: each act waits for the person's go-ahead;
+        the run so far is kept on the task (`capability_run`) and the result
+        says what waits (`awaiting_person`), so the job is held for them
+        (`_wait_for_person`) and goes on from that act when they answer.
         """
-        params = (task.metadata or {}).get("parameters") or {}
-        plan = params.get("tool_plan")
-        if plan is None and params.get("tool"):
-            plan = [{"tool": params["tool"], "args": params.get("args", {})}]
+        plan = self._declared_plan(task)
         if not plan:
             return None
 
-        results: List[Dict[str, Any]] = []
-        all_ok = True
+        if task.metadata is None:
+            task.metadata = {}
+        actor = getattr(task, "actor", None)
+        run = task.metadata.get("capability_run")
+        if run is None and not task.retry_count and "known_fix" not in task.metadata:
+            # WHAT A CAPABILITY OVERCAME IS USED BEFORE ACTING, for whoever this
+            # is (`Capabilities.known_fix`): the failure it overcame once is not
+            # met again. A retry is the retry's own (`_select_retry_method`).
+            fixed = await self.capabilities.known_fix(plan, actor)
+            if fixed is not None:
+                plan, method_id, whose, changes = fixed
+                task.metadata.setdefault("parameters", {})["tool_plan"] = plan
+                task.metadata["known_fix"] = {"method": method_id, "whose": whose, "changes": changes}
+                logger.info("🔧 Task %s uses what capability %s overcame: %s", task.id, method_id,
+                            ", ".join(f"{c['tool']}.{c['arg']}={c['value']}" for c in changes))
+        if run is None:
+            recognised = await self.capabilities.recognise(plan, actor)
+            run = None if recognised is None else {
+                "method": recognised[0], "whose": recognised[1], "done": [],
+                "asked": None, "confirmed": None, "judgment": None, "redirected": []}
+        if run is not None:
+            task.metadata["capability_run"] = run
+
+        results: List[Dict[str, Any]] = list(run["done"]) if run else []
+        all_ok = all(r.get("success") for r in results)
         # WHAT THE CONSTITUTION SAID, if it spoke. A REFUSAL stopped the work, so
         # the pursuit is closed with it (replanned / refused / redirected) rather
         # than as a loss. A redirect it CARRIED OUT did not stop anything — the
         # permitted form ran — so it is how the work proceeded, recorded as such,
         # never as the reason it ended.
-        verdict: Optional[Dict[str, Any]] = None
-        redirected: List[Dict[str, Any]] = []
-        for step in plan:
+        verdict: Optional[Dict[str, Any]] = run["judgment"] if run else None
+        redirected: List[Dict[str, Any]] = list(run["redirected"]) if run else []
+        how = None
+        for index in range(len(results), len(plan)):
+            step = plan[index]
             tool = (step or {}).get("tool")
             args = (step or {}).get("args") or {}
+            if run is not None:
+                how, why = await self.capabilities.may_act_for(
+                    actor, run["method"], whose=run["whose"],
+                    asked=task.source in (TaskSource.API, TaskSource.MANUAL),
+                    disposition=self.disposition())
+                if how == "not offered":
+                    task.metadata.pop("capability_run", None)
+                    return {"success": False, "model_free": True, "verification_state": "failed",
+                            "task_id": task.id, "task_type": task.type.name,
+                            "method": "declared_tools", "refused": why, "error": why,
+                            "capability": {"method": run["method"], "whose": run["whose"],
+                                           "how": how}}
+                if how == "supervised" and run["confirmed"] != index:
+                    return {"success": False, "awaiting_person": {"step": index, "why": why},
+                            "model_free": True, "task_id": task.id,
+                            "task_type": task.type.name, "method": "declared_tools",
+                            "capability": {"method": run["method"], "whose": run["whose"],
+                                           "how": how},
+                            "tools_run": results}
             if not tool:
                 all_ok = False
                 results.append({"tool": None, "success": False,
                                 "error": "step declared no tool"})
+                if run is not None:
+                    run["done"] = list(results)
                 continue
             outcome = await self._run_tool(tool, args, task)
             ok = outcome is not None and outcome.get("success") is True
@@ -19954,8 +18659,13 @@ The substrate must realign with its constitutional responsibilities immediately.
                           or "tool did not execute successfully (refused before running)"),
                 "resource": _tool_resource(tool, args),
                 "intervention_target": (args.get(target_arg) if target_arg else None),
+                "seconds": (outcome or {}).get("seconds"),
             })
+            if run is not None:
+                run.update(done=list(results), judgment=verdict, redirected=list(redirected))
 
+        # The run is over: a retry is a new run, each of its acts asked again.
+        task.metadata.pop("capability_run", None)
         return {
             "success": all_ok,
             "model_free": True,
@@ -19967,7 +18677,19 @@ The substrate must realign with its constitutional responsibilities immediately.
             "output": {"tools_run": results},
             "judgment": verdict,
             "redirected": redirected,
+            "capability": None if run is None else {"method": run["method"],
+                                                    "whose": run["whose"], "how": how},
         }
+
+    @staticmethod
+    def _declared_plan(task: Task) -> List[Dict[str, Any]]:
+        """The tool steps a task declares (`metadata["parameters"]`): its
+        `tool_plan`, or its single `tool` with `args`; empty when it declares none."""
+        params = (task.metadata or {}).get("parameters") or {}
+        plan = params.get("tool_plan")
+        if plan is None and params.get("tool"):
+            plan = [{"tool": params["tool"], "args": params.get("args", {})}]
+        return list(plan or [])
 
     async def _produce_declared_artefact(self, task: Task) -> Optional[Dict[str, Any]]:
         """Make — or check — the thing this step was planned to produce.
@@ -20215,6 +18937,8 @@ The substrate must realign with its constitutional responsibilities immediately.
             return await self._execute_drive_goal(task)
 
         outcome = await self._execute_task_paths(task)
+        if (outcome or {}).get("awaiting_person"):
+            return outcome
         # THE PLAN IS TOLD WHAT HAPPENED, HERE, BECAUSE THIS IS THE ONE DOOR.
         #
         # `update_task_status` had a single caller, inside a scanner that only
@@ -20424,6 +19148,10 @@ The substrate must realign with its constitutional responsibilities immediately.
             'success': False,
             'model_free': True,
             'verification_state': 'failed',
+            # NOTHING WAS OPERATED: no path took the work. Without this, the
+            # verdict read the low completion belief as an operating loss and
+            # credited a domain "wrong" for work that never ran.
+            'operated': False,
             'error': (f"no substrate handler for a {task.type.name} task yet; the "
                       f"substrate declined all model-free paths and the model is "
                       f"not a fallback"),
@@ -20438,7 +19166,6 @@ The substrate must realign with its constitutional responsibilities immediately.
             'model_free': True,  # substrate-only executor; holds no model
             'stats': self.stats.copy(),
         }
-
 
 
 async def create_autonomous_system(config: Optional[Dict[str, Any]] = None) -> AutonomousCoordinator:
@@ -20558,12 +19285,6 @@ _CONVERSATION_TURN_MEMORY = 560
 #: everything the conversation ever named.
 _TALKED_OF = 24
 
-#: How far up the `isa` chain to look when deciding whether two kinds of a word
-#: are one sense seen at two heights. Four is enough to reach `clock` from
-#: `pendulum clock`; going further starts joining everything to everything,
-#: because far enough up every kind shares an ancestor.
-_SENSE_DEPTH = 4
-
 #: How far back a verdict may reach for the claim it is about. Feedback follows
 #: the thing it judges closely; a small window keeps "no, that's wrong" attached
 #: to what was just taught rather than to something said long ago.
@@ -20642,18 +19363,6 @@ class Resolved:
     relations: Tuple[Tuple[str, str], ...] = ()
     #: Other concepts of the same name, when the store holds more than one.
     alternatives: Tuple[Tuple[str, str], ...] = ()
-    #: THE KINDS THIS WORD IS HELD TO BE, grouped so that a kind and a more
-    #: specific kind of it count once. `("pendulum clock",)` for a grandfather
-    #: clock, which holds both `clock` and `pendulum clock`; `("rodent",
-    #: "person", "input device")` for a mouse.
-    #:
-    #: WHY IT IS GROUPED AND NOT JUST LISTED. Every `isa` parent was being
-    #: asserted of the thing at once — "A mouse is an animal. It is an input
-    #: device." — which is false of any mouse. Grouping by subsumption is what
-    #: separates one sense seen at two heights from two senses sharing a
-    #: spelling: `pendulum clock` reaches `clock` by isa and `rodent` reaches
-    #: nothing that `input device` reaches.
-    #:
     #: THE DETERMINER THE PERSON USED, or "" where they used none.
     #:
     #: English needs to know whether a noun is countable before it can put an
@@ -20666,14 +19375,6 @@ class Resolved:
     #: "is a kettle a container?" gives "a", and the record says "that was about
     #: a kettle".
     said_as: str = ""
-    #: It does NOT say they are separate senses, and the reply must not either.
-    #: Measured over the store: the grouping is right for 11 of 12 test words and
-    #: wrong for `beer`, which holds `alcohol`, `beverage` and `alcoholic
-    #: beverage` as unchained parents — genuinely all true of one beer at once.
-    #: Telling a co-parent from a sense needs disjointness knowledge the store
-    #: does not have, so the reply says "can mean" and lets the person settle it,
-    #: rather than guessing and asserting.
-    senses: Tuple[str, ...] = ()
     #: WHICH OF `relations` THE SPEAKER TOLD -- held in their scoped context,
     #: not the shared store, until corroborated. A name only the speaker has
     #: told resolves `how="context"` with no concept id; nobody else's
@@ -20717,8 +19418,10 @@ class Acquired:
     #: or None if nothing was retained. Carried so a later feedback turn can
     #: flag the exact memory this proposition made instead of storing another.
     memory_id: Optional[str] = None
-    #: Whether a model was needed to split the sentence up. The FACT is always
-    #: yours; this records only who found the seams in it.
+    #: A rule held: its condition and what follows, each `(subject, relation,
+    #: object, positive)`, said back with what the substrate was taught to say
+    #: a rule with (`_said_rule`).
+    rule: Tuple[Tuple[Any, ...], ...] = ()
 
 
 @dataclass
@@ -20752,6 +19455,10 @@ class Answer:
     #: -- whose `support` is its working: the steps, each on its own line under
     #: the answer, the way the working of a sum is written out.
     worked: bool = False
+    #: AN ANSWER ABOUT SOMETHING THAT HAPPENED, said as the sentence that tells
+    #: it with what was asked filled in ("The wug ate a fep."), after its verdict
+    #: where the question asked for one.
+    told: str = ""
 
 
 @dataclass
@@ -20784,6 +19491,20 @@ class Understanding:
     #: Gathered here, in `understand()`, because it needs the database and `say()`
     #: is a pure function over what was already found.
     plurals: Dict[str, bool] = field(default_factory=dict)
+    #: HOW THIS SPEAKER HAS SAID THINGS in the conversation: the word they last
+    #: called each thing by (`named`, by the thing's name), and the
+    #: constructions their sentences were read with (`framed`). A thing has
+    #: several words ("kennel", "doghouse", "dog house") and a fact several ways
+    #: of being said; the reply says it as the speaker did (`derived_reader.say`).
+    #: Told "The dog is in the kennel." and asked where the dog is, it answered
+    #: "The domestic dog is inside the dog house.".
+    named: Dict[str, str] = field(default_factory=dict)
+    framed: FrozenSet[str] = frozenset()
+    #: WHAT EACH PARTICULAR THING THE REPLY MAY NAME IS (`trel_1`, a trel), so
+    #: it is said as the known thing it is, "the trel" (`derived_reader.as_known`,
+    #: docs/TEACHING.md §12d). Gathered in `understand()`, with the store, as
+    #: `plurals` is.
+    kinds: Dict[str, str] = field(default_factory=dict)
 
     @property
     def answered(self) -> bool:
@@ -20844,20 +19565,26 @@ class Turn:
     #: a following feedback turn ("no, that's wrong") flags: the verdict lands
     #: on the memory the claim already made, not on a new record.
     memories: Tuple[str, ...] = ()
+    #: The job the substrate asked, in this turn, to go on with: what a
+    #: following "Yes." or "No." answers.
+    asking: Optional[str] = None
 
 
-def _meaning_of(utterances, heard=({}, {})):
+#: How many remembered things a turn has to choose from (`Conversation.understand`).
+_RECALLED = 8
+
+
+def _meaning_of(utterances, heard=None):
     """The meaning of a text's last utterance, when every utterance read and the
     listener can tell which meaning the last one was meant to have
     (`derived_reader.meant`), knowing what memory was found to hold about the
-    meanings it could have (`heard`: `derived_reader.listening`'s held and
-    related). None otherwise: which of two meanings was meant is then the
-    listener's to ask, never this function's to pick."""
+    meanings it could have (`heard`: `derived_reader.listening`'s `Heard`; None
+    when memory was not asked). None otherwise: which of two meanings was meant
+    is then the listener's to ask, never this function's to pick."""
     if not utterances or not all(u.understood for u in utterances):
         return None
     from core.semantics.derived_reader import meant
-    held, related = heard
-    chosen = meant(utterances[-1].readings, held=held, related=related)
+    chosen = meant(utterances[-1].readings, heard=heard)
     return chosen.meaning if chosen is not None else None
 
 
@@ -20883,6 +19610,14 @@ def _structure_word(word: str) -> bool:
 #: The domain system's link kinds: the only relations anything is reasoned by.
 from core.semantics.relation_types import SemanticRelation as _SemanticRelation
 _LINK_KINDS = frozenset(r.value for r in _SemanticRelation)
+
+
+def _link_kind(relation: str) -> Tuple[str, bool]:
+    """A held relation as the link kind it is, and whether it is denied: a record holds it as said ("caused by",
+    "not isa")."""
+    text = str(relation).strip()
+    denied = text.startswith("not ")
+    return (text[4:] if denied else text).strip().replace(" ", "_"), denied
 
 
 def _clause_atom(subject: str, relation: str, obj: Optional[str], positive: bool = True) -> Optional[str]:
@@ -20933,23 +19668,108 @@ def _claim_facts(text: str) -> Tuple[Any, ...]:
     return meaning.facts if meaning is not None and meaning.act == "tell" else ()
 
 
-def _said(subject: str, relation: str, obj: str, positive: bool = True) -> Optional[str]:
+def said_plainly(text: str) -> str:
+    """What is said to a person, with one dash: the hyphen. A long dash ("—", "–") and a doubled hyphen used as one
+    (" -- ") are written " - "; a long dash between two numbers is a range, "1-26".
+
+    ONE RULE, WHERE WORDS LEAVE, so nothing said can be written otherwise whoever wrote it: a reply, a remembered
+    sentence quoted back, a tool's words passed on. Markdown's own marks are not dashes and are kept: a rule on a
+    line of its own ("---"), a table's row of dashes, and an option written with two hyphens ("--fresh")."""
+    text = str(text or "")
+    if not any(mark in text for mark in ("—", "–", "--")):
+        return text
+    text = re.sub(r"(?<=\d)[—–](?=\d)", "-", text)
+    text = re.sub(r"[ \t]*[—–][ \t]*", " - ", text)
+    text = re.sub(r"(?<=[\w.,;:!?)\]\"'])[ \t]+-{2,}[ \t]+(?=[\w(\[\"'])", " - ", text)
+    text = re.sub(r"(?<=[^\W\d_])-{2,}(?=[^\W\d_])", " - ", text)
+    return re.sub(r"(?m)^[ \t]*- (?=\S)", "- ", text) if "\n - " in text or text.startswith(" - ") else text
+
+
+def _said(subject: str, relation: str, obj: str, positive: bool = True,
+          named: Optional[Dict[str, str]] = None, framed: FrozenSet[str] = frozenset(),
+          kinds: Optional[Mapping[str, str]] = None) -> Optional[str]:
     """One held fact, said with what the substrate was taught to say it with
     (`derived_reader.say`): the constructions it reads with, the other way
     round. A record holds a relation as said ("caused by", "not isa"), so it is
-    taken back to its link kind and polarity first. None when nothing taught
-    says it: then it is not said another way."""
-    from core.semantics.derived_reader import Meaning, MeaningFact, say
+    taken back to its link kind and polarity first. Each thing is said with
+    the word the speaker called it by (`named`), in a frame the speaker used
+    where one says it as well (`framed`). A particular thing (`kinds`: what
+    each is) is said as the known thing it is: `trel_1` "the trel". None when
+    nothing taught says it: then it is not said another way."""
+    from core.semantics.derived_reader import Meaning, MeaningFact, as_known, say
     text = str(relation).strip()
     if text.startswith("not "):
         text, positive = text[4:].strip(), not positive
+    spaced = {str(name).replace("_", " ").strip(): kind for name, kind in (kinds or {}).items()}
     try:
-        meaning = Meaning("tell", (MeaningFact(text.replace(" ", "_"),
-                                               str(subject).replace("_", " ").strip(),
-                                               str(obj).replace("_", " ").strip(), positive),))
+        fact = MeaningFact(text.replace(" ", "_"), str(subject).replace("_", " ").strip(),
+                           str(obj).replace("_", " ").strip(), positive)
+        meaning = Meaning("tell", as_known((fact,), spaced) if spaced.keys() & set(fact.terms()) else (fact,))
     except ValueError:
         return None
-    sentences = say(meaning)
+    sentences = say(meaning, named=named, framed=framed)
+    return sentences[0] if sentences else None
+
+
+def _said_rule(rule, named: Optional[Dict[str, str]] = None, framed: FrozenSet[str] = frozenset(),
+               kinds: Optional[Mapping[str, str]] = None) -> Optional[str]:
+    """One held rule, said with what the substrate was taught to say a rule with
+    (`derived_reader.say`): its condition and what follows from it, each a fact,
+    the condition marked as the condition, each thing by the word the speaker
+    called it by (`named`) and a particular as the known thing it is (`kinds`).
+    None when nothing taught says it: then it is not said another way."""
+    from core.semantics.derived_reader import Meaning, MeaningFact, as_known, say
+    spaced = {str(name).replace("_", " ").strip(): kind for name, kind in (kinds or {}).items()}
+    try:
+        facts = tuple(
+            MeaningFact(str(relation).replace(" ", "_"), str(subject).replace("_", " ").strip(),
+                        None if obj is None else str(obj).replace("_", " ").strip(), bool(positive),
+                        condition=(at == 0))
+            for at, (subject, relation, obj, positive) in enumerate(rule))
+        terms = {t for f in facts for t in f.terms()}
+        meaning = Meaning("tell", as_known(facts, spaced) if spaced.keys() & terms else facts)
+    except ValueError:
+        return None
+    sentences = say(meaning, named=named, framed=framed)
+    return sentences[0] if sentences else None
+
+
+def _not_known(meaning, named: Optional[Dict[str, str]] = None,
+               framed: FrozenSet[str] = frozenset()) -> Optional[str]:
+    """That what a question asked is not known, said with what the substrate was taught to say it with
+    (`derived_reader.say`), each thing by the word the speaker called it by (`named`). A knowing, by the one now
+    speaking, that is not so:
+    - of what the question asked for, with the question's own facts: "I do not know where the dog is." for "Where
+      is the dog?";
+    - or, for a yes or no about one fact, with that fact as it holds or as it does not, of which one is so: "I do
+      not know whether the dog is big." for "Is the dog big?".
+
+    None when the question asks what a thing is (answered by what is held of the thing), asks more than one thing,
+    or nothing taught says it: then it is not said another way. The one who asked is the one now spoken to, so what
+    the question said of its speaker is said of the listener ("my book" is "your book")."""
+    from dataclasses import replace
+    from core.semantics.derived_reader import Meaning, MeaningFact, say
+    if meaning is None or meaning.act != "ask" or len(meaning.asked) > 1:
+        return None
+    turned = {"?speaker": "?listener", "?listener": "?speaker"}
+    knowing = "?knowing"
+    facts = [MeaningFact("instance_of", knowing, "know"), MeaningFact("done_by", knowing, "?speaker"),
+             MeaningFact("has_property", knowing, "false")]
+    if meaning.asked:
+        asked = meaning.asked[0]
+        if any(f.relation in ("isa", "instance_of") and f.obj == asked for f in meaning.facts):
+            return None
+        facts += [MeaningFact("done_to", knowing, asked), *(f.renamed(turned) for f in meaning.facts)]
+    else:
+        if len(meaning.facts) != 1 or meaning.facts[0].condition or meaning.facts[0].alternative:
+            return None
+        fact = meaning.facts[0].renamed(turned)
+        facts += [replace(fact, positive=True, alternative=True), replace(fact, positive=False, alternative=True)]
+    try:
+        told = Meaning("tell", tuple(facts))
+    except ValueError:
+        return None
+    sentences = say(told, named=named, framed=framed)
     return sentences[0] if sentences else None
 
 
@@ -21011,6 +19831,32 @@ def _quoted(texts: Sequence[str]) -> str:
     return texts[0] if len(texts) == 1 else ", ".join(texts[:-1]) + " and " + texts[-1]
 
 
+def _which_meant(readings) -> str:
+    """What the reply asks of an utterance that read whole when the listener cannot tell which of its meanings was
+    meant (`derived_reader.meant` decided none).
+
+    WHICH SENSE IS THE LISTENER'S TO ASK. Where the meanings differ only in which thing one word names
+    (`derived_reader.sense_choices`), the word, what it can mean, and which: "Bass can mean a sea bass or a bass
+    guitar. Which bass do you mean?". This used to be asked of any concept held under two kinds neither of which was
+    a kind of the other. Since a concept is one sense, those kinds are all true of it: a dog is a canine and a domestic
+    animal, and "what is a dog?" was answered "Which dog do you mean?". Otherwise, that it read more than one way."""
+    from core.semantics.derived_reader import Lexical, sense_choices
+    named: Dict[str, List[str]] = {}
+    for reading in sense_choices(readings):
+        for construction in reading.constructions:
+            if isinstance(construction, Lexical):
+                values = named.setdefault(" ".join(construction.words).lower(), [])
+                if construction.value not in values:
+                    values.append(construction.value)
+    words = [(word, values) for word, values in named.items() if len(values) > 1]
+    if len(words) != 1:
+        return "I read that more than one way, and I will not guess which you meant"
+    word, values = words[0]
+    kinds = [f"{Conversation._article(value)} {value.replace('_', ' ')}" for value in values[:4]]
+    listed = ", ".join(kinds[:-1]) + " or " + kinds[-1]
+    return f"{word[:1].upper()}{word[1:]} can mean {listed}. Which {word} do you mean?"
+
+
 def _read_in_part(utterances) -> str:
     """What the reply says of a text that did not read whole: the parts of it
     that were understood, and the words that were not, asked about.
@@ -21057,6 +19903,50 @@ def _read_in_part(utterances) -> str:
     return "I know these words, but not this way of putting them together."
 
 
+def _task_origin(task: Any, through: str) -> Origin:
+    """Where a task's work came from: whose it is, and which of their contexts the request came through -- personal,
+    or work for an organization (the request's `context` and `organization`, kept on the task) -- so what the work
+    makes is the person's or the organization's (`Origin.owner`)."""
+    meta = getattr(task, "metadata", None) or {}
+    return Origin.of(getattr(task, "actor", None), through, context=meta.get("context"),
+                     organization=meta.get("organization"))
+
+
+def _observed(provenance: Any, quality: float) -> Any:
+    """What Lyric observed itself, as evidence for the one door (`Evidence.from_provenance`)."""
+    from core.learning.unified_learning_system import Evidence
+    return Evidence.from_provenance(provenance, quality)
+
+
+def _acquired_from(said: str, kind: str, it: Any, decision: Any, *, speaker: str) -> "Acquired":
+    """What one taken-in fact or rule (`MemoryAgent.take_in_telling`) is, said back: held, or not held and why.
+
+    HELD IS SAID AS HELD, WHEREVER IT IS KEPT. A fact the world now holds and one
+    held as the person's own are said back alike: where it is kept is not said
+    (docs/research/SEPARATION_MAP.md §11.9, 2). The one who told it is now the
+    one spoken to, so what they said of themselves is said of the listener ("I
+    am a teacher." is "You are a teacher."), and what they said of Lyric, of
+    the speaker."""
+    turned = {str(speaker): "?listener", SUBSTRATE_ACTOR: "?speaker"}
+
+    def turn(term: Any) -> Any:
+        return turned.get(str(term), term) if term is not None else term
+    if kind == "rule":
+        if decision.admitted:
+            antecedent, consequent = it
+            return Acquired(said, description="a rule", relations=(), stored=True,
+                            detail="held as a conditional rule",
+                            rule=tuple((turn(c.get("subject")), c.get("relation"), turn(c.get("obj")),
+                                        bool(c.get("positive", True))) for c in (antecedent, consequent)))
+        return Acquired(said, detail="; ".join(decision.reasons) or "I could not hold that conditional")
+    if decision.admitted:
+        return Acquired(turn(it.subject), "", _as_pairs(((it.relation, turn(it.obj),
+                                                          "positive" if it.positive else "negative"),)),
+                        "you", True, "", memory_id=getattr(decision.admission, "memory_id", None))
+    return Acquired(said, detail=(f"I did not take that as a fact — {'; '.join(decision.reasons)}. "
+                                  "If I am wrong, correct me and I will weigh it."))
+
+
 def phrases(words: Sequence[str]) -> List[Tuple[int, int, str]]:
     """Every candidate phrase, longest first, as (start, end, text)."""
     out = []
@@ -21072,19 +19962,30 @@ def phrases(words: Sequence[str]) -> List[Tuple[int, int, str]]:
 class Conversation:
     """Reads a sentence and answers out of what the substrate holds."""
 
-    def __init__(self, db=None, identity=None, emit=None, session="default",
-                 actor_identity=None, source: Optional[TaskSource] = None):
+    def __init__(self, db=None, identity=None, session="default",
+                 actor_identity=None, source: Optional[TaskSource] = None,
+                 remembers: bool = True):
         self._db = db
         self._identity = identity
+        #: WHETHER THIS THREAD IS REMEMBERED. A conversation remembers every
+        #: turn (`_hand_over`) and takes in what it is told (`teach`). One held
+        #: with `remembers=False` remembers no turn, and holds what it is told
+        #: in memory's working memory only, as the premises of what it is asked
+        #: next: it reads, recalls, reasons and answers as any other does, and
+        #: writes nothing, so the substrate can be asked about what it holds on
+        #: the store it holds it in without the asking becoming part of it
+        #: (UNDERSTANDS-WORDNET-01, UNDERSTANDS-PROSE-01, on main).
+        self._remembers = remembers
         #: WHOSE WORK THIS THREAD IS — the same TaskSource the task queue uses,
         #: so the internal/external line is drawn by the ONE rule (`actor_for`)
         #: and not a second time here. MANUAL/API is a person talking and can
         #: never resolve to the substrate; AUTONOMOUS/SYSTEM is the substrate's
         #: own work (the knowledge-acquisition loop) and always does.
         self._source = source or TaskSource.MANUAL
-        #: WHO is being spoken with — a THREAD OF TALK handle, used for beliefs
-        #: ABOUT the user (`_learn_about_user`) and as the LAST-RESORT scope when
-        #: no verified identity is bound.
+        #: WHO is being spoken with — a THREAD OF TALK handle: the speaker of a
+        #: telling, whose beliefs about themselves memory holds
+        #: (`Telling.speaker`), and the LAST-RESORT scope when no verified
+        #: identity is bound.
         self._session = str(session)
         #: The VERIFIED identity of the person speaking — a World Auth user id,
         #: supplied by whatever authenticated them (the gateway/world). When set,
@@ -21093,21 +19994,10 @@ class Conversation:
         #: resolves it through the one owner (`actor_for`). None = unauthenticated,
         #: and the session stands in as an anonymous per-thread scope.
         self._actor_identity = actor_identity
-        self._user_beliefs_ready = False
-        #: The substrate's event emitter, injected by the coordinator that owns
-        #: this conversation (`conversation()`), so a taught proposition becomes
-        #: a self-event the domain authority reacts to. None when the
-        #: conversation is used standalone (a script, a test) -- teaching still
-        #: admits, it just does not wake a reaction.
-        self._emit = emit
-        #: The LEARNING AUTHORITY (UnifiedLearningSystem), injected by the
-        #: coordinator that owns this conversation. Teaching goes THROUGH it —
-        #: `learn_fact`/`learn_rule` — so a taught proposition fans out to every
-        #: system that depends on learning (reasoning, beliefs, lexicon, domain,
-        #: memory, metrics) from one place, instead of this reaching into the
-        #: ingress directly. None when standalone: it falls back to the authority
-        #: singleton, so teaching still goes through the one path.
-        self._learning = None
+        #: Which of the person's contexts their turns come through: `work` for an
+        #: organization, else personal (`set_context`, `Origin.context`).
+        self._context: Optional[str] = None
+        self._organization: Optional[str] = None
         #: The substrate's DISPOSITION read, injected by the coordinator that
         #: owns this conversation, so a reply can be informed by self-state (the
         #: BehaviorArbiter's current directive). None when standalone -- the
@@ -21141,6 +20031,10 @@ class Conversation:
         # keeps that intact while capping the growth. Iterated/reversed only,
         # never sliced, so a deque is a drop-in.
         self._turns: "deque[Turn]" = deque(maxlen=_CONVERSATION_TURN_MEMORY)
+        #: What it was told and did not take in whole, as said: read only in part, or with a fact about something it
+        #: has no name for yet. What memory holds of what those name is then known not to be all it was told, so the
+        #: reasoner closes no world on it (`concept_graph_reasoning._kinds_exclude`). As recent as the turns.
+        self._not_taken_in: "deque[str]" = deque(maxlen=_CONVERSATION_TURN_MEMORY)
         #: The last text read and its utterances, so one turn reads its words
         #: once however many of its steps ask what they mean (`_read`).
         self._last_read: Optional[Tuple[Tuple[str, int], Tuple[Any, ...]]] = None
@@ -21151,6 +20045,19 @@ class Conversation:
         #: several things is weighed against, as a listener keeps the
         #: conversation in mind ("We went to the river. The bank was steep.").
         self._talked_of: "deque[str]" = deque(maxlen=_TALKED_OF)
+        #: The word this speaker last called each thing by ("kennel", for the
+        #: kennel WordNet also writes "doghouse"): a reply says the thing with it.
+        self._named: Dict[str, str] = {}
+        #: The constructions this speaker's sentences were read with: of the ways
+        #: a reply can be said, one of theirs comes first.
+        self._framed: Set[str] = set()
+        #: The particular things talked of ("the printer", found to be
+        #: `printer_1`), most recent last, each with its kind and whose it is
+        #: ("person", "world"): which "the X" is (`_known_of`).
+        self._particulars: Dict[str, Tuple[str, str]] = {}
+        #: What the known things of the meanings last asked about and last told
+        #: were found to be, by meaning (`_known_of`).
+        self._known_now: Dict[bool, Tuple[str, Dict[str, str]]] = {}
 
     def _read(self, text: str) -> Tuple[Any, ...]:
         """What `text` says, utterance by utterance, read by the ONE reader
@@ -21173,7 +20080,7 @@ class Conversation:
         meaning is taken as a listener takes it (`derived_reader.meant`). What
         it is taken to be about then joins what was talked of. Asked once while
         what was taught is unchanged."""
-        from core.semantics.derived_reader import (SITUATION_VARIABLES, is_variable, listening,
+        from core.semantics.derived_reader import (SITUATION_VARIABLES, Lexical, Pattern, is_variable, listening,
                                                    listening_facts, live_view, meant)
         key = (str(text), len(live_view()))
         if self._last_heard is not None and self._last_heard[0] == key:
@@ -21182,9 +20089,14 @@ class Conversation:
         heard = await listening([u.readings for u in utterances], list(self._talked_of))
         self._last_heard = (key, heard)
         for utterance in utterances:
-            chosen = meant(utterance.readings, held=heard[0], related=heard[1])
+            chosen = meant(utterance.readings, heard=heard)
             if chosen is None:
                 continue
+            for construction in chosen.constructions:
+                if isinstance(construction, Lexical):
+                    self._named[construction.value] = " ".join(construction.words)
+                elif isinstance(construction, Pattern):
+                    self._framed.add(construction.key)
             for fact in listening_facts(chosen.meaning):
                 for term in fact.terms():
                     if term not in SITUATION_VARIABLES and not is_variable(term):
@@ -21192,18 +20104,98 @@ class Conversation:
                             self._talked_of.remove(term)
                         self._talked_of.append(term)
 
-    def _heard(self, text: str) -> Tuple[Any, Any]:
-        """What `_listen` found memory to hold for `text`; nothing when it was not listened to."""
+    def _heard(self, text: str) -> Any:
+        """What `_listen` found memory to hold for `text` (`derived_reader.Heard`); None when it was not listened
+        to."""
         from core.semantics.derived_reader import live_view
         if self._last_heard is not None and self._last_heard[0] == (str(text), len(live_view())):
             return self._last_heard[1]
-        return {}, {}
+        return None
 
     def _meaning(self, text: str):
         """What `text` means: the meaning of its last utterance, when every
         utterance read and the listener can tell which meaning the last one was
         meant to have. None otherwise."""
         return _meaning_of(self._read(text), self._heard(text))
+
+    async def _known_of(self, meaning, *, telling: bool = False) -> Dict[str, str]:
+        """Which thing each "the X" of a meaning is (docs/TEACHING.md §12d;
+        docs/research/SEPARATION_MAP.md §11.10), `{variable: particular}`:
+
+          1. the X talked of here, latest first;
+          2. else the X this person's context holds, the one last spoken of;
+          3. else the X the world holds, where it holds one (Lyric's lessons'
+             kelt, `kelt_1`);
+          4. else, told of, a new X in this person's context (`printer_1`,
+             their first printer); asked of, it stays a thing to find.
+
+        A known thing named only in what someone said is theirs to have known,
+        and is not made one."""
+        if meaning is None:
+            return {}
+        kinds = meaning.known_kinds()
+        if not kinds:
+            return {}
+        key = meaning.canonical()
+        held_now = self._known_now.get(telling)
+        if held_now is not None and held_now[0] == key:
+            return held_now[1]
+        from .shared_types import is_substrate_actor
+        from core.learning.scoped_context_store import get_scoped_context_store
+        from core.semantics.cognitive_ingress import normalize_term
+        actor = None if is_substrate_actor(self._actor) else self._actor
+        store = get_scoped_context_store()
+        found: Dict[str, str] = {}
+        for variable, kind in kinds.items():
+            kind = normalize_term(kind) or kind
+            name, whose = next(((n, w) for n, (k, w) in reversed(list(self._particulars.items())) if k == kind),
+                               (None, None))
+            if name is None and actor:
+                theirs = await store.particulars_of(actor, kind)
+                if theirs:
+                    name, whose = theirs[0], "person"
+            if name is None:
+                world = await self._one_in_world(kind)
+                if world:
+                    name, whose = world, "world"
+            if name is None and telling and actor and not any(
+                    f.unasserted for f in meaning.given if f.subject == variable):
+                number = len(await store.particulars_of(actor, kind)) + 1
+                name = normalize_term(f"{kind} {number}")
+                while name in self._particulars:
+                    number += 1
+                    name = normalize_term(f"{kind} {number}")
+                whose = "person"
+            if name is None:
+                continue
+            found[variable] = name
+            self._particulars.pop(name, None)
+            self._particulars[name] = (kind, whose)
+        self._known_now[telling] = (key, found)
+        return found
+
+    def _known_found(self, meaning) -> Dict[str, str]:
+        """What `_known_of` last found for this meaning, told or asked of; empty where it was not looked for."""
+        if meaning is None:
+            return {}
+        key = meaning.canonical()
+        for telling in (True, False):
+            held_now = self._known_now.get(telling)
+            if held_now is not None and held_now[0] == key:
+                return held_now[1]
+        return {}
+
+    async def _one_in_world(self, kind: str) -> Optional[str]:
+        """The particular of a kind the world holds, where it holds exactly one."""
+        db, _ = await self._services()
+        rows = await db.execute_query(
+            "SELECT DISTINCT s.name FROM unified.concept_relations r "
+            "JOIN unified.concepts s ON s.concept_id = r.source_concept_id "
+            "JOIN unified.concepts k ON k.concept_id = r.target_concept_id "
+            "WHERE r.relation = 'instance of' AND k.name = $1 "
+            "AND COALESCE(r.polarity, 'positive') NOT IN ('negative', 'denied') LIMIT 2",
+            (kind,), fetch_all=True) or []
+        return str(rows[0]["name"]) if len(rows) == 1 else None
 
     def _situation(self) -> Dict[str, str]:
         """What the situation's variables stand for in this conversation: the
@@ -21239,10 +20231,11 @@ class Conversation:
         talking is MANUAL-sourced, and `actor_for` requires a MANUAL thread to
         name someone: a verified World Auth identity when the membrane supplied
         one, else the session as an anonymous per-thread scope. Either way the
-        answer is a USER actor, so `learn_fact` diverts every telling to that
-        speaker's scoped context and the shared concept graph is untouchable
-        from here. `actor_for` also refuses a user who claims the substrate's
-        id, so the partition cannot be talked around either.
+        answer is a USER actor: what they tell is theirs where it is about them,
+        and a claim about the world only through the one door, judged by
+        whether it is true, with their word as evidence (`MemoryAgent.take_in_telling`).
+        `actor_for` also refuses a user who claims the substrate's id, so no one
+        talks as the substrate.
 
         This used to fall back to SUBSTRATE_ACTOR when nothing was bound, on the
         reasoning that a bare in-process conversation was the curriculum
@@ -21269,130 +20262,19 @@ class Conversation:
     # the speaker, free-flowing. This is part of the ONE conversation authority,
     # not a separate pipeline.
 
-    @staticmethod
-    def _about_speaker(subject: str) -> bool:
-        """Is this proposition about the SPEAKER (first person) rather than the
-        world? "I", "me", or a "my …" possessive. SPEAKER_THEM already names the
-        first-person pronouns the conversation recognises."""
-        s = (subject or "").strip().lower()
-        return s in SPEAKER_THEM or s.startswith("my ")
 
-    async def _ensure_user_beliefs(self) -> None:
-        if self._user_beliefs_ready:
-            return
-        db, _ = await self._services()
-        await db.execute_query(
-            """
-            CREATE TABLE IF NOT EXISTS unified.user_beliefs (
-                speaker    TEXT NOT NULL,
-                subject    TEXT NOT NULL,
-                relation   TEXT NOT NULL,
-                object     TEXT,
-                polarity   TEXT NOT NULL DEFAULT 'positive',
-                surface    TEXT,
-                source     TEXT NOT NULL DEFAULT 'conversation',
-                updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-                PRIMARY KEY (speaker, subject, relation)
-            )
-            """,
-            commit=True,
-        )
-        self._user_beliefs_ready = True
+    async def _kind_of(self, name: str) -> Optional[str]:
+        """What a particular thing is (`kelt_1`, a kelt), where that is held;
+        None for a kind, or a thing known only by its name."""
+        if name in self._particulars:
+            return self._particulars[name][0]
+        held = await self.resolve_name(name)
+        for relation, other in held.relations:
+            kind, denied = _link_kind(relation)
+            if kind == "instance_of" and not denied:
+                return str(other)
+        return None
 
-    async def _learn_about_user(self, subject: str, relation: str,
-                                obj: Optional[str], *, positive: bool = True,
-                                surface: str = "") -> "Acquired":
-        """Hold one belief about the speaker — NOT in the concept graph. Upserts
-        on (speaker, subject, relation) so a restated preference updates rather
-        than duplicates."""
-        from core.agents.memory_agent import memory_agent
-        await self._ensure_user_beliefs()
-        await memory_agent().hold_belief_about_speaker(
-            speaker=self._session, subject=subject, relation=relation, obj=obj,
-            polarity="positive" if positive else "negative", surface=surface)
-        held = f"{subject} {relation} {obj}".strip()
-        return Acquired(surface or held, description="about you", relations=(),
-                        stored=True, detail="held as a belief about you, "
-                        "not as a fact about the world")
-
-    async def beliefs_about_user(self, limit: int = 50) -> List[Dict[str, Any]]:
-        """What the substrate believes about this speaker, most-recent first.
-        Read from the user store only — never the world concept graph."""
-        db, _ = await self._services()
-        await self._ensure_user_beliefs()
-        rows = await db.execute_query(
-            "SELECT subject, relation, object, polarity, surface, updated_at "
-            "FROM unified.user_beliefs WHERE speaker = $1 "
-            "ORDER BY updated_at DESC LIMIT $2",
-            (self._session, limit), fetch_all=True)
-        return [dict(r) for r in (rows or [])]
-
-    async def _admissible_world_fact(self, subject: str, relation: str,
-                                     obj: str, positive: bool):
-        """Real-time verification before a CHAT-asserted world fact is admitted.
-
-        Chat must not silently rewrite world knowledge, so a fact the substrate
-        ALREADY KNOWS to be false is refused rather than stored. The check reuses
-        the concept-graph reasoning (open-world): a FALSE verdict means an
-        explicit denial / inherited disjointness refutes it. Only ISA positives
-        are gated — that is the taxonomic knowledge a wrong override most damages,
-        and a DENIAL is left to pass because a denial is how a user CORRECTS the
-        store. A novel or merely-unproven fact passes: the substrate cannot refute
-        it, and refusing what it cannot disprove would be dishonest. Returns
-        (admissible, reason)."""
-        if relation != "isa" or not positive:
-            return True, ""
-        try:
-            from core.reasoning.concept_graph_reasoning import answer_over_graph
-            from core.reasoning.relation_algebra import FALSE
-            from core.semantics.relation_types import SemanticRelation
-            db, _ = await self._services()
-            o = obj.strip()
-            for art in ("a ", "an ", "the "):
-                if o.lower().startswith(art):
-                    o = o[len(art):]
-                    break
-            ans = await answer_over_graph(db, subject, SemanticRelation.ISA, o,
-                                          actor=self._actor)
-            if getattr(ans, "verdict", None) == FALSE:
-                return False, "that contradicts what I already know"
-        except Exception as e:
-            # Verification unavailable -> do NOT fake a rejection; admit honestly.
-            logger.debug("world-fact verification skipped for %r: %s", subject, e)
-        return True, ""
-
-    def _learning_authority(self):
-        """The one learning path teaching goes through. Injected by the owning
-        coordinator; a standalone conversation falls back to the singleton, so
-        teaching never routes around the authority."""
-        if self._learning is not None:
-            return self._learning
-        from core.learning.unified_learning_system import get_learning_authority
-        return get_learning_authority()
-
-    def _evidence_emitter(self):
-        """A payload->emit callback the learning authority triggers the domain
-        reaction with, or None when this conversation has no emitter. Wraps the
-        substrate's `emit` so the authority need not know the event type — the
-        domain fan-out lives in the learning method, the transport stays here."""
-        if self._emit is None:
-            return None
-
-        async def _emit_evidence(payload):
-            # ONE event shape, owned by `announce_evidence`. This kept its own
-            # copy of the construction, which is how the conversational and bulk
-            # paths came to differ in whether the substrate was told at all.
-            d = payload if isinstance(payload, dict) else {}
-            await self._emit(SelfEvent(
-                SelfEventType.EVIDENCE_ADMITTED,
-                payload=EvidenceAdmitted(
-                    domain=str(d.get("domain") or ""),
-                    kind=str(d.get("kind") or "fact"),
-                    subject=d.get("subject"), relation=d.get("relation"),
-                    obj=d.get("obj"), surface=d.get("surface"),
-                    count=d.get("count")),
-                origin="learning"))
-        return _emit_evidence
 
     async def _concept(self, concept_id: str) -> Dict[str, Any]:
         db, _ = await self._services()
@@ -21453,7 +20335,7 @@ class Conversation:
                 "WHERE relationships::text ILIKE $1",
                 (f"%{name}%",), fetch_all=True)
         except Exception as error:
-            from core.capability import raise_if_structural
+            from core.structural_defects import raise_if_structural
             raise_if_structural(error, "autonomous_coordinator._incoming_relations")
             return []
 
@@ -21518,66 +20400,6 @@ class Conversation:
         return {singulars[str(r["name"])]: True for r in rows
                 if str(r["name"]) in singulars}
 
-    async def _sense_groups(self, name: str) -> Tuple[str, ...]:
-        """The `isa` kinds of one concept, with a kind and a narrower kind of it
-        counted once. One entry per group, the most specific first seen.
-
-        `pendulum clock` reaches `clock` by isa, so a grandfather clock has ONE
-        kind, not two. `rodent` reaches nothing that `input device` reaches, so a
-        mouse has three. That difference is the whole of it — without it the
-        reply asserted every parent at once and said a mouse was an animal and
-        an input device.
-
-        Bounded on purpose: `_SENSE_DEPTH` levels up and only for the parents of
-        one word, because this runs on every resolved phrase of every sentence.
-        """
-        # ASKED OF THE STORE, not read off the `relations` already in hand: that
-        # tuple is capped at the first four relations OF ANY KIND, and `bank`
-        # and `bass` spend all four on `at location` — so the kinds that make
-        # them ambiguous were never visible and neither word got asked about.
-        db, _identity = await self._services()
-        rows = await db.execute_query(
-            "SELECT DISTINCT COALESCE(c2.name, cr.target_surface) b "
-            "FROM unified.concept_relations cr "
-            "JOIN unified.concepts c1 ON cr.source_concept_id=c1.concept_id "
-            "LEFT JOIN unified.concepts c2 ON cr.target_concept_id=c2.concept_id "
-            "WHERE c1.name=$1 AND cr.relation IN ('isa','is a') LIMIT 24",
-            (str(name).replace(" ", "_"),), fetch_all=True) or []
-        kinds = [str(r["b"]).replace("_", " ") for r in rows if r["b"]]
-        if len(kinds) < 2:
-            return tuple(kinds)
-        above: Dict[str, set] = {}
-        for kind in kinds:
-            seen, frontier = set(), {kind.replace(" ", "_")}
-            for _ in range(_SENSE_DEPTH):
-                if not frontier:
-                    break
-                rows = await db.execute_query(
-                    "SELECT COALESCE(c2.name, cr.target_surface) b "
-                    "FROM unified.concept_relations cr "
-                    "JOIN unified.concepts c1 ON cr.source_concept_id=c1.concept_id "
-                    "LEFT JOIN unified.concepts c2 ON cr.target_concept_id=c2.concept_id "
-                    "WHERE c1.name = ANY($1::text[]) "
-                    "AND cr.relation IN ('isa','is a')",
-                    (list(frontier),), fetch_all=True) or []
-                nxt = {str(r["b"]) for r in rows if r["b"]}
-                seen |= frontier
-                frontier = nxt - seen
-            above[kind] = {s.replace("_", " ") for s in seen} | {kind}
-        groups: List[List[str]] = []
-        for kind in kinds:
-            for group in groups:
-                # One group when either IS A KIND OF the other. Sharing some
-                # distant ancestor is not enough -- far enough up everything
-                # does, which put `rodent` and `input device` together.
-                if any(other in above[kind] or kind in above[other]
-                       for other in group):
-                    group.append(kind)
-                    break
-            else:
-                groups.append([kind])
-        return tuple(group[0] for group in groups)
-
     async def resolve(self, sentence: str) -> List[Resolved]:
         """Every concept the sentence names, and what is held for it.
 
@@ -21594,10 +20416,12 @@ class Conversation:
             return []
         from core.semantics.derived_reader import is_variable
         situation = self._situation()
-        bound = meaning.bound(situation)
-        # The person and the substrate are the situation's parties, not concepts
-        # to look up; what was said before is a concept, and is.
-        parties = {situation["?speaker"], situation["?listener"]}
+        bound = meaning.bound(situation, await self._known_of(meaning))
+        # The person and the substrate are the situation's parties, and the
+        # moment it is its time, not concepts to look up ("What did the kelt
+        # chase?" was answered "I hold nothing for 2026-10-06T01:55:07Z.");
+        # what was said before is a concept, and is.
+        parties = {situation["?speaker"], situation["?listener"], situation["?now"]}
         names = [n for n in dict.fromkeys(
                      [f.subject for f in bound if not is_variable(f.subject)]
                      + [f.obj for f in bound if not is_variable(f.obj)])
@@ -21653,17 +20477,20 @@ class Conversation:
                 logger.warning("relationships for %s unreadable: %s",
                                concept_id, error)
                 parsed = []
-            relations = _as_pairs(parsed[:4])
-            if len(relations) != len(parsed[:4]):
+            # EVERY RELATION HELD, not the first four. The record keeps them in
+            # the order of their names, so four took "defined with" four times
+            # for `dog` and none of what a dog is: "what is a dog?" found no kind
+            # to answer with, and said where the dog was instead.
+            relations = _as_pairs(parsed)
+            if len(relations) != len(parsed):
                 logger.warning("relationships for %s held %d entries that "
                                "are not relations", concept_id,
-                               len(parsed[:4]) - len(relations))
+                               len(parsed) - len(relations))
         candidate = Resolved(
             phrase=name, concept_id=concept_id, how=how,
             domain=record.get("domain", ""), description=record.get("description", ""),
             # What the shared store holds, then what THIS speaker told.
-            relations=relations + held, told=held, alternatives=tuple(others),
-            senses=await self._sense_groups(name))
+            relations=relations + held, told=held, alternatives=tuple(others))
         # A name with nothing behind it is not placed: it is still a thing
         # the substrate does not know, and a look-up should find out.
         return candidate if candidate.informative else Resolved(phrase=name)
@@ -21720,6 +20547,9 @@ class Conversation:
     FINISHING = frozenset({"finish"})
     FINISHED = frozenset({"finished", "done"})
     STOPPING = frozenset({"stop", "cancel"})
+    #: Why the substrate says something that asks the person to go on with a
+    #: job (`speak_to`).
+    CONFIRM = "confirm"
 
     def about_my_work(self, sentence: str) -> Optional[Tuple[str, Optional[str]]]:
         """`(what, which)` where the sentence is about the substrate's OWN work,
@@ -21728,18 +20558,31 @@ class Conversation:
                      on?", "Are you still working?");
           "finished" whether it has finished ("Did you finish?", "Is it done?");
           "stop"     a request to stop it ("Stop that.", "Cancel it.");
-          "keep"     a request NOT to stop it ("Don't stop.").
+          "keep"     a request NOT to stop it ("Don't stop.");
+          "go"       yes to the substrate's question about a job ("Yes.");
+          "decline"  no to it ("No.").
         `which` is the work the sentence names: `?previous` for "it" or "that",
-        a thing's name, or None when it names none.
+        a thing's name, or None when it names none; for "go" and "decline", the
+        job the question was about.
 
         IN THE MEANING, as `about_this_conversation` is: an event done by the
         situation's own `?listener`, its kind, and its time -- `during ?now` is
         what it is doing, a finishing that `precedes ?now` has happened. A
-        request not to do it (`has_property false`) is not one to do it. The
+        request not to do it (`has_property false`) is not one to do it. A
+        verdict on what was said before (`has_property(?previous, true)`, or
+        `false`) is an answer to the question it was, when the substrate's
+        question about a job is what came before (`_question_referent`). The
         words are the reader's; this reads only what they meant."""
+        from core.semantics.derived_reader import VERDICTS
         meaning = self._meaning(sentence)
         if meaning is None:
             return None
+        if meaning.act == "tell" and len(meaning.facts) == 1:
+            (fact,) = meaning.facts
+            question = self._question_referent()
+            if ((fact.relation, fact.subject) == ("has_property", "?previous")
+                    and fact.obj in VERDICTS and question is not None):
+                return ("go" if VERDICTS[fact.obj] == fact.positive else "decline"), question.asking
         kinds = {f.subject: f.obj for f in meaning.facts if f.relation == "instance_of"}
         by = {f.subject: f.obj for f in meaning.facts if f.relation == "done_by"}
         to = {f.subject: f.obj for f in meaning.facts if f.relation == "done_to"}
@@ -21775,11 +20618,12 @@ class Conversation:
 
     async def note_said(self, text: str, *, why: str, about: Optional[str] = None) -> None:
         """What the substrate said in this conversation UNASKED -- work ended, a
-        reminder -- recorded as a turn of its own, with nothing said to it, and
-        handed to the memory agent whole."""
+        reminder, a question about a job (`CONFIRM`) -- recorded as a turn of
+        its own, with nothing said to it, and handed to the memory agent whole."""
         understanding = Understanding(sentence="", asked=False)
         understanding.reply = text
-        self._turns.append(Turn(said="", asked=False, subject=self._last_subject, reply=text))
+        self._turns.append(Turn(said="", asked=False, subject=self._last_subject, reply=text,
+                                asking=about if why == self.CONFIRM else None))
         self._last_reply = text
         await self._hand_over_turn(understanding, {"said_unasked": why, "about": about}, "said")
 
@@ -21796,14 +20640,16 @@ class Conversation:
         return bool(acts) and acts <= negated
 
     async def note_turn(self, sentence: str, reply: str, *, asked: bool,
-                        route: Dict[str, Any], outcome: str) -> None:
+                        route: Dict[str, Any], outcome: str,
+                        asking: Optional[str] = None) -> None:
         """A turn answered outside `understand` -- about the substrate's own work
         -- recorded as every turn is: in this conversation's record, and handed
-        to the memory agent whole."""
+        to the memory agent whole. `asking`: the job the reply asked them to go
+        on with."""
         understanding = Understanding(sentence=sentence, asked=asked)
         understanding.reply = reply
         self._turns.append(Turn(said=sentence, asked=asked, subject=self._last_subject,
-                                reply=reply))
+                                reply=reply, asking=asking))
         self._last_reply = reply
         await self._hand_over_turn(understanding, route, outcome)
 
@@ -21900,35 +20746,52 @@ class Conversation:
         # says less than the sentence did.
         return tuple(result.statements or [result.statement]), result.source
 
-    def asked(self, sentence: str, resolved: Sequence["Resolved"]) -> List["Answer"]:
+    def asked(self, sentence: str, resolved: Sequence["Resolved"],
+              incoming: Optional[Dict[str, Sequence[Tuple[str, str, str, bool]]]] = None) -> List["Answer"]:
         """The held relations that answer what the question MEANS.
 
         A yes/no question asks whether one fact holds, and is answered by that
         fact held on the concept it names -- or by its denial, which answers no
-        from evidence rather than from silence. A question asking for something
-        asks for every held relation of that kind on the concept named beside
-        it: "where is the cup?" means `located_in(cup, ?x)`, answered by what
-        the cup is held to be in. NOTHING HERE MATCHES WORDS: the kind of
-        relation asked is part of the question's meaning, and a held relation is
-        a kind too, so "is a kestrel a bird" can never be answered by a relation
-        whose object merely looks like one of its words.
+        from evidence rather than from silence. Where both are held, the belief
+        in the fact decides which is so: a later, weaker source that denies it
+        dents the belief and does not turn the answer. A question asking for
+        something asks for every held relation of that kind on the concept named
+        beside it: "where is the cup?" means `located_in(cup, ?x)`, answered by
+        what the cup is held to be in; "who owns the wug?" means
+        `owns(?x, wug)`, answered by what is held to own the wug (`incoming`,
+        the facts that name each resolved concept as their object). NOTHING HERE
+        MATCHES WORDS: the kind of relation asked is part of the question's
+        meaning, and a held relation is a kind too, so "is a kestrel a bird" can
+        never be answered by a relation whose object merely looks like one of
+        its words.
         """
+        from core.reasoning.bayesian_uncertainty import get_uncertainty_system
         from core.semantics.derived_reader import is_variable
         meaning = self._meaning(sentence)
         if meaning is None or meaning.act != "ask":
             return []
 
-        def kind_of(relation: str) -> Tuple[str, bool]:
-            """A held relation as the link kind it is, and whether it is denied:
-            a record holds it as said ("caused by", "not isa")."""
-            text = str(relation).strip()
-            denied = text.startswith("not ")
-            return (text[4:] if denied else text).strip().replace(" ", "_"), denied
+        kind_of = _link_kind
 
         by_name = {r.phrase.lower(): r for r in resolved if r.known}
+        pointing = {name.lower(): facts for name, facts in (incoming or {}).items()}
         answers: List[Answer] = []
-        for said, fact in zip(meaning.facts, meaning.bound(self._situation())):
-            if said.condition or is_variable(fact.subject):
+        for said, fact in zip(meaning.facts, meaning.bound(self._situation(), self._known_found(meaning))):
+            # WHAT A KNOWN THING IS PICKS IT OUT; IT IS NOT ASKED. "Did the blip
+            # run?" asks of the blip a running, not whether it is a blip: held,
+            # that would answer yes to anything asked of it.
+            if said.condition or said.given:
+                continue
+            if is_variable(fact.subject):
+                # WHAT HOLDS THE RELATION TO THE NAMED THING: each answer is said
+                # of its own subject, "Nella has a wug.".
+                if said.subject in meaning.asked and not is_variable(fact.obj):
+                    target = fact.obj.lower().replace("_", " ")
+                    holders = dict.fromkeys(
+                        str(subject) for subject, relation, obj, positive in pointing.get(fact.obj.lower(), ())
+                        if positive and kind_of(relation) == (fact.relation, False)
+                        and str(obj).lower().replace("_", " ") == target)
+                    answers.extend(Answer(holder, fact.relation, (fact.obj,), verdict=None) for holder in holders)
                 continue
             item = by_name.get(fact.subject.lower())
             if item is None:
@@ -21942,15 +20805,113 @@ class Conversation:
             if is_variable(fact.obj):
                 continue
             wanted = fact.obj.lower().replace("_", " ")
+            held = []
             for relation, other in item.relations:
                 if str(other).lower().replace("_", " ") != wanted:
                     continue
                 kind, denied = kind_of(relation)
                 if kind == fact.relation:
-                    answers.append(Answer(item.phrase, relation, (str(other),),
-                                          verdict=fact.positive != denied,
-                                          alternative=said.alternative))
+                    held.append((relation, str(other), denied))
+            if len({denied for _, _, denied in held}) > 1:
+                # HELD BOTH WAYS: the belief in the fact says which is so.
+                belief = get_uncertainty_system().belief_for_claim(
+                    f"{item.phrase} {fact.relation} {fact.obj}".lower())
+                if belief is not None:
+                    holds = float(getattr(belief, "posterior_probability", 0.5)) > 0.5
+                    held = [h for h in held if h[2] != holds]
+            for relation, other, denied in held:
+                answers.append(Answer(item.phrase, relation, (other,),
+                                      verdict=fact.positive != denied,
+                                      alternative=said.alternative))
         return answers
+
+    async def _asked_of_events(self, sentence: str,
+                               incoming: Mapping[str, Sequence[Tuple[str, str, str, bool]]]) -> List["Answer"]:
+        """A question about something that happened, answered by the events held (`teaching.told_events`): "What
+        did the wug eat?" asks of an eating, done by the wug, what it was done to. The events pointing at the
+        question's named participants (`incoming`) are the candidates; one whose own facts hold everything the
+        question names, and something for each unknown it asks, answers it, said as the telling with the unknowns
+        filled in. When it happened is not held of an event ("did" against "does"), so the time the question names is
+        not asked of it.
+
+        AN EVENT IS ANSWERED AS IT WAS TOLD. One held with a quality the question does not name -- "The fip did not
+        chase the kelt.", a chase that is `false`; "The kelt might chase the fip.", one that is `possible`; "The dog
+        barked loudly." -- is said with that quality, and is no "yes": asked "Did the fip chase the kelt?", what was
+        told is that it did not. Where an event answers the question as it asks, it is the answer, and one told with
+        another quality is not: asked "What did the kelt chase?", the blip, not "The kelt might chase the fip."."""
+        from dataclasses import replace
+        from core.semantics.derived_reader import (EVENT_PARTICIPANTS, SITUATION_VARIABLES, Meaning, MeaningFact,
+                                                   as_known, is_variable, say)
+        meaning = self._meaning(sentence)
+        if meaning is None or meaning.act != "ask":
+            return []
+        pairs = list(zip(meaning.facts, meaning.bound(self._situation(), await self._known_of(meaning))))
+        facts = [bound for _, bound in pairs]
+        happenings = ({f.subject for f in facts if f.relation == "instance_of" and is_variable(f.subject)
+                       and not is_variable(f.obj)}
+                      & {f.subject for f in facts if f.relation in EVENT_PARTICIPANTS and is_variable(f.subject)})
+        if len(happenings) != 1:
+            return []
+        event = happenings.pop()
+        of_it = [bound for said, bound in pairs if bound.subject == event and said.obj not in SITUATION_VARIABLES]
+        named = [f for f in of_it if not is_variable(f.obj)]
+        unknown = [f for f in of_it if is_variable(f.obj)]
+        pointing = {name.lower(): rows for name, rows in incoming.items()}
+        candidates: Optional[set] = None
+        for f in named:
+            rows = pointing.get(f.obj.lower())
+            if rows is None:
+                continue
+            holders = {str(s) for s, r, o, positive in rows
+                       if positive and _link_kind(r) == (f.relation, False)}
+            candidates = holders if candidates is None else candidates & holders
+        answers: List[Answer] = []
+        qualified: List[Answer] = []
+        for candidate in sorted(candidates or ()):
+            held = await self.resolve_name(candidate)
+            relations = {}
+            for relation, other in held.relations:
+                kind, denied = _link_kind(relation)
+                if not denied:
+                    relations.setdefault(kind, []).append(str(other))
+            if not all(f.obj.lower().replace("_", " ") in {o.lower().replace("_", " ") for o in relations.get(f.relation, ())}
+                       for f in named):
+                continue
+            if any(f.relation not in relations for f in unknown):
+                continue
+            filled = {f.obj: relations[f.relation][0] for f in unknown}
+            asked_of = {f.obj.lower().replace("_", " ") for f in named if f.relation == "has_property"}
+            qualities = [q for q in relations.get("has_property", ()) if q.lower().replace("_", " ") not in asked_of]
+            said = ()
+            # With a quality, the question's time is said with it where it can be ("The fip did not chase the kelt."),
+            # and where it cannot, the event is said as it was told, at no time, as it is held: "Did the kelt chase
+            # the fip?", "The kelt might chase the fip.", not "might have chased". Either is said first where every
+            # word stands where words like it were heard (`say`, `heard`): not "The kelt did might chase the fip.".
+            # A PARTICULAR IS SAID AS THE KNOWN THING IT IS: what the kelt chased is `blip_1`, said "the blip"
+            # (`as_known`); the question's own known things keep their mark.
+            kinds = {}
+            for value in set(filled.values()):
+                kind = await self._kind_of(value)
+                if kind:
+                    kinds[value] = kind
+            tellings = []
+            for timed in ((True, False) if qualities else (True,)):
+                try:
+                    told_facts = (tuple(replace(f, obj=filled.get(f.obj, f.obj))
+                                        for f in meaning.facts if timed or f.obj != "?now")
+                                  + tuple(MeaningFact("has_property", event, q) for q in qualities))
+                    tellings.append(Meaning("tell", as_known(told_facts, kinds)))
+                except ValueError:
+                    continue
+            for heard in ((True, False) if len(tellings) > 1 else (False,)):
+                said = next((s for s in (say(told, named=self._named, framed=self._framed, heard=heard)
+                                         for told in tellings) if s), ())
+                if said:
+                    break
+            if said:
+                (qualified if qualities else answers).append(
+                    Answer(candidate, "", (), verdict=None if meaning.asked or qualities else True, told=said[0]))
+        return answers or qualified
 
     @staticmethod
     def _render_atom(text: str) -> str:
@@ -22160,24 +21121,34 @@ class Conversation:
 
         premises: List[ReasoningPremise] = []
         seen: set = set()
+        #: Each held relation's atom, by the fact it is of and whether it holds or is denied.
+        sides: Dict[Tuple[str, str, str], Dict[bool, str]] = {}
 
-        def hold(atom: Optional[str], said: str, kind: Optional[str], ref: Optional[str]) -> None:
-            """Keep a premise ONCE, with where it came from and how it reads."""
+        def hold(atom: Optional[str], said: str, kind: Optional[str], ref: Optional[str],
+                 structure: Tuple[Tuple[str, ...], Tuple[str, ...]] = ((), ())) -> None:
+            """Keep a premise ONCE, with where it came from, how it reads, and, for a held relation, its structure:
+            the relation and the two things (`predicates`, `constants`), what induction and analogy reason over."""
             if not atom or atom in seen:
                 return
             seen.add(atom)
             premises.append(ReasoningPremise(
                 premise_id=f"p{len(premises)}", statement=atom, confidence=1.0,
                 source=kind or "held", provenance=ref, provenance_kind=kind,
-                said=said))
+                said=said, predicates=list(structure[0]), constants=list(structure[1])))
 
         def hold_relation(subject: str, relation: str, obj: str, kind, ref) -> None:
             positive = not relation.startswith("not ")
             kind_name = relation[len("not "):] if not positive else relation
             if kind_name not in _LINK_KINDS:
                 return      # not a link kind the reasoner holds anything by
-            hold(_clause_atom(subject, kind_name, obj, positive),
-                 f"{subject} {relation} {obj}".replace("_", " "), kind, ref)
+            atom = _clause_atom(subject, kind_name, obj, positive)
+            named = (str(subject).lower().replace(" ", "_"), str(obj).lower().replace(" ", "_"))
+            hold(atom, f"{subject} {relation} {obj}".replace("_", " "), kind, ref,
+                 ((kind_name.replace(" ", "_"),), named))
+            if atom:
+                fact = (str(subject).lower().replace("_", " "), kind_name.replace(" ", "_"),
+                        str(obj).lower().replace("_", " "))
+                sides.setdefault(fact, {})[positive] = atom
 
         def hold_claim(facts, text: str, kind, ref) -> None:
             for atom in _atoms_of(facts):
@@ -22238,10 +21209,22 @@ class Conversation:
                          else _claim_facts(claim))
                 hold_claim(facts, claim, "memory", getattr(hit, "memory_id", None))
         except Exception as error:
-            from core.capability import raise_if_structural
+            from core.structural_defects import raise_if_structural
             raise_if_structural(error, "autonomous_coordinator._held_premises.broad_recall")
 
-        return premises
+        # A FACT HELD BOTH WAYS goes to the reasoner the way the belief in it
+        # stands, as `asked` answers it: a weaker source that denied it dents the
+        # belief and is not a second premise proving the opposite.
+        from core.reasoning.bayesian_uncertainty import get_uncertainty_system
+        rejected = set()
+        for (subject, relation, obj), atoms in sides.items():
+            if len(atoms) < 2:
+                continue
+            belief = get_uncertainty_system().belief_for_claim(f"{subject} {relation} {obj}")
+            if belief is not None:
+                holds = float(getattr(belief, "posterior_probability", 0.5)) > 0.5
+                rejected.add(atoms[not holds])
+        return [p for p in premises if p.statement not in rejected]
 
     async def _reasoned_answers(self, sentence, resolved, harvest) -> List["Answer"]:
         """Answers the substrate DERIVES from what it holds.
@@ -22268,7 +21251,8 @@ class Conversation:
         if meaning is None or meaning.act != "ask":
             return []
         bridge = get_neural_bridge()
-        reading = Meaning(meaning.act, tuple(meaning.bound(self._situation())), meaning.asked)
+        reading = Meaning(meaning.act, tuple(meaning.bound(self._situation(), await self._known_of(meaning))),
+                          meaning.asked)
         premises = await self._held_premises(sentence, resolved, harvest)
 
         fact = goal_fact(reading)
@@ -22276,9 +21260,9 @@ class Conversation:
             affirmative = Meaning("ask", (MeaningFact(fact.relation, fact.subject, fact.obj),))
             result = await bridge.reason(ReasoningRequest(
                 query=sentence, context=premises, reading=affirmative,
-                task_metadata={"actor": self._actor}))
+                task_metadata={"actor": self._actor, "not_taken_in": tuple(self._not_taken_in)}))
             if not (result.metadata or {}).get("verified") or not result.answer:
-                return []
+                return await self._held_as_both(fact)
             # Prefer the reasoning's OWN chain (robin → bird → … → animal) as the
             # reason, so a derived yes/no says the hops it walked.
             chain = (result.metadata or {}).get("chain") or []
@@ -22295,19 +21279,24 @@ class Conversation:
             # disproves it), and a yes/no must say which.
             affirmed = self._affirmed(result.answer)
             if affirmed is None:
-                return []  # the affirmative was neither proved nor disproved
+                # The affirmative was neither proved nor disproved.
+                return await self._held_as_both(fact)
             claim = (chain[-1] if chain else
                      _said(fact.subject, fact.relation, fact.obj, fact.positive)
                      or f"{fact.subject} {fact.relation} {fact.obj}".replace("_", " "))
-            return [Answer(about=fact.subject, relation=fact.relation, others=(fact.obj,),
-                           verdict=(affirmed == fact.positive), support=support,
-                           conclusion=claim)]
+            # THE RELATION AS FOUND TO HOLD, as a record holds a denial ("not
+            # isa"), so the answer says what is so: "No. A grandfather clock
+            # isn't a beer.", never "No. A grandfather clock is a beer.".
+            return [Answer(about=fact.subject,
+                           relation=fact.relation if affirmed else f"not {fact.relation}",
+                           others=(fact.obj,), verdict=(affirmed == fact.positive),
+                           support=support, conclusion=claim)]
 
         if not premises:
             return []
         result = await bridge.reason(ReasoningRequest(
             query=sentence, context=premises, reading=reading,
-            task_metadata={"actor": self._actor}))
+            task_metadata={"actor": self._actor, "not_taken_in": tuple(self._not_taken_in)}))
         if not (result.metadata or {}).get("verified") or not result.answer:
             return []
         support = self._support_used(premises, result.reasoning_steps,
@@ -22319,67 +21308,28 @@ class Conversation:
         return [Answer(about="", relation="", others=(), verdict=None,
                        support=support, conclusion=self._render_atom(result.answer))]
 
+    async def _held_as_both(self, fact) -> List["Answer"]:
+        """What answers "is an X a Y?" when neither yes nor no follows: the thing memory holds to be both. "Is a
+        canine a domestic animal?": "A dog is a canine. A dog is a domestic animal.". Where a Y is itself a kind of
+        X, that: "Is an animal a dog?": "A dog is an animal.". Nothing when nothing held is both, or the question
+        asked what a thing is not.
+
+        Some X being Y is neither a yes nor a no about X, and saying what X is instead ("A canine is a carnivore.")
+        changes the subject. The thing that is both is what is known that bears on it."""
+        from core.reasoning.concept_graph_reasoning import held_as_both
+        from core.semantics.cognitive_ingress import normalize_term
+        if fact.relation not in ("isa", "instance_of") or not fact.positive:
+            return []
+        db, _ = await self._services()
+        subject, obj = normalize_term(fact.subject), normalize_term(fact.obj)
+        both = await held_as_both(db, subject, obj, actor=self._actor)
+        if both is None or both == subject:
+            return []
+        if both == obj:
+            return [Answer(fact.obj, "isa", (fact.subject,), verdict=None)]
+        return [Answer(both.replace("_", " "), "isa", (fact.subject, fact.obj), verdict=None)]
+
     # ---- the two ways something new gets in ------------------------------
-
-    async def _ingest(self, label, description, relations, source_type, source_id,
-                      content, domain, *, actor: str) -> Acquired:
-        """Hand the interpreted statement to the ingress. It admits, not this.
-
-        `actor` is WHOSE ACCOUNT this is, and the caller says it: what the speaker
-        told is theirs (`self._actor`) until it is corroborated; what the
-        substrate read from the world itself is the substrate's (world
-        knowledge), whoever's question sent it looking.
-
-        This used to build its own EvidenceEnvelope and call the ingestion
-        service directly, under a docstring calling itself "the only write
-        path" -- a second claimant to a job that already had an owner. It also
-        read `result.concepts` / `.concept_ids` / `.accepted` off the returned
-        IngestionResult, none of which are fields on it, so `stored` was False
-        on every successful write. Every sentence anyone taught reported back
-        as not stored while the row went in.
-        """
-        from core.semantics.cognitive_ingress import Provenance
-
-        if not relations:
-            return Acquired(label, description, (), source_id, False,
-                            "nothing was said about it")
-
-        relation, obj = relations[0][0], relations[0][1]
-        positive = len(relations[0]) < 3 or str(relations[0][2]) != "negative"
-
-        # THROUGH THE LEARNING AUTHORITY, not around it. `learn_fact` admits to
-        # the concept graph AND fans the learning out to beliefs, the lexicon,
-        # the domain (via the emitter), memory, and metrics — the one path every
-        # kind of learning takes, so nothing here reaches the ingress directly.
-        # actor = THIS speaker. A told fact is the speaker's CONTEXT, not world
-        # knowledge, until independently corroborated — so it moves a scoped
-        # belief, never the one shared mind directly (the learning authority's
-        # intake router enforces this on the actor). A page the substrate found
-        # and read is not a telling: its source is the page, so it is learned
-        # as world knowledge under the substrate's own account.
-        admission = await self._learning_authority().learn_fact(
-            subject=label, relation=relation, obj=obj, positive=positive,
-            surface=content,
-            provenance=Provenance(producer="conversation", source_id=source_id,
-                                  source_type=source_type.name),
-            description=description, domain=domain, emit=self._evidence_emitter(),
-            actor=actor)
-
-        detail = "; ".join(admission.refusals)
-        if admission.contradicts:
-            detail = (f"this contradicts what I was told before"
-                      f"{'; ' + detail if detail else ''}")
-
-        # ONE SHAPE FOR EVERY READER. `relations` arrives from the reader as
-        # (relation, object) or (relation, object, polarity), and `Acquired`
-        # declares Tuple[Tuple[str, str], ...]. `say()` unpacked exactly two and
-        # raised ValueError on any taught sentence carrying polarity -- which,
-        # since admit_relation records polarity, is every taught sentence. The
-        # polarity is folded into the relation here, the same way `resolve()`
-        # does it, so a negative survives instead of crashing the reply.
-        return Acquired(label, description, _as_pairs(relations), source_id,
-                        admission.admitted, detail,
-                        memory_id=admission.memory_id)
 
     async def _register_domain_gap(self, sentence: str, resolved):
         """Register an unanswered in-domain question as a known-unknown --
@@ -22427,18 +21377,15 @@ class Conversation:
             domain_id = f"domain_{field}"
             if domain_id not in registry.domains:
                 continue
-            # THE ASKER'S QUESTION IS THEIR CONTEXT: kept with them, not among
-            # the substrate's own open questions, which its research works on.
+            # THE ASKER'S QUESTION IS THEIR CONTEXT: kept with them -- or, asked
+            # at work, with the organization -- not among the substrate's own
+            # open questions, which its research works on.
             gap = await udm.detect_knowledge_gap(
-                domain_id, subject=item.phrase, relation=relation, owner=self._actor)
+                domain_id, subject=item.phrase, relation=relation, owner=self._origin("conversation").owner)
             if gap is not None:
                 return domain_id
         return None
 
-    async def _resolves(self, text: str) -> bool:
-        _, identity = await self._services()
-        return bool(await identity.resolve_query(text.replace("_", " "))
-                    or await identity.resolve_query(text))
 
     # retain() REMOVED. Retention is not the reader's job.
     #
@@ -22448,7 +21395,9 @@ class Conversation:
     # admitted in exactly one place: core.semantics.cognitive_ingress.
 
     async def teach(self, sentence: str) -> List[Acquired]:
-        """You told it something. Read it with the ONE reader, then admit.
+        """You told it something. Read it with the ONE reader, and hand it to
+        memory to take in (`MemoryAgent.take_in_telling`): the conversation decides
+        nothing about what is learned (docs/research/SEPARATION_MAP.md §11.10).
 
         The reader is the one every path reads with (`derived_reader`): a told
         sentence reads through the constructions the substrate was taught, the
@@ -22456,17 +21405,20 @@ class Conversation:
         sentence it cannot read: a sentence that does not read has told you
         nothing, and admitting a guess about it is worse than admitting nothing.
 
-        WHAT A TELLING STATES IS SORTED BY ITS MEANING, as the teaching path
-        sorts it. A fact naming the situation it was said in -- the person, what
-        was said before -- is about that situation and is held as a belief about
-        the person, never as world knowledge. A fact still naming an unknown has
-        nothing to name it and is not held. A conditional is held as a RULE, one
-        fact a side, and asserts neither side. Everything else is a fact about
-        the world, admitted in the speaker's scope through the one door.
+        What it hands over is what the telling tells as so, with the situation
+        and its known things bound (`_known_of`), whose each particular is, and
+        which words were names. Memory splits it by what each fact is about:
+        about the person, held in their context now; about the world, a claim
+        for the one door, judged by whether it is true. A fact still naming an
+        unknown has nothing to name it and is not held. A conditional is a rule,
+        one fact a side, asserting neither.
         """
-        from core.domain.concept_ingestion import EvidenceSourceType
-        from core.semantics.cognitive_ingress import Provenance as _Provenance
-        from core.semantics.derived_reader import SITUATION_VARIABLES, is_variable, meant
+        # A CONVERSATION NOT REMEMBERED STILL HEARS WHAT IT IS TOLD: memory holds it for the conversation, in working
+        # memory, as the premises of what it is asked next, and writes none of it (`not_remembered`). Told nothing,
+        # it could reason over nothing it was told: a paragraph read to it, then asked about, was answered out of
+        # what it held before (UNDERSTANDS-PROSE-01, 2026-10-14).
+        from core.memory import get_memory_agent
+        from core.semantics.derived_reader import meant
 
         await self._listen(sentence)
         utterances = self._read(sentence)
@@ -22475,118 +21427,147 @@ class Conversation:
             # understood and what did not is asked about; nothing is guessed, and
             # the sentence is kept verbatim and marked unread, so it is recallable
             # by meaning now and re-readable once the English it needs is taught.
+            # Not remembered, it is not kept.
             detail = _read_in_part(utterances)
+            self._not_taken_in.append(sentence)
+            if not self._remembers:
+                return [Acquired(sentence, detail=detail)]
             try:
-                from core.semantics.cognitive_ingress import get_cognitive_ingress
-                await get_cognitive_ingress().remember_told(
-                    sentence, _Provenance(producer="conversation", source_id="you",
-                                          source_type="USER_SUPPLIED"),
-                    blamed=None, origin=Origin.of(self._actor, "conversation"))
+                await memory_agent().take_in_unread(sentence, origin=self._origin("conversation"))
                 detail += " I have remembered what you said."
             except Exception as e:
                 raise_if_structural(e, "conversation.teach.remember_told")
                 logger.warning("could not remember an unread telling: %s", e)
             return [Acquired(sentence, detail=detail)]
 
+        agent = await get_memory_agent()
         situation = dict(self._situation())
         acquired: List[Acquired] = []
-        held, related = self._heard(sentence)
+        heard = self._heard(sentence)
         for utterance in utterances:
-            chosen = meant(utterance.readings, held=held, related=related)
+            chosen = meant(utterance.readings, heard=heard)
             if chosen is None:
-                acquired.append(Acquired(utterance.text, detail=(
-                    "I read that more than one way, and I will not guess which you meant")))
+                acquired.append(Acquired(utterance.text, detail=_which_meant(utterance.readings)))
                 continue
-            meaning = chosen.meaning
-            if meaning.act != "tell":
+            if chosen.meaning.act != "tell":
                 continue
-            bound = dict(zip(meaning.facts, meaning.bound(situation)))
-            # WHAT A LATER "IT", "HE" OR "THEY" IN THIS TEXT POINTS BACK TO is this
-            # utterance's subject: "My dog is not a cat, he is a dog." When that
-            # subject has no name here ("my dog" is some dog of the speaker's), a
-            # later one points at nothing that can be named, and nothing is held
-            # of it -- never the thing the conversation mentioned before.
-            subject = next((f.subject for f in meaning.facts if not f.condition), None)
-            if subject is not None and subject not in SITUATION_VARIABLES:
-                if is_variable(subject):
-                    situation.pop("?previous", None)
-                else:
-                    situation["?previous"] = subject
-            situational = any(t in SITUATION_VARIABLES for f in meaning.facts for t in f.terms())
-
-            if meaning.condition:
-                # A CONDITIONAL is a held RULE, not a relation: learned through the
-                # LEARNING AUTHORITY (`learn_rule`), the same one door a fact takes,
-                # so it fans out to beliefs, the domain and metrics as a fact does.
-                # Admitting its sides as relations would assert the antecedent.
-                condition = [bound[f] for f in meaning.condition]
-                then = [bound[f] for f in meaning.asserted]
-                if (len(condition) != 1 or len(then) != 1
-                        or any(is_variable(t) for f in condition + then for t in f.terms())):
-                    acquired.append(Acquired(utterance.text, detail=(
-                        "I read that as a conditional, but a side of it is not a "
-                        "single proposition I can hold")))
-                    continue
-                (ant,), (con,) = condition, then
-                admission = await self._learning_authority().learn_rule(
-                    {"subject": ant.subject, "relation": ant.relation, "obj": ant.obj,
-                     "positive": ant.positive},
-                    {"subject": con.subject, "relation": con.relation, "obj": con.obj,
-                     "positive": con.positive},
-                    surface=utterance.text,
-                    provenance=_Provenance(producer="conversation", source_id="you",
-                                           source_type=EvidenceSourceType.USER_SUPPLIED.name),
-                    domain="conversation", emit=self._evidence_emitter(),
-                    actor=self._actor)
-                if admission.admitted:
-                    acquired.append(Acquired(utterance.text, description="a rule", relations=(),
-                                             stored=True, detail="held as a conditional rule",
-                                             memory_id=admission.evidence_id))
-                else:
-                    acquired.append(Acquired(utterance.text, detail=(
-                        "; ".join(admission.refusals) or "I could not hold that conditional")))
+            telling, notes = await self._telling(utterance.text, chosen, situation)
+            acquired.extend(notes)
+            if telling is None:
                 continue
-
-            if any(f.alternative for f in meaning.asserted):
-                # OF ALTERNATIVES, ONE HOLDS: none of them was said to, so none is held.
-                acquired.append(Acquired(utterance.text, detail=(
-                    "that says one of those holds but not which, so I held neither")))
-            for said in meaning.asserted:
-                if said.alternative:
-                    continue
-                fact = bound[said]
-                if is_variable(fact.subject) or is_variable(fact.obj):
-                    acquired.append(Acquired(utterance.text, detail=(
-                        "part of that is about something I have no name for yet, "
-                        "so I did not hold it")))
-                    continue
-                # ABOUT THE PERSON, not the world: a fact naming the situation it
-                # was said in is held as a belief about the speaker, and the
-                # concept graph the reasoner walks is never touched by it.
-                if situational:
-                    acquired.append(await self._learn_about_user(
-                        fact.subject, fact.relation, fact.obj, positive=fact.positive,
-                        surface=utterance.text))
-                    continue
-                # VERIFICATION GATE: a world fact asserted in chat is checked
-                # against what the substrate already knows before it is admitted.
-                # One it knows to be false is refused, so chat cannot overwrite
-                # world knowledge.
-                _ok, _why = await self._admissible_world_fact(
-                    fact.subject, fact.relation, fact.obj, fact.positive)
-                if not _ok:
-                    acquired.append(Acquired(utterance.text, detail=(
-                        f"I did not take that as a fact — {_why}. If I am wrong, "
-                        "correct me and I will weigh it.")))
-                    continue
-                acquired.append(await self._ingest(
-                    label=fact.subject, description="",
-                    relations=((fact.relation, fact.obj,
-                                "positive" if fact.positive else "negative"),),
-                    source_type=EvidenceSourceType.USER_SUPPLIED, source_id="you",
-                    content=utterance.text, domain="conversation", actor=self._actor))
+            taken = await agent.take_in_telling(telling)
+            acquired.extend(_acquired_from(utterance.text, kind, it, decision, speaker=telling.origin.person)
+                            for kind, it, decision in taken)
         return acquired
 
+    async def _tell_again(self, sentence: str, *, confirmed: bool) -> List[Tuple[str, Any, Any]]:
+        """A sentence this person said before, told again as their verdict on it
+        (`_take_feedback`): as it was, or with each fact the other way."""
+        from core.memory import get_memory_agent
+        from core.semantics.derived_reader import meant
+        utterances = self._read(sentence)
+        if not utterances or not all(u.understood for u in utterances):
+            return []
+        agent = await get_memory_agent()
+        situation = dict(self._situation())
+        taken: List[Tuple[str, Any, Any]] = []
+        for utterance in utterances:
+            chosen = meant(utterance.readings)
+            if chosen is None or chosen.meaning.act != "tell":
+                continue
+            telling, _ = await self._telling(utterance.text, chosen, situation, confirmed=confirmed)
+            if telling is not None:
+                taken.extend(await agent.take_in_telling(telling))
+        return taken
+
+    async def _telling(self, said: str, chosen, situation: Dict[str, str], *, confirmed: bool = True):
+        """One utterance told, as memory takes it in (`Telling`), and what of it
+        cannot be held, said (`Acquired` notes). `situation` is updated with what
+        a later "it" points back to. `confirmed` False tells each fact the other
+        way: "That's wrong." of what was just said (`_take_feedback`). None where
+        nothing in it can be held."""
+        from core.memory.utils.interfaces import Telling
+        from core.semantics.derived_reader import SITUATION_VARIABLES, Lexical, MeaningFact, is_variable, live_view
+        meaning = chosen.meaning
+        notes: List[Acquired] = []
+        known = await self._known_of(meaning, telling=True)
+        bound = dict(zip(meaning.facts, meaning.bound(situation, known)))
+        # WHAT A LATER "IT", "HE" OR "THEY" IN THIS TEXT POINTS BACK TO is this
+        # utterance's subject: "My dog is not a cat, he is a dog." When that
+        # subject has no name here ("my dog" is some dog of the speaker's), a
+        # later one points at nothing that can be named, and nothing is held
+        # of it -- never the thing the conversation mentioned before.
+        subject = next((f.subject for f in meaning.facts if not f.condition), None)
+        if subject is not None and subject not in SITUATION_VARIABLES:
+            if is_variable(subject):
+                situation.pop("?previous", None)
+            else:
+                situation["?previous"] = subject
+        theirs = frozenset(name for name in known.values()
+                           if self._particulars.get(name, ("", ""))[1] == "person")
+        # WHICH WORDS WERE NAMES: held as names, or new and written as one.
+        view = live_view()
+        names = frozenset(
+            str(construction.value) for construction in chosen.constructions
+            if isinstance(construction, Lexical) and construction.words
+            and (view.is_proper(construction.words[0])
+                 or (construction.words[0][:1].isupper()
+                     and view.use_of(" ".join(construction.words)) == "name")))
+        facts, rules = [], []
+        if meaning.condition:
+            condition = [bound[f] for f in meaning.condition if not f.given]
+            then = [bound[f] for f in meaning.asserted if not f.given]
+            if (len(condition) != 1 or len(then) != 1
+                    or any(is_variable(t) for f in condition + then for t in f.terms())):
+                notes.append(Acquired(said, detail=(
+                    "I read that as a conditional, but a side of it is not a "
+                    "single proposition I can hold")))
+                return None, notes
+            if confirmed:
+                (ant,), (con,) = condition, then
+                rules.append(({"subject": ant.subject, "relation": ant.relation, "obj": ant.obj,
+                               "positive": ant.positive},
+                              {"subject": con.subject, "relation": con.relation, "obj": con.obj,
+                               "positive": con.positive}))
+            # What its known things are holds whatever the rule says.
+            facts = [bound[f] for f in meaning.given if not f.unasserted and not is_variable(bound[f].subject)]
+        else:
+            if any(f.alternative for f in meaning.asserted):
+                # OF ALTERNATIVES, ONE HOLDS: none of them was said to, so none is held.
+                notes.append(Acquired(said, detail=(
+                    "that says one of those holds but not which, so I held neither")))
+            for fact_said in meaning.asserted:
+                if fact_said.alternative:
+                    continue
+                fact = bound[fact_said]
+                if is_variable(fact.subject) or is_variable(fact.obj):
+                    notes.append(Acquired(said, detail=(
+                        "part of that is about something I have no name for yet, "
+                        "so I did not hold it")))
+                    self._not_taken_in.append(said)
+                    continue
+                # WHAT A KNOWN THING IS IS NOT WHAT A CORRECTION DENIES: "That's
+                # wrong." of "The printer is broken." says the printer is not
+                # broken, not that it is no printer.
+                if not confirmed and not fact_said.given:
+                    fact = MeaningFact(fact.relation, fact.subject, fact.obj, not fact.positive)
+                facts.append(fact)
+        if not facts and not rules:
+            return None, notes
+        return Telling(sentence=said, origin=self._origin("conversation"), facts=tuple(facts), rules=tuple(rules),
+                       speaker=self._session, theirs=theirs, names=names), notes
+
+    def _origin(self, through: str) -> Origin:
+        """Where what this person gives the conversation comes from: them, in the
+        context their turn came through (`set_context`), personal unless said."""
+        return Origin.of(self._actor, through, context=self._context, organization=self._organization)
+
+    def set_context(self, context: Optional[str], organization: Optional[str] = None) -> None:
+        """Which of this person's contexts their turns come through: `work`, for
+        an organization, where their device, account or connector says so;
+        `personal` otherwise (`Origin.context`)."""
+        Origin.of(self._actor, "conversation", context=context, organization=organization)
+        self._context, self._organization = context, organization
 
     @staticmethod
     async def _typed_relation(relation: str, obj: str) -> str:
@@ -22710,7 +21691,7 @@ class Conversation:
         # exit. The word asked about is the asker's. The query it sent and the
         # pages it chose to read are its own. Each page and what it said, what it
         # found, and what went wrong are what the world answered.
-        origin = Origin.of(self._actor, "research")
+        origin = self._origin("research")
         query = f"what is {phrase}"
         parts: List[Part] = [Part("asked", phrase, origin.theirs),
                              Part("query", {"tool": "web_search", "query": query}, "substrate")]
@@ -22788,6 +21769,7 @@ class Conversation:
         # page whose TITLE names the phrase is read from its own text when its
         # snippet does not read, through the registry like any tool run, and at
         # most `_PAGES_READ` of them.
+        findings: List[Tuple[str, str, str, str, str]] = []
         for index, hit in enumerate(hits):
             seen = {"url": hit.get("url"), "title": hit.get("title")}
             if not _titles(phrase, hit.get("title", "")):
@@ -22828,27 +21810,35 @@ class Conversation:
                 continue
             source = hit.get("url") or "research"
             description = lead.strip()[:400] or content[:400]
-            # WORLD KNOWLEDGE, NOT THE ASKER'S CONTEXT. The asker chose what to
-            # look up; the page says what it is. The source of this fact is the
-            # page, found and read by the substrate itself, so it is learned
-            # under the substrate's account like any research of its own. Filed
-            # as the asker's, it was invisible to everyone else and only reached
-            # the shared mind when a second person asked the same question, which
-            # counted one page, read twice, as two witnesses.
-            acquired = await self._ingest(
-                label=phrase, description=description,
-                relations=[("isa", klass)],
-                source_type=EvidenceSourceType.RESEARCH_FINDING,
-                source_id=source, content=description, domain="researched",
-                actor=SUBSTRATE_ACTOR)
+            findings.append((phrase, "isa", klass, source, description))
             parts.append(Part("finding", {"subject": phrase, "relation": "isa", "object": klass,
                                           "source": source, "description": description},
                               "world"))
-            return await researched(acquired, "found")
 
+        if not findings:
+            return await researched(Acquired(
+                phrase, origin="research",
+                detail="research returned nothing that describes it"), "nothing found")
+        # WHAT THE PAGES SAY IS EVIDENCE, NOT THE ASKER'S CONTEXT AND NOT YET
+        # KNOWLEDGE. Each page that names the phrase and says what it is goes to
+        # memory, and the one door judges it by its source: one site counts once
+        # however many of its pages say it, sites that agree each count, and a
+        # page against what the world holds is counted against it
+        # (`MemoryAgent.take_in_research`). The asker chose what to look up; the
+        # pages say what it is.
+        from core.memory import get_memory_agent
+        taken = await (await get_memory_agent()).take_in_research(findings)
+        held = [(finding, decision) for finding, decision in taken if decision.admitted]
+        if not held:
+            reasons = "; ".join(r for _, decision in taken for r in decision.reasons) or "nothing it said was held"
+            return await researched(Acquired(
+                phrase, origin="research",
+                detail=f"research found what it is said to be, and I did not take it as a fact — {reasons}"),
+                "not held")
+        (subject, relation, klass, source, description), decision = held[0]
         return await researched(Acquired(
-            phrase, origin="research",
-            detail="research returned nothing that describes it"), "nothing found")
+            phrase, description, _as_pairs(((relation, klass, "positive"),)), source, True, "",
+            memory_id=getattr(decision.admission, "memory_id", None)), "found")
 
     @staticmethod
     def is_question(sentence: str) -> bool:
@@ -22881,11 +21871,28 @@ class Conversation:
         small window, that actually admitted a memory. A verdict with nothing to
         judge is not feedback, so this returning None is what stops an
         evaluative-looking utterance with no referent from being treated as one.
-        Bounded look-back -- never the whole history."""
+        Bounded look-back -- never the whole history. A question the substrate
+        asked since is what a verdict answers (`_question_referent`), so none
+        is found past one."""
         window = list(self._turns)[-_FEEDBACK_WINDOW:]
         for turn in reversed(window):
+            if turn.asking:
+                return None
             if turn.memories:
                 return turn
+        return None
+
+    def _question_referent(self) -> Optional["Turn"]:
+        """The substrate's question a "yes" or "no" answers: the most recent
+        turn, within the same window, that either asked about a job or admitted
+        a memory, when it is the question. A memory admitted since is what a
+        verdict judges instead (`_feedback_referent`)."""
+        window = list(self._turns)[-_FEEDBACK_WINDOW:]
+        for turn in reversed(window):
+            if turn.asking:
+                return turn
+            if turn.memories:
+                return None
         return None
 
     def feedback_of(self, sentence: str) -> Optional[bool]:
@@ -22908,29 +21915,22 @@ class Conversation:
         return VERDICTS[fact.obj] == fact.positive
 
     async def _take_feedback(self, sentence: str, verdict: bool) -> "Understanding":
-        """A verdict on what was just taught. The claim already made a memory;
-        this FLAGS that memory (annotated, never overwritten) and hands the
-        verdict to the learning authority -- it does NOT store the verdict as a
-        new fact, which is what filing it through teach() would have done. The
-        authority owns what learning follows; this only routes the signal and
-        replies."""
+        """A verdict on what was just taught, handed to memory: the memories the
+        telling made are flagged with it (`MemoryAgent.take_in_verdict`), never
+        stored as a new fact, and what it says of the claim is taken in as a
+        telling. The conversation learns nothing itself; it routes and replies."""
+        from core.memory import get_memory_agent
         referent = self._feedback_referent()
         flagged = 0
         if referent is not None:
-            authority = get_learning_authority()
-            for memory_id in referent.memories:
-                try:
-                    outcome = await authority.learn_from_feedback({
-                        "memory_id": memory_id,
-                        "success": verdict,          # True confirms, False corrects
-                        "content": sentence,
-                        "about": referent.said,
-                    })
-                    if outcome and outcome.get("memory_flagged"):
-                        flagged += 1
-                except Exception as error:
-                    logger.warning("feedback routing failed for %s: %s",
-                                   memory_id, error)
+            flagged = await (await get_memory_agent()).take_in_verdict(
+                referent.memories, confirmed=verdict, said=sentence, about=referent.said)
+            # WHAT THE VERDICT SAYS OF WHAT WAS SAID is this person's word on
+            # it, taken in as a telling: confirmed, said again; corrected, each
+            # fact said the other way. Memory splits it and the one door judges
+            # it, as anything told is; the same person's word counts once, and a
+            # changed word revises it.
+            await self._tell_again(referent.said, confirmed=verdict)
 
         understanding = Understanding(sentence=sentence, asked=False)
         if verdict:
@@ -22982,6 +21982,8 @@ class Conversation:
         the memory agent whole. It waits in the pool as a candidate, in its
         owner's store. A store that fails is reported and does not cost the
         speaker their reply; a fault in the code is raised."""
+        if not self._remembers:
+            return None
         from core.memory import get_memory_agent
         try:
             agent = await get_memory_agent()
@@ -22998,7 +22000,7 @@ class Conversation:
         """One turn, whole. What was said, what the speaker told, and the answers
         and reply they were given are theirs. How the substrate took it -- what
         it could place, what it looked up, how it answered -- is its own."""
-        origin = Origin.of(self._actor, "conversation")
+        origin = self._origin("conversation")
         parts = [Part("said", understanding.sentence, origin.theirs)]
         if not understanding.asked:
             parts += [Part("told", {"label": a.label,
@@ -23015,7 +22017,63 @@ class Conversation:
         await self._hand_over(origin, "conversation", parts,
                               {"outcome": outcome, "asked": understanding.asked})
 
+    async def _answered_in_kind(self, sentence: str, meaning) -> Optional["Understanding"]:
+        """The turn that answers an act done to the substrate in saying it: "Hello." answered "Hello.", "Thank
+        you." answered "You are welcome.". None when the sentence is no such act, or memory holds nothing that
+        follows it.
+
+        A sentence whose whole meaning is an act of some kind done by the speaker to the one spoken to (as the
+        lessons give "Hello.": a greeting, done by the speaker, to the listener) states nothing to hold. Handled as a
+        telling, it was answered "part of that is about something I have no name for yet, so I did not hold it". An
+        act done to someone makes an act back relevant (Schegloff and Sacks 1973, adjacency pairs), and which act is
+        knowledge, taught and held like any other: what memory holds to FOLLOW the kind of act done ("A greeting
+        follows a greeting.", "A welcome follows thanks."). The substrate does an act of that kind back, said with
+        what it was taught to say it with (`derived_reader.say`). Nothing here names a greeting."""
+        from core.reasoning.concept_graph_reasoning import edges_into
+        from core.semantics.cognitive_ingress import normalize_term
+        from core.semantics.derived_reader import Meaning, MeaningFact, is_variable, say
+        from core.semantics.relation_types import SemanticRelation
+        if meaning.act != "tell" or len(meaning.facts) != 3:
+            return None
+        kinds = [f for f in meaning.facts
+                 if f.relation == "instance_of" and f.positive and is_variable(f.subject) and not is_variable(f.obj)]
+        if len(kinds) != 1:
+            return None
+        act, kind = kinds[0].subject, kinds[0].obj
+        if {(f.relation, f.subject, f.obj, f.positive) for f in meaning.facts} != {
+                ("instance_of", act, kind, True), ("done_by", act, "?speaker", True),
+                ("done_to", act, "?listener", True)}:
+            return None
+        db, _ = await self._services()
+        held = normalize_term(kind)
+        follows = sorted({edge.subject for edge in await edges_into(db, [held], actor=self._actor)
+                          if edge.relation == SemanticRelation.FOLLOWS})
+        for back in follows:
+            said = say(Meaning("tell", (MeaningFact("instance_of", "?act", back.replace("_", " ")),
+                                        MeaningFact("done_by", "?act", "?speaker"),
+                                        MeaningFact("done_to", "?act", "?listener"))),
+                       framed=frozenset(self._framed))
+            if not said:
+                continue
+            understanding = Understanding(sentence=sentence, asked=False)
+            understanding.reply = said[0]
+            self._turns.append(Turn(said=sentence, asked=False, subject=self._last_subject,
+                                    reply=understanding.reply))
+            self._last_reply = understanding.reply
+            await self._hand_over_turn(understanding, {"answered": kind, "with": back}, "answered")
+            return understanding
+        return None
+
     async def understand(self, sentence: str, look_up: bool = True) -> Understanding:
+        """Understand one sentence and reply (`_understand`); a conversation that does not remember does it leaving
+        no trace anywhere (`core.memory.remembering`)."""
+        if self._remembers:
+            return await self._understand(sentence, look_up)
+        from core.memory.remembering import not_remembered
+        with not_remembered():
+            return await self._understand(sentence, look_up)
+
+    async def _understand(self, sentence: str, look_up: bool = True) -> Understanding:
         await self._listen(sentence)
         # ASKED ABOUT THIS EXCHANGE, ANSWERED FROM THIS EXCHANGE. Checked first
         # because every path below treats the sentence as being about the
@@ -23067,6 +22125,13 @@ class Conversation:
             await self._hand_over_turn(understanding, {"understood": False}, "not understood")
             return understanding
 
+        # A FIRST PART IS ANSWERED WITH ITS SECOND PART: a greeting with a
+        # greeting, thanks with a welcome. It tells nothing about the world to
+        # hold, so it never reaches the telling path below.
+        in_kind = await self._answered_in_kind(sentence, meaning)
+        if in_kind is not None:
+            return in_kind
+
         # MATHEMATICS IS WORKED, NOT LOOKED UP. A sentence about numbers --
         # arithmetic in words, a formula, "solve", "factor", "break down" -- is
         # answered by the reasoning owner computing it, never by resolving its
@@ -23111,7 +22176,7 @@ class Conversation:
                    for a in acquired):
                 understanding = Understanding(sentence=sentence, asked=False,
                                               acquired=acquired)
-                understanding.reply = "Noted — I'll hold that as a rule."
+                understanding.reply = "Noted - I'll hold that as a rule."
                 self._turns.append(Turn(said=sentence, asked=False,
                                         subject=self._last_subject,
                                         reply=understanding.reply))
@@ -23154,13 +22219,18 @@ class Conversation:
                 if learned is not None and learned.stored:
                     resolved = await self.resolve(sentence)
 
-        answers = self.asked(sentence, resolved)
+        incoming = {r.phrase: await self._incoming_relations(r.phrase) for r in resolved if r.known}
+        answers = self.asked(sentence, resolved, incoming) + await self._asked_of_events(sentence, incoming)
         # WAVE 3: the relation actually asked about, which is the most specific
         # thing the turn ever learns.
         recall.refine(*[f"{a.about} {a.relation}" for a in answers], about=subject)
 
         reading, source = await self.read(sentence)
-        harvest = await recall.harvest(about=subject, claim=sentence)
+        # WIDE ENOUGH TO CHOOSE FROM. The answer quotes the remembered claim that
+        # names most of what was asked (`say`); handed only recall's top three,
+        # after two turns about the kelt "Did the blip run?" had three about the
+        # kelt to choose from, and "The kelt said that the blip ran." was fourth.
+        harvest = await recall.harvest(limit=_RECALLED, about=subject, claim=sentence)
 
         # REASON OVER WHAT IS HELD, as a first-class peer to the direct lookup
         # above -- NOT a fallback gated on it having failed. Whatever the store
@@ -23192,8 +22262,9 @@ class Conversation:
             sentence=sentence, resolved=resolved, reading=reading,
             reading_source=source, answers=answers,
             acquired=acquired, asked=asked,
-            remembered=harvest.texts(), recall=harvest,
-            disposition=self._read_disposition())
+            remembered=harvest.texts(_RECALLED), recall=harvest,
+            disposition=self._read_disposition(),
+            named=dict(self._named), framed=frozenset(self._framed))
         # NUMBER FOR EVERY WORD THE REPLY MIGHT USE, in one pass, before the
         # sentence is built. Gathered here because it needs the store and `say()`
         # is a pure function over what was already found.
@@ -23208,6 +22279,16 @@ class Conversation:
             + [str(a.about) for a in answers]
             + [o for a in answers for o in a.others]
             + [w for text in harvest.texts() for w in str(text).split()])
+        # WHAT EACH PARTICULAR THING THE REPLY NAMES IS, so it is said "the trel".
+        for item in resolved:
+            for relation, other in item.relations:
+                if _link_kind(relation) == ("instance_of", False):
+                    understanding.kinds.setdefault(item.phrase, str(other))
+        for name in dict.fromkeys([str(a.about) for a in answers] + [str(o) for a in answers for o in a.others]):
+            if name and name not in understanding.kinds:
+                kind = await self._kind_of(name)
+                if kind:
+                    understanding.kinds[name] = kind
         understanding.reply = self.say(understanding)
         self._last_subject, self._last_reply = subject, understanding.reply
         from core.semantics.derived_reader import place_spoken_of
@@ -23391,22 +22472,6 @@ class Conversation:
         base = singularise(head)
         return f"{base} {tail}".strip() if tail else base
 
-    @classmethod
-    def _natural_claim(cls, text: str) -> str:
-        """A stored claim as a plain AFFIRMATIVE phrase. A copular relation
-        (is/isa/has_property, and their negated forms) renders "a X is a{n} Y"
-        with the articles a person says; a verb or multi-word claim is left as
-        prose. Negation is dropped here because the yes/no already carries it."""
-        t = str(text).replace("_", " ").strip()
-        rels = "|".join(re.escape(r) for r in cls._COPULA_RELATIONS)
-        m = re.fullmatch(rf"([\w'-]+)\s+(?:{rels})\s+(.+)", t)
-        if m:
-            subj, obj = m.group(1), m.group(2).strip()
-            # Article from the object's first word, so "living thing" reads
-            # "a living thing" rather than a bare "living thing".
-            return (f"{cls._article(subj)} {subj} is "
-                    f"{cls._article(obj.split()[0])} {obj}")
-        return t
 
     #: `natural_reply` IS GONE, and its absence is the point.
     #:
@@ -23484,9 +22549,10 @@ class Conversation:
         empty result.
         """
         if understanding.reply:
-            return understanding.reply
+            return said_plainly(understanding.reply)
 
         known, unknown = understanding.known, understanding.unknown
+        named, framed = understanding.named, understanding.framed
 
         def _spoken(said: List[str]) -> str:
             """The reply, with nothing said twice.
@@ -23502,13 +22568,13 @@ class Conversation:
             for line in said:
                 if not line or not line.strip():
                     continue
-                key = re.sub(r"^(i remember:|noted —)\s*", "",
+                key = re.sub(r"^(i remember:|noted\s*[—–-]+)\s*", "",
                              line.strip().lower()).rstrip(".")
                 if key in seen_lines:
                     continue
                 seen_lines.add(key)
                 out.append(line)
-            return "\n".join(out)
+            return said_plainly("\n".join(out))
 
         lines: List[str] = []
         asking: List[str] = []
@@ -23539,16 +22605,25 @@ class Conversation:
                 # through the constructions it is read with (`_said`), never a
                 # template over the relation's label -- which said "a door is an
                 # open".
-                said = [s for s in (_said(item.label, relation, other)
-                                    for relation, other in item.relations) if s]
-                if said:
-                    lines.append("Noted — " + " ".join(said))
+                if item.rule:
+                    said = [s for s in (_said_rule(item.rule, named=named, framed=framed,
+                                                   kinds=understanding.kinds),) if s]
                 else:
-                    lines.append(f"Noted — I'll hold that about {item.label}.")
+                    said = [s for s in (_said(item.label, relation, other, named=named, framed=framed,
+                                              kinds=understanding.kinds)
+                                        for relation, other in item.relations) if s]
+                if said:
+                    lines.append("Noted - " + " ".join(said))
+                elif item.rule:
+                    lines.append("Noted.")
+                else:
+                    lines.append(f"Noted - I'll hold that about "
+                                 f"{ {'?listener': 'you', '?speaker': 'me'}.get(item.label, item.label)}.")
             elif item.detail and not understanding.asked:
                 # NOT HELD, AND WHY. A telling that was read but not held says
                 # its own reason; it is not a look-up that found nothing.
-                asking.append(item.detail[:1].upper() + item.detail[1:].rstrip(".") + ".")
+                detail = item.detail[:1].upper() + item.detail[1:]
+                asking.append(detail if detail.endswith(("?", "!")) else detail.rstrip(".") + ".")
             else:
                 # ASK. Failing to find something is a reason to turn back to
                 # the person, not a result to report at them. Held back to the
@@ -23565,8 +22640,8 @@ class Conversation:
                                   f"found nothing, and it's the kind of gap I want "
                                   f"to close.")
                 else:
-                    asking.append(f"I don't hold {item.label} yet; looking it up "
-                                  f"found nothing, so I'll run a more targeted search.")
+                    asking.append(f"I don't hold {item.label} yet, and looking it up "
+                                  f"found nothing.")
 
         # A TELLING IS ANSWERED WITH WHAT BECAME OF IT: what was noted, what was
         # not and why, and the opposite on record if memory holds it. Reciting
@@ -23591,6 +22666,13 @@ class Conversation:
                 # "yes" or "no" is its own taught sentence before it. A fact
                 # nothing taught says is answered by its name, never by a
                 # template over the relation's label.
+                if answer.told:
+                    verdict = {True: "Yes.", False: "No."}.get(answer.verdict, "")
+                    sentence = " ".join(part for part in (verdict, answer.told) if part)
+                    if sentence.lower() not in seen:
+                        seen.add(sentence.lower())
+                        lines.append(sentence)
+                    continue
                 if answer.worked:
                     # A WORKED ANSWER IS SAID AS WORKED: its verdict, the answer
                     # as it was said or written, and the working under it, a step
@@ -23604,22 +22686,25 @@ class Conversation:
                     continue
                 because = ((" Because " + " and ".join(answer.support) + ".")
                            if support and answer.support else "")
+                # `listed` is what the answer names, written out; `named` stays the names the
+                # reply speaks with, for every answer and for what is not known after them.
                 if answer.about and answer.others:
-                    facts = [_said(answer.about, answer.relation, other) for other in answer.others]
+                    facts = [_said(answer.about, answer.relation, other, named=named, framed=framed, kinds=understanding.kinds)
+                             for other in answer.others]
                     said = " ".join(f for f in facts if f)
-                    named = ", ".join(str(o).replace("_", " ") for o in answer.others)
+                    listed = ", ".join(str(o).replace("_", " ") for o in answer.others)
                 else:
-                    said, named = "", Conversation._render_atom(answer.conclusion or "")
+                    said, listed = "", Conversation._render_atom(answer.conclusion or "")
                 if answer.alternative:
                     # AN "OR" QUESTION IS ANSWERED WITH WHAT HOLDS of its
                     # alternatives, not with yes or no to each of them.
-                    sentence = said or (named[:1].upper() + named[1:] + "." if answer.verdict else "")
+                    sentence = said or (listed[:1].upper() + listed[1:] + "." if answer.verdict else "")
                 elif answer.verdict is True:
                     sentence = f"Yes. {said}" if said else "Yes."
                 elif answer.verdict is False:
                     sentence = f"No. {said}" if said else "No."
                 else:
-                    sentence = said or (named[:1].upper() + named[1:] + "." if named else "")
+                    sentence = said or (listed[:1].upper() + listed[1:] + "." if listed else "")
                 sentence = (sentence + because).strip()
                 if not sentence or sentence.lower() in seen:
                     continue
@@ -23632,6 +22717,27 @@ class Conversation:
                 lines.append("I hold nothing for "
                              + ", ".join(unanswered) + ".")
             return _spoken(lines)
+
+        # A QUESTION NOTHING HELD ANSWERS IS ANSWERED ABOUT WHAT IT ASKED. "Where
+        # is a dog?" asks for a place. With none held, everything held about a
+        # dog (what follows, written for "what is a dog?") changes the subject:
+        # measured, it answered with what a dog is and asked which dog was
+        # meant. What is said is that the place is not known, through what the
+        # substrate was taught to say it with; where nothing taught says it,
+        # nothing here does.
+        # The things the question is ABOUT decide it, not every word in it: "Is
+        # the blicket big?" read whole, about a blicket memory holds, is not known
+        # whether it holds; that no fact was ever stated of "big" makes it no less
+        # a question about the blicket.
+        from core.semantics.derived_reader import is_variable, read_text
+        asked_meaning = _meaning_of(read_text(str(understanding.sentence or "")))
+        about = ({str(f.subject).lower().replace("_", " ") for f in asked_meaning.facts
+                  if not is_variable(f.subject)} if asked_meaning is not None else set())
+        unheld_about = [r for r in unknown if r.phrase.lower().replace("_", " ") in about]
+        if known and (not unknown or (asked_meaning is not None and about and not unheld_about)):
+            not_known = _not_known(asked_meaning, named, framed)
+            if not_known:
+                return _spoken(lines + [not_known] + asking)
 
         # A YES/NO ASKS ABOUT ONE THING, AND IS ANSWERED ABOUT THAT THING.
         # Reaching here means nothing matched what was asked. What follows says
@@ -23657,27 +22763,32 @@ class Conversation:
         # WHAT THE QUESTION IS ABOUT: the things its meaning's facts are said
         # of. What is recited and what is listed is about them, never about
         # whatever else a word of the sentence happened to find.
-        from core.semantics.derived_reader import is_variable, read_text
-        asked_meaning = _meaning_of(read_text(str(understanding.sentence or "")))
         about = ({str(f.subject).replace("_", " ").lower() for f in asked_meaning.facts
                   if not is_variable(f.subject)} if asked_meaning is not None else set())
         said_now = str(understanding.sentence or "").strip().rstrip(".?!").lower()
-        recitable = next(
-            (m for m in understanding.remembered
-             if m and "\n" not in m and len(m) <= 220
-             and not any(j in m.lower() for j in _junk)
-             # Not the question itself, remembered a moment ago: that is not
-             # something known about what it asks.
-             and m.strip().rstrip(".?!").lower() != said_now
-             and not m.strip().endswith("?")
-             # And about what was asked: a memory that names none of it is
-             # not an answer, however recall came to hand it up.
-             and (not about or any(name in m.replace("_", " ").lower() for name in about))
-             # And a CLAIM: what it reads, through what it was taught, as a
-             # telling. A record of hearing a word said, or a file's size, is an
-             # episode, not knowledge about what was asked.
-             and bool(_claim_facts(m))),
-            None)
+
+        def names_in(facts) -> set:
+            return {str(term).replace("_", " ").lower() for f in facts for term in (f.subject, f.obj)
+                    if not is_variable(term)}
+        claims = [(m, _claim_facts(m)) for m in understanding.remembered
+                  if m and "\n" not in m and len(m) <= 220
+                  and not any(j in m.lower() for j in _junk)
+                  # Not the question itself, remembered a moment ago: that is not
+                  # something known about what it asks.
+                  and m.strip().rstrip(".?!").lower() != said_now
+                  and not m.strip().endswith("?")
+                  # And about what was asked: a memory that names none of it is
+                  # not an answer, however recall came to hand it up.
+                  and (not about or any(name in m.replace("_", " ").lower() for name in about))]
+        # And a CLAIM: what it reads, through what it was taught, as a telling. A
+        # record of hearing a word said, or a file's size, is an episode, not
+        # knowledge about what was asked. Of the claims, the one naming most of
+        # what the question names, in the order recalled where they name as much:
+        # asked "Did the blip run?", "The kelt said that the blip ran." before "A
+        # blip is an animal.".
+        asked_names = names_in(asked_meaning.facts) if asked_meaning is not None else set()
+        claims = [(m, facts) for m, facts in claims if facts]
+        recitable = max(claims, key=lambda claim: len(asked_names & names_in(claim[1])))[0] if claims else None
         if recitable:
             # A REMEMBERED CLAIM IS QUOTED AS IT WAS SAID: it is someone's
             # sentence, and saying it over with a template over its relation's
@@ -23699,14 +22810,10 @@ class Conversation:
                 return "There was nothing in that I could resolve."
             missing = ", ".join(r.phrase for r in unknown)
             tried = any(a.origin == "research" for a in understanding.acquired)
-            # An internal user is not the substrate's lookup service: a gap is
-            # closed in the BACKGROUND (it is registered as a known-unknown and
-            # picked up as an acquisition goal), never turned back as "what is
-            # it?". The reply states the gap honestly and that it will be pursued.
+            # THE GAP, SAID AS IT IS, and nothing promised: nothing pursues a word
+            # no concept holds (`_register_domain_gap` registers held things only).
             return (f"I don't hold {missing} yet"
-                    + (", and looking it up turned up nothing, "
-                       if tried else "; ")
-                    + "so I'll run a more targeted search.")
+                    + (", and looking it up turned up nothing." if tried else "."))
 
         # WHAT IT HOLDS, AS SENTENCES. This was the introspection dump — the
         # concept id and domain in parentheses, the raw description string, then
@@ -23723,33 +22830,25 @@ class Conversation:
         # the domain, the concept id and the `met in use:` provenance string stay
         # where they belong, on the `Resolved` the caller already has.
         for item in known:
-            # SEVERAL UNCHAINED KINDS ARE NOT ALL TRUE OF ONE THING. "A mouse is
-            # an animal. It is an input device." is false of every mouse there
-            # has ever been. The substrate cannot tell a second SENSE from a
-            # second PARENT without knowing which kinds exclude each other, and
-            # it does not — so it says what it actually has, which is several
-            # kinds recorded under one word, and asks rather than picking.
-            if len(item.senses) > 1:
-                # The words before it already said which one ("a peristaltic
-                # pump"): its several kinds are not a question to put to the
-                # speaker, and reciting them all would assert every one of them.
-                if item.head_of:
-                    continue
-                kinds = [f"{Conversation._article(s.split()[0])} {s}"
-                         for s in item.senses[:4]]
-                listed = (", ".join(kinds[:-1]) + " or " + kinds[-1]
-                          if len(kinds) > 1 else kinds[0])
-                lines.append(f"{item.phrase[:1].upper()}{item.phrase[1:]} "
-                             f"can mean {listed}.")
-                asking.append(f"Which {item.phrase} do you mean?")
-                continue
             # WHAT IT HOLDS OF WHAT WAS ASKED ABOUT, each fact said as it was
             # taught to say it; only for the things the question is about, not
             # for every word in it that names something.
             if about and item.phrase.lower() not in about:
                 continue
-            said = [s for s in (_said(item.phrase, relation, other)
-                                for relation, other in item.relations[:5]) if s]
+            # A PARTICULAR THING IS NOT TOLD WHAT IT IS: that `blip_1` is a blip
+            # is how it is named, "the blip", and nothing about it.
+            relations = item.relations
+            if item.phrase in understanding.kinds:
+                relations = tuple((relation, other) for relation, other in relations
+                                  if _link_kind(relation) != ("instance_of", False))
+                if not relations:
+                    continue
+            # The first five of what is held that the substrate was taught to
+            # say: a relation nothing taught says ("defined with") takes no
+            # place among them.
+            said = list(itertools.islice(
+                (s for s in (_said(item.phrase, relation, other, named=named, framed=framed, kinds=understanding.kinds)
+                             for relation, other in relations) if s), 5))
             if said:
                 lines.append(" ".join(said))
             elif item.description and "met in use" not in item.description:
@@ -23757,6 +22856,8 @@ class Conversation:
                 # how a word was first encountered is not an answer to anything.
                 lines.append(f"{item.phrase[:1].upper()}{item.phrase[1:]}: "
                              f"{item.description}")
+            elif item.phrase in understanding.kinds:
+                continue
             elif item.relations:
                 lines.append(f"I hold things about {item.phrase} that I have not "
                              f"been taught to say yet.")
@@ -23815,7 +22916,8 @@ MAX_HELD_CONVERSATIONS = 64
 
 def get_conversation(session: str, *, db=None, identity=None,
                      actor_identity=None,
-                     source: Optional[TaskSource] = None) -> "Conversation":
+                     source: Optional[TaskSource] = None,
+                     remembers: bool = True) -> "Conversation":
     """The held conversation for `session`, created on first use.
 
     `session` identifies a THREAD OF TALK, not a person -- two windows belong
@@ -23838,7 +22940,8 @@ def get_conversation(session: str, *, db=None, identity=None,
     held = _conversations.get(key)
     if held is None:
         held = Conversation(db=db, identity=identity, session=key,
-                            actor_identity=actor_identity, source=source)
+                            actor_identity=actor_identity, source=source,
+                            remembers=remembers)
         _conversations[key] = held
     elif actor_identity is not None:
         held._actor_identity = actor_identity
@@ -23858,7 +22961,6 @@ def end_conversation(session: str) -> bool:
 def held_conversations() -> int:
     """How many threads are currently held. For health reporting."""
     return len(_conversations)
-
 
 
 # =============================================================================

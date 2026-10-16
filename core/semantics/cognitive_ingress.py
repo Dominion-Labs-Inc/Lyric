@@ -436,15 +436,11 @@ class CognitiveIngress:
                 """,
                 (obj, subject, str(relation).strip().lower(), self.MAX_KIND_DEPTH))
         except Exception as error:
-            # THE GUARD COULD NOT RUN, AND THAT IS SAID OUT LOUD. Admitting
-            # anyway is the lesser harm -- refusing every edge because the store
-            # hiccuped would stop teaching outright -- but an invariant nobody
-            # can confirm is not an invariant, so it is never silent.
-            logger.warning(
-                "kind-cycle guard could not run for %r isa %r (%s); the edge is "
-                "admitted UNCHECKED and the hierarchy may not be acyclic",
-                subject, obj, error)
-            return None
+            # THE GUARD COULD NOT RUN, SO THE EDGE IS NOT ADMITTED. Admitted
+            # unchecked, as it was, a store that hiccuped let a cycle into the
+            # kinds, and a run reported itself taught.
+            raise RuntimeError(f"the kind-cycle guard could not run for {subject!r} isa {obj!r}: "
+                               f"{error}") from error
         if not rows:
             return None
         return f"{obj} -> ... -> {subject} in {rows[0]['depth']} step(s)"
@@ -462,6 +458,9 @@ class CognitiveIngress:
         # only represent things that hold, which meant "the mug is not in the
         # cupboard" taught the substrate nothing it could later be asked.
 
+        # The proposition as told, kept for the memory's claim: shaping writes it for the graph ("defined with",
+        # "slender_lori" for "slender loris"), and a claim is what was said.
+        told = (subject, relation, obj)
         subject, relation, obj, refusal = shape_proposition(subject, relation, obj)
         if refusal:
             result.refusals.append(refusal)
@@ -551,25 +550,34 @@ class CognitiveIngress:
             derived_from=provenance.derived_from,
         )
 
-        try:
-            service = await self._ingestion()
-            ingested = await service.ingest(envelope)
-            result.evidence_id = ingested.evidence_id
-            result.concepts_created = list(ingested.created)
-            result.concepts_reinforced = list(ingested.reinforced)
-            for name, reason in ingested.rejected:
-                result.refusals.append(f"{name}: {reason}")
-            for name, reason in getattr(ingested, "unreadable", ()) or ():
-                result.refusals.append(f"{name} could not read the evidence: {reason}")
-        except Exception as error:
-            result.refusals.append(f"concept ingestion failed: {error}")
-            logger.warning("ingress: concept ingestion failed for %r: %s",
-                           result.proposition, error)
+        # AN INGESTION THAT FAILS IS AN ERROR, not a refusal: recorded as one, a
+        # fact the store could not take read as one the gate decided against.
+        service = await self._ingestion()
+        ingested = await service.ingest(envelope)
+        result.evidence_id = ingested.evidence_id
+        result.concepts_created = list(ingested.created)
+        result.concepts_reinforced = list(ingested.reinforced)
+        for name, reason in ingested.rejected:
+            result.refusals.append(f"{name}: {reason}")
+        for name, reason in getattr(ingested, "unreadable", ()) or ():
+            result.refusals.append(f"{name} could not read the evidence: {reason}")
 
         from core.memory import Origin
+        from core.semantics.derived_reader import MeaningFact
+        # THE FACT ADMITTED IS THE CLAIM THE MEMORY MAKES, handed over as made (`claim_facts`) rather than read back
+        # out of the surface. Read back, it cost most of a teaching pass (`read_text`, a quarter of a second a fact)
+        # and was wrong where the surface is no English sentence: "oxyacetylene defined with mixture" read as a
+        # past event done by oxyacetylene and a mixture, kept as a premise recall hands back as knowledge (34 of 202
+        # definition links in a WordNet sample; every isa read back was the fact as admitted, 2026-10-09).
+        # Taken from the proposition as told (`told`), not from the parts shaped for the graph.
+        # `related_to` licenses no inference, so it states no fact a memory could claim.
+        try:
+            facts = [MeaningFact(told[1], told[0], told[2], positive).to_list()]
+        except ValueError:
+            facts = None
         result.memories = await self._remember(
             result.proposition, surface, provenance, result,
-            origin=Origin.own("learning"))
+            origin=Origin.own("learning"), facts=facts)
         result.aliases_bound = await self._bind_aliases(terms, provenance)
         result.polarity = "positive" if positive else "negative"
         result.contradicts = await self._contradiction_check(
@@ -578,7 +586,7 @@ class CognitiveIngress:
         #
         # This counted a stored MEMORY as admission, which made the flag report
         # success for a claim the concept graph had refused outright: every
-        # caller reads `admitted` as "it is in", and `learn_fact` gates the whole
+        # caller reads `admitted` as "it is in", and the one door (`consider`) gates the whole
         # fan-out (belief, lexicon, domain) on it. Measured: a derived naming
         # whose lineage did not resolve came back `admitted=True` carrying
         # "concept ingestion failed: dangling lineage ..." in `refusals`, the
@@ -662,80 +670,77 @@ class CognitiveIngress:
                         provenance: Provenance, result: Admission,
                         tags: Optional[List[str]] = None,
                         blamed: Optional[List[list]] = None, *,
-                        origin: "Origin") -> int:
+                        origin: "Origin", facts: Optional[List[list]] = None) -> int:
         """Remember the claim as recallable knowledge -- what was said, findable
         later by meaning. `origin` is where it came from; the memory agent
-        decides from it whose memory it is."""
-        try:
-            from core.memory import get_memory_agent
-            from core.memory.utils.interfaces import MemoryType
+        decides from it whose memory it is. `facts`, when the claim's facts are
+        known, are kept as the claim made (`claim_facts`), not read again."""
+        from core.memory import get_memory_agent
+        from core.memory.utils.interfaces import MemoryType
 
-            agent = await get_memory_agent()
-            # KNOWLEDGE, not an event. What was learned has to be findable later
-            # by MEANING the same as anything else -- that is the whole point of
-            # storing it, and the substrate's alternative to baking knowledge
-            # into weights. So it is stored as a semantic claim:
-            #
-            #   * content is the claim AS SAID -- the reading it was admitted as
-            #     ("subject|relation|object") is a fact ABOUT the sentence, not
-            #     part of it; splicing it in diluted the embedding so a real
-            #     question scored the memory low. It lives in source_context;
-            #   * it is NOT marked as an observation event. A raw_event exempts a
-            #     memory from the worthiness filter but by the SAME token
-            #     classifies it as an event, which recall excludes -- so a taught
-            #     fact stored that way was invisible to the recall it exists for;
-            #   * being user-supplied it carries real importance, so it clears the
-            #     filter as the worthy knowledge it is, not via the event exemption.
-            stored, memory_id = await agent.store_memory(
-                content=surface,
-                memory_type=MemoryType.SEMANTIC,
-                importance_score=0.75,
-                confidence_score=0.9,
-                tags=list(tags or ["language", "admitted_proposition"]),
-                source_context={
-                    "producer": provenance.producer,
-                    "source_id": provenance.source_id,
-                    # WHETHER THIS WAS TOLD OR DERIVED, recorded so the word-class
-                    # view can tell the difference. A class is evidence about how
-                    # a word is USED IN A SENTENCE SOMEBODY SAID; the substrate's
-                    # own conclusions are not testimony about English. Measured:
-                    # sight describing a kind it had seen wrote
-                    # `<cat> has_property circle`, and `classes_implied_by` files
-                    # a property's object as ADJECTIVE -- so seeing shapes taught
-                    # the substrate that `circle` is an adjective. It is a noun.
-                    "source_type": getattr(provenance, "source_type", None),
-                    # surface IS the claim, so recall hands it back directly.
-                    "conclusion": surface,
-                    "reading": proposition,
-                    # (word, class, why) for each class this sentence's refusal
-                    # was attributed to. Read by `warm_word_classes`.
-                    **({"blamed": blamed} if blamed else {}),
-                },
-                origin=origin,
-            )
-            if stored:
-                # KEEP THE VIEW IN STEP WITH THE STORE IT IS A VIEW OF.
-                # A lesson's second sentence leans on what its first one
-                # taught, so the word classes this proposition implies have to
-                # be readable NOW, not after the next full warm.
-                if blamed:
-                    agent.note_refusal(blamed)
-                else:
-                    agent.note_taught_proposition(surface, proposition)
-
-            if not stored:
-                # The memory filter can decline. That is a real answer, not a
-                # failure, but it must be visible rather than counted as a write.
-                result.refusals.append(f"episode not retained: {memory_id}")
+        agent = await get_memory_agent()
+        # KNOWLEDGE, not an event. What was learned has to be findable later
+        # by MEANING the same as anything else -- that is the whole point of
+        # storing it, and the substrate's alternative to baking knowledge
+        # into weights. So it is stored as a semantic claim:
+        #
+        #   * content is the claim AS SAID -- the reading it was admitted as
+        #     ("subject|relation|object") is a fact ABOUT the sentence, not
+        #     part of it; splicing it in diluted the embedding so a real
+        #     question scored the memory low. It lives in source_context;
+        #   * it is NOT marked as an observation event. A raw_event exempts a
+        #     memory from the worthiness filter but by the SAME token
+        #     classifies it as an event, which recall excludes -- so a taught
+        #     fact stored that way was invisible to the recall it exists for;
+        #   * being user-supplied it carries real importance, so it clears the
+        #     filter as the worthy knowledge it is, not via the event exemption.
+        stored, memory_id = await agent.store_memory(
+            content=surface,
+            memory_type=MemoryType.SEMANTIC,
+            importance_score=0.75,
+            confidence_score=0.9,
+            tags=list(tags or ["language", "admitted_proposition"]),
+            source_context={
+                "producer": provenance.producer,
+                "source_id": provenance.source_id,
+                # WHETHER THIS WAS TOLD OR DERIVED, recorded so the word-class
+                # view can tell the difference. A class is evidence about how
+                # a word is USED IN A SENTENCE SOMEBODY SAID; the substrate's
+                # own conclusions are not testimony about English. Measured:
+                # sight describing a kind it had seen wrote
+                # `<cat> has_property circle`, and `classes_implied_by` files
+                # a property's object as ADJECTIVE -- so seeing shapes taught
+                # the substrate that `circle` is an adjective. It is a noun.
+                "source_type": getattr(provenance, "source_type", None),
+                # surface IS the claim, so recall hands it back directly.
+                "conclusion": surface,
+                "reading": proposition,
+                # (word, class, why) for each class this sentence's refusal
+                # was attributed to. Read by `warm_word_classes`.
+                **({"blamed": blamed} if blamed else {}),
+                **({"claim_facts": facts} if facts else {}),
+            },
+            origin=origin,
+        )
+        if stored:
+            # KEEP THE VIEW IN STEP WITH THE STORE IT IS A VIEW OF.
+            # A lesson's second sentence leans on what its first one
+            # taught, so the word classes this proposition implies have to
+            # be readable NOW, not after the next full warm.
+            if blamed:
+                agent.note_refusal(blamed)
             else:
-                # The memory this interaction MADE, kept referenceable so a later
-                # feedback turn can flag THIS record rather than store another.
-                result.memory_id = memory_id
-            return 1 if stored else 0
-        except Exception as error:
-            result.refusals.append(f"episode not retained: {error}")
-            logger.warning("ingress: episode not retained: %s", error)
-            return 0
+                agent.note_taught_proposition(surface, proposition)
+
+        if not stored:
+            # The memory filter can decline. That is a real answer, not a
+            # failure, but it must be visible rather than counted as a write.
+            result.refusals.append(f"episode not retained: {memory_id}")
+        else:
+            # The memory this interaction MADE, kept referenceable so a later
+            # feedback turn can flag THIS record rather than store another.
+            result.memory_id = memory_id
+        return 1 if stored else 0
 
     async def _bind_aliases(self, terms: Sequence[str],
                             provenance: Provenance) -> int:
@@ -766,7 +771,7 @@ class CognitiveIngress:
                     alias=term, concept_id=rows[0]["concept_id"])
                 bound += len(written or ())
             except Exception as error:
-                logger.debug("ingress: alias %r not bound: %s", term, error)
+                raise RuntimeError(f"the alias {term!r} could not be bound: {error}") from error
         return bound
 
 
@@ -805,8 +810,9 @@ class CognitiveIngress:
                 (relation, obj, f"%:{subject}"), fetch_all=True)
             return dict(rows[0]) if rows else None
         except Exception as error:
-            logger.debug("ingress: contradiction check failed: %s", error)
-            return None
+            # A CHECK THAT DID NOT RUN IS NOT "NO CONTRADICTION". Returned as None, a store that failed admitted a
+            # claim held both ways.
+            raise RuntimeError(f"the contradiction check could not run: {error}") from error
 
     # ── held conditionals ────────────────────────────────────────────────────
     # A conditional is not two facts and not an ISA edge: it asserts an
@@ -901,8 +907,7 @@ class CognitiveIngress:
             if isinstance(status, str) and status.split()[-1] == "0":
                 result.already_present = True
         except Exception as error:
-            result.refusals.append(f"held-conditional store failed: {error}")
-            logger.warning("ingress: held-conditional store failed: %s", error)
+            raise RuntimeError(f"the held conditional {surface!r} could not be stored: {error}") from error
         return result
 
     async def held_conditionals(self, domain: Optional[str] = None
@@ -923,8 +928,8 @@ class CognitiveIngress:
                     "SELECT * FROM unified.held_conditionals", fetch_all=True)
             return [dict(r) for r in (rows or [])]
         except Exception as error:
-            logger.warning("ingress: reading held conditionals failed: %s", error)
-            return []
+            # An empty list is "no rule held"; a read that failed is not that.
+            raise RuntimeError(f"the held conditionals could not be read: {error}") from error
 
 
 _ingress: Optional[CognitiveIngress] = None

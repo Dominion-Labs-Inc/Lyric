@@ -17,7 +17,7 @@ below, which guard live behaviour and had not run in months.
 What the nineteen tested is gone, not moved. `LearningAdapter` was retired in
 the learning-authority collapse; `_record_experience_outcome` went with it; and
 the chain they fed — outcomes → patterns → recommendation → applier → a task's
-priority — ended at a `recommendations = []` literal inside `_learning_phase`,
+priority — ended at a `recommendations = []` literal inside the idle learning tier,
 looping zero times into an applier (`_apply_learning_recommendation`, 119 lines)
 that nothing else called. That dead loop and that applier are now deleted from
 the coordinator too, so an idle tier no longer reads as "apply what was learned"

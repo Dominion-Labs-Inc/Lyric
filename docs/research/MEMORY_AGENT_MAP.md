@@ -791,10 +791,21 @@ does not learn again what they do.
   works, is world knowledge.
 
 **The lift.** A person's particulars become variables. They are found by their parts' origin, and by comparing
-experiences of the same shape (`rule_induction.anti_unify`). Only what the outcome depended on stays. For the
-substrate's own experience there is nothing to lift.
+experiences of the same shape (`rule_induction.anti_unify`). Only what the outcome depended on stays.
 
-**The residue test.** A term whose only source is a person's material makes the lesson theirs.
+**From the first task that worked (2026-10-07, SEPARATION_MAP §11.4).** The first task of a shape that worked, its
+outcome counted by the credit gate, is lifted at once (`lift.lift_one`) into the world's method: what Lyric overcame
+for one person it does again, for them and for anyone. It keeps as constants only what is no one's particular
+(`MemoryAgent._no_ones`): its tools' own words (a truth value, a value the tool declares the argument takes:
+`lift.vocabulary`) and what the world holds a thing under (§11.3 of SEPARATION_MAP: about the world, whoever said it).
+Every other value (a path, a text, a name) was that task's and is a variable, so nothing of the person is in it. What
+its fix changed, where that is no one's, is kept on the method (`fixes`) and given to a plan before it is done
+(`Capabilities.known_fix`). Tasks of the shape that did not work before then wait, and are witnesses of the method
+where they are instances of it; later tasks that worked widen it. Measured by FIFTY-01.
+
+**The residue test.** A term whose only source is a person's material makes the lesson theirs: when two of a
+person's tasks, both instances of the world's method, share something only they supplied, what they share is their
+own method, in their context, beside the world's.
 
 **What a task yields.**
 - The steps and what each did.
@@ -1053,3 +1064,60 @@ goal type.
   intent. The plan's steps carry that intent, so their outcomes land in the pursuit's memory.
 - Nothing acts without a plan. When no plan can be made, the pursuit ends saying why, with the diagnosed deficit.
 - The default breakdown goes: it is a fallback that makes a plan where there is none.
+
+### 10.8 As built: M3-1, the lift, and a first observation counted once (2026-10-04)
+
+Built as Step 4 of the capabilities rework (capabilities emerge only from lifted methods; see `docs/ARCHITECTURE.md`,
+the capabilities faculty).
+
+**A first observation counts once, in both stores.**
+- `BayesianUncertaintySystem.observe_claim` set a new claim's prior from the observation's quality, and
+  `create_belief` then applied the same observation again. It now creates the claim at 0.5 and applies the first
+  observation once, in the direction it points. One telling at quality 0.9 is 0.937, not about 0.995.
+- Found with it: `create_belief` applies its evidence as SUPPORTING, so a claim first observed to be false began at
+  1 − quality and was pushed up. It no longer receives that observation.
+- `ScopedContextStore._observe_belief` had the same double count; a new claim there starts at 0.5 too.
+- Weak evidence used to start BELOW even: at quality 0.15 one success left a belief at 0.217. It is 0.611 now.
+- Not changed: `hierarchical_abstraction._create_belief_from_schema` sets the prior from the schema's measured
+  probability and applies the same support as evidence (the same pattern, from the caller).
+
+**The lift** (`core/memory/lift.py`, pure; `MemoryAgent._lift`, run when the pool decides an experience there is
+something to learn from).
+- The unit is a task in a pursuit memory with a `method` (its tool plan, with arguments) and a verdict.
+- **Shape**: the steps' tools in order, each with its argument names (`shape_of`). **Facts**: one per step, the
+  tool's own name upper-cased (`tool_domain.predicate_for`) over its argument values encoded as constants
+  (`tool_domain._encode`).
+- A task of a shape no method holds **waits** (in its pool item's decision). The next task of that shape from
+  another pursuit is anti-unified with it (`rule_induction.anti_unify`): each value that differs becomes a variable.
+- **The residue test**: a constant whose only source is people's material (every instance was a person's work and
+  that person supplied it, word by word in their parts) makes the lesson theirs. Nothing kept that only people
+  supplied: a **world method** (the substrate's memory). Kept, and both experiences the same person's: **their
+  method**, in their context. Kept, and different people: **not learned**; both wait.
+- A method memory (`schema: method_v1`, PROCEDURAL) holds its shape, its steps as formulas, and each instance by
+  occurrence id with whether its outcome counted and worked. No person's id is on a world method.
+- A later task of that shape that fits is an **instance**; one that does not widens the method (a constant becomes a
+  variable).
+- **Each instance is one witness**, counted once (by occurrence id on the method, so a pursuit decided again counts
+  nothing twice) and only when the credit gate counts its outcome (`is_credit_eligible` on its kept verdict): a
+  failure the world or the infrastructure caused moves nothing. The learning authority moves the belief "the
+  substrate's method <id> works" (`observe_method_outcome`): the shared one for a world method, and the person's
+  own for their outcomes; weight per outcome `COMPETENCE_EVIDENCE_QUALITY` (0.15), so four consistent outcomes
+  settle it and each failure moves it back as far.
+- **Not done**: "only what the outcome depended on stays". Every step of the shape is kept; finding which steps the
+  outcome depended on needs causal attribution over instances. Lifted from declared steps only; a learned
+  operator's acts are lifted by rule induction already.
+
+**Verified, in the sandbox (`lyric_dev`), each once.**
+
+| Run | Result |
+|---|---|
+| Kernel, pure (no writes) | 5/5 after a check correction: 0.937 from one telling; 0.063 for a claim first seen false; a second witness moves it, the same witness again does not; one failure undoes one success |
+| Belief tests (`test_belief_indexes`, `test_reasoning_owner`, `test_perception_owner`, `test_domain_expansion_chain`) | 22/22 |
+| Lift, pure | 12/12 |
+| Lift through the memory agent's own calls (`check_lift.py`) | 18/18: one experience waits; two people's tasks become a world method keeping only `summary` and `w`; world belief 0.71 after two successes, each person's own 0.61; nothing counted twice; a counted failure moves it down, an infrastructure failure does not; a person's own file keeps the method hers; a name only two people supplied keeps it from being learned |
+| SELF-PARTITION-01 | 23/23 |
+| LEARNED-WORK-01 | 2/2 |
+| CANARY-01 | 35/49, identical (every check, every verdict) to the snapshot from before these changes (`c311e98c`). Every leak check passes; the 14 failures are language understanding in an emptied sandbox ("I don't know 'Is', 'a' … yet") and the pool experiences that depend on it |
+| SEPARATION-01 | 29/33. Failing before this work: `unified.outbox` is not classified in `postgres_config.STORE_TABLES` (3), and the experiment's list of tools that reach the substrate's databases still names `mysql_query`, rebuilt on 09-30 to refuse them (1) |
+| `test_experience_pool` | 8/9; the look-up hand-over test fails the same way on the snapshot: it stubs `SentenceReader.read_all`, and research now reads through the meaning-based reader |
+| `test_domain_expansion_chain` | passed with content in the sandbox; after CANARY-01 emptied it, 2 fail, the same on the snapshot code against the same empty sandbox |

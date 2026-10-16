@@ -1,5 +1,13 @@
 # SELF-PARTITION-01 — one shared mind, separate context per user
 
+> **SUPERSEDED 2026-10-07; the script is deleted.** The rule it tested is gone. What a person tells is no
+> longer kept out of the world because a person said it, nor put in when a second person agrees: memory
+> splits it by what it is about, a person's own things held in their context and a claim about the world
+> judged at the one door by whether it is true (`UnifiedLearningSystem.consider`;
+> docs/research/SEPARATION_MAP.md §11). Promotion by a second holder (`independent_holders`,
+> `mark_promoted`) was removed with it. That one person's context is unseen by another is checked by
+> SPLIT-01. The record below is kept as it was.
+
 **What it tests.** The router that decides where learning goes.
 - The substrate's own learning goes into the shared concept graph and the universal beliefs, and
   writes nothing scoped.

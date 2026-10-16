@@ -826,7 +826,8 @@ def trace(y: np.ndarray, levels: np.ndarray, spans: Sequence[Tuple[int, int]],
 
 def trace_bytes(t: Dict[str, Any], example: Optional[np.ndarray] = None,
                 landmarks: Optional[np.ndarray] = None,
-                tune: Optional[np.ndarray] = None, tune_from_mix: bool = False) -> bytes:
+                tune: Optional[np.ndarray] = None, tune_from_mix: bool = False,
+                example_phones: Optional[Sequence[str]] = None) -> bytes:
     """A trace as bytes, for keeping in a memory. A hearing that was a LESSON
     -- an example of a word, a voice or a song -- keeps what was measured of it
     for matching (`example`, see `core.perception.speech`) in the same archive,
@@ -839,10 +840,17 @@ def trace_bytes(t: Dict[str, Any], example: Optional[np.ndarray] = None,
 
     A SINGLE LINE KEEPS ITS TUNE (`tune`, `music.tune_line`): how its melody
     goes, which a song is known by when someone else hums or sings it. A song
-    taught from a mix keeps the tune of the mix's melody (`tune_from_mix`)."""
+    taught from a mix keeps the tune of the mix's melody (`tune_from_mix`).
+
+    A LESSON OF SOUNDS keeps the frames of each phone said in it and which phone each is (`example_phones`,
+    `speech.phones_example`), at half precision: a frame is compared by its nearest taught frames, which so small a
+    rounding does not move, and there are many."""
     import io
     arrays: Dict[str, np.ndarray] = {"samples": np.array([t["samples"]], np.int64)}
-    if example is not None:
+    if example is not None and example_phones is not None:
+        arrays["example"] = np.asarray(example, np.float16)
+        arrays["example_phones"] = np.array(list(example_phones), dtype="U4")
+    elif example is not None:
         arrays["example"] = np.asarray(example, np.float32)
     if landmarks is not None and len(landmarks):
         arrays["landmarks"] = np.asarray(landmarks, np.int32)

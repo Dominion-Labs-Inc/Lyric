@@ -189,7 +189,10 @@ class ActiveDiscovery:
                 logger.debug("Fingerprint failed for port %s (%s: %s) — marked "
                              "OBSERVED_UNIDENTIFIED", port, type(e).__name__, e)
 
-        if failed_ports:
+        # SAID WHEN IT CHANGES: the same ports unidentified on every sweep is one
+        # standing fact, not a new warning each time.
+        if failed_ports and sorted(failed_ports) != getattr(self, "_failed_said", None):
+            self._failed_said = sorted(failed_ports)
             logger.warning(
                 "Active discovery: %d/%d port(s) could not be fingerprinted: %s. "
                 "They are OPEN but unidentified — absence from the service "

@@ -16,7 +16,7 @@ import os
 from typing import Any, Dict
 
 from .tool_registry import Tool, ToolParameter, ToolResult, ToolCategory, ToolSafety
-from .capabilities import Capability, ToolCapabilityProfile, CapabilityMetadata
+from .tool_registry import Primitive, PrimitiveProfile, PrimitiveUse
 
 
 logger = logging.getLogger(__name__)
@@ -62,12 +62,12 @@ class SendSlackMessageTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="send_slack_message",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.SEND_MESSAGE,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.SEND_MESSAGE,
                     description="SendSlackMessage capability"
                 )
             ]
@@ -141,12 +141,12 @@ class PostToWebhookTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="post_to_webhook",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.SEND_MESSAGE,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.SEND_MESSAGE,
                     description="PostToWebhook capability"
                 )
             ]

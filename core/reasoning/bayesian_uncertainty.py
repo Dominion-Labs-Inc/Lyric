@@ -11,14 +11,13 @@ Extends the Singleton's confidence scoring with proper epistemic humility:
 Integrates with existing reasoning and learning systems.
 """
 
-import asyncio
 import logging
-import json
 import math
+import time
 import uuid
 from typing import Dict, Any, List, Optional, Tuple, Set
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime
 from enum import Enum
 from collections import defaultdict
 from core.database import LyricUnifiedDatabase
@@ -35,26 +34,37 @@ logger = logging.getLogger(__name__)
 # (`core.learning.scoped_context_store`). There must be exactly one place
 # the odds-based Bayesian update lives, or the two partitions would drift.
 _LR_STRENGTH = 3.0       # likelihood-ratio strength at quality=1.0 (exp(±3) ≈ 20x / 0.05x)
-_POSTERIOR_FLOOR = 1e-6  # clamp so entropy never collapses to an irrefutable 0/1
+
+# A BELIEF IS HELD IN LOG-ODDS, AND EVIDENCE ADDS WITH NO CAP. Each observation moves it by ±_LR_STRENGTH x quality
+# (a likelihood ratio of e^(±3q)), and the posterior is read from the log-odds. It used to be the posterior itself,
+# clamped just short of certainty after every step: past five or six agreeing sources every belief sat at the same
+# value, so a claim six hundred sources hold was as easy to overturn as one six hold, and a few contrary words
+# brought either to even (2026-10-07, TRUTH-01). In log-odds a claim many sources hold is held more firmly than one a
+# few hold, and it takes as much contrary evidence to overturn. Nothing becomes irrefutable: however far the
+# log-odds go, evidence the other way moves them back by the same steps.
 
 
-def posterior_from_evidence(prior: float, quality: float,
-                            supports: bool) -> Tuple[float, float]:
-    """Odds-based Bayesian update: P(H|E)/P(¬H|E) = [P(H)/P(¬H)] * LR, with
-    LR = exp(±_LR_STRENGTH * quality). Symmetric, bounded, no zero-probability
-    singularities. Returns (posterior, likelihood_ratio), UNCLAMPED — the caller
-    clamps when it stores (see `clamp_posterior`), so reversal/Δ detection can see
-    the raw move first, exactly as the belief graph has always done."""
-    lr = math.exp((_LR_STRENGTH if supports else -_LR_STRENGTH) * quality)
-    prior_odds = prior / max(1e-9, 1.0 - prior)
-    new_odds = prior_odds * lr
-    return new_odds / (1.0 + new_odds), lr
+def log_odds_of(probability: float) -> float:
+    """A probability as log-odds, the form a belief is held in. Exactly 0 or 1 is certainty no evidence could move,
+    and neither a prior nor a posterior is that: refused."""
+    p = float(probability)
+    if not 0.0 < p < 1.0:
+        raise ValueError(f"a belief's probability lies strictly between 0 and 1, not {p}")
+    return math.log(p / (1.0 - p))
 
 
-def clamp_posterior(posterior: float) -> float:
-    """Clamp a posterior to the open interval so a belief can never become
-    permanently irrefutable/irrecoverable (entropy collapsing to zero)."""
-    return max(_POSTERIOR_FLOOR, min(1.0 - _POSTERIOR_FLOOR, posterior))
+def probability_of(log_odds: float) -> float:
+    """The probability a belief held at `log_odds` stands at. Read from the log-odds, never kept instead of them:
+    past about 37 the probability is 1.0 in floating point while the log-odds go on counting the evidence."""
+    if log_odds >= 0:
+        return 1.0 / (1.0 + math.exp(-log_odds))
+    e = math.exp(log_odds)
+    return e / (1.0 + e)
+
+
+def evidence_step(quality: float, supports: bool) -> float:
+    """How far one observation moves a belief, in log-odds: ±_LR_STRENGTH x quality. quality 0 moves nothing."""
+    return (_LR_STRENGTH if supports else -_LR_STRENGTH) * float(quality)
 
 
 def belief_entropy(probability: float) -> float:
@@ -153,6 +163,10 @@ class BayesianBelief:
     likelihood: float  # P(E|H) - probability of evidence given hypothesis
     posterior_probability: float  # P(H|E) - belief after evidence
 
+    #: HOW STRONGLY IT IS HELD, in log-odds: the belief itself. Evidence adds to it with no cap, and
+    #: `posterior_probability` is read from it (`hold`). None at construction means "from the posterior given".
+    log_odds: Optional[float] = None
+
     #: The memory this belief is about. Without it there is nothing to believe —
     #: see `_persist`, which refuses to store a belief that names no memory.
     #: Defaulted (and so declared after the required fields) so that every
@@ -188,7 +202,124 @@ class BayesianBelief:
     #: Evidence applied here since the last successful write, as
     #: (evidence, supports, effective weight) -- re-applied on top of the stored
     #: belief when another instance got there first, so neither update is lost.
+    #: It is also exactly what the next write adds to the stored evidence.
     unsaved_evidence: List[Any] = field(default_factory=list, repr=False, compare=False)
+    #: What reading the evidence whole works out, kept as it arrives (`_EvidenceIndex`).
+    evidence_index: Any = field(default=None, repr=False, compare=False)
+
+    def __post_init__(self):
+        if self.log_odds is None:
+            self.log_odds = log_odds_of(self.posterior_probability)
+        else:
+            self.posterior_probability = probability_of(self.log_odds)
+
+    def hold(self, log_odds: float) -> None:
+        """Hold the belief at `log_odds`; the posterior and its entropy follow."""
+        self.log_odds = float(log_odds)
+        self.posterior_probability = probability_of(self.log_odds)
+        self.entropy = belief_entropy(self.posterior_probability)
+
+
+class _EvidenceIndex:
+    """What reading a belief's evidence whole worked out, kept as entries arrive: each witness's latest word (`word`,
+    by its observation; `latest`, by its observation or else its source), how many witnesses' latest word stands each
+    way (`standing`), and how many uses the supporting observations witnessed (`uses`).
+
+    KEPT, NOT RECOUNTED. Each was worked out by reading every entry, on every observation: a frame taught by 16,000
+    sentences read 16,000 entries for the next one, so teaching slowed with everything it had taught. Entries are
+    only ever added, so the index reads each once. It is made again from the lists whenever they are not the ones it
+    was made for, or are shorter than what it has read (a merge or a load puts new lists in)."""
+
+    __slots__ = ("lists", "seen", "word", "latest", "standing", "uses", "unsaid", "counted")
+
+    def __init__(self, evidence_for: List[Any], evidence_against: List[Any]):
+        self.lists = (evidence_for, evidence_against)
+        self.seen = [0, 0]
+        self.word: Dict[str, Tuple[float, bool, float]] = {}
+        self.latest: Dict[str, Tuple[float, bool, float]] = {}
+        self.standing = {True: 0, False: 0}
+        self.uses = 0
+        #: When each witness withdrew its word outright (`withdraw_observation`): anything it said before then is not
+        #: its word, whichever side it was read from.
+        self.unsaid: Dict[str, float] = {}
+        #: The uses each witness's supporting words counted, with when each was said, so a withdrawn word counts none.
+        self.counted: Dict[str, List[Tuple[float, int]]] = {}
+
+    def made_for(self, belief: "BayesianBelief") -> bool:
+        return (self.lists[0] is belief.evidence_for and self.lists[1] is belief.evidence_against
+                and self.seen[0] <= len(belief.evidence_for) and self.seen[1] <= len(belief.evidence_against))
+
+    def catch_up(self) -> None:
+        """Read the entries added since last asked: those for the claim, then those against, as reading them whole
+        went."""
+        for side, supports in ((0, True), (1, False)):
+            entries = self.lists[side]
+            for entry in entries[self.seen[side]:]:
+                self._read(entry, supports)
+            self.seen[side] = len(entries)
+
+    def _read(self, entry: Any, supports: bool) -> None:
+        if not isinstance(entry, dict):
+            self.uses += 1 if supports else 0
+            return
+        at = float(entry.get("at") or 0.0)
+        observation = str(entry.get("observation") or "")
+        if entry.get("unsaid"):
+            self._unsay(observation, at)
+            return
+        if observation and at <= self.unsaid.get(observation, float("-inf")):
+            return                       # said before its witness withdrew it
+        if supports:
+            uses = int(entry.get("uses", 1))
+            self.uses += uses
+            if observation and not entry.get("withdraws"):
+                self.counted.setdefault(observation, []).append((at, uses))
+        if entry.get("withdraws"):
+            return
+        said = (at, supports, float(entry.get("quality") or 0.0))
+        # A witness's word is its latest; the first of any recorded at the same moment, as `max` chose.
+        if observation and (observation not in self.word or at > self.word[observation][0]):
+            self.word[observation] = said
+        # By observation or source, the last of any recorded at the same moment, as reading them in order kept.
+        who = observation or f"source:{entry.get('source')}"
+        was = self.latest.get(who)
+        if was is None or at >= was[0]:
+            if was is not None:
+                self.standing[was[1]] -= 1
+            self.latest[who] = said
+            self.standing[supports] += 1
+
+    def _unsay(self, observation: str, at: float) -> None:
+        """A witness that withdrew its word outright (`withdraw_observation`) has no word, and stands on neither side
+        -- unless it spoke again since. Entries are read for the claim, then against it, so a later word may already
+        have been read: what was said after the withdrawal stands."""
+        if not observation:
+            return
+        self.unsaid[observation] = max(at, self.unsaid.get(observation, float("-inf")))
+        said = self.word.get(observation)
+        if said is not None and at >= said[0]:
+            del self.word[observation]
+        was = self.latest.get(observation)
+        if was is not None and at >= was[0]:
+            del self.latest[observation]
+            self.standing[was[1]] -= 1
+        kept = []
+        for when, uses in self.counted.pop(observation, []):
+            if when <= at:
+                self.uses -= uses
+            else:
+                kept.append((when, uses))
+        if kept:
+            self.counted[observation] = kept
+
+
+def _indexed(belief: "BayesianBelief") -> _EvidenceIndex:
+    """The belief's evidence index, caught up with its evidence."""
+    index = belief.evidence_index
+    if index is None or not index.made_for(belief):
+        index = belief.evidence_index = _EvidenceIndex(belief.evidence_for, belief.evidence_against)
+    index.catch_up()
+    return index
 
 
 @dataclass
@@ -453,6 +584,18 @@ class BayesianUncertaintySystem:
         ids.append(belief.belief_id)
         self._domain_ids.setdefault(self._domain_key(belief.domain), set()).add(belief.belief_id)
 
+    def rename_claim(self, belief_id: str, claim: str) -> bool:
+        """Say what a belief is about in new words, keeping the belief whole: its id, posterior, evidence and memory
+        stay, only the claim it is held under changes. For wording corrected, never for a different claim. The
+        store takes the new wording at the belief's next flush (`hold_belief` writes the claim it is given)."""
+        belief = self.beliefs.get(belief_id)
+        if belief is None:
+            return False
+        self._unregister_belief(belief_id)
+        belief.claim = claim
+        self._register_belief(belief)
+        return True
+
     def _unregister_belief(self, belief_id: str) -> None:
         belief = self.beliefs.pop(belief_id)
         key = self._claim_key(belief.claim)
@@ -470,6 +613,39 @@ class BayesianUncertaintySystem:
         ids = self._claim_ids.get(self._claim_key(claim))
         return ids[-1] if ids else None
 
+    @staticmethod
+    def _witness_word(belief: "BayesianBelief", observation: str) -> Optional[Tuple[bool, float]]:
+        """What one witness last said of a belief's claim: `(supports, quality)` of its latest observation that is
+        not a withdrawal, or None where it has said nothing. Later is by when it was recorded; what was recorded
+        before times were kept is earlier than anything recorded since."""
+        said = _indexed(belief).word.get(observation)
+        return None if said is None else (said[1], said[2])
+
+    @staticmethod
+    def _latest_words(belief: "BayesianBelief") -> Dict[str, Tuple[float, bool, float]]:
+        """Each witness of a belief's claim, by its latest word that is not a withdrawal: `{witness: (at, supports,
+        quality)}`. A witness is its observation key; an observation recorded with none is its source's."""
+        return dict(_indexed(belief).latest)
+
+    @classmethod
+    def witnesses(cls, belief: "BayesianBelief", *, supports: bool) -> int:
+        """How many independent witnesses' latest word on the claim is `supports` -- each counted once, however
+        often it said so."""
+        return _indexed(belief).standing[bool(supports)]
+
+    @staticmethod
+    def uses_for(belief: "BayesianBelief") -> int:
+        """How many uses the observations supporting the claim witnessed: one each, or as many as a source counted
+        (`uses`)."""
+        return _indexed(belief).uses
+
+    @classmethod
+    def witness_weight(cls, belief: "BayesianBelief", *, supports: bool) -> float:
+        """The combined weight of the independent witnesses whose latest word is `supports`: each witness's quality,
+        counted once. Unlike the log-odds, which decay and propagation also move, it counts only what independent
+        sources last said, so it says how much it takes to overturn what many sources hold."""
+        return sum(quality for _, said, quality in _indexed(belief).latest.values() if said == supports)
+
     def observe_claim(self, claim: str, domain: str = "language", *,
                       supports: bool = True, quality: float = 0.9,
                       source: str = "taught",
@@ -481,8 +657,8 @@ class BayesianUncertaintySystem:
         `update_belief` needs an existing belief and `create_belief` mints a new
         id every call, so neither answers "record that I was TOLD this"
         idempotently. This is that entry — the one door a learning method uses to
-        move a belief: the first telling creates the belief (its prior reflects
-        the telling), each later telling reinforces or contradicts the SAME
+        move a belief: the first telling creates the belief at 0.5 and moves it
+        once, each later telling reinforces or contradicts the SAME
         belief, so a taught fact moves a posterior instead of spawning parallel
         beliefs about the same claim.
 
@@ -505,7 +681,7 @@ class BayesianUncertaintySystem:
         evidence again fabricates a second witness.
 
         The identity already existed and was dropped at the seam:
-        `submit_tool_capability` stamps `evidence_id=_stable_id("toolcap", name)`
+        `submit_tool_declaration` stamps `evidence_id=_stable_id("toolcap", name)`
         — identical on every boot — and the comment beside it says "the envelope
         id already collapses them in the store". It does, for the concept layer;
         it never reached this one.
@@ -515,12 +691,20 @@ class BayesianUncertaintySystem:
         `update_count`. Without it the old behaviour stands — a caller that
         cannot identify its observation may genuinely be reporting a new event,
         and inventing an identity for it would be the opposite error.
+
+        A WITNESS THAT CHANGES ITS WORD is not a new witness, and not nothing:
+        a person who told it and now says it is not so, a page that changed. Its
+        word is its latest observation; one the other way is a revision. Its
+        earlier word is withdrawn -- what it still counts for (`_share_at`),
+        recorded as withdrawn, as `withdraw_observation` takes a word back -- and
+        the new word counts once. Evidence is only ever added, so a revision is
+        in the record as what it was.
         """
         key = self._claim_key(claim)
         existing_id = self._claim_belief_id(key)
         if existing_id is not None and existing_id not in self.beliefs:
             existing_id = None  # stale index entry -> treat as new
-        evidence = {"quality": quality, "source": source}
+        evidence = {"quality": quality, "source": source, "at": time.time()}
         if observation:
             evidence["observation"] = str(observation)
         # ONE WITNESS, MANY USES. A tagged corpus that met a word naming a thing 6,833 times is one source saying
@@ -540,26 +724,42 @@ class BayesianUncertaintySystem:
         if memory_id:
             evidence["memory_id"] = str(memory_id)
 
+        revised_from = None
         if existing_id is not None and observation:
             held = self.beliefs[existing_id]
-            already = any(
-                str(entry.get("observation") or "") == str(observation)
-                for entry in (*held.evidence_for, *held.evidence_against)
-                if isinstance(entry, dict))
-            if already:
-                logger.debug(
-                    "observation %r already recorded for %r; belief left at "
-                    "%.6f (re-presenting a witness is not new evidence)",
-                    observation, claim, held.posterior_probability)
-                return held
+            word = self._witness_word(held, str(observation))
+            if word is not None:
+                said, given = word
+                if said == bool(supports):
+                    logger.debug(
+                        "observation %r already recorded for %r; belief left at "
+                        "%.6f (re-presenting a witness is not new evidence)",
+                        observation, claim, held.posterior_probability)
+                    return held
+                logger.info("%r revises its word on %r: %s", observation, claim,
+                            "it holds" if supports else "it does not hold")
+                # Its earlier word taken back first (`update_belief` measures what it still counts for), then
+                # the word it says now, judged against what the belief held before: a witness turning around is a
+                # change of mind, though its two halves each start or end at even.
+                revised_from = held.log_odds
+                self.update_belief(existing_id, {**evidence, "withdraws": True, "given": given},
+                                   evidence_supports=bool(supports))
 
         if existing_id is None:
-            prior = quality if supports else (1.0 - quality)
-            belief = self.create_belief(claim=claim, domain=domain, prior=prior,
-                                        evidence=evidence)
+            # A NEW CLAIM STARTS EVEN, AND ITS FIRST OBSERVATION COUNTS ONCE.
+            # The prior used to be set FROM the observation (its quality) and
+            # the same observation was then applied again by create_belief, so
+            # one telling read as two: one success made a belief ~99%, and after
+            # a few a failure no longer moved it. create_belief also applies its
+            # evidence as SUPPORTING, so a claim first observed to be false began
+            # at 1 - quality and was then pushed up. Created at 0.5 with no
+            # evidence, then updated once, in the direction it actually points.
+            created = self.create_belief(claim=claim, domain=domain, prior=0.5)
+            belief = self.update_belief(created.belief_id, evidence,
+                                        evidence_supports=supports)
         else:
             belief = self.update_belief(existing_id, evidence,
-                                        evidence_supports=supports)
+                                        evidence_supports=supports, revised_from=revised_from)
         # The most recent memory to vouch for it is mirrored onto the belief so
         # a reader can find one without walking the evidence list. It is a
         # POINTER, not the subject: the evidence list above is the real record,
@@ -568,11 +768,73 @@ class BayesianUncertaintySystem:
             belief.memory_id = str(memory_id)
         return belief
 
+    def withdraw_observation(self, claim: str, observation: str, *, source: str = "taught") -> Optional[BayesianBelief]:
+        """A WITNESS WITHDRAWS ITS WORD OUTRIGHT, with nothing said in its place: a teacher no longer teaches the pair
+        it was, a page no longer says it. What its word still counts for is taken back (`_share_at`), recorded
+        as a withdrawal, and the witness then stands on neither side (`unsaid`), so it neither settles the claim nor
+        counts its uses. Evidence is only ever added, so the record keeps what it said and that it took it back.
+        None where the witness has no word on the claim to withdraw.
+
+        NOT THE STEP IT WAS GIVEN AT. The log-odds fade toward even at every update, so a word given days ago counts
+        for less now; taking back its whole step left a claim other witnesses still hold below even ("blue" names
+        blue, 0.808 to 0.195, three of its words taken back)."""
+        belief_id = self._claim_belief_id(self._claim_key(claim))
+        if belief_id is None or belief_id not in self.beliefs:
+            return None
+        belief = self.beliefs[belief_id]
+        word = self._witness_word(belief, str(observation))
+        if word is None:
+            return None
+        said, given = word
+        # What it still counts for is measured by the update that takes it back (`update_belief`, `_share_at`).
+        return self.update_belief(belief_id, {"source": source, "at": time.time(), "observation": str(observation),
+                                              "withdraws": True, "unsaid": True, "given": given},
+                                  evidence_supports=not said)
+
+    def _share_at(self, belief: BayesianBelief, observation: str, held: float, now: float) -> float:
+        """What one witness's word still counts for in a belief's log-odds `held`, as faded to `now`: its step, faded
+        by the time since it was given at the domain's rate, with every standing word's faded step scaled by one factor
+        so together they are the log-odds held. Words given together fade together, so between them the split is
+        exact; how the rate moved since is not kept, and the one factor carries it. Where the faded steps do not lean
+        the way the log-odds do (nothing left standing, or revisions that leaned them), no factor relates the two, and
+        the word's faded step is its share. The only word standing is all the belief holds.
+
+        Measured by the update that takes the word back, against the log-odds it holds at that moment
+        (`update_belief`). Measured a moment before it, taking back a belief's only word left it a hair past even: a
+        sign changed, and each read as the belief reversing (2026-10-12)."""
+        index = _indexed(belief)
+        mine = index.word.get(observation)
+        if mine is None:
+            return 0.0
+        if len(index.latest) == 1 and observation in index.latest:
+            return held
+        rate = self.domain_volatility.get(belief.domain, 0.01)
+
+        def faded(said: Tuple[float, bool, float]) -> float:
+            at, supports, quality = said
+            return evidence_step(quality, supports) * math.exp(-rate * max(0.0, now - at) / 3600.0)
+        total = sum(faded(said) for said in index.latest.values())
+        if total == 0.0 or (total > 0) != (held > 0):
+            return faded(mine)
+        return faded(mine) * held / total
+
+    async def let_go(self, belief_id: str) -> bool:
+        """Let a belief go: out of what is held, and out of the store, so a reload cannot bring it back. A write of it
+        still waiting is dropped first, or it would put the row back after it was deleted. False where it is not
+        held."""
+        if belief_id not in self.beliefs:
+            return False
+        self._unregister_belief(belief_id)
+        self._pending_writes.pop(belief_id, None)
+        return await self._delete_belief_row(belief_id)
+
     def update_belief(
         self,
         belief_id: str,
         evidence: Dict[str, Any],
-        evidence_supports: bool = True
+        evidence_supports: bool = True,
+        *,
+        revised_from: Optional[float] = None,
     ) -> BayesianBelief:
         """
         Update belief using Bayesian inference with temporal decay: P(H|E) ∝ P(E|H) * P(H)
@@ -587,6 +849,8 @@ class BayesianUncertaintySystem:
             belief_id: Belief to update
             evidence: Evidence data
             evidence_supports: Whether evidence supports the claim
+            revised_from: the log-odds held before the witness giving this word took back its earlier one
+                (`observe_claim`): the change is judged from them
         """
         if belief_id not in self.beliefs:
             raise ValueError(f"Belief not found: {belief_id}")
@@ -596,9 +860,26 @@ class BayesianUncertaintySystem:
 
         # STEP 1: Apply temporal decay BEFORE new evidence
         # This prevents early conclusions from becoming gravity wells
-        original_prior = belief.posterior_probability
-        decayed_prior = self._apply_temporal_decay(belief)
-        belief.posterior_probability = decayed_prior  # Use decayed value as prior
+        original_odds = belief.log_odds if revised_from is None else float(revised_from)
+        original_prior = probability_of(original_odds)
+        belief.hold(self._apply_temporal_decay(belief))   # the decayed belief is the prior
+        decayed_prior = belief.posterior_probability
+
+        # A WITNESS TAKING BACK ITS WORD (`withdraw_observation`; the first half of a revision, `observe_claim`) tells
+        # nothing new of the claim: what the word still counts for is taken back, measured against the log-odds held
+        # now (`_share_at`). It is no reversal and no change in the domain. Counted as both, a teacher withdrawing 249
+        # facts it no longer taught was 249 regime shifts, and each raised how fast every belief in the domain fades
+        # (`_update_domain_volatility`, 2026-10-12). The word said in its place, where there is one, is evidence.
+        taken_back = bool(evidence.get("withdraws"))
+        if taken_back and evidence.get("observation"):
+            share = self._share_at(belief, str(evidence["observation"]), belief.log_odds, time.time())
+            evidence = {**evidence, "quality": abs(share) / _LR_STRENGTH}
+            evidence_supports = share < 0
+
+        # A BELIEF'S FIRST EVIDENCE is learning it, not the domain changing: from even to where one word puts it.
+        # Counted as a change, every fact a pass taught moved its domain by 0.44, and a domain taught once faded five
+        # times as fast as one never taught (`tools`, `vision`: 0.054 against 0.010, 2026-10-12).
+        first = not (belief.evidence_for or belief.evidence_against)
 
         # Track evidence
         if evidence_supports:
@@ -614,21 +895,18 @@ class BayesianUncertaintySystem:
             belief, evidence, evidence_weight
         )
 
-        # STEP 2: Bayesian update with decayed prior
-        prior = decayed_prior
-
-        # Odds-based Bayesian update via the shared kernel (the ONE place this
-        # math lives; see `posterior_from_evidence` at module scope). quality=0
-        # → no move; quality=1 → ≈20x/0.05x; symmetric, bounded, no singularities.
-        posterior, likelihood = posterior_from_evidence(
-            prior, evidence_weight, evidence_supports)
+        # STEP 2: Bayesian update, in log-odds (the ONE kernel, `evidence_step`): quality 0 moves nothing, quality 1
+        # a likelihood ratio of about 20x; added with no cap.
+        step = evidence_step(evidence_weight, evidence_supports)
         belief.unsaved_evidence.append((evidence, bool(evidence_supports),
                                         float(evidence_weight)))
+        belief.hold(belief.log_odds + step)
+        posterior = belief.posterior_probability
 
-        # STEP 3: Detect regime shift (belief reversal across 0.5 threshold)
-        is_reversal = False
-        if (original_prior > 0.5 and posterior < 0.5) or (original_prior < 0.5 and posterior > 0.5):
-            is_reversal = True
+        # STEP 3: Detect regime shift (belief reversal: evidence moves the log-odds across even). A word taken back is
+        # none: what is left is what the other witnesses had already said.
+        is_reversal = not taken_back and ((original_odds > 0 > belief.log_odds) or (original_odds < 0 < belief.log_odds))
+        if is_reversal:
             logger.warning(
                 f"Belief reversal detected: '{belief.claim[:40]}' "
                 f"crossed 0.5 threshold ({original_prior:.3f} → {posterior:.3f})"
@@ -637,14 +915,12 @@ class BayesianUncertaintySystem:
         # Calculate belief change magnitude
         belief_change = abs(posterior - original_prior)
 
-        # STEP 4: Update domain volatility (adaptive decay rate)
-        self._update_domain_volatility(belief.domain, belief_change, is_reversal)
+        # STEP 4: Update domain volatility (adaptive decay rate): a change of mind about what was held. A word taken
+        # back, and a belief's first word, are none.
+        if not taken_back and not first:
+            self._update_domain_volatility(belief.domain, belief_change, is_reversal)
 
-        # Update belief state. Clamp (shared helper) to the open interval so
-        # entropy never collapses to an irrefutable/irrecoverable 0 or 1.
-        belief.posterior_probability = clamp_posterior(posterior)
-        belief.likelihood = likelihood
-        belief.entropy = self._calculate_entropy(belief.posterior_probability)
+        belief.likelihood = math.exp(step)
         belief.last_updated = datetime.now()
         belief.last_evidence_time = datetime.now()  # Reset evidence timer
         belief.time_since_reinforcement = 0.0  # Just got evidence
@@ -673,7 +949,7 @@ class BayesianUncertaintySystem:
         logger.debug(
             f"Updated belief '{belief.claim[:50]}': "
             f"{original_prior:.3f} → {decayed_prior:.3f} (decay) → {posterior:.3f} (evidence) "
-            f"(entropy={belief.entropy:.3f}, λ={belief.decay_rate:.4f})"
+            f"(log-odds {belief.log_odds:.2f}, entropy={belief.entropy:.3f}, λ={belief.decay_rate:.4f})"
         )
 
         return belief
@@ -685,12 +961,12 @@ class BayesianUncertaintySystem:
 
     def _apply_temporal_decay(self, belief: BayesianBelief) -> float:
         """
-        Apply exponential decay to belief probability toward uncertainty.
+        The belief's log-odds after decay toward uncertainty, without applying it.
         Prevents epistemic ossification by requiring continuous evidence reinforcement.
 
-        Formula: P(H)_t+1 = P(H)_t + (0.5 - P(H)_t) * (1 - exp(-λΔt))
-
-        This drifts beliefs toward maximum uncertainty (0.5) in absence of reinforcing evidence.
+        Formula: L_t+1 = L_t * exp(-λΔt) -- the log-odds shrink toward 0 (even odds) in
+        the absence of reinforcing evidence, in proportion: a belief many sources hold
+        keeps proportionally as much as one a few hold.
         """
         now = datetime.now()
         time_delta = (now - belief.last_evidence_time).total_seconds() / 3600.0  # Hours
@@ -701,22 +977,21 @@ class BayesianUncertaintySystem:
         # Calculate decay factor
         decay_factor = 1 - math.exp(-lambda_decay * time_delta)
 
-        # Drift toward 0.5 (maximum uncertainty)
-        current_prob = belief.posterior_probability
-        decayed_prob = current_prob + (0.5 - current_prob) * decay_factor
+        # Drift toward even odds (maximum uncertainty)
+        decayed = belief.log_odds * (1.0 - decay_factor)
 
         # Update time tracking
         belief.time_since_reinforcement = time_delta
 
-        if abs(decayed_prob - current_prob) > 0.01:
+        if abs(probability_of(decayed) - belief.posterior_probability) > 0.01:
             self.stats['temporal_decays_applied'] += 1
             logger.debug(
                 f"Temporal decay applied to '{belief.claim[:40]}': "
-                f"{current_prob:.3f} → {decayed_prob:.3f} "
+                f"{belief.posterior_probability:.3f} → {probability_of(decayed):.3f} "
                 f"(Δt={time_delta:.1f}h, λ={lambda_decay:.4f})"
             )
 
-        return decayed_prob
+        return decayed
 
     def _update_domain_volatility(self, domain: str, belief_change: float, is_reversal: bool = False):
         """
@@ -881,12 +1156,13 @@ class BayesianUncertaintySystem:
                 continue
 
             # Apply effect to target belief
+            # The effect is a change of probability stated at even odds; added in log-odds (dp = dL/4 there), so it
+            # moves a belief however firmly it is held, and no arithmetic pins it at 0 or 1.
             old_prob = target_belief.posterior_probability
-            new_prob = max(0.0, min(1.0, old_prob + effect))  # Clamp [0, 1]
+            new_prob = probability_of(target_belief.log_odds + 4.0 * effect)
 
             if abs(new_prob - old_prob) > 0.01:
-                target_belief.posterior_probability = new_prob
-                target_belief.entropy = self._calculate_entropy(new_prob)
+                target_belief.hold(target_belief.log_odds + 4.0 * effect)
                 target_belief.last_updated = datetime.now()
 
                 self.stats['constraint_propagations'] += 1
@@ -1039,6 +1315,11 @@ class BayesianUncertaintySystem:
         whether a learned claim is actually held in the store now."""
         belief_id = self._claim_belief_id(claim)
         return self.beliefs.get(belief_id) if belief_id else None
+
+    def held_in_domain(self, domain: str) -> List[BayesianBelief]:
+        """Every belief held in a domain, through the domain index, in no particular order."""
+        return [self.beliefs[bid] for bid in list(self._domain_ids.get(self._domain_key(domain), ()))
+                if bid in self.beliefs]
 
     def beliefs_for_domain(self, domain: str, limit: int = 8) -> List[Dict[str, Any]]:
         """The SPECIFIC beliefs held in a domain — claim + posterior, most-recently
@@ -1261,7 +1542,7 @@ class BayesianUncertaintySystem:
             await memory_agent().add_unknown_attempts(unknown_id=unknown_id, n=n)
             return True
         except Exception as error:
-            from core.capability import raise_if_structural
+            from core.structural_defects import raise_if_structural
             raise_if_structural(error, "bayesian_uncertainty._write_unknown_attempts")
             self._pending_unknown_attempts[unknown_id] = (
                 self._pending_unknown_attempts.get(unknown_id, 0) + n)
@@ -1442,7 +1723,7 @@ class BayesianUncertaintySystem:
         critical_domains = ['safety', 'security', 'self_improvement']
         if domain in critical_domains and (entropy > 0.5 or calibrated_conf < 0.7):
             defer = True
-            reasons.append(f"Critical domain with insufficient certainty")
+            reasons.append("Critical domain with insufficient certainty")
         
         # Known unknowns in this domain
         relevant_unknowns = [
@@ -1479,26 +1760,24 @@ class BayesianUncertaintySystem:
         Take the STORED belief and re-apply this instance's own new evidence on
         top of it, with the kernel `update_belief` uses. Returns whether there is
         anything of this instance's to write (False: adopt the stored belief)."""
-        import json as _json
+        from core.agents.memory_agent import memory_agent
+        await self._ensure_beliefs_schema()
         row = await self.unified_db.execute_query(
-            "SELECT posterior_probability, update_count, evidence_for, evidence_against, "
+            "SELECT posterior_probability, log_odds, update_count, "
             "last_updated FROM unified.beliefs WHERE belief_id = $1",
             (belief.belief_id,), fetch_one=True)
         if row is None:
             belief.stored_count = None     # gone from the store: write it anew
             return True
 
-        def _list(value):
-            return _json.loads(value) if isinstance(value, str) else list(value or [])
-
-        posterior = float(row["posterior_probability"])
-        evidence_for = _list(row["evidence_for"])
-        evidence_against = _list(row["evidence_against"])
+        held = (float(row["log_odds"]) if row["log_odds"] is not None
+                else log_odds_of(float(row["posterior_probability"])))
+        # The stored evidence, and on top of it this instance's own, which its next write adds.
+        evidence_for, evidence_against = await memory_agent().belief_evidence(belief.belief_id)
         for evidence, supports, weight in belief.unsaved_evidence:
-            posterior, _ = posterior_from_evidence(posterior, weight, supports)
+            held += evidence_step(weight, supports)
             (evidence_for if supports else evidence_against).append(evidence)
-        belief.posterior_probability = clamp_posterior(posterior)
-        belief.entropy = self._calculate_entropy(belief.posterior_probability)
+        belief.hold(held)
         belief.evidence_for, belief.evidence_against = evidence_for, evidence_against
         belief.stored_count = int(row["update_count"])
         belief.update_count = belief.stored_count + len(belief.unsaved_evidence)
@@ -1563,16 +1842,20 @@ class BayesianUncertaintySystem:
             # instance's own new evidence is re-applied on top of the stored
             # belief with the same kernel, and that is written instead.
             from core.agents.memory_agent import memory_agent
+            await self._ensure_beliefs_schema()
             for _ in range(5):
                 row = await memory_agent().hold_belief(
                     belief_id=belief.belief_id, memory_id=belief.memory_id,
                     claim=belief.claim, domain=belief.domain,
                     prior_probability=belief.prior_probability,
                     posterior_probability=belief.posterior_probability,
+                    log_odds=belief.log_odds,
                     uncertainty_type=belief.uncertainty_type.value,
                     entropy=belief.entropy,
-                    evidence_for=_json.dumps(belief.evidence_for),
-                    evidence_against=_json.dumps(belief.evidence_against),
+                    # ONLY WHAT IS NEW: the observations made here since the belief was last stored. The stored
+                    # evidence is never written again.
+                    new_evidence=_json.dumps([{"supports": bool(supports), "entry": evidence}
+                                              for evidence, supports, _ in belief.unsaved_evidence]),
                     update_count=belief.update_count, last_updated=belief.last_updated,
                     expected_update_count=(-1 if belief.stored_count is None
                                            else belief.stored_count))
@@ -1762,11 +2045,9 @@ class BayesianUncertaintySystem:
             return belief
         lambda_decay = self.domain_volatility.get(belief.domain, belief.decay_rate)
         factor = 1 - math.exp(-lambda_decay * dt_hours)
-        current = belief.posterior_probability
-        decayed = current + (0.5 - current) * factor
-        if abs(decayed - current) > 1e-9:
-            belief.posterior_probability = decayed
-            belief.entropy = self._calculate_entropy(decayed)
+        decayed = belief.log_odds * (1.0 - factor)     # toward even odds, in log-odds
+        if abs(decayed - belief.log_odds) > 1e-9:
+            belief.hold(decayed)
             belief.last_updated = now
             belief.time_since_reinforcement = (
                 now - belief.last_evidence_time).total_seconds() / 3600.0
@@ -1811,6 +2092,35 @@ class BayesianUncertaintySystem:
     #: model is a frozen release); a person's goes to their context.
     KNOWN_UNKNOWNS_STORE = "model"
 
+    #: HOW STRONGLY A BELIEF IS HELD, in log-odds (`BayesianBelief.log_odds`). The posterior column is read from it;
+    #: a row stored before it carries none, and its log-odds are its clamped posterior's.
+    _BELIEFS_DDL = (
+        "ALTER TABLE unified.beliefs ADD COLUMN IF NOT EXISTS log_odds DOUBLE PRECISION",
+        # Each observation a belief rests on, one row each in the order made (`MemoryAgent.hold_belief`).
+        # Its rows go with the belief: deleting a belief, by any statement, deletes its evidence.
+        "CREATE TABLE IF NOT EXISTS unified.belief_evidence (seq BIGSERIAL PRIMARY KEY, "
+        "belief_id VARCHAR(64) NOT NULL REFERENCES unified.beliefs(belief_id) ON DELETE CASCADE, "
+        "supports BOOLEAN NOT NULL, entry JSONB NOT NULL)",
+        "CREATE INDEX IF NOT EXISTS idx_belief_evidence_belief ON unified.belief_evidence(belief_id, seq)",
+    )
+    _beliefs_schema_ready = False
+
+    async def _ensure_beliefs_schema(self) -> None:
+        if self._beliefs_schema_ready:
+            return
+        from core.agents.memory_agent import memory_agent
+        for store in self.unified_db.schema_stores():
+            for statement in self._BELIEFS_DDL:
+                await self.unified_db.execute_query(statement, commit=True, store=store)
+            # Evidence still held as lists on the beliefs' rows (stored before the rows of their own) moves to its
+            # rows before anything reads it. Not in a frozen release, which changes no row.
+            if not self.unified_db.is_frozen_store(store):
+                moved = await memory_agent().settle_belief_evidence(store)
+                if moved["entries"]:
+                    logger.info("belief evidence: %d observation(s) of %d belief(s) moved from the beliefs' "
+                                "lists to rows of their own", moved["entries"], moved["beliefs"])
+        self._beliefs_schema_ready = True
+
     async def _ensure_known_unknowns_schema(self) -> None:
         if self._known_unknowns_schema_ready:
             return
@@ -1846,7 +2156,7 @@ class BayesianUncertaintySystem:
                 target=_json.dumps(dict(unknown.target or {})), owner=unknown.owner)
             return True
         except Exception as error:
-            from core.capability import raise_if_structural
+            from core.structural_defects import raise_if_structural
             raise_if_structural(error, "bayesian_uncertainty._write_known_unknown")
             logger.warning("known unknown %s not persisted (kept for replay): %s",
                            unknown.unknown_id, error)
@@ -1963,28 +2273,37 @@ class BayesianUncertaintySystem:
         Call once after unified_db is initialized, before the agent loop starts.
         Restores the belief graph so epistemic state survives process restarts.
         """
-        import json as _json
+        from core.agents.memory_agent import memory_agent
         try:
+            await self._ensure_beliefs_schema()
             rows = await self.unified_db.execute_query(
-                "SELECT belief_id, claim, domain, prior_probability, posterior_probability, "
-                "uncertainty_type, entropy, evidence_for, evidence_against, update_count, last_updated "
+                "SELECT belief_id, memory_id, claim, domain, prior_probability, posterior_probability, log_odds, "
+                "uncertainty_type, entropy, update_count, last_updated "
                 "FROM unified.beliefs",
                 fetch_all=True,
             ) or []
+            # Each belief's evidence, from its own rows (`MemoryAgent.hold_belief`).
+            evidence = await memory_agent().every_belief_evidence()
             loaded = 0
             for row in rows:
                 try:
+                    evidence_for, evidence_against = evidence.get(row["belief_id"], ([], []))
                     b = BayesianBelief(
                         belief_id=row["belief_id"],
                         claim=row["claim"],
                         domain=row["domain"] or "general",
+                        # THE MEMORY IT IS A STANCE ON, kept across a restart. Not read back, every belief woke
+                        # naming none: a review of what was learned found nothing held as learned, and the next
+                        # update of a belief wrote its memory as none over the stored one.
+                        memory_id=row["memory_id"],
                         prior_probability=float(row["prior_probability"]),
                         likelihood=0.5,
                         posterior_probability=float(row["posterior_probability"]),
+                        log_odds=(float(row["log_odds"]) if row["log_odds"] is not None else None),
                         uncertainty_type=UncertaintyType(row["uncertainty_type"] or "epistemic"),
                         entropy=float(row["entropy"]),
-                        evidence_for=_json.loads(row["evidence_for"]) if row["evidence_for"] else [],
-                        evidence_against=_json.loads(row["evidence_against"]) if row["evidence_against"] else [],
+                        evidence_for=evidence_for,
+                        evidence_against=evidence_against,
                         update_count=int(row["update_count"] or 0),
                         last_updated=row["last_updated"] if row["last_updated"] else datetime.now(),
                     )
@@ -1993,7 +2312,9 @@ class BayesianUncertaintySystem:
                     self.stats["beliefs_tracked"] += 1
                     loaded += 1
                 except Exception as row_err:
-                    logger.debug(f"load_from_db: skipping malformed row: {row_err}")
+                    # A ROW THAT WILL NOT LOAD IS A BELIEF LOST AT EVERY RESTART. Skipped quietly, it was: the
+                    # substrate woke without it and nothing said so.
+                    raise RuntimeError(f"belief {row['belief_id']} could not be loaded: {row_err}") from row_err
             logger.info(f"Bayesian uncertainty: loaded {loaded} belief(s) from PostgreSQL")
             # What it knows it does not know survives a restart too. Nothing read
             # this table before: every restart began with no known unknowns, and
@@ -2007,7 +2328,9 @@ class BayesianUncertaintySystem:
             # ready, so no early belief update is lost.
             await self.flush_pending_writes()
         except Exception as e:
-            logger.warning(f"load_from_db failed (non-fatal, starting with empty beliefs): {e}")
+            # NOT "non-fatal, starting with empty beliefs". A substrate that starts with none of what it believes
+            # reads every construction at its first score and answers from nothing, and said only a warning.
+            raise RuntimeError(f"the beliefs could not be loaded from PostgreSQL: {e}") from e
     
     def get_statistics(self) -> Dict[str, Any]:
         """Get system statistics"""
@@ -2044,14 +2367,14 @@ class BayesianUncertaintySystem:
 
                 if time_delta > 1.0:  # Apply decay after 1 hour
                     # Apply temporal decay
-                    decayed_prob = self._apply_temporal_decay(belief)
+                    decayed = self._apply_temporal_decay(belief)
 
                     # Track decay amount
-                    decay_amount = abs(belief.posterior_probability - decayed_prob)
+                    decay_amount = abs(belief.posterior_probability - probability_of(decayed))
                     total_decay += decay_amount
 
                     # Update belief
-                    belief.posterior_probability = decayed_prob
+                    belief.hold(decayed)
                     belief.time_since_reinforcement = time_delta
 
                     beliefs_decayed += 1
@@ -2063,12 +2386,11 @@ class BayesianUncertaintySystem:
                     # whole decay loop and returning zeroed stats (a silent negative:
                     # "0 decayed" actually meant "the method crashed").
                     _evidence_count = len(belief.evidence_for) + len(belief.evidence_against)
-                    if 0.45 <= decayed_prob <= 0.55 and _evidence_count < 3:
-                        self._unregister_belief(belief_id)
+                    if 0.45 <= belief.posterior_probability <= 0.55 and _evidence_count < 3:
+                        # DURABLE: dropped from what is held and from its row, so
+                        # load_from_db cannot resurrect it (`let_go`).
+                        await self.let_go(belief_id)
                         beliefs_removed += 1
-                        # DURABLE: the belief was dropped from memory, so drop its
-                        # row too — otherwise load_from_db resurrects it.
-                        await self._delete_belief_row(belief_id)
                     else:
                         # DURABLE: persist the decayed posterior so the decay
                         # survives a restart (was in-memory only).
@@ -2093,7 +2415,7 @@ class BayesianUncertaintySystem:
             # neutral-band AttributeError above aborted the loop invisibly. Genuine
             # runtime errors carry an explicit `error` marker so a caller can tell
             # failure from an empty result.
-            from core.capability import raise_if_structural
+            from core.structural_defects import raise_if_structural
             raise_if_structural(e, "bayesian_uncertainty.apply_temporal_decay_to_all_beliefs")
             logger.error(f"Failed to apply belief decay: {e}")
             return {
@@ -2142,12 +2464,10 @@ class BayesianUncertaintySystem:
                         )
 
                         # Reduce confidence in the weaker belief (fewer evidence items)
-                        if evidence_a < evidence_b:
-                            belief_a.posterior_probability *= 0.9
-                            await self._write_belief_row(belief_a, commit=True)
-                        else:
-                            belief_b.posterior_probability *= 0.9
-                            await self._write_belief_row(belief_b, commit=True)
+                        # A tenth less likely, as odds: the same shift in log-odds however firmly it was held.
+                        weaker = belief_a if evidence_a < evidence_b else belief_b
+                        weaker.hold(weaker.log_odds + math.log(0.9))
+                        await self._write_belief_row(weaker, commit=True)
 
                         constraints_propagated += 1
 
@@ -2157,7 +2477,8 @@ class BayesianUncertaintySystem:
                     if belief_a.posterior_probability > 0.7 and belief_b.posterior_probability < 0.3:
                         # Propagate implication
                         boost = (belief_a.posterior_probability - 0.5) * relationship.strength * 0.3
-                        belief_b.posterior_probability = min(1.0, belief_b.posterior_probability + boost)
+                        # A change of probability stated at even odds, added in log-odds (dp = dL/4 there).
+                        belief_b.hold(belief_b.log_odds + 4.0 * boost)
                         # DURABLE: the propagated constraint must persist too.
                         await self._write_belief_row(belief_b, commit=True)
                         constraints_propagated += 1
@@ -2177,7 +2498,7 @@ class BayesianUncertaintySystem:
             # Re-raise a wiring bug rather than report "0 violations" (which is what
             # the wrong-attribute-name crashes did — a repair pass inert exactly when
             # it had work). Runtime errors carry an explicit `error` marker.
-            from core.capability import raise_if_structural
+            from core.structural_defects import raise_if_structural
             raise_if_structural(e, "bayesian_uncertainty.check_belief_consistency")
             logger.error(f"Failed to check belief consistency: {e}")
             return {
@@ -2229,7 +2550,7 @@ class BayesianUncertaintySystem:
             # Re-raise wiring bugs. On a genuine runtime error report avg_volatility
             # as None (UNKNOWN) — the old 0.01 default read as a real, healthy "low
             # volatility" value, a fabricated-on-failure metric that hid the crash.
-            from core.capability import raise_if_structural
+            from core.structural_defects import raise_if_structural
             raise_if_structural(e, "bayesian_uncertainty.update_domain_volatility_metrics")
             logger.error(f"Failed to update domain volatility: {e}")
             return {

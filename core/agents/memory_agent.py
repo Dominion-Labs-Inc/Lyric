@@ -30,10 +30,11 @@ import json
 import logging
 import os
 import re
+import time
 
-from core.capability import raise_if_structural
+from core.structural_defects import raise_if_structural
 import uuid
-from typing import Dict, Any, List, Optional, Sequence, Set, Tuple, Union
+from typing import Callable, Dict, Any, FrozenSet, List, Optional, Sequence, Set, Tuple, Union
 from datetime import datetime, timedelta
 
 # Memory storage implementations
@@ -57,6 +58,11 @@ from core.learning.performance_profiler import profile_performance
 from core.learning.learning_interfaces import IMemoryConsolidation
 
 logger = logging.getLogger(__name__)
+
+
+def _json_value(value: Any) -> Any:
+    """A JSONB value as Python: the driver hands it back as its text."""
+    return json.loads(value) if isinstance(value, str) else value
 
 
 class _KeylessWrites:
@@ -103,6 +109,12 @@ class MemoryAgent(IMemoryConsolidation):
 
         Sets up storage backends but does not connect (call initialize())
         """
+        # WORKING MEMORY: what a conversation held not to remember was told, for as long as the process holds it,
+        # each person's apart (`not_remembered`). The links, the beliefs and what they said of themselves, as the
+        # store would hold them, read with what the store holds wherever their context is read.
+        self._working_relations: Dict[str, Dict[Tuple[str, str, str], Dict[str, Any]]] = {}
+        self._working_beliefs: Dict[str, Dict[str, Dict[str, Any]]] = {}
+        self._working_speaker: Dict[str, Dict[Tuple[str, str], Dict[str, Any]]] = {}
         # PostgreSQL storage (handles both hot and cold tiers)
         self.postgres_storage: Optional[PostgresStorage] = None  # Hot+Cold tier (PostgreSQL both)
 
@@ -141,9 +153,25 @@ class MemoryAgent(IMemoryConsolidation):
         #: pattern is taught (`note_pattern`). None until the first warm or
         #: note; `pattern_inventory()` answers an empty view until then.
         self._pattern_inventory = None
+        #: What each word is said of (`remember_said`), the same kind of view: `(relation, word, side) ->` the
+        #: memory holding it, the words and the things it is said of with how often, and the observations counted.
+        #: Rebuilt at every warm; the kinds each relation's words are said of (`_said_spread`) are worked out from it
+        #: when first asked and kept until the view changes.
+        self._said_view: Dict[Tuple[str, str, str], Dict[str, Any]] = {}
+        self._said_spread: Dict[Tuple[str, str], Dict[str, float]] = {}
+        #: How many things memory holds connected to each thing a listener has asked about (`_fans`), with how many
+        #: things memory holds at all when they were counted: what each thing's associative strength is measured
+        #: against (`listening_evidence`). Counted when first asked, and again after every warm.
+        self._fan_view: Dict[str, int] = {}
+        self._things_held: Optional[int] = None
+        #: The memory holding the words heard after each word (`remember_heard`), by the word. What was heard is the
+        #: language view's (`PatternInventory.hear`); rebuilt into it at every warm.
+        self._heard_memory: Dict[str, str] = {}
         #: The single in-flight warm, so concurrent callers JOIN it instead of
         #: each re-reading the whole store. None when none is running.
         self._word_class_warm_task = None
+        #: Set when the loops are being stopped, so a warm cancelled by that stop is not reported as a failed one.
+        self._stopping_loops = False
 
         # Agent state
         self.initialized: bool = False
@@ -490,14 +518,16 @@ class MemoryAgent(IMemoryConsolidation):
     @staticmethod
     def _owner_from(origin: Any) -> Optional[str]:
         """Whose memory a hand-off is, decided from where it came from: a
-        person's gift or request is that person's; the substrate's own work is
-        its own (None). A hand-off that does not say where it came from is
-        refused rather than filed as the substrate's own."""
+        person's gift or request is that person's; their work for an
+        organization is that organization's (its Work Context, with every memory
+        that comes with it); the substrate's own work is its own (None). A
+        hand-off that does not say where it came from is refused rather than
+        filed as the substrate's own."""
         from core.memory.utils.interfaces import Origin
         if not isinstance(origin, Origin):
             raise TypeError("a hand-off to the memory agent must say where it came "
                             f"from (an Origin), not {type(origin).__name__}")
-        return origin.person
+        return origin.owner
 
     async def store_memory(
         self,
@@ -1019,7 +1049,14 @@ class MemoryAgent(IMemoryConsolidation):
         # substrate was taught to read, and what the sentence means is carried in
         # the pattern itself; reading it here would file the sentence's words as
         # a second, written-reader meaning beside the taught one.
-        if (source_context or {}).get("pattern_key"):
+        #
+        # NOR IS A RECORD OF HOW ENGLISH IS USED: what was heard after a word,
+        # what a word is said of. Its content is the substrate's own note
+        # ("Heard after bug: is"); read as a sentence it took a quarter of a
+        # second each and stated nothing (0 claims in 30,505 of them), so
+        # WordNet's tens of thousands were hours of a teaching pass (2026-10-09).
+        if ((source_context or {}).get("pattern_key")
+                or {self.HEARD_TAG, self.SAID_OF_TAG, self.LISTENING_TAG} & set(tags or ())):
             _claim, _claim_shape, _claim_facts = None, None, ()
         else:
             _claim, _claim_shape, _claim_facts = await self._readable_claim(content, source_context)
@@ -1105,16 +1142,13 @@ class MemoryAgent(IMemoryConsolidation):
                     self.note_episodic_stored()
                 return True, memory_id
             else:
-                logger.error(f"Failed to store memory {memory_id}")
-                logger.error(f"[MEMORY_AGENT.STORE_MEMORY] ✗ FAILED - PostgreSQL returned success=False")
-                return False, None
+                # A WRITE THAT FAILED IS AN ERROR, not a memory declined. Returned as "not stored", it read like the
+                # filter's decision, and a construction taught while the store timed out was lost with a log line.
+                raise RuntimeError(f"memory {memory_id} was not stored: PostgreSQL returned success=False")
 
         except Exception as e:
-            logger.error(f"Memory storage error: {e}")
-            logger.error(f"[MEMORY_AGENT.STORE_MEMORY] ✗ EXCEPTION: {e}")
-            import traceback
-            traceback.print_exc()
-            return False, None
+            logger.error(f"[MEMORY_AGENT.STORE_MEMORY] ✗ {type(e).__name__}: {e}")
+            raise
 
     #: How long before a memory formed a perception counts as contemporaneous with it.
     PERCEPTUAL_WINDOW_SECONDS = 120.0
@@ -1127,7 +1161,9 @@ class MemoryAgent(IMemoryConsolidation):
         ONLY THE MEMORY'S OWN OWNER'S. A person's image is theirs: stamped on
         every memory that forms near it, it would go into the substrate's own
         memories and other people's. The substrate's own seeing (its environment)
-        does not belong in a person's memory either."""
+        does not belong in a person's memory either.
+
+        WHAT A MEMORY OF PERCEIVING HOLDS IS POINTED TO, NEVER COPIED (`_perceived`)."""
         from core.memory.utils.interfaces import Origin
         from core.perception.perception_faculty import get_perception_faculty
         try:
@@ -1142,12 +1178,29 @@ class MemoryAgent(IMemoryConsolidation):
         if not fresh:
             return None
         return {"captured_at": datetime.now().isoformat(),
-                "perceptions": [
-                    {"source": p.source, "data_type": p.data_type, "content": p.content,
-                     "confidence": None if p.confidence is None else round(float(p.confidence), 4),
-                     "age_s": round(now - float(p.timestamp), 2),
-                     "owner": self._owner_from(p.origin)}
-                    for p in fresh]}
+                "perceptions": [self._perceived(p, now) for p in fresh]}
+
+    def _perceived(self, percept: Any, now: float) -> Dict[str, Any]:
+        """One perception as a memory forming near it records it.
+
+        A PERCEPTION IS KEPT ONCE. What the senses take in is remembered when it is met (`remember_met`): the memory
+        of perceiving holds what was sensed, and the digest identifies the very bytes. A memory forming near it
+        names that memory and the digest. It held a copy of the whole content instead, so every memory formed within
+        the window carried each document read in it again: 928 MB of copied text in the sandbox and 122 MB in main
+        (2026-10-08), 73 KB a memory where one without is under 8 KB. A perception no memory holds (a recognition, an
+        input told) is kept whole here, where it is held."""
+        entry = {"source": percept.source, "data_type": percept.data_type,
+                 "confidence": None if percept.confidence is None else round(float(percept.confidence), 4),
+                 "age_s": round(now - float(percept.timestamp), 2),
+                 "owner": self._owner_from(percept.origin)}
+        metadata = getattr(percept, "metadata", None) or {}
+        if metadata.get("memory_id"):
+            entry["memory_id"] = str(metadata["memory_id"])
+            if metadata.get("digest"):
+                entry["digest"] = str(metadata["digest"])
+        else:
+            entry["content"] = percept.content
+        return entry
 
     @staticmethod
     def _media_parts(media: Any, media_meta: Optional[Dict[str, Any]]) -> List[Tuple[bytes, Dict[str, Any]]]:
@@ -1248,8 +1301,12 @@ class MemoryAgent(IMemoryConsolidation):
         for run in (result.get("tools_run") or []):
             if not isinstance(run, dict):
                 continue
-            parts.append(Part("tool_run", {k: run.get(k) for k in ("tool", "args", "success")
-                                           if k in run}, "substrate"))
+            done = {k: run.get(k) for k in ("tool", "args", "success") if k in run}
+            # How long the run took, as the registry timed it. A run that never
+            # reached the tool (refused, or raised before it) has no time.
+            if run.get("seconds") is not None:
+                done["seconds"] = run["seconds"]
+            parts.append(Part("tool_run", done, "substrate"))
             if "output" in run or "error" in run:
                 parts.append(Part("tool_output", {"tool": run.get("tool"),
                                                   "output": run.get("output"),
@@ -1264,11 +1321,15 @@ class MemoryAgent(IMemoryConsolidation):
         if delivered:
             parts.append(Part("result", delivered, origin.theirs))
 
+        from core.learning.unified_learning_system import work_category
         evidence = {"outcome": "success" if success else "failure",
                     "confidence": float(confidence),
                     "checks": len(meta.get("completion_evidence") or []),
                     "verification_state": result.get("verification_state"),
-                    "task_type": getattr(getattr(task, "type", None), "value", None)}
+                    "task_type": getattr(getattr(task, "type", None), "value", None),
+                    # Which kind of work it was -- a task asked for on its own, a project's, a workflow's run -- for
+                    # its owner's shared learning switch of that kind.
+                    "category": work_category(meta)}
         # WHAT THE OUTCOME SAYS ABOUT HOW IT WAS DONE, where the task loop has
         # judged it (`_operating_verdict`): whether it counts, and what it was
         # read from. Without it a failure in memory cannot say what caused it.
@@ -1936,7 +1997,7 @@ class MemoryAgent(IMemoryConsolidation):
             if count < hearing.KNOWN_MIN_AGREE or share < music.SONG_MIN_SHARE:
                 continue
             item = await self.postgres_storage.get_memory(media["memory_id"])
-            if item is None or not visible_to(item.user_id or None, actor):
+            if item is None or not visible_to(item.user_id or None, await self.shared_world_context(actor)):
                 continue
             item.similarity_score = round(float(share), 4)
             item.heard_match = {"agreeing": int(count), "share": round(float(share), 4),
@@ -1983,7 +2044,7 @@ class MemoryAgent(IMemoryConsolidation):
             if not same_picture and got["agreeing"] < self.SIGHT_MIN_AGREE:
                 continue
             item = await self.postgres_storage.get_memory(media["memory_id"])
-            if item is None or not visible_to(item.user_id or None, actor):
+            if item is None or not visible_to(item.user_id or None, await self.shared_world_context(actor)):
                 continue
             resolution = 1.0 if same_picture else min(
                 1.0, got["agreeing"] / self.SIGHT_MIN_AGREE - 1.0)
@@ -2019,7 +2080,7 @@ class MemoryAgent(IMemoryConsolidation):
             if shared < reading.READ_MIN_SHARED or share < reading.READ_MIN_SHARE:
                 continue
             item = await self.postgres_storage.get_memory(media["memory_id"])
-            if item is None or not visible_to(item.user_id or None, actor):
+            if item is None or not visible_to(item.user_id or None, await self.shared_world_context(actor)):
                 continue
             item.similarity_score = round(float(share), 4)
             item.read_match = {"shared": int(shared), "share": round(float(share), 4),
@@ -2182,12 +2243,17 @@ class MemoryAgent(IMemoryConsolidation):
             *(runners[n]() for n in names), return_exceptions=True
         )
 
+        # A STRATEGY THAT FAILED IS NOT ONE THAT FOUND NOTHING. Logged and passed over, a recall whose every way
+        # failed came back empty and was taken for "nothing remembered": a word-class warm read so under load held
+        # no words, and the reader went on as though it had never met one (2026-10-08).
+        failed = [(name, outcome) for name, outcome in zip(names, outcomes) if isinstance(outcome, BaseException)]
+        if failed:
+            name, outcome = failed[0]
+            raise RuntimeError(f"recall by {', '.join(n for n, _ in failed)} failed: "
+                               f"{type(outcome).__name__}: {outcome}") from outcome
         merged: Dict[str, MemoryItem] = {}
         found_by: Dict[str, Set[str]] = {}
         for name, outcome in zip(names, outcomes):
-            if isinstance(outcome, Exception):
-                logger.warning("retrieval strategy %s failed: %s", name, outcome)
-                continue
             for item in outcome or []:
                 merged.setdefault(item.memory_id, item)
                 found_by.setdefault(item.memory_id, set()).add(name)
@@ -2364,18 +2430,6 @@ class MemoryAgent(IMemoryConsolidation):
     #: evidence against a word class there is.
     UNREAD_TELLING_TAG = "told_but_unread"
 
-    #: How many observations `warm_word_classes` will read. Named, because a
-    #: silent cap here reads as "the substrate does not know that word".
-    #:
-    #: RAISED FROM 20,000, WHICH WAS SIZED FOR A STORE THAT HELD 199 WORDS.
-    #: Word classes are taught into memory now -- WordNet alone states 75,834 --
-    #: so the old cap did exactly what its own comment warns about: it cut the
-    #: vocabulary off mid-alphabet and every word past the cut read as unknown.
-    #: It also made teaching non-idempotent, because a pass asking what it had
-    #: already said got a truncated answer and taught the remainder again:
-    #: measured at 44,323 rows carrying 23,555 distinct (word, class) pairs.
-    WORD_CLASS_WARM_LIMIT = 400000
-
     def word_class(self, word: str) -> Optional[str]:
         """The class this word has been OBSERVED to have, or None. Synchronous.
 
@@ -2461,16 +2515,26 @@ class MemoryAgent(IMemoryConsolidation):
             moved += 1
         return moved
 
+    async def stated_pronunciations(self):
+        """Every `(word, phones, how often real text uses it)` taught, read exactly from the metadata of the
+        memories that hold them, as `stated_word_classes` reads classes."""
+        rows = await self._rows_tagged(self.PRONUNCIATION_TAG)
+        out = []
+        for item in rows:
+            meta = item.metadata or {}
+            word = str(meta.get("word") or "").strip().lower()
+            phones = " ".join(str(meta.get("said_as") or "").split())
+            if word and phones:
+                out.append((word, phones, int(meta.get("used") or 0)))
+        return out
+
     async def stated_word_classes(self):
         """Every `(word, CLASS)` pair already TOLD to the substrate.
 
         Read exactly, from the metadata that identifies these memories, so a
         teaching pass can tell what it has already said without asking a vector
         index whether two sentences about grammar resemble each other."""
-        rows = await self.search_memories(
-            tags={self.WORD_CLASS_TAG},
-            limit=self.WORD_CLASS_WARM_LIMIT,
-        ) or []
+        rows = await self._rows_tagged(self.WORD_CLASS_TAG)
         out = []
         for item in rows:
             meta = item.metadata or {}
@@ -2516,17 +2580,12 @@ class MemoryAgent(IMemoryConsolidation):
         can never disagree about what was taught. A memory whose key does not
         match what it holds was not written by the learner (or by an older
         definition of a construction); it is counted and left out, not trusted."""
-        from core.semantics.derived_reader import PATTERN_TAG, item_from
-        rows = await self.search_memories(
-            tags={PATTERN_TAG}, limit=self.WORD_CLASS_WARM_LIMIT) or []
-        if len(rows) >= self.WORD_CLASS_WARM_LIMIT:
-            logger.warning(
-                "the read hit its %d-memory limit on construction memories; what was "
-                "taught may be incomplete and taught sentences will not read",
-                self.WORD_CLASS_WARM_LIMIT)
+        from core.semantics.derived_reader import item_from
+        from core.utils.give_way import GiveWay
+        give_way = GiveWay()
         items, unreadable = [], 0
-        for row in rows:
-            meta = row.metadata or {}
+        for _, meta in await self._construction_rows():
+            await give_way()
             kind = str(meta.get("construction") or "holophrase")
             data = meta.get(kind if kind in ("lexical", "link", "phrase") else "pattern") or {}
             try:
@@ -2549,15 +2608,42 @@ class MemoryAgent(IMemoryConsolidation):
         Read exactly from the metadata that identifies these memories, so a
         teaching pass knows what it has already said without asking a vector
         index whether two sentences resemble each other."""
-        from core.semantics.derived_reader import PATTERN_TAG
-        rows = await self.search_memories(
-            tags={PATTERN_TAG}, limit=self.WORD_CLASS_WARM_LIMIT) or []
         held: Dict[str, str] = {}
-        for item in rows:
-            key = str((item.metadata or {}).get("pattern_key") or "")
+        for memory_id, meta in await self._construction_rows():
+            key = str(meta.get("pattern_key") or "")
             if key:
-                held.setdefault(key, item.memory_id)
+                held.setdefault(key, memory_id)
         return held
+
+    _construction_index_ready = False
+
+    async def _construction_rows(self) -> List[Tuple[str, Dict[str, Any]]]:
+        """Every construction and link memory holds -- Lyric's own, taught -- as (memory id, what it holds), read
+        whole by its tag from both tiers of every store memory keeps.
+
+        Read directly, not through retrieval: retrieval ranks all of memory to find what fits a query, and asked for
+        a set whole it ran 62 s under teaching, timed out, and came back empty -- so the view warmed from it would
+        have held no English at all. Read so, it is one indexed query."""
+        from core.database.releases import SUBSTRATE_OWNERS
+        from core.semantics.derived_reader import PATTERN_TAG
+        from core.utils.give_way import GiveWay
+        give_way = GiveWay()
+        db = self._memory_db()
+        await self._tags_index()
+        rows_out: List[Tuple[str, Dict[str, Any]]] = []
+        for store in db.maintained_stores():
+            for table in ("memory_hot.memory_hot", "memory_cold.memory_cold"):
+                rows = await db.execute_query(
+                    f"SELECT memory_id, metadata FROM {table}"
+                    " WHERE tags @> $1::jsonb AND COALESCE(user_id, '') = ANY($2::text[])"
+                    " ORDER BY created_at",
+                    (json.dumps([PATTERN_TAG]), list(SUBSTRATE_OWNERS)), fetch_all=True, store=store) or []
+                for row in rows:
+                    await give_way()
+                    meta = row["metadata"]
+                    meta = json.loads(meta) if isinstance(meta, str) else dict(meta or {})
+                    rows_out.append((row["memory_id"], meta))
+        return rows_out
 
     def begin_word_class_warm(self):
         """Start rebuilding the word-class view in the background; return its task.
@@ -2580,6 +2666,9 @@ class MemoryAgent(IMemoryConsolidation):
             self._rebuild_word_class_view(), name="memory:warm_word_classes")
 
         def _report(finished) -> None:
+            if finished.cancelled() and self._stopping_loops:
+                logger.info("the word-class warm stopped with the memory agent")
+                return
             if finished.cancelled():
                 logger.error(
                     "the word-class warm was CANCELLED; the reader will treat "
@@ -2637,6 +2726,11 @@ class MemoryAgent(IMemoryConsolidation):
                     "classes as though it had")
 
         from core.semantics.genericity import classes_implied_by
+        from core.utils.give_way import GiveWay
+        # Every set read here is tens of thousands of memories, worked through in one pass. Unbroken, the pass held
+        # the loop 22 s past a 30 s boot timer while the substrate was starting, and it runs again when each
+        # teaching pass ends with everything live (2026-10-09).
+        give_way = GiveWay()
 
         # TWO QUERIES, BECAUSE THEY ARE TWO KINDS OF EVIDENCE.
         #
@@ -2645,29 +2739,13 @@ class MemoryAgent(IMemoryConsolidation):
         # which there are none, since a sentence is either read or not. The
         # sentences that read supply evidence FOR a class; the ones that
         # refused because of a class supply evidence AGAINST it.
-        taught = await self.search_memories(
-            tags={self.TAUGHT_PROPOSITION_TAG},
-            limit=self.WORD_CLASS_WARM_LIMIT,
-        ) or []
-        unread = await self.search_memories(
-            tags={self.UNREAD_TELLING_TAG},
-            limit=self.WORD_CLASS_WARM_LIMIT,
-        ) or []
+        taught = await self._rows_tagged(self.TAUGHT_PROPOSITION_TAG)
+        unread = await self._rows_tagged(self.UNREAD_TELLING_TAG)
         # THE THIRD KIND OF EVIDENCE: a class the substrate was TOLD, rather
         # than one implied by a sentence it read. This is where every closed
         # class and every adverb comes from -- words that never stand in a
         # subject, relation or object slot and so can be implied by nothing.
-        stated = await self.search_memories(
-            tags={self.WORD_CLASS_TAG},
-            limit=self.WORD_CLASS_WARM_LIMIT,
-        ) or []
-        for name, rows in (("taught", taught), ("unread", unread),
-                           ("stated", stated)):
-            if len(rows) >= self.WORD_CLASS_WARM_LIMIT:
-                logger.warning(
-                    "word-class warm hit its %d-memory limit on %s memories; "
-                    "the view may be incomplete and words will read as "
-                    "unobserved", self.WORD_CLASS_WARM_LIMIT, name)
+        stated = await self._rows_tagged(self.WORD_CLASS_TAG)
 
         index: Dict[str, Dict[str, int]] = {}
         unparsed = 0
@@ -2675,6 +2753,7 @@ class MemoryAgent(IMemoryConsolidation):
         told = 0
         derived = 0
         for item in stated:
+            await give_way()
             meta = item.metadata or {}
             word = str(meta.get("word") or "").strip().lower()
             cls = str(meta.get("word_class") or "").strip().upper()
@@ -2684,6 +2763,7 @@ class MemoryAgent(IMemoryConsolidation):
             bucket[cls] = bucket.get(cls, 0) + 1
             told += 1
         for item in (*taught, *unread):
+            await give_way()
             meta = item.metadata or {}
 
             # EVIDENCE AGAINST, from the sentences a class actually cost.
@@ -2754,11 +2834,31 @@ class MemoryAgent(IMemoryConsolidation):
         # events, so there is one warm and one view -- not a second one that can
         # disagree with the first about what the substrate was taught.
         from core.semantics.derived_reader import PatternInventory
-        inventory = PatternInventory(await self.taught_patterns())
+        # Added one at a time, as the constructor adds them, so the loop is given its turn between them.
+        inventory = PatternInventory()
+        for item in await self.taught_patterns():
+            inventory.add(item)
+            await give_way()
+        # WHAT WORDS ARE SAID OF, in the same pass: how English uses a word, read from memory at the same events.
+        said = await self._said_memories()
+        # AND WHAT WAS HEARD AFTER WHAT, into the same view.
+        heard, self._heard_memory = await self._heard_memories()
+        for word, (after, two) in heard.items():
+            await give_way()
+            for other in after:
+                inventory.hear((word, other))
+            for earlier, others in two.items():
+                for other in others:
+                    inventory.hear((earlier, word, other))
 
         self._word_class_index = index
         self._word_classes_warm = True
+        # The reader stands a word where its class's part stands (`PatternInventory.of_its_class`): the same index,
+        # kept current as each proposition is taught (`note_taught_proposition`).
+        inventory.word_classes = index
         self._pattern_inventory = inventory
+        self._said_view, self._said_spread = said, {}
+        self._fan_view, self._things_held = {}, None
         logger.info(
             "word-class view warmed: %d word(s) from %d taught memory(ies) "
             "(%d remembered but never read, %d refusal(s) counted against a "
@@ -3300,7 +3400,13 @@ class MemoryAgent(IMemoryConsolidation):
                             target_concept_id: Optional[str], target_surface: str,
                             evidence_id: str, extractor: str, polarity: str) -> None:
         """A link from one concept to another, or to a surface not yet learned
-        (`target_concept_id` None until `attach_waiting_links` finds it)."""
+        (`target_concept_id` None until `attach_waiting_links` finds it).
+
+        ONE SPELLING OF A RELATION: written as the ingress writes it, with spaces
+        ("has property"), whichever producer named it ("has_property"), so the
+        same relation is never two rows apart by how it was spelled. Readers take
+        either (`concept_graph_reasoning._typed_edge`)."""
+        relation = " ".join(str(relation).replace("_", " ").split())
         await self._memory_db().execute_query(
             """INSERT INTO unified.concept_relations
                    (source_concept_id, relation, target_concept_id,
@@ -3329,6 +3435,74 @@ class MemoryAgent(IMemoryConsolidation):
                VALUES ($1,$2,$3) ON CONFLICT (alias) DO NOTHING""",
             (alias, concept_id, alias_kind), commit=True,
         )
+
+    # ---- what identity resolution put on the wrong concept -------------------
+
+    async def release_evidence(self, *, concept_id: str, evidence_ids: List[str],
+                               entries: List[List[str]]) -> Dict[str, int]:
+        """Take off a concept what these observations wrote on it, where identity resolution put them on the wrong
+        one: their links from it, their evidence and domain records, and `entries`, the relationships they merged
+        into its own row ([relation, target, polarity], as `hold_concept` merges them), unless what remains still
+        holds one. Its root evidence is counted again from what remains. Returns what was taken off."""
+        db = self._memory_db()
+        links = await db.execute_query(
+            "DELETE FROM unified.concept_relations WHERE source_concept_id = $1 AND evidence_id = ANY($2::text[]) "
+            "RETURNING relation, target_surface, polarity", (concept_id, list(evidence_ids)),
+            fetch_all=True, commit=True) or []
+        evidence = await db.execute_query(
+            "DELETE FROM unified.concept_evidence WHERE concept_id = $1 AND evidence_id = ANY($2::text[]) "
+            "RETURNING 1", (concept_id, list(evidence_ids)), fetch_all=True, commit=True) or []
+        domains = await db.execute_query(
+            "DELETE FROM unified.concept_domains WHERE concept_id = $1 AND evidence_id = ANY($2::text[]) "
+            "RETURNING 1", (concept_id, list(evidence_ids)), fetch_all=True, commit=True) or []
+        kept = {(r["relation"], r["target_surface"], r["polarity"]) for r in await db.execute_query(
+            "SELECT relation, target_surface, polarity FROM unified.concept_relations WHERE source_concept_id = $1",
+            (concept_id,), fetch_all=True) or []}
+        rows = await db.execute_query("SELECT relationships FROM unified.concepts WHERE concept_id = $1",
+                                      (concept_id,), fetch_all=True) or []
+        held = rows[0]["relationships"] if rows else []
+        held = json.loads(held) if isinstance(held, str) else list(held or [])
+        released = {tuple(e) for e in entries}
+        remaining = [e for e in held if tuple(e) not in released or tuple(e) in kept]
+        await db.execute_query(
+            "UPDATE unified.concepts SET relationships = $2::jsonb, root_evidence_count = ("
+            " SELECT count(DISTINCT root_evidence_id) FROM unified.concept_evidence WHERE concept_id = $1),"
+            " updated_at = NOW() WHERE concept_id = $1",
+            (concept_id, json.dumps(remaining)), commit=True)
+        return {"links": len(links), "evidence": len(evidence), "domains": len(domains),
+                "entries": len(held) - len(remaining)}
+
+    async def release_alias(self, *, alias: str, concept_id: str) -> bool:
+        """An alias that names the wrong concept, let go: the next reading of the name resolves it afresh."""
+        rows = await self._memory_db().execute_query(
+            "DELETE FROM unified.concept_aliases WHERE alias = $1 AND concept_id = $2 RETURNING 1",
+            (alias, concept_id), fetch_all=True, commit=True) or []
+        return bool(rows)
+
+    async def free_links(self, *, target_concept_id: str, target_surfaces: List[str]) -> int:
+        """Links that named these surfaces and were attached to the wrong concept, waiting again for theirs
+        (`attach_waiting_links`). Returns how many."""
+        rows = await self._memory_db().execute_query(
+            "UPDATE unified.concept_relations SET target_concept_id = NULL "
+            "WHERE target_concept_id = $1 AND target_surface = ANY($2::text[]) RETURNING 1",
+            (target_concept_id, list(target_surfaces)), fetch_all=True, commit=True) or []
+        return len(rows)
+
+    async def release_envelope(self, evidence_id: str) -> bool:
+        """The record of an observation written wrong, let go once nothing holds it: no concept, link or domain
+        record rests on it. Its observation, read again, is stored as written then (an envelope keeps the first
+        record of its id, `hold_evidence_envelope`), so a wrong record left standing would be the one kept. False
+        where something still rests on it, or there is no such record."""
+        rows = await self._memory_db().execute_query(
+            "DELETE FROM unified.evidence_envelopes e WHERE e.evidence_id = $1"
+            " AND NOT EXISTS (SELECT 1 FROM unified.concept_evidence ce"
+            " WHERE ce.evidence_id = $1 OR ce.root_evidence_id = $1)"
+            " AND NOT EXISTS (SELECT 1 FROM unified.concept_relations cr WHERE cr.evidence_id = $1)"
+            " AND NOT EXISTS (SELECT 1 FROM unified.concept_domains cd WHERE cd.evidence_id = $1)"
+            " AND NOT EXISTS (SELECT 1 FROM unified.concept_identity_relations ci WHERE ci.evidence_id = $1)"
+            " AND NOT EXISTS (SELECT 1 FROM unified.learned_rule_evidence lr WHERE lr.root_evidence_id = $1)"
+            " RETURNING 1", (evidence_id,), fetch_all=True, commit=True) or []
+        return bool(rows)
 
     async def hold_surface_form(self, *, alias: str, concept_id: str) -> List[Any]:
         """A surface word bound to the concept it denotes. Returns the rows
@@ -3453,48 +3627,121 @@ class MemoryAgent(IMemoryConsolidation):
 
     async def hold_belief(self, *, belief_id: str, memory_id: Optional[str], claim: str,
                           domain: str, prior_probability: float,
-                          posterior_probability: float, uncertainty_type: str,
-                          entropy: float, evidence_for: str, evidence_against: str,
+                          posterior_probability: float, log_odds: float, uncertainty_type: str,
+                          entropy: float, new_evidence: str,
                           update_count: int, last_updated: Any,
                           expected_update_count: int) -> Optional[Any]:
         """A belief, replaced only while it is still at `expected_update_count`
-        (-1 for one never stored). Returns the stored row, or None when another
-        instance has moved the belief since; the belief system then merges its
-        own evidence onto the stored belief and writes again.
+        (-1 for one never stored), with the observations made since it was last
+        stored (`new_evidence`: a JSON list of `{"supports": bool, "entry": ...}`
+        in the order they were made) added to its evidence. Returns the stored
+        row, or None when another instance has moved the belief since; then
+        nothing is written, and the belief system merges its own evidence onto
+        the stored belief and writes again.
+
+        THE EVIDENCE IS ADDED, NEVER REWRITTEN: one row each in
+        `unified.belief_evidence`, in the same statement as the belief, so they
+        are stored together or not at all. The whole list used to be written
+        again into the belief's row at every observation: a frame taught by
+        16,000 sentences rewrote 2.7 million characters for the next one.
 
         `claim` is written twice, as the claim and as `belief_text`, and the
-        posterior as `confidence`: labels and a legacy mirror, not knowledge."""
+        posterior as `confidence`: labels and a legacy mirror, not knowledge.
+        `log_odds` is how strongly it is held; the posterior is read from it."""
         return await self._memory_db().execute_query(
             """
-            INSERT INTO unified.beliefs AS b
-                (belief_id, memory_id, claim, belief_text, confidence, domain,
-                 prior_probability, posterior_probability,
-                 uncertainty_type, entropy, evidence_for, evidence_against,
-                 update_count, last_updated)
-            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
-            ON CONFLICT (belief_id) DO UPDATE SET
-                memory_id           = EXCLUDED.memory_id,
-                claim               = EXCLUDED.claim,
-                belief_text         = EXCLUDED.belief_text,
-                confidence          = EXCLUDED.confidence,
-                domain              = EXCLUDED.domain,
-                prior_probability   = EXCLUDED.prior_probability,
-                posterior_probability = EXCLUDED.posterior_probability,
-                uncertainty_type    = EXCLUDED.uncertainty_type,
-                entropy             = EXCLUDED.entropy,
-                evidence_for        = EXCLUDED.evidence_for,
-                evidence_against    = EXCLUDED.evidence_against,
-                update_count        = EXCLUDED.update_count,
-                last_updated        = EXCLUDED.last_updated
-            WHERE b.update_count = $15
-            RETURNING update_count
+            WITH held AS (
+                INSERT INTO unified.beliefs AS b
+                    (belief_id, memory_id, claim, belief_text, confidence, domain,
+                     prior_probability, posterior_probability,
+                     uncertainty_type, entropy, update_count, last_updated, log_odds)
+                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$14)
+                ON CONFLICT (belief_id) DO UPDATE SET
+                    memory_id           = EXCLUDED.memory_id,
+                    claim               = EXCLUDED.claim,
+                    belief_text         = EXCLUDED.belief_text,
+                    confidence          = EXCLUDED.confidence,
+                    domain              = EXCLUDED.domain,
+                    prior_probability   = EXCLUDED.prior_probability,
+                    posterior_probability = EXCLUDED.posterior_probability,
+                    uncertainty_type    = EXCLUDED.uncertainty_type,
+                    entropy             = EXCLUDED.entropy,
+                    update_count        = EXCLUDED.update_count,
+                    last_updated        = EXCLUDED.last_updated,
+                    log_odds            = EXCLUDED.log_odds
+                WHERE b.update_count = $13
+                RETURNING update_count
+            ), added AS (
+                INSERT INTO unified.belief_evidence (belief_id, supports, entry)
+                SELECT $1, (made.value->>'supports')::boolean, made.value->'entry'
+                FROM held, jsonb_array_elements($15::jsonb) WITH ORDINALITY AS made(value, n)
+                ORDER BY made.n
+            )
+            SELECT update_count FROM held
             """,
             (belief_id, memory_id, claim, claim, posterior_probability, domain,
              prior_probability, posterior_probability, uncertainty_type, entropy,
-             evidence_for, evidence_against, update_count, last_updated,
-             expected_update_count),
+             update_count, last_updated, expected_update_count, log_odds, new_evidence),
             fetch_one=True,
         )
+
+    async def belief_evidence(self, belief_id: str) -> Tuple[List[Any], List[Any]]:
+        """One belief's evidence as stored: the observations for it and against it, each in the order made."""
+        rows = await self._memory_db().execute_query(
+            "SELECT supports, entry FROM unified.belief_evidence WHERE belief_id = $1 ORDER BY seq",
+            (belief_id,), fetch_all=True) or []
+        for_it: List[Any] = []
+        against: List[Any] = []
+        for row in rows:
+            (for_it if row["supports"] else against).append(_json_value(row["entry"]))
+        return for_it, against
+
+    async def every_belief_evidence(self) -> Dict[str, Tuple[List[Any], List[Any]]]:
+        """Every belief's evidence as stored, by belief: what the beliefs are loaded with."""
+        rows = await self._memory_db().execute_query(
+            "SELECT belief_id, supports, entry FROM unified.belief_evidence ORDER BY seq",
+            fetch_all=True) or []
+        evidence: Dict[str, Tuple[List[Any], List[Any]]] = {}
+        for row in rows:
+            for_it, against = evidence.setdefault(row["belief_id"], ([], []))
+            (for_it if row["supports"] else against).append(_json_value(row["entry"]))
+        return evidence
+
+    async def settle_belief_evidence(self, store: Optional[str] = None) -> Dict[str, int]:
+        """Evidence still held as a list on a belief's row, as beliefs were stored before 2026-10-08, moved into
+        `unified.belief_evidence`, one row each in the order of its list, and the row's lists emptied: in one
+        statement, so a belief's evidence is in one place or the other, never both and never neither. A belief
+        with none left there is not touched, so this is done once and costs nothing after."""
+        row = await self._memory_db().execute_query(
+            """
+            WITH listed AS (
+                SELECT belief_id, evidence_for, evidence_against FROM unified.beliefs
+                WHERE jsonb_array_length(COALESCE(evidence_for, '[]'::jsonb)) > 0
+                   OR jsonb_array_length(COALESCE(evidence_against, '[]'::jsonb)) > 0
+                FOR UPDATE
+            ), moved AS (
+                INSERT INTO unified.belief_evidence (belief_id, supports, entry)
+                SELECT belief_id, supports, entry FROM (
+                    SELECT l.belief_id, true AS supports, e.value AS entry, e.n
+                    FROM listed l, jsonb_array_elements(COALESCE(l.evidence_for, '[]'::jsonb))
+                         WITH ORDINALITY AS e(value, n)
+                    UNION ALL
+                    SELECT l.belief_id, false, e.value, e.n
+                    FROM listed l, jsonb_array_elements(COALESCE(l.evidence_against, '[]'::jsonb))
+                         WITH ORDINALITY AS e(value, n)
+                ) listed_entries
+                ORDER BY belief_id, supports DESC, n
+                RETURNING 1
+            ), emptied AS (
+                UPDATE unified.beliefs b
+                SET evidence_for = '[]'::jsonb, evidence_against = '[]'::jsonb
+                FROM listed WHERE b.belief_id = listed.belief_id
+                RETURNING 1
+            )
+            SELECT (SELECT count(*) FROM moved) AS entries, (SELECT count(*) FROM emptied) AS beliefs
+            """,
+            fetch_one=True, commit=True, **({"store": store} if store else {}))
+        return {"entries": int(row["entries"]) if row else 0, "beliefs": int(row["beliefs"]) if row else 0}
 
     async def drop_belief(self, belief_id: str) -> None:
         """A belief the substrate has let go, so a reload cannot bring it back."""
@@ -3749,18 +3996,21 @@ class MemoryAgent(IMemoryConsolidation):
 
     async def hold_demonstration(self, *, evidence_id: str, domain_id: str, predicate: str,
                                  arity: int, before_facts: str, action: Optional[str],
-                                 after_facts: str, positive: bool) -> List[Any]:
-        """One observed action: what held before, the action, what held after.
-        Returns the rows written, so one seen before reads as nothing written."""
+                                 after_facts: str, positive: bool,
+                                 owner: Optional[str] = None) -> List[Any]:
+        """One observed action: what held before, the action, what held after,
+        and whose work it was (`owner`, None for the substrate's own): a person's
+        demonstration holds their particulars. Returns the rows written, so one
+        seen before reads as nothing written."""
         return await self._memory_db().execute_query(
             "INSERT INTO unified.operator_demonstrations"
             " (evidence_id, domain_id, predicate, arity, before_facts, action,"
-            "  after_facts, positive)"
-            " VALUES ($1, $2, $3, $4, $5, $6, $7, $8)"
+            "  after_facts, positive, owner)"
+            " VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)"
             " ON CONFLICT (evidence_id) DO NOTHING"
             " RETURNING evidence_id",
             (evidence_id, domain_id, predicate, arity, before_facts, action,
-             after_facts, positive),
+             after_facts, positive, owner),
             fetch_all=True,
         )
 
@@ -3945,6 +4195,9 @@ class MemoryAgent(IMemoryConsolidation):
     async def hold_argument_claim(self, *, claim_id: str, statement: str, warrant: Any,
                                   qualifier: Any, confidence: float, source: Any,
                                   origin: "Origin") -> None:
+        from core.memory.remembering import remembered
+        if not remembered():
+            return
         owner = self._owner_from(origin)
         db = self._memory_db()
         await db.execute_query(
@@ -3958,6 +4211,9 @@ class MemoryAgent(IMemoryConsolidation):
     async def hold_argument(self, *, argument_id: str, claim_id: str, argument_type: str,
                             conclusion: Any, strength: Any, validity: bool,
                             soundness: bool, refuted_by: Any, origin: "Origin") -> None:
+        from core.memory.remembering import remembered
+        if not remembered():
+            return
         owner = self._owner_from(origin)
         db = self._memory_db()
         await db.execute_query(
@@ -4223,6 +4479,10 @@ class MemoryAgent(IMemoryConsolidation):
     #: like any other, remembered as one; its tag and its record say what it
     #: taught, and the example measured for matching is kept in its trace.
     SPOKEN_WORD_TAG = "spoken_word"
+    #: A hearing told which of the sounds words are made of is said when (`learn_phones`).
+    PHONES_TAG = "spoken_sounds"
+    #: How a word is said, as the phones of a pronouncing dictionary (`learn_pronunciations`).
+    PRONUNCIATION_TAG = "pronunciation"
     VOICE_TAG = "voice"
     SONG_TAG = "song"
     #: A seeing that was a lesson: a thing shown, told what it is.
@@ -4231,15 +4491,71 @@ class MemoryAgent(IMemoryConsolidation):
     #: here reads as "that word was never taught".
     TAUGHT_BY_HEARING_LIMIT = 20000
 
-    async def lessons_taught(self, tag: str, key: str) -> Dict[str, List[bytes]]:
+    #: The tag a lesson is found by, for what it teaches (`lessons_taught`).
+    LESSON_TAGS = {"word": "spoken_word", "phones": "spoken_sounds", "person": "voice", "song": "song",
+                   "thing": "thing"}
+
+    async def take_in_lesson(self, content: Dict[str, Any], origin: Any, trace_kind: str) -> bool:
+        """Whether a lesson just remembered (a perceiving's `content`, with its `lesson` and `trace`) is the
+        world's, and, a person's lesson about a kind, kept as the world's (`share_lesson`)
+        (docs/research/SEPARATION_MAP.md §11.3 and §11.6).
+
+        WHOSE: Lyric's own lessons are the world's. A person's lesson about a kind -- a word said, the sounds of
+        words, a thing shown as what it is ("a printer") -- is about the world; one about their own particular -- a
+        voice, a thing or a song given a name the world does not hold ("Rex") -- is theirs, and stays in their
+        memory, where their own recall finds it. So is a lesson given as theirs (`theirs`): their wake phrase, said
+        in their own voice to set up Listening, is for their ears alone.
+
+        JUDGED: a picture or a sound already remembered as another thing (the same picture, the same recording,
+        named otherwise) is counted against what the lesson says, and the lesson is not taken for everyone."""
+        from core.perception.perception_faculty import PerceptionFaculty, _term, decode_trace
+        lesson = PerceptionFaculty.lesson_of(content.get("lesson"))
+        if lesson is None or not content.get("trace"):
+            return False
+        key, label = lesson
+        if origin.person is None:
+            return True
+        if key == "person" or (content.get("lesson") or {}).get("theirs"):
+            return False
+        if key in ("thing", "song") and str(label)[:1].isupper() and not await self._world_holds({str(label)}):
+            return False
+        if key == "thing":
+            against = {name for earlier in content.get("seen_before") or [] if earlier.get("same_picture")
+                       for name in earlier.get("named") or [] if _term(name) != _term(label)}
+        else:
+            against = {name for earlier in content.get("heard_before") or [] if earlier.get("support")
+                       for name in earlier.get("named") or [] if _term(name) != _term(label)}
+        if against:
+            logger.info("lesson %r of %s not taken for everyone: the same %s is remembered as %s", label,
+                        origin.person, "picture" if key == "thing" else "sound", ", ".join(sorted(against)))
+            return False
+        return await self.share_lesson(key, str(label), decode_trace(content["trace"]), trace_kind) is not None
+
+    async def share_lesson(self, key: str, label: str, trace: bytes, trace_kind: str) -> Optional[str]:
+        """A lesson someone gave, the world's (docs/research/SEPARATION_MAP.md §11.6): what it taught (`key`:
+        word, phones, song, thing; `label`: what), kept with its trace -- the keypoints or landmarks it is known
+        again by, never the picture or the recording, and nothing else of where it was given -- as the substrate's
+        own, so every recognition reads it (`lessons_taught`). Returns the memory's id."""
+        from core.memory.utils.interfaces import MemoryType, Origin
+        tag = self.LESSON_TAGS[key]
+        stored, memory_id = await self.store_memory(
+            content=str(label), memory_type=MemoryType.SEMANTIC, importance_score=0.6,
+            tags=["lesson", tag], origin=Origin.own("lesson"),
+            source_context={"source_system": "lesson", "lesson": {key: label}},
+            media=trace, media_meta={"kind": trace_kind, "lesson": {key: label}})
+        return memory_id if stored else None
+
+    async def lessons_taught(self, tag: str, key: str, *, actor: Optional[str] = None) -> Dict[str, List[bytes]]:
         """Every hearing or seeing that taught under `tag` (`SPOKEN_WORD_TAG`,
         `VOICE_TAG`, `SONG_TAG` or `THING_TAG`), as memory holds it: what it
         taught (the word, whose voice, which song, which thing, read from `key`
         in the lesson's own record) -> the traces kept with those lessons. A
-        view over memories, not a store beside them."""
+        view over memories, not a store beside them. Lyric's own lessons; with
+        `actor`, theirs too (a person's own wake phrase, taught in their voice,
+        is theirs and listened for by their ears alone)."""
         from core.memory.media_store import get_media_store
         rows = await self.search_memories(
-            tags={tag}, limit=self.TAUGHT_BY_HEARING_LIMIT) or []
+            tags={tag}, limit=self.TAUGHT_BY_HEARING_LIMIT, actor=actor) or []
         taught: Dict[str, List[bytes]] = {}
         for item in rows:
             # WHAT EACH HEARING TAUGHT is read off that hearing's own record: a
@@ -4254,63 +4570,543 @@ class MemoryAgent(IMemoryConsolidation):
 
     # ---- a person's context -----------------------------------------------------
 
+    async def hold_for_person(self, actor: str, subject: str, relation: str, obj: Optional[str], *,
+                              positive: bool, quality: float, domain: str, surface: str, source: str,
+                              context: str = "personal", organization: Optional[str] = None) -> Any:
+        """A fact about a person's own things, held in their context: the link and their belief in it
+        (`ScopedContextStore.observe`), where answering them finds it and the world never does
+        (docs/research/SEPARATION_MAP.md §11.3). Returns the `Decision`, standing `theirs`. What the store cannot
+        hold, or what is too weakly supported, is refused here as at the world's door."""
+        from core.learning.scoped_context_store import get_scoped_context_store
+        from core.learning.unified_learning_system import Decision
+        from core.semantics.cognitive_ingress import MIN_ADMIT_QUALITY, shape_proposition
+        claim = " ".join(str(p) for p in (subject, relation, obj) if p)
+        subject_term, relation_term, obj_term, refusal = shape_proposition(subject, relation, obj)
+        if refusal:
+            return Decision(claim, positive, "refused", [refusal])
+        if quality < MIN_ADMIT_QUALITY:
+            return Decision(claim, positive, "refused", [
+                f"insufficient support: quality {quality:.3f} < floor {MIN_ADMIT_QUALITY}"])
+        owner, context, organization = self.held_where(actor, context, organization)
+        await get_scoped_context_store().observe(
+            owner, subject_term, relation_term, obj_term, claim=claim, positive=positive, quality=quality,
+            domain=domain, surface=surface, source=source, context=context, organization=organization)
+        return Decision(claim, positive, "theirs")
+
     async def hold_scoped_relation(self, *, actor: str, subject: str, relation: str,
                                    obj: str, polarity: str, surface: Any, domain: Any,
-                                   source: str) -> None:
-        """A link a person told the substrate, in that person's context."""
+                                   source: str, context: str = "personal",
+                                   organization: Optional[str] = None) -> None:
+        """A link a person told the substrate, in that person's context: personal, or work and the
+        organization's. Not remembered, held in working memory instead (`working_relations`)."""
+        from core.memory.remembering import remembered
+        if not remembered():
+            self._working_relations.setdefault(actor, {})[(subject, relation, obj)] = {
+                "subj": subject, "rel": relation, "obj": obj, "pol": polarity, "surface": surface,
+                "scope_actor": actor, "at": time.time()}
+            return
         await self._memory_db().execute_query(
             """
             INSERT INTO unified.scoped_concept_relations
                 (scope_actor, subj, rel, obj, polarity, surface, domain,
-                 source, last_updated)
-            VALUES ($1,$2,$3,$4,$5,$6,$7,$8, now())
+                 source, context, organization, last_updated)
+            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10, now())
             ON CONFLICT (scope_actor, subj, rel, obj) DO UPDATE SET
                 polarity = EXCLUDED.polarity, surface = EXCLUDED.surface,
-                domain = EXCLUDED.domain, last_updated = now()
+                domain = EXCLUDED.domain, context = EXCLUDED.context,
+                organization = EXCLUDED.organization, last_updated = now()
             """,
-            (actor, subject, relation, obj, polarity, surface, domain, source),
+            (actor, subject, relation, obj, polarity, surface, domain, source, context, organization),
             commit=True)
 
     async def hold_scoped_belief(self, *, actor: str, claim_key: str, claim: str,
-                                 domain: Any, prior: float, posterior: float,
+                                 domain: Any, prior: float, posterior: float, log_odds: float,
                                  supports: bool, update_count: int, surface: Any,
-                                 source: str) -> None:
-        """A belief in a claim a person told the substrate, in that person's context."""
+                                 source: str, context: str = "personal",
+                                 organization: Optional[str] = None) -> None:
+        """A belief in a claim a person told the substrate, in that person's context: personal, or work and the
+        organization's. Not remembered, held in working memory instead (`working_beliefs`)."""
+        from core.memory.remembering import remembered
+        if not remembered():
+            self._working_beliefs.setdefault(actor, {})[claim_key] = {
+                "claim": claim, "claim_key": claim_key, "domain": domain, "posterior": posterior,
+                "log_odds": log_odds, "update_count": update_count, "scope_actor": actor, "context": context,
+                "organization": organization, "at": time.time()}
+            return
         await self._memory_db().execute_query(
             """
             INSERT INTO unified.scoped_beliefs
                 (scope_actor, claim_key, claim, domain, prior, posterior,
-                 supports, update_count, surface, source, last_updated)
-            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10, now())
+                 supports, update_count, surface, source, context, organization, log_odds, last_updated)
+            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13, now())
             ON CONFLICT (scope_actor, claim_key) DO UPDATE SET
                 claim = EXCLUDED.claim, domain = EXCLUDED.domain,
-                posterior = EXCLUDED.posterior, supports = EXCLUDED.supports,
+                posterior = EXCLUDED.posterior, log_odds = EXCLUDED.log_odds, supports = EXCLUDED.supports,
                 update_count = EXCLUDED.update_count, surface = EXCLUDED.surface,
-                source = EXCLUDED.source, last_updated = now()
+                source = EXCLUDED.source, context = EXCLUDED.context,
+                organization = EXCLUDED.organization, last_updated = now()
             """,
             (actor, claim_key, claim, domain, prior, posterior, supports,
-             update_count, surface, source),
+             update_count, surface, source, context, organization, log_odds),
             commit=True)
 
-    async def mark_scoped_belief_promoted(self, claim_key: str) -> None:
+    def working_relations(self, owners: Sequence[str]) -> List[Dict[str, Any]]:
+        """The links held in working memory for any of `owners`, in the store's row shape (subj, rel, obj, pol,
+        surface): what a conversation not remembered was told."""
+        return [{k: v for k, v in row.items() if k != "at"}
+                for owner in owners for row in self._working_relations.get(str(owner), {}).values()]
+
+    def working_beliefs(self, owners: Sequence[str]) -> List[Dict[str, Any]]:
+        """The beliefs held in working memory for any of `owners`, most recently moved first."""
+        rows = [row for owner in owners for row in self._working_beliefs.get(str(owner), {}).values()]
+        return [{k: v for k, v in row.items() if k != "at"} for row in sorted(rows, key=lambda r: -r["at"])]
+
+    # ---- a person's Shared World Context: composed, never stored -------------------------------------------
+    #
+    # docs/research/SEPARATION_MAP.md §11.13. What Lyric may reason over for one person is World Knowledge (Lyric's
+    # own), their Personal Context, and the Work Context of each organization they are authorized for, each kept
+    # where its owner keeps it. It is composed at the moment Lyric works for them -- the same for every instance of
+    # theirs, phone or desktop or web -- and nothing is copied or merged into anything else. A person leaving an
+    # organization takes its Work Context out of their composition; it stays the organization's.
+
+    _work_authorizations_ready = False
+
+    async def ensure_work_authorizations(self) -> None:
+        """The record of which organizations' Work Context each person is authorized for, made where it does not
+        exist yet."""
+        if MemoryAgent._work_authorizations_ready:
+            return
+        # Through `ensure_schema`, which holds an advisory lock while it creates: two first callers at once both
+        # found the table missing and both created it, and the second failed on Postgres's catalog
+        # (`duplicate key ... pg_type_typname_nsp_index`) at the first question asked of a fresh store (2026-10-10).
+        await self._memory_db().ensure_schema("work_authorizations", ["""
+            CREATE TABLE IF NOT EXISTS unified.work_authorizations (
+                person        TEXT NOT NULL,
+                organization  TEXT NOT NULL,
+                authorized_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                revoked_at    TIMESTAMPTZ,
+                PRIMARY KEY (person, organization)
+            )
+            """])
+        MemoryAgent._work_authorizations_ready = True
+
+    async def authorize_work(self, person: str, organization: str) -> None:
+        """That `person` acts for `organization`, as the identity that authenticated them says: its Work Context
+        is part of their Shared World Context from now. Authorizing again, after they left, puts it back."""
+        from core.agents.autonomous.shared_types import is_substrate_actor
+        if is_substrate_actor(person) or not organization:
+            raise ValueError("a Work Context is authorized for a person, by a named organization")
+        await self.ensure_work_authorizations()
         await self._memory_db().execute_query(
-            "UPDATE unified.scoped_beliefs SET promoted = TRUE WHERE claim_key = $1",
-            (claim_key,), commit=True)
+            "INSERT INTO unified.work_authorizations (person, organization) VALUES ($1, $2) "
+            "ON CONFLICT (person, organization) DO UPDATE SET revoked_at = NULL, "
+            "authorized_at = CASE WHEN unified.work_authorizations.revoked_at IS NULL "
+            "THEN unified.work_authorizations.authorized_at ELSE now() END",
+            (str(person), str(organization)), commit=True)
+
+    async def unlink_work(self, person: str, organization: str) -> bool:
+        """`person` no longer acts for `organization`: its Work Context leaves their Shared World Context and stays
+        the organization's, every memory and fact of it in place. Their Personal Context goes on with them.
+        Returns whether they were authorized for it."""
+        await self.ensure_work_authorizations()
+        rows = await self._memory_db().execute_query(
+            "UPDATE unified.work_authorizations SET revoked_at = now() "
+            "WHERE person = $1 AND organization = $2 AND revoked_at IS NULL RETURNING person",
+            (str(person), str(organization)), fetch_all=True, commit=True)
+        return bool(rows)
+
+    async def work_contexts(self, person: Optional[str]) -> Tuple[str, ...]:
+        """The organizations whose Work Context `person` is authorized for now."""
+        from core.agents.autonomous.shared_types import is_substrate_actor
+        if is_substrate_actor(person):
+            return ()
+        await self.ensure_work_authorizations()
+        rows = await self._memory_db().execute_query(
+            "SELECT organization FROM unified.work_authorizations WHERE person = $1 AND revoked_at IS NULL "
+            "ORDER BY organization", (str(person),), fetch_all=True) or []
+        return tuple(str(r["organization"]) for r in rows)
+
+    async def shared_world_context(self, actor: Optional[str]) -> Tuple[str, ...]:
+        """The owners composed into what Lyric may reason over for `actor`: Lyric's own (World Knowledge), the
+        person's (Personal Context), and each organization's they are authorized for (its Work Context). For
+        Lyric's own work, only its own: it is never coloured by whoever is connected."""
+        from core.agents.autonomous.shared_types import SUBSTRATE_ACTOR, is_substrate_actor, work_owner
+        if is_substrate_actor(actor):
+            return (SUBSTRATE_ACTOR,)
+        return (SUBSTRATE_ACTOR, str(actor), *(work_owner(o) for o in await self.work_contexts(actor)))
+
+    @staticmethod
+    def held_where(actor: str, context: str, organization: Optional[str]) -> Tuple[str, str, Optional[str]]:
+        """Where something a person gave is held: `(owner, context, organization)` -- their own Personal Context,
+        or the organization's Work Context. An organization's owner given as the actor is its Work Context."""
+        from core.agents.autonomous.shared_types import WORK_OWNER_PREFIX, is_work_owner, work_owner
+        if is_work_owner(actor):
+            return str(actor), "work", str(actor)[len(WORK_OWNER_PREFIX):]
+        if context == "work":
+            return work_owner(organization), "work", organization
+        return str(actor), "personal", None
+
+    _user_beliefs_ready = False
+
+    async def ensure_user_beliefs(self) -> None:
+        """The table of what people said about themselves, made where it does not exist yet."""
+        if MemoryAgent._user_beliefs_ready:
+            return
+        await self._memory_db().execute_query(
+            """
+            CREATE TABLE IF NOT EXISTS unified.user_beliefs (
+                speaker    TEXT NOT NULL,
+                subject    TEXT NOT NULL,
+                relation   TEXT NOT NULL,
+                object     TEXT,
+                polarity   TEXT NOT NULL DEFAULT 'positive',
+                surface    TEXT,
+                source     TEXT NOT NULL DEFAULT 'conversation',
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                PRIMARY KEY (speaker, subject, relation)
+            )
+            """,
+            commit=True,
+        )
+        # WHICH OF THE PERSON'S CONTEXTS it came through: personal, or work and the organization's
+        # (`Origin.context`, docs/research/SEPARATION_MAP.md §11.3).
+        for column in ("context TEXT NOT NULL DEFAULT 'personal'", "organization TEXT"):
+            await self._memory_db().execute_query(
+                f"ALTER TABLE unified.user_beliefs ADD COLUMN IF NOT EXISTS {column}", commit=True)
+        MemoryAgent._user_beliefs_ready = True
+
+    # ---- what someone told: taken in, split by what it is about -------------------
+    #
+    # docs/research/SEPARATION_MAP.md §11.10. A telling is split fact by fact. What is about the person -- naming
+    # them, or a particular thing or a name that is theirs -- is held in their context at once, so the next turn
+    # answers from it. What is about the world is a claim for the learning authority's one door, judged by whether
+    # it is true, with the telling as its evidence: a person is a source like a page, neither proof nor
+    # disqualification. The memory agent decides where each part goes and keeps no judge of truth.
+
+    async def take_in_telling(self, telling: Any) -> List[Tuple[str, Any, Any]]:
+        """Take in what someone told (`interfaces.Telling`). Returns, for each fact and each rule, `(kind, it,
+        Decision)`: kind "fact" or "rule", the fact or the rule's `(antecedent, consequent)`, and what became of it
+        (standing `theirs` where it is the person's)."""
+        from core.agents.autonomous.shared_types import SUBSTRATE_ACTOR
+        from core.learning.unified_learning_system import Evidence, get_learning_authority
+        person = telling.origin.person
+        parties = {str(person), SUBSTRATE_ACTOR}
+        theirs = set(telling.theirs) | (set(telling.names) - await self._world_holds(set(telling.names)))
+        authority = get_learning_authority()
+        evidence = Evidence(source=f"person:{person}", key=str(person), source_type="USER_SUPPLIED",
+                            quality=telling.quality, producer=f"telling:{telling.origin.through}")
+        where = {"context": telling.origin.context, "organization": telling.origin.organization}
+        out: List[Tuple[str, Any, Any]] = []
+        # A CONVERSATION NOT REMEMBERED TEACHES THE WORLD NOTHING: what it is told is the speaker's, held in working
+        # memory, the premises of what it is asked next (`not_remembered`), and never taken to the world's door.
+        from core.memory.remembering import remembered
+        premises = not remembered()
+        for fact in telling.facts:
+            terms = set(fact.terms())
+            if terms & parties:
+                decision = await self._hold_about_speaker(telling.speaker, fact, telling.sentence, **where)
+            elif terms & theirs or premises:
+                decision = await self.hold_for_person(
+                    str(person), fact.subject, fact.relation, fact.obj, positive=fact.positive,
+                    quality=telling.quality, domain="conversation", surface=telling.sentence, source="told",
+                    **where)
+            else:
+                decision = await authority.consider(
+                    fact.subject, fact.relation, fact.obj, positive=fact.positive, surface=telling.sentence,
+                    evidence=evidence, domain="conversation")
+            out.append(("fact", fact, decision))
+        for antecedent, consequent in telling.rules:
+            terms = {str(side.get(k)) for side in (antecedent, consequent) for k in ("subject", "obj")
+                     if side.get(k)}
+            if terms & (parties | theirs) or premises:
+                decision = await self.hold_rule_for_person(
+                    str(person), antecedent, consequent, quality=telling.quality, domain="conversation",
+                    surface=telling.sentence, **where)
+            else:
+                decision = await authority.consider_rule(
+                    antecedent, consequent, surface=telling.sentence, evidence=evidence, domain="conversation")
+            out.append(("rule", (antecedent, consequent), decision))
+        return out
+
+    async def take_in_unread(self, sentence: str, *, origin: Any) -> Any:
+        """A sentence someone told that did not read: kept verbatim and marked unread, theirs, recallable by meaning
+        now and re-readable once the English it needs is taught (`CognitiveIngress.remember_told`). Nothing in it
+        is taken as said. Returns the ingress's `Admission`."""
+        from core.semantics.cognitive_ingress import Provenance, get_cognitive_ingress
+        return await get_cognitive_ingress().remember_told(
+            sentence, Provenance(producer="conversation", source_id=str(origin.person or "you"),
+                                 source_type="USER_SUPPLIED"),
+            blamed=None, origin=origin)
+
+    async def take_in_tool(self, tool: Any) -> Any:
+        """One of Lyric's own tools, as it declares itself -- what it takes and what it does -- handed on as Lyric's
+        own observation of its means (`evidence_producers.submit_tool_declaration`). Returns the
+        `IngestionResult`."""
+        from core.domain.evidence_producers import submit_tool_declaration
+        return await submit_tool_declaration(tool)
+
+    async def take_in_tool_use(self, name: str, parameters: Dict[str, Any], succeeded: bool, *,
+                               category: str) -> Any:
+        """One use of a tool: which tool, the names of what it was given -- never their values, which are the
+        task's -- and whether it worked (`evidence_producers.submit_tool_invocation`). Returns the
+        `IngestionResult`."""
+        from core.domain.evidence_producers import submit_tool_invocation
+        return await submit_tool_invocation(name, parameters or {}, bool(succeeded), category=category)
+
+    async def take_in_percept(self, subject: str, modality: str, content: Dict[str, Any], *,
+                              origin: Any, memory_id: Optional[str] = None, domain: Optional[str] = None) -> Any:
+        """Something perceived, as the senses structured it, handed on as evidence: each modality has its producer
+        (a sensor reading, an image, a video, a sound, a document read, a device, a location fix), which says what
+        in it is nameable, holds what is the owner's in their context and takes what is about the world to the one
+        door (`evidence_producers`). Anything else -- a named component in a named state -- takes the general
+        perception producer. `domain`, when given, is where it is filed; else the producer's own. Whose it is
+        travels with it. Returns the producer's `IngestionResult`."""
+        from core.domain import evidence_producers as ep
+        producer = {
+            "sensor": ep.submit_sensor_reading,
+            "image": ep.submit_image,
+            "video": ep.submit_video,
+            "audio": ep.submit_audio,
+            "document": ep.submit_reading,
+            "device": ep.submit_device,
+            "location": ep.submit_location,
+        }.get(str(modality or "").strip().lower())
+        filed = {"domain": domain} if domain else {}
+        if producer is not None:
+            return await producer(subject, content or {}, memory_id=memory_id, origin=origin, **filed)
+        return await ep.submit_perception(subject, modality, content or {}, memory_id=memory_id, origin=origin,
+                                          **filed)
+
+    async def take_outcome_to_learning(self, memory: Any, content: Dict[str, Any], *, domain: Optional[str],
+                                       mark: str) -> Tuple[str, int]:
+        """One task outcome remembered (`content`, its TaskOutcomeRecord), handed to the learning authority as an
+        example of work in `domain`, as the task's owner's experience, and marked with `mark` so it is handed once.
+        Returns (status, transfers): 'expanded', 'no_knowledge_domain', or the learning's error class, and the
+        cross-domain transfers written.
+
+        A task that acted in no domain has nothing to learn from and is marked. One whose domain holds nothing yet
+        is NOT marked: it is handed again once that domain has been learned (`domain_empty`)."""
+        from core.agents.autonomous.shared_types import SUBSTRATE_ACTOR
+        from core.learning.learning_interfaces import LearningExample
+        from core.learning.unified_learning_system import get_learning_authority
+        if domain is None:
+            if not await self.update_memory(memory.memory_id, {
+                    "metadata": {mark: datetime.now().isoformat(), "domain_expansion": "no_knowledge_domain"},
+                    "metadata.merge": True}):
+                raise RuntimeError(
+                    f"task outcome {memory.memory_id} names no domain but could "
+                    f"not be marked; it would be reconsidered on every pass")
+            return ("no_knowledge_domain", 0)
+        result = await get_learning_authority().learn_with_domain_context(
+            LearningExample(
+                example_id=memory.memory_id,
+                # Whose experience the task was: its outcome memory's owner.
+                actor=getattr(memory, "user_id", None) or SUBSTRATE_ACTOR,
+                inputs={
+                    "task_id": content.get("task_id"),
+                    "task_type": content.get("task_type"),
+                    "task_description": content.get("task_description"),
+                    "task_source": content.get("task_source"),
+                },
+                targets={
+                    "outcome": content.get("outcome"),
+                    "result_summary": content.get("result_summary"),
+                    "failure_reason": content.get("failure_reason"),
+                },
+                # The recorded confidence IS the quality of this example.
+                quality_score=float(content.get("confidence", 0.0) or 0.0),
+                task_type=content.get("task_type"),
+                domain=str(domain),
+                source="task_outcome",
+            ),
+            str(domain),
+        )
+        if not result.success:
+            return ((result.metadata or {}).get("error_class") or "learning_failed", 0)
+        # EXPANDED means the domain layer processed this outcome -- not that the learning strategy earned credit for
+        # it (separate facts).
+        cross = (result.metadata or {}).get("cross_domain") or {}
+        if not await self.update_memory(memory.memory_id, {
+                "metadata": {mark: datetime.now().isoformat()}, "metadata.merge": True}):
+            # An unmarked outcome would be handed again and the meta-learner would count the repeat as fresh
+            # evidence. Stop rather than quietly build up duplicate trials.
+            raise RuntimeError(
+                f"task outcome {memory.memory_id} was expanded but could not be "
+                f"marked; continuing would re-learn it on every pass")
+        return ("expanded", len(cross.get("transfers") or []))
+
+    async def take_in_demonstration(self, example: Any, *, domain: str, owner: Optional[str]) -> bool:
+        """One thing Lyric did, as it was seen before and after: kept as a demonstration of its act for the learner
+        to induce from (`DemonstrationStore.append`, which wakes induction). `owner` is whose task it was, None for
+        Lyric's own: a person's holds their particulars, and what is learned from it is lifted. Returns whether it
+        was new."""
+        from core.learning.demonstration_store import get_demonstration_store
+        return await get_demonstration_store().append(example, domain_id=domain, owner=owner)
+
+    async def take_in_transition(self, example: Any, *, domain: str, owner: Optional[str], source_id: str) -> Any:
+        """The same act as a root observation of the world (`evidence_producers.submit_demonstration`): what
+        changed, projected through the one door with the act as its evidence, a person's work lifted. Returns the
+        `IngestionResult`."""
+        from core.domain.concept_ingestion import EvidenceSourceType
+        from core.domain.evidence_producers import submit_demonstration
+        return await submit_demonstration(
+            example, domain_id=domain, source_type=EvidenceSourceType.TASK_ARTIFACT,
+            producer="substrate_execution", source_id=source_id, owner=owner)
+
+    async def take_in_recognised(self, naming: Any, *, domain: str, origin: Any) -> Any:
+        """What Lyric's learned classifier named a thing it perceived (`UnifiedLearningSystem.name_instance`). A
+        thing in a person's percept (`origin`) is their particular, so what it was named is held in their context,
+        personal or work; a thing Lyric met itself is the world's, and its naming a claim for the one door, with
+        the classifier's evidence. Returns the `Decision`."""
+        from core.learning.unified_learning_system import get_learning_authority
+        if origin.person is not None:
+            return await self.hold_for_person(
+                origin.person, naming.instance, "isa", naming.category, positive=True,
+                quality=naming.evidence.quality, domain=domain, surface=naming.claim,
+                source=naming.evidence.source, context=origin.context, organization=origin.organization)
+        return await get_learning_authority().consider(
+            naming.instance, "isa", naming.category, domain=domain, evidence=naming.evidence)
+
+    async def take_in_verdict(self, memory_ids: Sequence[str], *, confirmed: bool, said: str, about: str) -> int:
+        """A person's verdict on what they told ("That's right.", "That's wrong."): each memory the telling made is
+        flagged with it, annotated and never overwritten -- recall reads the flag. What the verdict says of the
+        claim itself is a telling (`take_in_telling`), judged at the one door. Returns how many were flagged."""
+        flagged = 0
+        for memory_id in memory_ids:
+            if await self.update_memory(memory_id, {
+                    "metadata": {"feedback": {"verdict": "confirmed" if confirmed else "corrected",
+                                              "surface": said, "about": about, "at": time.time()}},
+                    "metadata.merge": True}):
+                flagged += 1
+        return flagged
+
+    async def take_in_observed(self, subject: str, relation: str, obj: Optional[str], *, evidence: Any,
+                               domain: str, positive: bool = True, description: str = "",
+                               surface: Optional[str] = None) -> Any:
+        """Something Lyric observed itself -- of the place it runs in, of an experiment it ran, of kinds it saw, a
+        thing it named -- a claim about the world for the one door, with the evidence it came with
+        (`learning_authority.consider`). Returns the `Decision`."""
+        from core.learning.unified_learning_system import get_learning_authority
+        return await get_learning_authority().consider(
+            subject, relation, obj, positive=positive, evidence=evidence, domain=domain,
+            description=description, surface=surface)
+
+    async def take_in_research(self, findings: Sequence[Tuple[str, str, str, str, str]]) -> List[Tuple[Any, Any]]:
+        """What research found, each finding `(subject, relation, object, page, what it said)` a claim for the one
+        door with its page as evidence: the page the source, its site the independence key, so one site counts once
+        however many of its pages say it and sites that agree count each (docs/research/SEPARATION_MAP.md §11.4).
+        Returns `(finding, Decision)` for each."""
+        from urllib.parse import urlparse
+        from core.learning.unified_learning_system import Evidence, get_learning_authority
+        authority = get_learning_authority()
+        out: List[Tuple[Any, Any]] = []
+        for finding in findings:
+            subject, relation, obj, page, said = finding
+            site = urlparse(str(page)).netloc or str(page)
+            evidence = Evidence(source=str(page), key=f"site:{site}", source_type="RESEARCH_FINDING",
+                                quality=0.9, producer="research")
+            out.append((finding, await authority.consider(
+                subject, relation, obj, surface=said or None, description=said, evidence=evidence,
+                domain="researched")))
+        return out
+
+    async def _world_holds(self, names: Set[str]) -> Set[str]:
+        """Of these names, the ones the world holds a thing under: a name the world does not hold is the
+        person's own ("Ava"), one it does is the world's ("Paris")."""
+        from core.semantics.cognitive_ingress import normalize_term
+        if not names:
+            return set()
+        spelled = {normalize_term(n) or n: n for n in names}
+        rows = await self._memory_db().execute_query(
+            "SELECT name FROM unified.concepts WHERE name = ANY($1::text[])",
+            (sorted(spelled),), fetch_all=True) or []
+        return {spelled[str(r["name"])] for r in rows if str(r["name"]) in spelled}
+
+    async def _hold_about_speaker(self, speaker: str, fact: Any, surface: str, *, context: str,
+                                  organization: Optional[str]) -> Any:
+        """A fact naming the person themselves, held as a belief about them (`hold_belief_about_speaker`)."""
+        from core.learning.unified_learning_system import Decision
+        claim = " ".join(str(p) for p in (fact.subject, fact.relation, fact.obj) if p)
+        await self.hold_belief_about_speaker(
+            speaker=speaker, subject=fact.subject, relation=fact.relation, obj=fact.obj,
+            polarity="positive" if fact.positive else "negative", surface=surface, context=context,
+            organization=organization)
+        return Decision(claim, fact.positive, "theirs")
+
+    async def hold_belief_for_person(self, actor: str, claim: str, *, domain: str, supports: bool, quality: float,
+                                     source: str, context: str = "personal",
+                                     organization: Optional[str] = None) -> float:
+        """A person's belief in a claim, moved by one observation, in their context (`ScopedContextStore
+        .observe_claim`): how a method goes in their work, a hypothesis they hold. Returns its posterior."""
+        from core.learning.scoped_context_store import get_scoped_context_store
+        owner, context, organization = self.held_where(actor, context, organization)
+        held = await get_scoped_context_store().observe_claim(
+            owner, claim, domain=domain, supports=supports, quality=quality, source=source, context=context,
+            organization=organization)
+        return float(held["posterior"])
+
+    async def hold_rule_for_person(self, actor: str, antecedent: Dict[str, Any], consequent: Dict[str, Any], *,
+                                   quality: float, domain: str, surface: str, context: str = "personal",
+                                   organization: Optional[str] = None) -> Any:
+        """A rule about a person's own things, held in their context as their belief in it, asserting neither side
+        (`ScopedContextStore.observe_claim`). Returns the `Decision`, standing `theirs`. What the store cannot hold,
+        or what is too weakly supported, is refused here as at the world's door."""
+        from core.learning.scoped_context_store import get_scoped_context_store
+        from core.learning.unified_learning_system import Decision
+        from core.semantics.cognitive_ingress import MIN_ADMIT_QUALITY, shape_proposition
+
+        def said(clause: Dict[str, Any]) -> str:
+            return ("" if clause.get("positive", True) else "not ") + " ".join(
+                str(clause.get(k) or "") for k in ("subject", "relation", "obj")).strip()
+        claim = " ".join(f"if {said(antecedent)} then {said(consequent)}".split())
+        for tag, side in (("antecedent", antecedent), ("consequent", consequent)):
+            *_, refusal = shape_proposition(side.get("subject"), side.get("relation"), side.get("obj"))
+            if refusal:
+                return Decision(claim, True, "refused", [f"{tag} {refusal}"])
+        if quality < MIN_ADMIT_QUALITY:
+            return Decision(claim, True, "refused", [
+                f"insufficient support: quality {quality:.3f} < floor {MIN_ADMIT_QUALITY}"])
+        owner, context, organization = self.held_where(actor, context, organization)
+        await get_scoped_context_store().observe_claim(
+            owner, claim, domain=domain, supports=True, quality=quality, source="told_rule", surface=surface,
+            context=context, organization=organization)
+        return Decision(claim, True, "theirs")
+
+    async def said_of_themselves(self, speaker: str, person: str, *, limit: int = 50) -> List[Dict[str, Any]]:
+        """What a speaker said of themselves, most-recent first, in `person`'s Shared World Context: what they said
+        personally, and what they said at work for an organization whose Work Context they are authorized for."""
+        await self.ensure_user_beliefs()
+        rows = await self._memory_db().execute_query(
+            "SELECT subject, relation, object, polarity, surface, context, organization, updated_at "
+            "FROM unified.user_beliefs WHERE speaker = $1 AND (context = 'personal' OR organization = ANY($3)) "
+            "ORDER BY updated_at DESC LIMIT $2",
+            (str(speaker), limit, list(await self.work_contexts(person))), fetch_all=True)
+        working = sorted(self._working_speaker.get(str(speaker), {}).values(), key=lambda r: -r["at"])
+        return [{k: v for k, v in r.items() if k != "at"} for r in working] + [dict(r) for r in (rows or [])]
 
     async def hold_belief_about_speaker(self, *, speaker: str, subject: str, relation: str,
-                                        obj: Optional[str], polarity: str,
-                                        surface: str) -> None:
-        """What a person said about themselves; a restatement replaces it."""
+                                        obj: Optional[str], polarity: str, surface: str,
+                                        context: str = "personal", organization: Optional[str] = None) -> None:
+        """What a person said about themselves, in the context it came through; a restatement replaces it. Not
+        remembered, held in working memory instead."""
+        from core.memory.remembering import remembered
+        if not remembered():
+            self._working_speaker.setdefault(str(speaker), {})[(subject, relation)] = {
+                "subject": subject, "relation": relation, "object": obj, "polarity": polarity, "surface": surface,
+                "context": context, "organization": organization, "at": time.time()}
+            return
+        await self.ensure_user_beliefs()
         await self._memory_db().execute_query(
             """
             INSERT INTO unified.user_beliefs
-                (speaker, subject, relation, object, polarity, surface, updated_at)
-            VALUES ($1, $2, $3, $4, $5, $6, now())
+                (speaker, subject, relation, object, polarity, surface, context, organization, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, now())
             ON CONFLICT (speaker, subject, relation) DO UPDATE SET
                 object = EXCLUDED.object, polarity = EXCLUDED.polarity,
-                surface = EXCLUDED.surface, updated_at = now()
+                surface = EXCLUDED.surface, context = EXCLUDED.context,
+                organization = EXCLUDED.organization, updated_at = now()
             """,
-            (speaker, subject, relation, obj, polarity, surface),
+            (speaker, subject, relation, obj, polarity, surface, context, organization),
             commit=True,
         )
 
@@ -4359,7 +5155,11 @@ class MemoryAgent(IMemoryConsolidation):
     async def mark_knowledge_consumed(self, *, update_ids: List[str],
                                       consumer: str) -> List[Any]:
         """Record that `consumer` used these updates. Returns the rows this call
-        newly recorded, not the ones asked about."""
+        newly recorded, not the ones asked about. Nothing is recorded where what happens now is
+        not remembered (`core.memory.remembering`): a use no one keeps is no record."""
+        from core.memory.remembering import remembered
+        if not remembered():
+            return []
         return await self._memory_db().execute_query(
             "INSERT INTO unified.knowledge_consumption (update_id, consumer)"
             " SELECT update_id, $2 FROM unified.knowledge_updates"
@@ -4511,6 +5311,9 @@ class MemoryAgent(IMemoryConsolidation):
         An experience that is already a memory (`memory_id`, whose record holds
         the experience) is queued as that memory: the pool keeps a reference to
         it and no second copy of its parts."""
+        from core.memory.remembering import remembered
+        if not remembered():
+            return ""
         from core.memory.utils.interfaces import Experience
         if not isinstance(experience, Experience):
             raise TypeError("the pool takes an Experience, not "
@@ -4622,6 +5425,10 @@ class MemoryAgent(IMemoryConsolidation):
                             "parts": {"substrate": sum(p.get("source") == "substrate" for p in parts),
                                       "world": sum(p.get("source") == "world" for p in parts),
                                       "person": sum(p.get("source") == "person" for p in parts)}}
+        # THE LIFT, for an experience there is something to learn from: what its
+        # tasks did, compared with tasks of the same shape done before.
+        if decision["standing"] in ("candidate", "already held") and item["memory_id"]:
+            decision["lift"] = await self._lift(item)
         await db.execute_query(
             "UPDATE unified.experience_pool SET status = 'decided', decision = $1::jsonb,"
             " decided_at = NOW(), claimed_by = NULL, claimed_until = NULL"
@@ -4653,6 +5460,635 @@ class MemoryAgent(IMemoryConsolidation):
             return ((chosen or {}).get("experience") or {}).get("parts") or []
         return None
 
+    # ================================================================================================
+    # THE LIFT (MEMORY_AGENT_MAP §10.2)
+    # ================================================================================================
+    #
+    # A method is what a task did: its steps, each a tool with its arguments.
+    #
+    #   FROM THE FIRST TASK THAT WORKED   the first task of a shape (`lift.shape_of`)
+    #                  whose outcome the credit gate counts and that worked is
+    #                  lifted at once (`lift.lift_one`), into the world's METHOD
+    #                  MEMORY: what Lyric overcame for one person it can do again,
+    #                  for them and for anyone (SEPARATION_MAP §11.4). What it keeps
+    #                  as a constant is no one's particular (`_no_ones`): its tools'
+    #                  own vocabulary (a truth value, a value the tool declares the
+    #                  argument takes) and what the world holds a thing under; every
+    #                  other value -- a path, a text, a name -- was that task's and
+    #                  is a variable, so nothing of the person is in it. What its
+    #                  fix changed (`causal_rules`), where it is no one's, is kept
+    #                  on the method (`fixes`), so a later task meets it before it
+    #                  meets the failure (`Capabilities.known_fix`).
+    #   tasks that waited   a task of the shape that did not work, or whose outcome
+    #                  did not count, before anything of the shape worked, waits;
+    #                  when the method forms, each that is an instance of it is a
+    #                  witness of it.
+    #   later tasks    an instance is one more witness; a task that worked and is
+    #                  not an instance widens it (`lift.generalize`); a failure that
+    #                  is not an instance says nothing of it.
+    #   a person's own   when a person's task and an earlier one of theirs, both
+    #                  instances of the world's method, have in common something
+    #                  only they supplied (`lift.residue`), what they have in common
+    #                  is their own method, in their context, beside the world's.
+    #
+    # Every task that is an instance of a method is one witness of whether it
+    # works, counted once (its occurrence id is kept on the method) and only when
+    # the credit gate counts its outcome. The belief is the learning authority's
+    # (`observe_method_outcome`); the memory agent keeps no second judge.
+    #
+    # Lifted from the steps a task declared (its `method`). A learned operator's
+    # acts are lifted by rule induction already, from demonstrations.
+
+    METHOD_SCHEMA = "method_v1"
+    METHOD_TAGS = ("method", "lifted")
+    _method_index_ready = False
+
+    async def _ensure_method_index(self) -> None:
+        """Method memories are found by their shape."""
+        if MemoryAgent._method_index_ready:
+            return
+        db = self._memory_db()
+        for store in db.schema_stores():
+            for table in ("memory_hot.memory_hot", "memory_cold.memory_cold"):
+                name = table.split(".")[0] + "_method_shape_idx"
+                await db.execute_query(
+                    f"CREATE INDEX IF NOT EXISTS {name} ON {table}"
+                    " ((thinking_state->'raw_event'->'method'->>'shape'))",
+                    commit=True, store=store)
+        MemoryAgent._method_index_ready = True
+
+    async def _method_memory(self, shape: str, owner: Optional[str]):
+        """The method memory of this shape that `owner` holds (None: the world's),
+        as (memory_id, record, thinking_state), or None."""
+        from core.database.releases import SUBSTRATE_OWNERS
+        await self._ensure_method_index()
+        db = self._memory_db()
+        owners = list(SUBSTRATE_OWNERS) if owner is None else [str(owner)]
+        for store in db.maintained_stores():
+            for table in ("memory_hot.memory_hot", "memory_cold.memory_cold"):
+                row = await db.execute_query(
+                    f"SELECT memory_id, thinking_state FROM {table}"
+                    " WHERE thinking_state->'raw_event'->'method'->>'shape' = $1"
+                    "   AND thinking_state->'raw_event'->>'schema' = $2"
+                    "   AND COALESCE(user_id, '') = ANY($3::text[])"
+                    " ORDER BY created_at LIMIT 1",
+                    (shape, self.METHOD_SCHEMA, owners), fetch_one=True, store=store)
+                if row is not None:
+                    thinking_state = row["thinking_state"]
+                    if isinstance(thinking_state, str):
+                        thinking_state = json.loads(thinking_state)
+                    thinking_state = thinking_state or {}
+                    return row["memory_id"], dict(thinking_state.get("raw_event") or {}), thinking_state
+        return None
+
+    @staticmethod
+    def _method_account(record: Dict[str, Any]) -> str:
+        """What a method memory says: the steps, what it overcame, and how often
+        it was seen."""
+        method = record.get("method") or {}
+        seen = len(record.get("instances") or {})
+        overcame = "".join(
+            f" Where {', '.join(fix.get('failed_tools') or []) or 'a step'} failed, it set "
+            + ", ".join(f"{use['tool']} {use['arg']} to {use['value']!r}" for use in fix.get("use") or []) + "."
+            for fix in record.get("fixes") or [])
+        return ("A way of working, lifted from tasks that worked: "
+                + "; then ".join(method.get("steps") or []) + "." + overcame
+                + (f" Seen {seen} times." if seen else ""))
+
+    async def _form_method(self, shape: str, general, owner: Optional[str],
+                           fixes: Sequence[Dict[str, Any]] = ()) -> str:
+        """Keep a lifted method as a memory, the world's or `owner`'s, with the
+        fixes it overcame failures by."""
+        from core.memory.lift import formulas
+        from core.memory.utils.interfaces import MemoryType, Origin
+        record = {"event": "method", "schema": self.METHOD_SCHEMA,
+                  "method": {"shape": shape, "steps": formulas(general)},
+                  "fixes": list(fixes), "instances": {}}
+        stored, memory_id = await self.store_memory(
+            self._method_account(record), memory_type=MemoryType.PROCEDURAL, importance_score=0.6,
+            tags=list(self.METHOD_TAGS), thinking_state={"raw_event": record},
+            origin=Origin.of(owner, "lift"))
+        if not stored or not memory_id:
+            raise RuntimeError(f"the method lifted for {shape} could not be kept")
+        return memory_id
+
+    async def _rewrite_method(self, memory_id: str, record: Dict[str, Any],
+                              thinking_state: Dict[str, Any]) -> None:
+        account = self._method_account(record)
+        updates: Dict[str, Any] = {"thinking_state": {**(thinking_state or {}), "raw_event": record},
+                                   "content": account}
+        if self.embedding_service:
+            embedding = self.embedding_service.generate_embedding(account)
+            if embedding:
+                updates["embedding"] = embedding
+        if not await self.postgres_storage.update_memory(memory_id, updates):
+            raise RuntimeError(f"method memory {memory_id} could not be written")
+
+    async def _waiting_of_shape(self, shape: str, other_than: str) -> List[Dict[str, Any]]:
+        """The tasks of this shape, from other pursuits, that wait for a method
+        of it: each its pool item, store and entry, oldest first."""
+        db = self._memory_db()
+        probe = json.dumps({"lift": {"waiting": [{"shape": shape}]}})
+        waiting: List[Dict[str, Any]] = []
+        for store in db.maintained_stores():
+            rows = await db.execute_query(
+                "SELECT item_id, decision FROM unified.experience_pool"
+                " WHERE status = 'decided' AND decision @> $1::jsonb ORDER BY decided_at",
+                (probe,), fetch_all=True, store=store) or []
+            for row in rows:
+                decision = row["decision"] if isinstance(row["decision"], dict) else json.loads(row["decision"])
+                for entry in (decision.get("lift") or {}).get("waiting") or []:
+                    if entry.get("shape") == shape and entry.get("memory_id") != other_than:
+                        waiting.append({"item_id": row["item_id"], "store": store, "entry": entry})
+        return waiting
+
+    async def _stop_waiting(self, waiting: Dict[str, Any], method_id: str, *, instance: bool) -> None:
+        """A waiting task met the method of its shape: its pool item says which,
+        and whether the task was an instance of it (a witness) or not (apart)."""
+        db = self._memory_db()
+        row = await db.execute_query(
+            "SELECT decision FROM unified.experience_pool WHERE item_id = $1",
+            (waiting["item_id"],), fetch_one=True, store=waiting["store"])
+        if row is None:
+            return
+        decision = row["decision"] if isinstance(row["decision"], dict) else json.loads(row["decision"])
+        lift = decision.setdefault("lift", {})
+        lift["waiting"] = [e for e in lift.get("waiting") or [] if e.get("occurrence") != waiting["entry"]["occurrence"]]
+        lift.setdefault("instances" if instance else "apart", []).append(
+            {"occurrence": waiting["entry"]["occurrence"], "method": method_id,
+             "memory_id": waiting["entry"]["memory_id"]})
+        await db.execute_query(
+            "UPDATE unified.experience_pool SET decision = $1::jsonb WHERE item_id = $2",
+            (json.dumps(decision), waiting["item_id"]), commit=True, store=waiting["store"])
+
+    async def _earlier_instance(self, owner: str, method_id: str, other_than: str) -> Optional[Dict[str, Any]]:
+        """The latest earlier task of `owner`'s that was an instance of this
+        method, as its pool entry ({occurrence, method}), or None."""
+        db = self._memory_db()
+        probe = json.dumps({"lift": {"instances": [{"method": method_id}]}})
+        for store in db.maintained_stores():
+            rows = await db.execute_query(
+                "SELECT decision FROM unified.experience_pool"
+                " WHERE owner = $1 AND status = 'decided' AND decision @> $2::jsonb"
+                " ORDER BY decided_at DESC", (str(owner), probe), fetch_all=True, store=store) or []
+            for row in rows:
+                decision = row["decision"] if isinstance(row["decision"], dict) else json.loads(row["decision"])
+                for entry in reversed((decision.get("lift") or {}).get("instances") or []):
+                    if entry.get("method") == method_id and entry.get("occurrence") != other_than:
+                        return entry
+        return None
+
+    async def _task_of(self, memory_id: str, occurrence_id: str):
+        """A task held in a pursuit memory: (its occurrence, the pursuit's owner,
+        what its person supplied or None), or None when it is gone."""
+        from core.memory.lift import person_terms
+        from core.memory.utils.interfaces import task_occurrences
+        record, _ = await self._pursuit_record(memory_id)
+        if not record:
+            return None
+        for index, occurrence in enumerate(task_occurrences(record)):
+            if self._occurrence_id(memory_id, occurrence, index) == occurrence_id:
+                owner = self._pursuit_owner(record)
+                parts = (record.get("experience") or {}).get("parts") or []
+                return occurrence, owner, (person_terms(parts) if owner else None)
+        return None
+
+    @staticmethod
+    def _occurrence_id(memory_id: str, occurrence: Dict[str, Any], index: int) -> str:
+        return f"{memory_id}#{occurrence.get('task_id') or index}"
+
+    @staticmethod
+    def _category_of(occurrence: Dict[str, Any]) -> str:
+        """The kind of work a task was (`work_category`), as its occurrence keeps it. One kept before the kinds were
+        told apart (2026-10-12) was a task asked for on its own: no request named a project or a workflow before."""
+        return str(occurrence.get("category") or "tasks")
+
+    @staticmethod
+    def _counted(occurrence: Dict[str, Any]) -> Tuple[bool, bool]:
+        """(counted, worked): whether the credit gate counts this task's outcome,
+        and whether it worked, from the verdict kept with it."""
+        from core.learning.meta_learning import OutcomeClass, is_credit_eligible
+        verdict = occurrence.get("verdict") or {}
+        try:
+            counted = is_credit_eligible(OutcomeClass(verdict.get("outcome_class")))
+        except ValueError:
+            counted = False
+        return counted, bool(verdict.get("success"))
+
+    async def _witness(self, memory_id: str, record: Dict[str, Any], thinking_state: Dict[str, Any],
+                       instances: List[Tuple[str, Dict[str, Any], Optional[str]]], *, world: bool) -> int:
+        """Count each task (occurrence id, occurrence, its person) once on the
+        method, then hand each counted outcome to the learning authority. The
+        method is written first: an outcome lost between the two is not counted,
+        and one counted twice could not be taken back.
+
+        WHEN A STANDING CROSSES, IT IS RECORDED: the world's on the method's own
+        record (`standing`), a person's in their own context (`_note_person`).
+        Each is a list of {settled, at}: settled in favour from that moment, or
+        no longer. Unlocked and withdrawn are read from these by the
+        capabilities faculty, which owns what they mean."""
+        from core.capabilities import settled_in_favour
+        from core.integration.universal_domain_master import UniversalDomainMaster
+        from core.learning.scoped_context_store import get_scoped_context_store
+        from core.learning.unified_learning_system import get_learning_authority
+        held = record.setdefault("instances", {})
+        fresh = []
+        for occurrence_id, occurrence, person in instances:
+            if occurrence_id in held:
+                continue
+            counted, worked = self._counted(occurrence)
+            # The reward this experience carried (`_evaluate_outcome`), kept with
+            # the instance; it counts toward the capability's reward only where
+            # the outcome counts.
+            reward = (occurrence.get("reward") or {}).get("valence")
+            held[occurrence_id] = {"counted": counted, "worked": worked,
+                                   **({"reward": float(reward)} if reward is not None else {})}
+            if counted:
+                fresh.append((occurrence_id, worked, person, reward, self._category_of(occurrence)))
+        await self._rewrite_method(memory_id, record, thinking_state)
+        authority = get_learning_authority()
+        claim = authority.method_claim(memory_id)
+        for occurrence_id, worked, person, reward, category in fresh:
+            world_before = person_before = None
+            if world:
+                belief = authority.belief_for_claim(claim)
+                world_before = settled_in_favour(belief.posterior_probability if belief else None)
+            if person:
+                mine = await get_scoped_context_store().belief(person, claim)
+                person_before = settled_in_favour(mine["posterior"] if mine else None)
+            moved = {}
+            if world:
+                moved["world"] = await authority.observe_method_outcome(
+                    memory_id, worked=worked, observation=occurrence_id, owner=person, category=category)
+            if person:
+                # How the method goes in this person's work: their belief, in their context.
+                moved["person"] = await self.hold_belief_for_person(
+                    person, claim, domain="methods", supports=worked,
+                    quality=UniversalDomainMaster.COMPETENCE_EVIDENCE_QUALITY, source="experience")
+            now = datetime.now().isoformat()
+            if world and settled_in_favour(moved.get("world")) != world_before:
+                fresh_record, fresh_state = await self._pursuit_record(memory_id)
+                history = fresh_record.setdefault("standing", [])
+                history.append({"settled": settled_in_favour(moved.get("world")), "at": now})
+                await self._rewrite_method(memory_id, fresh_record, fresh_state)
+                record["standing"] = history
+            if person:
+                crossed = settled_in_favour(moved.get("person")) != person_before
+                if crossed or reward is not None:
+                    await self._note_person(person, memory_id, at=now,
+                                            settled=settled_in_favour(moved.get("person")) if crossed else None,
+                                            reward=reward)
+        return len(fresh)
+
+    STANDING_SCHEMA = "standing_v1"
+
+    async def _standing_memory(self, person: str, method_id: str):
+        """A person's record of how their standing in a method moved, as
+        (memory_id, record, thinking_state), or None."""
+        db = self._memory_db()
+        for store in db.maintained_stores():
+            for table in ("memory_hot.memory_hot", "memory_cold.memory_cold"):
+                row = await db.execute_query(
+                    f"SELECT memory_id, thinking_state FROM {table}"
+                    " WHERE thinking_state->'raw_event'->>'schema' = $1"
+                    "   AND thinking_state->'raw_event'->>'method' = $2 AND user_id = $3"
+                    " ORDER BY created_at LIMIT 1",
+                    (self.STANDING_SCHEMA, method_id, str(person)), fetch_one=True, store=store)
+                if row is not None:
+                    thinking_state = row["thinking_state"]
+                    if isinstance(thinking_state, str):
+                        thinking_state = json.loads(thinking_state)
+                    thinking_state = thinking_state or {}
+                    return row["memory_id"], dict(thinking_state.get("raw_event") or {}), thinking_state
+        return None
+
+    async def _note_person(self, person: str, method_id: str, *, at: str,
+                           settled: Optional[bool] = None, reward: Optional[float] = None,
+                           counted: Optional[str] = None) -> None:
+        """Record, in the person's own context, how a method has gone in their
+        work: when their standing became settled in favour (or stopped being),
+        the reward their counted outcomes carried (`reward`: n and sum), and,
+        for a world method their work does not go into, each occurrence counted
+        in their standing (`counted`, see `_witness_standing`)."""
+        from core.memory.utils.interfaces import MemoryType, Origin
+        held = await self._standing_memory(person, method_id)
+        if held is None:
+            record = {"event": "standing", "schema": self.STANDING_SCHEMA, "method": method_id,
+                      "history": [] if settled is None else [{"settled": settled, "at": at}],
+                      "reward": {"n": 0, "sum": 0.0} if reward is None else {"n": 1, "sum": float(reward)},
+                      **({"counted": [counted]} if counted else {})}
+            stored, _ = await self.store_memory(
+                f"How my way of working {method_id} has gone in your work.",
+                memory_type=MemoryType.PROCEDURAL, importance_score=0.5, tags=["standing"],
+                thinking_state={"raw_event": record}, origin=Origin.of(person, "lift"))
+            if not stored:
+                raise RuntimeError(f"the standing of {method_id} could not be kept for its person")
+            return
+        memory_id, record, thinking_state = held
+        if settled is not None:
+            record.setdefault("history", []).append({"settled": settled, "at": at})
+        if reward is not None:
+            totals = record.setdefault("reward", {"n": 0, "sum": 0.0})
+            totals["n"] = int(totals.get("n", 0)) + 1
+            totals["sum"] = float(totals.get("sum", 0.0)) + float(reward)
+        if counted:
+            record.setdefault("counted", []).append(counted)
+        if not await self.postgres_storage.update_memory(
+                memory_id, {"thinking_state": {**(thinking_state or {}), "raw_event": record}}):
+            raise RuntimeError(f"standing memory {memory_id} could not be written")
+
+    async def standing_history(self, method_id: str, person: Optional[str]) -> List[Dict[str, Any]]:
+        """How a standing in a method has moved: the world's (person None), from
+        the method's record, or a person's, from their own context."""
+        if person is None:
+            record, _ = await self._pursuit_record(method_id)
+            return list((record or {}).get("standing") or [])
+        held = await self._standing_memory(person, method_id)
+        return list((held[1] if held else {}).get("history") or [])
+
+    async def person_reward(self, method_id: str, person: str) -> Optional[float]:
+        """The mean reward a person's counted outcomes of a method carried, from
+        their own context, or None when none carried one."""
+        held = await self._standing_memory(person, method_id)
+        totals = (held[1] if held else {}).get("reward") or {}
+        return (float(totals["sum"]) / int(totals["n"])) if int(totals.get("n") or 0) else None
+
+    async def methods_held(self, owner: Optional[str]) -> List[Tuple[str, Dict[str, Any]]]:
+        """Every method memory `owner` holds (None: the world's), as
+        (memory_id, record), oldest first."""
+        from core.database.releases import SUBSTRATE_OWNERS
+        db = self._memory_db()
+        owners = list(SUBSTRATE_OWNERS) if owner is None else [str(owner)]
+        held: List[Tuple[str, Dict[str, Any]]] = []
+        for store in db.maintained_stores():
+            for table in ("memory_hot.memory_hot", "memory_cold.memory_cold"):
+                rows = await db.execute_query(
+                    f"SELECT memory_id, thinking_state->'raw_event' AS record FROM {table}"
+                    " WHERE thinking_state->'raw_event'->>'schema' = $1"
+                    "   AND COALESCE(user_id, '') = ANY($2::text[])"
+                    " ORDER BY created_at", (self.METHOD_SCHEMA, owners), fetch_all=True, store=store) or []
+                for row in rows:
+                    record = row["record"]
+                    held.append((row["memory_id"], json.loads(record) if isinstance(record, str) else dict(record)))
+        return held
+
+    @staticmethod
+    def _fixes_of(occurrence: Dict[str, Any], kept: Optional[Set[str]] = None) -> List[Dict[str, Any]]:
+        """What a task changed to overcome a failure (its `causal_rules`: where
+        these tools failed, this argument set to this value), as fixes a method
+        keeps: {failed_tools, use}. For the world's method only the changes to a
+        value in `kept` (`_no_ones`); a person's own keeps every change."""
+        from core.memory.lift import value_text
+        fixes = []
+        for rule in occurrence.get("causal_rules") or []:
+            use = [{"tool": u["tool"], "arg": u["arg"], "value": u.get("value")}
+                   for u in (rule or {}).get("use") or []
+                   if isinstance(u, dict) and u.get("tool") and u.get("arg")
+                   and (kept is None or value_text(u.get("value")) in kept)]
+            if use:
+                fixes.append({"failed_tools": sorted((rule.get("when") or {}).get("failed_tools") or []),
+                              "use": use})
+        return fixes
+
+    @staticmethod
+    def _add_fixes(record: Dict[str, Any], fixes: Sequence[Dict[str, Any]]) -> None:
+        held = record.setdefault("fixes", [])
+        for fix in fixes:
+            if fix not in held:
+                held.append(fix)
+
+    @staticmethod
+    def _declared_parameters(tool_name: str) -> Dict[str, Any]:
+        """A tool's declared parameters by name, from the tool registry."""
+        from core.execution.tool_domain import declared_parameters
+        from core.tools.tool_registry import get_tool_registry
+        tool = get_tool_registry().get_tool(tool_name)
+        return {str(p.name): p for p in declared_parameters(tool)} if tool is not None else {}
+
+    async def _no_ones(self, occurrence: Dict[str, Any], facts) -> Set[str]:
+        """The values of a task's method that are no one's particular: its
+        tools' own vocabulary (`lift.vocabulary`), and what the world holds a
+        thing under (SEPARATION_MAP §11.3: a term the world holds is about the
+        world, whoever said it). Every other value -- a path, a text, a name --
+        was what that task was about."""
+        from core.memory.lift import constants, vocabulary
+        words = vocabulary(occurrence.get("method"), self._declared_parameters)
+        return words | await self._world_holds(constants(facts) - words)
+
+    async def _lift_one(self, occurrence: Dict[str, Any], facts):
+        """The first task of a shape that worked, as the world's method
+        (`lift.lift_one`), and the fixes it keeps: what is no one's particular
+        (`_no_ones`) stays, every other value is a variable."""
+        from core.memory.lift import lift_one
+        kept = await self._no_ones(occurrence, facts)
+        return lift_one(facts, kept), self._fixes_of(occurrence, kept)
+
+    async def _lift(self, item: Any) -> Dict[str, Any]:
+        """Lift what this experience's tasks did (see THE LIFT above). Returns
+        what was done, for the item's decision: the tasks that are instances of a
+        method, the methods lifted, the tasks still waiting, and the ones apart
+        (a failure that is not an instance of the method of its shape)."""
+        from core.learning.unified_learning_system import get_learning_authority
+        from core.memory.lift import from_formulas, generalize, is_instance, method_facts, person_terms, shape_of
+        from core.memory.utils.interfaces import task_occurrences
+        done: Dict[str, Any] = {"instances": [], "lifted": [], "waiting": [], "apart": []}
+        memory_id = item["memory_id"]
+        record, _ = await self._pursuit_record(memory_id)
+        if not record:
+            return done
+        owner = self._pursuit_owner(record)
+        terms = person_terms((record.get("experience") or {}).get("parts") or []) if owner else None
+        waiting_here: Dict[str, List[Tuple[str, Dict[str, Any], Optional[str]]]] = {}
+        for index, occurrence in enumerate(task_occurrences(record)):
+            # WHETHER IT GOES INTO SHARED LEARNING, asked of the learning authority, which holds the owner's switch
+            # for each kind of work: a task whose kind its owner has turned off is learned for them alone
+            # (`_lift_own`), and nothing of it is written to the world's methods.
+            shares = await get_learning_authority().shares_learning(owner, self._category_of(occurrence))
+            shape = shape_of(occurrence.get("method"))
+            facts = method_facts(occurrence.get("method"))
+            if shape is None or facts is None:
+                continue
+            occurrence_id = self._occurrence_id(memory_id, occurrence, index)
+            task = (occurrence_id, occurrence, owner)
+            counted, worked = self._counted(occurrence)
+            async with self._memory_db().advisory_lock(f"method:{shape}", store="runtime"):
+                if not shares:
+                    await self._lift_own(shape, facts, task, memory_id, done)
+                    continue
+                held = await self._method_memory(shape, None)
+                if held is None:
+                    if not (counted and worked):
+                        waiting_here.setdefault(shape, []).append(task)
+                        done["waiting"].append({"occurrence": occurrence_id, "shape": shape,
+                                                "memory_id": memory_id})
+                        continue
+                    general, fixes = await self._lift_one(occurrence, facts)
+                    method_id = await self._form_method(shape, general, None, fixes)
+                    formed = await self._method_memory(shape, None)
+                    if formed is None or formed[0] != method_id:
+                        raise RuntimeError(f"the method kept for {shape} is not the one found by its shape")
+                    # THE TASKS THAT WAITED for it, this experience's own and others', each a witness of it
+                    # where it is an instance of it.
+                    witnesses = [task]
+                    for earlier in waiting_here.pop(shape, []):
+                        done["waiting"] = [e for e in done["waiting"] if e["occurrence"] != earlier[0]]
+                        if is_instance(general, method_facts(earlier[1].get("method"))):
+                            witnesses.append(earlier)
+                            done["instances"].append({"occurrence": earlier[0], "method": method_id,
+                                                      "memory_id": memory_id})
+                        else:
+                            done["apart"].append({"occurrence": earlier[0], "method": method_id})
+                    for waiting in await self._waiting_of_shape(shape, other_than=memory_id):
+                        other = await self._task_of(waiting["entry"]["memory_id"], waiting["entry"]["occurrence"])
+                        if other is not None and not await get_learning_authority().shares_learning(
+                                other[1], self._category_of(other[0])):
+                            # Its owner has turned shared learning off for its kind since: it is no witness of the
+                            # world's method, and waits as it was.
+                            continue
+                        other_facts = method_facts(other[0].get("method")) if other else None
+                        instance = bool(other_facts) and is_instance(general, other_facts)
+                        if instance:
+                            witnesses.append((waiting["entry"]["occurrence"], other[0], other[1]))
+                        await self._stop_waiting(waiting, method_id, instance=instance)
+                    await self._witness(method_id, formed[1], formed[2], witnesses, world=True)
+                    done["lifted"].append({"method": method_id, "shape": shape, "whose": "world",
+                                           "from": occurrence_id, "witnesses": len(witnesses)})
+                    done["instances"].append({"occurrence": occurrence_id, "method": method_id,
+                                              "memory_id": memory_id})
+                    if owner is not None:
+                        await self._lift_theirs(shape, method_id, memory_id, task, facts, terms, done)
+                    continue
+                method_id, method_record, thinking_state = held
+                general = from_formulas((method_record.get("method") or {}).get("steps") or [])
+                if not is_instance(general, facts):
+                    if not (counted and worked):
+                        done["apart"].append({"occurrence": occurrence_id, "method": method_id})
+                        continue
+                    widened = generalize(general, facts)
+                    if widened is None:
+                        continue
+                    method_record["method"]["steps"] = [f.to_formula() for f in widened]
+                self._add_fixes(method_record, self._fixes_of(occurrence, await self._no_ones(occurrence, facts)))
+                await self._witness(method_id, method_record, thinking_state, [task], world=True)
+                done["instances"].append({"occurrence": occurrence_id, "method": method_id,
+                                          "memory_id": memory_id})
+                if owner is not None:
+                    await self._lift_theirs(shape, method_id, memory_id, task, facts, terms, done)
+        return done
+
+    async def _lift_theirs(self, shape: str, world_method: str, memory_id: str,
+                           task: Tuple[str, Dict[str, Any], Optional[str]], facts, terms: Optional[Set[str]],
+                           done: Dict[str, Any]) -> None:
+        """A PERSON'S OWN WAY OF WORKING. Their task is an instance of the
+        world's method; if an earlier task of theirs was too, and what the two
+        have in common keeps something only they supplied (`lift.residue`),
+        that is their own method, in their context, beside the world's, which
+        never holds it. A task that is an instance of their own method is a
+        witness of it."""
+        from core.memory.lift import from_formulas, generalize, is_instance, method_facts, residue
+        occurrence_id, occurrence, owner = task
+        theirs = await self._method_memory(shape, owner)
+        if theirs is not None:
+            method_id, record, thinking_state = theirs
+            if is_instance(from_formulas((record.get("method") or {}).get("steps") or []), facts):
+                self._add_fixes(record, self._fixes_of(occurrence))
+                await self._witness(method_id, record, thinking_state, [task], world=False)
+                done["instances"].append({"occurrence": occurrence_id, "method": method_id,
+                                          "memory_id": memory_id})
+            return
+        earlier = await self._earlier_instance(owner, world_method, other_than=occurrence_id)
+        if earlier is None or not earlier.get("memory_id"):
+            return
+        other = await self._task_of(earlier["memory_id"], earlier["occurrence"])
+        if other is None or other[1] != owner:
+            return
+        other_occurrence, _, other_terms = other
+        other_facts = method_facts(other_occurrence.get("method"))
+        general = generalize(other_facts, facts) if other_facts else None
+        if general is None or not residue(general, [other_terms, terms]):
+            return
+        fixes = self._fixes_of(other_occurrence)
+        method_id = await self._form_method(
+            shape, general, owner, fixes + [fix for fix in self._fixes_of(occurrence) if fix not in fixes])
+        formed = await self._method_memory(shape, owner)
+        if formed is None or formed[0] != method_id:
+            raise RuntimeError(f"the method kept for {shape} is not the one found by its shape")
+        await self._witness(method_id, formed[1], formed[2],
+                            [(earlier["occurrence"], other_occurrence, owner), task], world=False)
+        done["lifted"].append({"method": method_id, "shape": shape, "whose": "person",
+                               "from": [earlier["occurrence"], occurrence_id]})
+        done["instances"].append({"occurrence": occurrence_id, "method": method_id, "memory_id": memory_id})
+
+    async def _lift_own(self, shape: str, facts, task: Tuple[str, Dict[str, Any], Optional[str]],
+                        memory_id: str, done: Dict[str, Any]) -> None:
+        """THE LIFT FOR A TASK WHOSE OWNER HAS TURNED SHARED LEARNING OFF FOR ITS KIND. What it did is learned for
+        them alone, in their context: their own method of its shape, from their first task of it that worked,
+        witnessed or widened by the ones after. A world method their task is an instance of moves their own standing
+        in it (`_witness_standing`). Nothing is written to the world's methods, their fixes or their belief."""
+        from core.memory.lift import from_formulas, generalize, is_instance
+        occurrence_id, occurrence, owner = task
+        counted, worked = self._counted(occurrence)
+        theirs = await self._method_memory(shape, owner)
+        if theirs is not None:
+            method_id, record, thinking_state = theirs
+            general = from_formulas((record.get("method") or {}).get("steps") or [])
+            if not is_instance(general, facts):
+                if not (counted and worked):
+                    done["apart"].append({"occurrence": occurrence_id, "method": method_id})
+                    return
+                widened = generalize(general, facts)
+                if widened is None:
+                    return
+                record["method"]["steps"] = [f.to_formula() for f in widened]
+            self._add_fixes(record, self._fixes_of(occurrence))
+            await self._witness(method_id, record, thinking_state, [task], world=False)
+            done["instances"].append({"occurrence": occurrence_id, "method": method_id, "memory_id": memory_id})
+            return
+        world = await self._method_memory(shape, None)
+        if world is not None and is_instance(from_formulas((world[1].get("method") or {}).get("steps") or []), facts):
+            await self._witness_standing(world[0], task)
+            done["instances"].append({"occurrence": occurrence_id, "method": world[0], "memory_id": memory_id})
+            return
+        if not (counted and worked):
+            return
+        general, _ = await self._lift_one(occurrence, facts)
+        method_id = await self._form_method(shape, general, owner, self._fixes_of(occurrence))
+        formed = await self._method_memory(shape, owner)
+        if formed is None or formed[0] != method_id:
+            raise RuntimeError(f"the method kept for {shape} is not the one found by its shape")
+        await self._witness(method_id, formed[1], formed[2], [task], world=False)
+        done["lifted"].append({"method": method_id, "shape": shape, "whose": "person", "from": occurrence_id,
+                               "witnesses": 1})
+        done["instances"].append({"occurrence": occurrence_id, "method": method_id, "memory_id": memory_id})
+
+    async def _witness_standing(self, method_id: str, task: Tuple[str, Dict[str, Any], Optional[str]]) -> None:
+        """One task whose owner has turned shared learning off for its kind, as a witness of a world method in their own
+        standing only: their belief in it moves in their context, counted once. The occurrence is kept on their
+        standing record, since the world's method, where it is otherwise kept, is not theirs to write."""
+        from core.capabilities import settled_in_favour
+        from core.integration.universal_domain_master import UniversalDomainMaster
+        from core.learning.scoped_context_store import get_scoped_context_store
+        from core.learning.unified_learning_system import get_learning_authority
+        occurrence_id, occurrence, owner = task
+        counted, worked = self._counted(occurrence)
+        held = await self._standing_memory(owner, method_id)
+        if not counted or (held is not None and occurrence_id in (held[1].get("counted") or [])):
+            return
+        reward = (occurrence.get("reward") or {}).get("valence")
+        # Counted first: an outcome lost between the two is not counted, and one counted twice could not be taken
+        # back (as `_witness`).
+        await self._note_person(owner, method_id, at=datetime.now().isoformat(), reward=reward,
+                                counted=occurrence_id)
+        claim = get_learning_authority().method_claim(method_id)
+        mine = await get_scoped_context_store().belief(owner, claim)
+        before = settled_in_favour(mine["posterior"] if mine else None)
+        moved = await self.hold_belief_for_person(
+            owner, claim, domain="methods", supports=worked,
+            quality=UniversalDomainMaster.COMPETENCE_EVIDENCE_QUALITY, source="experience")
+        if settled_in_favour(moved) != before:
+            await self._note_person(owner, method_id, at=datetime.now().isoformat(),
+                                    settled=settled_in_favour(moved))
+
     #: How far up its kinds a thing is followed when asking whether a fact is held of it: deeper than any chain of
     #: kinds WordNet has (19 at most).
     KINDS_FOLLOWED = 24
@@ -4661,8 +6097,308 @@ class MemoryAgent(IMemoryConsolidation):
     #: everything meets.
     KINDS_NEAR = 2
 
+    # ================================================================================================
+    # WHAT WORDS ARE SAID OF
+    # ================================================================================================
+    #
+    # "Red wine", "ate the bread": not facts about wine or bread, but how English uses "red" and "eat". A listener
+    # goes by it where nothing it knows tells two things a word names apart (Resnik 1997): red is said of physical
+    # things, so the table that is red is the furniture, not the array. ONE MEMORY FOR EACH WORD, RELATION AND
+    # SIDE, holding every word and thing it has been said of, with how often, and each observation counted, so the
+    # same source again moves nothing.
+
+    # WHAT THE LISTENER COUNTED ===================================================================================
+    #
+    # What each piece of the listener's evidence is worth, as it counted it on sentences whose meaning it was taught
+    # (`derived_reader.listening_counts`). ONE MEMORY, the one the counts' beliefs are about: a belief names the
+    # memory it is a stance on, or it is not stored.
+
+    LISTENING_TAG = "listening"
+
+    async def listening_memory(self) -> Optional[str]:
+        """The memory of what the listener counted, its id; None until it has counted anything."""
+        from core.database.releases import SUBSTRATE_OWNERS
+        db = self._memory_db()
+        for store in db.maintained_stores():
+            for table in ("memory_hot.memory_hot", "memory_cold.memory_cold"):
+                rows = await db.execute_query(
+                    f"SELECT memory_id FROM {table}"
+                    " WHERE tags @> $1::jsonb AND COALESCE(user_id, '') = ANY($2::text[])"
+                    " ORDER BY created_at LIMIT 1",
+                    (json.dumps([self.LISTENING_TAG]), list(SUBSTRATE_OWNERS)), fetch_all=True, store=store) or []
+                if rows:
+                    return rows[0]["memory_id"]
+        return None
+
+    SAID_OF_TAG = "said_of"
+
+    async def _said_memories(self) -> Dict[Tuple[str, str, str], Dict[str, Any]]:
+        """The memories of what words are said of, read back as the view (`_said_view`)."""
+        from core.utils.give_way import GiveWay
+        give_way = GiveWay()
+        rows = await self._rows_tagged(self.SAID_OF_TAG)
+        view: Dict[Tuple[str, str, str], Dict[str, Any]] = {}
+        for row in rows:
+            await give_way()
+            said = (row.metadata or {}).get("said") or {}
+            key = (str(said.get("relation") or ""), str(said.get("word") or ""), str(said.get("side") or ""))
+            if not all(key):
+                continue
+            view[key] = {"memory_id": row.memory_id,
+                         "words": dict(said.get("words") or {}), "things": dict(said.get("things") or {}),
+                         "seen": {tuple(seen) for seen in said.get("seen") or ()}}
+        return view
+
+    async def remember_said(self, uses, progress: Optional[Callable[[int, int], None]] = None) -> Dict[str, int]:
+        """Remember what words are said of. `uses`: `(relation, word, side, other, times, observation, named)`: the
+        word stands on `side` ("subject" or "object") of the relation and `other` on the far side, met `times`
+        times, as `observation` saw it; `named` is "word" where `other` is a word whose sense was not given (a
+        corpus: "red wine") and "thing" where it is the thing itself (a sentence taught with its meaning). Each
+        observation is counted once, however often it is told. Returns counts: `remembered` (memories formed or
+        added to), `already` (uses held from that observation), `total`. `progress(done, of)` is told every 1,000
+        words: a whole source's are hours of writing, and a pass that says nothing for them reads as stuck."""
+        from core.memory.utils.interfaces import Origin
+        if not self._word_classes_warm:
+            await self.warm_word_classes()
+        grouped: Dict[Tuple[str, str, str], List[Tuple[str, int, str, str]]] = {}
+        counts = {"remembered": 0, "already": 0, "total": 0}
+        for relation, word, side, other, times, observation, named in uses:
+            counts["total"] += 1
+            key = (str(relation), str(word).strip().lower(), str(side))
+            grouped.setdefault(key, []).append((str(other).strip().lower(), int(times), str(observation),
+                                                "things" if named == "thing" else "words"))
+        for done, (key, said) in enumerate(grouped.items(), 1):
+            if progress is not None and done % 1000 == 0:
+                progress(done, len(grouped))
+            held = self._said_view.get(key) or {"memory_id": None, "words": {}, "things": {}, "seen": set()}
+            fresh = [(other, times, observation, kind) for other, times, observation, kind in said
+                     if (observation, other) not in held["seen"]]
+            counts["already"] += len(said) - len(fresh)
+            if not fresh:
+                continue
+            for other, times, observation, kind in fresh:
+                held[kind][other] = held[kind].get(other, 0) + times
+                held["seen"].add((observation, other))
+            relation, word, side = key
+            most = sorted({**held["words"], **held["things"]}.items(), key=lambda kv: (-kv[1], kv[0]))[:12]
+            content = (f'"{word}" ({relation}, {side}) is said of '
+                       + ", ".join(f"{other} ({times})" for other, times in most))
+            record = {"said": {"relation": relation, "word": word, "side": side, "words": held["words"],
+                               "things": held["things"], "seen": sorted(map(list, held["seen"]))}}
+            if held["memory_id"] is None:
+                stored, memory_id = await self.store_memory(
+                    content=content, memory_type=MemoryType.SEMANTIC, importance_score=0.6,
+                    confidence_score=0.9, tags=["language", self.SAID_OF_TAG], source_context=record,
+                    origin=Origin.own("teaching"))
+                if not stored or not memory_id:
+                    raise RuntimeError(f"what {key[1]!r} is said of was not kept: the memory was declined")
+                held["memory_id"] = memory_id
+            elif not await self.update_memory(held["memory_id"], {"content": content, "metadata": record,
+                                                                  "metadata.merge": True}):
+                raise RuntimeError(f"what {key[1]!r} is said of was not updated in {held['memory_id']}")
+            # The view is kept in step with the memory it is a view of; the kinds words are said of are worked out
+            # again when next asked.
+            self._said_view[key] = held
+            self._said_spread.pop((relation, side), None)
+            counts["remembered"] += 1
+        return counts
+
+    # WHAT WAS HEARD AFTER WHAT. A construction holds its slots' fillers each apart, so which word went after which
+    # is not in it ("might open" and "often opens", one phrase "?slot0 ?slot1"); the sentences taught had it, and it
+    # is kept: ONE MEMORY FOR EACH WORD, holding the words heard right after it, and, of each word heard before it,
+    # the words heard after the two ("did not": chase, kick; "has not": opened). Saying puts a word only where a word
+    # like it was heard (`derived_reader._unheard`). Heard is heard: a sentence taught again adds nothing.
+
+    HEARD_TAG = "heard_after"
+
+    async def _heard_memories(self) -> Tuple[Dict[str, Tuple[List[str], Dict[str, List[str]]]], Dict[str, str]]:
+        """The memories of what was heard after each word: the words, and of each word heard before it, the words
+        heard after the two; and the memory holding each word's."""
+        from core.utils.give_way import GiveWay
+        give_way = GiveWay()
+        rows = await self._rows_tagged(self.HEARD_TAG)
+        heard: Dict[str, Tuple[List[str], Dict[str, List[str]]]] = {}
+        held: Dict[str, str] = {}
+        for row in rows:
+            await give_way()
+            record = (row.metadata or {}).get("heard") or {}
+            word = str(record.get("word") or "")
+            if not word:
+                continue
+            heard[word] = ([str(other) for other in record.get("after") or ()],
+                           {str(earlier): [str(other) for other in others]
+                            for earlier, others in (record.get("after_two") or {}).items()})
+            held[word] = row.memory_id
+        return heard, held
+
+    async def remember_heard(self, sentences,
+                             progress: Optional[Callable[[int, int], None]] = None) -> Dict[str, int]:
+        """Remember, for each sentence taught (`sentences`: each its words, marks and all), each word heard right
+        after another, and after the two before it (`PatternInventory.hear`), in the memory of the word before it.
+        Returns counts: `remembered` (memories formed or added to) and `heard` (pairs, and words after two, not
+        heard before). `progress(done, of)` is told every 1,000 words, in the order they are written (alphabetical):
+        WordNet's sentences hold tens of thousands, written for hours."""
+        from core.memory.utils.interfaces import Origin
+        if not self._word_classes_warm:
+            await self.warm_word_classes()
+        view = self.pattern_inventory()
+        fresh: Dict[str, int] = {}
+        for words in sentences:
+            for heard in view.hear(words):
+                fresh[heard[-2]] = fresh.get(heard[-2], 0) + 1
+        counts = {"remembered": 0, "heard": sum(fresh.values())}
+        for done, word in enumerate(sorted(fresh), 1):
+            if progress is not None and done % 1000 == 0:
+                progress(done, len(fresh))
+            after = sorted(view.heard_after(word))
+            content = f"Heard after {word}: " + ", ".join(after[:24]) + (", ..." if len(after) > 24 else "")
+            record = {"heard": {"word": word, "after": after,
+                                "after_two": {earlier: sorted(others) for earlier, others in view.heard_two(word).items()}}}
+            memory_id = self._heard_memory.get(word)
+            if memory_id is None:
+                stored, memory_id = await self.store_memory(
+                    content=content, memory_type=MemoryType.SEMANTIC, importance_score=0.6,
+                    confidence_score=0.9, tags=["language", self.HEARD_TAG], source_context=record,
+                    origin=Origin.own("teaching"))
+                if not stored or not memory_id:
+                    raise RuntimeError(f"what was heard after {word!r} was not kept: the memory was declined")
+                self._heard_memory[word] = memory_id
+            elif not await self.update_memory(memory_id, {"content": content, "metadata": record,
+                                                          "metadata.merge": True}):
+                raise RuntimeError(f"what was heard after {word!r} was not updated in {memory_id}")
+            counts["remembered"] += 1
+        return counts
+
+    async def _kinds_above(self, names) -> Dict[str, Dict[str, int]]:
+        """Each named thing's kinds as memory holds them, and how far up each is (itself at 0)."""
+        names = sorted({n for n in names if n})
+        if not names:
+            return {}
+        rows = await self._memory_db().execute_query(
+            "WITH RECURSIVE kinds(start, name, depth) AS ("
+            " SELECT name::text, name::text, 0 FROM unified.concepts WHERE name = ANY($1::text[])"
+            " UNION"
+            " SELECT k.start, COALESCE(c2.name, cr.target_surface)::text, k.depth + 1"
+            " FROM kinds k JOIN unified.concepts c1 ON c1.name = k.name"
+            " JOIN unified.concept_relations cr ON cr.source_concept_id = c1.concept_id"
+            " LEFT JOIN unified.concepts c2 ON c2.concept_id = cr.target_concept_id"
+            " WHERE cr.relation IN ('isa', 'is a') AND cr.polarity = 'positive' AND k.depth < $2)"
+            " SELECT start, name, MIN(depth) AS depth FROM kinds GROUP BY start, name",
+            (names, self.KINDS_FOLLOWED), fetch_all=True) or []
+        up: Dict[str, Dict[str, int]] = {}
+        for row in rows:
+            up.setdefault(row["start"], {})[row["name"]] = int(row["depth"])
+        return up
+
+    async def _said_kinds(self, others: Dict[str, Dict[str, int]]) -> Tuple[Dict[str, float], float]:
+        """How what was said of is spread over kinds: for each kind, the share of the uses whose thing is of it, and
+        how many uses that is. A word whose sense was not given is shared among the things memory knows it names
+        (Resnik's 1/senses); a word or thing memory knows nothing of counts in none."""
+        from core.semantics.cognitive_ingress import normalize_term
+        view = self.pattern_inventory()
+        senses: Dict[Tuple[str, str], List[str]] = {}
+        for kind, said in others.items():
+            for other in said:
+                if kind == "things":
+                    senses[(kind, other)] = [normalize_term(other)]
+                else:
+                    named = {normalize_term(lx.value) for lx in view.lexicals_with_words((other,), loose=True)
+                             if view.counts(lx)}
+                    senses[(kind, other)] = sorted(named)
+        up = await self._kinds_above(n for names in senses.values() for n in names)
+        spread: Dict[str, float] = {}
+        total = 0.0
+        for (kind, other), names in senses.items():
+            known = [n for n in names if n in up]
+            if not known:
+                continue
+            times = others[kind][other]
+            total += times
+            for name in known:
+                for above in up[name]:
+                    spread[above] = spread.get(above, 0.0) + times / len(known)
+        return ({k: v / total for k, v in spread.items()} if total else {}), total
+
+    async def said_selection(self, facts, senses) -> Dict[Tuple[str, str, str, bool], float]:
+        """For each fact (as `derived_reader.held_key` writes it) that says something of one of `senses`, how much
+        more likely that thing is, given what the fact's other word is said of, than it is at all: ACT-R's
+        associative strength by its own definition, `ln(P(k|w) / P(k))`, in nats, so it adds to a base level
+        (`derived_reader.meant`). Taken over every kind the thing is, averaged (what words are said of is counted
+        by kind, as Resnik 1997 counts it), and with one use spread as anything is, so a word met a few times moves
+        little. "The table is red.": red is said of physical things more than things are at all, and of
+        arrangements and groups less, so the table that is furniture gains and the array loses. Nothing for a fact
+        whose word memory holds nothing said of.
+
+        Chosen by measurement (SENSE-SAID-01): on the adjective–noun and verb–object pairs of WordNet's hand-tagged
+        definitions, this added to how often each sense is met beat the most frequent sense (58.8% and 58.3%
+        against 57.4% and 56.6%); the lift at the kind Resnik's association picks did not, and taking the word's
+        selection first and frequency only on a tie fell to 42.5% and 44.6%."""
+        import math
+        from core.semantics.cognitive_ingress import normalize_term
+        if not self._word_classes_warm:
+            await self.warm_word_classes()
+        senses = {normalize_term(s) for s in senses}
+        wanted: Dict[Tuple[str, str, str, bool], List[Tuple[str, Tuple[str, str, str]]]] = {}
+        for key in facts:
+            # Said or denied, the word is said of the thing: "The table is not red." says red of a table.
+            relation, subject, obj = key[0], normalize_term(key[1]), normalize_term(key[2])
+            for thing, word, side in ((subject, obj, "object"), (obj, subject, "subject")):
+                if thing in senses and (relation, word, side) in self._said_view:
+                    wanted.setdefault(tuple(key), []).append((thing, (relation, word, side)))
+        if not wanted:
+            return {}
+        up = await self._kinds_above(thing for asks in wanted.values() for thing, _ in asks)
+        chosen: Dict[Tuple[str, str, str, bool], float] = {}
+        # What each word is said of, worked out once for the call: a sentence read a thousand ways asks it of the
+        # same few words a thousand times.
+        said_by: Dict[Tuple[str, str, str], Tuple[Dict[str, float], float]] = {}
+        for key, asks in wanted.items():
+            score = 0.0
+            for thing, (relation, word, side) in asks:
+                if (relation, side) not in self._said_spread:
+                    # How anything at all is spread over kinds when this relation is said of it, from every word
+                    # said so: what `P(k)` is measured against.
+                    every: Dict[str, Dict[str, int]] = {"words": {}, "things": {}}
+                    for (r, _, s), held in self._said_view.items():
+                        if (r, s) == (relation, side):
+                            for kind in ("words", "things"):
+                                for other, times in held[kind].items():
+                                    every[kind][other] = every[kind].get(other, 0) + times
+                    self._said_spread[(relation, side)] = (await self._said_kinds(every))[0]
+                prior = self._said_spread[(relation, side)]
+                if (relation, word, side) not in said_by:
+                    held = self._said_view[(relation, word, side)]
+                    said_by[(relation, word, side)] = await self._said_kinds(
+                        {"words": held["words"], "things": held["things"]})
+                given, uses = said_by[(relation, word, side)]
+                kinds = sorted(k for k in up.get(thing, {thing: 0}) if prior.get(k))
+                if not kinds or not uses:
+                    continue
+                # One use more, spread as anything is: `P(k|w)` as `(n P(k|w) + P(k)) / (n + 1)`. Over every kind
+                # the thing is, so a kind the word is never said of counts against it as much as one it is said of
+                # counts for it.
+                score += sum(math.log((uses * given.get(k, 0.0) + prior[k]) / (uses + 1) / prior[k])
+                             for k in kinds) / len(kinds)
+            chosen[key] = round(score, 4)
+        return chosen
+
+    async def coarse_senses(self, senses) -> FrozenSet[FrozenSet[str]]:
+        """Which of `senses` are one coarse sense: one a near kind of the other, or both near kinds of one thing
+        (`KINDS_NEAR`), as memory holds what each is. The table that is furniture and the table a meal is laid on
+        are one; the furniture and the array of data are not. A listener need not tell such senses apart to have
+        understood."""
+        from core.semantics.cognitive_ingress import normalize_term
+        named = {sense: normalize_term(sense) for sense in senses}
+        up = await self._kinds_above(named.values())
+        near = {sense: {k for k, depth in up.get(name, {name: 0}).items() if depth <= self.KINDS_NEAR} | {name}
+                for sense, name in named.items()}
+        ordered = sorted(near)
+        return frozenset(frozenset((a, b)) for i, a in enumerate(ordered) for b in ordered[i + 1:]
+                         if near[a] & near[b])
+
     async def listening_evidence(self, facts, senses, context) -> Tuple[Dict[Tuple[str, str, str, bool], int],
-                                                                       Dict[str, int]]:
+                                                                       Dict[str, float],
+                                                                       Dict[Tuple[str, str, str, bool], int]]:
         """What memory knows that bears on which thing a word was meant to name: what a listener asks when a
         sentence can be taken more than one way (`derived_reader.listening`).
 
@@ -4672,19 +6408,46 @@ class MemoryAgent(IMemoryConsolidation):
         either side ("I ate fish": an eating done to food, and the food sense of fish is a food). A denial is held
         only as told of the things themselves.
 
-        `related`: for each of `senses`, how many of `context` (the rest of what was said, and what was talked of
-        before) it is connected to in memory: a fact of any kind between the two, or between what they are near
-        kinds of (`KINDS_NEAR`); one being a near kind of the other; or both near kinds of one thing."""
+        `defined`: for each fact, 2 when one thing's definition is written with the other, 1 when with what the other
+        is a near kind of: what memory knows of the two that no fact between them says.
+
+        `related`: for each of `senses`, how much the rest of what was said and what was talked of before
+        (`context`) raise it, in nats: ACT-R's spreading activation. Each thing of `context` the sense is connected
+        to in memory (a fact of any kind between the two, or between what they are near kinds of, `KINDS_NEAR`;
+        one a near kind of the other; both near kinds of one thing; or the thing itself, talked of before) gives
+        its associative strength by ACT-R's own definition, `ln(P(i|j) / P(i))`: `P(i|j)` one over how many things
+        memory holds connected to it (its fan, `_fans`), `P(i)` one over how many things memory holds. Each of the
+        n things of `context` gives a 1/n share, as ACT-R divides its source activation. A thing connected to
+        everything (a person, near half of what is said) tells a sense little; one connected to few (a river) tells
+        it much.
+
+        AN ACTIVATION, NOT A RANK OF ITS OWN. Counted as a rank before how often each sense is met, one connection
+        took the rare sense: "Tom walked from the house." was the Tom of an ethnic slur (met once, beside 395 for
+        the Tom of the lessons), "The dog jumped over the chair." a dog that is an andiron, held up as furniture is
+        (2026-10-11, 23 of the 67 taught sentences main did not read as taught). Measured on WordNet's hand-tagged
+        definitions (SENSE-RELATED-01): first, it took 63.0% of the senses tagged; added to the base level, 65.3%;
+        the most frequent sense alone, 58.5%."""
         from core.semantics.cognitive_ingress import normalize_term
         facts = [tuple(f) for f in facts]
         senses, context = list(dict.fromkeys(senses)), list(dict.fromkeys(context))
         names = {term: normalize_term(term)
                  for term in [t for f in facts for t in (f[1], f[2])] + senses + context}
         if not names:
-            return {}, {}
+            return {}, {}, {}
 
         def kind_of(relation: str) -> str:
-            return "isa" if relation in ("isa", "is a") else relation
+            # ONE NAME FOR EACH RELATION, as the register writes it: memory holds "part of", "antonym of", "instance
+            # of", and the reader asks of `part_of`, `antonym_of`, `instance_of`. Compared as written, nothing but
+            # what a thing is a kind of was ever found held (UNDERSTANDS-WORDNET-01, 2026-10-13).
+            name = str(relation).strip().replace(" ", "_")
+            return "isa" if name in ("isa", "is_a") else name
+
+        def symmetric(relation: str) -> bool:
+            from core.semantics.relation_types import SemanticRelation, get_spec
+            try:
+                return get_spec(SemanticRelation(relation)).symmetric
+            except ValueError:
+                return False
 
         rows = await self._memory_db().execute_query(
             "WITH RECURSIVE kinds(start, name, depth) AS ("
@@ -4723,15 +6486,38 @@ class MemoryAgent(IMemoryConsolidation):
         held: Dict[Tuple[str, str, str, bool], int] = {}
         for key in facts:
             relation, subject, obj, positive = kind_of(key[0]), names[key[1]], names[key[2]], bool(key[3])
+            # A symmetric relation held the other way round is held ("incoming is the opposite of outgoing").
             if (relation, obj, positive) in said.get(subject, ()) or (
+                    symmetric(relation) and (relation, subject, positive) in said.get(obj, ())) or (
                     relation == "isa" and positive and obj != subject and obj in kinds_of(subject)):
                 held[key] = 2
-            elif positive and any((relation, o, True) in said.get(s, ())
-                                  for s in kinds_of(subject) for o in kinds_of(obj)):
+            elif positive and relation != "isa" and any((relation, o, True) in said.get(s, ())
+                                                        for s in kinds_of(subject) for o in kinds_of(obj)):
+                # NOT FOR WHAT A THING IS A KIND OF. That a thing is a Y is held when Y is among its kinds (above);
+                # its kinds and Y's kinds always meet somewhere general ("a whole is an object"), so the animal
+                # was held a device as firmly as the computer's mouse that is one.
                 held[key] = 1
 
         def near(name: str) -> set:
             return kinds_of(name, self.KINDS_NEAR)
+
+        # WHAT A THING'S DEFINITION IS WRITTEN WITH (`defined with`: each word of a definition linked by WordNet's own
+        # authors to the sense it is used in). "A bus is a vehicle." is held nowhere as a kind, the bus being public
+        # transport, and its definition says it: "a vehicle carrying many passengers". Asked only of kinds, memory
+        # answered that it knew nothing, and the car that is a bus, held a vehicle, was taken (2026-10-14). 2 when
+        # either thing's definition is written with the other; 1 when with what the other is a near kind of (a door
+        # "will close the entrance to a room or building", and a house is a building).
+        def written_with(name: str) -> set:
+            return {target for relation, target, positive in said.get(name, ()) if relation == "defined_with" and positive}
+        defined: Dict[Tuple[str, str, str, bool], int] = {}
+        for key in facts:
+            subject, obj = names[key[1]], names[key[2]]
+            if not key[3] or subject == obj:
+                continue
+            if obj in written_with(subject) or subject in written_with(obj):
+                defined[key] = 2
+            elif written_with(subject) & near(obj) or written_with(obj) & near(subject):
+                defined[key] = 1
 
         def connected(a: str, b: str) -> bool:
             here, there = near(a), near(b)
@@ -4742,9 +6528,72 @@ class MemoryAgent(IMemoryConsolidation):
             return any(target in there for k in here for _, target, _ in said.get(k, ())) or \
                 any(target in here for k in there for _, target, _ in said.get(k, ()))
 
-        related = {sense: sum(1 for other in context if other != sense and connected(names[sense], names[other]))
-                   for sense in senses}
-        return held, {sense: n for sense, n in related.items() if n}
+        # The thing itself talked of before counts as what it is connected to: a word keeps its sense in one
+        # conversation (one sense per discourse).
+        import math
+        sources = {other: names[other] for other in context}
+        fans = await self._fans(sources.values()) if sources else {}
+        held_at_all = await self._things() if sources else 0
+        related: Dict[str, float] = {}
+        for sense in senses:
+            strength = sum(math.log(held_at_all / fans[name]) for name in sources.values()
+                           if connected(names[sense], name)) / max(1, len(sources))
+            if strength:
+                related[sense] = round(strength, 6)
+        return held, related, defined
+
+    async def _things(self) -> int:
+        """How many things memory holds: what one thing's share of all of them is measured against."""
+        if self._things_held is None:
+            rows = await self._memory_db().execute_query("SELECT count(*) AS n FROM unified.concepts", fetch_all=True)
+            self._things_held = max(1, int(rows[0]["n"])) if rows else 1
+        return self._things_held
+
+    async def _fans(self, names) -> Dict[str, int]:
+        """How many things memory holds connected to each of `names`, as `listening_evidence` connects two things:
+        its fan, ACT-R's. A thing is connected to what is within `KINDS_NEAR` kinds below anything it is near, holds
+        a fact of, or is held a fact of; and to what is within as many below anything a fact is held of that names
+        what it is near. The thing itself is among them. Counted once for each name until the next warm."""
+        wanted = sorted({name for name in names if name not in self._fan_view})
+        if wanted:
+            rows = await self._memory_db().execute_query(
+                "WITH RECURSIVE up(start, name, depth) AS ("
+                " SELECT n::text, n::text, 0 FROM unnest($1::text[]) AS n"
+                " UNION"
+                " SELECT u.start, c2.name::text, u.depth + 1 FROM up u JOIN unified.concepts c1 ON c1.name = u.name"
+                " JOIN unified.concept_relations cr ON cr.source_concept_id = c1.concept_id"
+                " JOIN unified.concepts c2 ON c2.concept_id = cr.target_concept_id"
+                " WHERE cr.relation IN ('isa', 'is a') AND cr.polarity = 'positive' AND u.depth < $2),"
+                " near AS (SELECT DISTINCT start, name FROM up),"
+                " seeds(start, name) AS ("
+                " SELECT start, name FROM near"
+                " UNION"
+                " SELECT n.start, COALESCE(c2.name, cr.target_surface)::text FROM near n"
+                " JOIN unified.concepts c1 ON c1.name = n.name"
+                " JOIN unified.concept_relations cr ON cr.source_concept_id = c1.concept_id"
+                " LEFT JOIN unified.concepts c2 ON c2.concept_id = cr.target_concept_id"
+                " UNION"
+                " SELECT n.start, c1.name::text FROM near n JOIN unified.concepts c2 ON c2.name = n.name"
+                " JOIN unified.concept_relations cr ON cr.target_concept_id = c2.concept_id"
+                " JOIN unified.concepts c1 ON c1.concept_id = cr.source_concept_id"
+                " UNION"
+                " SELECT n.start, c1.name::text FROM near n"
+                " JOIN unified.concept_relations cr ON cr.target_concept_id IS NULL AND cr.target_surface = n.name"
+                " JOIN unified.concepts c1 ON c1.concept_id = cr.source_concept_id),"
+                " down(start, name, depth) AS ("
+                " SELECT start, name, 0 FROM seeds"
+                " UNION"
+                " SELECT d.start, c1.name::text, d.depth + 1 FROM down d JOIN unified.concepts c2 ON c2.name = d.name"
+                " JOIN unified.concept_relations cr ON cr.target_concept_id = c2.concept_id"
+                " JOIN unified.concepts c1 ON c1.concept_id = cr.source_concept_id"
+                " WHERE cr.relation IN ('isa', 'is a') AND cr.polarity = 'positive' AND d.depth < $2)"
+                " SELECT start, count(DISTINCT name) AS fan FROM down GROUP BY start",
+                (wanted, self.KINDS_NEAR), fetch_all=True) or []
+            for row in rows:
+                self._fan_view[row["start"]] = max(1, int(row["fan"]))
+            for name in wanted:
+                self._fan_view.setdefault(name, 1)
+        return {name: self._fan_view[name] for name in names}
 
     async def task_occurrences(self) -> List[Dict[str, Any]]:
         """Every time the substrate did a task of its own, as its task memories
@@ -4829,6 +6678,57 @@ class MemoryAgent(IMemoryConsolidation):
                     return row["memory_id"]
         return None
 
+    async def tool_runs(self) -> Dict[str, Dict[str, Any]]:
+        """The tool runs a task did, by tool: how many ran (`runs`), how many
+        succeeded and failed, and over the runs that were timed, how many
+        (`timed`) and their total `seconds`.
+
+        Read from the tool-run parts of every task and pursuit memory, hot and
+        cold, in every store the memory agent keeps. Only the tool's name, whether
+        the run succeeded and how long it took are read: nothing of its arguments,
+        and nothing of whose work it was. A run the experience holds no verdict
+        for (`success` missing) is counted as a run and as neither.
+
+        Tools that run outside a task's own steps are recorded where their
+        faculty keeps them, not here: a learned operator's run as runtime
+        evidence on its rule, a look-up as the parts of its research experience,
+        a reading in the act's frame (filed with the act as a demonstration) and
+        in the constitution's reading ledger, an exploration act as a
+        demonstration."""
+        from core.memory.utils.interfaces import TASK_OUTCOME_EVENT
+        db = self._memory_db()
+        by_tool: Dict[str, Dict[str, Any]] = {}
+        for store in db.maintained_stores():
+            for table in ("memory_hot.memory_hot", "memory_cold.memory_cold"):
+                rows = await db.execute_query(
+                    "SELECT part FROM ("
+                    f"  SELECT thinking_state->'raw_event'->'experience'->'parts' AS parts FROM {table}"
+                    "   WHERE thinking_state->'raw_event'->>'event' = $1"
+                    "     AND jsonb_typeof(thinking_state->'raw_event'->'experience'->'parts') = 'array'"
+                    ") AS held, jsonb_array_elements(held.parts) AS part"
+                    " WHERE part->>'role' = 'tool_run'",
+                    (TASK_OUTCOME_EVENT,), fetch_all=True, store=store) or []
+                for row in rows:
+                    part = row["part"]
+                    part = json.loads(part) if isinstance(part, str) else part
+                    content = part.get("content") or {}
+                    name = content.get("tool")
+                    if not name:
+                        continue
+                    count = int(part.get("count", 1))
+                    tally = by_tool.setdefault(str(name), {
+                        "runs": 0, "succeeded": 0, "failed": 0, "timed": 0, "seconds": 0.0})
+                    tally["runs"] += count
+                    if content.get("success") is True:
+                        tally["succeeded"] += count
+                    elif content.get("success") is False:
+                        tally["failed"] += count
+                    measure = part.get("measured") or {}
+                    if "seconds" in (measure.get("sums") or {}):
+                        tally["timed"] += int(measure.get("n", 0))
+                        tally["seconds"] += float(measure["sums"]["seconds"])
+        return by_tool
+
     async def begin_pursuit(self, *, intent_id: str, kind: str, aim: str,
                             origin: "Origin",
                             trigger: Optional[Dict[str, Any]] = None) -> Optional[str]:
@@ -4896,6 +6796,9 @@ class MemoryAgent(IMemoryConsolidation):
             if record is None:
                 raise RuntimeError(f"pursuit memory {memory_id} is not held")
             entry = json.loads(json.dumps(task_record, default=str))
+            # The kind of work it was (`task_experience`), kept on the occurrence it is about.
+            if experience.evidence.get("category"):
+                entry["category"] = experience.evidence["category"]
             record["occurrences"] = list(record.get("occurrences") or []) + [entry]
             record["counts"] = {
                 "success": sum(1 for o in record["occurrences"] if o.get("outcome") == "success"),
@@ -4934,6 +6837,95 @@ class MemoryAgent(IMemoryConsolidation):
                     json.loads(json.dumps(list(parts), default=str)))}
             await self._rewrite_pursuit(memory_id, record, thinking_state, add_tags=tags)
         return record
+
+    async def _tags_index(self) -> None:
+        """The index every whole-set read by tag goes through, made once in every store memory keeps."""
+        if MemoryAgent._construction_index_ready:
+            return
+        db = self._memory_db()
+        for store in db.schema_stores():
+            for table in ("memory_hot.memory_hot", "memory_cold.memory_cold"):
+                name = table.split(".")[0] + "_tags_gin_idx"
+                await db.execute_query(f"CREATE INDEX IF NOT EXISTS {name} ON {table} USING gin (tags)",
+                                       commit=True, store=store)
+        MemoryAgent._construction_index_ready = True
+
+    async def claims_of(self, memory_ids: Sequence[str]) -> Dict[str, List[list]]:
+        """The facts each memory claims (`claim_facts`, as made or as read when it was stored), by memory id; a
+        memory claiming none is absent. Read directly from both tiers of every store, by id."""
+        ids = [str(m) for m in memory_ids if m]
+        if not ids:
+            return {}
+        db = self._memory_db()
+        out: Dict[str, List[list]] = {}
+        for store in db.maintained_stores():
+            for table in ("memory_hot.memory_hot", "memory_cold.memory_cold"):
+                rows = await db.execute_query(
+                    f"SELECT memory_id, metadata->'claim_facts' AS facts FROM {table}"
+                    " WHERE memory_id = ANY($1::text[]) AND metadata ? 'claim_facts'",
+                    (ids,), fetch_all=True, store=store) or []
+                for row in rows:
+                    facts = row["facts"]
+                    facts = json.loads(facts) if isinstance(facts, str) else facts
+                    if facts:
+                        out.setdefault(row["memory_id"], facts)
+        return out
+
+    async def _rows_tagged(self, tag: str) -> List[Any]:
+        """Every memory of Lyric's own carrying `tag`, read whole by its tag from both tiers of every store memory
+        keeps: its id, content, metadata and raw event, and nothing else.
+
+        READ DIRECTLY, NOT THROUGH RETRIEVAL, as the constructions are (`_construction_rows`). Retrieval ranks all
+        of memory to find what fits a query, reads every column (each memory's embedding, and any perception copied
+        into it), and stops at a cap. Asked for the word classes whole, it took 56 s with 385,000 memories held,
+        against a 60 s limit on a query; a failed strategy came back as no rows; and past its cap it kept the first
+        400,000, while WordNet's facts alone are 636,000. A view read short or empty reads every word past it as
+        never met, and the run that read it said nothing of it (2026-10-08). Read so, it is one indexed query."""
+        from types import SimpleNamespace
+        from core.database.releases import SUBSTRATE_OWNERS
+        from core.utils.give_way import GiveWay
+        give_way = GiveWay()
+        await self._tags_index()
+        db = self._memory_db()
+        out: List[Any] = []
+        for store in db.maintained_stores():
+            for table in ("memory_hot.memory_hot", "memory_cold.memory_cold"):
+                async for row in self._tagged_pages(db, table, store, tag, SUBSTRATE_OWNERS):
+                    await give_way()
+                    content, meta, raw = row["content"], row["metadata"], row["raw_event"]
+                    out.append(SimpleNamespace(
+                        memory_id=row["memory_id"],
+                        content=(json.loads(content) if isinstance(content, str) else content) if content else {},
+                        metadata=json.loads(meta) if isinstance(meta, str) else dict(meta or {}),
+                        thinking_state={"raw_event": json.loads(raw) if isinstance(raw, str) else raw} if raw else {}))
+        return out
+
+    #: Rows read whole in one query. The set is found first, by its ids alone; the rows are then read by id this
+    #: many at a time, so no query reads more than this many memories' content, however many carry the tag.
+    _TAGGED_PAGE = 2000
+
+    async def _tagged_pages(self, db, table: str, store: str, tag: str, owners) -> Any:
+        """Lyric's own memories in `table` carrying `tag`, oldest first.
+
+        IN TWO STEPS. One query returned a page of 50,000 whole rows (content, metadata, raw event) by keyset; each
+        page fetched every row carrying the tag from the heap to filter and sort them, then read the page's content
+        out of TOAST. With the store's pages cached it fitted in the 60 s a statement has (the 76,818 taught
+        propositions at a teaching pass's end); on a cold copy of the store it did not, and the view would not warm
+        (2026-10-10). So: the ids and creation times first (the tag's index, no content), then the rows by id, a
+        bounded number at a time."""
+        found = await db.execute_query(
+            f"SELECT memory_id FROM {table} WHERE tags @> $1::jsonb AND COALESCE(user_id, '') = ANY($2::text[])"
+            f" ORDER BY created_at, memory_id",
+            (json.dumps([tag]), list(owners)), fetch_all=True, store=store) or []
+        ids = [row["memory_id"] for row in found]
+        for start in range(0, len(ids), self._TAGGED_PAGE):
+            batch = ids[start:start + self._TAGGED_PAGE]
+            rows = await db.execute_query(
+                f"SELECT memory_id, created_at, content, metadata, thinking_state->'raw_event' AS raw_event"
+                f" FROM {table} WHERE memory_id = ANY($1::text[]) ORDER BY created_at, memory_id",
+                (batch,), fetch_all=True, store=store) or []
+            for row in rows:
+                yield row
 
     def _blamed_in(self, item: Any) -> List[Any]:
         """The word classes a remembered telling blamed for not reading: from
@@ -4984,19 +6976,20 @@ class MemoryAgent(IMemoryConsolidation):
             experience["evidence"] = {"outcome": status, "counts": record.get("counts")}
             record["experience"] = experience
             await self._rewrite_pursuit(memory_id, record, thinking_state)
-        origin = Origin(through=(experience.get("origin") or {}).get("through") or "task",
-                        person=(experience.get("origin") or {}).get("person"))
+        kept = experience.get("origin") or {}
+        origin = Origin(through=kept.get("through") or "task", person=kept.get("person"),
+                        context=kept.get("context"), organization=kept.get("organization"))
         queued = await self._memory_db().execute_query(
             "SELECT item_id FROM unified.experience_pool WHERE memory_id = $1 LIMIT 1",
             (memory_id,), fetch_one=True,
-            store=self._memory_db().write_store(origin.person))
+            store=self._memory_db().write_store(origin.owner))
         if queued is not None:
             await self._memory_db().execute_query(
                 "UPDATE unified.experience_pool SET status = 'waiting', decision = NULL,"
                 " decided_at = NULL, claimed_by = NULL, claimed_until = NULL,"
                 " evidence = $2::jsonb WHERE item_id = $1",
                 (queued["item_id"], json.dumps(experience["evidence"], default=str)),
-                commit=True, store=self._memory_db().write_store(origin.person))
+                commit=True, store=self._memory_db().write_store(origin.owner))
             self._pool_arrived.set()
             return
         await self.remember_experience(Experience(
@@ -5008,7 +7001,14 @@ class MemoryAgent(IMemoryConsolidation):
 
     @staticmethod
     def _pursuit_owner(record: Dict[str, Any]) -> Optional[str]:
-        return ((record.get("experience") or {}).get("origin") or {}).get("person")
+        """Whose a pursuit is, from the origin it was begun with: the person's, the organization's for work done
+        for it, or None for the substrate's own (`Origin.owner`)."""
+        from core.memory.utils.interfaces import Origin
+        kept = (record.get("experience") or {}).get("origin") or {}
+        if not kept.get("person"):
+            return None
+        return Origin(through=kept.get("through") or "task", person=kept.get("person"),
+                      context=kept.get("context"), organization=kept.get("organization")).owner
 
     async def _pursuit_record(self, memory_id: str):
         """A pursuit memory's record and the rest of its thinking state, or (None, None)."""
@@ -5067,21 +7067,56 @@ class MemoryAgent(IMemoryConsolidation):
         error, the same check, however often it came, is one part saying how
         many times, holding the latest of it. Parts that differ are kept apart.
         Numbers do not make two parts different (an attempt's number, a
-        measurement), words and names do."""
+        measurement), words and names do.
+
+        WHAT THE REPEATS MEASURED IS ADDED UP, not overwritten: `measured` holds
+        how many of them carried numbers (`n`) and the sum of each number
+        (`sums`), so the mean of a measurement (how long a tool took) is known
+        over every repeat that measured it. A part held from before this was
+        kept, repeated and carrying only its latest numbers, counts as measured
+        nowhere: what its earlier repeats measured is gone, and is not guessed."""
         def key(part: Dict[str, Any]):
             text = json.dumps(part.get("content"), sort_keys=True, default=str)
             return (part.get("role"), part.get("source"), re.sub(r"\d+(?:\.\d+)?", "#", text))
+
+        def measured(part: Dict[str, Any]) -> Tuple[int, Dict[str, float]]:
+            held_measure = part.get("measured")
+            if held_measure is not None:
+                return (int(held_measure.get("n", 0)),
+                        {k: float(v) for k, v in (held_measure.get("sums") or {}).items()})
+            content = part.get("content")
+            numbers = ({k: float(v) for k, v in content.items()
+                        if isinstance(v, (int, float)) and not isinstance(v, bool)}
+                       if isinstance(content, dict) else {})
+            if numbers and int(part.get("count", 1)) == 1:
+                return 1, numbers
+            return 0, {}
+
+        def with_measure(part: Dict[str, Any], n: int, sums: Dict[str, float]) -> None:
+            if n:
+                part["measured"] = {"n": n, "sums": sums}
+            else:
+                part.pop("measured", None)
+
         kept = [dict(p) for p in held]
         index = {key(p): i for i, p in enumerate(kept)}
         for part in new:
             k = key(part)
             if k in index:
                 same = kept[index[k]]
+                n_held, sums = measured(same)
+                n_new, sums_new = measured(part)
+                for field_name, value in sums_new.items():
+                    sums[field_name] = sums.get(field_name, 0.0) + value
                 same["count"] = int(same.get("count", 1)) + int(part.get("count", 1))
                 same["content"] = part.get("content")
+                with_measure(same, n_held + n_new, sums)
             else:
                 index[k] = len(kept)
-                kept.append({**part, "count": int(part.get("count", 1))})
+                n_new, sums_new = measured(part)
+                added = {**part, "count": int(part.get("count", 1))}
+                with_measure(added, n_new, sums_new)
+                kept.append(added)
         return kept
 
     # ================================================================================================
@@ -5371,6 +7406,15 @@ class MemoryAgent(IMemoryConsolidation):
             except Exception as e:
                 logger.warning("pool worker ended with an error: %s", e)
         self._pool_task = None
+        # A warm still reading the store stops with the agent: stopping is not the warm failing.
+        warm = self._word_class_warm_task
+        if warm is not None and not warm.done():
+            self._stopping_loops = True
+            warm.cancel()
+            try:
+                await warm
+            except asyncio.CancelledError:
+                pass
 
         logger.info("✅ Memory loops stopped")
 
@@ -5466,7 +7510,8 @@ class MemoryAgent(IMemoryConsolidation):
         1. Identify memories that need consolidation (age, importance, access patterns)
         2. Migrate hot tier → cold tier (60+ days old)
         3. Clean up low-importance expired memories
-        4. Update memory decay and access statistics
+        A memory's importance fades with age where it is read (`decayed_importance`), not here: written back each
+        cycle, the whole age's fading compounded hourly.
         """
         try:
             if not self.postgres_storage:
@@ -5512,14 +7557,6 @@ class MemoryAgent(IMemoryConsolidation):
 
             except Exception as e:
                 logger.error(f"Hot→cold migration failed: {e}")
-
-            # Update decay for all memories in hot tier
-            try:
-                await self.postgres_storage.apply_memory_decay()
-                logger.info("✓ Applied temporal decay to hot tier memories")
-
-            except Exception as e:
-                logger.error(f"Decay update failed: {e}")
 
             # Update consolidation count
             self.metrics['consolidations_run'] += 1

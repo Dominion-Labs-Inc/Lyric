@@ -34,7 +34,7 @@ run's features onto an earlier run's subject.
 from __future__ import annotations
 import os
 for k, v in {"POSTGRES_PORT": "5433", "POSTGRES_USER": "stefan",
-             "POSTGRES_DATABASE": "lyric_db", "LYRIC_NO_WATCHDOG": "1"}.items():
+             "POSTGRES_DATABASE": "lyric_dev", "LYRIC_NO_WATCHDOG": "1"}.items():
     os.environ.setdefault(k, v)
 import asyncio, contextlib, io, json, random, sys, time
 from uuid import uuid4
@@ -125,8 +125,11 @@ async def main() -> int:
             region = [r for r in vision.describe_image(str(path))["regions"]
                       if r["area_fraction"] <= 0.9][0]
             feats = (region["color"], region["shape"], region["size"])
-            await coord.learning.learn_facts(
-                [(name, "isa", f) for f in feats], domain=DOMAIN)
+            from core.learning.unified_learning_system import Evidence
+            await coord.learning.consider_many(
+                [(name, "isa", f) for f in feats], domain=DOMAIN,
+                evidence=Evidence(source="sense:sight", key=f"sight:{name}", source_type="PERCEPTION",
+                                  quality=0.9, producer="perception"))
             return name, feats
 
         async def ask(subject, cat):

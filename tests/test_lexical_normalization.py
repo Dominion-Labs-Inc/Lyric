@@ -90,6 +90,18 @@ def test_regular_morphology_still_works(word, expected):
     assert lexical.singularise(word) == expected
 
 
+@pytest.mark.parametrize("word,expected", [
+    ("peoples", "peoples"), ("people", "person"), ("gentes", "gentes"), ("limina", "limina"),
+])
+def test_a_singular_is_written_the_same_again(word, expected):
+    """A name written at the door is written again where it is taken in. "peoples" (a nation's human beings) was
+    written `people`, and again `person`, so a person was held a kind of group: the singular is one the door leaves as
+    it is, or the word is its own."""
+    assert lexical.singularise(word) == expected
+    assert lexical.singularise(lexical.singularise(word)) == lexical.singularise(word)
+    assert lexical.canonical_term(lexical.canonical_term(word)) == lexical.canonical_term(word)
+
+
 @pytest.mark.parametrize("word", ["physics", "mathematics", "synthesis", "series"])
 def test_the_guards_earned_from_live_data_survive_the_move(word):
     """`physics` became `physic`, and physics concepts attached to a domain that
@@ -198,7 +210,8 @@ def test_a_failed_formalization_is_never_reported_connected():
 @pytest.mark.parametrize("label,as_name,as_phrase", [
     ("A major", "a_major", "major"),
     ("A Day in the Life", "a_day_in_the_life", "day_in_the_life"),
-    ("The Beatles", "the_beatles", "beatle"),
+    # WordNet has no noun "beatle", only "Beatles": as a phrase it is not the plural of anything.
+    ("The Beatles", "the_beatles", "beatles"),
     ("F-sharp minor", "f_sharp_minor", "f_sharp_minor"),
 ])
 def test_a_name_keeps_its_words_and_a_phrase_is_read_as_before(label, as_name, as_phrase):

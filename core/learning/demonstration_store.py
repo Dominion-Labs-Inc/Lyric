@@ -26,7 +26,7 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Callable, List, Optional, Sequence
+from typing import Callable, Dict, List, Optional, Sequence
 
 from core.learning.rule_induction import Fact, TrainingExample
 
@@ -61,6 +61,10 @@ CREATE TABLE IF NOT EXISTS unified.operator_demonstrations (
     positive      BOOLEAN NOT NULL,
     created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+-- WHOSE WORK IT WAS: a person's demonstration holds their particulars (the files of their task), and an operator
+-- induced from such demonstrations is the world's only once nothing of them is left in it
+-- (docs/research/SEPARATION_MAP.md §11.6). NULL is the substrate's own work.
+ALTER TABLE unified.operator_demonstrations ADD COLUMN IF NOT EXISTS owner VARCHAR;
 CREATE INDEX IF NOT EXISTS operator_demonstrations_signature
     ON unified.operator_demonstrations (domain_id, predicate, arity, created_at);
 
@@ -120,7 +124,8 @@ class DemonstrationStore:
     #: predicate.
     CONTRASTIVE = ("", 0)
 
-    async def append(self, example: TrainingExample, *, domain_id: str) -> bool:
+    async def append(self, example: TrainingExample, *, domain_id: str,
+                     owner: Optional[str] = None) -> bool:
         """Record one demonstration.
 
         An action-ful demonstration is filed under the operator signature it
@@ -133,7 +138,8 @@ class DemonstrationStore:
 
         Idempotent on `evidence_id`: an observation has one identity, and the
         same transition arriving twice must not read as independent
-        corroboration. Returns True if a new row was written.
+        corroboration. `owner` is whose work it was, None for the substrate's
+        own. Returns True if a new row was written.
         """
         if not example.evidence_id:
             raise ValueError(
@@ -151,7 +157,7 @@ class DemonstrationStore:
             evidence_id=example.evidence_id, domain_id=domain_id, predicate=predicate,
             arity=arity, before_facts=_facts_json(example.before),
             action=str(example.action) if example.action is not None else None,
-            after_facts=_facts_json(example.after), positive=bool(example.positive))
+            after_facts=_facts_json(example.after), positive=bool(example.positive), owner=owner)
         written = bool(rows)
         if written:
             # Enqueue the signature for off-band induction. Cheap (one upsert),
@@ -173,6 +179,17 @@ class DemonstrationStore:
                     f"{predicate}/{arity}" if example.action else "contrastive",
                     domain_id, "recorded" if written else "already present")
         return written
+
+    async def owners(self, evidence_ids: Sequence[str]) -> Dict[str, Optional[str]]:
+        """Whose work each demonstration was: `{evidence_id: owner}`, None for the substrate's own."""
+        ids = sorted({str(i) for i in evidence_ids if i})
+        if not ids:
+            return {}
+        await self.ensure_schema()
+        rows = await self.db().execute_query(
+            "SELECT evidence_id, owner FROM unified.operator_demonstrations WHERE evidence_id = ANY($1::text[])",
+            (ids,), fetch_all=True) or []
+        return {str(r["evidence_id"]): r["owner"] for r in rows}
 
     async def _mark_pending(self, domain_id: str, predicate: str, arity: int) -> None:
         from core.agents.memory_agent import memory_agent

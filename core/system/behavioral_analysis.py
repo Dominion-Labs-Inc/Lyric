@@ -28,6 +28,10 @@ from enum import Enum
 logger = logging.getLogger(__name__)
 
 
+
+#: Whether this process has said the host denies network monitoring.
+_NETWORK_DENIED_SAID = False
+
 class DependencyType(Enum):
     """Type of dependency relationship"""
     STRONG = "strong"      # Direct, consistent communication
@@ -145,7 +149,13 @@ class BehavioralAnalysis:
                 snapshots.append((datetime.now(), connections))
                 await asyncio.sleep(0.5)  # Sample every 500ms
             except (PermissionError, psutil.AccessDenied):
-                logger.warning("Insufficient permissions for network monitoring")
+                # A STANDING CONDITION OF THE HOST, said once per process: the
+                # same warning on every pass buried the ones that change.
+                global _NETWORK_DENIED_SAID
+                if not _NETWORK_DENIED_SAID:
+                    logger.warning("Insufficient permissions for network monitoring "
+                                   "(said once; every later pass is denied the same)")
+                    _NETWORK_DENIED_SAID = True
                 return
 
         # Analyze connection changes between snapshots

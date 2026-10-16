@@ -30,7 +30,7 @@ from collections import defaultdict
 from datetime import datetime
 
 from .tool_registry import Tool, ToolParameter, ToolResult, ToolCategory, ToolSafety
-from .capabilities import Capability, ToolCapabilityProfile, CapabilityMetadata
+from .tool_registry import Primitive, PrimitiveProfile, PrimitiveUse
 
 
 logger = logging.getLogger(__name__)
@@ -61,12 +61,12 @@ class ParseJSONTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="parse_json",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.PARSE_DATA,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.PARSE_DATA,
                     description="Parse JSON data"
                 )
             ]
@@ -138,12 +138,12 @@ class ParseYAMLTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="parse_yaml",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.PARSE_DATA,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.PARSE_DATA,
                     description="Parse YAML data"
                 )
             ]
@@ -215,12 +215,12 @@ class ParseCSVTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="parse_csv",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.PARSE_DATA,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.PARSE_DATA,
                     description="Parse CSV data"
                 )
             ]
@@ -282,12 +282,12 @@ class ConvertFormatTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="convert_format",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.TRANSFORM_DATA,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.TRANSFORM_DATA,
                     description="Convert data formats"
                 )
             ]
@@ -380,12 +380,12 @@ class TransformDataTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="transform_data",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.TRANSFORM_DATA,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.TRANSFORM_DATA,
                     description="Transform data structure"
                 )
             ]
@@ -463,12 +463,12 @@ class AggregateDataTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="aggregate_data",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.AGGREGATE_DATA,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.AGGREGATE_DATA,
                     description="Aggregate data"
                 )
             ]
@@ -549,12 +549,12 @@ class MergeDatasetsTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="merge_datasets",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.MERGE_DATA,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.MERGE_DATA,
                     description="Merge datasets"
                 )
             ]
@@ -628,12 +628,12 @@ class FilterDataTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="filter_data",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.FILTER_DATA,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.FILTER_DATA,
                     description="Filter data by criteria"
                 )
             ]
@@ -712,12 +712,12 @@ class SortDataTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="sort_data",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.SORT_DATA,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.SORT_DATA,
                     description="Sort data"
                 )
             ]
@@ -769,12 +769,12 @@ class DeduplicateDataTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="deduplicate_data",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.FILTER_DATA,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.FILTER_DATA,
                     description="Remove duplicate data"
                 )
             ]
@@ -866,12 +866,12 @@ class ParseJSONLTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="parse_jsonl",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.PARSE_DATA,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.PARSE_DATA,
                     description="Parse JSONL data"
                 )
             ]
@@ -1035,12 +1035,12 @@ class SchemaInferenceTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="schema_inference",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.ANALYZE_CODE,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.ANALYZE_CODE,
                     description="Infer data schemas"
                 )
             ]
@@ -1311,12 +1311,12 @@ class PIIScrubbingTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="pii_scrubbing",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.FILTER_DATA,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.FILTER_DATA,
                     description="Scrub PII from data"
                 )
             ]
@@ -1544,12 +1544,12 @@ class DatasetProfilingTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="dataset_profiling",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.ANALYZE_CODE,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.ANALYZE_CODE,
                     description="Profile datasets"
                 )
             ]

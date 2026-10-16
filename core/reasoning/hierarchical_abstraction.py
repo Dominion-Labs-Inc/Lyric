@@ -1566,8 +1566,8 @@ class AbstractionPipeline:
 
                 # Update linked belief
                 if schema.belief_id and schema.belief_id in self.beliefs.beliefs:
-                    belief = self.beliefs.beliefs[schema.belief_id]
-                    belief.posterior_probability = decayed_prob
+                    from core.reasoning.bayesian_uncertainty import log_odds_of
+                    self.beliefs.beliefs[schema.belief_id].hold(log_odds_of(decayed_prob))
 
                 self.stats['schemas_decayed'] += 1
 

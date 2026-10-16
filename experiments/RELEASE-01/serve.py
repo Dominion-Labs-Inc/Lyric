@@ -74,8 +74,9 @@ async def serve(mark: str, idle: float) -> dict:
             from core.semantics.relation_types import SemanticRelation
             learning = get_learning_authority()
             agent = await get_memory_agent()
-            told = await learning.learn_fact("florpane", "isa", "gadget", domain="release_01", quality=0.9,
-                                             actor=ALICE)
+            told = await agent.hold_for_person(ALICE, "florpane", "isa", "gadget", positive=True, quality=0.9,
+                                               domain="release_01", surface="a florpane is a gadget",
+                                               source="told")
             _, alice_memory = await agent.store_memory(content=f"Alice's note: the {mark} gauge reads low.",
                                                        origin=Origin.of(ALICE, "RELEASE-01"), tags=["release_01"], importance_score=0.9)
             _, own_memory = await agent.store_memory(
@@ -86,20 +87,21 @@ async def serve(mark: str, idle: float) -> dict:
             for memory_id in recalled:
                 await agent.postgres_storage.get_memory(memory_id)
             answer = await answer_over_graph(db, "florpane", SemanticRelation.ISA, "gadget", actor=ALICE)
-            decayed = await agent.postgres_storage.apply_memory_decay()
             cleaned = await agent.postgres_storage.cleanup_low_importance_memories(
                 cutoff_date=__import__("datetime").datetime.now(), importance_threshold=0.0)
             await asyncio.sleep(idle)
             out.update(
                 routing_refusals=list(routed), frozen_refusals=list(db.frozen_refusals),
                 schema_checks=db.metrics["release_schema_checks"],
-                alice_told=getattr(told, "admitted", None), alice_memory=alice_memory, own_memory=own_memory,
+                alice_told=told.admitted, alice_memory=alice_memory, own_memory=own_memory,
                 recalled=recalled, alice_answer=str(getattr(answer, "verdict", None)),
-                decay_ran=decayed, cleaned=cleaned)
+                cleaned=cleaned)
 
             us = get_uncertainty_system()
             beliefs_before = {k: (b.posterior_probability, b.update_count) for k, b in us.beliefs.items()}
-            own = await learning.learn_fact("florpane", "isa", "gizmo", domain="release_01", quality=0.9)
+            from core.learning.unified_learning_system import Evidence
+            own = await learning.consider("florpane", "isa", "gizmo", domain="release_01", evidence=Evidence(
+                source="experiment:RELEASE-01", key="RELEASE-01", source_type="IMPORTED_KNOWLEDGE", quality=0.9))
             try:
                 us.create_belief("a belief production would form", "release_01")
                 belief_refused = None
@@ -114,8 +116,8 @@ async def serve(mark: str, idle: float) -> dict:
                 moved_refused = str(error)
             beliefs_after = {k: (b.posterior_probability, b.update_count) for k, b in us.beliefs.items()}
             out.update(
-                own_learning_admitted=getattr(own, "admitted", None),
-                own_learning_refusals=list(getattr(own, "refusals", []) or []),
+                own_learning_admitted=own.admitted,
+                own_learning_refusals=list(own.reasons),
                 belief_refused=belief_refused, belief_move_refused=moved_refused,
                 beliefs_unchanged=beliefs_before == beliefs_after, beliefs_held=len(beliefs_after),
                 frozen_refusals_after=list(db.frozen_refusals))

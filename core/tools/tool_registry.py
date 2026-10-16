@@ -15,7 +15,7 @@ Provides:
 Author: Lyric AI Team
 """
 
-from core.capability import raise_if_structural
+from core.structural_defects import raise_if_structural
 import asyncio
 import json
 import logging
@@ -119,14 +119,347 @@ async def _record_tool_failure(
         logger.debug(f"[tool_error_persist] canonical record failed: {_fe}")
 
 
-# Capability-based discovery system (NEW)
-from core.tools.capabilities import (
-    Capability,
-    CapabilityMetadata,
-    ToolCapabilityProfile,
-    RiskLevel,
-    infer_capability_from_task
-)
+# ── What tools perform ────────────────────────────────────────────────────────
+# A PRIMITIVE is an operation a tool performs: read data, run a command, search
+# the web. Primitives are the means everyone has from the first day. They are
+# not capabilities: a capability of Lyric is a compound behaviour learned from
+# experience (core/capabilities.py), carried out with whatever tools perform the
+# primitives it needs. A tool declares the primitives it performs, and the
+# registry files it under each one (`primitive_index`).
+
+
+class Primitive(Enum):
+    """An operation a tool performs. Declared by the tool, never inferred from
+    the words of a request. The values are stored in memory (a tool's projection
+    says what it provides), so a value is never renamed."""
+
+    # ========== DATA ACCESS ==========
+    READ_DATA = "read_data"                    # Read data from any source (files, APIs, DBs)
+    WRITE_DATA = "write_data"                  # Write data to any destination
+    DELETE_DATA = "delete_data"                # Delete data (files, records, etc.)
+    MOVE_DATA = "move_data"                    # Move/rename data
+    COPY_DATA = "copy_data"                    # Copy/duplicate data
+    LIST_DATA = "list_data"                    # List available data (files, records, etc.)
+    SEARCH_DATA = "search_data"                # Search through data
+    VALIDATE_DATA = "validate_data"            # Validate data format/integrity
+
+    # ========== DATA TRANSFORMATION ==========
+    PARSE_DATA = "parse_data"                  # Parse structured data (JSON, YAML, CSV, etc.)
+    TRANSFORM_DATA = "transform_data"          # Transform data format/structure
+    AGGREGATE_DATA = "aggregate_data"          # Aggregate/summarize data
+    FILTER_DATA = "filter_data"                # Filter data by criteria
+    SORT_DATA = "sort_data"                    # Sort data
+    MERGE_DATA = "merge_data"                  # Merge datasets
+    COMPRESS_DATA = "compress_data"            # Compress data
+    DECOMPRESS_DATA = "decompress_data"        # Decompress data
+    ENCRYPT_DATA = "encrypt_data"              # Encrypt data
+    DECRYPT_DATA = "decrypt_data"              # Decrypt data
+
+    # ========== CODE ==========
+    GENERATE_CODE = "generate_code"            # Generate code from specifications
+    ANALYZE_CODE = "analyze_code"              # Analyze code quality, complexity, etc.
+    REFACTOR_CODE = "refactor_code"            # Refactor existing code
+    FORMAT_CODE = "format_code"                # Format code style
+    EXECUTE_CODE = "execute_code"              # Execute code (Python, shell, etc.)
+    DEBUG_CODE = "debug_code"                  # Debug code issues
+    TEST_CODE = "test_code"                    # Run tests on code
+    LINT_CODE = "lint_code"                    # Lint code for issues
+    DOCUMENT_CODE = "document_code"            # Generate code documentation
+    ASSESS_QUALITY = "assess_quality"          # Assess code quality metrics
+    ASSESS_COMPLEXITY = "assess_complexity"    # Assess code complexity
+    DETECT_ISSUE = "detect_issue"              # Detect code issues and problems
+    ANALYZE_DEPENDENCIES = "analyze_dependencies" # Analyze code dependencies
+
+    # ========== EXECUTION ==========
+    RUN_COMMAND = "run_command"                # Execute shell commands
+    MANAGE_PROCESS = "manage_process"          # Manage system processes
+    SCHEDULE_TASK = "schedule_task"            # Schedule tasks/cron jobs
+    RUN_BACKGROUND_TASK = "run_background_task" # Run tasks in background
+
+    # ========== SEARCH ==========
+    SEMANTIC_SEARCH = "semantic_search"        # Semantic search with embeddings
+    TEXT_SEARCH = "text_search"                # Full-text search (grep, ripgrep)
+    PATTERN_SEARCH = "pattern_search"          # Pattern-based search (regex, glob)
+    AST_SEARCH = "ast_search"                  # Search code by AST structure
+
+    # ========== COMMUNICATION ==========
+    SEND_MESSAGE = "send_message"              # Send messages (Slack, email, webhooks)
+    RECEIVE_MESSAGE = "receive_message"        # Receive/read messages
+    NOTIFY = "notify"                          # Send notifications
+    ASK_HUMAN = "ask_human"                    # Request human input/approval
+
+    # ========== DATABASE ==========
+    QUERY_DATABASE = "query_database"          # Query databases (SQL, NoSQL)
+    MODIFY_DATABASE = "modify_database"        # Insert/update/delete records
+    BACKUP_DATABASE = "backup_database"        # Backup database
+    RESTORE_DATABASE = "restore_database"      # Restore database from backup
+    MIGRATE_DATABASE = "migrate_database"      # Run database migrations
+
+    # ========== NETWORK ==========
+    HTTP_REQUEST = "http_request"              # Make HTTP requests
+    DOWNLOAD = "download"                      # Download files/data
+    UPLOAD = "upload"                          # Upload files/data
+    PARSE_HTML = "parse_html"                  # Parse HTML content
+    CHECK_CONNECTIVITY = "check_connectivity"  # Check network connectivity
+    DNS_LOOKUP = "dns_lookup"                  # Perform DNS lookups
+    WEB_SEARCH = "web_search"                  # Search the live web (Google/Bing/DuckDuckGo)
+    FETCH_PAGE = "fetch_page"                    # Fetch and extract readable text from a URL
+    BROWSE_WEB = "browse_web"                    # Full browser control via Playwright (JS, clicks, forms)
+
+    # ========== MONITORING ==========
+    MONITOR_SYSTEM = "monitor_system"          # Monitor system resources (CPU, memory, disk)
+    MONITOR_LOGS = "monitor_logs"              # Monitor/parse logs
+    MONITOR_METRICS = "monitor_metrics"        # Track metrics
+    MONITOR_HEALTH = "monitor_health"          # Check system health
+    CREATE_ALERT = "create_alert"              # Create alerts/notifications
+    DETECT_ANOMALY = "detect_anomaly"          # Detect anomalies
+    TRACE_EXECUTION = "trace_execution"        # Distributed tracing
+
+    # ========== SECURITY ==========
+    SCAN_SECURITY = "scan_security"            # Security scanning
+    DETECT_THREAT = "detect_threat"            # Threat detection
+    ANALYZE_THREAT = "analyze_threat"          # Threat intelligence analysis
+    BLOCK_THREAT = "block_threat"              # Block IPs, apply WAF rules
+    VALIDATE_INPUT = "validate_input"          # Input validation/sanitization
+    MANAGE_SECRETS = "manage_secrets"          # Manage secrets/credentials
+    HASH_DATA = "hash_data"                    # Hash data
+    DETECT_INTRUSION = "detect_intrusion"      # Intrusion detection
+
+    # ========== AI/ML ==========
+    GENERATE_EMBEDDING = "generate_embedding"  # Generate embeddings
+    RUN_INFERENCE = "run_inference"            # Run ML inference
+    ANALYZE_SIMILARITY = "analyze_similarity"  # Semantic similarity analysis
+    EXTRACT_ENTITIES = "extract_entities"      # Named entity recognition
+    SUMMARIZE_TEXT = "summarize_text"          # Text summarization
+
+    # ========== RESEARCH ==========
+    CONDUCT_RESEARCH = "conduct_research"      # Multi-source research
+    SEARCH_ACADEMIC = "search_academic"        # Academic paper search
+    ANALYZE_PAPER = "analyze_paper"            # Analyze research papers
+    GENERATE_CITATION = "generate_citation"    # Generate citations
+
+    # ========== DOCUMENTATION ==========
+    GENERATE_DOCS = "generate_docs"            # Generate documentation
+    CREATE_DIAGRAM = "create_diagram"          # Create diagrams/visualizations
+    VISUALIZE_DATA = "visualize_data"          # Visualize data and metrics
+    VISUALIZE = "visualize"                    # General visualization capability
+    GENERATE_REPORT = "generate_report"        # Generate reports (PDF, Word, etc.)
+    GENERATE_SYSTEM_MODEL = "generate_system_model"  # Write a system's model (SysML) from its documents
+
+    # ========== SYSTEM ==========
+    GET_SYSTEM_INFO = "get_system_info"        # Get system information
+    MANAGE_CONFIG = "manage_config"            # Manage configuration
+    MANAGE_DEPENDENCIES = "manage_dependencies" # Manage dependencies/packages
+    MANAGE_DOCKER = "manage_docker"            # Manage Docker containers
+
+    # ========== TESTING ==========
+    RUN_TESTS = "run_tests"                    # Run test suites
+    GENERATE_TESTS = "generate_tests"          # Generate test cases
+    BENCHMARK = "benchmark"                    # Benchmark performance
+    COVERAGE_ANALYSIS = "coverage_analysis"    # Analyze test coverage
+    ASSESS_COVERAGE = "assess_coverage"        # Assess test coverage metrics
+    FUZZ_TEST = "fuzz_test"                    # Fuzz testing
+    MUTATION_TEST = "mutation_test"            # Mutation testing
+
+    # ========== CHAOS ENGINEERING ==========
+    INJECT_FAILURE = "inject_failure"          # Inject failures for testing
+    SIMULATE_LOAD = "simulate_load"            # Simulate load/stress
+    TEST_RESILIENCE = "test_resilience"        # Test system resilience
+
+    # ========== HYPOTHESIS TESTING & SCIENTIFIC METHOD ==========
+    GENERATE_HYPOTHESIS = "generate_hypothesis"      # Generate testable hypotheses
+    DESIGN_EXPERIMENT = "design_experiment"          # Design experiments to test hypotheses
+    RUN_EXPERIMENT = "run_experiment"                # Execute experiments
+    COLLECT_EVIDENCE = "collect_evidence"            # Gather experimental evidence
+    EVALUATE_HYPOTHESIS = "evaluate_hypothesis"      # Evaluate hypothesis against evidence
+    REVISE_HYPOTHESIS = "revise_hypothesis"          # Revise hypothesis based on results
+    VALIDATE_CLAIM = "validate_claim"                # Validate scientific claims
+
+    # ========== LEARNING & PATTERN EXTRACTION ==========
+    EXTRACT_PATTERNS = "extract_patterns"            # Extract patterns from data
+    EXTRACT_KNOWLEDGE = "extract_knowledge"          # Extract actionable knowledge from data
+    META_LEARN = "meta_learn"                        # Learn about learning itself
+    CONSOLIDATE_KNOWLEDGE = "consolidate_knowledge"  # Consolidate learned knowledge
+    TRANSFER_LEARNING = "transfer_learning"          # Transfer knowledge across domains
+    FEW_SHOT_ADAPT = "few_shot_adapt"                # Few-shot learning adaptation
+    CONTINUAL_LEARN = "continual_learn"              # Continuous learning without forgetting
+    ANALYZE_FEEDBACK = "analyze_feedback"            # Analyze feedback for improvements
+    UPDATE_MENTAL_MODEL = "update_mental_model"      # Update internal mental models
+
+    # ========== REASONING ==========
+    CAUSAL_REASONING = "causal_reasoning"            # Reason about cause and effect
+    DEDUCTIVE_REASONING = "deductive_reasoning"      # Deduce conclusions from premises
+    INDUCTIVE_REASONING = "inductive_reasoning"      # Generalize from specific cases
+    ABDUCTIVE_REASONING = "abductive_reasoning"      # Inference to best explanation
+    ANALOGICAL_REASONING = "analogical_reasoning"    # Reason by analogy
+    COUNTERFACTUAL_REASONING = "counterfactual_reasoning"  # Reason about hypotheticals
+    TEMPORAL_REASONING = "temporal_reasoning"        # Reason about time and sequences
+    SPATIAL_REASONING = "spatial_reasoning"          # Reason about space and geometry
+    CONSTRAINT_REASONING = "constraint_reasoning"    # Reason with constraints
+
+    # ========== INNOVATION & EXPLORATION ==========
+    EXPLORE_DOMAIN = "explore_domain"                # Explore new knowledge domains
+    TRACK_FRONTIER = "track_frontier"                # Track technology frontiers
+    VALIDATE_APPROACH = "validate_approach"          # Validate new approaches
+    BUILD_PROTOTYPE = "build_prototype"              # Build prototypes
+
+    # ========== AGENTSO SECURITY OPERATIONS ==========
+    # Threat Detection & Hunting
+    THREAT_HUNT = "threat_hunt"                      # AI-powered threat hunting across SIEM/EDR
+    INVESTIGATE_INCIDENT = "investigate_incident"    # Automated incident investigation & timeline building
+    CORRELATE_EVENTS = "correlate_events"            # Cross-platform event correlation
+    DETECT_APT = "detect_apt"                        # Advanced Persistent Threat detection
+    BEHAVIORAL_ANALYSIS = "behavioral_analysis"      # User/entity behavioral analysis (UEBA)
+    ANOMALY_DETECTION = "anomaly_detection"          # ML-based anomaly detection
+
+    # Incident Response & Remediation
+    AUTO_REMEDIATE = "auto_remediate"                # Automated security remediation
+    ISOLATE_HOST = "isolate_host"                    # Quarantine/isolate compromised hosts
+    BLOCK_IOC = "block_ioc"                          # Block malicious IOCs (IPs, domains, hashes)
+    KILL_PROCESS = "kill_process"                    # Terminate malicious processes
+    REVOKE_ACCESS = "revoke_access"                  # Revoke compromised credentials/sessions
+    EXECUTE_PLAYBOOK = "execute_playbook"            # Execute incident response playbooks
+    WAR_ROOM_MANAGEMENT = "war_room_management"      # Manage incident war rooms & coordination
+    ROOT_CAUSE_ANALYSIS = "root_cause_analysis"      # AI-powered root cause analysis
+    GENERATE_POSTMORTEM = "generate_postmortem"      # Auto-generate incident postmortems
+
+    # Code & Application Security
+    SECURITY_CODE_REVIEW = "security_code_review"    # AI-powered code security review
+    DEPENDENCY_SCAN = "dependency_scan"              # Supply chain vulnerability scanning
+    SECRET_DETECTION = "secret_detection"            # Detect exposed credentials in code
+    GENERATE_SECURITY_FIX = "generate_security_fix"  # Auto-generate security patches
+    SAST_ANALYSIS = "sast_analysis"                  # Static application security testing
+    DAST_ANALYSIS = "dast_analysis"                  # Dynamic application security testing
+    CONTAINER_SCAN = "container_scan"                # Container image vulnerability scanning
+
+    # Threat Intelligence
+    IOC_ENRICHMENT = "ioc_enrichment"                # Enrich threat indicators with context
+    THREAT_ATTRIBUTION = "threat_attribution"        # Threat actor attribution & profiling
+    TTP_MAPPING = "ttp_mapping"                      # Map attacks to MITRE ATT&CK TTPs
+    INTEL_FUSION = "intel_fusion"                    # Fuse intelligence from multiple sources
+    PREDICT_ATTACK = "predict_attack"                # Predictive threat modeling
+
+    # Cloud Security
+    CLOUD_REMEDIATION = "cloud_remediation"          # Cloud misconfiguration remediation
+    ATTACK_PATH_ANALYSIS = "attack_path_analysis"    # Cloud attack path analysis
+    CSPM_SCAN = "cspm_scan"                          # Cloud Security Posture Management
+    IAM_ANALYSIS = "iam_analysis"                    # Analyze IAM permissions & policies
+    ENFORCE_LEAST_PRIVILEGE = "enforce_least_privilege" # Implement least privilege access
+
+    # Compliance & Governance
+    COMPLIANCE_CHECK = "compliance_check"            # Compliance monitoring (SOC2, PCI-DSS, etc.)
+    COMPLIANCE_REPORT = "compliance_report"          # Generate compliance reports
+    AUDIT_TRAIL = "audit_trail"                      # Track security audit trails
+    POLICY_ENFORCEMENT = "policy_enforcement"        # Enforce security policies
+
+    # Security Orchestration
+    SECURITY_ORCHESTRATION = "security_orchestration" # Orchestrate multi-tool security workflows
+    AUTOMATE_ENRICHMENT = "automate_enrichment"      # Automated threat data enrichment
+    COORDINATE_RESPONSE = "coordinate_response"      # Coordinate cross-team incident response
+
+    # Vulnerability Management
+    VULN_PRIORITIZATION = "vuln_prioritization"      # AI-powered vulnerability prioritization
+    PATCH_MANAGEMENT = "patch_management"            # Automated patch management
+    EXPLOIT_PREDICTION = "exploit_prediction"        # Predict exploitability of vulnerabilities
+
+    # Innovation & Technology Synthesis
+    SYNTHESIZE_TECHNOLOGY = "synthesize_technology"  # Synthesize new technologies
+    IDENTIFY_OPPORTUNITY = "identify_opportunity"    # Identify innovation opportunities
+    ASSESS_FEASIBILITY = "assess_feasibility"        # Assess technical feasibility
+
+    # ========== SELF-IMPROVEMENT (through learning: measure, diagnose, learn) ==========
+    ANALYZE_PERFORMANCE = "analyze_performance"      # Analyze own performance
+    IDENTIFY_BOTTLENECK = "identify_bottleneck"      # Identify performance bottlenecks
+    OPTIMIZE_COMPONENT = "optimize_component"        # Optimize system components
+    OPTIMIZE_STRATEGY = "optimize_strategy"          # Optimize strategies and approaches
+    REFACTOR_ARCHITECTURE = "refactor_architecture"  # Refactor system architecture
+    EXPAND_CAPABILITY = "expand_capability"          # Expand own capabilities
+    UPDATE_STRATEGY = "update_strategy"              # Update strategies
+    SELF_DIAGNOSE = "self_diagnose"                  # Self-diagnose issues
+    SELF_REPAIR = "self_repair"                      # Self-repair capabilities
+    BENCHMARK_CAPABILITY = "benchmark_capability"    # Benchmark capabilities
+    ASSESS_CAPABILITY = "assess_capability"          # Assess current capability levels
+
+    # ========== STRATEGIC PLANNING ==========
+    LONG_TERM_PLAN = "long_term_plan"                # Long-term strategic planning
+    DECOMPOSE_GOAL = "decompose_goal"                # Decompose goals into subtasks
+    PRIORITIZE_OBJECTIVES = "prioritize_objectives"  # Prioritize objectives
+    ALLOCATE_RESOURCES = "allocate_resources"        # Allocate resources optimally
+    ASSESS_RISK = "assess_risk"                      # Assess risks
+    CONTINGENCY_PLAN = "contingency_plan"            # Create contingency plans
+    TRACK_PROGRESS = "track_progress"                # Track progress toward goals
+    REVISE_PLAN = "revise_plan"                      # Revise plans based on feedback
+    RECOMMEND_ACTION = "recommend_action"            # Recommend optimal actions
+
+    # ========== META-COGNITION ==========
+    SELF_REFLECT = "self_reflect"                    # Self-reflection on reasoning
+    ASSESS_CONFIDENCE = "assess_confidence"          # Assess confidence in conclusions
+    IDENTIFY_BIAS = "identify_bias"                  # Identify cognitive biases
+    CALIBRATE_UNCERTAINTY = "calibrate_uncertainty"  # Calibrate uncertainty estimates
+    EXPLAIN_REASONING = "explain_reasoning"          # Explain reasoning process
+    CRITIQUE_REASONING = "critique_reasoning"        # Critique own reasoning
+    DETECT_CONFUSION = "detect_confusion"            # Detect confusion/uncertainty
+    REQUEST_CLARIFICATION = "request_clarification"  # Request clarification
+
+    # ========== KNOWLEDGE MANAGEMENT ==========
+    BUILD_KNOWLEDGE_GRAPH = "build_knowledge_graph"  # Build knowledge graphs
+    QUERY_KNOWLEDGE = "query_knowledge"              # Query knowledge bases
+    UPDATE_BELIEFS = "update_beliefs"                # Update beliefs based on evidence
+    RESOLVE_CONTRADICTION = "resolve_contradiction"  # Resolve contradictions
+    VALIDATE_KNOWLEDGE = "validate_knowledge"        # Validate knowledge
+    FORGET_KNOWLEDGE = "forget_knowledge"            # Prune outdated knowledge
+    RETRIEVE_MEMORY = "retrieve_memory"              # Retrieve memories
+    CONSOLIDATE_MEMORY = "consolidate_memory"        # Consolidate memories
+
+    # ========== COLLABORATION & TEACHING ==========
+    TEACH_CONCEPT = "teach_concept"                  # Teach concepts to others
+    LEARN_FROM_HUMAN = "learn_from_human"            # Learn from human feedback
+    COORDINATE_AGENTS = "coordinate_agents"          # Coordinate multiple agents
+    DELEGATE_TASK = "delegate_task"                  # Delegate tasks
+    REQUEST_EXPERTISE = "request_expertise"          # Request expert input
+    EXPLAIN_TO_HUMAN = "explain_to_human"            # Explain to humans
+    RECEIVE_FEEDBACK = "receive_feedback"            # Receive and process feedback
+
+    # ========== SAFETY & ALIGNMENT ==========
+    DETECT_MISALIGNMENT = "detect_misalignment"      # Detect goal misalignment
+    VERIFY_SAFETY = "verify_safety"                  # Verify safety properties
+    PREDICT_CONSEQUENCES = "predict_consequences"    # Predict action consequences
+    ASSESS_ETHICS = "assess_ethics"                  # Assess ethical implications
+    LIMIT_CAPABILITY = "limit_capability"            # Self-limit capabilities
+    REQUEST_OVERSIGHT = "request_oversight"          # Request human oversight
+    VALIDATE_ALIGNMENT = "validate_alignment"        # Validate goal alignment
+    MONITOR_DRIFT = "monitor_drift"                  # Monitor objective drift
+
+
+@dataclass
+class PrimitiveUse:
+    """One primitive a tool performs, and on what."""
+    primitive: Primitive
+    description: str = ""
+    input_types: List[str] = field(default_factory=list)   # e.g. ["file_path", "url"]
+    output_types: List[str] = field(default_factory=list)  # e.g. ["text", "json"]
+
+
+@dataclass
+class PrimitiveProfile:
+    """What a tool declares about itself: the primitives it performs, and what
+    it needs in order to run."""
+    tool_name: str
+    primitives: List[PrimitiveUse] = field(default_factory=list)
+    tags: Set[str] = field(default_factory=set)
+    requires_network: bool = False
+    requires_filesystem: bool = False
+    requires_database: bool = False
+    requires_credentials: bool = False
+    is_idempotent: bool = True
+
+    def primitive_names(self) -> Set[Primitive]:
+        """The primitives this tool performs."""
+        return {use.primitive for use in self.primitives}
+
+    def performs(self, primitive: Primitive) -> bool:
+        """Whether this tool performs `primitive`."""
+        return primitive in self.primitive_names()
 
 
 logger = logging.getLogger(__name__)
@@ -189,7 +522,10 @@ class ToolResult:
     success: bool
     output: Any
     error: Optional[str] = None
-    execution_time: float = 0.0
+    #: Seconds the tool ran, set by the registry when it ran it. None when it did
+    #: not run (not found, parameters refused, the constitution refused): a 0.0
+    #: there would read as a run that took no time.
+    execution_time: Optional[float] = None
     tokens_used: int = 0
     tool_name: str = ""
     parameters: Dict[str, Any] = field(default_factory=dict)
@@ -203,19 +539,16 @@ class Tool(ABC):
     """
     Base class for all tools.
 
-    Tools provide specific capabilities to the Singleton:
-    - Reading/writing files
-    - Executing code
-    - Searching codebase
-    - System operations
-    - macOS integrations
+    A tool performs primitives -- reading and writing files, executing code,
+    searching, system operations -- for the substrate, for people and for other
+    systems. It is a means; a capability of Lyric is carried out with tools,
+    and is not one.
 
     All tools are:
     1. Validated before execution
-    2. Logged for constitutional oversight
+    2. Judged by the Constitution at execute_tool
     3. Subject to safety constraints
-    4. Tracked for learning
-    5. Declared by capabilities they provide (for semantic discovery)
+    4. Declared by the primitives they perform (`primitive_profile`)
     """
 
     def __init__(self):
@@ -235,10 +568,9 @@ class Tool(ABC):
         self.usage_count: int = 0
         self.last_used: Optional[datetime] = None
 
-        # Capability-based discovery (NEW)
-        # Tools declare what they CAN do, not just what they ARE
-        if not hasattr(self, 'capability_profile'):
-            self.capability_profile: Optional['ToolCapabilityProfile'] = None
+        # What the tool declares it performs.
+        if not hasattr(self, 'primitive_profile'):
+            self.primitive_profile: Optional[PrimitiveProfile] = None
 
         # Every call to a tool is judged by the Constitution at execute_tool.
         
@@ -502,42 +834,28 @@ class Tool(ABC):
         self.usage_count += 1
         self.last_used = datetime.now()
 
-    # ========== CAPABILITY-BASED METHODS (NEW) ==========
+    # ========== WHAT THE TOOL PERFORMS ==========
 
-    def provides_capability(self, capability: Capability) -> bool:
-        """Check if this tool provides a specific capability"""
-        if not self.capability_profile:
+    def performs(self, primitive: Primitive) -> bool:
+        """Whether this tool performs `primitive`."""
+        if not self.primitive_profile:
             return False
-        return self.capability_profile.provides_capability(capability)
+        return self.primitive_profile.performs(primitive)
 
-    def get_capabilities(self) -> Set[Capability]:
-        """Get set of all capabilities this tool provides"""
-        if not self.capability_profile:
+    def get_primitives(self) -> Set[Primitive]:
+        """The primitives this tool performs."""
+        if not self.primitive_profile:
             return set()
-        return self.capability_profile.get_capability_names()
-
-    def matches_context(self, capability: Capability, context: Dict[str, Any]) -> bool:
-        """
-        Check if this tool's capability implementation matches the given context.
-
-        Example:
-            ReadFileTool.matches_context(
-                Capability.READ_DATA,
-                {"data_source": "file", "file_path": "/var/log/system.log"}
-            ) → True
-        """
-        if not self.capability_profile:
-            return False
-        return self.capability_profile.matches_context(capability, context)
+        return self.primitive_profile.primitive_names()
 
 
 class ToolRegistry:
     """
-    Central registry for all available tools with lazy loading and capability-based discovery.
+    Central registry for all available tools, with lazy loading.
 
     Responsibilities:
     - Register tool factories (lazy loading - tools loaded on first use)
-    - Capability-based discovery (find tools by what they CAN do)
+    - File each tool under the primitives it declares it performs
     - Validate tool calls
     - Execute tools safely
     - Track usage
@@ -546,8 +864,8 @@ class ToolRegistry:
     Architecture:
     - Tools are registered as factories (Callable that returns Tool instance)
     - Only loaded when first accessed (solves slow startup problem)
-    - Capability index maps capabilities → tool names for fast lookup
-    - Context-aware selection picks best tool for specific use case
+    - The primitive index maps each primitive to the tools that perform it. It
+      is complete at registration: a lazy tool's declaration is read then.
     """
 
     def __init__(self):
@@ -558,8 +876,8 @@ class ToolRegistry:
         self.tool_factories: Dict[str, Callable[[], Tool]] = {}  # tool_name → factory
         self.loaded_tools: Dict[str, Tool] = {}                   # tool_name → loaded instance
 
-        # NEW: Capability-based discovery
-        self.capability_index: Dict[Capability, List[str]] = {}   # capability → [tool_names]
+        # What each primitive is performed by
+        self.primitive_index: Dict[Primitive, List[str]] = {}   # primitive → [tool_names]
 
         # NEW: Category index for lazy tools (register_factory populates this)
         self.category_index: Dict[str, List[str]] = {}            # category_str → [tool_names]
@@ -579,13 +897,13 @@ class ToolRegistry:
         # Also register in lazy loading system for consistency
         self.loaded_tools[tool.name] = tool
 
-        # Build capability index if tool has capability profile
-        if hasattr(tool, 'capability_profile') and tool.capability_profile:
-            for capability in tool.capability_profile.get_capability_names():
-                if capability not in self.capability_index:
-                    self.capability_index[capability] = []
-                if tool.name not in self.capability_index[capability]:
-                    self.capability_index[capability].append(tool.name)
+        # File the tool under each primitive it declares
+        if getattr(tool, 'primitive_profile', None):
+            for primitive in tool.primitive_profile.primitive_names():
+                if primitive not in self.primitive_index:
+                    self.primitive_index[primitive] = []
+                if tool.name not in self.primitive_index[primitive]:
+                    self.primitive_index[primitive].append(tool.name)
 
         # Handle both enum and string values for category and safety_level
         if hasattr(tool, 'category') and tool.category:
@@ -604,7 +922,7 @@ class ToolRegistry:
         self,
         tool_name: str,
         factory: Callable[[], Tool],
-        capabilities: Optional[List[Capability]] = None,
+        primitives: Optional[List[Primitive]] = None,
         category: Optional[ToolCategory] = None,
         safety_level: Optional[ToolSafety] = None
     ):
@@ -616,7 +934,7 @@ class ToolRegistry:
         Args:
             tool_name: Unique name for the tool
             factory: Callable that returns Tool instance when called
-            capabilities: List of capabilities this tool provides
+            primitives: The primitives this tool performs
             category: Tool category (for metadata)
             safety_level: Safety level (for metadata)
 
@@ -624,20 +942,20 @@ class ToolRegistry:
             registry.register_factory(
                 "read_file",
                 lambda: ReadFileTool(),
-                capabilities=[Capability.READ_DATA],
+                primitives=[Primitive.READ_DATA],
                 category=ToolCategory.FILESYSTEM,
                 safety_level=ToolSafety.SAFE
             )
         """
         self.tool_factories[tool_name] = factory
 
-        # Build capability index
-        if capabilities:
-            for capability in capabilities:
-                if capability not in self.capability_index:
-                    self.capability_index[capability] = []
-                if tool_name not in self.capability_index[capability]:
-                    self.capability_index[capability].append(tool_name)
+        # File the tool under each primitive it declares
+        if primitives:
+            for primitive in primitives:
+                if primitive not in self.primitive_index:
+                    self.primitive_index[primitive] = []
+                if tool_name not in self.primitive_index[primitive]:
+                    self.primitive_index[primitive].append(tool_name)
 
         # Build category index (was previously discarded — caused 0-tools bug)
         if category:
@@ -682,13 +1000,13 @@ class ToolRegistry:
             tool = self.tool_factories[name]()
             self.loaded_tools[name] = tool
 
-            # Build capability index from loaded tool
-            if hasattr(tool, 'capability_profile') and tool.capability_profile:
-                for capability in tool.capability_profile.get_capability_names():
-                    if capability not in self.capability_index:
-                        self.capability_index[capability] = []
-                    if name not in self.capability_index[capability]:
-                        self.capability_index[capability].append(name)
+            # File the loaded tool under each primitive it declares
+            if getattr(tool, 'primitive_profile', None):
+                for primitive in tool.primitive_profile.primitive_names():
+                    if primitive not in self.primitive_index:
+                        self.primitive_index[primitive] = []
+                    if name not in self.primitive_index[primitive]:
+                        self.primitive_index[primitive].append(name)
 
             return tool
 
@@ -699,7 +1017,7 @@ class ToolRegistry:
         List all tools, optionally filtered by category.
 
         NOTE: This only returns eagerly-loaded tools (backwards compatibility).
-        For capability-based discovery, prefer find_providers() which supports lazy loading.
+        Lazy tools are named in `tool_factories` and load through `get_tool()`.
         """
         if category:
             return [t for t in self.tools.values() if t.category == category]
@@ -755,494 +1073,6 @@ class ToolRegistry:
                 logger.warning("get_tools_schema: to_openai_schema() failed for lazy %s: %s", name, e)
 
         return schemas
-
-    # ========== CAPABILITY-BASED DISCOVERY (NEW - PREFERRED) ==========
-
-    def find_providers(
-        self,
-        capability: Capability,
-        context: Optional[Dict[str, Any]] = None,
-        load_tools: bool = True
-    ) -> List[Tool]:
-        """
-        Find all tools that provide a specific capability (PREFERRED over list_tools).
-
-        Uses lazy loading - only loads tools that match the requested capability.
-
-        Args:
-            capability: The capability to search for
-            context: Optional context for filtering (e.g., {"data_source": "file"})
-            load_tools: Whether to lazy-load tools (default True)
-
-        Returns:
-            List of Tool instances providing this capability
-
-        Example:
-            # Find all tools that can read data
-            providers = registry.find_providers(Capability.READ_DATA)
-
-            # Find tools that can read data from files specifically
-            providers = registry.find_providers(
-                Capability.READ_DATA,
-                context={"data_source": "file"}
-            )
-        """
-        tool_names = self.capability_index.get(capability, [])
-
-        if not load_tools:
-            # Return tool names without loading
-            return tool_names
-
-        providers = []
-        for tool_name in tool_names:
-            tool = self.get_tool(tool_name)
-            if not tool:
-                continue
-
-            # If context provided, check if tool matches
-            if context:
-                if tool.matches_context(capability, context):
-                    providers.append(tool)
-            else:
-                providers.append(tool)
-
-        return providers
-
-    def select_best_provider(
-        self,
-        capability: Capability,
-        context: Optional[Dict[str, Any]] = None,
-        weights: Optional[Dict[str, float]] = None,
-        prefer_low_latency: bool = False,
-        prefer_low_cost: bool = False
-    ) -> Optional[Tool]:
-        """
-        Select the best tool for a specific capability given context.
-
-        Uses weighted scoring to pick the most appropriate provider:
-        1. Context matching (does tool handle this specific use case?)
-        2. Weighted scoring based on priority, reliability, latency, cost
-        3. Resource constraints (network, filesystem, database)
-        4. Execution characteristics (batch, streaming, idempotent)
-
-        Args:
-            capability: The capability needed
-            context: Context for selection (e.g., file path, URL, etc.)
-            weights: Optional scoring weights (priority, reliability, latency, cost)
-            prefer_low_latency: Prioritize fast tools (adjusts weights)
-            prefer_low_cost: Prioritize low-cost tools (adjusts weights)
-
-        Returns:
-            Best Tool instance or None if no providers
-
-        Example:
-            # System picks ReadFileTool over FetchURLTool for file paths
-            tool = registry.select_best_provider(
-                Capability.READ_DATA,
-                context={"data_source": "file", "path": "/var/log/system.log"}
-            )
-
-            # Custom weights for optimization
-            tool = registry.select_best_provider(
-                Capability.READ_DATA,
-                context=context,
-                weights={"priority": 2.0, "reliability": 1.0, "latency": -0.5, "cost": -0.1}
-            )
-        """
-        providers = self.find_providers(capability, context=context)
-
-        if not providers:
-            return None
-
-        if len(providers) == 1:
-            return providers[0]
-
-        # Build weights based on preferences
-        scoring_weights = weights.copy() if weights else {}
-
-        if prefer_low_latency:
-            scoring_weights["latency"] = scoring_weights.get("latency", -0.3) * 2.0
-
-        if prefer_low_cost:
-            scoring_weights["cost"] = scoring_weights.get("cost", -0.2) * 2.0
-
-        # Score each provider using capability profile scoring
-        scored_providers = []
-        for tool in providers:
-            if tool.capability_profile:
-                score = tool.capability_profile.score_for_context(
-                    capability,
-                    context or {},
-                    weights=scoring_weights if scoring_weights else None
-                )
-            else:
-                # Fallback for tools without capability profiles
-                score = 0.0
-
-            scored_providers.append((score, tool))
-
-        # Return highest scoring provider (excluding -inf scores)
-        scored_providers = [(s, t) for s, t in scored_providers if s != float('-inf')]
-        if not scored_providers:
-            return None
-
-        scored_providers.sort(key=lambda x: x[0], reverse=True)
-        return scored_providers[0][1]
-
-    def find_capabilities_for_task(
-        self,
-        task_description: str,
-        threshold: float = 1.0,
-        return_scores: bool = False
-    ) -> Union[Set[Capability], Dict[Capability, float]]:
-        """
-        Infer needed capabilities from a task description.
-
-        Uses regex pattern matching with confidence scoring as fallback
-        when AI doesn't explicitly request capabilities.
-
-        Args:
-            task_description: Natural language task description
-            threshold: Minimum confidence score to include (default 1.0)
-            return_scores: If True, return dict with scores; if False, return set
-
-        Returns:
-            Set of capabilities or Dict mapping capabilities to confidence scores
-
-        Example:
-            # Get capabilities above threshold
-            caps = registry.find_capabilities_for_task(
-                "analyze the system logs in /var/log/"
-            )
-            # → {Capability.READ_DATA, Capability.ANALYZE_CODE}
-
-            # Get capabilities with scores
-            caps_with_scores = registry.find_capabilities_for_task(
-                "read the file at /var/log/system.log",
-                return_scores=True
-            )
-            # → {Capability.READ_DATA: 8.0}
-        """
-        scored_capabilities = infer_capability_from_task(task_description, threshold)
-
-        if return_scores:
-            return scored_capabilities
-        else:
-            return set(scored_capabilities.keys())
-
-    def get_tools_by_capabilities(
-        self,
-        capabilities: List[Capability],
-        context: Optional[Dict[str, Any]] = None
-    ) -> Dict[Capability, List[Tool]]:
-        """
-        Get tools for multiple capabilities at once.
-
-        Args:
-            capabilities: List of capabilities needed
-            context: Optional context for all lookups
-
-        Returns:
-            Dict mapping each capability to its providers
-
-        Example:
-            tools_map = registry.get_tools_by_capabilities([
-                Capability.READ_DATA,
-                Capability.ANALYZE_CODE
-            ])
-            # → {
-            #     Capability.READ_DATA: [ReadFileTool, FetchURLTool],
-            #     Capability.ANALYZE_CODE: [AnalyzeCodeTool]
-            # }
-        """
-        result = {}
-        for capability in capabilities:
-            providers = self.find_providers(capability, context=context)
-            result[capability] = providers
-        return result
-
-    def discover_tools(
-        self,
-        task_description: str,
-        limit: int = 10,
-        context: Optional[Dict[str, Any]] = None,
-        with_scores: bool = False
-    ) -> List[Tool]:
-        """
-        Find the tools most relevant to a natural-language task.
-
-        This is the discovery entry point callers should use. find_providers()
-        answers "who can do capability X" and returns providers in registration
-        order; it is not a ranking. This ranks the whole live registry against
-        the wording of the task, so the caller can hand a small, relevant tool
-        set to an LLM instead of everything the capability graph happens to
-        touch.
-
-        Ranking lives in core.tools.tool_discovery, which fuses BM25 over tool
-        names and descriptions, sentence embeddings, and this registry's own
-        capability graph. The embedding model is loaded on the first call, not
-        at import, and if it is unavailable the ranking degrades to lexical +
-        capability rather than failing.
-
-        Args:
-            task_description: Natural language task
-            limit: Maximum tools to return
-            context: Optional context; a ranked tool is kept only if the context
-                suits at least one capability it declares
-            with_scores: Return (tool, relevance) pairs instead of tools. The
-                score is uncalibrated across queries; a caller filtering noise
-                should threshold relative to the top score, because a task the
-                registry has no vocabulary for still fills every slot.
-
-        Returns:
-            Tools ordered most-relevant first, or (tool, score) pairs when
-            with_scores is set. Never raises: if ranking is unavailable for any
-            reason the result is an empty list.
-        """
-        if not task_description or not str(task_description).strip():
-            return []
-        try:
-            limit = max(0, int(limit))
-        except Exception:
-            limit = 10
-        if limit == 0:
-            return []
-
-        try:
-            from . import tool_discovery
-        except Exception as e:
-            # `except` must not turn a wiring defect into an empty result.
-            raise_if_structural(e, 'tool_registry.discover_tools')
-            logger.warning("discover_tools: ranker unavailable: %s", e)
-            return []
-
-        # The catalog is the live registry. Factories are included by name; the
-        # ranker only needs name/description/parameters/capabilities, and
-        # get_tool() materialises a factory tool on demand.
-        #
-        # De-duplicated on purpose: a tool that has been instantiated from a
-        # factory appears in BOTH self.tools and self.tool_factories, so the
-        # naive concatenation lists ~12 of them twice. Duplicates skew the BM25
-        # document statistics and let the same Tool object come back twice in
-        # one result list.
-        # Sorted, not registration order: registration order is an accident of
-        # module import order, and it is a tie-break input to the ranker's
-        # document statistics, so leaving it unsorted makes results vary between
-        # processes for no reason. Sorting also measurably helps here (one query
-        # on the 75-query eval recovers from zero recall).
-        by_name: Dict[str, Tool] = {}
-        for name in sorted(set(list(self.tools) + list(self.tool_factories))):
-            try:
-                tool = self.get_tool(name)
-            except Exception:
-                continue
-            if tool is None:
-                continue
-            # Key on the tool's own name: that is what the ranker returns.
-            by_name.setdefault(getattr(tool, "name", None) or name, tool)
-        if not by_name:
-            return []
-        catalog: List[Tool] = list(by_name.values())
-
-        # Ask for extra: the context filter below can drop results, and we still
-        # want to fill `limit` when it does.
-        want = limit if context is None else min(len(catalog), limit * 3)
-        try:
-            scored = tool_discovery.discover_scored(
-                catalog, str(task_description), want)
-        except Exception as e:
-            # discover_scored() already swallows its own failures; this is belt
-            # and braces so the registry's contract holds unconditionally.
-            # `except` must not turn a wiring defect into an empty result.
-            raise_if_structural(e, 'tool_registry.discover_tools')
-            logger.warning("discover_tools: ranking failed: %s", e)
-            return []
-
-        # WHAT HISTORY SAYS ABOUT THIS KIND OF TASK.
-        #
-        # The ranker scores relevance from wording and the capability graph. It
-        # has no idea which tools actually WORK for this intent -- that is
-        # measured elsewhere, recorded to `tool_usage_history`, and aggregated
-        # into per-(intent, category) success rates that nothing on this path
-        # read. The system learned which tools work and then chose as though it
-        # had not.
-        #
-        # A damped nudge, not an override: it reorders near-ties and cannot lift
-        # an irrelevant tool above a relevant one, because a tool never tried
-        # for this intent must not be ranked below one that has merely by virtue
-        # of being untried.
-        try:
-            from core.learning.adaptive_tool_owner import apply_learned_affinity
-
-            def _category_of(tool_name: str) -> str:
-                tool = by_name.get(tool_name)
-                category = getattr(tool, "category", None)
-                return getattr(category, "value", category) or ""
-
-            scored = apply_learned_affinity(
-                str(task_description), scored, _category_of)
-        except Exception as e:
-            # Learning must never be able to empty a tool search.
-            raise_if_structural(e, 'tool_registry.discover_tools')
-            logger.debug("discover_tools: affinity unavailable: %s", e)
-
-        results: List[Any] = []
-        for name, score in scored:
-            tool = by_name.get(name)
-            if tool is None:
-                continue
-            if context is not None and not self._matches_any_context(tool, context):
-                continue
-            results.append((tool, score) if with_scores else tool)
-            if len(results) >= limit:
-                break
-        return results
-
-    @staticmethod
-    def _matches_any_context(tool: Tool, context: Dict[str, Any]) -> bool:
-        """Keep a tool if any capability it declares is usable in this context.
-
-        find_providers() applies context per capability because it is asked about
-        one. Discovery is asked about a task, so a tool survives if the context
-        suits it for anything it can do.
-        """
-        try:
-            profile = getattr(tool, "capability_profile", None)
-            if profile is None:
-                return True
-            caps = list(profile.get_capability_names())
-            if not caps:
-                return True
-            return any(tool.matches_context(cap, context) for cap in caps)
-        except Exception as e:
-            # Fails OPEN deliberately -- discovery must not drop a tool because
-            # its own matcher raised. But the swallow was silent, so a broken
-            # matcher looked exactly like a tool that matched everything.
-            logger.warning(
-                "context matching raised for %s (%s: %s); including it rather "
-                "than dropping it, but the matcher is broken",
-                getattr(tool, "name", "?"), type(e).__name__, e)
-            return True
-
-    def get_capability_coverage(self) -> Dict[Capability, int]:
-        """
-        Get coverage statistics for each capability.
-
-        Returns:
-            Dict mapping capabilities to number of providers
-
-        Example:
-            coverage = registry.get_capability_coverage()
-            # → {
-            #     Capability.READ_DATA: 3,  # 3 tools provide this
-            #     Capability.WRITE_DATA: 2,
-            #     ...
-            # }
-        """
-        return {cap: len(tools) for cap, tools in self.capability_index.items()}
-
-    def resolve_capability_dependencies(
-        self,
-        capability: Capability,
-        context: Optional[Dict[str, Any]] = None
-    ) -> List[Capability]:
-        """
-        Resolve all dependencies for a capability recursively.
-
-        Returns a topologically sorted list of capabilities that must be
-        executed before the requested capability.
-
-        Args:
-            capability: The capability to resolve dependencies for
-            context: Context for provider selection
-
-        Returns:
-            List of capabilities in execution order (dependencies first)
-
-        Example:
-            # CONDUCT_RESEARCH depends on HTTP_REQUEST, PARSE_HTML, SUMMARIZE_TEXT
-            deps = registry.resolve_capability_dependencies(Capability.CONDUCT_RESEARCH)
-            # → [Capability.HTTP_REQUEST, Capability.PARSE_HTML,
-            #    Capability.SUMMARIZE_TEXT, Capability.CONDUCT_RESEARCH]
-        """
-        visited = set()
-        result = []
-
-        def visit(cap: Capability):
-            if cap in visited:
-                return
-            visited.add(cap)
-
-            # Get best provider for this capability
-            tool = self.select_best_provider(cap, context=context)
-            if not tool or not tool.capability_profile:
-                return
-
-            # Get dependencies for this capability
-            dependencies = tool.capability_profile.get_capability_dependencies(cap)
-
-            # Visit dependencies first (depth-first)
-            for dep_cap in dependencies:
-                visit(dep_cap)
-
-            # Add current capability after dependencies
-            result.append(cap)
-
-        visit(capability)
-        return result
-
-    def build_execution_plan(
-        self,
-        capabilities: List[Capability],
-        context: Optional[Dict[str, Any]] = None
-    ) -> List[tuple[Capability, str]]:
-        """
-        Build an execution plan for multiple capabilities with dependency resolution.
-
-        Returns a list of (capability, tool_name) tuples in execution order,
-        resolving all dependencies automatically.
-
-        Args:
-            capabilities: List of capabilities needed
-            context: Context for provider selection
-
-        Returns:
-            List of (Capability, tool_name) tuples in execution order
-
-        Example:
-            plan = registry.build_execution_plan([
-                Capability.CONDUCT_RESEARCH,
-                Capability.GENERATE_REPORT
-            ])
-            # → [
-            #     (Capability.HTTP_REQUEST, "fetch_url"),
-            #     (Capability.PARSE_HTML, "parse_html"),
-            #     (Capability.SUMMARIZE_TEXT, "summarize"),
-            #     (Capability.CONDUCT_RESEARCH, "research_tool"),
-            #     (Capability.GENERATE_REPORT, "report_generator")
-            # ]
-        """
-        all_capabilities = []
-        seen = set()
-
-        # Resolve dependencies for each requested capability
-        for capability in capabilities:
-            resolved = self.resolve_capability_dependencies(capability, context)
-            for cap in resolved:
-                if cap not in seen:
-                    all_capabilities.append(cap)
-                    seen.add(cap)
-
-        # Select best provider for each capability
-        execution_plan = []
-        for capability in all_capabilities:
-            tool = self.select_best_provider(capability, context=context)
-            if tool:
-                execution_plan.append((capability, tool.name))
-
-        return execution_plan
-
-    # ========== END CAPABILITY-BASED DISCOVERY ==========
 
     @inject_latency("tool_registry", "execute_tool", delay_ms=100, jitter_ms=50)
     @inject_error("tool_registry", "execute_tool", error_type=RuntimeError, error_rate=0.05, error_message="Chaos-injected tool execution error")
@@ -1474,9 +1304,6 @@ class ToolRegistry:
 
             # Record the execution.
             self._log_usage(tool, parameters, result, user_id, session_id)
-            await self._record_run(tool_name, success=result.success,
-                                   execution_time_s=result.execution_time or 0.0,
-                                   error=result.error)
 
             # An invoked tool is an OBSERVED operator. `_log_usage` records that
             # it ran; this records what it means -- the tool concept gains real
@@ -1524,9 +1351,6 @@ class ToolRegistry:
             asyncio.create_task(_record_tool_failure(
                 tool_name, _raw_err, raised=True,
                 session_id=session_id, user_id=user_id))
-            await self._record_run(tool_name, success=False,
-                                   execution_time_s=(datetime.now() - start_time).total_seconds(),
-                                   error=_raw_err)
             return ToolResult(
                 success=False,
                 output=None,
@@ -1541,7 +1365,7 @@ class ToolRegistry:
                 }
             )
     
-    async def project_capabilities(self) -> Dict[str, int]:
+    async def project_primitives(self) -> Dict[str, int]:
         """Project every registered tool into the concept layer as an operator.
 
         The concept graph knew about operators Lyric had LEARNED and nothing
@@ -1551,11 +1375,10 @@ class ToolRegistry:
         precondition list in another notation; projecting it makes the registry
         searchable by the same structural matcher.
 
-        Enumerates eager AND lazy tools by the same union used by discovery --
-        `self.tools` alone omits every lazily registered tool, which is most of
-        them.
+        Enumerates eager AND lazy tools as one set -- `self.tools` alone omits
+        every lazily registered tool, which is most of them.
         """
-        from core.domain.evidence_producers import submit_tool_capability
+        from core.agents.memory_agent import memory_agent
 
         counts = {"tools": 0, "projected": 0, "no_structure": 0,
                   "unreadable_structure": 0, "failed": 0}
@@ -1570,7 +1393,7 @@ class ToolRegistry:
                 continue
             counts["tools"] += 1
             try:
-                result = await submit_tool_capability(tool)
+                result = await memory_agent().take_in_tool(tool)
             except Exception as e:
                 counts["failed"] += 1
                 logger.warning("tool %s could not be projected: %s: %s",
@@ -1604,9 +1427,9 @@ class ToolRegistry:
     async def _observe_invocation(self, tool, parameters, succeeded: bool) -> None:
         """Submit one tool invocation as evidence. Never fails the tool call."""
         try:
-            from core.domain.evidence_producers import submit_tool_invocation
+            from core.agents.memory_agent import memory_agent
 
-            await submit_tool_invocation(
+            await memory_agent().take_in_tool_use(
                 getattr(tool, "name", ""), parameters or {}, bool(succeeded),
                 category=str(getattr(getattr(tool, "category", None), "value", "tools")))
         except Exception as e:
@@ -1641,34 +1464,6 @@ class ToolRegistry:
         }
         
         self.usage_log.append(log_entry)
-
-    async def _record_run(self, tool_name: str, *, success: bool,
-                          execution_time_s: float, error: Optional[str]) -> None:
-        """Record ONE run of a tool, success or failure, where learning reads it.
-
-        EVERY RUN PASSES HERE, so it is recorded here, once. Runs were recorded in
-        two places: this registry wrote `unified.tool_execution_events`, which
-        nothing reads, and the coordinator's `_run_tool` wrote
-        `tool_usage_history`, which tool learning reads -- so a tool reached any
-        other way (a conversation looking something up on the web, a reading
-        step, a rule's operator) ran and was never learned from. Attributed to
-        the task the act serves (`set_acting_task`), or to none.
-
-        Only runs are recorded. An act the constitution refused never reached the
-        tool, so it says nothing about how well the tool works."""
-        try:
-            from core.learning.adaptive_tool_owner import get_adaptive_tool_learning
-            from core.reasoning.intent_authority import get_acting_task
-            task_id, description = get_acting_task() or ("", "")
-            await get_adaptive_tool_learning().record_tool_run(
-                task_id=task_id, task_description=description, tool_name=tool_name,
-                success=bool(success), latency_ms=int(round(execution_time_s * 1000)),
-                failure_reason=None if success else (str(error)[:500] if error else None))
-        except Exception as record_error:
-            # The tool ran and its result stands; losing the record is reported.
-            logger.error("tool %s ran but the run was not recorded for learning: %s",
-                         tool_name, record_error)
-
 
     def _suggest_tools(self, requested_name: str, max_suggestions: int = 5) -> List[str]:
         """Suggest similar tool names for TOOL_NOT_FOUND errors.
@@ -1787,16 +1582,17 @@ def _register_tool_lazy(tool_class):
     metadata_instance = tool_class()
     tool_name = metadata_instance.name
 
-    # Extract capabilities if available
-    capabilities = None
-    if hasattr(metadata_instance, 'capability_profile') and metadata_instance.capability_profile:
-        capabilities = list(metadata_instance.capability_profile.get_capability_names())
+    # What it declares it performs, read now so the index is complete before
+    # any tool is loaded
+    primitives = None
+    if getattr(metadata_instance, 'primitive_profile', None):
+        primitives = list(metadata_instance.primitive_profile.primitive_names())
 
     # Register factory that creates NEW instances on demand
     registry.register_factory(
         tool_name,
         tool_class,  # Pass class itself, not instance
-        capabilities=capabilities,
+        primitives=primitives,
         category=metadata_instance.category,
         safety_level=metadata_instance.safety_level
     )
@@ -2251,6 +2047,13 @@ def _register_default_tools():
     except ImportError as e:
         logger.warning(f"Could not register documentation tools: {e}")
 
+    # Systems engineering: a system's model, from what its documents say
+    try:
+        from .sysml_tools import GenerateSysMLModelTool
+        _register_tool_lazy(GenerateSysMLModelTool)
+    except ImportError as e:
+        logger.warning(f"Could not register systems engineering tools: {e}")
+
     # System Management Tools
     try:
         from .system_management_tools import (
@@ -2348,24 +2151,9 @@ def _register_default_tools():
     # Chaos engineering tools: archived 2026-09-30. Their only targets were the
     # substrate's own systems (archive/superseded_chaos_tools_2026-09-30/).
 
-    # ===== AGENTSO CONNECTOR TOOLS =====
-    # Register AgentSO security connectors (VirusTotal, CrowdStrike, MISP, etc.)
-    # Connectors are imported directly from services/agentso/connectors/
-    try:
-        from .connector_tools import register_connector_tools
-
-        logger.info("🔌 Registering AgentSO connector tools...")
-        count = register_connector_tools(registry)
-
-        if count > 0:
-            logger.info(f"✅ Registered {count} AgentSO connector tools")
-        else:
-            logger.warning("⚠️  No AgentSO connector tools registered")
-
-    except ImportError as e:
-        logger.warning(f"Could not load AgentSO connector tools: {e}")
-    except Exception as e:
-        logger.warning(f"AgentSO connector registration failed: {e}")
+    # AgentSO's connector tools: archived 2026-10-05 (archive/agentso_connector_tools_2026-10-05/). AgentSO is a
+    # separate program, not part of Lyric. The connectors people connect are Lyric's own (core/connectors/), and
+    # their tools are registered from there.
 
     # Count lazy-loaded factories + eager-loaded tools
     total_factories = len(registry.tool_factories)

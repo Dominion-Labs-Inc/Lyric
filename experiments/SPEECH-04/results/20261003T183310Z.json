@@ -1,0 +1,196 @@
+{
+  "experiment": "SPEECH-04",
+  "claim": "Taught the sounds words are made of by hearing sentences told which sound is said when, and how the lesson words are said, the substrate hears a word said by a speaker it never heard by its sounds; a word it names firmly is the word said.",
+  "hypothesis": "A lesson of sounds is refused, misplaced or not read back exactly; or a word named firmly is not the word said; or no more words are named than whole words were (SPEECH-02: 4 of 200).",
+  "started_at": "2026-10-03T18:33:10.120313+00:00",
+  "duration_seconds": 825.92,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/Lyric/venv_lyric/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/Lyric",
+    "shadow_mode": null,
+    "git_commit": "a3aad59e25603e309479c542053a1e733fb70ce7",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "lyric_dev",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "lyric_dev",
+        "model": "lyric_dev",
+        "user_context": "lyric_dev",
+        "learning": "lyric_dev"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "environment",
+        "database": "environment",
+        "user": "environment",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "pool_idle_seconds": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 24,
+    "database_verified": "lyric_dev",
+    "database_verified_reason": "asked the server"
+  },
+  "summary": {
+    "checks": 11,
+    "passed": 10,
+    "failed": 1,
+    "outcome": "FAIL"
+  },
+  "metrics": [
+    {
+      "name": "lessons of sounds",
+      "value": 338,
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "seconds per lesson",
+      "value": 1.43,
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "refused",
+      "value": [],
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "pronunciations taught",
+      "value": {
+        "told": 1451,
+        "already": 0,
+        "skipped": 0,
+        "total": 1451
+      },
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "MSWC words alone",
+      "value": {
+        "not named": 196,
+        "named wrongly": 2
+      },
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "seconds to hear a word",
+      "value": 0.19,
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "sentences: words heard that were said",
+      "value": "14/789",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "sentences, said and heard",
+      "value": [
+        [
+          "the dull light fell more faintly upon the page whereon another equation",
+          "... a upon ... of ..."
+        ],
+        [
+          "sometimes he would wander on foot upon the sandy shore and sometimes",
+          "... a ..."
+        ],
+        [
+          "they knew no north no south no east no west they stood",
+          "they ... and ... they ... responded ..."
+        ]
+      ],
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "rows left after cleanup, by table",
+      "value": {},
+      "unit": "",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "the run is in the sandbox",
+      "passed": true,
+      "detail": "lyric_dev",
+      "at": "2026-10-03T18:34:21.026841+00:00"
+    },
+    {
+      "label": "no sentence said is refused as a lesson of sounds",
+      "passed": true,
+      "detail": "0 of 338: []",
+      "at": "2026-10-03T18:42:26.539663+00:00"
+    },
+    {
+      "label": "each lesson of sounds is a hearing in the shared mind, tagged as spoken sounds",
+      "passed": true,
+      "detail": "0 wrong: []",
+      "at": "2026-10-03T18:43:00.279123+00:00"
+    },
+    {
+      "label": "its trace keeps exactly the frames measured of each phone said, with their phones",
+      "passed": true,
+      "detail": "0 wrong of 338: []",
+      "at": "2026-10-03T18:43:00.279220+00:00"
+    },
+    {
+      "label": "every pronunciation the source states is kept, as told",
+      "passed": true,
+      "detail": "{'told': 1451, 'already': 0, 'skipped': 0, 'total': 1451}; 1451 held for 1451 stated",
+      "at": "2026-10-03T18:44:25.693451+00:00"
+    },
+    {
+      "label": "every frame of every lesson of sounds",
+      "passed": true,
+      "detail": "78984 against 78984",
+      "at": "2026-10-03T18:44:32.907002+00:00"
+    },
+    {
+      "label": "every pronunciation",
+      "passed": true,
+      "detail": "1451 ways of 1178 words",
+      "at": "2026-10-03T18:44:32.907165+00:00"
+    },
+    {
+      "label": "a word named firmly is the word said, or one said the same",
+      "passed": true,
+      "detail": "0 firm and wrong: []",
+      "at": "2026-10-03T18:46:21.669937+00:00"
+    },
+    {
+      "label": "more words said alone by untaught speakers are named right than whole words were (4 of 200)",
+      "passed": false,
+      "detail": "0 of 198",
+      "at": "2026-10-03T18:46:21.669968+00:00"
+    },
+    {
+      "label": "everything the run wrote to the sandbox is removed",
+      "passed": true,
+      "detail": "{}",
+      "at": "2026-10-03T18:46:55.264394+00:00"
+    },
+    {
+      "label": "the main model's store is untouched",
+      "passed": true,
+      "detail": "290096 rows before, 290096 after",
+      "at": "2026-10-03T18:46:56.054454+00:00"
+    }
+  ],
+  "notes": []
+}

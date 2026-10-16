@@ -74,8 +74,7 @@ mypy>=1.6.0
 
 # Machine learning extensions
 transformers>=4.35.0
-# Required (not optional) by core/tools/tool_discovery.py — the tool-discovery
-# ranker's dense signal. Without it discovery degrades to lexical-only.
+# Required by core/memory/utils/embedding_service.py — memory's embeddings.
 sentence-transformers>=3.0.0
 qwen-vl-utils>=0.0.14
 accelerate>=0.24.0

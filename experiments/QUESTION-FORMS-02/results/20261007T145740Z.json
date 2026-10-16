@@ -1,0 +1,236 @@
+{
+  "experiment": "QUESTION-FORMS-02",
+  "claim": "With happenings held as events, Lyric answers questions about where something happens in shapes english_31 teaches and in shapes no lesson asks about, and questions about what happened: what was done, who did it, and whether it was done.",
+  "hypothesis": "Any question in these groups read otherwise or answered wrongly, or a write to the main store, shows here.",
+  "started_at": "2026-10-07T14:57:40.007614+00:00",
+  "duration_seconds": 1352.878,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/Lyric/venv_lyric/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/Lyric",
+    "shadow_mode": null,
+    "git_commit": "0a27c570eda188a24bb63d1968f8fd104a8f4cb6",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "lyric_dev",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "lyric_dev",
+        "model": "lyric_dev",
+        "user_context": "lyric_dev",
+        "learning": "lyric_dev"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "environment",
+        "database": "environment",
+        "user": "environment",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "pool_idle_seconds": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 253,
+    "database_verified": null,
+    "database_verified_reason": "no initialized connection in this process"
+  },
+  "summary": {
+    "checks": 16,
+    "passed": 16,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [
+    {
+      "name": "shapes english_31 asks about: answered right",
+      "value": "5/5",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "shapes no lesson asks about: answered right",
+      "value": "3/3",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "things that happened: answered right",
+      "value": "4/4",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "answers",
+      "value": [
+        {
+          "asked": "Where does a fip live?",
+          "reply": "A fip lives in a kitchen.",
+          "shapes": "shapes english_31 asks about"
+        },
+        {
+          "asked": "Where does a snell come from?",
+          "reply": "A snell comes from a city.",
+          "shapes": "shapes english_31 asks about"
+        },
+        {
+          "asked": "Who does the plonk belong to?",
+          "reply": "The plonk belongs to Nella.",
+          "shapes": "shapes english_31 asks about"
+        },
+        {
+          "asked": "Where is the trel kept?",
+          "reply": "The trel is kept in a bag.",
+          "shapes": "shapes english_31 asks about"
+        },
+        {
+          "asked": "Where do brabs sleep?",
+          "reply": "Brabs sleep in boxes.",
+          "shapes": "shapes english_31 asks about"
+        },
+        {
+          "asked": "Where does a kelt hide?",
+          "reply": "A kelt hides in a box.",
+          "shapes": "shapes no lesson asks about"
+        },
+        {
+          "asked": "Where does a morp grow?",
+          "reply": "A morp grows in a city.",
+          "shapes": "shapes no lesson asks about"
+        },
+        {
+          "asked": "Where does the blip rest?",
+          "reply": "The blip rests in the bag.",
+          "shapes": "shapes no lesson asks about"
+        },
+        {
+          "asked": "What did the kelt chase?",
+          "reply": "The kelt chased the blip.",
+          "shapes": "things that happened"
+        },
+        {
+          "asked": "Who chased the blip?",
+          "reply": "The kelt chased the blip.",
+          "shapes": "things that happened"
+        },
+        {
+          "asked": "Did the fip kick the trel?",
+          "reply": "Yes. The fip kicked the trel.",
+          "shapes": "things that happened"
+        },
+        {
+          "asked": "What did the fip kick?",
+          "reply": "The fip kicked the trel.",
+          "shapes": "things that happened"
+        }
+      ],
+      "unit": "",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "the run is in the sandbox, emptied first",
+      "passed": true,
+      "detail": "connected to lyric_dev; reset exit 0",
+      "at": "2026-10-07T14:58:05.475731+00:00"
+    },
+    {
+      "label": "the 31 lessons are learned, none refused",
+      "passed": true,
+      "detail": "english_31.json the last",
+      "at": "2026-10-07T15:19:07.336444+00:00"
+    },
+    {
+      "label": "the facts are learned, none refused",
+      "passed": true,
+      "detail": "{'learned': 18, 'linked': 39, 'already': 0, 'understood': 1, 'refused': 0, 'total': 18, 'repair_item_based_lexical': 10, 'repair_lexical_item_based': 5, 'repair_substitution': 1, 'repair_add_links': 1, 'repair_phrase_in_slot': 1, 'said': 33, 'heard': 88}",
+      "at": "2026-10-07T15:19:49.955669+00:00"
+    },
+    {
+      "label": "'Where does a fip live?': in a kitchen",
+      "passed": true,
+      "detail": "A fip lives in a kitchen.",
+      "at": "2026-10-07T15:19:52.256291+00:00"
+    },
+    {
+      "label": "'Where does a snell come from?': a city",
+      "passed": true,
+      "detail": "A snell comes from a city.",
+      "at": "2026-10-07T15:19:53.671419+00:00"
+    },
+    {
+      "label": "'Who does the plonk belong to?': Nella",
+      "passed": true,
+      "detail": "The plonk belongs to Nella.",
+      "at": "2026-10-07T15:19:55.078802+00:00"
+    },
+    {
+      "label": "'Where is the trel kept?': in a bag",
+      "passed": true,
+      "detail": "The trel is kept in a bag.",
+      "at": "2026-10-07T15:19:57.140150+00:00"
+    },
+    {
+      "label": "'Where do brabs sleep?': in boxes",
+      "passed": true,
+      "detail": "Brabs sleep in boxes.",
+      "at": "2026-10-07T15:19:58.365189+00:00"
+    },
+    {
+      "label": "'Where does a kelt hide?': in a box",
+      "passed": true,
+      "detail": "A kelt hides in a box.",
+      "at": "2026-10-07T15:20:00.501429+00:00"
+    },
+    {
+      "label": "'Where does a morp grow?': in a city",
+      "passed": true,
+      "detail": "A morp grows in a city.",
+      "at": "2026-10-07T15:20:01.933567+00:00"
+    },
+    {
+      "label": "'Where does the blip rest?': in the bag",
+      "passed": true,
+      "detail": "The blip rests in the bag.",
+      "at": "2026-10-07T15:20:05.156632+00:00"
+    },
+    {
+      "label": "'What did the kelt chase?': the blip",
+      "passed": true,
+      "detail": "The kelt chased the blip.",
+      "at": "2026-10-07T15:20:09.443732+00:00"
+    },
+    {
+      "label": "'Who chased the blip?': the kelt",
+      "passed": true,
+      "detail": "The kelt chased the blip.",
+      "at": "2026-10-07T15:20:10.344542+00:00"
+    },
+    {
+      "label": "'Did the fip kick the trel?': yes",
+      "passed": true,
+      "detail": "Yes. The fip kicked the trel.",
+      "at": "2026-10-07T15:20:11.557623+00:00"
+    },
+    {
+      "label": "'What did the fip kick?': the trel",
+      "passed": true,
+      "detail": "The fip kicked the trel.",
+      "at": "2026-10-07T15:20:12.227623+00:00"
+    },
+    {
+      "label": "the main model's store is untouched",
+      "passed": true,
+      "detail": "64476 rows before, 64476 after",
+      "at": "2026-10-07T15:20:12.820387+00:00"
+    }
+  ],
+  "notes": []
+}

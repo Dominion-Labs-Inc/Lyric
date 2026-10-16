@@ -28,7 +28,7 @@ from typing import Any, List, Optional, Tuple
 from pathlib import Path
 
 from .tool_registry import Tool, ToolParameter, ToolResult, ToolCategory, ToolSafety
-from .capabilities import Capability, ToolCapabilityProfile, CapabilityMetadata, RiskLevel
+from .tool_registry import Primitive, PrimitiveProfile, PrimitiveUse
 
 
 logger = logging.getLogger(__name__)
@@ -131,24 +131,19 @@ class MySQLQueryTool(Tool):
                           default=""),
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="mysql_query",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.QUERY_DATABASE,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.QUERY_DATABASE,
                     description="Execute SQL queries on an outside MySQL database"
                 ),
-                CapabilityMetadata(
-                    capability=Capability.MODIFY_DATABASE,
+                PrimitiveUse(
+                    primitive=Primitive.MODIFY_DATABASE,
                     description="Modify an outside MySQL database via INSERT/UPDATE/DELETE",
                     input_types=["sql", "params"],
-                    output_types=["affected_rows"],
-                    latency="medium",
-                    cost="low",
-                    reliability="high",
-                    risk_level=RiskLevel.HIGH,
-                    priority=8
+                    output_types=["affected_rows"]
                 )
             ]
         )
@@ -198,24 +193,19 @@ class RedisGetTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="redis_get",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.READ_DATA,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.READ_DATA,
                     description="Read data from Redis cache"
                 ),
-                CapabilityMetadata(
-                    capability=Capability.RECEIVE_MESSAGE,
+                PrimitiveUse(
+                    primitive=Primitive.RECEIVE_MESSAGE,
                     description="Receive messages and data from Redis pub/sub",
                     input_types=["key"],
-                    output_types=["value"],
-                    latency="low",
-                    cost="low",
-                    reliability="high",
-                    risk_level=RiskLevel.LOW,
-                    priority=7
+                    output_types=["value"]
                 )
             ]
         )
@@ -278,12 +268,12 @@ class RedisSetTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="redis_set",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.WRITE_DATA,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.WRITE_DATA,
                     description="Write data to Redis cache"
                 )
             ]
@@ -352,12 +342,12 @@ class R2UploadTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="r2_upload",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.UPLOAD,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.UPLOAD,
                     description="Upload files to Cloudflare R2 storage"
                 )
             ]
@@ -429,12 +419,12 @@ class R2DownloadTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="r2_download",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.DOWNLOAD,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.DOWNLOAD,
                     description="Download files from Cloudflare R2 storage"
                 )
             ]
@@ -498,24 +488,19 @@ class PostgresQueryTool(Tool):
                           default=""),
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="postgres_query",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.QUERY_DATABASE,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.QUERY_DATABASE,
                     description="Execute SQL queries on an outside PostgreSQL database"
                 ),
-                CapabilityMetadata(
-                    capability=Capability.MODIFY_DATABASE,
+                PrimitiveUse(
+                    primitive=Primitive.MODIFY_DATABASE,
                     description="Modify an outside PostgreSQL database via INSERT/UPDATE/DELETE",
                     input_types=["sql", "params"],
-                    output_types=["affected_rows"],
-                    latency="medium",
-                    cost="low",
-                    reliability="high",
-                    risk_level=RiskLevel.HIGH,
-                    priority=8
+                    output_types=["affected_rows"]
                 )
             ]
         )

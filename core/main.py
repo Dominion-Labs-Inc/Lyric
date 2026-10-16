@@ -107,59 +107,38 @@ logger = logging.getLogger(__name__)
 # ============================================================================
 
 class ServiceInitializer:
-    """Helper class for service initialization with timeout and retry"""
+    """Starts each service once."""
 
     @staticmethod
     async def initialize_service(
         name: str,
         init_func,
-        timeout: int = 30,
-        retry_count: int = 3,
         service_type: str = "class"
     ) -> Any:
         """
-        Initialize a service with timeout and retry logic
+        Start a service once: its instance, or None when starting it raised.
+
+        No clock and no second attempt. A start cut off by a timer was not
+        stopped -- what it had begun went on underneath -- and the retry ran
+        the same start again on the half-started object: with the word-class
+        warm holding the loop, the coordinator's 30 s ran out and its planning
+        engine, reasoning bridge and failed-work record were started twice
+        (2026-10-09). How long a start takes is the work it does; one that
+        fails says so here, with its traceback.
 
         Args:
             name: Service name for logging
             init_func: Async function to initialize service
-            timeout: Timeout in seconds
-            retry_count: Number of retry attempts
             service_type: Type of service (class, factory, etc.)
-
-        Returns:
-            Initialized service instance or None on failure
         """
         logger.info(f"Starting {name} (type: {service_type})")
-
-        for attempt in range(retry_count):
-            try:
-                # Execute initialization with timeout
-                service = await asyncio.wait_for(
-                    init_func(),
-                    timeout=timeout
-                )
-
-                logger.info(f"  ✓ {name} initialized successfully")
-                return service
-
-            except asyncio.TimeoutError:
-                logger.error(
-                    f"  ✗ {name} initialization timeout "
-                    f"(attempt {attempt + 1}/{retry_count})"
-                )
-                if attempt < retry_count - 1:
-                    await asyncio.sleep(2 ** attempt)  # Exponential backoff
-
-            except Exception as e:
-                logger.error(
-                    f"  ✗ Error starting {name}: {e}",
-                    exc_info=True if attempt == retry_count - 1 else False
-                )
-                if attempt < retry_count - 1:
-                    await asyncio.sleep(2 ** attempt)
-
-        return None
+        try:
+            service = await init_func()
+        except Exception as e:
+            logger.error(f"  ✗ Error starting {name}: {e}", exc_info=True)
+            return None
+        logger.info(f"  ✓ {name} initialized successfully")
+        return service
 
 
 # ============================================================================
@@ -511,10 +490,7 @@ class LyricSystem:
             logger.info("Initializing PostgreSQL unified database...")
             self.unified_database = LyricUnifiedDatabase()
 
-            success = await asyncio.wait_for(
-                self.unified_database.initialize(),
-                timeout=30.0
-            )
+            success = await self.unified_database.initialize()
 
             if success:
                 logger.info("✅ PostgreSQL unified database initialized")
@@ -607,10 +583,7 @@ class LyricSystem:
             logger.info("Initializing PostgreSQL logging database...")
             logging_db = get_logging_db()
 
-            await asyncio.wait_for(
-                logging_db.initialize(),
-                timeout=30.0
-            )
+            await logging_db.initialize()
 
             logger.info("✅ PostgreSQL logging initialized with queue-based worker")
             self.stats['services_initialized'] += 1
@@ -634,7 +607,6 @@ class LyricSystem:
         self.memory_system = await self.service_init.initialize_service(
             "memory_system",
             init_memory,
-            timeout=30
         )
 
         if self.memory_system:
@@ -660,7 +632,6 @@ class LyricSystem:
             self.domain_registry = await self.service_init.initialize_service(
                 "domain_registry",
                 init_registry,
-                timeout=10
             )
 
             if self.domain_registry:
@@ -683,7 +654,6 @@ class LyricSystem:
             self.universal_ontology = await self.service_init.initialize_service(
                 "universal_ontology",
                 init_ontology,
-                timeout=10
             )
 
             if self.universal_ontology:
@@ -710,7 +680,6 @@ class LyricSystem:
             self.cross_domain_reasoner = await self.service_init.initialize_service(
                 "cross_domain_reasoner",
                 init_reasoner,
-                timeout=10
             )
 
             if self.cross_domain_reasoner:
@@ -735,7 +704,6 @@ class LyricSystem:
             self.universal_domain_master = await self.service_init.initialize_service(
                 "universal_domain_master",
                 init_domain_master,
-                timeout=15
             )
 
             if self.universal_domain_master:
@@ -801,7 +769,6 @@ class LyricSystem:
             result = await self.service_init.initialize_service(
                 "learning_system",
                 init_learning,
-                timeout=60  # Extended timeout for model loading
             )
 
             if result:
@@ -852,7 +819,6 @@ class LyricSystem:
             self.agent_coordinator = await self.service_init.initialize_service(
                 "agent_coordinator",
                 init_agent_coordinator,
-                timeout=60
             )
 
             if self.agent_coordinator:
@@ -878,7 +844,6 @@ class LyricSystem:
             self.predictive_intelligence = await self.service_init.initialize_service(
                 "predictive_intelligence",
                 init_predictive,
-                timeout=15
             )
 
             if self.predictive_intelligence:
@@ -917,7 +882,6 @@ class LyricSystem:
             self.health_monitor = await self.service_init.initialize_service(
                 "health_monitor",
                 init_health,
-                timeout=15
             )
 
             if self.health_monitor:
@@ -941,7 +905,6 @@ class LyricSystem:
             self.recovery_manager = await self.service_init.initialize_service(
                 "recovery_manager",
                 init_recovery,
-                timeout=10
             )
 
             if self.recovery_manager:
@@ -973,7 +936,6 @@ class LyricSystem:
             self.quantum_system = await self.service_init.initialize_service(
                 "quantum_system",
                 init_quantum,
-                timeout=60,
                 service_type="factory"
             )
 
@@ -1002,7 +964,6 @@ class LyricSystem:
             self.quantum_learning_bridge = await self.service_init.initialize_service(
                 "quantum_learning_bridge",
                 init_bridge,
-                timeout=60,
                 service_type="factory"
             )
 
@@ -1024,7 +985,6 @@ class LyricSystem:
             self.quantum_safety = await self.service_init.initialize_service(
                 "quantum_safety",
                 init_safety,
-                timeout=60,
                 service_type="factory"
             )
 
@@ -1152,7 +1112,6 @@ class LyricSystem:
             self.autonomous_coordinator = await self.service_init.initialize_service(
                 "autonomous_controller",
                 init_coordinator,
-                timeout=30
             )
 
             if self.autonomous_coordinator:
@@ -1163,35 +1122,6 @@ class LyricSystem:
                 if getattr(self, 'memory_injector', None):
                     self.autonomous_coordinator.memory_injector = self.memory_injector
                     logger.info("✓ Autonomous coordinator connected to memory injector")
-
-                # Adaptive tool learning — ONE owner, ONE persistence authority.
-                #
-                # The executor used to build its own reader and its own writer,
-                # each resolving a database independently. The reader recovered
-                # through an internal fallback; the writer sat behind
-                # `if self.db_manager:` — an attribute the executor never
-                # assigns — so tool_usage_history stayed empty and every task
-                # logged "No historical data yet", indistinguishable from a
-                # genuine cold start, for the life of the system.
-                #
-                # Constructed here from the canonical database and injected, so
-                # read and write are symmetric by construction rather than by
-                # two constructors happening to pick the same DB.
-                try:
-                    from core.learning.adaptive_tool_owner import get_adaptive_tool_learning
-                    from core.database import get_database_manager
-
-                    _atl = get_adaptive_tool_learning(get_database_manager())
-                    # Execution is the coordinator's own faculty now; the tool-metrics
-                    # owner is set directly on it.
-                    self.autonomous_coordinator.adaptive_tool_learning = _atl
-                    _st = await _atl.status()
-                    logger.info(
-                        f"✓ Adaptive tool learning connected — mode={_st['mode']} "
-                        f"rows={_st['history_rows']} measured={_st['measured_affinities']}"
-                    )
-                except Exception as e:
-                    logger.error(f"Adaptive tool learning NOT connected: {e}", exc_info=True)
 
                 # Universal Domain Master — the Postgres-backed authority for
                 # what domains exist and for cross-domain reasoning.
@@ -1237,6 +1167,15 @@ class LyricSystem:
 
                 logger.info("✅ Autonomous Coordinator (THE SINGLETON) initialized")
                 self.stats['services_initialized'] += 1
+
+                # LYRIC'S WORLD. Lyric runs by itself and attaches to the world as its
+                # inhabitant: what a person sends through the gate (a turn, their reward
+                # allowance) reaches the front door and the appraisal authority from
+                # here. Only when a world is named; a Lyric with none is simply not in one.
+                if os.environ.get("TET_WORLD_ADDRESS"):
+                    from core.integration.world_inhabitant import WorldInhabitant
+                    self.world_inhabitant = WorldInhabitant(self.autonomous_coordinator)
+                    self.world_inhabitant.attach()
             else:
                 logger.error("Failed to initialize autonomous_controller - check logs above for details")
                 self.stats['services_failed'] += 1
@@ -1266,6 +1205,17 @@ class LyricSystem:
 
             logger.info("Initializing tool registry...")
             self.tool_registry = get_tool_registry()
+
+            # THE TOOLS OF THE CONNECTORS PEOPLE CONNECTED, as they were last read, so they are tools of this
+            # process too, and projected below with the rest (core.connectors). A store that cannot be read
+            # leaves them out, said; the registry is whole without them.
+            try:
+                from core.connectors import register_connected
+                _connected = await register_connected(self.tool_registry)
+                if _connected:
+                    logger.info("✓ Connector tools registered: %d", _connected)
+            except Exception as e:
+                logger.warning("Connector tools not registered: %s: %s", type(e).__name__, e)
 
             # PROJECT THE TOOLS AS OPERATORS, EVERY BOOT.
             #
@@ -1299,14 +1249,14 @@ class LyricSystem:
                             _db.release)
             else:
                 try:
-                    projection = await self.tool_registry.project_capabilities()
+                    projection = await self.tool_registry.project_primitives()
                     logger.info(
                         "✓ Tools projected as operators: %d/%d (%d declare no "
                         "structure, %d unreadable)",
                         projection.get("projected", 0), projection.get("tools", 0),
                         projection.get("no_structure", 0), projection.get("failed", 0))
                 except Exception as e:
-                    logger.warning("Tool capability projection failed: %s: %s",
+                    logger.warning("Tool projection failed: %s: %s",
                                    type(e).__name__, e)
 
             logger.info("✓ Tool registry initialized")

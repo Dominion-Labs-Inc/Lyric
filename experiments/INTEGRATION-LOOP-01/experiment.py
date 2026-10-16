@@ -16,6 +16,7 @@ Run: ./venv_lyric/bin/python3 scratchpad/bench_integration_loop.py
 from __future__ import annotations
 import asyncio, os, sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
+from core.integration.universal_domain_master import UniversalDomainMaster  # noqa: E402
 
 from experiments._evidence import RunRecord  # noqa: E402
 
@@ -98,7 +99,7 @@ async def main() -> int:
         op0 = await coord._domain_operability(DOMAIN)
         bel = get_uncertainty_system()
         def _competence_conf():
-            claim = f"the substrate has learned the operators of domain {DOMAIN}"
+            claim = f"{UniversalDomainMaster.COMPETENCE_CLAIM}{DOMAIN}"
             b = next((b for b in bel.beliefs.values() if getattr(b, "claim", None) == claim), None)
             return None if b is None else round(float(getattr(b, "confidence", 0.0)), 4)
         comp0 = _competence_conf()

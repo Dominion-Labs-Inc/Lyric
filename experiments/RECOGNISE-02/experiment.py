@@ -44,7 +44,7 @@ import uuid
 from pathlib import Path
 
 for _k, _v in {"POSTGRES_PORT": "5433", "POSTGRES_USER": "stefan",
-               "POSTGRES_DATABASE": "lyric_db", "LYRIC_NO_WATCHDOG": "1",
+               "POSTGRES_DATABASE": "lyric_dev", "LYRIC_NO_WATCHDOG": "1",
                "LYRIC_SHADOW_MODE": "1"}.items():
     os.environ.setdefault(_k, _v)
 
@@ -207,8 +207,7 @@ async def main() -> int:
               f"held {sorted(other_names) or 'nothing'}")
         obs_other, _ = await observed_instance_features(db, held_other)
         with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
-            declined = await coord.learning.recognize(
-                CLF, obs_other, held_other, domain=DOMAIN)
+            declined = await coord.learning.name_instance(CLF, obs_other, held_other)
         check("the machine returns nothing rather than a wrong name",
               declined is None, "declined")
 

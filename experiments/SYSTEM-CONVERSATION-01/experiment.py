@@ -3,8 +3,10 @@
 
 The substrate holding a conversation (`Conversation`, reached through
 `coord.conversation(session)`), as a SPEAKER meets it: everything is said to
-it through `understand`, the one turn. A session is a user actor, so what it is
-told lands in that speaker's scoped context, never the shared mind:
+it through `understand`, the one turn. A session is a user actor. What it is
+told of names the world does not hold (this run's nonce words) is about that
+speaker's own things, so it lands in their context, never the world
+(docs/research/SEPARATION_MAP.md §11.3):
 
   * told, it is held in the speaker's context in the door's canonical terms,
     and nothing reaches the shared graph or beliefs;
@@ -13,8 +15,7 @@ told lands in that speaker's scoped context, never the shared mind:
     does not call the thing it just answered about unknown;
   * another speaker holds none of it;
   * a told conditional asserts neither of its sides;
-  * the door refuses for the speaker what it refuses for the substrate;
-  * a claim the shared door refuses is not flagged promoted;
+  * a speaker's context refuses what the world's door refuses;
   * what was reasoned for the speaker is remembered as theirs, recallable by
     them and by no one else, by meaning or by wording.
 
@@ -39,8 +40,12 @@ from experiments._evidence import RunRecord  # noqa: E402
 from experiments._isolation import ROOT, boot, callable_surface, db, outcome, shutdown  # noqa: E402
 
 N = "".join(random.choice(string.ascii_lowercase) for _ in range(5))
-V = f"vex{N}"             # one-word name, told to be a mammal
-G = f"glint{N}"           # two-word name "<G> heron": `heron` is a shared word
+V = f"vex{N}"             # a kind word, for the conditional
+G = f"glint{N}"
+NAME = f"Vex{N}"          # a one-word name the world does not hold, told to be a mammal
+TWO = f"Glint{N} Heron"   # a two-word name: `heron` is a shared word. Asked as written ("Is ... ?"): unpunctuated,
+                          # "is Glint... Heron a glint... bird" also reads as Glint... having done a "Heron"
+                          # (2026-10-07), and the listener does not yet choose by what the speaker told.
 SESSION = f"SYSTEM-CONVERSATION-01-{N}"
 EV = RunRecord(
     "SYSTEM-CONVERSATION-01",
@@ -48,8 +53,8 @@ EV = RunRecord(
            "door's terms, answered back to them from it and to no one else, a conditional "
            "asserts neither side, and what is reasoned for them is remembered as theirs."),
     hypothesis=("A told name the speaker cannot ask back, a reply calling it unknown, another "
-                "speaker answered from it, a conditional's clause held as fact, a refused "
-                "promotion flagged promoted, or an unowned memory of it would each fail here."))
+                "speaker answered from it, a conditional's clause held as fact, a "
+                "refused telling held for the speaker, or an unowned memory of it would each fail here."))
 results = []
 
 
@@ -83,8 +88,11 @@ async def world_knowledge(coord, d) -> bool:
         "AND cr.target_surface = 'animal' AND cr.polarity = 'positive'", (), fetch_one=True)
     if int(held["n"]):
         return True
-    admission = await coord.learning.learn_fact("mammal", "isa", "animal", domain="general")
-    return bool(getattr(admission, "admitted", False))
+    from core.learning.unified_learning_system import Evidence
+    decision = await coord.learning.consider("mammal", "isa", "animal", domain="general", evidence=Evidence(
+        source="experiment:SYSTEM-CONVERSATION-01", key="SYSTEM-CONVERSATION-01",
+        source_type="IMPORTED_KNOWLEDGE", quality=0.9))
+    return decision.admitted
 
 
 async def main() -> int:
@@ -109,7 +117,7 @@ async def main() -> int:
                          path="core/agents/autonomous/autonomous_coordinator.py")
 
         print("\n== B. Told: held in the speaker's context, in the door's terms ==")
-        for sentence in (f"a {V} is a mammal", f"a {G} heron is a {G} bird"):
+        for sentence in (f"{NAME} is a mammal.", f"{TWO} is a {G} bird."):
             u = await A.understand(sentence, look_up=False)
             print(f"    told {sentence!r} -> {said(A, u)[:90]!r}")
         held = await edges(d, A._actor)
@@ -128,24 +136,24 @@ async def main() -> int:
               f"shared rows={shared['n']}")
 
         print("\n== C. Asked back by the speaker, answered from their context ==")
-        for question in (f"is a {V} a mammal", f"is a {V} an animal",
-                         f"is a {G} heron a {G} bird"):
+        for question in (f"is {NAME} a mammal", f"is {NAME} an animal",
+                         f"Is {TWO} a {G} bird?"):
             u = await A.understand(question, look_up=False)
             reply = said(A, u)
             check(f"{question!r} is affirmed", reply.lower().startswith("yes"), reply[:100])
             check(f"{question!r}: the reply does not call what it answered unknown",
                   "hold nothing for" not in reply.lower(), reply[:140])
-        resolved = await A.resolve(f"is a {G} heron a {G} bird")
+        resolved = await A.resolve(f"Is {TWO} a {G} bird?")
         check("the two-word told name resolves whole, from the speaker's context",
-              any(r.phrase == f"{G} heron" and r.told for r in resolved),
+              any(r.phrase.lower() == TWO.lower() and r.told for r in resolved),
               f"{[(r.phrase, r.known, bool(r.told)) for r in resolved]}")
 
         print("\n== D. Another speaker holds none of it ==")
-        u = await B.understand(f"is a {V} a mammal", look_up=False)
+        u = await B.understand(f"is {NAME} a mammal", look_up=False)
         reply = said(B, u)
         check("another speaker is not answered from the first one's context",
               not reply.lower().startswith("yes"), reply[:100])
-        resolved = await B.resolve(f"is a {G} heron a {G} bird")
+        resolved = await B.resolve(f"Is {TWO} a {G} bird?")
         check("another speaker resolves nothing the first one told",
               not any(r.told for r in resolved),
               f"{[(r.phrase, r.known, bool(r.told)) for r in resolved]}")
@@ -167,46 +175,21 @@ async def main() -> int:
         check("asked whether the antecedent holds, it is not affirmed",
               not reply.lower().startswith("yes"), reply[:100])
 
-        print("\n== F. The door is the same door for a speaker ==")
-        learning = coord.learning
-        adm = await learning.learn_fact("you", "isa", "mammal", domain="conversation",
-                                        actor=A._actor)
-        check("a subject that names nothing is refused for the speaker",
-              not adm.admitted and bool(adm.refusals), f"{adm.refusals}")
-        adm = await learning.learn_fact("", "isa", f"{N}thing", domain="conversation",
-                                        actor=A._actor)
-        check("an empty subject is refused for the speaker",
-              not adm.admitted and bool(adm.refusals), f"{adm.refusals}")
-        adm = await learning.learn_fact(f"{N}weak", "isa", "mammal", domain="conversation",
-                                        quality=0.2, actor=A._actor)
-        check("a telling below the support floor is refused for the speaker",
-              not adm.admitted and bool(adm.refusals), f"{adm.refusals}")
+        print("\n== F. A speaker's context refuses what the world's door refuses ==")
+        from core.memory import get_memory_agent
+        held_for = (await get_memory_agent()).hold_for_person
+        for subject, obj, quality, why in (("you", "mammal", 0.9, "a subject that names nothing"),
+                                           ("", f"{N}thing", 0.9, "an empty subject"),
+                                           (f"{N}weak", "mammal", 0.2, "a telling below the support floor")):
+            decision = await held_for(A._actor, subject, "isa", obj, positive=True, quality=quality,
+                                      domain="conversation", surface=f"{subject} isa {obj}", source="told")
+            check(f"{why} is refused for the speaker", not decision.admitted and bool(decision.reasons),
+                  f"{decision.standing}: {decision.reasons}")
         stray = [e for e in await edges(d, A._actor) if e[0] in ("you", f"{N}weak") or e[2] == f"{N}thing"]
         check("nothing refused was written to the speaker's context", not stray, f"{stray}")
 
-        print("\n== G. Promotion is flagged only when the shared mind took it ==")
-        # The shared graph holds pa isa pb; two speakers then tell pb isa pa.
-        # They corroborate each other, and the shared door refuses the edge
-        # because it would close a kind cycle.
-        pa, pb = f"{N}pa", f"{N}pb"
-        base = await learning.learn_fact(pa, "isa", pb, domain="conversation", actor=None)
-        check("(setup) the shared mind holds pa isa pb", base.admitted, f"{base.refusals}")
-        await learning.learn_fact(pb, "isa", pa, domain="conversation", actor=A._actor)
-        await learning.learn_fact(pb, "isa", pa, domain="conversation", actor=B._actor)
-        flags = await d.execute_query(
-            "SELECT scope_actor, promoted FROM unified.scoped_beliefs WHERE claim_key = $1",
-            (f"{pb} isa {pa}",), fetch_all=True)
-        check("both speakers hold the corroborated claim", len(flags or []) == 2,
-              f"{[dict(r) for r in flags or []]}")
-        check("a claim the shared door refused is not flagged promoted",
-              flags and not any(r["promoted"] for r in flags),
-              f"{[dict(r) for r in flags or []]}")
-        from core.reasoning.concept_graph_reasoning import instance_predicates
-        check("and the shared graph does not hold it",
-              pa not in await instance_predicates(d, pb))
-
         print("\n== H. Nothing held, nothing invented ==")
-        u = await A.understand(f"is a {G} heron a {G} fish", look_up=False)
+        u = await A.understand(f"Is {TWO} a {G} fish?", look_up=False)
         reply = said(A, u)
         check("a relation never told is not affirmed", not reply.lower().startswith("yes"), reply[:100])
         u = await A.understand(f"is a {N}florp a {N}blip", look_up=False)
@@ -230,10 +213,8 @@ async def main() -> int:
         EV.metric("memories_written_about_the_nonce", len(rows), "count")
         check("the conversation remembered something about what it was told",
               len(rows) > 0, f"{len(rows)} rows")
-        # G's setup taught the SHARED mind `pa isa pb` on purpose; that memory
-        # is the substrate's. Everything else came from the two speakers.
-        unowned = [r["c"] for r in rows if (r["user_id"] or "") not in actors
-                   and f"{N}pa" not in (r["c"] or "") and f"{N}pb" not in (r["c"] or "")]
+        # Everything here came from the two speakers.
+        unowned = [r["c"] for r in rows if (r["user_id"] or "") not in actors]
         check("every such memory belongs to a speaker, none to the shared mind",
               not unowned, f"{len(unowned)} unowned: {unowned[:3]}")
         # B asked about V too, so B holds its own trace of asking; what B must
@@ -242,11 +223,11 @@ async def main() -> int:
                    and V in (r["c"] or "") and "answer: yes" in (r["c"] or "").lower()]
         check("nothing the second speaker holds affirms the first one's telling", not foreign,
               f"{foreign[:2]}")
-        mine = await agent.retrieve(f"is a {V} a mammal", actor=A._actor,
+        mine = await agent.retrieve(f"is {NAME} a mammal", actor=A._actor,
                                     min_similarity=0.3, limit=10)
-        theirs = await agent.retrieve(f"is a {V} a mammal", actor=B._actor,
+        theirs = await agent.retrieve(f"is {NAME} a mammal", actor=B._actor,
                                       min_similarity=0.3, limit=10)
-        shared_view = await agent.retrieve(f"is a {V} a mammal", actor=None,
+        shared_view = await agent.retrieve(f"is {NAME} a mammal", actor=None,
                                            min_similarity=0.3, limit=10)
         owned_by_a = [m for m in mine if (m.user_id or "") == A._actor]
         check("the speaker recalls their own", bool(owned_by_a), f"{len(owned_by_a)} of {len(mine)}")

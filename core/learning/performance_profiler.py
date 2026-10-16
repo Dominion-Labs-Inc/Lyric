@@ -316,6 +316,12 @@ class PerformanceProfiler:
             mem_after_rss=mem_after,
         )
 
+        if isinstance(failure, asyncio.CancelledError):
+            # STOPPED, NOT FAILED: a call cancelled (a shutdown, a job stopped)
+            # did not go wrong; it was not let finish.
+            logger.info("Profiled %s.%s: cancelled after %.2fms",
+                        component_name, operation_name, execution_time_ms)
+            raise failure
         if failure is not None:
             logger.warning(
                 "Profiled %s.%s: FAILED after %.2fms with %s",
@@ -814,7 +820,11 @@ class PerformanceProfiler:
         context: Dict[str, Any] = None,
         mem_after_rss: float = 0.0,
     ):
-        """Persist metrics to database (Postgres)"""
+        """Persist metrics to database (Postgres). Not where what happens now is not remembered
+        (`core.memory.remembering`): the time a turn no one keeps took is no record either."""
+        from core.memory.remembering import remembered
+        if not remembered():
+            return
         from core.database import get_database_manager
         db = get_database_manager()
 

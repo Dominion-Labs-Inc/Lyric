@@ -133,20 +133,22 @@ def _qualified(schema: str, names: str) -> frozenset:
 #: the database its tables live in. A table in none of these sets is refused outside development, never guessed.
 STORE_TABLES: Dict[str, frozenset] = {
     "runtime": _qualified("unified", """
-        affect_state backup_records causal_feedback_analyses chaos_adapter_state chaos_events
+        affect_state appraisal_state backup_records causal_feedback_analyses chaos_adapter_state chaos_events
         chaos_experiments chaos_metrics component_health component_snapshots components cross_domain_queries
         directive_ab_tests directive_applications emergency_halts extraction_attempts
         failure_events frozen_capability_benchmarks goals intents internal_directives intrinsic_motivation
         knowledge_refresh long_term_baselines meta_decision_records meta_learning_strategies meta_learning_tasks
         meta_parameter_snapshots motivation_history motivation_profile novelty_detections operation_logs
         performance_logs performance_metrics plans queue_instances reasoning_bridge_stats reasoning_telemetry
+        reward_allowances operating_modes shared_learning shared_learning_history connector_clients
+        connector_connections
         regression_events safety_assessments storage_health_probe system_control_commands system_control_status
         system_failures task_queue test_results test_sessions tool_error_events tool_execution_events
         tool_usage_history capability_benchmark_results capability_reports directive_evolution_log
         improvement_metrics meta_health_alerts metric_measurements prediction_results profiler_results
         task_execution_history release_memory_usage"""),
     "model": _qualified("unified", """
-        analogies beliefs calibration_data clause_classifiers concept_aliases concept_domains concept_evidence
+        analogies beliefs belief_evidence calibration_data clause_classifiers concept_aliases concept_domains concept_evidence
         concept_identity_relations concept_mappings concept_relations concepts domain_controllability
         domain_mappings domain_volatility domains evidence_envelopes held_conditionals
         knowledge_consumption knowledge_transfers knowledge_updates learned_rule_evidence learned_rules
@@ -155,7 +157,7 @@ STORE_TABLES: Dict[str, frozenset] = {
         rule_supersessions schemas sense_taxonomy vision_instances sound_instances
         security_training_examples"""),
     "user_context": _qualified("unified", """
-        scoped_beliefs scoped_concept_relations user_beliefs"""),
+        scoped_beliefs scoped_concept_relations user_beliefs work_authorizations"""),
 }
 
 #: Tables whose rows belong to whoever they are about, and the store the SUBSTRATE's own rows are kept in. A

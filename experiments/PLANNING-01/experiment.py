@@ -93,12 +93,6 @@ async def main():
     print("\n== A. One planning authority ==")
     coord = AutonomousCoordinator()
     check("the planning faculty initialises", await coord.planning.initialize())
-    # Stand in for main.py's bootstrap: the tool-metrics owner is constructed
-    # there with the canonical DB (core/main.py:1148). Without it the learning
-    # authority honestly reports "no database", and the measured path would never
-    # be exercised here.
-    from core.learning.adaptive_tool_owner import get_adaptive_tool_learning
-    get_adaptive_tool_learning(coord.planning.unified_db)
     engine = await coord._get_planning_engine()
     check("the planner IS self.planning (one authority, not a second engine)",
           engine is coord.planning and not hasattr(coord, "_planning_engine"),

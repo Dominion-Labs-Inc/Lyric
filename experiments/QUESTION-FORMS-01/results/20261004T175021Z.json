@@ -1,0 +1,162 @@
+{
+  "experiment": "QUESTION-FORMS-01",
+  "claim": "Taught questions with 'does', 'do' and a word left at the end beside the sentences they ask about (english_31), Lyric reads and answers such questions about new words in those shapes.",
+  "hypothesis": "A question in a shape english_31 teaches, about a new word, read otherwise or answered wrongly, or a write to the main store, shows here. Whether the forms carry to verbs no lesson asks about is measured, not assumed.",
+  "started_at": "2026-10-04T17:50:21.699435+00:00",
+  "duration_seconds": 894.362,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/Lyric/venv_lyric/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/Lyric",
+    "shadow_mode": null,
+    "git_commit": "a3aad59e25603e309479c542053a1e733fb70ce7",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "lyric_dev",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "lyric_dev",
+        "model": "lyric_dev",
+        "user_context": "lyric_dev",
+        "learning": "lyric_dev"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "environment",
+        "database": "environment",
+        "user": "environment",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "pool_idle_seconds": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 41,
+    "database_verified": null,
+    "database_verified_reason": "no initialized connection in this process"
+  },
+  "summary": {
+    "checks": 9,
+    "passed": 9,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [
+    {
+      "name": "questions in shapes no lesson asks about, answered right",
+      "value": "0/3",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "answers",
+      "value": [
+        {
+          "asked": "Where does a fip live?",
+          "reply": "A fip lives in a kitchen.",
+          "shapes": "taught"
+        },
+        {
+          "asked": "Who does the plonk belong to?",
+          "reply": "The plonk belongs to Nella.",
+          "shapes": "taught"
+        },
+        {
+          "asked": "Where is the trel kept?",
+          "reply": "The trel is kept in a bag.",
+          "shapes": "taught"
+        },
+        {
+          "asked": "Where does a snell come from?",
+          "reply": "A snell comes from a city.",
+          "shapes": "taught"
+        },
+        {
+          "asked": "Where do brabs sleep?",
+          "reply": "Brabs sleep in boxes.",
+          "shapes": "taught"
+        },
+        {
+          "asked": "Where does a kelt hide?",
+          "reply": "I understood 'does a kelt hide', but not how 'Where' fits with it. I have remembered what you said.",
+          "shapes": "untaught"
+        },
+        {
+          "asked": "Where does a morp grow?",
+          "reply": "I understood 'does a morp grow', but not how 'Where' fits with it. I have remembered what you said.",
+          "shapes": "untaught"
+        },
+        {
+          "asked": "Where does the blip rest?",
+          "reply": "I understood 'does the blip rest', but not how 'Where' fits with it. I have remembered what you said.",
+          "shapes": "untaught"
+        }
+      ],
+      "unit": "",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "the run is in the sandbox, emptied first",
+      "passed": true,
+      "detail": "connected to lyric_dev; reset exit 0",
+      "at": "2026-10-04T17:50:51.676684+00:00"
+    },
+    {
+      "label": "the 31 lessons are learned, none refused",
+      "passed": true,
+      "detail": "english_31.json the last",
+      "at": "2026-10-04T18:04:40.561080+00:00"
+    },
+    {
+      "label": "the facts are learned, none refused",
+      "passed": true,
+      "detail": "{'learned': 16, 'linked': 26, 'already': 0, 'understood': 0, 'refused': 0, 'total': 16, 'repair_item_based_lexical': 12, 'repair_lexical_item_based': 4, 'said': 14}",
+      "at": "2026-10-04T18:05:08.962336+00:00"
+    },
+    {
+      "label": "'Where does a fip live?': in a kitchen",
+      "passed": true,
+      "detail": "A fip lives in a kitchen.",
+      "at": "2026-10-04T18:05:09.979087+00:00"
+    },
+    {
+      "label": "'Who does the plonk belong to?': Nella",
+      "passed": true,
+      "detail": "The plonk belongs to Nella.",
+      "at": "2026-10-04T18:05:10.827243+00:00"
+    },
+    {
+      "label": "'Where is the trel kept?': in a bag",
+      "passed": true,
+      "detail": "The trel is kept in a bag.",
+      "at": "2026-10-04T18:05:11.963166+00:00"
+    },
+    {
+      "label": "'Where does a snell come from?': a city",
+      "passed": true,
+      "detail": "A snell comes from a city.",
+      "at": "2026-10-04T18:05:12.878107+00:00"
+    },
+    {
+      "label": "'Where do brabs sleep?': in boxes",
+      "passed": true,
+      "detail": "Brabs sleep in boxes.",
+      "at": "2026-10-04T18:05:13.531905+00:00"
+    },
+    {
+      "label": "the main model's store is untouched",
+      "passed": true,
+      "detail": "290096 rows before, 290096 after",
+      "at": "2026-10-04T18:05:16.021164+00:00"
+    }
+  ],
+  "notes": []
+}

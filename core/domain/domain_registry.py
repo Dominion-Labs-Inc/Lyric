@@ -19,7 +19,7 @@ from .domain_types import (
     Domain, DomainType, DomainConcept, ConceptType,
     CrossDomainMapping, KnowledgeTransfer
 )
-from core.capability import raise_if_structural
+from core.structural_defects import raise_if_structural
 
 logger = logging.getLogger(__name__)
 

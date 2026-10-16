@@ -51,7 +51,7 @@ from core.quantum.interfaces import (
     QuantumExecutionResult
 )
 
-from core.capability import raise_if_structural
+from core.structural_defects import raise_if_structural
 
 logger = logging.getLogger(__name__)
 

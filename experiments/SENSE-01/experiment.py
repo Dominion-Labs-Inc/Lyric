@@ -33,12 +33,17 @@ the lessons'), and leaves open only what none of that settles.
 Runs in the SANDBOX (`lyric_dev`), emptied first by `scripts/reset_dev_store.py`; the lessons and WordNet's records
 taught are kept.
 
-Run: ./venv_lyric/bin/python3 experiments/SENSE-01/experiment.py
+`--k-only` measures the listener (K) alone, on the sandbox as it stands: no reset and no lessons (they must be held
+already), only WordNet's records about K's own words and the kinds above them, their usage, then K and J. With
+`--fresh` too, the sandbox is emptied and the lessons taught first.
+
+Run: ./venv_lyric/bin/python3 experiments/SENSE-01/experiment.py [--k-only [--fresh]]
 """
 from __future__ import annotations
 
 import asyncio
 import json
+from datetime import datetime, timezone
 import os
 import random
 import subprocess
@@ -82,19 +87,29 @@ def check(name, ok, detail=""):
     say_line(f"  [{'PASS' if ok else 'FAIL'}] {name}" + (f" — {detail}" if detail else ""))
 
 
-async def main_store_rows() -> int:
-    """Rows in the main model's store, counted over its own connection."""
+async def main_store_rows() -> dict:
+    """Rows in each table of the main model's store, counted over its own connection. Each row once: a partitioned
+    table's rows are its partitions' (`only`), where counted in both the profiler's 10,211 timings were 20,422."""
     import asyncpg
     c = await asyncpg.connect(host="localhost", port=5433, user="stefan", database="lyric_db")
     try:
-        n = 0
+        rows = {}
         for t in await c.fetch(
                 "select table_schema s, table_name n from information_schema.tables "
                 "where table_schema in ('unified','memory_hot','memory_cold') and table_type='BASE TABLE'"):
-            n += await c.fetchval(f'select count(*) from "{t["s"]}"."{t["n"]}"')
-        return n
+            rows[f'{t["s"]}.{t["n"]}'] = await c.fetchval(f'select count(*) from only "{t["s"]}"."{t["n"]}"')
+        return rows
     finally:
         await c.close()
+
+
+def main_store_change(before: dict, after: dict) -> str:
+    """Two counts of the main store, said: the totals, and each table whose rows differ. The live substrate writes
+    to the same store, so a count that moved names where, for whoever reads the record to tell whose write it was."""
+    moved = [f"{t} {before.get(t, 'absent')} to {after.get(t, 'absent')}"
+             for t in sorted({*before, *after}) if before.get(t) != after.get(t)]
+    return (f"{sum(before.values())} rows before, {sum(after.values())} after"
+            + (f": {'; '.join(moved)}" if moved else ""))
 
 
 class GateSource:
@@ -102,14 +117,40 @@ class GateSource:
     sense of a word the lessons or this experiment's sentences use (the sense the word names, and each sense named
     apart), every record of a kind of one of those senses named apart, every kind above those senses (so what is
     known of them reaches as far as WordNet does), the definitions of those words, and a uniform sample of the
-    rest. How often each word was met naming each thing is WordNet's own (`usage`)."""
+    rest. How often each word was met naming each thing is WordNet's own (`usage`). What words are said of is the
+    Brown corpus's, all of it (`said_of`); for it to be weighed, the kinds of what these words are said of are taught,
+    and of a uniform sample of everything else said (`SAID_SAMPLE` words a relation), so how often anything at all
+    is said of a kind is measured over more than these words."""
 
-    def __init__(self, words):
+    #: Words whose kinds are taught from everything said under each relation K's words are said in.
+    SAID_SAMPLE = 100
+
+    def __init__(self, words, sample=SAMPLE):
         from core.learning.teaching_sources import WordNetSource
         self.wordnet = WordNetSource()
         self.name, self.quality, self.curated = self.wordnet.name, self.wordnet.quality, self.wordnet.curated
         self.words = words
+        self.sample = sample
         self.kept = None
+        self._said = None
+
+    def said_of(self):
+        if self._said is None:
+            self._said = list(self.wordnet.said_of())
+        return iter(self._said)
+
+    def _said_about(self):
+        """The words these words are said of, and a uniform sample of the words said under the same relations."""
+        mine, every = set(), {}
+        for relation, word, side, other, _ in self.said_of():
+            every.setdefault((relation, side), set()).add(other)
+            if word in self.words:
+                mine.add(other)
+        rng = random.Random(SEED)
+        for (relation, side), others in sorted(every.items()):
+            if any(w in self.words for r, w, s, _, _ in self._said if (r, s) == (relation, side)):
+                mine.update(rng.sample(sorted(others), min(self.SAID_SAMPLE, len(others))))
+        return mine
 
     def provenance(self):
         return self.wordnet.provenance()
@@ -130,21 +171,34 @@ class GateSource:
         apart = {name for synset, name in names.items()
                  if name and name != synset.lemma_names()[0].replace("_", " ").strip().lower()
                  and name.split()[-1] in self.words}
-        above = set()
+        above, senses = set(), set(self.words)
         for word in self.words:
             for synset in wn.synsets(word.replace(" ", "_")):
+                # Every sense the word writes, by the name it is taught under: "bank" writes the financial
+                # institution, named `depository financial institution`.
+                senses.add(names.get(synset, ""))
+                for path in synset.hypernym_paths():
+                    above.update(names.get(k, "") for k in path)
+        # WHAT THESE WORDS ARE SAID OF, as kinds: the noun senses of each word they are said of, and every kind
+        # above them.
+        for other in self._said_about():
+            for synset in wn.synsets(other.replace(" ", "_"), wn.NOUN):
                 for path in synset.hypernym_paths():
                     above.update(names.get(k, "") for k in path)
         above.discard("")
+        senses.discard("")
         own, rest = [], []
         for record in self.wordnet.records():
             if record.subject:
-                about = (record.subject in self.words or record.subject in apart or record.obj in apart
-                         or (record.subject in above and record.relation in ("isa", "instance_of")))
+                about = (record.subject in senses or record.subject in apart or record.obj in apart
+                         or (record.subject in above and record.relation in ("isa", "instance_of"))
+                         # A part or member of one of these words' senses ("a trunk is part of an elephant"):
+                         # about the word as much as the word's own records are.
+                         or (record.obj in self.words and record.relation in ("part_of", "member_of", "made_of")))
             else:
                 about = record.sentence.split(" is ", 1)[0].split(" ", 1)[-1].lower() in self.words
             (own if about else rest).append(record)
-        rest = random.Random(SEED).sample(rest, min(SAMPLE, len(rest)))
+        rest = random.Random(SEED).sample(rest, min(self.sample, len(rest)))
         return own, rest, apart
 
     def records(self):
@@ -153,6 +207,138 @@ class GateSource:
             self.own = own
             self.kept = own + rest
         return iter(self.kept)
+
+
+def held_names() -> frozenset:
+    """Every name the view holds now, with the thing it names: `(concept, words)`. Taken before teaching, it tells
+    `said_wrongly` which names the teaching brings."""
+    from core.semantics.derived_reader import live_view
+    view = live_view()
+    return frozenset((item.value, tuple(w.lower() for w in item.words)) for item in view.lexicals())
+
+
+def said_wrongly(records, held: frozenset = None) -> list:
+    """The sentences the substrate would say of these records that are wrong English, found with nothing written:
+    `(sentence, why)`.
+
+    The substrate says each fact a source states and learns English from what it said (`TeachingPass._said`), so a
+    fact said wrongly is taught wrongly, and stays held. On 2026-10-02 two runs of COMPREHENSION-01 taught the
+    sandbox "Chore is body of work." and "Kennel is outbuilding." that way, and a rebuild "A substance is a
+    matter.". Each record is said here, and each name the teaching brings is judged by how its thing is used:
+    - a counted name does not stand bare (first in the sentence, or straight after "is");
+    - a name not counted, or only ever plural, does not follow "a", "an", "each" or "every";
+    - a name only ever plural is not followed by "is".
+
+    HOW A NAME IS USED IS THE SOURCE'S TO STATE, for the sense the record is about. The view holds a word's use
+    over everything written with it ("travel", counted for a trip, uncounted for the act), so it speaks only for
+    a name the source states nothing of.
+
+    A NAME HELD FOR ITS THING BEFORE THE TEACHING (`held`, from `held_names`; the view as it stands when not given)
+    is said as it is held, and is not judged: the lessons say "Biology is a science.", whatever a source states of
+    "science"."""
+    import re
+    from core.learning.teaching import TeachingPass
+    from core.semantics.derived_reader import live_view
+    view = live_view()
+    # Before the teaching the view speaks for a name the source states nothing of. After it, the view's use of a
+    # word is drawn from what was just taught, every word of a thing together, and is not asked.
+    first = held is None
+    held = held_names() if held is None else held
+
+    def tokens(text):
+        return [w.lower() for w in re.findall(r"[^\W_]+(?:['’-][^\W_]+)*", text)]
+
+    wrong = []
+    for record in records:
+        if record.meaning is None or record.sentence:
+            continue
+        sentence = TeachingPass._said(record)
+        if not sentence:
+            continue
+        words = tokens(sentence)
+        stated = {name.lower(): use for name, use in record.uses}
+        written = dict(record.words)
+        # The fact's own terms, each as the source writes it: a run of words is one name ("game equipment"), never
+        # its first word alone. The longest first, and where it stands is its own: "news" in "A news report is
+        # news." is judged where it stands alone.
+        terms = {(str(t), str(written.get(t, t)).replace("_", " ")) for f in record.meaning.facts
+                 for t in (f.subject, f.obj) if not str(t).startswith("?")}
+        taken = set()
+        for concept, name in sorted(terms, key=lambda cn: (-len(cn[1].split()), cn)):
+            parts = tokens(name)
+            if not parts:
+                continue
+            places = [at for at in range(len(words) - len(parts) + 1)
+                      if words[at:at + len(parts)] == parts and not taken & set(range(at, at + len(parts)))]
+            taken.update(i for at in places for i in range(at, at + len(parts)))
+            if (concept, tuple(parts)) in held:
+                continue
+            # A word written with a capital is a name unless the source states otherwise.
+            known = (view.used_as(parts[0], concept) or view.used_as(parts[0])) \
+                if first and len(parts) == 1 and name[:1].islower() else None
+            use = stated.get(name.lower()) or known
+            # After "are" a name stands for many, in a plural its singular cannot show ("Alewives are fish."): not
+            # judged.
+            if use == "count" and any((at == 0 or words[at - 1] == "is")
+                                      and words[at + len(parts):at + len(parts) + 1] in ([], ["is"])
+                                      for at in places):
+                wrong.append((sentence, f"'{name}' is counted and stands bare"))
+                break
+            after = [words[at - 1] for at in places if at > 0 and words[at - 1] in ("a", "an", "each", "every")]
+            if use in ("mass", "plural") and after:
+                wrong.append((sentence, f"'{name}' is {'not counted' if use == 'mass' else 'a plural'} and follows "
+                                        f"'{after[0]}'"))
+                break
+            if use == "plural" and any(words[at + len(parts):at + len(parts) + 1] == ["is"] for at in places):
+                wrong.append((sentence, f"'{name}' is a plural and is followed by 'is'"))
+                break
+    return wrong
+
+
+def frame_words() -> frozenset:
+    """Every word the frames held now are built from, for `frames_wrongly` to tell what teaching added."""
+    from core.semantics.derived_reader import Piece, live_view
+    return frozenset(piece.text.lower() for pattern in live_view().item_based() for piece in pattern.form
+                     if isinstance(piece, Piece))
+
+
+def frames_wrongly(before: frozenset) -> list:
+    """The frames held now that carry a word of some fact as if it built sentences: `(frame, why)`.
+
+    The learner makes a frame of a sentence it cannot read with what it holds. Taking a name of several words apart
+    ("news report", where "report" was already held for it) left "news" in a frame, "A ?slot0 ?slot1 is news.",
+    which then said of anything at all that it is news. A frame may hold a word no frame held before teaching
+    (`before`, from `frame_words`) only as the word of a thing its meaning names ("A battle is ?slot0.", said of a
+    battle only): more such words than things named is a fact's word left in the frame."""
+    from core.semantics.derived_reader import Piece, is_variable, live_view
+    wrong = []
+    for pattern in live_view().item_based():
+        added = sorted({piece.text.lower() for piece in pattern.form
+                        if isinstance(piece, Piece) and any(c.isalpha() for c in piece.text)} - before)
+        named = {t for f in pattern.meaning.facts for t in (f.subject, f.obj) if not is_variable(t)}
+        if len(added) > len(named):
+            wrong.append((pattern.surface, f"holds {added}, and its meaning names {sorted(named) or 'nothing'}"))
+    return wrong
+
+
+#: The door's reason for refusing a fact about a word the lessons use only to build sentences ("be", "have", "lot").
+NAMES_NOTHING = "is made only of words that name nothing"
+
+
+async def refused_facts(db, since, domain: str) -> tuple:
+    """The facts a teaching pass in `domain` had refused since `since`, from the knowledge ledger, as `(for a word
+    that names nothing, for any other reason)`: each `subject_id :: reason`.
+
+    A fact about a word English as taught uses only to build sentences is refused by the door
+    (`cognitive_ingress.admissible`), as it should be until a lesson uses the word as a thing: "lot" is held only in
+    "a lot of". Any other refusal is a defect: on 2026-10-02 37 facts were refused because the pass admitted facts
+    before learning the sentences that name their words, and one because the source counted a name's words by
+    spaces where the door also parts them at a hyphen."""
+    rows = await db.execute_query(
+        "SELECT subject_id, detail FROM unified.knowledge_updates WHERE disposition = 'rejected' "
+        "AND occurred_at >= $1 AND domain = $2 ORDER BY occurred_at", (since, domain), fetch_all=True) or []
+    said = [f"{r['subject_id']} :: {r['detail']}" for r in rows]
+    return [r for r in said if NAMES_NOTHING in r], [r for r in said if NAMES_NOTHING not in r]
 
 
 #: Sentences an LLM takes the right way without thinking, each with the conversation before it, the word that names
@@ -188,10 +374,10 @@ ALIKE = [
 ]
 PROBE_WORDS = {"mouse", "bat", "crane", "bank", "plant", "fish", "table", "trunk", "wing", "elephant", "tree",
                "plane", "airplane", "bird", "computer", "machine", "vehicle", "animal", "moose", "deer", "rodent",
-               "mammal", "device", "slope", "organism", "eat", "food", "money"}
+               "mammal", "device", "slope", "organism", "eat", "food", "money", "red", "big", "long", "small", "swim"}
 
 
-async def main() -> int:
+async def main(k_only: bool = False, fresh: bool = False, listen_only: bool = False) -> int:
     main_before = await main_store_rows()
     from core.database import get_database_manager
     db = get_database_manager()
@@ -209,20 +395,20 @@ async def main() -> int:
         await system.start()
     check("the substrate is running", system.autonomous_coordinator is not None and system.running)
     try:
-        return await _run(db, main_before)
+        return await (_run_k(db, main_before, fresh, listen_only) if k_only else _run(db, main_before))
     finally:
         with contextlib.redirect_stdout(boot_log), contextlib.redirect_stderr(boot_log):
             await system.shutdown()
 
 
-def _taken(sentence, held=None, related=None):
+def _taken(sentence, heard=None):
     """What the listener takes the sentence's last utterance to mean: the canonical meaning, or None when it reads
     whole and the listener cannot tell, or "unread"."""
     from core.semantics import derived_reader as dr
     utterances = dr.read_text(sentence)
     if not utterances or not all(u.understood for u in utterances):
         return "unread"
-    chosen = dr.meant(utterances[-1].readings, held=held or {}, related=related or {})
+    chosen = dr.meant(utterances[-1].readings, heard=heard)
     return chosen.meaning.canonical() if chosen is not None else None
 
 
@@ -231,8 +417,7 @@ async def _listened(sentence, context=()):
     each way the words can be taken, against the rest of what is said and `context`, then the listener's choice."""
     from core.semantics import derived_reader as dr
     utterances = dr.read_text(sentence)
-    held, related = await dr.listening([u.readings for u in utterances], context)
-    return _taken(sentence, held, related)
+    return _taken(sentence, await dr.listening([u.readings for u in utterances], context))
 
 
 def _lesson_words():
@@ -244,7 +429,7 @@ def _lesson_words():
     return words
 
 
-async def _run(db, main_before: int) -> int:
+async def _run(db, main_before: dict) -> int:
     from core.learning import get_learning_authority
     from core.learning.teaching import TeachingPass
     from core.learning.teaching_sources import LessonSource, WordNetSource
@@ -471,6 +656,92 @@ async def _run(db, main_before: int) -> int:
     check("every never-taught sentence the lessons read right before WordNet is still read right", not lost,
           f"right before {was}/{len(probes)}, after {now}/{len(probes)}; lost {lost}")
 
+    await _listener_bar(source, report)
+
+    say_line("\n== I. The cost ==")
+    per_record = seconds / max(1, len(harvest))
+    offered = sum(1 for _ in WordNetSource().records())
+    say_line(f"    {seconds:.0f} s for {len(harvest)} records: {per_record * 1000:.0f} ms each; all {offered:,} of "
+             f"WordNet's records would take about {per_record * offered / 3600:.1f} h at this rate")
+    EV.metric("seconds per WordNet record", round(per_record, 4))
+    EV.metric("hours for all of WordNet's records, at this rate", round(per_record * offered / 3600, 2))
+
+    return await _finish(main_before)
+
+
+async def _run_k(db, main_before: dict, fresh: bool = False, listen_only: bool = False) -> int:
+    """K alone: WordNet's records about K's own words and the kinds above them, and WordNet's usage, are taught; then
+    K. On the sandbox as it stands, where the lessons must be held already; or, `fresh`, on the emptied sandbox with
+    the lessons taught first; or, `listen_only`, nothing taught, where the lessons and K's words must be held
+    already: how the listener takes K, after a change to the listener alone."""
+    from core.learning import get_learning_authority
+    from core.learning.teaching import TeachingPass
+    from core.learning.teaching_sources import LessonSource
+    from core.memory import get_memory_agent
+    agent = await get_memory_agent()
+    if fresh:
+        say_line("== A. The lessons, on the emptied sandbox ==")
+        for path in LESSONS:
+            source = LessonSource(str(path))
+            lesson = list(source.records())
+            report = await TeachingPass(source, domain=DOMAIN, sample=False).run(get_learning_authority())
+            check(f"{path.name} is learned, none refused",
+                  report.patterns.get("refused") == 0 and report.patterns.get("total") == len(lesson),
+                  f"{report.patterns}")
+    view = await agent.language_view()
+    say_line("== A. K's words from WordNet" + ("" if fresh else ", on the sandbox as it stands") + " ==")
+    check("the lessons are held already", len(view) > 0, f"{len(view)} constructions and links in the view")
+    source = GateSource(set(PROBE_WORDS), sample=0)
+    if listen_only:
+        unheld = sorted(w for w in PROBE_WORDS if not view.lexicals_with_words((w,), loose=True))
+        check("K's words are held already", not unheld, f"not held: {unheld}" if unheld else "")
+        await _listener_bar(source, None)
+        return await _finish(main_before)
+    harvest = list(source.records())
+    say_line(f"    taught from WordNet: {len(harvest)} records about K's {len(PROBE_WORDS)} words, their senses "
+             f"({len(source.apart)} named apart) and the kinds above them")
+    wrong = said_wrongly(harvest)
+    check("every fact is said as its words are used, before anything is taught", not wrong,
+          f"{len(wrong)} wrong: {wrong[:4]}" if wrong else "")
+    if wrong:
+        say_line("    NOTHING FROM WORDNET IS TAUGHT: what would be said of it is wrong English, and would be learned")
+        return await _finish(main_before)
+    started = time.time()
+    since = datetime.now(timezone.utc)
+    built_from = frame_words()
+    report = await TeachingPass(source, domain=DOMAIN, sample=False).run(get_learning_authority())
+    say_line(f"    taught in {time.time() - started:.0f} s")
+    for line in report.lines():
+        say_line(f"    {line}")
+    check("no pair said is refused", report.patterns.get("refused") == 0, f"{report.patterns}")
+    # WHAT TEACHING LEFT HELD, CHECKED TOO. Saying first shows what will be taught; it cannot show what the learner
+    # makes of it: a frame built around a fact's word.
+    odd = frames_wrongly(built_from)
+    check("no frame made while it was taught holds a fact's word", not odd, f"{len(odd)}: {odd[:4]}" if odd else "")
+    guarded, other = await refused_facts(db, since, DOMAIN)
+    EV.metric("facts refused: about a word that names nothing", guarded)
+    check("no fact is refused but about a word the lessons use only to build sentences", not other,
+          f"{len(other)} refused otherwise: {other[:4]}; {len(guarded)} about such words: "
+          f"{[g.split(' :: ')[0] for g in guarded]}")
+    await _listener_bar(source, report)
+    return await _finish(main_before)
+
+
+async def _finish(main_before: dict) -> int:
+    main_after = await main_store_rows()
+    check("the main model's store is untouched", main_after == main_before,
+          main_store_change(main_before, main_after))
+
+    record = EV.write()
+    transcript = record.with_name(record.stem + "_transcript.md")
+    transcript.write_text("# SENSE-01 transcript\n\n```\n" + "\n".join(TRANSCRIPT) + "\n```\n")
+    say_line(f"\n{EV.passed}/{EV.passed + EV.failed} passed")
+    say_line(f"  run record: {record.relative_to(ROOT)}")
+    return 0 if EV.failed == 0 else 1
+
+
+async def _listener_bar(source, report) -> None:
+    from core.semantics import derived_reader as dr
     say_line("\n== K. The listener, against what an LLM takes without thinking ==")
     names = source.wordnet._sense_names()
     from nltk.corpus import wordnet as wn
@@ -498,32 +769,18 @@ async def _run(db, main_before: int) -> int:
         say_line(f"    {'ok ' if got == wanted else 'BAD'} heard as {list(ways)} -> {got!r} (wanted {wanted!r}, {why})")
     check("words that sound alike are heard the way that makes sense", heard_right == len(ALIKE),
           f"{heard_right}/{len(ALIKE)}")
-    say_line(f"    word usage taught: {report.usage}")
-
-    say_line("\n== I. The cost ==")
-    per_record = seconds / max(1, len(harvest))
-    offered = sum(1 for _ in WordNetSource().records())
-    say_line(f"    {seconds:.0f} s for {len(harvest)} records: {per_record * 1000:.0f} ms each; all {offered:,} of "
-             f"WordNet's records would take about {per_record * offered / 3600:.1f} h at this rate")
-    EV.metric("seconds per WordNet record", round(per_record, 4))
-    EV.metric("hours for all of WordNet's records, at this rate", round(per_record * offered / 3600, 2))
-
-    main_after = await main_store_rows()
-    check("the main model's store is untouched", main_after == main_before,
-          f"{main_before} rows before, {main_after} after")
-
-    record = EV.write()
-    transcript = record.with_name(record.stem + "_transcript.md")
-    transcript.write_text("# SENSE-01 transcript\n\n```\n" + "\n".join(TRANSCRIPT) + "\n```\n")
-    say_line(f"\n{EV.passed}/{EV.passed + EV.failed} passed")
-    say_line(f"  run record: {record.relative_to(ROOT)}")
-    return 0 if EV.failed == 0 else 1
+    if report is not None:
+        say_line(f"    word usage taught: {report.usage}")
 
 
 if __name__ == "__main__":
-    reset = subprocess.run([sys.executable, str(ROOT / "scripts" / "reset_dev_store.py")],
-                           capture_output=True, text=True)
-    print(reset.stdout.strip() or reset.stderr.strip())
-    if reset.returncode != 0:
-        sys.exit("the sandbox could not be emptied; not running")
-    sys.exit(asyncio.run(main()))
+    listen_only = "--listen-only" in sys.argv[1:]
+    k_only = "--k-only" in sys.argv[1:] or listen_only
+    fresh = "--fresh" in sys.argv[1:] and not listen_only
+    if not k_only or fresh:
+        reset = subprocess.run([sys.executable, str(ROOT / "scripts" / "reset_dev_store.py")],
+                               capture_output=True, text=True)
+        print(reset.stdout.strip() or reset.stderr.strip())
+        if reset.returncode != 0:
+            sys.exit("the sandbox could not be emptied; not running")
+    sys.exit(asyncio.run(main(k_only, fresh, listen_only)))

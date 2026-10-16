@@ -30,7 +30,7 @@ from pathlib import Path
 import aiohttp
 
 from .tool_registry import Tool, ToolParameter, ToolResult, ToolCategory, ToolSafety
-from .capabilities import Capability, ToolCapabilityProfile, CapabilityMetadata
+from .tool_registry import Primitive, PrimitiveProfile, PrimitiveUse
 
 
 logger = logging.getLogger(__name__)
@@ -83,12 +83,12 @@ class HttpRequestTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="http_request",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.HTTP_REQUEST,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.HTTP_REQUEST,
                     description="Make HTTP requests to web services"
                 )
             ]
@@ -159,12 +159,12 @@ class DownloadFileTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="download_file",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.DOWNLOAD,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.DOWNLOAD,
                     description="Download files from URLs"
                 )
             ]
@@ -232,12 +232,12 @@ class UploadFileTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="upload_file",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.UPLOAD,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.UPLOAD,
                     description="Upload files via HTTP"
                 )
             ]
@@ -294,12 +294,12 @@ class ParseHTMLTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="parse_html",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.PARSE_HTML,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.PARSE_HTML,
                     description="Parse HTML content and extract data"
                 )
             ]
@@ -357,12 +357,12 @@ class ExtractLinksTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="extract_links",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.PARSE_HTML,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.PARSE_HTML,
                     description="Extract URLs and links from webpages"
                 )
             ]
@@ -416,12 +416,12 @@ class CheckURLStatusTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="check_url_status",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.CHECK_CONNECTIVITY,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.CHECK_CONNECTIVITY,
                     description="Check if URLs are accessible"
                 )
             ]
@@ -487,12 +487,12 @@ class DNSLookupTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="dns_lookup",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.DNS_LOOKUP,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.DNS_LOOKUP,
                     description="Perform DNS lookups and queries"
                 )
             ]
@@ -554,12 +554,12 @@ class PingHostTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="ping_host",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.CHECK_CONNECTIVITY,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.CHECK_CONNECTIVITY,
                     description="Ping network hosts to check availability"
                 )
             ]
@@ -615,12 +615,12 @@ class PortScanTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="port_scan",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.CHECK_CONNECTIVITY,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.CHECK_CONNECTIVITY,
                     description="Scan network ports for availability"
                 )
             ]
@@ -710,12 +710,12 @@ class WebSocketConnectTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="websocket_connect",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.HTTP_REQUEST,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.HTTP_REQUEST,
                     description="Establish WebSocket connections"
                 )
             ]
@@ -777,12 +777,12 @@ class GraphQLQueryTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="graphql_query",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.HTTP_REQUEST,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.HTTP_REQUEST,
                     description="Execute GraphQL queries"
                 )
             ]
@@ -857,12 +857,12 @@ class APICallTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="api_call",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.HTTP_REQUEST,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.HTTP_REQUEST,
                     description="Make generic REST API calls"
                 )
             ]
@@ -967,16 +967,16 @@ class WebSearchTool(Tool):
             )
         ]
 
-        from .capabilities import Capability, ToolCapabilityProfile, CapabilityMetadata
-        self.capability_profile = ToolCapabilityProfile(
+        from .tool_registry import Primitive, PrimitiveProfile, PrimitiveUse
+        self.primitive_profile = PrimitiveProfile(
             tool_name="web_search",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.WEB_SEARCH,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.WEB_SEARCH,
                     description="Search the live web and retrieve ranked results"
                 ),
-                CapabilityMetadata(
-                    capability=Capability.HTTP_REQUEST,
+                PrimitiveUse(
+                    primitive=Primitive.HTTP_REQUEST,
                     description="Fetch live web content via search engine"
                 )
             ]
@@ -1152,16 +1152,16 @@ class WebFetchTool(Tool):
             )
         ]
 
-        from .capabilities import Capability, ToolCapabilityProfile, CapabilityMetadata
-        self.capability_profile = ToolCapabilityProfile(
+        from .tool_registry import Primitive, PrimitiveProfile, PrimitiveUse
+        self.primitive_profile = PrimitiveProfile(
             tool_name="web_fetch",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.FETCH_PAGE,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.FETCH_PAGE,
                     description="Fetch and extract readable text from any URL"
                 ),
-                CapabilityMetadata(
-                    capability=Capability.HTTP_REQUEST,
+                PrimitiveUse(
+                    primitive=Primitive.HTTP_REQUEST,
                     description="Retrieve web page content over HTTP"
                 )
             ]
@@ -1334,16 +1334,16 @@ class BrowserTool(Tool):
             )
         ]
 
-        from .capabilities import Capability, ToolCapabilityProfile, CapabilityMetadata
-        self.capability_profile = ToolCapabilityProfile(
+        from .tool_registry import Primitive, PrimitiveProfile, PrimitiveUse
+        self.primitive_profile = PrimitiveProfile(
             tool_name="browser_navigate",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.BROWSE_WEB,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.BROWSE_WEB,
                     description="Full headless browser control with JS execution"
                 ),
-                CapabilityMetadata(
-                    capability=Capability.FETCH_PAGE,
+                PrimitiveUse(
+                    primitive=Primitive.FETCH_PAGE,
                     description="Fetch fully JS-rendered page content"
                 )
             ]

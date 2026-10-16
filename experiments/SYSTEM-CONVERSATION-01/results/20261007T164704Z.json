@@ -1,0 +1,339 @@
+{
+  "experiment": "SYSTEM-CONVERSATION-01",
+  "claim": "A conversation is a speaker's: what they tell is held in their context in the door's terms, answered back to them from it and to no one else, a conditional asserts neither side, and what is reasoned for them is remembered as theirs.",
+  "hypothesis": "A told name the speaker cannot ask back, a reply calling it unknown, another speaker answered from it, a conditional's clause held as fact, a refused telling held for the speaker, or an unowned memory of it would each fail here.",
+  "started_at": "2026-10-07T16:47:04.770344+00:00",
+  "duration_seconds": 60.934,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/Lyric/venv_lyric/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/Lyric",
+    "shadow_mode": null,
+    "git_commit": "0a27c570eda188a24bb63d1968f8fd104a8f4cb6",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "lyric_dev",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "lyric_dev",
+        "model": "lyric_dev",
+        "user_context": "lyric_dev",
+        "learning": "lyric_dev"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "dotenv:.env.postgres",
+        "database": "environment",
+        "user": "dotenv:.env.postgres",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "pool_idle_seconds": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 268,
+    "database_verified": null,
+    "database_verified_reason": "no initialized connection in this process"
+  },
+  "summary": {
+    "checks": 34,
+    "passed": 34,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [
+    {
+      "name": "nonce",
+      "value": "rqnng",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "conversation_public_methods",
+      "value": 21,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "conversation_internal_only_public_methods",
+      "value": 9,
+      "unit": "count",
+      "note": "used only inside their own file: resolve_name, subject_of, about_my_work, note_said, note_turn, set_context, look_up, is_question, feedback_of"
+    },
+    {
+      "name": "conversation_experiments_only",
+      "value": 0,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "conversation_uncalled",
+      "value": 1,
+      "unit": "count",
+      "note": "beliefs_about_user"
+    },
+    {
+      "name": "conversation_not_implemented",
+      "value": 0,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "conversation_constant",
+      "value": 0,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "conversation_empty",
+      "value": 0,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "memories_written_about_the_nonce",
+      "value": 3,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "rows_removed",
+      "value": 30,
+      "unit": "count",
+      "note": "{\"concepts\": 0, \"beliefs\": 0, \"knowledge_updates\": 0, \"evidence_envelopes\": 0, \"held_conditionals\": 0, \"memory_hot\": 3, \"experience_pool\": 18, \"scoped_beliefs\": 5, \"scoped_concept_relations\": 4}"
+    },
+    {
+      "name": "behaviour_checks_passed",
+      "value": 34,
+      "unit": "count",
+      "note": "of 34"
+    },
+    {
+      "name": "wiring_findings",
+      "value": 1,
+      "unit": "count",
+      "note": "0 exercised only by experiments/tests, 1 called by nothing"
+    },
+    {
+      "name": "completeness_findings",
+      "value": 0,
+      "unit": "count",
+      "note": "0 NotImplementedError, 0 return a literal, 0 empty"
+    }
+  ],
+  "checks": [
+    {
+      "label": "the substrate knows a mammal is an animal (held, or taught now)",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-07T16:47:55.910213+00:00"
+    },
+    {
+      "label": "the same session is the same held conversation",
+      "passed": true,
+      "detail": "Conversation",
+      "at": "2026-10-07T16:47:55.910235+00:00"
+    },
+    {
+      "label": "a different session is a different one",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-07T16:47:55.910242+00:00"
+    },
+    {
+      "label": "a session is a user actor, not the substrate",
+      "passed": true,
+      "detail": "['SYSTEM-CONVERSATION-01-rqnng-a', 'SYSTEM-CONVERSATION-01-rqnng-b']",
+      "at": "2026-10-07T16:47:55.910259+00:00"
+    },
+    {
+      "label": "the one-word telling is a scoped edge in canonical terms",
+      "passed": true,
+      "detail": "[('vexrqnng', 'isa', 'mammal', 'positive'), ('glintrqnng_heron', 'isa', 'glintrqnng_bird', 'positive')]",
+      "at": "2026-10-07T16:47:59.659973+00:00"
+    },
+    {
+      "label": "the two-word telling is a scoped edge in canonical terms",
+      "passed": true,
+      "detail": "[('vexrqnng', 'isa', 'mammal', 'positive'), ('glintrqnng_heron', 'isa', 'glintrqnng_bird', 'positive')]",
+      "at": "2026-10-07T16:47:59.659986+00:00"
+    },
+    {
+      "label": "nothing told reached the shared graph or beliefs",
+      "passed": true,
+      "detail": "shared rows=0",
+      "at": "2026-10-07T16:47:59.685279+00:00"
+    },
+    {
+      "label": "'is Vexrqnng a mammal' is affirmed",
+      "passed": true,
+      "detail": "Yes. Vexrqnng is a mammal.",
+      "at": "2026-10-07T16:48:00.308250+00:00"
+    },
+    {
+      "label": "'is Vexrqnng a mammal': the reply does not call what it answered unknown",
+      "passed": true,
+      "detail": "Yes. Vexrqnng is a mammal.",
+      "at": "2026-10-07T16:48:00.308263+00:00"
+    },
+    {
+      "label": "'is Vexrqnng an animal' is affirmed",
+      "passed": true,
+      "detail": "Yes. Vexrqnng is an animal.",
+      "at": "2026-10-07T16:48:00.831800+00:00"
+    },
+    {
+      "label": "'is Vexrqnng an animal': the reply does not call what it answered unknown",
+      "passed": true,
+      "detail": "Yes. Vexrqnng is an animal.",
+      "at": "2026-10-07T16:48:00.831813+00:00"
+    },
+    {
+      "label": "'Is Glintrqnng Heron a glintrqnng bird?' is affirmed",
+      "passed": true,
+      "detail": "Yes. Glintrqnng Heron is a glintrqnng bird.",
+      "at": "2026-10-07T16:48:02.752922+00:00"
+    },
+    {
+      "label": "'Is Glintrqnng Heron a glintrqnng bird?': the reply does not call what it answered unknown",
+      "passed": true,
+      "detail": "Yes. Glintrqnng Heron is a glintrqnng bird.",
+      "at": "2026-10-07T16:48:02.752931+00:00"
+    },
+    {
+      "label": "the two-word told name resolves whole, from the speaker's context",
+      "passed": true,
+      "detail": "[('Glintrqnng Heron', True, True), ('glintrqnng bird', True, False)]",
+      "at": "2026-10-07T16:48:02.772029+00:00"
+    },
+    {
+      "label": "another speaker is not answered from the first one's context",
+      "passed": true,
+      "detail": "I hold nothing for Vexrqnng. Tell me what it is and I will keep it.",
+      "at": "2026-10-07T16:48:03.074281+00:00"
+    },
+    {
+      "label": "another speaker resolves nothing the first one told",
+      "passed": true,
+      "detail": "[('Glintrqnng Heron', False, False), ('glintrqnng bird', False, False)]",
+      "at": "2026-10-07T16:48:03.104511+00:00"
+    },
+    {
+      "label": "the conditional is held",
+      "passed": true,
+      "detail": "[('vexrqnng_1', True, ''), ('valve_1', True, '')]",
+      "at": "2026-10-07T16:48:03.179320+00:00"
+    },
+    {
+      "label": "neither clause is a scoped edge",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-10-07T16:48:03.180266+00:00"
+    },
+    {
+      "label": "the implication is the speaker's one belief about it",
+      "passed": true,
+      "detail": "['if vexrqnng_1 has_property hot then valve_1 has_property hot']",
+      "at": "2026-10-07T16:48:03.182318+00:00"
+    },
+    {
+      "label": "asked whether the antecedent holds, it is not affirmed",
+      "passed": true,
+      "detail": "I remember: mammal isa animal.\nVexrqnngs are mammals.\nI hold nothing for hot. Tell me what it is and",
+      "at": "2026-10-07T16:48:03.995382+00:00"
+    },
+    {
+      "label": "a subject that names nothing is refused for the speaker",
+      "passed": true,
+      "detail": "refused: [\"subject 'you' not admitted: 'you' is made only of words that name nothing\"]",
+      "at": "2026-10-07T16:48:03.995460+00:00"
+    },
+    {
+      "label": "an empty subject is refused for the speaker",
+      "passed": true,
+      "detail": "refused: ['subject is empty: a proposition about nothing is not admitted']",
+      "at": "2026-10-07T16:48:03.995486+00:00"
+    },
+    {
+      "label": "a telling below the support floor is refused for the speaker",
+      "passed": true,
+      "detail": "refused: ['insufficient support: quality 0.200 < floor 0.5']",
+      "at": "2026-10-07T16:48:03.995527+00:00"
+    },
+    {
+      "label": "nothing refused was written to the speaker's context",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-10-07T16:48:03.997085+00:00"
+    },
+    {
+      "label": "a relation never told is not affirmed",
+      "passed": true,
+      "detail": "Glintrqnng Heron is a glintrqnng bird.\nI hold nothing for glintrqnng fish. Tell me what it is and I ",
+      "at": "2026-10-07T16:48:04.910499+00:00"
+    },
+    {
+      "label": "a question about nothing held is not answered yes",
+      "passed": true,
+      "detail": "I don't hold rqnngflorp, rqnngblip yet.",
+      "at": "2026-10-07T16:48:05.371792+00:00"
+    },
+    {
+      "label": "the record of this exchange answers a question about it",
+      "passed": true,
+      "detail": "You told me: \"if the vexrqnng is hot then the valve is hot\"",
+      "at": "2026-10-07T16:48:05.395461+00:00"
+    },
+    {
+      "label": "the conversation remembered something about what it was told",
+      "passed": true,
+      "detail": "3 rows",
+      "at": "2026-10-07T16:48:05.418294+00:00"
+    },
+    {
+      "label": "every such memory belongs to a speaker, none to the shared mind",
+      "passed": true,
+      "detail": "0 unowned: []",
+      "at": "2026-10-07T16:48:05.418302+00:00"
+    },
+    {
+      "label": "nothing the second speaker holds affirms the first one's telling",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-10-07T16:48:05.418316+00:00"
+    },
+    {
+      "label": "the speaker recalls their own",
+      "passed": true,
+      "detail": "2 of 10",
+      "at": "2026-10-07T16:48:05.472113+00:00"
+    },
+    {
+      "label": "another speaker's recall does not reach it, by meaning or by wording",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-10-07T16:48:05.472135+00:00"
+    },
+    {
+      "label": "the substrate's own recall does not reach it",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-10-07T16:48:05.472147+00:00"
+    },
+    {
+      "label": "everything this run wrote is removed",
+      "passed": true,
+      "detail": "{'concepts': 0, 'beliefs': 0, 'knowledge_updates': 0, 'evidence_envelopes': 0, 'held_conditionals': 0, 'memory_hot': 0, 'experience_pool': 0, 'scoped_beliefs': 0, 'scoped_concept_relations': 0}",
+      "at": "2026-10-07T16:48:05.609377+00:00"
+    }
+  ],
+  "notes": [
+    "residue snapshot: data/snapshots/system_conversation_01_rqnng_20261007T164805Z.json"
+  ]
+}

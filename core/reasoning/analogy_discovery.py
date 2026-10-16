@@ -387,14 +387,13 @@ class AnalogyDiscovery:
         # concept_ingestion (identity, aliases, domain membership) + fan-out,
         # exactly as a taught concept does. The old `_persist_concept` raw
         # `INSERT INTO unified.concepts` was the last concept-write bypass.
-        from core.learning.unified_learning_system import \
-            get_unified_learning_system
-        from core.semantics.cognitive_ingress import Provenance
+        from core.learning.unified_learning_system import (Evidence,
+                                                           get_unified_learning_system)
         await get_unified_learning_system().learn_concept(
             name, domain=domain, description=description,
             relationships=list(concept.relationships or []),
-            provenance=Provenance(producer="analogy_discovery", source_id="analogy",
-                                  source_type="IMPORTED_KNOWLEDGE"))
+            evidence=Evidence(source="analogy", key="analogy", source_type="IMPORTED_KNOWLEDGE",
+                              quality=0.9, producer="analogy_discovery"))
 
         return concept
 

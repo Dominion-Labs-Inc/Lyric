@@ -1,0 +1,223 @@
+{
+  "experiment": "UNDERSTANDS-WORDNET-01",
+  "claim": "the substrate understands what WordNet taught it: it answers taught facts asked in new forms, reasons past them, tells senses apart, refuses what is not so, and says it does not know what it was never taught",
+  "hypothesis": "each probe reaches its bar, fixed before the run (BARS)",
+  "started_at": "2026-10-11T02:03:32.451657+00:00",
+  "duration_seconds": 65.605,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/Lyric/venv_lyric/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/Lyric",
+    "shadow_mode": null,
+    "git_commit": "0a27c570eda188a24bb63d1968f8fd104a8f4cb6",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "lyric_check",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "lyric_check",
+        "model": "lyric_check",
+        "user_context": "lyric_check",
+        "learning": "lyric_check"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "dotenv:.env.postgres",
+        "database": "environment",
+        "user": "dotenv:.env.postgres",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "pool_idle_seconds": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 329,
+    "database_verified": null,
+    "database_verified_reason": "not verified"
+  },
+  "summary": {
+    "checks": 11,
+    "passed": 5,
+    "failed": 6,
+    "outcome": "FAIL"
+  },
+  "metrics": [
+    {
+      "name": "P1 taught, asked new ways: yes",
+      "value": 0.0,
+      "unit": "fraction",
+      "note": "0/20"
+    },
+    {
+      "name": "P2 inferred: yes",
+      "value": 0.0,
+      "unit": "fraction",
+      "note": "0/5"
+    },
+    {
+      "name": "P3 unrelated: yes (must be low)",
+      "value": 0.0,
+      "unit": "fraction",
+      "note": "0/10"
+    },
+    {
+      "name": "P4 nonce: yes (must be zero)",
+      "value": 0.0,
+      "unit": "fraction",
+      "note": "0/10"
+    },
+    {
+      "name": "P5 both senses: yes",
+      "value": 0.0,
+      "unit": "fraction",
+      "note": "0/2"
+    },
+    {
+      "name": "P6 parts: yes",
+      "value": 0.0,
+      "unit": "fraction",
+      "note": "0/5"
+    },
+    {
+      "name": "P6 parts, unrelated: yes (must be low)",
+      "value": 0.0,
+      "unit": "fraction",
+      "note": "0/5"
+    },
+    {
+      "name": "P7 opposites: yes",
+      "value": 0.0,
+      "unit": "fraction",
+      "note": "0/5"
+    },
+    {
+      "name": "P7 opposites, unrelated: yes (must be low)",
+      "value": 0.0,
+      "unit": "fraction",
+      "note": "0/5"
+    },
+    {
+      "name": "P8 what is: right",
+      "value": 0.0,
+      "unit": "fraction",
+      "note": "0/5"
+    },
+    {
+      "name": "P8 what is: wrong (must be low)",
+      "value": 0.0,
+      "unit": "fraction",
+      "note": "0/5"
+    },
+    {
+      "name": "seconds a question, median",
+      "value": 0.025,
+      "unit": "s",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "P1 taught, asked new ways: yes \u2265 90%",
+      "passed": false,
+      "detail": "0/20 = 0.0% (95% 0.0%\u201316.1%)",
+      "at": "2026-10-11T02:04:38.057933+00:00"
+    },
+    {
+      "label": "P2 inferred: yes \u2265 80%",
+      "passed": false,
+      "detail": "0/5 = 0.0% (95% 0.0%\u201343.4%)",
+      "at": "2026-10-11T02:04:38.057971+00:00"
+    },
+    {
+      "label": "P3 unrelated: yes (must be low) \u2264 2%",
+      "passed": true,
+      "detail": "0/10 = 0.0% (95% 0.0%\u201327.8%)",
+      "at": "2026-10-11T02:04:38.057994+00:00"
+    },
+    {
+      "label": "P4 nonce: yes (must be zero) \u2264 0%",
+      "passed": true,
+      "detail": "0/10 = 0.0% (95% 0.0%\u201327.8%)",
+      "at": "2026-10-11T02:04:38.058012+00:00"
+    },
+    {
+      "label": "P5 both senses: yes \u2265 80%",
+      "passed": false,
+      "detail": "0/2 = 0.0% (95% 0.0%\u201365.8%)",
+      "at": "2026-10-11T02:04:38.058028+00:00"
+    },
+    {
+      "label": "P6 parts: yes \u2265 80%",
+      "passed": false,
+      "detail": "0/5 = 0.0% (95% 0.0%\u201343.4%)",
+      "at": "2026-10-11T02:04:38.058044+00:00"
+    },
+    {
+      "label": "P6 parts, unrelated: yes (must be low) \u2264 5%",
+      "passed": true,
+      "detail": "0/5 = 0.0% (95% 0.0%\u201343.4%)",
+      "at": "2026-10-11T02:04:38.058059+00:00"
+    },
+    {
+      "label": "P7 opposites: yes \u2265 80%",
+      "passed": false,
+      "detail": "0/5 = 0.0% (95% 0.0%\u201343.4%)",
+      "at": "2026-10-11T02:04:38.058079+00:00"
+    },
+    {
+      "label": "P7 opposites, unrelated: yes (must be low) \u2264 5%",
+      "passed": true,
+      "detail": "0/5 = 0.0% (95% 0.0%\u201343.4%)",
+      "at": "2026-10-11T02:04:38.058097+00:00"
+    },
+    {
+      "label": "P8 what is: right \u2265 80%",
+      "passed": false,
+      "detail": "0/5 = 0.0% (95% 0.0%\u201343.4%)",
+      "at": "2026-10-11T02:04:38.058112+00:00"
+    },
+    {
+      "label": "P8 what is: wrong (must be low) \u2264 5%",
+      "passed": true,
+      "detail": "0/5 = 0.0% (95% 0.0%\u201343.4%)",
+      "at": "2026-10-11T02:04:38.058126+00:00"
+    }
+  ],
+  "notes": [
+    "P1 taught: {'yes': 0, 'no': 0, 'unknown': 0, 'unread': 20}",
+    "P1 form: is a: {'yes': 0, 'no': 0, 'unknown': 0, 'unread': 8}",
+    "P1 common words: {'yes': 0, 'no': 0, 'unknown': 0, 'unread': 9}",
+    "P1 form: a kind of: {'yes': 0, 'no': 0, 'unknown': 0, 'unread': 6}",
+    "P1 rare words: {'yes': 0, 'no': 0, 'unknown': 0, 'unread': 11}",
+    "P1 form: embedded: {'yes': 0, 'no': 0, 'unknown': 0, 'unread': 4}",
+    "P1 form: plural: {'yes': 0, 'no': 0, 'unknown': 0, 'unread': 2}",
+    "P2 inferred: {'yes': 0, 'no': 0, 'unknown': 0, 'unread': 5}",
+    "P2 common words: {'yes': 0, 'no': 0, 'unknown': 0, 'unread': 3}",
+    "P2 rare words: {'yes': 0, 'no': 0, 'unknown': 0, 'unread': 2}",
+    "P3 unrelated: {'yes': 0, 'no': 0, 'unknown': 0, 'unread': 10}",
+    "P4 nonce: {'yes': 0, 'no': 0, 'unknown': 0, 'unread': 10}",
+    "P5 each sense: {'yes': 0, 'no': 0, 'unknown': 0, 'unread': 4}",
+    "P6 parts: {'yes': 0, 'no': 0, 'unknown': 0, 'unread': 5}",
+    "P6 parts, unrelated: {'yes': 0, 'no': 0, 'unknown': 0, 'unread': 5}",
+    "P7 opposites: {'yes': 0, 'no': 0, 'unknown': 0, 'unread': 5}",
+    "P7 opposites, unrelated: {'yes': 0, 'no': 0, 'unknown': 0, 'unread': 5}",
+    "P8 what is: {'right': 0, 'wrong': 0, 'none': 5}",
+    "[P1 unread] Is a senior an adult? \u2192 I don't know 'Is', 'a', 'senior', 'an' and 'adult' yet. What do those words mean? I have remembered what you said.",
+    "[P2 unread] Is a senior a kind of somebody? \u2192 I don't know 'Is', 'a', 'senior', 'kind', 'of' and 'somebody' yet. What do those words mean? I have remembered what you said.",
+    "[P3 unrelated unread] Is a handicraft a kind of anklets? \u2192 I don't know 'Is', 'a', 'handicraft', 'kind', 'of' and 'anklets' yet. What do those words mean? I have remembered what you said.",
+    "[P4 nonce unread] Is a zoneper a kind of phanerogam? \u2192 I don't know 'Is', 'a', 'zoneper', 'kind', 'of' and 'phanerogam' yet. What do those words mean? I have remembered what you said.",
+    "[P5 unread] Is a senior a kind of undergraduate? \u2192 I don't know 'Is', 'a', 'senior', 'kind', 'of' and 'undergraduate' yet. What do those words mean? I have remembered what you said.",
+    "[P6 parts unread] Is a flower part of an angiosperm? \u2192 I don't know 'Is', 'a', 'flower', 'part', 'of', 'an' and 'angiosperm' yet. What do those words mean? I have remembered what you said.",
+    "[P6 parts, unrelated unread] Is an anchorage part of an angiosperm? \u2192 I don't know 'Is', 'an', 'anchorage', 'part', 'of' and 'angiosperm' yet. What do those words mean? I have remembered what you said.",
+    "[P7 opposites unread] Is amicable the opposite of hostile? \u2192 I don't know 'Is', 'amicable', 'the', 'opposite', 'of' and 'hostile' yet. What do those words mean? I have remembered what you said.",
+    "[P7 opposites, unrelated unread] Is nice the opposite of feminine? \u2192 I don't know 'Is', 'nice', 'the', 'opposite', 'of' and 'feminine' yet. What do those words mean? I have remembered what you said.",
+    "[P8 none] What is a senior? \u2192 I don't know 'What', 'is', 'a' and 'senior' yet. What do those words mean? I have remembered what you said.",
+    "[P8 unread] What is a senior? \u2192 I don't know 'What', 'is', 'a' and 'senior' yet. What do those words mean? I have remembered what you said."
+  ]
+}

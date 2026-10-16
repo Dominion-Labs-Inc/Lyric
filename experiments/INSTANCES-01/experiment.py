@@ -57,7 +57,7 @@ def check(name, ok, detail=""):
 async def main() -> int:
     from core.database import get_database_manager
     from core.reasoning.bayesian_uncertainty import (BayesianUncertaintySystem, ResolutionGrounds,
-                                                     KnowledgeState, posterior_from_evidence)
+                                                     KnowledgeState, evidence_step, probability_of)
     d = get_database_manager()
     await d.initialize()
     written = {"beliefs": [], "strategies": [], "unknowns": [], "tasks": [], "instances": []}
@@ -74,20 +74,21 @@ async def main() -> int:
         await A.flush_belief(belief.belief_id)
         B.beliefs[belief.belief_id] = copy.deepcopy(belief)            # B loaded it too
         A.update_belief(belief.belief_id, {"source": "instance A", "quality": 0.9}, True)
-        after_a = A.beliefs[belief.belief_id].posterior_probability
+        after_a = A.beliefs[belief.belief_id].log_odds
         await A.flush_belief(belief.belief_id)
         B.update_belief(belief.belief_id, {"source": "instance B", "quality": 0.8}, True)
         b_weight = B.beliefs[belief.belief_id].unsaved_evidence[-1][2]  # as B applied it
         await B.flush_belief(belief.belief_id)                          # B's copy is stale
         row = await d.execute_query(
-            "SELECT posterior_probability, update_count, evidence_for FROM unified.beliefs "
+            "SELECT posterior_probability, update_count FROM unified.beliefs "
             "WHERE belief_id = $1", (belief.belief_id,), fetch_one=True)
-        sources = [e.get("source") for e in (row["evidence_for"] if isinstance(row["evidence_for"], list)
-                                             else __import__("json").loads(row["evidence_for"]))]
+        from core.agents.memory_agent import memory_agent
+        stored_for, _ = await memory_agent().belief_evidence(belief.belief_id)
+        sources = [e.get("source") for e in stored_for]
         check("both instances' evidence is in the stored belief",
               "instance A" in sources and "instance B" in sources and row["update_count"] == 2,
               f"evidence={sources} update_count={row['update_count']}")
-        expected, _ = posterior_from_evidence(after_a, b_weight, True)
+        expected = probability_of(after_a + evidence_step(b_weight, True))
         check("the stored posterior is A's update with B's evidence applied on top",
               abs(float(row["posterior_probability"]) - expected) < 1e-6,
               f"stored={float(row['posterior_probability']):.6f} expected={expected:.6f}")

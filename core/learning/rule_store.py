@@ -384,6 +384,10 @@ class RuleStore:
 
     def __init__(self, db_manager=None):
         self._db = db_manager
+        #: The schema is ensured once for this store. Run before every read and write, its `ADD COLUMN IF NOT
+        #: EXISTS` took the table's exclusive lock each time, column there or not, and queued behind anything else
+        #: holding the table: a copy of the store being taken timed it out twice in a teaching run (2026-10-09).
+        self._schema_ready = False
 
     def db(self):
         if self._db is None:
@@ -398,8 +402,11 @@ class RuleStore:
 
     async def ensure_schema(self):
         await self._ready()
+        if self._schema_ready:
+            return
         for statement in filter(None, (s.strip() for s in DDL.split(";"))):
             await self.db().execute_query(statement)
+        self._schema_ready = True
 
     # ---- writing --------------------------------------------------------
 

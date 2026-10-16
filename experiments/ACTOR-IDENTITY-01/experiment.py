@@ -33,7 +33,6 @@ async def main() -> int:
     from core.agents.autonomous.autonomous_coordinator import Conversation, get_conversation
     from core.agents.autonomous.shared_types import (
         actor_for, TaskSource, SUBSTRATE_ACTOR, is_substrate_actor)
-    from core.learning.unified_learning_system import get_unified_learning_system
     from core.learning.scoped_context_store import get_scoped_context_store, scoped_claim_key
 
     db = get_database_manager()
@@ -41,6 +40,10 @@ async def main() -> int:
         await db.initialize()
     store = get_scoped_context_store()
     await store.beliefs_for_actor("__warmup__")
+    # A telling is read before it is held: the reader reads with the English memory holds, so memory's view of it
+    # is warmed first (`MemoryAgent.warm_word_classes`). Not warmed, nothing reads and nothing is held.
+    from core.memory import get_memory_agent
+    await (await get_memory_agent()).warm_word_classes()
 
     nonce = uuid.uuid4().hex[:8]
     user_id = f"wa-user-{nonce}"      # a World Auth user id
@@ -72,7 +75,6 @@ async def main() -> int:
 
     print("\n== 3. END-TO-END: teaching scopes to the IDENTITY, not the session ==")
     conv = get_conversation(session, actor_identity=user_id)
-    conv._learning = get_unified_learning_system()
 
     async def cleanup():
         for a in (user_id, session, "__warmup__"):
@@ -82,16 +84,16 @@ async def main() -> int:
                                    (a,), commit=True)
     await cleanup()
     try:
-        acquired = await conv.teach(f"a {SUBJ} is a gadget")
+        acquired = await conv.teach(f"{SUBJ.capitalize()} is a gadget")
         check("the sentence was taught", bool(acquired))
         id_beliefs = await store.beliefs_for_actor(user_id)
-        about_subj = [b for b in id_beliefs if SUBJ in scoped_claim_key(b["claim"])]
+        about_subj = [b for b in id_beliefs if SUBJ in scoped_claim_key(b["claim"]).lower()]
         check("the fact is in the IDENTITY's scoped context",
               len(about_subj) == 1 and about_subj[0]["posterior"] > 0.5,
               f"identity beliefs={[b['claim'] for b in id_beliefs]}")
         sess_beliefs = await store.beliefs_for_actor(session)
         check("NOTHING is scoped under the bare session string (actor is the identity)",
-              all(SUBJ not in scoped_claim_key(b["claim"]) for b in sess_beliefs),
+              all(SUBJ not in scoped_claim_key(b["claim"]).lower() for b in sess_beliefs),
               f"session beliefs={[b['claim'] for b in sess_beliefs]}")
     finally:
         await cleanup()

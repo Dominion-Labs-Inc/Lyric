@@ -23,7 +23,7 @@ from typing import Any, Dict, List, Optional, Set
 from collections import defaultdict, deque
 
 from .tool_registry import Tool, ToolParameter, ToolResult, ToolCategory, ToolSafety
-from .capabilities import Capability, ToolCapabilityProfile, CapabilityMetadata
+from .tool_registry import Primitive, PrimitiveProfile, PrimitiveUse
 
 
 logger = logging.getLogger(__name__)
@@ -62,12 +62,12 @@ class SemanticSearchTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="semantic_search",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.SEMANTIC_SEARCH,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.SEMANTIC_SEARCH,
                     description="Search code semantically using natural language"
                 )
             ]
@@ -207,12 +207,12 @@ class GrepSearchTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="grep_search",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.TEXT_SEARCH,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.TEXT_SEARCH,
                     description="Fast text/regex search across codebase"
                 )
             ]
@@ -319,12 +319,12 @@ class AnalyzeCodeTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="analyze_code",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.ANALYZE_CODE,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.ANALYZE_CODE,
                     description="Analyze Python code structure, imports, functions, and classes"
                 )
             ]
@@ -442,16 +442,16 @@ class AnalyzeCodeQualityTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="analyze_code_quality",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.ANALYZE_CODE,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.ANALYZE_CODE,
                     description="Analyze code quality metrics"
                 ),
-                CapabilityMetadata(
-                    capability=Capability.ASSESS_QUALITY,
+                PrimitiveUse(
+                    primitive=Primitive.ASSESS_QUALITY,
                     description="Assess code maintainability and complexity"
                 )
             ]
@@ -560,12 +560,12 @@ class AnalyzeDependenciesTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="analyze_dependencies",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.ANALYZE_DEPENDENCIES,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.ANALYZE_DEPENDENCIES,
                     description="Analyze project dependencies from requirements.txt or imports"
                 )
             ]
@@ -651,16 +651,16 @@ class FindDeadCodeTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="find_dead_code",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.DETECT_ISSUE,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.DETECT_ISSUE,
                     description="Detect unused code and dead functions"
                 ),
-                CapabilityMetadata(
-                    capability=Capability.ANALYZE_CODE,
+                PrimitiveUse(
+                    primitive=Primitive.ANALYZE_CODE,
                     description="Analyze code usage patterns"
                 )
             ]
@@ -765,16 +765,16 @@ class SecurityScanTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="security_scan",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.DETECT_THREAT,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.DETECT_THREAT,
                     description="Detect security vulnerabilities in code"
                 ),
-                CapabilityMetadata(
-                    capability=Capability.ANALYZE_CODE,
+                PrimitiveUse(
+                    primitive=Primitive.ANALYZE_CODE,
                     description="Analyze code for security issues"
                 )
             ]
@@ -889,12 +889,12 @@ class FindTodosTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="find_todos",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.PATTERN_SEARCH,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.PATTERN_SEARCH,
                     description="Search for TODO, FIXME, and other code markers"
                 )
             ]
@@ -988,12 +988,12 @@ class CountLinesTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="count_lines",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.ANALYZE_CODE,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.ANALYZE_CODE,
                     description="Count lines of code by file type"
                 )
             ]
@@ -1111,16 +1111,16 @@ class AnalyzeComplexityTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="analyze_complexity",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.ANALYZE_CODE,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.ANALYZE_CODE,
                     description="Analyze code complexity metrics"
                 ),
-                CapabilityMetadata(
-                    capability=Capability.ASSESS_COMPLEXITY,
+                PrimitiveUse(
+                    primitive=Primitive.ASSESS_COMPLEXITY,
                     description="Assess cyclomatic complexity of functions"
                 )
             ]
@@ -1237,16 +1237,16 @@ class DetectCodeSmellsTool(Tool):
                 required=True
             )
         ]
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="detect_code_smells",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.ANALYZE_CODE,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.ANALYZE_CODE,
                     description="Analyze code structure and patterns"
                 ),
-                CapabilityMetadata(
-                    capability=Capability.DETECT_ISSUE,
+                PrimitiveUse(
+                    primitive=Primitive.DETECT_ISSUE,
                     description="Detect code issues and problems"
                 )
             ]
@@ -1398,12 +1398,12 @@ class TraceDependenciesTool(Tool):
                 max_value=10
             )
         ]
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="trace_dependencies",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.ANALYZE_DEPENDENCIES,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.ANALYZE_DEPENDENCIES,
                     description="Analyze dependencies and imports"
                 )
             ]
@@ -1495,16 +1495,16 @@ class FindCircularImportsTool(Tool):
                 required=True
             )
         ]
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="find_circular_imports",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.DETECT_ISSUE,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.DETECT_ISSUE,
                     description="Detect code issues and problems"
                 ),
-                CapabilityMetadata(
-                    capability=Capability.ANALYZE_DEPENDENCIES,
+                PrimitiveUse(
+                    primitive=Primitive.ANALYZE_DEPENDENCIES,
                     description="Analyze dependencies and imports"
                 )
             ]
@@ -1617,16 +1617,16 @@ class AnalyzeTestCoverageReportTool(Tool):
                 required=True
             )
         ]
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="analyze_test_coverage_report",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.ANALYZE_CODE,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.ANALYZE_CODE,
                     description="Analyze code structure and patterns"
                 ),
-                CapabilityMetadata(
-                    capability=Capability.ASSESS_COVERAGE,
+                PrimitiveUse(
+                    primitive=Primitive.ASSESS_COVERAGE,
                     description="Assess test coverage metrics"
                 )
             ]
@@ -1704,16 +1704,16 @@ class FindPerformanceIssuesTool(Tool):
                 required=True
             )
         ]
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="find_performance_issues",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.IDENTIFY_BOTTLENECK,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.IDENTIFY_BOTTLENECK,
                     description="Identify performance bottlenecks"
                 ),
-                CapabilityMetadata(
-                    capability=Capability.ANALYZE_PERFORMANCE,
+                PrimitiveUse(
+                    primitive=Primitive.ANALYZE_PERFORMANCE,
                     description="Analyze performance characteristics"
                 )
             ]
@@ -1819,16 +1819,16 @@ class CheckCodeStyleConsistencyTool(Tool):
                 required=True
             )
         ]
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="check_code_style_consistency",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.ANALYZE_CODE,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.ANALYZE_CODE,
                     description="Analyze code structure and patterns"
                 ),
-                CapabilityMetadata(
-                    capability=Capability.ASSESS_QUALITY,
+                PrimitiveUse(
+                    primitive=Primitive.ASSESS_QUALITY,
                     description="Assess code quality and style"
                 )
             ]
@@ -1936,12 +1936,12 @@ class ASTSearchTool(Tool):
                 default=False
             )
         ]
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="ast_search",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.AST_SEARCH,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.AST_SEARCH,
                     description="Search code using AST structure analysis"
                 )
             ]
@@ -2108,16 +2108,16 @@ class BuildDependencyGraphTool(Tool):
                 max_value=20
             )
         ]
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="build_dependency_graph",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.ANALYZE_DEPENDENCIES,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.ANALYZE_DEPENDENCIES,
                     description="Analyze dependencies and imports"
                 ),
-                CapabilityMetadata(
-                    capability=Capability.VISUALIZE,
+                PrimitiveUse(
+                    primitive=Primitive.VISUALIZE,
                     description="Generate visualizations"
                 )
             ]
@@ -2257,12 +2257,12 @@ class ExtractCallGraphTool(Tool):
                 max_value=50
             )
         ]
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="extract_call_graph",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.ANALYZE_CODE,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.ANALYZE_CODE,
                     description="Analyze code structure and patterns"
                 )
             ]
@@ -2418,16 +2418,16 @@ class SearchSecretsAndPIITool(Tool):
                 required=False
             )
         ]
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="search_secrets_pii",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.DETECT_THREAT,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.DETECT_THREAT,
                     description="Detect security threats"
                 ),
-                CapabilityMetadata(
-                    capability=Capability.PATTERN_SEARCH,
+                PrimitiveUse(
+                    primitive=Primitive.PATTERN_SEARCH,
                     description="Search for secrets and PII using pattern matching"
                 )
             ]

@@ -1,0 +1,103 @@
+{
+  "experiment": "SENSE-01",
+  "claim": "The listener takes each word in the sense meant: by what memory holds, then by how often the word has been met naming each thing. With it, WordNet's senses of the lessons' own words, and every kind of record WordNet has, are taught after the lessons without taking away any reading the lessons taught.",
+  "hypothesis": "A lesson sentence the listener took one way before WordNet and another way, or not at all, after; a blocker sentence left open or taken in a sense the lessons never meant; a word left open in a question; a fact said that is taken back as another; a pair refused; a fact not held or an unrelated pair answered yes; or a write to the main store would each show here.",
+  "started_at": "2026-10-02T01:57:59.263161+00:00",
+  "duration_seconds": 54.539,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/Lyric/venv_lyric/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/Lyric",
+    "shadow_mode": null,
+    "git_commit": "7ceeffce1dbcfe24b0a3b7853e64b1daeca8d362",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "lyric_dev",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "lyric_dev",
+        "model": "lyric_dev",
+        "user_context": "lyric_dev",
+        "learning": "lyric_dev"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "environment",
+        "database": "environment",
+        "user": "environment",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "pool_idle_seconds": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 7,
+    "database_verified": null,
+    "database_verified_reason": "not verified"
+  },
+  "summary": {
+    "checks": 7,
+    "passed": 7,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [
+    {
+      "name": "listener against an LLM's taking",
+      "value": "16/16",
+      "unit": "",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "the run is in the sandbox",
+      "passed": true,
+      "detail": "connected to lyric_dev",
+      "at": "2026-10-02T01:57:59.534305+00:00"
+    },
+    {
+      "label": "the substrate is running",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-02T01:58:47.854255+00:00"
+    },
+    {
+      "label": "the lessons are held already",
+      "passed": true,
+      "detail": "31323 constructions and links in the view",
+      "at": "2026-10-02T01:58:47.856612+00:00"
+    },
+    {
+      "label": "K's words are held already",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-02T01:58:47.856695+00:00"
+    },
+    {
+      "label": "each sentence is taken in the sense an LLM takes it in",
+      "passed": true,
+      "detail": "16/16",
+      "at": "2026-10-02T01:58:53.521392+00:00"
+    },
+    {
+      "label": "words that sound alike are heard the way that makes sense",
+      "passed": true,
+      "detail": "2/2",
+      "at": "2026-10-02T01:58:53.607921+00:00"
+    },
+    {
+      "label": "the main model's store is untouched",
+      "passed": true,
+      "detail": "290095 rows before, 290095 after",
+      "at": "2026-10-02T01:58:53.803422+00:00"
+    }
+  ],
+  "notes": []
+}

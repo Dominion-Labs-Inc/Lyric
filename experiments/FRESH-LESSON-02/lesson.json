@@ -1,0 +1,446 @@
+{
+ "name": "fresh-lesson-02",
+ "about": "A second lesson no experiment taught or tested, written after FRESH-LESSON-01's first run and the fixes that followed it, and frozen before its own first run: facts stated about the world, with words WordNet and the 30 lessons do not have (zanth, plib, morv, yuli, trilp, gorn, sefa, lumo, drax, quorp), and two shapes the 30 lessons never use: 'X is found in Y' and 'X comes from Y', three sentences of each.",
+ "quality": 0.95,
+ "examples": false,
+ "records": [
+  {
+   "sentence": "A cat is an animal.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "isa",
+      "cat",
+      "animal",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "A dog is an animal.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "isa",
+      "dog",
+      "animal",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "Cats can climb.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "capable_of",
+      "cat",
+      "climb",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "Dogs can run.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "capable_of",
+      "dog",
+      "run",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "A boy is a person.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "isa",
+      "boy",
+      "person",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "A car is a vehicle.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "isa",
+      "car",
+      "vehicle",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "A zanth is a cat.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "isa",
+      "zanth",
+      "cat",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "A plib is a dog.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "isa",
+      "plib",
+      "dog",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "A morv is a car.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "isa",
+      "morv",
+      "car",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "Yuli is a boy.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "isa",
+      "yuli",
+      "boy",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "A zanth is not a dog.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "isa",
+      "zanth",
+      "dog",
+      false
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "Zanths are black.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "has_property",
+      "zanth",
+      "black",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "A morv is made of metal.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "made_of",
+      "morv",
+      "metal",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "The plib is near the door.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "near",
+      "plib",
+      "door",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "Yuli has a zanth.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "owns",
+      "yuli",
+      "zanth",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "The zanth chased the plib.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "instance_of",
+      "?v0",
+      "chase",
+      true
+     ],
+     [
+      "done_by",
+      "?v0",
+      "zanth",
+      true
+     ],
+     [
+      "done_to",
+      "?v0",
+      "plib",
+      true
+     ],
+     [
+      "precedes",
+      "?v0",
+      "?now",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "A trilp is an animal.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "isa",
+      "trilp",
+      "animal",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "A gorn is a cat.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "isa",
+      "gorn",
+      "cat",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "A sefa is a dog.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "isa",
+      "sefa",
+      "dog",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "A lumo is an animal.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "isa",
+      "lumo",
+      "animal",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "A drax is a car.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "isa",
+      "drax",
+      "car",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "A quorp is an animal.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "isa",
+      "quorp",
+      "animal",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "A trilp is found in a city.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "located_in",
+      "trilp",
+      "city",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "A gorn is found in a kitchen.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "located_in",
+      "gorn",
+      "kitchen",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "A sefa is found in a bag.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "located_in",
+      "sefa",
+      "bag",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "A lumo comes from a city.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "comes_from",
+      "lumo",
+      "city",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "A drax comes from a kitchen.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "comes_from",
+      "drax",
+      "kitchen",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "A quorp comes from a box.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "comes_from",
+      "quorp",
+      "box",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  }
+ ]
+}

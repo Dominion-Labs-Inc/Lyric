@@ -110,9 +110,11 @@ def test_a_turn_is_handed_over_with_each_part_where_it_came_from():
 
 
 def test_a_look_up_is_handed_over_with_each_part_where_it_came_from(monkeypatch):
+    import core.memory
     import core.tools
-    from core.agents.autonomous.autonomous_coordinator import Acquired
-    from core.semantics.sentence_reader import SentenceReader
+    from core.learning.unified_learning_system import Decision
+    from core.semantics import derived_reader
+    from core.semantics.derived_reader import Meaning, MeaningFact
 
     answers = {
         "web_search": SimpleNamespace(success=True, output={"results": [
@@ -125,19 +127,30 @@ def test_a_look_up_is_handed_over_with_each_part_where_it_came_from(monkeypatch)
         async def execute_tool(self, name, params):
             return answers[name]
 
-    def read_all(self, text):
+    def read_text(text, *_args, **_kwargs):
+        # The one reader, as it reads a page's definition: a kind said of the phrase.
+        readings = []
         if text.startswith("A peristaltic pump is"):
-            return [{"subject": "peristaltic pump", "relation": "is", "obj": "a positive displacement pump"}]
-        return []
+            readings = [SimpleNamespace(meaning=Meaning("tell", (MeaningFact(
+                "isa", "peristaltic pump", "positive displacement pump"),)))]
+        return [SimpleNamespace(text=text, readings=readings)]
+
+    taken = []
+
+    class Memory:
+        # What the pages said goes to memory, each finding a claim for the one door (`take_in_research`).
+        async def take_in_research(self, findings):
+            taken.extend(findings)
+            return [(finding, Decision(" ".join(finding[:3]), True, "candidate")) for finding in findings]
+
+    async def memory():
+        return Memory()
 
     monkeypatch.setattr(core.tools, "get_tool_registry", lambda: World())
-    monkeypatch.setattr(SentenceReader, "read_all", read_all)
+    monkeypatch.setattr(derived_reader, "read_text", read_text)
+    monkeypatch.setattr(core.memory, "get_memory_agent", memory)
     handed = []
     conversation = _conversation(handed)
-
-    async def ingest(**given):
-        return Acquired(given["label"], stored=True)
-    conversation._ingest = ingest
 
     assert asyncio.run(conversation._research_phrase("peristaltic pump")).stored
     origin, kind, parts, evidence = handed[0]
@@ -147,6 +160,8 @@ def test_a_look_up_is_handed_over_with_each_part_where_it_came_from(monkeypatch)
         ("source", "world"), ("finding", "world")]
     assert parts[-1].content["object"] == "positive displacement pump"
     assert evidence == {"outcome": "found", "sources": 2, "pages_read": 1, "admitted": True}
+    assert taken == [("peristaltic pump", "isa", "positive displacement pump", "https://b.example",
+                      "A peristaltic pump is a positive displacement pump.")], "the page's word, as its evidence"
 
     class Unreachable:
         async def execute_tool(self, name, params):

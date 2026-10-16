@@ -1,0 +1,258 @@
+{
+  "experiment": "QUESTION-FORMS-03",
+  "claim": "Taught english_40 on a copy of the main model, Lyric reads questions about kinds, parts, members, what things are made of and opposites, and \"Is it true that ...?\", in sentences it was taught and in never-taught ones with words WordNet taught it, without losing what english_01-39 taught.",
+  "hypothesis": "english_40 refused or a sentence of it read otherwise than taught, a never-taught question read otherwise than written here, an earlier sentence read as taught before and otherwise after, or a write to the main store shows here.",
+  "started_at": "2026-10-11T06:56:53.370889+00:00",
+  "duration_seconds": 936.643,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/Lyric/venv_lyric/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/Lyric",
+    "shadow_mode": null,
+    "git_commit": "0a27c570eda188a24bb63d1968f8fd104a8f4cb6",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "lyric_check2",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "lyric_check2",
+        "model": "lyric_check2",
+        "user_context": "lyric_check2",
+        "learning": "lyric_check2"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "environment",
+        "database": "environment",
+        "user": "environment",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "pool_idle_seconds": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 337,
+    "database_verified": "lyric_check2",
+    "database_verified_reason": "asked the server"
+  },
+  "summary": {
+    "checks": 6,
+    "passed": 4,
+    "failed": 2,
+    "outcome": "FAIL"
+  },
+  "metrics": [
+    {
+      "name": "never-taught questions read as written before english_40",
+      "value": "0/21",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "english_01-39 sentences read as taught before english_40",
+      "value": "381/600",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "never-taught readings",
+      "value": [
+        {
+          "sentence": "Is a heron a kind of bird?",
+          "read": "ask: isa(heron, bird)",
+          "as_written": true
+        },
+        {
+          "sentence": "Is a beroe a kind of ctenophore?",
+          "read": "ask: isa(beroe, ctenophore)",
+          "as_written": true
+        },
+        {
+          "sentence": "Is a multiplexer a kind of device?",
+          "read": "ask: isa(multiplexer, device)",
+          "as_written": true
+        },
+        {
+          "sentence": "Is a lockstitch a kind of stitch?",
+          "read": "ask: isa(a lockstitch, stitch)",
+          "as_written": false
+        },
+        {
+          "sentence": "Is a cupflower a kind of shrub?",
+          "read": "ask: isa(chalice vine, shrub)",
+          "as_written": true
+        },
+        {
+          "sentence": "Is a petal part of a flower?",
+          "read": "ask: part_of(petal, flower)",
+          "as_written": true
+        },
+        {
+          "sentence": "Is a flower part of an angiosperm?",
+          "read": "ask: part_of(flower, angiosperm)",
+          "as_written": true
+        },
+        {
+          "sentence": "Is a hull part of a ship?",
+          "read": "ask: part_of(structure hull, ship)",
+          "as_written": true
+        },
+        {
+          "sentence": "Is a keel a part of a boat?",
+          "read": "ask: part_of(beam keel, boat)",
+          "as_written": true
+        },
+        {
+          "sentence": "Is a senator a member of a senate?",
+          "read": "ask: member_of(senator, senate)",
+          "as_written": true
+        },
+        {
+          "sentence": "Is a coin made of metal?",
+          "read": "ask: made_of(coin, metal)",
+          "as_written": true
+        },
+        {
+          "sentence": "Is occupied the opposite of unoccupied?",
+          "read": "ask: antonym_of(occupied, unoccupied)",
+          "as_written": true
+        },
+        {
+          "sentence": "Is happy the opposite of sad?",
+          "read": "ask: antonym_of(happy, sad)",
+          "as_written": true
+        },
+        {
+          "sentence": "Is public the opposite of private?",
+          "read": "ask: antonym_of(body public, enlisted man private)",
+          "as_written": true
+        },
+        {
+          "sentence": "Is it true that an investigator is an expert?",
+          "read": "ask: isa(investigator, expert)",
+          "as_written": true
+        },
+        {
+          "sentence": "Is it true that a heron is a bird?",
+          "read": "ask: isa(heron, bird)",
+          "as_written": true
+        },
+        {
+          "sentence": "Is it true that a petal is part of a flower?",
+          "read": "ask: part_of(petal, flower)",
+          "as_written": true
+        },
+        {
+          "sentence": "Is it true that happy is the opposite of sad?",
+          "read": "ask: antonym_of(happy, sad)",
+          "as_written": true
+        },
+        {
+          "sentence": "What is a heron a kind of?",
+          "read": "ask: isa(heron, ?v0) ? ?v0",
+          "as_written": true
+        },
+        {
+          "sentence": "What is a petal part of?",
+          "read": "ask: part_of(petal, ?v0) ? ?v0",
+          "as_written": true
+        },
+        {
+          "sentence": "What is the opposite of happy?",
+          "read": "ask: antonym_of(happy, ?v0) ? ?v0",
+          "as_written": true
+        }
+      ],
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "never-taught plural questions read as written, before and after english_40",
+      "value": {
+        "before": "0/4",
+        "after": "1/4",
+        "readings": [
+          {
+            "sentence": "Are herons a kind of bird?",
+            "read": "ask: isa(herons, bird)",
+            "as_written": false
+          },
+          {
+            "sentence": "Are petals part of flowers?",
+            "read": "ask: part_of(petal, flower)",
+            "as_written": true
+          },
+          {
+            "sentence": "Are hawks raptors?",
+            "read": "ask: isa(hawks, raptor)",
+            "as_written": false
+          },
+          {
+            "sentence": "Are coiners sources?",
+            "read": "ask: isa(coiners, source)",
+            "as_written": false
+          }
+        ]
+      },
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "english_01-39 sentences read as taught after english_40",
+      "value": "384/600",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "earlier sentences read as taught before and otherwise after",
+      "value": [],
+      "unit": "",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "the run is on a copy of main, not main",
+      "passed": true,
+      "detail": "connected to lyric_check2",
+      "at": "2026-10-11T06:57:47.120179+00:00"
+    },
+    {
+      "label": "english_40 is learned, none refused",
+      "passed": true,
+      "detail": "{'learned': 38, 'linked': 157, 'already': 20, 'understood': 75, 'refused': 0, 'total': 112, 'repair_lexical_item_based': 19, 'repair_item_based_lexical': 16, 'repair_add_links': 55, 'repair_phrase_in_slot': 2, 'said': 49, 'heard': 184}",
+      "at": "2026-10-11T07:05:34.538612+00:00"
+    },
+    {
+      "label": "every sentence of english_40 reads as taught",
+      "passed": false,
+      "detail": "108 of 112",
+      "at": "2026-10-11T07:08:19.767413+00:00"
+    },
+    {
+      "label": "never-taught questions in english_40's forms read as written",
+      "passed": false,
+      "detail": "20 of 21",
+      "at": "2026-10-11T07:08:27.354216+00:00"
+    },
+    {
+      "label": "of 600 sentences english_01-39 teach, none that read as taught before reads otherwise after",
+      "passed": true,
+      "detail": "381 of 381 still",
+      "at": "2026-10-11T07:12:27.801684+00:00"
+    },
+    {
+      "label": "the main model's store is untouched",
+      "passed": true,
+      "detail": "8541178 rows before, 8541178 after",
+      "at": "2026-10-11T07:12:30.007399+00:00"
+    }
+  ],
+  "notes": []
+}

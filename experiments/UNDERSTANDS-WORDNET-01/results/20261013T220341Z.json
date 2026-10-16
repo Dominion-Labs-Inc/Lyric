@@ -1,0 +1,248 @@
+{
+  "experiment": "UNDERSTANDS-WORDNET-01",
+  "claim": "the substrate understands what WordNet taught it: it answers taught facts asked in new forms, reasons past them, tells senses apart, refuses what is not so, and says it does not know what it was never taught",
+  "hypothesis": "each probe reaches its bar, fixed before the run (BARS)",
+  "started_at": "2026-10-13T22:03:41.183056+00:00",
+  "duration_seconds": 74.586,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/Lyric/venv_lyric/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/Lyric",
+    "shadow_mode": null,
+    "git_commit": "0a27c570eda188a24bb63d1968f8fd104a8f4cb6",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "lyric_dev",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "lyric_dev",
+        "model": "lyric_dev",
+        "user_context": "lyric_dev",
+        "learning": "lyric_dev"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "environment",
+        "database": "environment",
+        "user": "environment",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "pool_idle_seconds": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 386,
+    "database_verified": "lyric_dev",
+    "database_verified_reason": "asked the server"
+  },
+  "summary": {
+    "checks": 13,
+    "passed": 7,
+    "failed": 6,
+    "outcome": "FAIL"
+  },
+  "metrics": [
+    {
+      "name": "P1 taught, asked new ways: yes",
+      "value": 0.0,
+      "unit": "fraction",
+      "note": "0/20"
+    },
+    {
+      "name": "P2 inferred: yes",
+      "value": 0.0,
+      "unit": "fraction",
+      "note": "0/5"
+    },
+    {
+      "name": "P3 unrelated: yes (must be low)",
+      "value": 0.0,
+      "unit": "fraction",
+      "note": "0/10"
+    },
+    {
+      "name": "P4 nonce: yes (must be zero)",
+      "value": 0.0,
+      "unit": "fraction",
+      "note": "0/10"
+    },
+    {
+      "name": "P5 both senses: yes",
+      "value": 0.0,
+      "unit": "fraction",
+      "note": "0/2"
+    },
+    {
+      "name": "P6 parts: yes",
+      "value": 0.0,
+      "unit": "fraction",
+      "note": "0/5"
+    },
+    {
+      "name": "P6 parts, unrelated: yes (must be low)",
+      "value": 0.0,
+      "unit": "fraction",
+      "note": "0/5"
+    },
+    {
+      "name": "P7 opposites: yes",
+      "value": 0.0,
+      "unit": "fraction",
+      "note": "0/5"
+    },
+    {
+      "name": "P7 opposites, unrelated: yes (must be low)",
+      "value": 0.0,
+      "unit": "fraction",
+      "note": "0/5"
+    },
+    {
+      "name": "P8 what is: right",
+      "value": 0.0,
+      "unit": "fraction",
+      "note": "0/5"
+    },
+    {
+      "name": "P8 what is: wrong (must be low)",
+      "value": 0.0,
+      "unit": "fraction",
+      "note": "0/5"
+    },
+    {
+      "name": "seconds a question, median",
+      "value": 0.45,
+      "unit": "s",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "the run is on the store it says",
+      "passed": true,
+      "detail": "connected to lyric_dev",
+      "at": "2026-10-13T22:04:16.716081+00:00"
+    },
+    {
+      "label": "P1 taught, asked new ways: yes \u2265 90%",
+      "passed": false,
+      "detail": "0/20 = 0.0% (95% 0.0%\u201316.1%)",
+      "at": "2026-10-13T22:04:54.757753+00:00"
+    },
+    {
+      "label": "P2 inferred: yes \u2265 80%",
+      "passed": false,
+      "detail": "0/5 = 0.0% (95% 0.0%\u201343.4%)",
+      "at": "2026-10-13T22:04:54.757778+00:00"
+    },
+    {
+      "label": "P3 unrelated: yes (must be low) \u2264 2%",
+      "passed": true,
+      "detail": "0/10 = 0.0% (95% 0.0%\u201327.8%)",
+      "at": "2026-10-13T22:04:54.757789+00:00"
+    },
+    {
+      "label": "P4 nonce: yes (must be zero) \u2264 0%",
+      "passed": true,
+      "detail": "0/10 = 0.0% (95% 0.0%\u201327.8%)",
+      "at": "2026-10-13T22:04:54.757798+00:00"
+    },
+    {
+      "label": "P5 both senses: yes \u2265 80%",
+      "passed": false,
+      "detail": "0/2 = 0.0% (95% 0.0%\u201365.8%)",
+      "at": "2026-10-13T22:04:54.757806+00:00"
+    },
+    {
+      "label": "P6 parts: yes \u2265 80%",
+      "passed": false,
+      "detail": "0/5 = 0.0% (95% 0.0%\u201343.4%)",
+      "at": "2026-10-13T22:04:54.757813+00:00"
+    },
+    {
+      "label": "P6 parts, unrelated: yes (must be low) \u2264 5%",
+      "passed": true,
+      "detail": "0/5 = 0.0% (95% 0.0%\u201343.4%)",
+      "at": "2026-10-13T22:04:54.757821+00:00"
+    },
+    {
+      "label": "P7 opposites: yes \u2265 80%",
+      "passed": false,
+      "detail": "0/5 = 0.0% (95% 0.0%\u201343.4%)",
+      "at": "2026-10-13T22:04:54.757830+00:00"
+    },
+    {
+      "label": "P7 opposites, unrelated: yes (must be low) \u2264 5%",
+      "passed": true,
+      "detail": "0/5 = 0.0% (95% 0.0%\u201343.4%)",
+      "at": "2026-10-13T22:04:54.757838+00:00"
+    },
+    {
+      "label": "P8 what is: right \u2265 80%",
+      "passed": false,
+      "detail": "0/5 = 0.0% (95% 0.0%\u201343.4%)",
+      "at": "2026-10-13T22:04:54.757845+00:00"
+    },
+    {
+      "label": "P8 what is: wrong (must be low) \u2264 5%",
+      "passed": true,
+      "detail": "0/5 = 0.0% (95% 0.0%\u201343.4%)",
+      "at": "2026-10-13T22:04:54.757852+00:00"
+    },
+    {
+      "label": "the questions wrote nothing to the store",
+      "passed": true,
+      "detail": "no table written to",
+      "at": "2026-10-13T22:04:55.768152+00:00"
+    }
+  ],
+  "notes": [
+    "P1 not answered, why: {'other': 20}",
+    "P1 taught: {'yes': 0, 'no': 0, 'unknown': 16, 'unread': 4}",
+    "P1 form: is a: {'yes': 0, 'no': 0, 'unknown': 5, 'unread': 1}",
+    "P1 common words: {'yes': 0, 'no': 0, 'unknown': 6, 'unread': 3}",
+    "P1 form: a kind of: {'yes': 0, 'no': 0, 'unknown': 6, 'unread': 0}",
+    "P1 rare words: {'yes': 0, 'no': 0, 'unknown': 10, 'unread': 1}",
+    "P1 form: embedded: {'yes': 0, 'no': 0, 'unknown': 4, 'unread': 2}",
+    "P1 form: plural: {'yes': 0, 'no': 0, 'unknown': 1, 'unread': 1}",
+    "P2 not answered, why: {'other': 5}",
+    "P2 inferred: {'yes': 0, 'no': 0, 'unknown': 5, 'unread': 0}",
+    "P2 rare words: {'yes': 0, 'no': 0, 'unknown': 5, 'unread': 0}",
+    "P3 unrelated not answered, why: {'other': 10}",
+    "P3 unrelated: {'yes': 0, 'no': 0, 'unknown': 8, 'unread': 2}",
+    "P4 nonce not answered, why: {'other': 10}",
+    "P4 nonce: {'yes': 0, 'no': 0, 'unknown': 10, 'unread': 0}",
+    "P5 not answered, why: {'other': 4}",
+    "P5 each sense: {'yes': 0, 'no': 0, 'unknown': 4, 'unread': 0}",
+    "P6 parts not answered, why: {'other': 5}",
+    "P6 parts: {'yes': 0, 'no': 0, 'unknown': 4, 'unread': 1}",
+    "P6 parts, unrelated not answered, why: {'other': 5}",
+    "P6 parts, unrelated: {'yes': 0, 'no': 0, 'unknown': 4, 'unread': 1}",
+    "P7 opposites not answered, why: {'other': 5}",
+    "P7 opposites: {'yes': 0, 'no': 0, 'unknown': 0, 'unread': 5}",
+    "P7 opposites, unrelated not answered, why: {'other': 5}",
+    "P7 opposites, unrelated: {'yes': 0, 'no': 0, 'unknown': 0, 'unread': 5}",
+    "P8 not answered, why: {'other': 5}",
+    "P8 what is: {'right': 0, 'wrong': 0, 'none': 5}",
+    "[P1 unknown: other] Is a senior an adult? \u2192 I do not know whether an A senior is an adult.",
+    "[P1 unread: other] Is it true that a patristics is a writing? \u2192 I know these words, but not this way of putting them together.",
+    "[P2 unknown: other] Is a multiplexer a device? \u2192 I hold nothing for multiplexer. Tell me what it is and I will keep it.",
+    "[P3 unrelated unknown: other] Is a handicraft an anklets? \u2192 I don't hold arts and crafts handicraft, sock anklet yet.",
+    "[P3 unrelated unread: other] Is a diaphragm a dig? \u2192 I know these words, but not this way of putting them together.",
+    "[P4 nonce unknown: other] Is a zoneper a phanerogam? \u2192 I don't hold zoneper, phanerogam yet.",
+    "[P5 unknown: other] Is an emperor a sovereign? \u2192 I don't hold emperor, sovereign yet.",
+    "[P6 parts unknown: other] Is a flower part of an angiosperm? \u2192 I hold flower but nothing said about it yet.\nI hold nothing for angiosperm. Tell me what it is and I will keep it.",
+    "[P6 parts unread: other] Is a cone part of a lycopod? \u2192 I know these words, but not this way of putting them together.",
+    "[P6 parts, unrelated unknown: other] Is an anchorage part of an angiosperm? \u2192 I don't hold area anchorage, angiosperm yet.",
+    "[P6 parts, unrelated unread: other] Is a flower part of a lycopod? \u2192 I know these words, but not this way of putting them together.",
+    "[P7 opposites unread: other] Is amicable the opposite of hostile? \u2192 I understood 'amicable the opposite', but not how 'Is' and 'of hostile' fit with it.",
+    "[P7 opposites, unrelated unread: other] Is nice the opposite of feminine? \u2192 I understood 'nice', 'opposite' and 'feminine', but not how 'Is', 'the' and 'of' fit with it.",
+    "[P8 none] What is a chichipe? \u2192 I don't hold chichipe yet.",
+    "[P8 unread: other] What is a chichipe? \u2192 I don't hold chichipe yet."
+  ]
+}

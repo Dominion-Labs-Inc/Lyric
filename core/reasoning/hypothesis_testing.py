@@ -330,27 +330,13 @@ class HypothesisTestingSystem:
         # Persist to database
         await self._save_hypothesis(hypothesis)
         
-        # Create belief in uncertainty system: a person's in their context
-        if owner:
-            try:
-                from core.learning.scoped_context_store import get_scoped_context_store
-                await get_scoped_context_store().observe_claim(
-                    owner, claim, domain=domain, supports=True, quality=0.5,
-                    source="hypothesis")   # start neutral
-            except Exception as e:
-                logger.warning(f"Failed to create belief for hypothesis: {e}")
-        elif self.uncertainty:
-            try:
-                from core.learning.unified_learning_system import get_unified_learning_system
-                uncertainty = get_unified_learning_system()  # one authority
-                uncertainty.create_belief(
-                    claim=claim,
-                    domain=domain,
-                    prior=0.5  # Start neutral
-                )
-            except Exception as e:
-                logger.warning(f"Failed to create belief for hypothesis: {e}")
-        
+        # NO BELIEF YET. An untested hypothesis is a claim under test, not a
+        # stance: its belief forms from the first evidence, about what was met
+        # (`collect_evidence`). Minted here, Lyric's own was refused at the store
+        # for naming no memory, and a person's was "started neutral" by one
+        # supporting observation, which stood it at 0.82 -- believed before it
+        # was ever tested.
+
         logger.info(f"Generated hypothesis: {claim[:80]}...")
         logger.debug(f"  Falsifiable: {is_falsifiable}")
         logger.debug(f"  Null hypothesis: {null_hypothesis}")
@@ -804,31 +790,37 @@ class HypothesisTestingSystem:
         await self._save_evidence(evidence)
         await self._save_hypothesis(hypothesis)
         
-        # Update belief in uncertainty system
-        if self.uncertainty:
-            try:
-                from core.reasoning.bayesian_uncertainty import get_uncertainty_system
-                from core.learning.unified_learning_system import get_unified_learning_system
-                uncertainty = get_uncertainty_system()  # reads
-                _auth = get_unified_learning_system()    # belief WRITE authority
+        # THE EVIDENCE MOVES THE HYPOTHESIS'S BELIEF, about what was met: the
+        # evidence remembered, and the belief its owner's -- a person's in their
+        # context, Lyric's own in the world's store naming that memory. It was
+        # found by scanning every belief for the claim's text, so a person's,
+        # held in their context, was never found and never moved; and a failure
+        # was a warning.
+        from core.agents.memory_agent import memory_agent
+        from core.memory import Origin
+        from core.memory.utils.interfaces import MemoryType
+        stored, memory_id = await memory_agent().store_memory(
+            content=(f"Evidence {'for' if supports else 'against'} the hypothesis "
+                     f"{hypothesis.claim!r}: {description}"),
+            memory_type=MemoryType.EPISODIC, importance_score=0.6,
+            tags=["hypothesis", "evidence"],
+            origin=Origin.of(hypothesis.owner, "hypothesis testing"))
+        if hypothesis.owner:
+            await memory_agent().hold_belief_for_person(
+                hypothesis.owner, hypothesis.claim, domain=hypothesis.domain,
+                supports=supports, quality=quality_score, source="hypothesis_test")
+        elif not (stored and memory_id):
+            # Memory's filter declined to keep it: there is nothing met for the
+            # belief to rest on, and that is said, not passed over.
+            logger.warning("evidence for hypothesis %s was not kept by memory, so it moves "
+                           "no belief: %s", hypothesis_id, description[:120])
+        else:
+            from core.learning.unified_learning_system import get_unified_learning_system
+            get_unified_learning_system().observe_claim(
+                hypothesis.claim, hypothesis.domain, supports=supports,
+                quality=quality_score, source="hypothesis_test",
+                observation=evidence_id, memory_id=memory_id)
 
-                # Find belief for this hypothesis
-                for belief_id, belief in uncertainty.beliefs.items():
-                    if belief.claim == hypothesis.claim:
-                        _auth.update_belief(
-                            belief_id=belief_id,
-                            evidence={
-                                'type': evidence_type.value,
-                                'description': description,
-                                'quality': quality_score,
-                                'strength': strength
-                            },
-                            evidence_supports=supports
-                        )
-                        break
-            except Exception as e:
-                logger.warning(f"Failed to update belief: {e}")
-        
         logger.info(f"Collected evidence: {description[:80]}...")
         logger.debug(f"  Type: {evidence_type.value}")
         logger.debug(f"  Supports: {supports}, Strength: {strength:.2f}")

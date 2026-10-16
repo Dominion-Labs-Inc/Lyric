@@ -10,7 +10,7 @@ nothing on its own.
 from __future__ import annotations
 import os
 for k, v in {"POSTGRES_PORT": "5433", "POSTGRES_USER": "stefan",
-             "POSTGRES_DATABASE": "lyric_db", "LYRIC_NO_WATCHDOG": "1"}.items():
+             "POSTGRES_DATABASE": "lyric_dev", "LYRIC_NO_WATCHDOG": "1"}.items():
     os.environ.setdefault(k, v)
 import asyncio, contextlib, io, sys
 from uuid import uuid4
@@ -53,8 +53,11 @@ async def main() -> int:
         for i, template in enumerate(SENTENCES):
             cat = f"sunspot{RUN}{i}"
             subject = f"seen_{RUN}_{i}"
-            await coord.learning.learn_facts(
-                [(subject, "isa", f) for f in feats], domain=DOMAIN)
+            from core.learning.unified_learning_system import Evidence
+            await coord.learning.consider_many(
+                [(subject, "isa", f) for f in feats], domain=DOMAIN,
+                evidence=Evidence(source="sense:sight", key=f"sight:{subject}", source_type="PERCEPTION",
+                                  quality=0.9, producer="perception"))
             sentence = template.format(cat=cat)
             try:
                 acquired = await coord.conversation("toldseen").teach(sentence)

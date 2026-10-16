@@ -1,0 +1,341 @@
+{
+  "experiment": "COUNTABILITY-01",
+  "claim": "Whether a noun sense is counted, decided by the hand-labelled senses of its kind, finds more of the uncounted senses a hand-made lexicon holds than the word's uses in real text, and the source's chain is right more often than calling every sense counted or than real text alone, on senses whose labels it was not given.",
+  "hypothesis": "The kind finding no more held-out uncounted senses than the Brown model, or the chain being right no more often than calling every sense counted, would each show here.",
+  "started_at": "2026-10-02T12:26:44.652565+00:00",
+  "duration_seconds": 14.987,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/Lyric/venv_lyric/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/Lyric",
+    "shadow_mode": null,
+    "git_commit": "be6a8e89e3af2df0cd2d19e99f0406644f357c6d",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "lyric_db",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "lyric_db",
+        "model": "lyric_db",
+        "user_context": "lyric_db",
+        "learning": "lyric_db"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "dotenv:.env.postgres",
+        "database": "dotenv:.env.postgres",
+        "user": "dotenv:.env.postgres",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "pool_idle_seconds": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 2,
+    "database_verified": null,
+    "database_verified_reason": "not verified"
+  },
+  "summary": {
+    "checks": 3,
+    "passed": 3,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [
+    {
+      "name": "labelled senses",
+      "value": 9537,
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "of them uncounted",
+      "value": 2212,
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "A every sense counted: decides",
+      "value": "9537/9537",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "A every sense counted: right where it decides",
+      "value": "7325/9537",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "A every sense counted: uncounted found",
+      "value": "0/2212",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "A every sense counted: said uncounted",
+      "value": 0,
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "A every sense counted: overall, the rest taken as counted",
+      "value": "7325/9537",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "B the Brown model alone: decides",
+      "value": "6750/9537",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "B the Brown model alone: right where it decides",
+      "value": "5910/6750",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "B the Brown model alone: uncounted found",
+      "value": "293/2212",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "B the Brown model alone: said uncounted",
+      "value": 353,
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "B the Brown model alone: overall, the rest taken as counted",
+      "value": "7558/9537",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "B the Brown model alone: said plural or one in both",
+      "value": 29,
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "C the kind alone: decides",
+      "value": "8721/9537",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "C the kind alone: right where it decides",
+      "value": "7718/8721",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "C the kind alone: uncounted found",
+      "value": "1236/2212",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "C the kind alone: said uncounted",
+      "value": 1726,
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "C the kind alone: overall, the rest taken as counted",
+      "value": "8071/9537",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "D the source's chain (use_of): decides",
+      "value": "9066/9537",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "D the source's chain (use_of): right where it decides",
+      "value": "7919/9066",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "D the source's chain (use_of): uncounted found",
+      "value": "1284/2212",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "D the source's chain (use_of): said uncounted",
+      "value": 1769,
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "D the source's chain (use_of): overall, the rest taken as counted",
+      "value": "8124/9537",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "D the source's chain (use_of): said plural or one in both",
+      "value": 29,
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "the chain's wrong, by file and label",
+      "value": {
+        "noun.act mass": 150,
+        "noun.act count": 139,
+        "noun.communication mass": 82,
+        "noun.artifact mass": 63,
+        "noun.state mass": 55,
+        "noun.attribute mass": 54,
+        "noun.attribute count": 54,
+        "noun.cognition count": 46,
+        "noun.cognition mass": 45,
+        "noun.state count": 44,
+        "noun.communication count": 30,
+        "noun.artifact count": 24
+      },
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "BECL both_mass_count, as the source states it",
+      "value": {
+        "count": 337,
+        "mass": 321,
+        "none": 39
+      },
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "BECL neither_mass_count, as the source states it",
+      "value": {
+        "none": 169,
+        "count": 103,
+        "mass": 39,
+        "plural": 4
+      },
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "probe fish fish.n.01",
+      "value": "count",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "probe fish fish.n.02",
+      "value": "count",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "probe rice rice.n.01",
+      "value": "count",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "probe coffee coffee.n.01",
+      "value": "count",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "probe baggage baggage.n.01",
+      "value": "mass",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "probe baggage impedimenta.n.02",
+      "value": "count",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "probe chairman chairman.n.01",
+      "value": "count",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "probe water water.n.01",
+      "value": "mass",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "probe furniture furniture.n.01",
+      "value": "mass",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "probe advice advice.n.01",
+      "value": "count",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "probe Fish pisces.n.01",
+      "value": null,
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "probe table table.n.02",
+      "value": "count",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "noun senses with a stated use",
+      "value": "63168/82115",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "seconds",
+      "value": 11,
+      "unit": "",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "the kind finds more held-out uncounted senses than the Brown model",
+      "passed": true,
+      "detail": "1236 against 293 of 2212",
+      "at": "2026-10-02T12:26:59.640459+00:00"
+    },
+    {
+      "label": "the chain is right more often than calling every sense counted",
+      "passed": true,
+      "detail": "8124 against 7325 of 9537",
+      "at": "2026-10-02T12:26:59.640478+00:00"
+    },
+    {
+      "label": "the chain is right more often than the Brown model alone",
+      "passed": true,
+      "detail": "8124 against 7558 of 9537",
+      "at": "2026-10-02T12:26:59.640482+00:00"
+    }
+  ],
+  "notes": []
+}

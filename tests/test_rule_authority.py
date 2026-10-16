@@ -54,7 +54,7 @@ from core.learning.rule_store import (
 # and they had been uncollectable ever since.
 
 from tests.test_substrate_execution import (
-    DOMAIN, HELD_OUT, LockedWorld, TEACHING, World, task_for,
+    DOMAIN, HELD_OUT, LockedWorld, TEACHING, World, purge_domain, task_for,
 )
 
 PROBE = "authority_probe"
@@ -71,13 +71,7 @@ async def _purge(store, engine=None):
         await engine.connection.execute_query(
             "DELETE FROM goals WHERE description LIKE $1",
             params=(f"{PROBE}%",), commit=True)
-    for table in ("unified.rule_authority_events", "unified.learned_rule_evidence"):
-        await store.db().execute_query(
-            f"DELETE FROM {table} WHERE rule_id IN"
-            " (SELECT rule_id FROM unified.learned_rules WHERE domain_id = $1)",
-            (DOMAIN,))
-    await store.db().execute_query(
-        "DELETE FROM unified.learned_rules WHERE domain_id = $1", (DOMAIN,))
+    await purge_domain(store)
 
 
 @pytest_asyncio.fixture
@@ -91,6 +85,7 @@ async def locked():
 
     store = RuleStore()
     await store.ensure_schema()
+    await purge_domain(store)
     stored = (await store.record_induction(
         get_rule_inducer().induce(TEACHING), TEACHING,
         domain_id=DOMAIN, rule_kind="move"))[0]
@@ -423,6 +418,7 @@ async def wrong_destination():
 
     store = RuleStore()
     await store.ensure_schema()
+    await purge_domain(store)
     stored = (await store.record_induction(
         get_rule_inducer().induce(TEACHING), TEACHING,
         domain_id=DOMAIN, rule_kind="move"))[0]
@@ -508,6 +504,7 @@ async def test_a_confirmed_rule_does_not_ask_for_replanning():
     get_binding_registry().register(DOMAIN, world.binding())
     store = RuleStore()
     await store.ensure_schema()
+    await purge_domain(store)
     stored = (await store.record_induction(
         get_rule_inducer().induce(TEACHING), TEACHING,
         domain_id=DOMAIN, rule_kind="move"))[0]

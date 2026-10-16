@@ -14,7 +14,7 @@ import uuid
 from dataclasses import asdict, is_dataclass
 from datetime import date, datetime, timezone
 from enum import Enum
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Callable, Any, Dict, Iterable, List, Optional, Sequence, Tuple
 from core.database.logging_database import LoggingDatabase
 
 logger = logging.getLogger(__name__)
@@ -37,8 +37,9 @@ from .meta_learning import TaskFamily, task_family_for_task_type
 # (propose -> evidence attests, model-free, one boundary on what may propose,
 # induction + rule store), with the meta-learning strategies as first-class
 # parts of it. These are the imports that implementation needs.
-from core.capability import raise_if_structural
+from core.structural_defects import raise_if_structural
 from core.learning.learning_interfaces import ILearningAuthority
+from core.utils.give_way import GiveWay
 from core.learning.rule_induction import (CandidateRule, InductionResult,
                                           InductionStatus, TrainingExample,
                                           get_rule_inducer)
@@ -81,7 +82,7 @@ _LEARNING_TYPE_TO_TASK_FAMILY = {
 from core.domain import (
     CrossDomainReasoner, DomainRegistry, UniversalOntology, UnknownDomain,
     UnresolvedDomainReference)
-from core.capability import raise_if_structural
+from core.structural_defects import raise_if_structural
 
 #: How deep learning has recurred WITHIN THE CURRENT TASK.
 #:
@@ -304,6 +305,25 @@ def _relevant_frame(basis: List["TrainingExample"]) -> List["TrainingExample"]:
     return [scoped(example) for example in basis]
 
 
+#: What shared learning is divided into, each with its own switch (`UnifiedLearningSystem.shared_learning`). How a
+#: piece of work was carried out -- its steps, what succeeded or failed, how each failure was overcome -- goes by where
+#: the work came from: a task asked for on its own, a project's work, a workflow's runs (`work_category`). What Lyric's
+#: single actions taught it -- how the tools it ran performed, what its research found -- is `actions`, wherever they
+#: were done.
+SHARED_LEARNING_CATEGORIES = ("tasks", "actions", "projects", "workflows")
+
+
+def work_category(metadata: Optional[Dict[str, Any]]) -> str:
+    """Which kind of work a task is, as the request that started it says: a workflow's run (`workflow`), a project's
+    work (`project`), or a task asked for on its own."""
+    meta = metadata or {}
+    if meta.get("workflow"):
+        return "workflows"
+    if meta.get("project"):
+        return "projects"
+    return "tasks"
+
+
 class ContributionKind(Enum):
     """What a contributor is offering. None of these are evidence."""
     HYPOTHESIS = "hypothesis"          # a candidate rule to consider
@@ -313,6 +333,67 @@ class ContributionKind(Enum):
 
 
 from dataclasses import dataclass as _dataclass, field as _field
+
+
+@_dataclass(frozen=True)
+class Evidence:
+    """What vouches for a claim about the world (docs/research/SEPARATION_MAP.md §11.4).
+
+    `source` is who or what said it ("person:ana", a page's address, "sense:sight", a run); `key` is what makes it
+    independent of other evidence -- the person, the site, the sensor, the lesson -- and the same key counts once
+    however often it says the claim; `source_type` is its kind, an `EvidenceSourceType` name; `quality` is how good
+    it is. Being a person neither proves nor disqualifies a claim."""
+    source: str
+    key: str
+    source_type: str
+    quality: float
+    producer: str = "learning"
+    #: What a derived claim was derived from: the observations a rule named an instance from. A derivative with no
+    #: lineage is refused by the ingress (`concept_ingestion._ROOT_SOURCES`).
+    derived_from: Tuple[str, ...] = ()
+
+    @classmethod
+    def from_provenance(cls, provenance: Any, quality: float) -> "Evidence":
+        """Evidence from where a claim came from (`cognitive_ingress.Provenance`): its source as the source and the
+        key -- one lesson, one sense of one place, one experiment run counts once -- its kind, and how good it is."""
+        return cls(source=f"{provenance.producer}:{provenance.source_id}", key=str(provenance.source_id),
+                   source_type=str(provenance.source_type), quality=float(quality),
+                   producer=str(provenance.producer), derived_from=tuple(provenance.derived_from or ()))
+
+
+@_dataclass(frozen=True)
+class Naming:
+    """What a learned classifier named an instance, and the evidence for it (`name_instance`): a claim for memory to
+    take in, not yet held anywhere."""
+    instance: str
+    category: str
+    evidence: Evidence
+
+    @property
+    def claim(self) -> str:
+        return f"{self.instance} isa {self.category}"
+
+
+@_dataclass
+class Decision:
+    """What the gate decided of one claim (`UnifiedLearningSystem.consider`).
+
+    `standing` is one of:
+      settled    held, and the belief in it is settled (the belief system's own bar);
+      candidate  held, and used, with its belief not yet settled;
+      theirs     about a person's own things, held in their context and not the world's (`MemoryAgent.hold_for_person`);
+      doubted    not held: what is held says otherwise, and this was counted against it;
+      refused    not held, and why is in `reasons`."""
+    claim: str
+    positive: bool
+    standing: str
+    reasons: List[str] = _field(default_factory=list)
+    admission: Any = None
+    posterior: Optional[float] = None
+
+    @property
+    def admitted(self) -> bool:
+        return self.standing in ("settled", "candidate", "theirs")
 
 
 @_dataclass(frozen=True)
@@ -385,6 +466,21 @@ class FeatureEncoder:
                              if str(f) not in self._index}))
 
 
+def _operator_residue(rule: Any, basis: Sequence[Any], owners: Dict[str, Optional[str]]) -> List[str]:
+    """The constants of an induced operator whose only source is people's work: where every demonstration it was
+    induced from was a person's (`owners`) and each of them holds the constant. One demonstration of the substrate's
+    own work makes every constant the world's, as the lift rules for methods (`memory.lift.residue`)."""
+    if not basis or any(not owners.get(getattr(e, "evidence_id", None) or "") for e in basis):
+        return []
+    effects = getattr(rule, "effects", None)
+    facts = [*getattr(rule, "body", ()), *getattr(effects, "add", ()), *getattr(effects, "delete", ())]
+    held = {arg for fact in facts for arg in fact.args if arg not in fact.variables}
+    supplied = [{arg for fact in (*e.before, *((e.action,) if e.action is not None else ()), *e.after)
+                 for arg in fact.args}
+                for e in basis]
+    return sorted(c for c in held if all(c in terms for terms in supplied))
+
+
 class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
     """Unified learning system that coordinates all learning components"""
     
@@ -399,7 +495,7 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
         #: Parametric perceptual learners (Convolutional Tsetlin Machines) OWNED
         #: by the authority: {name: {"model": CTM, "labels": [class->category],
         #: "encode": callable|None}}. The model is a MECHANISM; its recognitions
-        #: are knowledge only once they pass the gate via `recognize` -> learn_fact.
+        #: are knowledge only once they pass the gate via `recognize` -> `consider`.
         self._clause_classifiers: Dict[str, Dict[str, Any]] = {}
         self.config = config or {}
         self.domain_master = domain_master
@@ -635,15 +731,10 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
         learning_id = str(uuid.uuid4())
 
         try:
-            # KNOWLEDGE FIRST, through the one gate. This lane credits a strategy,
-            # but if the example STATES a fact, that fact is knowledge and must be
-            # admitted / believed / filed like any taught fact -- not left only in
-            # a strategy posterior or a memory row. Fires before the strategy
-            # machinery so a declarative claim lands even when no strategy pool
-            # maps to this learning type. A payload that states no claim routes
-            # nothing (the credit invariant).
-            await self._route_declarative_takeaway(
-                example, domain=str(example.get('domain') or 'conversation'))
+            # THIS LANE CREDITS STRATEGIES. What an example says about the world
+            # reaches the world only through the one door, from whoever says it,
+            # judged by whether it is true (`consider`); never as a side effect of
+            # crediting a strategy (docs/research/SEPARATION_MAP.md §11.6).
 
             # Extract learning type.
             #
@@ -1179,29 +1270,12 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
                 raise_if_structural(error, "unified_learning_system.learn_from_feedback")
                 logger.warning("feedback strategy credit failed: %s", error)
 
-        # 3. FACT feedback moves the BELIEF, through the gate. A verdict on a
-        #    claim the substrate made is evidence about that claim: a confirmation
-        #    reinforces its posterior, a correction LOWERS it (the belief layer's
-        #    own override/reversal path). A structured claim is admitted via
-        #    learn_fact (positive=verdict); a bare claim string moves its existing
-        #    posterior via observe_claim. Strategy credit (above) stays separate --
-        #    a fact verdict is not evidence about a strategy (the credit invariant).
+        # 3. WHAT THE VERDICT SAYS OF THE WORLD is a claim like any other: the
+        #    conversation that heard it hands it to the one door as that person's
+        #    evidence on the claim judged (`Conversation._take_feedback`,
+        #    `consider`). Moving a belief here, on whatever text came with the
+        #    verdict, moved one on the verdict sentence itself ("That's right.").
         belief_moved = False
-        claim_domain = str(feedback.get("domain") or "conversation")
-        if feedback.get("subject") and feedback.get("relation"):
-            admission = await self._route_declarative_takeaway(
-                {**feedback, "positive": verdict}, domain=claim_domain)
-            belief_moved = bool(getattr(admission, "admitted", False))
-        else:
-            claim = feedback.get("claim") or feedback.get("content") or feedback.get("about")
-            if isinstance(claim, str) and claim.strip():
-                try:
-                    self.observe_claim(claim, domain=claim_domain, supports=verdict,
-                                       source="feedback")
-                    belief_moved = True
-                except Exception as error:
-                    raise_if_structural(error, "unified_learning_system.learn_from_feedback")
-                    logger.warning("feedback belief move failed: %s", error)
 
         return {
             "event_type": "feedback",
@@ -1268,26 +1342,176 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
             # None, not 0: an unreadable store is not an empty one.
             logger.error("Recorded experience count unavailable: %s", error)
             recorded = None
+        try:
+            tool_usage = await self.tool_usage()
+        except Exception as error:
+            raise_if_structural(error, "unified_learning_system.get_learning_metrics")
+            logger.error("Tool runs could not be read from experience: %s", error)
+            tool_usage = {"available": False,
+                          "reason": f"tool runs could not be read from experience: {error}"}
         return {
             "this_process": dict(self.system_metrics),
             "recorded_experiences": recorded,
             "knowledge_base": await self.knowledge_base_size(),
-            # TOOL METRICS the engine emits per run — success rate and latency,
-            # per tool — from the one collector (AdaptiveToolLearning /
-            # tool_usage_history). Surfaced here so "what has it learned" includes
-            # how its tools actually perform, not just what it holds.
-            "tool_usage": await self._tool_usage_metrics(),
+            "tool_usage": tool_usage,
         }
 
-    async def _tool_usage_metrics(self) -> Optional[Dict[str, Any]]:
-        """The tool-metrics summary from the owner, or None if unavailable.
-        Read through the owner (the single collector), never a second query."""
-        try:
-            from core.learning.adaptive_tool_owner import get_adaptive_tool_learning
-            return await get_adaptive_tool_learning().metrics_summary()
-        except Exception as error:
-            logger.debug("tool-usage metrics unavailable: %s", error)
-            return None
+    # ── WHAT GOES INTO SHARED LEARNING ───────────────────────────────────────
+    #
+    # Whether what Lyric learns from an owner's work may go into what it learns for everyone, one switch for each
+    # kind of work (`SHARED_LEARNING_CATEGORIES`), set in Context and privacy: a person's for their own work and an
+    # organization's for its Work Context (the world decides who may set which, and hands it over). What goes in is
+    # how Lyric carried the work out -- the steps and tools, what succeeded or failed, how it overcame each failure --
+    # never anyone's context. Off stops what goes in from then on; nothing already learned is taken back, and Lyric
+    # goes on learning from the work for its owner alone. Until a switch is set it is on, as it always was. Every flip
+    # is kept, with who flipped it. A setting, not memory: kept in the running store beside the operating modes and
+    # the reward allowances.
+
+    _SHARED_LEARNING_DDL = [
+        """CREATE TABLE IF NOT EXISTS unified.shared_learning (
+               owner     TEXT NOT NULL,
+               category  TEXT NOT NULL,
+               shares    BOOLEAN NOT NULL,
+               set_by    TEXT NOT NULL,
+               set_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+               PRIMARY KEY (owner, category))""",
+        """CREATE TABLE IF NOT EXISTS unified.shared_learning_history (
+               seq       BIGSERIAL PRIMARY KEY,
+               owner     TEXT NOT NULL,
+               category  TEXT NOT NULL,
+               shares    BOOLEAN NOT NULL,
+               set_by    TEXT NOT NULL,
+               set_at    TIMESTAMPTZ NOT NULL DEFAULT now())""",
+    ]
+
+    async def shared_learning(self, owner: str) -> Dict[str, Any]:
+        """Where each of `owner`'s switches is: whether that kind of their work goes into shared learning, and who
+        set it when (None until someone has)."""
+        from core.database import get_database_manager
+        db = get_database_manager()
+        await db.ensure_schema("shared_learning", self._SHARED_LEARNING_DDL, store="runtime")
+        rows = await db.execute_query(
+            "SELECT category, shares, set_by, set_at FROM unified.shared_learning WHERE owner = $1",
+            (str(owner),), fetch_all=True, store="runtime") or []
+        held = {row["category"]: row for row in rows}
+        categories = {}
+        for category in SHARED_LEARNING_CATEGORIES:
+            row = held.get(category)
+            categories[category] = ({"shares": True, "set_by": None, "set_at": None} if row is None else
+                                    {"shares": bool(row["shares"]), "set_by": row["set_by"],
+                                     "set_at": row["set_at"].isoformat()})
+        return {"owner": str(owner), "categories": categories}
+
+    async def set_shared_learning(self, owner: str, shares: bool, *, by: str,
+                                  category: Optional[str] = None) -> Dict[str, Any]:
+        """Set one of `owner`'s switches, or every one of them when no `category` is named (the switch over them
+        all), flipped by the person `by`, and keep each flip. Refused for Lyric's own work, which is shared learning,
+        for anything but on or off, and for a kind of work there is no switch for. Returns where they are now."""
+        from core.agents.autonomous.shared_types import is_substrate_actor
+        from core.database import get_database_manager
+        if is_substrate_actor(owner):
+            raise ValueError("shared learning is a person's or an organization's to set; Lyric's own work is shared")
+        if is_substrate_actor(by):
+            raise ValueError("a shared learning switch is flipped by a person")
+        if not isinstance(shares, bool):
+            raise ValueError("shared learning is on or off")
+        if category is not None and category not in SHARED_LEARNING_CATEGORIES:
+            raise ValueError(f"there is no shared learning switch for {category!r}; there is one for each of "
+                             f"{', '.join(SHARED_LEARNING_CATEGORIES)}")
+        db = get_database_manager()
+        await db.ensure_schema("shared_learning", self._SHARED_LEARNING_DDL, store="runtime")
+        async with db.get_connection(store="runtime") as conn:
+            async with conn.transaction():
+                for each in ((category,) if category else SHARED_LEARNING_CATEGORIES):
+                    await conn.execute(
+                        "INSERT INTO unified.shared_learning (owner, category, shares, set_by) "
+                        "VALUES ($1, $2, $3, $4) ON CONFLICT (owner, category) DO UPDATE SET "
+                        "shares = EXCLUDED.shares, set_by = EXCLUDED.set_by, set_at = now()",
+                        str(owner), each, shares, str(by))
+                    await conn.execute(
+                        "INSERT INTO unified.shared_learning_history (owner, category, shares, set_by) "
+                        "VALUES ($1, $2, $3, $4)", str(owner), each, shares, str(by))
+        return await self.shared_learning(owner)
+
+    async def shares_learning(self, owner: Optional[str], category: str) -> bool:
+        """Whether what Lyric learns from this kind of `owner`'s work may go into shared learning. Lyric's own work
+        always does."""
+        from core.agents.autonomous.shared_types import is_substrate_actor
+        if category not in SHARED_LEARNING_CATEGORIES:
+            raise ValueError(f"there is no shared learning switch for {category!r}")
+        if is_substrate_actor(owner):
+            return True
+        return (await self.shared_learning(owner))["categories"][category]["shares"]
+
+    @staticmethod
+    def method_claim(method_memory_id: str) -> str:
+        """The claim that a lifted method works, named by the memory that keeps
+        it (MemoryAgent's method memory)."""
+        return f"the substrate's method {method_memory_id} works"
+
+    async def observe_method_outcome(self, method_memory_id: str, *, worked: bool,
+                                     observation: str, owner: Optional[str], category: str) -> float:
+        """One outcome of a lifted method that is world knowledge, as one witness of whether it works.
+
+        The memory agent lifts a method from experiences and hands each counted outcome here (only outcomes the
+        credit gate counts: a failure the world or the infrastructure caused moves nothing); a person's own belief
+        in it, how it goes in their work, memory holds in their context. The shared belief rests on the method's
+        memory, and `observation` (the occurrence it came from) keeps one outcome from counting twice.
+
+        `owner` is whose work the outcome came from (None for Lyric's own), and `category` what kind of work it was
+        (`work_category`). The shared belief is everyone's, so an outcome of work whose owner has turned shared
+        learning off for its kind is refused (ValueError): it moves their own belief only, which the memory agent
+        holds in their context.
+
+        Each outcome is one weak witness, with the weight one cycle of domain competence carries
+        (`COMPETENCE_EVIDENCE_QUALITY`): a method is believed to work only after several outcomes agree, and a
+        later failure moves it back. Returns the posterior it moved to."""
+        from core.integration.universal_domain_master import UniversalDomainMaster
+        from core.reasoning.bayesian_uncertainty import get_uncertainty_system
+        if not await self.shares_learning(owner, category):
+            raise ValueError(f"the {category} of {owner} do not go into shared learning")
+        unc = get_uncertainty_system()
+        belief = unc.observe_claim(self.method_claim(method_memory_id), "methods", supports=worked,
+                                   quality=UniversalDomainMaster.COMPETENCE_EVIDENCE_QUALITY, source="experience",
+                                   observation=observation, memory_id=method_memory_id)
+        await unc.flush_belief(belief.belief_id)
+        return float(belief.posterior_probability)
+
+    async def tool_usage(self) -> Dict[str, Any]:
+        """How the substrate's tools have performed, from what its experiences
+        hold (the tool-run parts of its task and pursuit memories, read by the
+        memory agent): per tool, the success rate over the runs with a verdict
+        and the mean time over the runs that were timed; overall, the success
+        rate and the number of runs.
+
+        A rate or a time with nothing under it is None, never a number standing
+        in for one, and `available` is False with the reason when no tool run is
+        held at all."""
+        from core.agents.memory_agent import memory_agent
+        held = await memory_agent().tool_runs()
+        if not held:
+            return {"available": False, "reason": "no tool run is held in experience"}
+        by_tool = []
+        succeeded = failed = runs = 0
+        for name in sorted(held):
+            tally = held[name]
+            judged = tally["succeeded"] + tally["failed"]
+            by_tool.append({
+                "tool": name,
+                "runs": tally["runs"],
+                "succeeded": tally["succeeded"],
+                "failed": tally["failed"],
+                "success_rate": (tally["succeeded"] / judged) if judged else None,
+                "timed": tally["timed"],
+                "avg_latency_ms": (1000.0 * tally["seconds"] / tally["timed"]
+                                   if tally["timed"] else None),
+            })
+            succeeded += tally["succeeded"]
+            failed += tally["failed"]
+            runs += tally["runs"]
+        judged = succeeded + failed
+        return {"available": True, "by_tool": by_tool, "runs": runs,
+                "success_rate": (succeeded / judged) if judged else None}
 
     async def get_learning_state(self) -> Dict[str, Any]:
         """Get current learning system state for self-improvement analysis"""
@@ -2545,7 +2769,7 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
         input into the model's boolean feature array (None if the caller passes
         already-encoded features). The model is a MECHANISM and learns nothing by
         being registered — it is a recognizer whose findings become knowledge only
-        through `recognize`, which routes them through the gate. No classifier
+        through `name_instance`, whose naming memory takes in. No classifier
         reaches the ingress / beliefs / domain itself.
 
         `vocabulary` is the feature order the boolean array is in. Held because a
@@ -2692,26 +2916,20 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
             restored += 1
         return restored
 
-    async def recognize(self, name: str, instance: Any, instance_id: str, *,
-                        domain: str = "perception", threshold: float = 0.0,
-                        actor: Optional[str] = None,
-                        lineage: Optional[Sequence[str]] = None) -> Any:
-        """Recognize `instance` with the named clause classifier and TEACH the
-        finding through the one gate. The model predicts a class and a margin-based
-        confidence in (0,1); the recognition `instance_id isa <category>` is admitted
-        via `learn_fact` with PERCEPTION provenance and the confidence as evidence
-        QUALITY — so the ingress decides admit/refuse/already-present, the belief
-        layer moves the single posterior, and the domain crystallizes. The
-        classifier never decides what sticks. Returns the `Admission`, or None when
-        no such classifier is registered or the confidence is below `threshold`.
+    async def name_instance(self, name: str, instance: Any, instance_id: str, *,
+                            threshold: float = 0.0,
+                            lineage: Optional[Sequence[str]] = None) -> Optional["Naming"]:
+        """What the named clause classifier calls `instance`, and the evidence for it: a reading of what was
+        learned, writing nothing. The model predicts a class and a margin-based confidence in (0,1), carried as the
+        evidence's quality, so the classifier never decides what sticks: memory takes the naming in
+        (`MemoryAgent.take_in_recognised`). Returns None when no such classifier is registered, the confidence is
+        below `threshold`, or the machine declined.
 
-        `actor` is whose the instance is: a recognition in a person's image is held
-        in their context, like everything else of theirs (`learn_fact`). `lineage`
-        is the observation the instance's features rest on, when the caller holds
-        it: a person's seeing is not in the shared graph to be read back."""
+        `lineage` is the observation the instance's features rest on, when the caller holds it: a person's seeing is
+        not in the shared graph to be read back."""
         entry = self._clause_classifiers.get(name)
         if entry is None:
-            logger.warning("recognize: no clause classifier %r registered", name)
+            logger.warning("name_instance: no clause classifier %r registered", name)
             return None
         import numpy as np
         import torch
@@ -2734,7 +2952,7 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
         # rejection class is how "none of these" gets to win; naming an instance
         # after it would turn an abstention into a claim.
         if entry.get("reject_label") and str(labels[cls]) == entry["reject_label"]:
-            logger.info("recognize: %r declined to name %s — the rejection class "
+            logger.info("name_instance: %r declined to name %s — the rejection class "
                         "won at %.3f", name, instance_id, confidence)
             return None
         from core.semantics.cognitive_ingress import Provenance
@@ -2764,26 +2982,24 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
                 feats = list(instance) if isinstance(instance, (list, tuple)) else []
             if not lineage:
                 logger.warning(
-                    "recognize: %r would name %s a %s, but %s carries no observed "
+                    "name_instance: %r would name %s a %s, but %s carries no observed "
                     "evidence — a conclusion with no lineage is not admitted",
                     name, instance_id, labels[cls], instance_id)
                 return None
             blind = encode.unknown(feats) if isinstance(encode, FeatureEncoder) else ()
             if blind:
                 logger.info(
-                    "recognize: %r read %s with %d feature(s) it never trained on "
+                    "name_instance: %r read %s with %d feature(s) it never trained on "
                     "(%s) — the vote is over what it CAN see",
                     name, instance_id, len(blind), ", ".join(blind))
-            prov = Provenance(producer=f"clause_classifier:{name}",
-                              source_id=str(instance_id),
-                              source_type="INDUCED_RULE",
-                              derived_from=tuple(lineage))
+            evidence = Evidence(source=f"classifier:{name}", key=f"classifier:{name}",
+                                source_type="INDUCED_RULE", quality=confidence,
+                                producer=f"clause_classifier:{name}", derived_from=tuple(lineage))
         else:
-            prov = Provenance(producer=f"clause_classifier:{name}",
-                              source_id=str(instance_id), source_type="PERCEPTION")
-        return await self.learn_fact(
-            str(instance_id), "isa", str(labels[cls]), domain=domain,
-            provenance=prov, quality=confidence, actor=actor)
+            evidence = Evidence(source=f"classifier:{name}", key=f"classifier:{name}",
+                                source_type="PERCEPTION", quality=confidence,
+                                producer=f"clause_classifier:{name}")
+        return Naming(str(instance_id), str(labels[cls]), evidence)
 
     def induce(self, examples, target_predicate: Optional[str] = None):
         """Learn a rule from demonstrations. The world is the only teacher here."""
@@ -2888,25 +3104,29 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
         if result.candidates:
             await self.record(result, examples, domain_id=domain,
                               rule_kind="classification")
-            # The induction's CONCLUSION lands through the one gate, not only in
-            # the rule store: each positive IS the category, so admit `subject isa
-            # category` via learn_fact -- the ingress resolves identity, the belief
-            # layer moves a posterior, the domain crystallizes. Without this the
-            # named category exists only as a CANDIDATE rule the belief/domain
-            # stores never see. Confidence rides as evidence quality.
-            from core.semantics.cognitive_ingress import Provenance
+            # The induction's CONCLUSION goes through the one gate, not only into
+            # the rule store: each positive IS the category, so `subject isa
+            # category` is considered (`consider`) -- the ingress resolves identity,
+            # the belief layer moves a posterior, the domain crystallizes. Without
+            # this the named category exists only as a CANDIDATE rule the
+            # belief/domain stores never see.
             # The positives were SUPPLIED as labeled members of the category, so
-            # the per-instance naming is supplied ground truth (admissible), not a
-            # self-derived root that would corroborate itself.
-            prov = Provenance(producer="learning", source_id=f"induction:{head}",
-                              source_type="USER_SUPPLIED")
+            # the per-instance naming is supplied ground truth, not a self-derived
+            # root that would corroborate itself; the induction is one source.
+            evidence = Evidence(source=f"induction:{head}", key=f"induction:{head}",
+                                source_type="USER_SUPPLIED", quality=0.9)
             for subject in positives:
                 try:
-                    await self.learn_fact(str(subject), "isa", str(category),
-                                          domain=domain, provenance=prov)
+                    decision = await self.consider(str(subject), "isa", str(category),
+                                                   domain=domain, evidence=evidence)
                 except Exception as error:
-                    logger.debug("induce_category naming fan-out skipped for %r: %s",
-                                 subject, error)
+                    raise_if_structural(error, "unified_learning_system.induce_category")
+                    logger.warning("induce_category could not name %r a %s: %s",
+                                   subject, category, error)
+                    continue
+                if not decision.admitted:
+                    logger.info("induce_category: %r isa %s not held: %s", subject, category,
+                                "; ".join(decision.reasons) or decision.standing)
         return result
 
     # ── The one door for TOLD knowledge ──────────────────────────────────────
@@ -2936,63 +3156,185 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
         logger.info("learning refused: %s", reason)
         return reason
 
-    async def learn_fact(self, subject: str, relation: str, obj: Optional[str],
-                         *, positive: bool = True, surface: Optional[str] = None,
-                         provenance: Any = None, domain: str,
-                         description: str = "", word_class_of: Any = None,
-                         emit: Any = None, quality: float = 0.9,
-                         actor: Optional[str] = None) -> Any:
-        """Learn a TOLD declarative fact ("a robin is a bird"), fanning out to
-        every system that depends on learning. Returns the ingress `Admission`,
-        so a caller keeps the same contract it had when it called the ingress.
+    #: How many new claims about the world one person's word may put in an hour. A flood of tellings from one
+    #: source is how a poisoner works (Carlini et al., IEEE S&P 2024); what one person tells beyond this waits.
+    PERSON_CLAIMS_PER_HOUR = 120
 
-        `actor` decides the general-vs-context partition — the ROUTER. None / the
-        substrate id (the default, so all internal and substrate-originated
-        learning is universal) = the one shared mind: the fact enters the concept
-        graph the reasoner walks for everyone and moves a universal belief. A real
-        user's id = that user's scoped context: the fact NEVER touches the shared
-        graph or beliefs (it is diverted to the scoped context layer), unless and
-        until it is independently corroborated and promoted."""
-        from core.agents.autonomous.shared_types import is_substrate_actor
-        if not is_substrate_actor(actor):
-            return await self._learn_scoped_fact(
-                actor, subject, relation, obj, positive=positive, surface=surface,
-                domain=domain, quality=quality, description=description,
-                word_class_of=word_class_of, emit=emit, provenance=provenance)
-        from core.semantics.cognitive_ingress import (Admission, get_cognitive_ingress,
-                                                      Provenance)
-        surface = surface or " ".join(
-            str(p) for p in (subject, relation, obj) if p)
-        frozen = self._refused_while_frozen(f"learn_fact {subject} {relation} {obj}")
+    async def consider(self, subject: str, relation: str, obj: Optional[str], *, evidence: Evidence,
+                       domain: str, positive: bool = True, surface: Optional[str] = None,
+                       description: str = "", word_class_of: Any = None, emit: Any = None) -> Decision:
+        """THE ONE DOOR INTO WORLD KNOWLEDGE (docs/research/SEPARATION_MAP.md §11.4). Whatever says a claim about
+        the world -- a person, a page, Lyric's senses, the outcome of its work, a lesson -- it is judged by whether
+        it is true, and nothing else writes the world.
+
+          1. Its shape and its evidence's quality: what the store cannot hold, or what is too weakly supported, is
+             refused.
+          2. A person's word beyond `PERSON_CLAIMS_PER_HOUR` in the hour waits.
+          3. What is held against it (`_held_against`): the same claim held the other way, or, for a kind, a
+             denial it inherits. It is counted either way, and held only once its independent witnesses outweigh
+             the ones holding the other side (`witness_weight`): until then it is refused where that side is
+             settled and doubted where it is not. Many sources take many to overturn; a flood of one source's
+             word is one witness.
+          4. Held: written to the world through the one admission (`_admit_to_world`), the belief moved by this
+             evidence once (`evidence.key`), and its standing read from the belief."""
+        from core.semantics.cognitive_ingress import MIN_ADMIT_QUALITY, shape_proposition
+        from core.reasoning.bayesian_uncertainty import get_uncertainty_system
+        claim = " ".join(str(p) for p in (subject, relation, obj) if p)
+        surface = surface or claim
+        frozen = self._refused_while_frozen(f"consider {claim}")
         if frozen:
-            refused = Admission(proposition=f"{subject}|{relation}|{obj}", surface=surface)
-            refused.refusals.append(frozen)
-            return refused
-        prov = provenance or Provenance(producer="learning", source_id="you",
-                                        source_type="USER_SUPPLIED")
-        # REASONING (+ MEMORY): the concept graph is the knowledge store the
-        # reasoner walks; the ingress also stores the recallable claim.
+            return Decision(claim, positive, "refused", [frozen])
+        subject_term, relation_term, obj_term, refusal = shape_proposition(subject, relation, obj)
+        if refusal:
+            return Decision(claim, positive, "refused", [refusal])
+        # ONE CLAIM, ONE BELIEF, HOWEVER IT WAS SPELLED: named in the store's own terms, so "Flippers" and
+        # "flipper", "fire truck" and "fire_truck", told by two sources, are two witnesses of one claim.
+        claim = " ".join(str(p) for p in (subject_term, relation_term, obj_term) if p)
+        if evidence.quality < MIN_ADMIT_QUALITY:
+            return Decision(claim, positive, "refused", [
+                f"insufficient support: quality {evidence.quality:.3f} < floor {MIN_ADMIT_QUALITY}"])
+        if evidence.source_type == "USER_SUPPLIED" and await self._claims_this_hour(evidence.key) \
+                >= self.PERSON_CLAIMS_PER_HOUR:
+            return Decision(claim, positive, "refused", [
+                f"{self.PERSON_CLAIMS_PER_HOUR} new claims from one person in the hour; this one waits"])
+        against = await self._held_against(subject_term, relation_term, obj_term, positive) if obj_term else None
+        beliefs = get_uncertainty_system()
+        if against:
+            said, held_claim, held_holds = against
+            held = beliefs.belief_for_claim(held_claim)
+            was_settled = held is not None and self._settled_on(held, positive=held_holds)
+            self.observe_claim(claim, domain, supports=positive, quality=evidence.quality,
+                               source=evidence.source, observation=evidence.key)
+            if not self._outweighs(claim, positive, held_claim, held_holds):
+                side = self._side(beliefs.belief_for_claim(claim), positive=positive)
+                if was_settled:
+                    return Decision(claim, positive, "refused", [f"contradicts what is settled: {said}"],
+                                    posterior=side)
+                return Decision(claim, positive, "doubted", [f"held otherwise ({said}); counted against it"],
+                                posterior=side)
+        admission = await self._admit_to_world(
+            subject, relation, obj, positive=positive, surface=surface, domain=domain, description=description,
+            word_class_of=word_class_of, emit=emit, quality=evidence.quality,
+            provenance=self._provenance(evidence), terms=(subject_term, relation_term, obj_term))
+        if not admission.admitted and not getattr(admission, "already_present", False):
+            return Decision(claim, positive, "refused", list(admission.refusals) or ["the store did not take it"],
+                            admission=admission)
+        belief = beliefs.belief_for_claim(claim)
+        return Decision(claim, positive, "settled" if self._settled_on(belief, positive=positive) else "candidate",
+                        admission=admission, posterior=self._side(belief, positive=positive))
+
+    @staticmethod
+    def _provenance(evidence: Evidence) -> Any:
+        from core.semantics.cognitive_ingress import Provenance
+        return Provenance(producer=evidence.producer, source_id=evidence.key, source_type=evidence.source_type,
+                          derived_from=tuple(evidence.derived_from))
+
+    @staticmethod
+    def _side(belief: Any, *, positive: bool) -> Optional[float]:
+        """How likely the claim is on the side asked: the belief's posterior, or one minus it for a denial."""
+        if belief is None:
+            return None
+        posterior = float(getattr(belief, "posterior_probability", 0.5))
+        return posterior if positive else 1.0 - posterior
+
+    #: SETTLED NEEDS CORROBORATION. One witness at a telling's quality already carries a new belief past the belief
+    #: system's own bar, so a claim is settled only when that bar is passed on its side AND this many independent
+    #: witnesses' latest word is on it: one source, however sure, makes a candidate
+    #: (docs/research/SEPARATION_MAP.md §11.4, §11.9 1).
+    SETTLED_WITNESSES = 2
+
+    def _settled_on(self, belief: Any, *, positive: bool) -> bool:
+        """Whether a belief is settled on the side asked: past the belief system's own bar for settled
+        (`capabilities.settled_in_favour`), with `SETTLED_WITNESSES` independent witnesses on that side."""
+        from core.capabilities import settled_in_favour
+        from core.reasoning.bayesian_uncertainty import BayesianUncertaintySystem
+        if belief is None or not settled_in_favour(self._side(belief, positive=positive)):
+            return False
+        return BayesianUncertaintySystem.witnesses(belief, supports=positive) >= self.SETTLED_WITNESSES
+
+    @staticmethod
+    def _outweighs(claim: str, positive: bool, held_claim: str, held_holds: bool) -> bool:
+        """Whether a claim's independent witnesses now outweigh the ones holding what is held against it
+        (`BayesianUncertaintySystem.witness_weight`): each witness once, by its latest word, its quality its
+        weight. Every source weighs the same until the sources' own records are kept (§11.9, 3)."""
+        from core.reasoning.bayesian_uncertainty import BayesianUncertaintySystem, get_uncertainty_system
+        beliefs = get_uncertainty_system()
+        mine, held = beliefs.belief_for_claim(claim), beliefs.belief_for_claim(held_claim)
+        weight = 0.0 if mine is None else BayesianUncertaintySystem.witness_weight(mine, supports=positive)
+        against = 0.0 if held is None else BayesianUncertaintySystem.witness_weight(held, supports=held_holds)
+        return weight > against
+
+    async def _held_against(self, subject: str, relation: str, obj: str,
+                            positive: bool) -> Optional[Tuple[str, str, bool]]:
+        """What the world holds against a claim: `(said, the claim it is held in, whether that claim holding is
+        what is against it)`, or None when nothing is. The same claim held the other way; and, for a kind or a
+        thing's kind asserted, a denial the graph's reasoner finds it inheriting ("no mammal is a bird", against "a
+        dog is a bird"), held in the denial's own claim. Kinds nothing held is both of are no denial
+        (`disjoint`): being told something is both is how memory learns it is."""
+        from core.database import get_database_manager
+        db = get_database_manager()
+        claim = f"{subject} {relation} {obj}"
+        rows = await db.execute_query(
+            "SELECT r.polarity FROM unified.concept_relations r "
+            "JOIN unified.concepts c ON c.concept_id = r.source_concept_id "
+            "WHERE c.name = $1 AND r.relation = $2 AND r.target_surface = $3 "
+            "AND COALESCE(r.polarity, 'positive') = $4 LIMIT 1",
+            (subject, relation, obj, "negative" if positive else "positive"), fetch_all=True) or []
+        if rows:
+            return f"{subject} {'not ' if positive else ''}{relation} {obj} is held", claim, not positive
+        if positive and relation in ("isa", "instance of"):
+            from core.reasoning.concept_graph_reasoning import answer_over_graph, load_denials, load_subgraph
+            from core.reasoning.relation_algebra import FALSE, INSTANCE_OF, ISA
+            from core.semantics.relation_types import SemanticRelation
+            kind = SemanticRelation.ISA if relation == "isa" else SemanticRelation.INSTANCE_OF
+            answer = await answer_over_graph(db, subject, kind, obj)
+            if getattr(answer, "verdict", None) == FALSE and getattr(answer, "basis", "") != "disjoint":
+                # WHICH HELD DENIAL: the one on the subject or a kind it is, by the reasoner's own rule (`answer`).
+                edges = await load_subgraph(db, [subject])
+                kinds = {subject} | {e.obj for e in edges if e.relation in (ISA, INSTANCE_OF)}
+                denier = next((n.subject for n in await load_denials(db, sorted(kinds))
+                               if n.relation is kind and n.obj == obj and n.subject in kinds), subject)
+                return (f"the world holds {subject} is no {obj} ({getattr(answer, 'basis', '')})",
+                        f"{denier} {relation} {obj}", False)
+        return None
+
+    async def _claims_this_hour(self, key: str) -> int:
+        """The claims one source's word put in the world in the last hour, as the knowledge ledger recorded them
+        (`_record_knowledge_update`: its actor is the evidence's key). A claim is put in whether its terms were new
+        (`new`) or already held (`updated`): a flood in words the world knows is a flood. What the source had
+        already said (`unchanged`) and what was refused put nothing in."""
+        from core.database import get_database_manager
+        from datetime import timedelta
+        from core.memory import knowledge_ledger
+        return await knowledge_ledger.claims_put_in(get_database_manager(), str(key), within=timedelta(hours=1))
+
+    async def _admit_to_world(self, subject: str, relation: str, obj: Optional[str], *, positive: bool,
+                              surface: str, provenance: Any, domain: str, terms: Tuple[Any, Any, Any],
+                              description: str = "", word_class_of: Any = None, emit: Any = None,
+                              quality: float = 0.9) -> Any:
+        """The one admission into the world, for `consider` alone: the concept graph the reasoner walks, through
+        the ingress, then the fan-out of the learning to beliefs, the lexicon, the domain, memory and metrics.
+        `terms` are the claim in the store's own terms, which its belief is named by.
+        Returns the ingress `Admission`."""
+        from core.semantics.cognitive_ingress import get_cognitive_ingress
         admission = await get_cognitive_ingress().admit_relation(
             subject=subject, relation=relation, obj=obj, surface=surface,
-            provenance=prov, positive=positive, description=description,
+            provenance=provenance, positive=positive, description=description,
             domain=domain, word_class_of=word_class_of, quality=quality)
         if admission.admitted:
             await self._fan_out_learning(
-                surface=surface, claim=" ".join(
-                    str(p) for p in (subject, relation, obj) if p),
+                surface=surface, claim=" ".join(str(p) for p in terms if p),
                 # The memory the ingress just wrote for this fact — the thing
                 # the belief will be ABOUT.
-                clauses=[(subject, relation, obj,
-                          getattr(admission, "memory_id", None))],
+                clauses=[(*terms, getattr(admission, "memory_id", None))],
                 positive=positive, domain=domain, quality=quality,
-                # The same identity the ingress already dedups on
-                # (subject|relation|object|source_id) -- in memory, where it did
-                # not survive a restart. Carrying it here makes that rule durable.
-                observation=getattr(prov, "source_id", None),
+                # The evidence's independence key: the same source saying the same
+                # thing again is one witness, however often and wherever it says it.
+                observation=getattr(provenance, "source_id", None),
                 emit=emit, emit_payload={"subject": subject, "relation": relation,
                                          "obj": obj, "domain": domain})
         await self._record_knowledge_update(admission, domain=domain,
-                                            provenance=prov)
+                                            provenance=provenance)
         return admission
 
     @staticmethod
@@ -3056,7 +3398,7 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
                 cause=f"learning.{getattr(provenance, 'producer', 'unknown')}",
                 actor=getattr(provenance, "source_id", None)))
         except Exception as error:
-            from core.capability import raise_if_structural
+            from core.structural_defects import raise_if_structural
             raise_if_structural(
                 error, "unified_learning_system._record_knowledge_update")
             logger.debug("knowledge update not recorded: %s", error)
@@ -3076,7 +3418,8 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
                     "PUNCTUATION")
 
     async def learn_word_classes(self, classes, *, provenance: Any = None,
-                                 quality: float = 0.9) -> Dict[str, int]:
+                                 quality: float = 0.9,
+                                 progress: Optional[Callable[[int, int], Any]] = None) -> Dict[str, int]:
         """Teach what CLASS a word has, into memory, as knowledge.
 
         `classes` is an iterable of `(word, CLASS)`.
@@ -3091,6 +3434,10 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
         A word class stated here is EVIDENCE, not a decree: it lands as one
         observation, and a reading that fails because of it argues it back down
         exactly as it does for a class derived from a sentence.
+
+        `progress(done, total)`, when given, hears how far it is every thousand
+        words: a dictionary's tens of thousands take hours, and a run that says
+        nothing for them cannot be watched.
 
         Returns {told, skipped, total}.
         """
@@ -3113,15 +3460,15 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
         # the double-count defect that left beliefs 0.999999 certain of a
         # single assertion. The identity of a stated class is the PAIR, so it
         # is looked up exactly rather than by resemblance.
-        known = set()
-        try:
-            rows = await agent.stated_word_classes()
-            known = {(w, c) for w, c in rows}
-        except Exception as error:
-            logger.debug("could not read the stated word classes: %s", error)
+        # Read, or the pass stops: with nothing known, every pair taught again
+        # would be counted again -- the double count this read exists to stop.
+        rows = await agent.stated_word_classes()
+        known = {(w, c) for w, c in rows}
 
         for word, word_class in classes:
             counts["total"] += 1
+            if progress is not None and counts["total"] % 1000 == 0:
+                progress(counts["total"], len(classes))
             word = str(word or "").strip().lower()
             word_class = str(word_class or "").strip().upper()
             if not word or word_class not in allowed:
@@ -3154,12 +3501,66 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
                 counts["skipped"] += 1
         return counts
 
+    async def learn_pronunciations(self, said, *, provenance: Any = None,
+                                   quality: float = 0.9) -> Dict[str, int]:
+        """Teach how words are said, into memory, as knowledge: `said` is an iterable of `(word, phones, how often
+        real text uses the word)`, the phones as a pronouncing dictionary writes them ("D AO1 G").
+
+        The same kind of memory a word class is (`learn_word_classes`): semantic, provenanced, recallable, taken by
+        a wipe. The ear hears a word by these sounds (`speech.SaidAs`), whoever says it. A pair told before is not
+        told again. Returns {told, already, skipped, total}."""
+        from core.memory import get_memory_agent
+        from core.memory.utils.interfaces import MemoryType, Origin
+
+        counts = {"told": 0, "already": 0, "skipped": 0, "total": 0}
+        said = list(said)
+        if self._refused_while_frozen(f"learn_pronunciations ({len(said)})"):
+            counts.update(total=len(said), skipped=len(said))
+            return counts
+        agent = await get_memory_agent()
+        known = {(w, p) for w, p, _ in await agent.stated_pronunciations()}
+        for word, phones, used in said:
+            counts["total"] += 1
+            word = str(word or "").strip().lower()
+            phones = " ".join(str(phones or "").upper().split())
+            if not word or not phones:
+                counts["skipped"] += 1
+                continue
+            if (word, phones) in known:
+                counts["already"] += 1
+                continue
+            known.add((word, phones))
+            stored, _memory_id = await agent.store_memory(
+                origin=Origin.own("teaching"),
+                content=f"{word!r} is said {phones}.",
+                memory_type=MemoryType.SEMANTIC,
+                importance_score=0.75,
+                confidence_score=float(quality),
+                tags=["language", agent.PRONUNCIATION_TAG],
+                source_context={
+                    "producer": getattr(provenance, "producer", "learning"),
+                    "source_id": getattr(provenance, "source_id", "you"),
+                    "word": word,
+                    "said_as": phones,
+                    "used": int(used or 0),
+                },
+            )
+            if stored:
+                agent.pronunciations_told = getattr(agent, "pronunciations_told", 0) + 1
+                counts["told"] += 1
+            else:
+                counts["skipped"] += 1
+        return counts
+
     async def learn_patterns(self, pairs, *, provenance: Any = None,
-                             quality: float) -> Dict[str, int]:
+                             quality: float,
+                             progress: Optional[Callable[..., None]] = None) -> Dict[str, int]:
         """Learn how English says things, from sentences taught WITH their meaning: the constructions found between
         taught pairs (`derived_reader`), one pair at a time, as the Leuven method learns them.
 
-        `pairs` is an iterable of `(sentence, Meaning)`, in the order they were said. Each pair is read first with
+        `pairs` is an iterable of `(sentence, Meaning)`, in the order they were said, or `(sentence, Meaning, names)`
+        where the teacher says how it wrote a concept (`{concept: word}`, WordNet's "electronic computer" for
+        `computer`): a run so written is that concept's name, never a frame's word and a filler. Each pair is read first with
         what is held. If a reading gives its meaning, the pair is understood and only the scores move. If not, the
         repairs are tried in the paper's order (`derived_reader.REPAIRS`); the first that can handle the pair says
         what to create, that is stored, and the pair is read again.
@@ -3172,11 +3573,12 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
         The owners: MEMORY holds each construction and link (one semantic memory each, tagged `PATTERN_TAG`,
         identified by its key); BELIEFS hold their scores, grounded in that memory; THE DOMAIN SYSTEM holds meaning,
         and English is a domain. The facts a meaning states are not admitted here: the teaching pass teaches them
-        through `learn_facts`.
+        through `consider_many`.
 
         Returns counts: `learned` (constructions created), `linked` (links created), `already` (pairs understood
         as they came), `understood` (understood as they came or by adding links only: the paper's communicative
-        success), `refused`, `total`, and `repair_<name>` for each repair that ran.
+        success), `refused`, `total`, and `repair_<name>` for each repair that ran. `progress(done, total)`, when
+        given, hears how far it is every thousand pairs.
         """
         import hashlib
         from core.memory import knowledge_ledger as _ledger
@@ -3204,6 +3606,8 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
         cause = f"learning.patterns.{producer}"
         us = get_uncertainty_system()
         updates: List[Any] = []
+        said: List[Tuple[str, str, str, str, int, str, str]] = []
+        heard: List[Tuple[str, ...]] = []
         created_any = False
 
         def subject_kind(item) -> str:
@@ -3219,8 +3623,24 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
 
         batch = _ledger.begin_batch(cause)
         try:
-            for sentence, meaning in pairs:
-                counts["total"] += 1
+            # A SENTENCE WITH A QUOTATION IS TWO PAIRS TO LEARN (`dr.quoted_pairs`): the sentence around it, and the
+            # quoted sentence. It is still one sentence taught: counted once, and refused if either part is.
+            parts = [(index, part) for index, pair in enumerate(pairs)
+                     for part in (dr.quoted_pairs(*pair) if len(pair) > 1 and isinstance(pair[1], dr.Meaning)
+                                  else [pair])]
+            counted: set = set()
+            refused_at: set = set()
+            # EACH SENTENCE IS READ ON THE SUBSTRATE'S LOOP, and a sentence a known pattern reads awaits nothing:
+            # WordNet's 133,748 said sentences would hold it for the whole pass (`GiveWay`).
+            give_way = GiveWay()
+            for index, (sentence, meaning, *written) in parts:
+                await give_way()
+                names = written[0] if written else {}
+                if index not in counted:
+                    counted.add(index)
+                    counts["total"] += 1
+                    if progress is not None and counts["total"] % 1000 == 0:
+                        progress(counts["total"], len(pairs))
                 try:
                     if not isinstance(meaning, dr.Meaning):
                         raise TypeError("a taught meaning is a derived_reader.Meaning")
@@ -3228,7 +3648,7 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
                     if not form:
                         raise ValueError("an empty sentence says nothing")
                 except (TypeError, ValueError) as refusal:
-                    counts["refused"] += 1
+                    refused_at.add(index)
                     updates.append(_ledger.KnowledgeUpdate(
                         subject_kind="language_pattern", subject_id=str(sentence)[:500],
                         disposition=_ledger.Disposition.REJECTED, domain=dr.ENGLISH_DOMAIN,
@@ -3242,7 +3662,7 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
                 created = set()
                 if not readings:
                     for step in dr.REPAIRS:
-                        repair = step(form, meaning, view)
+                        repair = step(form, meaning, view, names=names)
                         if repair is not None:
                             break
                     counts[f"repair_{repair.name}"] = counts.get(f"repair_{repair.name}", 0) + 1
@@ -3278,11 +3698,11 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
                             detail=f"revived: no longer believed, supported again by {sentence!r}",
                             cause=cause))
                     if not stored_all:
-                        counts["refused"] += 1
+                        refused_at.add(index)
                         continue
                     readings = dr.readings_of(words, meaning, view)
                 if not readings:
-                    counts["refused"] += 1
+                    refused_at.add(index)
                     updates.append(_ledger.KnowledgeUpdate(
                         subject_kind="language_pattern", subject_id=pair,
                         disposition=_ledger.Disposition.REJECTED, domain=dr.ENGLISH_DOMAIN,
@@ -3294,6 +3714,14 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
                 if repair is None or repair.name == "add_links":
                     counts["understood"] += 1
                 chosen = readings[0]
+                # WHAT WAS HEARD AFTER WHAT: each word of the sentence learned, right after the one before it.
+                heard.append(words)
+                # WHAT EACH WORD WAS SAID OF, the thing itself, as the meaning was given: "The table is red." says red
+                # of the table that is furniture. That a thing is a kind of another is held, not said of it.
+                for fact in dr.listening_facts(meaning):
+                    if fact.relation not in ("isa", "instance_of"):
+                        said.append((fact.relation, fact.obj, "object", fact.subject, 1, observation, "thing"))
+                        said.append((fact.relation, fact.subject, "subject", fact.obj, 1, observation, "thing"))
                 used = {item.key for item in chosen.constructions + chosen.links}
                 for item in chosen.constructions + chosen.links:
                     if item.key in created:
@@ -3313,6 +3741,16 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
                             subject_kind=subject_kind(item), subject_id=item.key,
                             disposition=_ledger.Disposition.UPDATED, domain=dr.ENGLISH_DOMAIN,
                             detail=f"a competitor: another reading of {sentence!r} was chosen", cause=cause))
+            counts["refused"] += len(refused_at)
+            # What was gathered is written after the sentences, one memory a word, and is told as its own phase.
+            def stage(phase: str):
+                return None if progress is None else (lambda done, of: progress(done, of, phase))
+            if said:
+                counts["said"] = (await agent.remember_said(
+                    said, progress=stage("remembering what words are said of")))["remembered"]
+            if heard:
+                counts["heard"] = (await agent.remember_heard(
+                    heard, progress=stage("remembering what was heard after")))["heard"]
             if created_any:
                 # English is a domain: ensured, and the running substrate told what was learned.
                 await self._fan_out_learning(
@@ -3322,16 +3760,309 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
                                   "count": counts["learned"] + counts["linked"]},
                     quality=quality, observation=source_id)
             if updates:
-                try:
-                    from core.database import get_database_manager
-                    await _ledger.record_many(get_database_manager(), updates)
-                except Exception as error:
-                    from core.capability import raise_if_structural
-                    raise_if_structural(error, "unified_learning_system.learn_patterns.ledger")
-                    logger.debug("knowledge updates for the taught patterns not recorded: %s", error)
+                # The ledger is what the substrate can say about what it learned; an update it could not record is
+                # an error of the run, not a note.
+                from core.database import get_database_manager
+                await _ledger.record_many(get_database_manager(), updates)
         finally:
             _ledger.end_batch(batch)
         return counts
+
+    async def withdraw_pairs(self, observations: Iterable[str], *, cause: str, apply: bool = True) -> Dict[str, int]:
+        """THE TEACHER WITHDREW THESE TAUGHT PAIRS: what they vouched for no longer rests on them.
+
+        `learn_patterns` keys each observation by its source and its pair, the sentence with its meaning. A lesson
+        rewritten no longer teaches the pairs it was: english_01-39 were rewritten after main learned them, so "the X"
+        is a known thing (docs/TEACHING.md §12d), and the constructions the old pairs made still read "The valve is
+        closed." as valves being closed, at full belief, beside the ones the rewritten lessons teach. Nothing the
+        method does (Doumen, Beuls & Van Eecke 2024, §4.2.8: a use +0.1, a competitor -0.3) ever lowers them: they
+        read the new pairs to another meaning, so they are no competitors.
+
+        Each word the pairs gave is withdrawn (`BayesianUncertaintySystem.withdraw_observation`). What nothing else
+        ever vouched for is let go: its belief, and its memory, a construction or a link no reading uses again. What
+        other evidence holds up keeps it, and keeps only that. Each change goes to the ledger.
+
+        Never while a substrate reads or teaches the store: its language view would hold what was let go until it
+        warms again. Returns counts: `withdrawn` (words taken back), `moved` (beliefs that keep other evidence),
+        `removed`, `not_language` (beliefs the pairs vouched for that hold no construction or link: left as they
+        are, and counted), and `refused` where the model is a frozen release. `apply` False changes nothing and
+        counts what it would do."""
+        from core.database import get_database_manager
+        from core.memory import knowledge_ledger as _ledger
+        from core.memory import get_memory_agent
+        from core.reasoning.bayesian_uncertainty import get_uncertainty_system
+        from core.semantics import derived_reader as dr
+
+        withdrawn = {str(o) for o in observations}
+        counts = {"withdrawn": 0, "moved": 0, "removed": 0, "not_language": 0, "refused": 0}
+        if not withdrawn:
+            return counts
+        if self._refused_while_frozen(f"withdraw_pairs ({len(withdrawn)})"):
+            counts["refused"] = len(withdrawn)
+            return counts
+        agent = await get_memory_agent()
+        view = await agent.language_view()
+        us = get_uncertainty_system()
+        key_of = type(us)._claim_key
+        items = {key_of(item.claim()): item for item in view.items()
+                 if isinstance(item, (dr.Pattern, dr.Phrase, dr.Lexical, dr.Link))}
+        held = await agent.stated_patterns()
+        updates: List[Any] = []
+        let_go: List[Tuple[Any, int]] = []
+
+        def subject(belief) -> Tuple[str, str]:
+            item = items.get(key_of(belief.claim))
+            if item is None:
+                return "belief", belief.belief_id
+            return ("language_link" if isinstance(item, dr.Link) else "language_pattern"), item.key
+
+        def word_of(entry) -> str:
+            return str(entry.get("observation") or "") if isinstance(entry, dict) else ""
+
+        batch = _ledger.begin_batch(cause)
+        try:
+            for belief in us.held_in_domain(dr.ENGLISH_DOMAIN):
+                entries = list(belief.evidence_for) + list(belief.evidence_against)
+                hit = {word_of(e) for e in entries if word_of(e) in withdrawn and not e.get("withdraws")}
+                if not hit:
+                    continue
+                if all(word_of(e) in withdrawn for e in entries):
+                    let_go.append((belief, len(hit)))
+                    continue
+                # A WORD ALREADY WITHDRAWN IS NOT WITHDRAWN AGAIN, nor counted: the pairs a lesson stopped teaching
+                # once are among those it no longer teaches every time after, and each was counted and written to
+                # the ledger as an update that changed nothing (506 on main, 2026-10-12, of which 239 withdrew).
+                hit = {observation for observation in hit if us._witness_word(belief, observation) is not None}
+                if not hit:
+                    continue
+                if not apply:
+                    counts["withdrawn"] += len(hit)
+                    counts["moved"] += 1
+                    continue
+                for observation in sorted(hit):
+                    if us.withdraw_observation(belief.claim, observation, source="taught") is not None:
+                        counts["withdrawn"] += 1
+                counts["moved"] += 1
+                kind, subject_id = subject(belief)
+                updates.append(_ledger.KnowledgeUpdate(
+                    subject_kind=kind, subject_id=subject_id, disposition=_ledger.Disposition.UPDATED,
+                    domain=dr.ENGLISH_DOMAIN,
+                    detail=f"{len(hit)} pair(s) it rested on are no longer taught; kept on its other evidence"))
+            # Every write the withdrawals scheduled lands before any row is deleted.
+            if apply:
+                await us.drain_writes()
+            for belief, pairs in let_go:
+                item = items.get(key_of(belief.claim))
+                if item is None:
+                    counts["not_language"] += 1
+                    continue
+                if not apply:
+                    counts["removed"] += 1
+                    counts["withdrawn"] += pairs
+                    continue
+                memory_id = held.get(item.key)
+                if memory_id and not await agent.delete_memory(
+                        memory_id, reason=f"{cause}: it rested only on pairs no longer taught"):
+                    raise RuntimeError(f"memory {memory_id} of {item.claim()[:80]!r} could not be forgotten")
+                await us.let_go(belief.belief_id)
+                counts["removed"] += 1
+                counts["withdrawn"] += pairs
+                updates.append(_ledger.KnowledgeUpdate(
+                    subject_kind="language_link" if isinstance(item, dr.Link) else "language_pattern",
+                    subject_id=item.key, disposition=_ledger.Disposition.REMOVED, domain=dr.ENGLISH_DOMAIN,
+                    detail=f"rested only on {pairs} pair(s) no longer taught: {item.claim()}"[:500]))
+            if updates:
+                await _ledger.record_many(get_database_manager(), updates)
+        finally:
+            _ledger.end_batch(batch)
+        logger.info("withdrew %d taught pair word(s): %d belief(s) kept on other evidence, %d let go (%d not a "
+                    "construction or link)", counts["withdrawn"], counts["moved"], counts["removed"],
+                    counts["not_language"])
+        return counts
+
+    async def learn_said(self, said, *, provenance: Any = None, quality: float,
+                         progress: Optional[Callable[[int, int], None]] = None) -> Dict[str, int]:
+        """What words are said of, from a source that counted them in real use (the Brown corpus): `said` is an
+        iterable of `(relation, word, side, other, times)`: "red" said of "wine" 16 times is
+        `("has_property", "red", "object", "wine", 16)`. Not facts about wine: how English uses "red", which a
+        listener goes by to tell which thing a word names (`MemoryAgent.said_selection`). Held by memory, one
+        memory for each word, relation and side; the same source again moves nothing.
+
+        Returns counts: `remembered`, `already`, `refused`, `total`."""
+        from core.memory import get_memory_agent
+        from core.semantics.cognitive_ingress import MIN_ADMIT_QUALITY
+        said = list(said)
+        if self._refused_while_frozen(f"learn_said ({len(said)})"):
+            return {"remembered": 0, "already": 0, "refused": len(said), "total": len(said)}
+        if quality < MIN_ADMIT_QUALITY:
+            logger.info("what words are said of REFUSED for %d use(s): evidence quality %.3f < floor %.2f",
+                        len(said), quality, MIN_ADMIT_QUALITY)
+            return {"remembered": 0, "already": 0, "refused": len(said), "total": len(said)}
+        source_id = getattr(provenance, "source_id", None) or "you"
+        agent = await get_memory_agent()
+        counts = await agent.remember_said(
+            ((relation, word, side, other, times, f"{source_id}:said", "word")
+             for relation, word, side, other, times in said), progress=progress)
+        return {**counts, "refused": 0}
+
+    #: How many things taught a review asks itself about, by default.
+    REVIEW_SAMPLE = 200
+    #: How many facts a review looks at for each question it means to ask, at most.
+    _REVIEW_TRIES = 20
+
+    async def review_learned(self, domain: str, *, sample: Optional[int] = None, seed: Optional[int] = None,
+                             progress: Optional[Callable[[int, int], None]] = None) -> Dict[str, Any]:
+        """REVIEW WHAT WAS LEARNED: ask itself about things it was taught in `domain`, and let how it does move its
+        competence there.
+
+        Taught by telling, a domain's competence never moved: it rose only for an operator learned, so English, taught
+        all of WordNet, stayed at 0.5 with no update (2026-10-10). A review is the substrate's own outcome in the
+        domain. For each fact sampled from what it holds as learned there (its beliefs, each on the memory of being
+        told), it SAYS the question in the English it was taught (`derived_reader.say` of the fact asked), READS its
+        own question back with the one reader, checks it read what it meant to ask, and ANSWERS it by reasoning over
+        what it holds (`answer_over_graph`). Right is evidence it is competent there; a fact it holds but cannot
+        ask, read back or answer is evidence it is not, and a miss to work on. Each is recorded on the domain's
+        competence belief (`record_competence_evidence`, `source="review"`).
+
+        It writes no memory for each question: a conversation turn remembers what was said, and a sentence it could
+        not read argues down the word classes it blamed, neither of which a question it put to itself should do. The
+        review is remembered once, whole.
+
+        Returns counts: `reviewed` (facts looked at), `asked` (questions put, each an outcome), `right`, the misses
+        by why (`unread`, `misread`, `denied`, `not_derived`), `cannot_ask` (looked at, no question taught for it:
+        no outcome), `skipped` (a belief whose memory claims no fact), `by_relation`, and competence
+        `before`/`after`."""
+        import random as _random
+        from core.agents.memory_agent import get_memory_agent
+        from core.database import get_database_manager
+        from core.integration.universal_domain_master import get_universal_domain_master
+        from core.memory.utils.interfaces import MemoryType, Origin
+        from core.reasoning.bayesian_uncertainty import get_uncertainty_system
+        from core.reasoning.concept_graph_reasoning import answer_over_graph
+        from core.reasoning.relation_algebra import FALSE, TRUE
+        from core.semantics import derived_reader as dr
+        from core.semantics.relation_types import SemanticRelation
+        from core.utils.give_way import GiveWay
+
+        if self._refused_while_frozen(f"review_learned ({domain})"):
+            return {"reviewed": 0, "refused": "frozen"}
+        agent = await get_memory_agent()
+        if not agent._word_classes_warm:
+            await agent.warm_word_classes()
+        dm = self.domain_master or get_universal_domain_master()
+        unc = get_uncertainty_system()
+        db = get_database_manager()
+        rng = _random.Random(seed)
+
+        def competence():
+            belief = dm.competence_belief(domain)
+            return None if belief is None else (round(belief.posterior_probability, 4), belief.update_count)
+
+        # WHAT IT HOLDS AS LEARNED THERE: the domain's beliefs on a memory, held, that are facts (a construction's
+        # claim is a quoted sentence, and is reviewed by reading, not here).
+        held = [b for b in list(unc.beliefs.values())
+                if b.domain == domain and b.memory_id and b.posterior_probability > 0.5
+                and not str(b.claim).startswith('"') and not str(b.claim).startswith(dm.COMPETENCE_CLAIM)]
+        # ASKED, NOT LOOKED AT. A fact the substrate cannot put as a question in the English it was taught (a
+        # definition's word links, "perch defined with spiny-finned", are three in four of what WordNet taught) says
+        # nothing of how it does at what it can ask: counted against it, one review of 30 took English's competence
+        # from 0.5 to 0.0001 on 26 facts it had no question for (2026-10-11). So it reviews until it has ASKED
+        # `sample` questions, each a competence outcome; what it could not ask is kept by relation, a gap in what was
+        # taught, and moves nothing. Drawn in a fixed order from all it holds there, at most `_REVIEW_TRIES` looks a
+        # question.
+        target = min(sample or self.REVIEW_SAMPLE, len(held))
+        order = rng.sample(held, len(held))
+        counts: Dict[str, Any] = {"held": len(held), "reviewed": 0, "asked": 0, "right": 0, "cannot_ask": 0,
+                                  "unread": 0, "misread": 0, "denied": 0, "not_derived": 0, "skipped": 0,
+                                  "by_relation": {}, "before": competence()}
+        missed: List[Dict[str, str]] = []
+
+        def key(fact) -> Tuple[str, str, str, bool]:
+            return (fact.relation, " ".join(str(fact.subject).lower().replace("_", " ").split()),
+                    " ".join(str(fact.obj).lower().replace("_", " ").split()), bool(fact.positive))
+
+        give_way = GiveWay()
+        chunk = max(50, 4 * target)
+        for start in range(0, min(len(order), self._REVIEW_TRIES * max(1, target)), chunk):
+            if counts["asked"] >= target:
+                break
+            batch = order[start:start + chunk]
+            claims = await agent.claims_of([b.memory_id for b in batch])
+            for belief in batch:
+                if counts["asked"] >= target:
+                    break
+                await give_way()
+                made = claims.get(belief.memory_id) or []
+                try:
+                    facts = tuple(dr.MeaningFact.from_list(f) for f in made)
+                except (TypeError, ValueError):
+                    facts = ()
+                if len(facts) != 1:
+                    counts["skipped"] += 1
+                    continue
+                fact = facts[0]
+                counts["reviewed"] += 1
+                # BY RELATION, because they are different knowledge: what a thing is a kind of is asked in English
+                # every day; a definition's word links ("squash racket defined with small") have no question taught.
+                per = counts["by_relation"].setdefault(fact.relation, {"reviewed": 0, "asked": 0, "right": 0})
+                per["reviewed"] += 1
+                # Named before it is said: a question that does not come back says which fact it was.
+                logger.info("review of %s: saying %s", domain, fact.render())
+                began = time.perf_counter()
+                said = dr.say(dr.Meaning("ask", facts))
+                if not said:
+                    counts["cannot_ask"] += 1
+                    continue
+                counts["asked"] += 1
+                per["asked"] += 1
+                if progress is not None and counts["asked"] % 50 == 0:
+                    progress(counts["asked"], target)
+                why, question = None, said[0]
+                utterances = dr.read_text(question)
+                reading = await dr.heard(utterances[0].readings) if len(utterances) == 1 else None
+                if reading is None:
+                    why = "unread"
+                elif reading.meaning.act != "ask" or [key(f) for f in reading.meaning.facts] != [key(fact)]:
+                    why = "misread"
+                else:
+                    try:
+                        relation = SemanticRelation(fact.relation)
+                    except ValueError:
+                        relation = None
+                    answer = (await answer_over_graph(db, fact.subject, relation, fact.obj, max_hops=4)
+                              if relation is not None else None)
+                    verdict = getattr(answer, "verdict", None)
+                    if verdict == TRUE and fact.positive or verdict == FALSE and not fact.positive:
+                        counts["right"] += 1
+                        per["right"] += 1
+                    elif verdict in (TRUE, FALSE):
+                        why = "denied"
+                    else:
+                        why = "not_derived"
+                logger.info("review of %s: %r %s in %.1fs", domain, question, why or "right",
+                            time.perf_counter() - began)
+                if why:
+                    counts[why] += 1
+                    if len(missed) < 24:
+                        missed.append({"fact": fact.render(), "asked": question, "why": why})
+                # ONE REVIEW IS ONE OUTCOME, its questions sharing it: each carries 1/`target` of the weight one
+                # outcome has (`COMPETENCE_EVIDENCE_QUALITY`). Each counted whole, a review of 200 that went 120 to
+                # 80 moved English from 0.0007 to 0.99998, the difference counted forty times over; now a review
+                # moves competence by at most one outcome, toward how it went, by how far it went.
+                await dm.record_competence_evidence(domain, learned=why is None, source="review",
+                                                    quality=dm.COMPETENCE_EVIDENCE_QUALITY / target)
+
+        counts["after"] = competence()
+        if counts["reviewed"]:
+            await agent.store_memory(
+                origin=Origin.own("learning"),
+                content=(f"I reviewed {counts['reviewed']} things I was taught in {domain}: I could ask myself about "
+                         f"{counts['asked']} of them, and answered {counts['right']} rightly."),
+                memory_type=MemoryType.META, importance_score=0.7, confidence_score=0.9,
+                tags=["review", "self_assessment", domain],
+                source_context={"review": {k: v for k, v in counts.items()}, "missed": missed, "domain": domain})
+        logger.info("review of %s: %s", domain, counts)
+        return {**counts, "missed": missed}
 
     async def learn_usage(self, usage, *, provenance: Any = None, quality: float) -> Dict[str, int]:
         """How often each word is met naming each thing, from a source that counted it in real use (WordNet's
@@ -3339,10 +4070,13 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
 
         What a person learns from hearing English used, and what a listener goes by when nothing it knows tells
         two meanings of a word apart (`derived_reader.meant`): "fish" is met naming the animal more often than the
-        food. Each count lands on the belief of the construction that says the word names the thing, as ONE
-        observation from the source carrying how many uses it witnessed, so the same source again moves nothing.
-        A word that names the thing through no construction yet (never read naming it) has nowhere to land, and is
-        counted, not held elsewhere.
+        food. Each count lands on the belief of each construction that says the word names the thing, as ONE
+        observation from the source carrying how many uses it witnessed, so the same source again moves nothing:
+        the word, and the phrases naming a thing of the kind in one of the word's forms (`(word, concept, times,
+        forms)`: "had them" and "is having them", for "have"). Landed on the word alone, a verb held only in its
+        forms was met in none of them, and "Tom had them." was the receiving "have" names 7 times, not the having it
+        names 1,202 (2026-10-14). A word that names the thing through no construction yet (never read naming it) has
+        nowhere to land, and is counted, not held elsewhere.
 
         Returns counts: `observed`, `already` (this source's count held already), `no_construction`, `total`.
         """
@@ -3372,41 +4106,98 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
         us = get_uncertainty_system()
         updates: List[Any] = []
         batch = _ledger.begin_batch(cause)
+        # Every sense a source counted is looked up and observed on the substrate's loop (`GiveWay`).
+        give_way = GiveWay()
         try:
-            for word, concept, times in usage:
-                words = tuple(p.text for p in form_of(str(word)))
-                wanted = str(concept).strip().lower()
-                lexical = next((lx for lx in view.lexicals_with_words(words)
-                                + view.lexicals_with_words(tuple(w.lower() for w in words), loose=True)
-                                if lx.value.lower() == wanted), None)
-                if lexical is None:
+            for word, concept, times, forms in usage:
+                await give_way()
+                saying = view.saying(tuple(p.text for p in form_of(str(word))), concept, forms)
+                if not saying:
                     counts["no_construction"] += 1
                     continue
-                before = us.belief_for_claim(lexical.claim())
-                seen = len(before.evidence_for) if before is not None else 0
-                after = us.observe_claim(lexical.claim(), dr.ENGLISH_DOMAIN, supports=True, quality=quality,
-                                         source="taught", observation=f"{source_id}:usage",
-                                         memory_id=held.get(lexical.key), uses=int(times))
-                if after is None or len(after.evidence_for) <= seen:
-                    counts["already"] += 1
-                    continue
-                counts["observed"] += 1
-                updates.append(_ledger.KnowledgeUpdate(
-                    subject_kind="language_pattern", subject_id=lexical.key,
-                    disposition=_ledger.Disposition.UPDATED, domain=dr.ENGLISH_DOMAIN,
-                    detail=f"{word!r} met {int(times)} times naming {concept!r} ({source_id})"[:500],
-                    cause=cause))
+                landed = False
+                for construction in saying:
+                    before = us.belief_for_claim(construction.claim())
+                    seen = len(before.evidence_for) if before is not None else 0
+                    after = us.observe_claim(construction.claim(), dr.ENGLISH_DOMAIN, supports=True, quality=quality,
+                                             source="taught", observation=f"{source_id}:usage",
+                                             memory_id=held.get(construction.key), uses=int(times))
+                    if after is None or len(after.evidence_for) <= seen:
+                        continue
+                    landed = True
+                    updates.append(_ledger.KnowledgeUpdate(
+                        subject_kind="language_pattern", subject_id=construction.key,
+                        disposition=_ledger.Disposition.UPDATED, domain=dr.ENGLISH_DOMAIN,
+                        detail=f"{word!r} met {int(times)} times naming {concept!r} ({source_id})"[:500],
+                        cause=cause))
+                counts["observed" if landed else "already"] += 1
             if updates:
-                try:
-                    from core.database import get_database_manager
-                    await _ledger.record_many(get_database_manager(), updates)
-                except Exception as error:
-                    from core.capability import raise_if_structural
-                    raise_if_structural(error, "unified_learning_system.learn_usage.ledger")
-                    logger.debug("knowledge updates for word usage not recorded: %s", error)
+                from core.database import get_database_manager
+                await _ledger.record_many(get_database_manager(), updates)
         finally:
             _ledger.end_batch(batch)
         return counts
+
+    async def learn_listening(self, counts, *, provenance: Any = None, quality: float) -> Dict[str, int]:
+        """What the listener's evidence is worth, as it counted it on sentences whose meaning it was taught
+        (`derived_reader.listening_counts`): for each piece of evidence at each level, how many readings showing it
+        were the one meant and how many were not. Each count is held as the belief `derived_reader.listening_claim`
+        names, ONE observation from the source carrying how many readings it counted, and the listener reads its
+        worths from them (`derived_reader.listening_worths`). Counted again by the same source, its earlier word is
+        withdrawn first: a belief holds what was last counted, not every count added up.
+
+        Returns counts: `observed`, `withdrawn` (an earlier count taken back), `refused`, `total`."""
+        from core.reasoning.bayesian_uncertainty import get_uncertainty_system
+        from core.semantics import derived_reader as dr
+        from core.semantics.cognitive_ingress import MIN_ADMIT_QUALITY
+
+        report = {"observed": 0, "withdrawn": 0, "refused": 0, "total": 0}
+        if self._refused_while_frozen("learn_listening"):
+            report["refused"] = 1
+            return report
+        if quality < MIN_ADMIT_QUALITY:
+            logger.info("listening counts REFUSED: evidence quality %.3f < floor %.2f", quality, MIN_ADMIT_QUALITY)
+            report["refused"] = 1
+            return report
+        source_id = getattr(provenance, "source_id", None) or "you"
+        # THE MEMORY THE COUNTS ARE ABOUT, held once: a belief names the memory it is a stance on, or it is not stored,
+        # and the listener's counts, about none, were each refused without a word in the pass's report (2026-10-14).
+        from core.agents.memory_agent import get_memory_agent
+        from core.memory.utils.interfaces import MemoryType, Origin
+        agent = await get_memory_agent()
+        memory_id = await agent.listening_memory()
+        if memory_id is None:
+            stored, memory_id = await agent.store_memory(
+                origin=Origin.own("teaching"),
+                content="What the listener's evidence is worth: how many readings at each level of each were the one "
+                        "meant, counted on sentences whose meaning it was taught",
+                memory_type=MemoryType.SEMANTIC, importance_score=0.75, confidence_score=float(quality),
+                tags=["language", agent.LISTENING_TAG],
+                source_context={"producer": getattr(provenance, "producer", "learning"), "source_id": source_id})
+            if not stored or not memory_id:
+                raise RuntimeError("the memory of what the listener counted could not be stored")
+        # EACH COUNT ITS OWN WITNESS, the earlier ones withdrawn by name: a word given at the moment its witness
+        # withdrew is not its word, and the same witness withdrawn and counting again at once could be both.
+        counted = f"{source_id}:listening"
+        observation = f"{counted}:{time.time():.6f}"
+        us = get_uncertainty_system()
+        for evidence, levels in dr.LISTENING_LEVELS.items():
+            for level in range(levels):
+                for meant in (True, False):
+                    claim = dr.listening_claim(evidence, level, meant)
+                    report["total"] += 1
+                    belief = us.belief_for_claim(claim)
+                    earlier = {str(entry.get("observation")) for entry in (belief.evidence_for if belief else ())
+                               if isinstance(entry, dict) and str(entry.get("observation") or "").startswith(counted)}
+                    for witness in sorted(earlier):
+                        if us.withdraw_observation(claim, witness) is not None:
+                            report["withdrawn"] += 1
+                    readings = int(counts.get((evidence, level, meant), 0))
+                    if readings:
+                        us.observe_claim(claim, dr.ENGLISH_DOMAIN, supports=True, quality=quality, source="taught",
+                                         observation=observation, memory_id=memory_id, uses=readings)
+                        report["observed"] += 1
+        return report
 
     async def _store_language_item(self, agent: Any, item: Any, producer: str, source_id: str,
                                    quality: float) -> Optional[str]:
@@ -3433,338 +4224,213 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
                             "construction": kind, **data})
         return memory_id if stored and memory_id else None
 
-    async def learn_facts(self, facts, *, provenance: Any = None,
-                          domain: str, fan_out: bool = True,
-                          progress: Any = None,
-                          actor: Optional[str] = None,
-                          quality: float = 0.9,
-                          positive: bool = True) -> Dict[str, int]:
-        """Teach MANY declarative facts through the ONE path, at lexicon scale.
+    async def consider_many(self, facts, *, evidence: Evidence, domain: str, positive: bool = True,
+                            progress: Any = None) -> Dict[str, int]:
+        """Many claims from one source -- a lesson, a corpus -- each judged as `consider` judges one (its shape,
+        what the world holds against it), with the fan-out to beliefs, the lexicon, the domain and metrics done
+        ONCE over what was held: a reference-sized teach fact by fact re-ran it tens of thousands of times. Each
+        fact is `(subject, relation, obj[, the sentence it was said in])`, all asserted or all denied (`positive`).
+        Returns {admitted, already, doubted, refused, total}.
 
-        Same authority as `learn_fact` — every relation is admitted through the
-        cognitive ingress (the concept graph the reasoner walks) — but the fan-out
-        to beliefs / lexicon / domain / metrics happens ONCE over the whole batch
-        of admitted clauses, not once per fact. Teaching a whole taxonomy fact by
-        fact re-runs that fan-out tens of thousands of times; this keeps the single
-        owner and its admission checks while making a reference-sized teach
-        practical. Returns {admitted, already, refused, total}.
-
-        THE EPISODE IS NOT OPTIONAL. There was a `remember` parameter here, and
-        four of the five corpus passes set it False -- so most of what the
-        substrate knows, it could state while having no recollection of learning
-        it, and could not reach by meaning at all. A fact taught in conversation
-        came back "I remember: ..." and the same fact taught from a corpus did
-        not. That is two grades of knowledge out of one act, which is the solo
-        teaching this pipeline exists to prevent. The memory is now made at the
-        door, for every admitted fact, like every other system the fan-out
-        touches.
-
-        `actor` routes exactly as in `learn_fact`: a real user's id diverts every
-        fact to that user's scoped context (never the shared graph/beliefs), with
-        the same per-fact promotion gate; None / substrate takes the shared path.
-
-        `positive` IS THE BATCH'S POLARITY. Every fact in one call is asserted, or
-        every one is denied: a denial ("a robin is not a mammal") is admitted as a
-        negative edge and moves its belief down, exactly as `learn_fact` does it.
-        This path could only assert, so the teaching pass dropped every denial it
-        read -- a taught "is not" taught nothing at all.
-        """
-        from core.agents.autonomous.shared_types import is_substrate_actor
+        THE EPISODE IS NOT OPTIONAL: the ingress remembers every fact it takes, as it does one considered alone,
+        so a fact taught from a corpus is recalled by meaning as a fact taught in a sentence is."""
         from core.memory import knowledge_ledger as _ledger
-        # ONE BATCH FOR ONE TEACH. A bulk teach is a single originating event,
-        # and without this every fact minted its own batch id -- measured, 177
-        # facts became 177 "batches", which makes the batch count a synonym for
-        # the update count and answers nothing. The per-fact records below join
-        # this batch through the ContextVar, so no signature changes.
-        _batch = _ledger.begin_batch(
-            f"learning.bulk_teach.{getattr(provenance, 'producer', 'unknown')}",
-            actor=actor)
+        _batch = _ledger.begin_batch(f"learning.bulk_teach.{evidence.producer}", actor=None)
         try:
-            return await self._learn_facts(
-                facts, provenance=provenance, domain=domain, fan_out=fan_out,
-                progress=progress, actor=actor, quality=quality,
-                positive=positive)
+            return await self._consider_many(facts, evidence=evidence, domain=domain, positive=positive,
+                                              progress=progress)
         finally:
             _ledger.end_batch(_batch)
 
-    async def _learn_facts(self, facts, *, provenance: Any = None,
-                           domain: str, fan_out: bool = True,
-                           progress: Any = None,
-                           actor: Optional[str] = None,
-                           quality: float = 0.9,
-                           positive: bool = True) -> Dict[str, int]:
-        from core.agents.autonomous.shared_types import is_substrate_actor
-        if not is_substrate_actor(actor):
-            counts = {"admitted": 0, "already": 0, "refused": 0, "total": 0}
-            for fact in facts:
-                subject, relation, obj = fact[0], fact[1], fact[2]
-                said = fact[3] if len(fact) > 3 else None
-                counts["total"] += 1
-                try:
-                    admission = await self._learn_scoped_fact(
-                        actor, subject, relation, obj, positive=positive,
-                        surface=said, domain=domain, quality=quality, description="",
-                        word_class_of=None, emit=None, provenance=provenance)
-                except Exception:
-                    counts["refused"] += 1
-                    continue
-                # What the door said, not "it did not raise": a refused fact
-                # comes back as a refused Admission, and counted as admitted.
-                counts["admitted" if getattr(admission, "admitted", False)
-                       else "refused"] += 1
-                if progress and counts["total"] % 1000 == 0:
-                    progress(counts)
-            return counts
-        from core.semantics.cognitive_ingress import (get_cognitive_ingress,
-                                                      Provenance)
-        facts = list(facts)
-        if self._refused_while_frozen(f"learn_facts ({len(facts)})"):
-            return {"admitted": 0, "already": 0, "refused": len(facts), "total": len(facts)}
-        prov = provenance or Provenance(producer="learning", source_id="you",
-                                        source_type="USER_SUPPLIED")
+    async def _consider_many(self, facts, *, evidence: Evidence, domain: str, positive: bool,
+                             progress: Any) -> Dict[str, int]:
         from core.memory import knowledge_ledger as _ledger
+        from core.semantics.cognitive_ingress import MIN_ADMIT_QUALITY, get_cognitive_ingress, shape_proposition
+        facts = list(facts)
+        counts = {"admitted": 0, "already": 0, "doubted": 0, "refused": 0, "total": 0}
+        if self._refused_while_frozen(f"consider_many ({len(facts)})") or evidence.quality < MIN_ADMIT_QUALITY:
+            counts["refused"] = counts["total"] = len(facts)
+            return counts
+        prov = self._provenance(evidence)
         ingress = get_cognitive_ingress()
-        counts = {"admitted": 0, "already": 0, "refused": 0, "total": 0}
-        admitted_clauses = []
-        # WHAT EACH FACT DID, collected and written once at the end. The bulk
-        # path has its OWN admission loop and never calls `learn_fact`, so
-        # recording only there left the route that taught 82,676 concepts
-        # invisible: a probe of five facts produced zero updates. Accumulated
-        # rather than written per fact because at corpus scale one INSERT per
-        # fact is the cost that made the original writer a bare bulk statement
-        # with no record at all.
+        # ONE PERSON'S WORD HAS THE SAME HOUR HOWEVER IT ARRIVES: what `consider` lets one source put in the world
+        # in an hour, a lesson or a corpus from that source does not exceed.
+        budget = (self.PERSON_CLAIMS_PER_HOUR - await self._claims_this_hour(evidence.key)
+                  if evidence.source_type == "USER_SUPPLIED" else None)
+        held_clauses = []
+        # WHAT EACH FACT DID, collected and written once at the end: at corpus scale one INSERT per fact is the cost
+        # that once made the writer a bare bulk statement with no record at all.
         _updates: List[Any] = []
         for fact in facts:
-            # A fact may carry THE SENTENCE IT WAS SAID IN. Where it does not,
-            # the surface is synthesised from the triple -- and a synthesised
-            # surface is why the store could only ever learn nouns: `isa` is a
-            # relation nobody says, so it is never recorded as a verb.
+            # A fact may carry THE SENTENCE IT WAS SAID IN; where it does not, the surface is the triple.
             subject, relation, obj = fact[0], fact[1], fact[2]
             said = fact[3] if len(fact) > 3 else None
             counts["total"] += 1
-            surface = said or " ".join(
-                str(p) for p in (subject, relation, obj) if p)
-            try:
-                admission = await ingress.admit_relation(
-                    subject=subject, relation=relation, obj=obj, surface=surface,
-                    provenance=prov, positive=positive, domain=domain)
-            except Exception:
+            subject_term, relation_term, obj_term, refusal = shape_proposition(subject, relation, obj)
+            # Named in the store's own terms, as `consider` names it: one claim, one belief.
+            claim = " ".join(str(p) for p in ((subject_term, relation_term, obj_term) if not refusal
+                                              else (subject, relation, obj)) if p)
+            against = None if refusal or not obj_term else await self._held_against(
+                subject_term, relation_term, obj_term, positive)
+            if refusal:
                 counts["refused"] += 1
+                logger.info("fact %r refused: %s", claim, refusal)
                 continue
-            # Already held from this source is checked FIRST, as the single-fact
-            # path does: a re-teach is not a second witness, and fanning it out
-            # again would move its belief a second time.
+            if against:
+                # COUNTED AGAINST WHAT IS HELD, not written over it: a lesson that contradicts the world moves the
+                # belief, and is held only once its witnesses outweigh what holds the other side (`consider`).
+                self.observe_claim(claim, domain, supports=positive, quality=evidence.quality,
+                                   source=evidence.source, observation=evidence.key)
+                if not self._outweighs(claim, positive, against[1], against[2]):
+                    counts["doubted"] += 1
+                    logger.info("fact %r not held: %s", claim, against[0])
+                    continue
+            if budget is not None and budget <= 0:
+                counts["refused"] += 1
+                logger.info("fact %r waits: %d new claims from one person in the hour", claim,
+                            self.PERSON_CLAIMS_PER_HOUR)
+                continue
+            # A FAILURE IS NOT A REFUSAL. Counted as refused, a fact the store could not take (a timeout, a lost
+            # connection) read as one the gate decided against, and a run with errors reported itself clean.
+            admission = await ingress.admit_relation(
+                subject=subject, relation=relation, obj=obj, surface=said or claim,
+                provenance=prov, positive=positive, domain=domain, quality=evidence.quality)
+            # Already held from this source is checked FIRST: a re-teach is not a second witness.
             if getattr(admission, "already_present", False):
                 counts["already"] += 1
             elif getattr(admission, "admitted", False):
                 counts["admitted"] += 1
-                admitted_clauses.append((subject, relation, obj,
-                                         getattr(admission, "memory_id", None)))
+                held_clauses.append((subject_term, relation_term, obj_term, getattr(admission, "memory_id", None)))
             else:
                 counts["refused"] += 1
+                logger.info("fact %r refused: %s", claim,
+                            "; ".join(getattr(admission, "refusals", ()) or ()) or "no reason given")
             _disposition, _detail = self._ledger_disposition(admission)
+            if budget is not None and _disposition in (_ledger.Disposition.NEW, _ledger.Disposition.UPDATED):
+                budget -= 1
             _updates.append(_ledger.KnowledgeUpdate(
                 subject_kind="proposition",
-                subject_id=str(getattr(admission, "proposition", "") or
-                               f"{subject}|{relation}|{obj}")[:500],
+                subject_id=str(getattr(admission, "proposition", "") or f"{subject}|{relation}|{obj}")[:500],
                 disposition=_disposition, domain=domain,
                 evidence_id=getattr(admission, "evidence_id", None) or None,
-                detail=_detail,
-                cause=f"learning.bulk_teach.{getattr(prov, 'producer', 'unknown')}",
-                actor=actor))
+                detail=_detail, cause=f"learning.bulk_teach.{evidence.producer}", actor=evidence.key))
             if progress and counts["total"] % 1000 == 0:
                 progress(counts)
-        # Fan out ONCE over everything that was newly admitted.
-        if fan_out and admitted_clauses:
+        # Fan out ONCE over everything newly held, as one source's word: re-running a pass makes nothing truer.
+        if held_clauses:
             await self._fan_out_learning(
-                surface=f"{len(admitted_clauses)} taught facts",
-                claim=f"{len(admitted_clauses)} taught facts",
-                clauses=admitted_clauses, positive=positive, domain=domain,
-                emit=None, emit_payload={"kind": "bulk_facts", "domain": domain,
-                                         "count": len(admitted_clauses)},
-                # THE SAME ACT AS `learn_fact`, so the same declared quality —
-                # teaching in bulk is teaching. This was the default, unstated,
-                # which is how a corpus taught at scale came to set the prior of
-                # most of what the substrate believes without anyone choosing it.
-                quality=quality,
-                # Re-running a corpus pass must not make its facts truer. The
-                # belief is per claim, so the source identity is enough: the
-                # same source saying the same thing again is one witness.
-                observation=getattr(prov, "source_id", None))
+                surface=f"{len(held_clauses)} taught facts", claim=f"{len(held_clauses)} taught facts",
+                clauses=held_clauses, positive=positive, domain=domain, emit=None,
+                emit_payload={"kind": "bulk_facts", "domain": domain, "count": len(held_clauses)},
+                quality=evidence.quality, observation=evidence.key)
         if _updates:
-            try:
-                from core.database import get_database_manager
-                await _ledger.record_many(get_database_manager(), _updates)
-            except Exception as error:
-                from core.capability import raise_if_structural
-                raise_if_structural(error, "unified_learning_system.learn_facts.ledger")
-                logger.debug("knowledge updates for the bulk teach not recorded: %s",
-                             error)
+            from core.database import get_database_manager
+            await _ledger.record_many(get_database_manager(), _updates)
         return counts
 
-    async def learn_concept(self, name: str, *, domain: str,
-                            description: str = "", relationships: Any = None,
-                            provenance: Any = None, emit: Any = None,
-                            actor: Optional[str] = None) -> list:
-        """Learn a CONCEPT -- a node and its relationships -- through the ONE path.
+    async def learn_concept(self, name: str, *, domain: str, evidence: Evidence,
+                            description: str = "", relationships: Any = None, emit: Any = None) -> list:
+        """Learn a CONCEPT -- a node and its relationships -- through the ONE door (`consider`).
 
-        A concept with edges is admitted per edge (subject = `name`, each fanning
-        out); a concept with none is admitted as a bare node so it still exists in
-        the graph. This is the method a discoverer of concepts (e.g. analogy)
-        calls INSTEAD of writing `unified.concepts` directly, so a derived concept
-        goes through the same ingress, identity resolution, aliasing, domain
-        membership, and fan-out as a taught one. `relationships` is an iterable of
-        (relation, object) pairs. Returns the per-edge admissions."""
+        A concept with edges is considered per edge (subject = `name`); a concept with none is admitted as a bare
+        node so it still exists in the graph. This is the method a discoverer of concepts (analogy) calls INSTEAD of
+        writing `unified.concepts` directly, so a derived concept goes through the same judgement, identity
+        resolution, aliasing, domain membership and fan-out as a taught one. `relationships` is an iterable of
+        (relation, object) pairs. Returns the per-edge `Decision`s."""
         rels = [tuple(r) for r in (relationships or []) if r and len(tuple(r)) >= 2]
-        admissions = []
+        decisions = []
         if rels:
             first = True
             for rel, obj in ((r[0], r[1]) for r in rels):
-                admissions.append(await self.learn_fact(
-                    name, str(rel), (str(obj) if obj is not None else None),
-                    provenance=provenance, domain=domain,
-                    description=(description if first else ""), emit=emit,
-                    actor=actor))
+                decisions.append(await self.consider(
+                    name, str(rel), (str(obj) if obj is not None else None), evidence=evidence, domain=domain,
+                    description=(description if first else ""), emit=emit))
                 first = False
         else:
-            # Bare node: a valid relation is required by the ingress even though
-            # no edge is created when the object is None, so `is` names the copula
-            # and the admission is the node alone.
-            admissions.append(await self.learn_fact(
-                name, "is", None, provenance=provenance, domain=domain,
-                description=description, emit=emit, actor=actor))
-        return admissions
+            # Bare node: a valid relation is required by the ingress even though no edge is created when the
+            # object is None, so `is` names the copula and the admission is the node alone.
+            decisions.append(await self.consider(name, "is", None, evidence=evidence, domain=domain,
+                                                 description=description, emit=emit))
+        return decisions
 
-    async def learn_rule(self, antecedent: Dict[str, Any],
-                         consequent: Dict[str, Any], *, surface: str,
-                         provenance: Any = None, domain: str,
-                         emit: Any = None, actor: Optional[str] = None,
-                         quality: float = 0.9) -> Any:
-        """Learn a TOLD conditional ("if the valve is closed then the tank
-        overflows") as a held rule, fanning out the same way a fact does — the
-        rule lands in the held-conditional store the reasoner chains over, its
-        clauses feed the lexicon, its implication moves a posterior, the domain
-        crystallizes, and it is counted. Returns the ingress `Admission`.
+    async def consider_rule(self, antecedent: Dict[str, Any], consequent: Dict[str, Any], *, surface: str,
+                            evidence: Evidence, domain: str, emit: Any = None) -> Decision:
+        """A rule about the world ("if the valve is closed then the tank overflows", of kinds), judged as a claim is
+        (`consider`): its clauses' shape and its evidence's quality; what is held against it -- the same condition
+        held to lead to the opposite -- refuses it where that rule is settled and is counted against it where not;
+        held, it lands in the held-conditional store the reasoner chains over, its clauses feed the lexicon, its
+        implication moves a posterior, the domain crystallizes, and it is counted. A person's own rule is theirs
+        (`MemoryAgent.hold_rule_for_person`), never this."""
+        from core.semantics.cognitive_ingress import MIN_ADMIT_QUALITY, get_cognitive_ingress, shape_proposition
+        from core.reasoning.bayesian_uncertainty import get_uncertainty_system
 
-        `actor` routes as in `learn_fact`. A real user's taught RULE must NOT
-        enter the shared held-conditional store (the Z3 rules the reasoner chains
-        for everyone) — that would leak one user's rule into the shared mind. So a
-        user rule is held in the scoped context layer, as a scoped belief in the
-        implication. Reasoning over a user's scoped RULES (the Z3 overlay) is the
-        next increment after the concept-graph overlay; until it lands, a user
-        rule is captured and isolated but not yet chained on that user's behalf."""
-        from core.agents.autonomous.shared_types import is_substrate_actor
-        if not is_substrate_actor(actor):
-            return await self._learn_scoped_rule(
-                actor, antecedent, consequent, surface=surface, domain=domain,
-                quality=quality)
-        from core.semantics.cognitive_ingress import (get_cognitive_ingress,
-                                                      Provenance)
-        prov = provenance or Provenance(producer="learning", source_id="you",
-                                        source_type="USER_SUPPLIED")
+        def said(clause: Dict[str, Any], positive: Optional[bool] = None) -> str:
+            held = bool(clause.get("positive", True)) if positive is None else positive
+            return ("" if held else "not ") + " ".join(
+                str(clause.get(k) or "") for k in ("subject", "relation", "obj")).strip()
+        claim = " ".join(f"if {said(antecedent)} then {said(consequent)}".split())
+        frozen = self._refused_while_frozen(f"consider_rule {claim}")
+        if frozen:
+            return Decision(claim, True, "refused", [frozen])
+        if evidence.quality < MIN_ADMIT_QUALITY:
+            return Decision(claim, True, "refused", [
+                f"insufficient support: quality {evidence.quality:.3f} < floor {MIN_ADMIT_QUALITY}"])
+        if evidence.source_type == "USER_SUPPLIED" and await self._claims_this_hour(evidence.key) \
+                >= self.PERSON_CLAIMS_PER_HOUR:
+            return Decision(claim, True, "refused", [
+                f"{self.PERSON_CLAIMS_PER_HOUR} new claims from one person in the hour; this one waits"])
+        shaped = []
+        for tag, clause in (("antecedent", antecedent), ("consequent", consequent)):
+            subject, relation, obj, refusal = shape_proposition(clause.get("subject"), clause.get("relation"),
+                                                                clause.get("obj"))
+            if refusal:
+                return Decision(claim, True, "refused", [f"{tag} {refusal}"])
+            shaped.append((subject, relation, obj, bool(clause.get("positive", True))))
+        (a_s, a_r, a_o, a_p), (c_s, c_r, c_o, c_p) = shaped
+
+        def stated(s: Any, r: Any, o: Any, p: bool) -> str:
+            return ("" if p else "not ") + " ".join(str(x) for x in (s, r, o) if x)
+        # Named in the store's own terms, as a claim is (`consider`): one rule, one belief.
+        claim = f"if {stated(a_s, a_r, a_o, a_p)} then {stated(c_s, c_r, c_o, c_p)}"
+        from core.database import get_database_manager
+        rows = await get_database_manager().execute_query(
+            "SELECT surface FROM unified.held_conditionals WHERE ant_subject = $1 AND ant_relation = $2 "
+            "AND ant_object IS NOT DISTINCT FROM $3 AND ant_positive = $4 AND cons_subject = $5 "
+            "AND cons_relation = $6 AND cons_object IS NOT DISTINCT FROM $7 AND cons_positive = $8 LIMIT 1",
+            (a_s, a_r, a_o, a_p, c_s, c_r, c_o, not c_p), fetch_all=True) or []
+        beliefs = get_uncertainty_system()
+        if rows:
+            # THE SAME CONDITION HELD TO LEAD TO THE OPPOSITE: counted, and held only once this rule's independent
+            # witnesses outweigh that one's, as a claim is (`consider`).
+            held = rows[0].get("surface") or "the opposite rule"
+            opposite = f"if {stated(a_s, a_r, a_o, a_p)} then {stated(c_s, c_r, c_o, not c_p)}"
+            was_settled = self._settled_on(beliefs.belief_for_claim(opposite), positive=True)
+            self.observe_claim(claim, domain, supports=True, quality=evidence.quality, source=evidence.source,
+                               observation=evidence.key)
+            if not self._outweighs(claim, True, opposite, True):
+                side = self._side(beliefs.belief_for_claim(claim), positive=True)
+                if was_settled:
+                    return Decision(claim, True, "refused", [f"contradicts what is settled: {held}"], posterior=side)
+                return Decision(claim, True, "doubted", [f"held otherwise ({held}); counted against it"],
+                                posterior=side)
+        prov = self._provenance(evidence)
         admission = await get_cognitive_ingress().admit_conditional(
             antecedent, consequent, surface=surface, provenance=prov, domain=domain)
+        await self._record_knowledge_update(admission, domain=domain, provenance=prov)
         if admission.admitted:
-            claim = (f"if {antecedent.get('subject')} {antecedent.get('relation')} "
-                     f"{antecedent.get('obj') or ''} then "
-                     f"{consequent.get('subject')} {consequent.get('relation')} "
-                     f"{consequent.get('obj') or ''}")
             await self._fan_out_learning(
-                surface=surface, claim=" ".join(claim.split()),
-                clauses=[(antecedent.get("subject"), antecedent.get("relation"),
-                          antecedent.get("obj")),
-                         (consequent.get("subject"), consequent.get("relation"),
-                          consequent.get("obj"))],
+                surface=surface, claim=claim,
+                clauses=[(antecedent.get("subject"), antecedent.get("relation"), antecedent.get("obj")),
+                         (consequent.get("subject"), consequent.get("relation"), consequent.get("obj"))],
                 positive=True, domain=domain, emit=emit,
-                emit_payload={"kind": "conditional", "surface": surface,
-                              "domain": domain},
-                observation=getattr(prov, "source_id", None),
-                # A TOLD conditional is told, like a told fact: same act, same
-                # declared quality. An INDUCED rule is a different act with its
-                # own support and does not come through here.
-                quality=quality)
-        return admission
-
-    async def _learn_scoped_rule(self, actor: str, antecedent: Dict[str, Any],
-                                 consequent: Dict[str, Any], *, surface: str,
-                                 domain: str, quality: float) -> Any:
-        """A USER's told conditional -> that user's scoped context, never the
-        shared Z3 rule store. The implication is held as a scoped belief.
-        Returns an `Admission`.
-
-        NEITHER SIDE IS ASSERTED, as at the shared door (`admit_conditional`).
-        Each clause used to be written as a scoped edge and a ~0.99 belief, so
-        "if the valve is closed then the tank overflows" put `valve isa closed`
-        and `tank overflows` in the speaker's context as held facts, and the
-        graph overlay walked them as true. Both clauses pass the door's tests,
-        so a rule over something the door refuses is refused here too."""
-        from core.semantics.cognitive_ingress import (Admission, MIN_ADMIT_QUALITY,
-                                                      shape_proposition)
-        from core.learning.scoped_context_store import get_scoped_context_store
-        claim = " ".join((
-            f"if {antecedent.get('subject')} {antecedent.get('relation')} "
-            f"{antecedent.get('obj') or ''} then "
-            f"{consequent.get('subject')} {consequent.get('relation')} "
-            f"{consequent.get('obj') or ''}").split())
-        if quality < MIN_ADMIT_QUALITY:
-            return Admission(proposition=claim, surface=surface, refusals=[
-                f"insufficient support: quality {quality:.3f} < floor "
-                f"{MIN_ADMIT_QUALITY}"])
-        for tag, part in (("antecedent", antecedent), ("consequent", consequent)):
-            *_, refusal = shape_proposition(
-                part.get("subject"), part.get("relation"), part.get("obj"))
-            if refusal:
-                return Admission(proposition=claim, surface=surface,
-                                 refusals=[f"{tag} {refusal}"])
-        await get_scoped_context_store().observe_claim(
-            actor, claim, domain=domain, supports=True, quality=quality,
-            source="taught_rule", surface=surface)
-        return Admission(proposition=claim, surface=surface, admitted=True,
-                         refusals=[])
-
-    async def _route_declarative_takeaway(self, payload: Dict[str, Any], *,
-                                          domain: str) -> Any:
-        """Route a learning payload's DECLARATIVE takeaway through the one gate.
-
-        Every learning door converges here for the knowledge it carries: the
-        procedural/meta-learning lane credits a STRATEGY, but a stated fact is
-        KNOWLEDGE and must be admitted, believed, and filed like any taught fact —
-        not left in a strategy posterior or a memory row the reasoner never walks.
-        So any payload carrying a structured claim (subject/relation/object, or a
-        `fact`/`claim` triple) is admitted through `learn_fact`: the ingress decides
-        admit/refuse/already-present, the belief layer moves the single posterior
-        (a correction, `positive=False`, LOWERS it), and the domain crystallizes.
-
-        Confidence rides as EVIDENCE QUALITY; the learner never decides what sticks.
-        Does NOTHING when the payload states no claim — a strategy-only outcome
-        never mints a belief (the credit invariant). Returns the `Admission` or None.
-        """
-        try:
-            subj = payload.get("subject")
-            rel = payload.get("relation")
-            obj = payload.get("object", payload.get("obj"))
-            triple = payload.get("fact") or payload.get("claim")
-            positive = payload.get("positive", True)
-            q = payload.get("confidence", payload.get("quality"))
-            if not (subj and rel) and isinstance(triple, (list, tuple)) and len(triple) >= 2:
-                subj, rel = triple[0], triple[1]
-                obj = triple[2] if len(triple) > 2 else None
-            if not (subj and rel):
-                return None  # no declarative claim -> nothing to admit (credit invariant)
-            quality = float(q) if isinstance(q, (int, float)) else 0.9
-            quality = max(0.0, min(1.0, quality))
-            from core.semantics.cognitive_ingress import Provenance
-            prov = Provenance(
-                producer="learning",
-                source_id=str(payload.get("source") or "experience"),
-                source_type=str(payload.get("provenance_type") or "USER_SUPPLIED"))
-            return await self.learn_fact(
-                str(subj), str(rel), (str(obj) if obj is not None else None),
-                positive=bool(positive), domain=domain, provenance=prov,
-                quality=quality)
-        except Exception as error:
-            logger.debug("declarative-takeaway routing skipped: %s", error)
-            return None
+                emit_payload={"kind": "conditional", "surface": surface, "domain": domain},
+                observation=evidence.key, quality=evidence.quality)
+        elif not getattr(admission, "already_present", False):
+            return Decision(claim, True, "refused", list(admission.refusals) or ["the store did not take it"],
+                            admission=admission)
+        belief = beliefs.belief_for_claim(claim)
+        return Decision(claim, True, "settled" if self._settled_on(belief, positive=True) else "candidate",
+                        admission=admission, posterior=self._side(belief, positive=True))
 
     def create_belief(self, claim: str, domain: str, prior: float = 0.5,
                       evidence: Any = None, *, source: str = "derived") -> Any:
@@ -3830,7 +4496,8 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
     def observe_claim(self, claim: str, domain: str = "language", *,
                       supports: bool = True, quality: float = 0.9,
                       source: str = "observed",
-                      observation: Optional[str] = None) -> Any:
+                      observation: Optional[str] = None,
+                      memory_id: Optional[str] = None) -> Any:
         """Record ONE observation of a claim THROUGH the one authority, idempotently.
 
         The find-or-create-by-claim door (see create_belief): the first
@@ -3842,9 +4509,11 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
         toward (or away from) done. Delegates to the belief substrate; beliefs are
         revisable."""
         from core.reasoning.bayesian_uncertainty import get_uncertainty_system
+        # `memory_id`: what was met that this observation is of. A belief names a
+        # memory or it is not stored (`BayesianUncertaintySystem.is_grounded`).
         return get_uncertainty_system().observe_claim(
             claim, domain, supports=supports, quality=quality, source=source,
-            observation=observation)
+            observation=observation, memory_id=memory_id)
 
     # ── Resolving what the substrate knew it did not know ───────────────────
     #
@@ -4088,9 +4757,50 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
         return ResolutionGrounds(unknown.unknown_id, knowledge, belief, domain_ok,
                                  answer=answer, belief_id=getattr(held, "belief_id", None))
 
-    async def fan_out_ingested(self, result: Any, *, domain: str = "researched",
-                               surface: str = "", quality: float,
-                               memory_id: Optional[str] = None) -> int:
+    async def consider_envelope(self, service: Any, envelope: Any, *, domain: str, quality: float,
+                                memory_id: Optional[str] = None) -> Any:
+        """Structured evidence -- what a sense, a tool, a page or a demonstration gives in one envelope: concepts and
+        the links between them -- judged as a claim is (`consider`), link by link. A link the world holds against
+        (`_held_against`) stays out of what is written, and is counted against what is held, by the envelope's
+        source, once; the rest is ingested whole through the one writer of the concept graph (`service`) and fanned
+        out to beliefs and the lexicon (`_fan_out_ingested`). Returns the `IngestionResult`."""
+        from dataclasses import replace
+        from core.semantics.cognitive_ingress import shape_proposition
+        data = dict(getattr(envelope, "structured_data", None) or {})
+        concepts = []
+        for concept in data.get("concepts") or []:
+            kept = []
+            for edge in concept.get("relationships") or []:
+                relation, obj = str(edge[0]), edge[1]
+                positive = len(edge) < 3 or str(edge[2]) != "negative"
+                subject_term, relation_term, obj_term, refusal = shape_proposition(
+                    str(concept.get("label")), relation, str(obj) if obj is not None else None)
+                against = None if refusal or not obj_term else await self._held_against(
+                    subject_term, relation_term, obj_term, positive)
+                if against:
+                    support = edge[3] if len(edge) > 3 and edge[3] is not None else quality
+                    claim = " ".join(str(p) for p in (subject_term, relation_term, obj_term) if p)
+                    self.observe_claim(claim, domain, supports=positive, quality=float(support),
+                                       source=str(getattr(envelope, "producer", "") or "evidence"),
+                                       observation=str(getattr(envelope, "source_id", "") or claim))
+                    if not self._outweighs(claim, positive, against[1], against[2]):
+                        logger.info("evidence %s: %r not held: %s", getattr(envelope, "evidence_id", "?"), claim,
+                                    against[0])
+                        continue
+                kept.append(edge)
+            concepts.append({**concept, "relationships": kept} if "relationships" in concept else concept)
+        if "concepts" in data:
+            envelope = replace(envelope, structured_data={**data, "concepts": concepts})
+        result = await service.ingest(envelope)
+        # Written to the graph and never fanned out, evidence moved no belief and taught no word, and the run said
+        # only a warning: the fan-out's failure is the envelope's.
+        await self._fan_out_ingested(result, domain=domain, surface=getattr(envelope, "content", "") or "",
+                                     quality=quality, memory_id=memory_id)
+        return result
+
+    async def _fan_out_ingested(self, result: Any, *, domain: str = "researched",
+                                surface: str = "", quality: float,
+                                memory_id: Optional[str] = None) -> int:
         """Run the learning fan-out over what an ingestion ALREADY admitted.
 
         A producer that writes through `concept_ingestion.ingest` directly
@@ -4125,45 +4835,40 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
             # quality stands rather than a number being invented for it.
             edge_quality = edge[4] if len(edge) > 4 and edge[4] is not None else None
             claim = " ".join(str(p) for p in (subj, rel, obj) if p)
-            try:
-                await self._fan_out_learning(
-                    surface=surface or claim, claim=claim,
-                    # THE MEMORY THE PRODUCER MET THIS IN, when it has one.
-                    # This path ingests EDGES from an evidence envelope, and a
-                    # producer that never met anything (a tool signature read
-                    # off a registry) still passes None -- `_persist` then
-                    # refuses the belief rather than store one with no subject,
-                    # which is the correct outcome and visible in the log.
-                    #
-                    # A PERCEPTION IS NOT THAT CASE, and it was being treated as
-                    # if it were. The substrate does meet an image: it looks at
-                    # a real file and measures real structure. Measured on the
-                    # live store, one `see()` of a photograph admitted 146
-                    # concept-graph edges, formed 0 memories and wrote 0
-                    # beliefs, every one refused here for naming no memory --
-                    # SEE-LOOP-01 fell 23/23 to 20/23 and FRAME-01 14/14 to
-                    # 13/14 on exactly that. The perception pipeline now forms
-                    # the memory of having perceived and names it here.
-                    clauses=[(subj, rel, obj, memory_id)],
-                    positive=bool(positive),
-                    domain=domain, emit=None,
-                    emit_payload={"kind": "ingested", "domain": domain,
-                                  "subject": subj, "relation": rel, "obj": obj},
-                    quality=(edge_quality if edge_quality is not None else quality),
-                    # THE ENVELOPE ID, WHICH WAS ALREADY STABLE AND ALREADY
-                    # DROPPED HERE. `submit_tool_capability` stamps
-                    # `evidence_id=_stable_id("toolcap", name)` -- identical on
-                    # every boot -- and the comment beside it says "the envelope
-                    # id already collapses them in the store". It collapsed them
-                    # in the CONCEPT store; this fan-out never passed it on, so
-                    # every boot re-registering 371 tools appended another
-                    # evidence entry to each capability belief. That is the 674.
-                    observation=getattr(result, "evidence_id", None),
-                    )
-                n += 1
-            except Exception as error:
-                logger.debug("fan_out_ingested arm failed for %r: %s",
-                             claim, error)
+            await self._fan_out_learning(
+                surface=surface or claim, claim=claim,
+                # THE MEMORY THE PRODUCER MET THIS IN, when it has one.
+                # This path ingests EDGES from an evidence envelope, and a
+                # producer that never met anything (a tool signature read
+                # off a registry) passes None, and no belief is offered for
+                # it (`_fan_out_learning`): a belief is about a memory.
+                #
+                # A PERCEPTION IS NOT THAT CASE, and it was being treated as
+                # if it were. The substrate does meet an image: it looks at
+                # a real file and measures real structure. Measured on the
+                # live store, one `see()` of a photograph admitted 146
+                # concept-graph edges, formed 0 memories and wrote 0
+                # beliefs, every one refused here for naming no memory --
+                # SEE-LOOP-01 fell 23/23 to 20/23 and FRAME-01 14/14 to
+                # 13/14 on exactly that. The perception pipeline now forms
+                # the memory of having perceived and names it here.
+                clauses=[(subj, rel, obj, memory_id)],
+                positive=bool(positive),
+                domain=domain, emit=None,
+                emit_payload={"kind": "ingested", "domain": domain,
+                              "subject": subj, "relation": rel, "obj": obj},
+                quality=(edge_quality if edge_quality is not None else quality),
+                # THE ENVELOPE ID, WHICH WAS ALREADY STABLE AND ALREADY
+                # DROPPED HERE. `submit_tool_declaration` stamps
+                # `evidence_id=_stable_id("toolcap", name)` -- identical on
+                # every boot -- and the comment beside it says "the envelope
+                # id already collapses them in the store". It collapsed them
+                # in the CONCEPT store; this fan-out never passed it on, so
+                # every boot re-registering 371 tools appended another
+                # evidence entry to each capability belief. That is the 674.
+                observation=getattr(result, "evidence_id", None),
+                )
+            n += 1
         return n
 
     async def _fan_out_learning(self, *, memory_id: Optional[str] = None,
@@ -4209,14 +4914,12 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
         # follow from, and `MemoryAgent.warm_word_classes` works them out from
         # exactly that. So there is nothing to write, nothing to flush, and
         # nothing that can survive a wipe to contradict what is remembered.
-        # BELIEFS: every taught clause moves a UNIVERSAL posterior. This fan-out
-        # runs only on the substrate/shared path -- the general-vs-context
-        # partition is decided UPSTREAM, in the public learn_* methods: a user's
-        # telling is diverted to the scoped context layer before it ever reaches
-        # here (and the shared concept graph), so nothing in this fan-out is
-        # per-user. A promoted fact re-enters through the same shared path, so its
-        # belief is moved here too. One belief PER admitted clause; the surface
-        # claim only when no structured clauses were supplied.
+        # BELIEFS: every admitted clause moves a UNIVERSAL posterior. This fan-out
+        # runs only for what the gate admitted to the world: what is about a
+        # person is split off by the memory agent before it reaches the gate
+        # (docs/research/SEPARATION_MAP.md §11.3), so nothing in this fan-out is
+        # per-person. One belief PER admitted clause, named by the clause's own
+        # terms; the surface claim only when no structured clauses were supplied.
         # THE ADMISSION FLOOR, ON EVERY PATH THAT MOVES A BELIEF.
         #
         # `MIN_ADMIT_QUALITY` guarded `cognitive_ingress.admit` — the taught
@@ -4272,13 +4975,20 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
         # Same shape as the quality default this fan-out already documents --
         # something the producer knew, computed upstream and discarded at the
         # seam.
+        # A BELIEF IS ABOUT A MEMORY (`_persist`). A proposition that names none -- a tool's signature read off the
+        # registry, which nothing met -- is not offered as one: offered, it was refused at the store, thousands of
+        # times a boot, and the refusals buried every warning a run had to show. Counted, so it is seen.
+        # A corpus fans out every fact it held in one call, each observed on the substrate's loop (`GiveWay`).
+        give_way = GiveWay()
         for proposition, mid in (subjected or ([(claim, memory_id)] if claim else [])):
-            try:
-                us.observe_claim(proposition, domain=domain, supports=positive,
-                                 quality=quality, source="taught",
-                                 observation=observation, memory_id=mid)
-            except Exception as error:
-                logger.debug("learning fan-out (beliefs) failed: %s", error)
+            await give_way()
+            if mid is None:
+                self.system_metrics["beliefs_with_no_memory"] = \
+                    self.system_metrics.get("beliefs_with_no_memory", 0) + 1
+                continue
+            us.observe_claim(proposition, domain=domain, supports=positive,
+                             quality=quality, source="taught",
+                             observation=observation, memory_id=mid)
         # METRICS: the learning is counted.
         self.system_metrics["total_learning_sessions"] = \
             self.system_metrics.get("total_learning_sessions", 0) + 1
@@ -4296,13 +5006,10 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
         # the SINGLE domain authority" was believed of a call that, for every
         # domain a corpus teaches into, does nothing at all.
         if domain:
-            try:
-                from core.integration.universal_domain_master import (
-                    get_universal_domain_master)
-                dm = self.domain_master or get_universal_domain_master()
-                await dm.ensure_domain(domain)
-            except Exception as error:
-                logger.debug("learning fan-out (domain ensure) failed: %s", error)
+            from core.integration.universal_domain_master import (
+                get_universal_domain_master)
+            dm = self.domain_master or get_universal_domain_master()
+            await dm.ensure_domain(domain)
         # THEN TELL THE SUBSTRATE. Unconditionally.
         await self._announce(emit, emit_payload, domain)
 
@@ -4367,106 +5074,18 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
         except Exception as error:
             unheard(f"{type(error).__name__}: {error}")
 
-    async def _learn_scoped_fact(self, actor: str, subject: str, relation: str,
-                                 obj: Optional[str], *, positive: bool,
-                                 surface: Optional[str], domain: str,
-                                 quality: float, description: str,
-                                 word_class_of: Any, emit: Any,
-                                 provenance: Any) -> Any:
-        """A USER's told fact -> that user's CONTEXT, never the shared mind.
-
-        The fact is held in the scoped context layer (edge + belief), isolated
-        from the concept graph the reasoner walks for everyone and from the
-        universal belief store. It is then checked for promotion: if an
-        INDEPENDENT source corroborates it (a different actor holds the same
-        claim, or the substrate already holds it universally), the fact is lifted
-        into the one mind through the normal shared path — once — and every scoped
-        copy is flagged promoted. Without corroboration it stays context. This is
-        the anti-poisoning floor and the tenant-isolation guarantee in one rule:
-        a user can never write the shared mind directly. Returns an `Admission`
-        so the caller keeps the same contract `learn_fact` always returned."""
-        from core.semantics.cognitive_ingress import (Admission, MIN_ADMIT_QUALITY,
-                                                      shape_proposition)
-        from core.learning.scoped_context_store import get_scoped_context_store
-        from core.reasoning.bayesian_uncertainty import get_uncertainty_system
-        # The belief's claim is spelled as the shared side spells it (the parts
-        # as told), so the corroboration check below matches across the layers.
-        claim = " ".join(str(p) for p in (subject, relation, obj) if p)
-        surface = surface or claim
-        polarity = "positive" if positive else "negative"
-
-        # THE DOOR'S TESTS, before anything is written. A user's context is not a
-        # side entrance: what the door refuses is refused here, and the EDGE is
-        # stored in the door's canonical terms, which are the concept names the
-        # graph overlay walks.
-        if quality < MIN_ADMIT_QUALITY:
-            refusal = (f"insufficient support: quality {quality:.3f} < floor "
-                       f"{MIN_ADMIT_QUALITY}")
-        else:
-            subject_term, relation_term, obj_term, refusal = shape_proposition(
-                subject, relation, obj)
-        if refusal:
-            return Admission(proposition=claim, surface=surface, admitted=False,
-                             polarity=polarity, refusals=[refusal])
-
-        store = get_scoped_context_store()
-        await store.observe(actor, subject_term, relation_term, obj_term,
-                            claim=claim, positive=positive, quality=quality,
-                            domain=domain, surface=surface, source="taught")
-
-        # PROMOTION GATE — the one bridge from context to the shared mind, for
-        # what was said. What a person's work produced -- what was seen in their
-        # image, a recognition drawn from it -- is not a telling anyone can
-        # corroborate: it stays in their context, and reaches the substrate's own
-        # knowledge only as an experience, through the lift and the gate.
-        promoted = False
-        produced = getattr(provenance, "source_type", None) in ("PERCEPTION", "INDUCED_RULE")
-        if positive and not produced and not await store.is_promoted(claim):
-            holders = await store.independent_holders(
-                claim, exclude_actor=actor, min_posterior=0.5)
-            existing = get_uncertainty_system().belief_for_claim(claim)
-            substrate_holds = (existing is not None
-                               and existing.posterior_probability >= 0.5)
-            if holders or substrate_holds:
-                # Corroborated -> admit to the shared graph + universal belief via
-                # the normal shared path, then flag so it lifts exactly once.
-                shared = await self.learn_fact(
-                    subject, relation, obj, positive=positive, surface=surface,
-                    provenance=provenance, domain=domain, description=description,
-                    word_class_of=word_class_of, emit=emit, quality=quality,
-                    actor=None)  # actor=None -> the shared mind
-                # FLAGGED ONLY IF THE SHARED MIND TOOK IT. The flag used to be set
-                # whatever the door said, so a claim the shared door refused (a
-                # kind cycle, a failed ingestion) read "promoted" with nothing in
-                # the shared mind, and `is_promoted` then stopped it ever lifting.
-                if shared.admitted or shared.already_present:
-                    await store.mark_promoted(claim)
-                    promoted = True
-                    logger.info(
-                        "scoped fact promoted to the shared mind on independent "
-                        "corroboration: '%s' (holders=%d, substrate_held=%s)",
-                        claim[:60], len(holders), substrate_holds)
-                else:
-                    logger.warning(
-                        "scoped fact corroborated but the shared door refused it, "
-                        "so it stays context: '%s' (%s)", claim[:60],
-                        "; ".join(shared.refusals) or "no reason given")
-
-        return Admission(
-            proposition=claim, surface=surface, admitted=True,
-            concepts_created=([] if promoted else [subject_term]),
-            polarity=polarity, refusals=[])
-
-    async def record_demonstration(self, example, *, domain_id: str) -> bool:
+    async def record_demonstration(self, example, *, domain_id: str, owner: Optional[str] = None) -> bool:
         """Keep one executed demonstration; do NOT induce here.
 
         The hot-path half of learning: the executor calls it right after acting,
         so it must be cheap. Induction (a hypothesis search) is left to the
-        always-online learner (`reinduce_operator`). Returns whether a new
-        demonstration was written (False if already recorded).
+        always-online learner (`reinduce_operator`). `owner` is whose work it
+        was, None for the substrate's own: a person's holds their particulars
+        (`_operator_residue`). Returns whether a new demonstration was written
+        (False if already recorded).
         """
         from core.learning.demonstration_store import get_demonstration_store
-        return await get_demonstration_store().append(example, domain_id=domain_id)
+        return await get_demonstration_store().append(example, domain_id=domain_id, owner=owner)
 
     async def reinduce_operator(self, *, domain_id: str, predicate: str,
                                 arity: int) -> Dict[str, Any]:
@@ -4591,6 +5210,17 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
         summary["status"] = result.status.value
         if result.status is not InductionStatus.RULE_LEARNED:
             return summary, None, []
+        # NOTHING OF A PERSON IS LEFT IN IT (docs/research/SEPARATION_MAP.md
+        # §10.2 and §11.6). An operator induced only from people's work, holding a
+        # constant every one of them supplied, holds their particulars: it waits
+        # for demonstrations that differ there to lift it into a variable, and is
+        # not the world's operator before.
+        owners = await demos.owners([e.evidence_id for e in basis if e.evidence_id])
+        residue = _operator_residue(result.rule, basis, owners)
+        if residue:
+            summary["status"] = "awaiting_lift"
+            summary["residue"] = residue
+            return summary, None, []
         acted = getattr(result.rule, "action", None)
         if acted is None or acted.predicate != predicate:
             # NOT THIS ACT'S OPERATOR. The demonstrations were explained without
@@ -4633,9 +5263,16 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
             from core.domain.evidence_producers import (
                 submit_demonstration, submit_learned_rule)
 
+            # THE ROOTS ARE THE WORLD'S EVIDENCE: the substrate's own
+            # demonstrations. A person's is theirs, and is never written into the
+            # concept graph as a root; an operator learned from people's work
+            # alone is executable and stays out of the concept graph.
+            from core.learning.demonstration_store import get_demonstration_store
+            owners = await get_demonstration_store().owners(
+                [e.evidence_id for e in basis if e.evidence_id])
             roots: List[str] = []
             for example in basis:
-                if example.action is None or not example.evidence_id:
+                if example.action is None or not example.evidence_id or owners.get(example.evidence_id):
                     continue
                 await submit_demonstration(
                     example, domain_id=domain_id,

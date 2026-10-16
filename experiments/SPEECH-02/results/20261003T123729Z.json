@@ -1,0 +1,470 @@
+{
+  "experiment": "SPEECH-02",
+  "claim": "The words the English lessons are written in can be taught to the substrate by hearing them said, each lesson kept as a hearing in the shared mind and read back exactly; and said by people it was never taught by, a word it names firmly is the word said.",
+  "hypothesis": "H1 every example of a real word said is taught, none refused, each a hearing of its own saying which word it taught. H2 a fresh faculty reads every example back exactly. H3 a firm reading of a word said by an untaught speaker is right; how many are named at all is measured.",
+  "started_at": "2026-10-03T12:37:29.463444+00:00",
+  "duration_seconds": 305.03,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/Lyric/venv_lyric/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/Lyric",
+    "shadow_mode": null,
+    "git_commit": "a3aad59e25603e309479c542053a1e733fb70ce7",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "lyric_dev",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "lyric_dev",
+        "model": "lyric_dev",
+        "user_context": "lyric_dev",
+        "learning": "lyric_dev"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "environment",
+        "database": "environment",
+        "user": "environment",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "pool_idle_seconds": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 13,
+    "database_verified": "lyric_dev",
+    "database_verified_reason": "asked the server"
+  },
+  "summary": {
+    "checks": 12,
+    "passed": 8,
+    "failed": 4,
+    "outcome": "FAIL"
+  },
+  "metrics": [
+    {
+      "name": "lesson words",
+      "value": 904,
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "lesson words with no clip to teach or hear",
+      "value": [
+        "x",
+        "y",
+        "z",
+        "cat's",
+        "dog's",
+        "cubed",
+        "earwig",
+        "where's",
+        "factorial",
+        "subtract",
+        "sqrt",
+        "teacher's",
+        "pliers",
+        "snowing",
+        "swum",
+        "cos"
+      ],
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "words taught",
+      "value": 100,
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "seconds to teach",
+      "value": 132.9,
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "seconds per lesson",
+      "value": 0.44,
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "refused",
+      "value": [
+        [
+          "of",
+          "librispeech",
+          "1993",
+          "nothing in /Users/stefan/Dominion Labs/Lyric/experiments/SPEECH-02/work/teach/of/0.wav rose above the room it was recorded in, so no word can be told apart in i"
+        ]
+      ],
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "rows teaching wrote, by table",
+      "value": {
+        "unified.memory_media": 299,
+        "unified.performance_logs": 304,
+        "unified.performance_logs_2026_10": 304,
+        "unified.domains": 1,
+        "unified.concept_aliases": 1707,
+        "unified.concept_domains": 1175,
+        "unified.concept_evidence": 3940,
+        "unified.concept_identity_relations": 320,
+        "unified.concepts": 1170,
+        "unified.evidence_envelopes": 299,
+        "unified.concept_relations": 4512,
+        "unified.beliefs": 4513,
+        "memory_hot.memory_hot": 300,
+        "unified.experience_pool": 299
+      },
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "relations teaching wrote, first 40",
+      "value": [
+        [
+          "s0242d3ffthe0xa3e0c0e2e4",
+          "has_format",
+          "wav"
+        ],
+        [
+          "s0242d3ffthe0xa3e0c0e2e4",
+          "has_codec",
+          "pcm_s16le"
+        ],
+        [
+          "s0242d3ffthe0xa3e0c0e2e4",
+          "lasts",
+          "1.6"
+        ],
+        [
+          "s0242d3ffthe0xa3e0c0e2e4",
+          "has_sample_rate",
+          "22050"
+        ],
+        [
+          "s0242d3ffthe0xa3e0c0e2e4",
+          "has_channels",
+          "1"
+        ],
+        [
+          "s0242d3ffthe0xa3e0c0e2e4",
+          "hearing_is",
+          "clear"
+        ],
+        [
+          "s0242d3ffthe0xa3e0c0e2e4",
+          "background_is",
+          "quiet"
+        ],
+        [
+          "s0242d3ffthe0xa3e0c0e2e4",
+          "contains",
+          "s0242d3ffthe0xa3e0c0e2e4_unpitchedabrupt"
+        ],
+        [
+          "s0242d3ffthe0xa3e0c0e2e4_unpitchedabrupt",
+          "isa",
+          "unpitched"
+        ],
+        [
+          "s0242d3ffthe0xa3e0c0e2e4_unpitchedabrupt",
+          "isa",
+          "abrupt"
+        ],
+        [
+          "s0242d3ffthe0xa3e0c0e2e4_unpitchedabrupt",
+          "starts_at",
+          "0.743"
+        ],
+        [
+          "s0242d3ffthe0xa3e0c0e2e4_unpitchedabrupt",
+          "lasts",
+          "0.139"
+        ],
+        [
+          "s0242d3ffthe0xa3e0c0e2e4_unpitchedabrupt",
+          "level",
+          "-16.9"
+        ],
+        [
+          "s0242d3ffthe1xa0289d0e73",
+          "has_format",
+          "wav"
+        ],
+        [
+          "s0242d3ffthe1xa0289d0e73",
+          "has_codec",
+          "pcm_s16le"
+        ],
+        [
+          "s0242d3ffthe1xa0289d0e73",
+          "lasts",
+          "1.6"
+        ],
+        [
+          "s0242d3ffthe1xa0289d0e73",
+          "has_sample_rate",
+          "22050"
+        ],
+        [
+          "s0242d3ffthe1xa0289d0e73",
+          "has_channels",
+          "1"
+        ],
+        [
+          "s0242d3ffthe1xa0289d0e73",
+          "hearing_is",
+          "clear"
+        ],
+        [
+          "s0242d3ffthe1xa0289d0e73",
+          "background_is",
+          "quiet"
+        ],
+        [
+          "s0242d3ffthe1xa0289d0e73",
+          "contains",
+          "s0242d3ffthe1xa0289d0e73_lowgradual"
+        ],
+        [
+          "s0242d3ffthe1xa0289d0e73_lowgradual",
+          "isa",
+          "pitched"
+        ],
+        [
+          "s0242d3ffthe1xa0289d0e73_lowgradual",
+          "isa",
+          "low_pitched"
+        ],
+        [
+          "s0242d3ffthe1xa0289d0e73_lowgradual",
+          "isa",
+          "gradual"
+        ],
+        [
+          "s0242d3ffthe1xa0289d0e73_lowgradual",
+          "starts_at",
+          "0.697"
+        ],
+        [
+          "s0242d3ffthe1xa0289d0e73_lowgradual",
+          "lasts",
+          "0.244"
+        ],
+        [
+          "s0242d3ffthe1xa0289d0e73_lowgradual",
+          "level",
+          "-19.3"
+        ],
+        [
+          "s0242d3ffthe1xa0289d0e73_lowgradual",
+          "pitch_hz",
+          "118.3"
+        ],
+        [
+          "s0242d3ffthe2xe4f09f47dc",
+          "has_format",
+          "wav"
+        ],
+        [
+          "s0242d3ffthe2xe4f09f47dc",
+          "has_codec",
+          "pcm_s16le"
+        ],
+        [
+          "s0242d3ffthe2xe4f09f47dc",
+          "lasts",
+          "1.6"
+        ],
+        [
+          "s0242d3ffthe2xe4f09f47dc",
+          "has_sample_rate",
+          "22050"
+        ],
+        [
+          "s0242d3ffthe2xe4f09f47dc",
+          "has_channels",
+          "1"
+        ],
+        [
+          "s0242d3ffthe2xe4f09f47dc",
+          "hearing_is",
+          "poor"
+        ],
+        [
+          "s0242d3ffthe2xe4f09f47dc",
+          "background_is",
+          "quiet"
+        ],
+        [
+          "s0242d3ffthe2xe4f09f47dc",
+          "contains",
+          "s0242d3ffthe2xe4f09f47dc_unpitchedabrupt"
+        ],
+        [
+          "s0242d3ffthe2xe4f09f47dc_unpitchedabrupt",
+          "isa",
+          "unpitched"
+        ],
+        [
+          "s0242d3ffthe2xe4f09f47dc_unpitchedabrupt",
+          "isa",
+          "abrupt"
+        ],
+        [
+          "s0242d3ffthe2xe4f09f47dc_unpitchedabrupt",
+          "starts_at",
+          "0.766"
+        ],
+        [
+          "s0242d3ffthe2xe4f09f47dc_unpitchedabrupt",
+          "lasts",
+          "0.046"
+        ]
+      ],
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "heard",
+      "value": {
+        "not named": 190,
+        "heard": 200,
+        "named wrongly": 6,
+        "right, weakly": 4
+      },
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "named right",
+      "value": "4/200",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "named wrongly, most often",
+      "value": [
+        "there as ball (1)",
+        "that as ball (1)",
+        "dogs as ball (1)",
+        "blue as ball (1)",
+        "where as ball (1)",
+        "pen as ten (1)"
+      ],
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "seconds to hear a word",
+      "value": 0.14,
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "rows left after cleanup, by table",
+      "value": {
+        "unified.performance_logs": 308,
+        "unified.performance_logs_2026_10": 308,
+        "unified.domains": 1,
+        "unified.concept_aliases": 1707,
+        "unified.concept_domains": 1175,
+        "unified.concept_evidence": 3940,
+        "unified.concept_identity_relations": 320,
+        "unified.concepts": 564,
+        "unified.beliefs": 1,
+        "memory_hot.memory_hot": 1
+      },
+      "unit": "",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "the run is in the sandbox",
+      "passed": true,
+      "detail": "lyric_dev",
+      "at": "2026-10-03T12:38:25.326822+00:00"
+    },
+    {
+      "label": "no real word said is refused",
+      "passed": false,
+      "detail": "1 of 300: [('of', 'librispeech', '1993', 'nothing in /Users/stefan/Dominion Labs/Lyric/experiments/SPEECH-02/work/teach/of/0.wav rose above the room it was recorded in, so no word can be told apart in i')]",
+      "at": "2026-10-03T12:40:39.274481+00:00"
+    },
+    {
+      "label": "every example taught is a hearing remembered on its own",
+      "passed": true,
+      "detail": "299 memories for 299 lessons",
+      "at": "2026-10-03T12:40:39.274569+00:00"
+    },
+    {
+      "label": "each lesson is a hearing in the shared mind, tagged a spoken word, saying which word it taught",
+      "passed": true,
+      "detail": "0 wrong: []",
+      "at": "2026-10-03T12:41:03.220313+00:00"
+    },
+    {
+      "label": "its trace keeps exactly what was measured of the example, never the recording",
+      "passed": true,
+      "detail": "0 wrong: []",
+      "at": "2026-10-03T12:41:03.220402+00:00"
+    },
+    {
+      "label": "every word taught by hearing is a word the reader holds, written the same",
+      "passed": true,
+      "detail": "0 not: []",
+      "at": "2026-10-03T12:41:03.221268+00:00"
+    },
+    {
+      "label": "every taught word, with every example",
+      "passed": true,
+      "detail": "299 examples of 100 words, against 299",
+      "at": "2026-10-03T12:41:04.271387+00:00"
+    },
+    {
+      "label": "exactly as they were taught",
+      "passed": true,
+      "detail": "299 of 299",
+      "at": "2026-10-03T12:41:49.640288+00:00"
+    },
+    {
+      "label": "a word named firmly is the word said",
+      "passed": false,
+      "detail": "1 firm and wrong: [('blue', [('ball', 0.631)])]",
+      "at": "2026-10-03T12:42:32.813341+00:00"
+    },
+    {
+      "label": "most words said by an untaught speaker are named",
+      "passed": false,
+      "detail": "4 of 200",
+      "at": "2026-10-03T12:42:32.813367+00:00"
+    },
+    {
+      "label": "everything the run wrote to the sandbox is removed",
+      "passed": false,
+      "detail": "{'unified.performance_logs': 308, 'unified.performance_logs_2026_10': 308, 'unified.domains': 1, 'unified.concept_aliases': 1707, 'unified.concept_domains': 1175, 'unified.concept_evidence': 3940, 'unified.concept_identity_relations': 320, 'unified.concepts': 564, 'unified.beliefs': 1, 'memory_hot.memory_hot': 1}",
+      "at": "2026-10-03T12:42:34.055785+00:00"
+    },
+    {
+      "label": "the main model's store is untouched",
+      "passed": true,
+      "detail": "290096 rows before, 290096 after",
+      "at": "2026-10-03T12:42:34.482519+00:00"
+    }
+  ],
+  "notes": [
+    "Spoken words held before this run: 0."
+  ]
+}

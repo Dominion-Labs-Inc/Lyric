@@ -24,6 +24,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from collections import Counter
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -116,6 +117,9 @@ def test_different_meanings_never_collide():
     lambda: Meaning("ask", (F("isa", "?x", "b"),), asked=("?y",)),
     lambda: Meaning("ask", (F("isa", "?speaker", "b"),), asked=("?speaker",)),
     lambda: Meaning("tell", (F("isa", "a", "b"), F("isa", "a", "b"))),
+    lambda: Meaning("tell", (F("instance_of", "?x", "7"),)),
+    lambda: Meaning("tell", (F("instance_of", "?x", "--03-12"),)),
+    lambda: Meaning("tell", (F("has_property", "?x", "7:30 p.m."),)),
     lambda: F("related_to", "a", "b"),
     lambda: F("isa", "?Bad", "b"),
     lambda: F("isa", "", "b"),
@@ -211,6 +215,10 @@ def taught(monkeypatch):
             F("done_to", "?e", "?s"), F("instance_of", "?s", "shoe")))),
     ])
     monkeypatch.setattr(dr, "_live_inventory", lambda: view)
+
+    async def knows_nothing(utterances, context=()):
+        return dr.Heard()        # memory, asked what it holds of what is said: nothing
+    monkeypatch.setattr(dr, "listening", knows_nothing)
     return view
 
 
@@ -328,6 +336,16 @@ def _tell(*facts):
     return Meaning("tell", tuple(F(*f) for f in facts))
 
 
+#: A listener that counted its evidence on the English lessons (`derived_reader.listening_counts`, on main, 2026-10-14):
+#: readings at each level of each piece of evidence that were, and were not, the one meant.
+_LISTENED = {("defined", 0, False): 233093, ("defined", 0, True): 2147, ("defined", 1, False): 2477,
+             ("defined", 1, True): 43, ("defined", 2, False): 1114, ("defined", 2, True): 138,
+             ("fit", 0, False): 404, ("fit", 0, True): 2208, ("fit", 1, False): 15596, ("fit", 1, True): 110,
+             ("fit", 2, False): 34333, ("fit", 2, True): 10, ("fit", 3, False): 186351, ("known", 0, False): 236453,
+             ("known", 0, True): 2099, ("known", 1, False): 22, ("known", 1, True): 3, ("known", 2, False): 209,
+             ("known", 2, True): 226}
+
+
 def _mine(thing):
     return _tell(("instance_of", "?shown", thing), ("owned_by", "?shown", "?speaker"))
 
@@ -345,24 +363,27 @@ _WAVE = (("instance_of", "?e", "waving"), ("done_by", "?e", "?listener"))
 
 def _learn(view, pairs):
     """What the learner does with each pair, without memory or beliefs: read it, or run the first repair that
-    applies and fold in what it creates. Returns the repair names, in order ('read' when nothing was needed)."""
+    applies and fold in what it creates; and hear its words, each after the one before it. Returns the repair names,
+    in order ('read' when nothing was needed)."""
     ran = []
     for sentence, meaning in pairs:
         form = form_of(sentence)
         words = tuple(p.text for p in form)
         if dr.readings_of(words, meaning, view):
             ran.append("read")
+            view.hear(words)
             continue
         repair = next(r for r in (step(form, meaning, view) for step in dr.REPAIRS) if r is not None)
         for item in repair.constructions + repair.links:
             view.add(item)
         assert dr.readings_of(words, meaning, view), f"{sentence!r} does not read after {repair.name}"
+        view.hear(words)
         ran.append(repair.name)
     return ran
 
 
 def _believed():
-    return PatternInventory(score=lambda item: (0.9, 1))
+    return PatternInventory(score=lambda item: (0.9, 1, True))
 
 
 def test_constructions_and_links_are_identified_exactly_and_survive_memory():
@@ -412,27 +433,54 @@ def test_a_new_combination_reads_and_is_said_but_an_unseen_pairing_or_shape_is_n
     assert unmarked.meaning == _the("shoe", "blue") and unmarked.loose
 
 
-def test_a_construction_no_longer_believed_takes_no_part_and_the_pair_revives_it():
+def test_a_construction_no_pair_reads_through_takes_no_part_and_the_pair_revives_it():
+    """A construction outcompeted, its belief below even, still reads while a taught pair reads through it, as the
+    paper keeps one until its entrenchment is spent; one no pair reads through any more takes no part."""
     scores = {}
-    view = PatternInventory(score=lambda item: scores.get(item.key, (0.9, 1)))
+    view = PatternInventory(score=lambda item: scores.get(item.key, (0.9, 1, True)))
     _learn(view, [("This is my shoe.", _mine("shoe"))])
     (held,) = view.holophrases()
-    scores[held.key] = (0.2, 3)
+    scores[held.key] = (0.2, 3, True)
+    (outcompeted,) = read("This is my shoe.", view)
+    assert outcompeted.pattern is held and outcompeted.meaning == _mine("shoe")
+    scores[held.key] = (0.2, 3, False)
     assert read("This is my shoe.", view) == ()
     repair = dr.holophrase(form_of("This is my shoe."), _mine("shoe"), view)
     assert repair.revived == (held,) and repair.constructions == ()
 
 
+def test_a_construction_counts_while_a_pair_it_read_still_reads_through_it():
+    """Read from the beliefs as held: a construction one pair read and two others outcompeted stands below even and
+    still reads; one whose own pair now reads through another construction drops out, however it stood before."""
+    from core.reasoning import bayesian_uncertainty as bu
+    view = PatternInventory()
+    _learn(view, [("This is my shoe.", _mine("shoe"))])
+    (held,) = view.holophrases()
+    was, bu._uncertainty_system = bu._uncertainty_system, bu.BayesianUncertaintySystem()
+    try:
+        system = bu._uncertainty_system
+        system.observe_claim(held.claim(), dr.ENGLISH_DOMAIN, supports=True, quality=0.95, observation="l1:shoe")
+        for other in ("l1:hat", "l1:sock"):
+            system.observe_claim(held.claim(), dr.ENGLISH_DOMAIN, supports=False, quality=0.95, observation=other)
+        assert view.score(held) < 0.5 and view.counts(held)
+        assert read("This is my shoe.", view)
+        system.observe_claim(held.claim(), dr.ENGLISH_DOMAIN, supports=False, quality=0.95, observation="l1:shoe")
+        assert not view.counts(held), "its own pair reads otherwise now: no use stands"
+        assert read("This is my shoe.", view) == ()
+    finally:
+        bu._uncertainty_system = was
+
+
 def test_the_best_reading_is_the_most_believed_then_the_most_used():
     scores = {}
-    view = PatternInventory(score=lambda item: scores.get(item.key, (0.9, 1)))
+    view = PatternInventory(score=lambda item: scores.get(item.key, (0.9, 1, True)))
     _learn(view, [("This is my shoe.", _mine("shoe")), ("This is my hat.", _mine("hat"))])
     frame = view.item_based()[0]
-    scores[frame.key] = (0.9, 5)
+    scores[frame.key] = (0.9, 5, True)
     readings = dr.readings_of(tuple(p.text for p in form_of("This is my shoe.")), _mine("shoe"), view)
     assert len(readings) == 2 and readings[0].pattern is frame, "equal belief: the more used reading wins"
     (holophrase,) = view.holophrases()
-    scores[holophrase.key] = (0.99, 1)
+    scores[holophrase.key] = (0.99, 1, True)
     readings = dr.readings_of(tuple(p.text for p in form_of("This is my shoe.")), _mine("shoe"), view)
     assert readings[0].pattern is holophrase, "higher belief wins before use counts"
 
@@ -444,6 +492,38 @@ def test_word_kinds_emerge_from_the_slots_they_fill():
                   ("The shoe is red.", _the("shoe", "red")), ("The hat is blue.", _the("hat", "blue"))])
     kinds = {frozenset(x.surface for x in kind) for kind in view.word_kinds()}
     assert kinds == {frozenset({"shoe", "hat"}), frozenset({"red", "blue"})}
+
+
+def test_a_word_is_in_a_kind_for_each_part_it_stands_in_and_a_new_kind_is_its_own():
+    """A number is a count in "There are three dogs." and a thing in "Three is small.": a kind for each, and neither
+    joins the other. Joined as one filler, the things standing beside "Three" stood where counts stand ("There are
+    Rex dogs."); after WordNet's numbers, every word stood in every slot. A kind taught for the first time, the
+    doings "barked" and "howled", is a kind of its own: no count and no thing stands where it stands."""
+    view = _believed()
+
+    def dogs(count):
+        return _tell(("instance_of", "?x", "dog"), ("has_count", "?x", count))
+
+    def small(thing):
+        return _tell(("has_property", thing, "small"))
+
+    def done(kind):
+        return _tell(("instance_of", "?e", kind), ("done_by", "?e", "rex"), ("precedes", "?e", "?now"))
+    _learn(view, [("There are two dogs.", dogs("2")), ("There are three dogs.", dogs("3")),
+                  ("There are several dogs.", dogs("several")),
+                  ("Three is small.", small("3")), ("Two is small.", small("2")), ("Rex is small.", small("rex")),
+                  ("Rex barked.", done("bark")), ("Rex howled.", done("howl"))])
+    assert {frozenset(x.surface for x in kind) for kind in view.word_kinds()} == {
+        frozenset({"two", "three", "several"}), frozenset({"Three", "Two", "Rex"}), frozenset({"barked", "howled"})}
+    counts = next(p for p in view.item_based() if p.surface == "There are ?slot0 dogs.")
+    doings = next(p for p in view.item_based() if p.surface == "?slot0 ?slot1.")
+    word = {lexical.surface: lexical.key for lexical in view.lexicals()}
+    assert not view.same_kind(counts.key, "?slot0", word["Rex"]) and not view.stood_beside(counts.key, "?slot0", word["Rex"])
+    assert not view.same_kind(counts.key, "?slot0", word["howled"])
+    assert not view.same_kind(doings.key, "?slot1", word["Rex"]) and not view.same_kind(doings.key, "?slot1", word["two"])
+    assert view.same_kind(counts.key, "?slot0", word["Three"]), "a word held only as the number's name counts as it"
+    assert not read("There are Rex dogs.", view) and not read("Rex two.", view)
+    assert [r.meaning.canonical() for r in read("Rex howled.", view)][:1] == [_known("Rex howled.", done("howl"))]
 
 
 # ------------------------------------------------------------------ step 3: what reading may suppose
@@ -504,17 +584,18 @@ def test_new_words_are_anchored_by_the_words_of_the_construction_they_stand_in()
     assert reading.meaning == _tell(("isa", "dax", "animal")) and [lx.value for lx in reading.new] == ["dax"]
     (two,) = read("A dax is wug.", view)
     assert {lx.value for lx in two.new} == {"dax", "wug"}, "two words of its own anchor two new ones"
-    with pytest.raises(ValueError):
-        Pattern((dr.Slot("?slot0", False), dr.Piece(".", False)),
-                Meaning("tell", (F("has_property", "?previous", "?slot0"),)))
-    two_words = PatternInventory(score=lambda item: (0.9, 1))
+    one = PatternInventory(score=lambda item: (0.9, 1, True))
+    _learn(one, [("Birds fly.", _tell(("capable_of", "bird", "fly")))])
+    assert all(dr._keeps_a_word(p) for p in one.item_based()), \
+        "read off one sentence, a frame keeps a word of its own: a mark alone anchors nothing"
+    two_words = PatternInventory(score=lambda item: (0.9, 1, True))
     ran = _learn(two_words, [("Birds fly.", _tell(("capable_of", "bird", "fly"))),
                              ("Birds swim.", _tell(("capable_of", "bird", "swim"))),
                              ("Fish fly.", _tell(("capable_of", "fish", "fly"))),
                              ("Fish swim.", _tell(("capable_of", "fish", "swim")))])
-    assert "?slot0 ?slot1." not in {p.surface for p in two_words.item_based()}, \
-        "a frame keeps a word of its own; a mark alone anchors nothing"
-    assert read("Hello there.", two_words) == ()
+    assert "?slot0 ?slot1." in {p.surface for p in two_words.item_based()}, \
+        "each place seen filled two ways ('Birds ?slot0.' held, 'Fish fly.' said), substitution opens both"
+    assert read("Hello there.", two_words) == (), "a frame of slots alone takes only what stood where its own did"
     causes = _believed()
     _learn(causes, [("Fire causes smoke.", _tell(("causes", "fire", "smoke"))),
                     ("Heat causes smoke.", _tell(("causes", "heat", "smoke"))),
@@ -754,19 +835,23 @@ def _from_scratch(view):
         return key
 
     for (pattern, slot), keys in view._linked.items():
-        for key in keys:
-            parent[root(key)] = root(keys[0])
+        frame = view.get(pattern)
+        if frame is None:
+            continue
+        for part in dr._taken_as(frame, slot):
+            for key in keys:
+                parent[root((key, part))] = root((keys[0], part))
     same = {}
-    for key in list(parent):
-        lexical = view.get(key)
+    for node in list(parent):
+        lexical = view.get(node[0])
         if isinstance(lexical, dr.Lexical):
             words = dr._loose(lexical.words)
             if len(words) == 1 and dr.PatternInventory.shape_between(words[0], lexical.value) is not None:
                 words = (dr._fold(lexical.value),)
-            parent[root(key)] = root(same.setdefault((words, lexical.value), key))
+            parent[root(node)] = root(same.setdefault((words, lexical.value, node[1]), node))
     kinds = {}
-    for key in parent:
-        kinds.setdefault(root(key), set()).add(key)
+    for node in parent:
+        kinds.setdefault(root(node), set()).add(node)
     after = {}
     for item in view.items():
         if isinstance(item, (Pattern, dr.Phrase)):
@@ -820,22 +905,23 @@ def test_what_the_view_derives_is_kept_as_items_arrive_in_any_order():
         assert view.word_shapes() == shapes, seed
         assert {c for c in shapes if view.productive(c)} == productive, seed
         assert {frozenset(x.key for x in kind) for kind in view.word_kinds()} == \
-            {frozenset(k for k in kind if k in view) for kind in kinds} - {frozenset()}, seed
+            {frozenset(k for k, _ in kind if k in view) for kind in kinds} - {frozenset()}, seed
         assert {w: view.letters_after(w) for w in after} == {w: frozenset(v) for w, v in after.items()}, seed
         for (pattern, slot), keys in view._linked.items():
             present = [view.get(k) for k in keys if isinstance(view.get(k), dr.Lexical)]
             one = [x for x in present if len(dr._loose(x.words)) == 1]
             otherwise = sum(1 for x in one if dr._loose(x.words)[0] != dr._fold(x.value))
-            kind = next(k for k in kinds if keys[0] in k)
+            slot_kinds = [k for k in kinds for part in dr._taken_as(view.get(pattern), slot) if (keys[0], part) in k]
             written = {dr.PatternInventory.shape_between(dr._loose(view.get(k).words)[0], view.get(k).value)
-                       for k in kind if isinstance(view.get(k), dr.Lexical) and len(dr._loose(view.get(k).words)) == 1}
+                       for kind in slot_kinds for k, _ in kind
+                       if isinstance(view.get(k), dr.Lexical) and len(dr._loose(view.get(k).words)) == 1}
             family = {c for c in _said_from_scratch(view) if dr.PatternInventory._least(c) in written} \
                 if otherwise * 2 > len(one) else set()
             assert set(view.shape_of_slot(pattern, slot)) == family, seed
             assert view.filler_openings(pattern, slot) == frozenset(
                 dr._begins_with_structure(view, x) for x in present), seed
             assert view.longest_filler(pattern, slot) == max(
-                (len(dr._loose(view.get(k).words)) for kind in kinds if keys[0] in kind for k in kind
+                (len(dr._loose(view.get(k).words)) for kind in slot_kinds for k, _ in kind
                  if isinstance(view.get(k), dr.Lexical)), default=0), seed
     assert not view.productive(("xes", "x")), "four words that are no shape of anything outweigh two that are"
 
@@ -902,19 +988,22 @@ def test_positions_counts_groups_and_contrast_read_as_english_says_them():
     for sentence, meaning in (
             ("The cup is above the bed.", _tell(("above", "cup", "bed"))),
             ("The pen is under the book.", _tell(("below", "pen", "book"))),
-            ("The bike is in front of the car.", _tell(("in_front_of", "bike", "car"))),
+            # The bike is the bicycle WordNet holds; "the" is followed to it by meaning, not spelling.
+            ("The bike is in front of the car.", Meaning("tell", (F("instance_of", "?v0", "bicycle", given=True),
+                                                                  F("instance_of", "?v1", "car", given=True),
+                                                                  F("in_front_of", "?v0", "?v1")))),
             ("What is to the right of the book?", ask(("right_of", "?v0", "book"), asked=["?v0"])),
             ("The cat is between the box and the bed.",
              _tell(("between", "cat", "?v0"), ("has_member", "?v0", "box"), ("has_member", "?v0", "bed"))),
             ("Tom owns seven cups.", _tell(("owns", "tom", "?v0"), ("instance_of", "?v0", "cup"), ("has_count", "?v0", "7"))),
             ("There are 9 cats.", _tell(("instance_of", "?v0", "cat"), ("has_count", "?v0", "9"))),
-            ("How many bikes does Rex own?", ask(("owns", "rex", "?v0"), ("instance_of", "?v0", "bike"),
+            ("How many bikes does Rex own?", ask(("owns", "rex", "?v0"), ("instance_of", "?v0", "bicycle"),
                                                  ("has_count", "?v0", "?v1"), asked=["?v1"])),
             ("Our ball is red.", _tell(("has_member", "?v0", "?speaker"), ("owned_by", "?v1", "?v0"),
                                        ("instance_of", "?v1", "ball"), ("has_property", "?v1", "red"))),
             ("Although the dog is small, the cat is big.",
              _tell(("has_property", "dog", "small"), ("has_property", "cat", "big")))):
-        assert [r.meaning.canonical() for r in read(sentence, view)][:1] == [meaning.canonical()], sentence
+        assert [r.meaning.canonical() for r in read(sentence, view)][:1] == [_known(sentence, meaning)], sentence
 
 
 def test_events_their_time_and_what_a_shape_adds_read_as_english_says_them():
@@ -926,7 +1015,7 @@ def test_events_their_time_and_what_a_shape_adds_read_as_english_says_them():
     e = "?v0"
 
     def meaning(act, *facts, asked=()):
-        return Meaning(act, tuple(F(*f) for f in facts), tuple(asked)).canonical()
+        return Meaning(act, tuple(F(*f) for f in facts), tuple(asked))
     for sentence, wanted in (
             ("The cat barked.", meaning("tell", ("instance_of", e, "bark"), ("done_by", e, "cat"),
                                         ("precedes", e, "?now"))),
@@ -936,18 +1025,20 @@ def test_events_their_time_and_what_a_shape_adds_read_as_english_says_them():
                                              ("during", e, "?now"))),
             ("Who closed the door?", meaning("ask", ("instance_of", e, "close"), ("done_by", e, "?v1"),
                                              ("done_to", e, "door"), ("precedes", e, "?now"), asked=["?v1"])),
-            ("Rex opened the box with a key.", meaning("tell", ("instance_of", e, "opening"), ("done_by", e, "rex"),
+            ("Rex opened the box with a key.", meaning("tell", ("instance_of", e, "to open"), ("done_by", e, "rex"),
                                                        ("done_to", e, "box"), ("done_with", e, "key"),
                                                        ("precedes", e, "?now"))),
             ("The box will be empty.", meaning("tell", ("instance_of", e, "empty"), ("state_of", e, "box"),
                                                ("follows", e, "?now"))),
             ("The cat might climb.", meaning("tell", ("instance_of", e, "climb"), ("done_by", e, "cat"),
                                              ("has_property", e, "possible"))),
-            ("It hails.", meaning("tell", ("instance_of", e, "hailing"))),
+            # A weather verb never taught is taken as written: the lessons name raining and snowing by the
+            # verbs WordNet holds ("precipitate rain"), and no change of shape makes "hails" one of those.
+            ("It hails.", meaning("tell", ("instance_of", e, "hails"))),
             ("The dog jumps.", meaning("tell", ("instance_of", e, "jump"), ("done_by", e, "dog"))),
             ("The dog jumped.", meaning("tell", ("instance_of", e, "jump"), ("done_by", e, "dog"),
                                         ("precedes", e, "?now")))):
-        assert [r.meaning.canonical() for r in read(sentence, view)][:1] == [wanted], sentence
+        assert [r.meaning.canonical() for r in read(sentence, view)][:1] == [_known(sentence, wanted)], sentence
     assert view.variants_of("it") == frozenset(), "'it' and 'she' are both written before the 'i' of 'is'"
 
 
@@ -957,17 +1048,17 @@ def test_clauses_are_things_said_of_each_other():
     view = _lessons_view(10)
 
     def meaning(act, *facts, asked=()):
-        return Meaning(act, tuple(F(*f) for f in facts), tuple(asked)).canonical()
+        return Meaning(act, tuple(F(*f) for f in facts), tuple(asked))
     climbed = (("instance_of", "?v0", "climb"), ("done_by", "?v0", "cat"), ("precedes", "?v0", "?now"))
     for sentence, wanted in (
             ("The cat climbed because the dog ran.", meaning("tell", *climbed, ("instance_of", "?v1", "run"),
                                                              ("done_by", "?v1", "dog"), ("precedes", "?v1", "?now"),
                                                              ("causes", "?v1", "?v0"))),
-            ("The cat climbed after it rained.", meaning("tell", *climbed, ("instance_of", "?v1", "raining"),
+            ("The cat climbed after it rained.", meaning("tell", *climbed, ("instance_of", "?v1", "precipitate rain"),
                                                          ("precedes", "?v1", "?now"), ("follows", "?v0", "?v1"))),
             ("Why did the cat climb?", meaning("ask", *climbed, ("causes", "?v1", "?v0"), asked=["?v1"])),
             ("When did the cat climb?", meaning("ask", *climbed, ("during", "?v0", "?v1"), asked=["?v1"]))):
-        assert [r.meaning.canonical() for r in read(sentence, view)][:1] == [wanted], sentence
+        assert [r.meaning.canonical() for r in read(sentence, view)][:1] == [_known(sentence, wanted)], sentence
 
 
 def test_the_rest_of_the_verb_reads_as_english_says_it():
@@ -978,9 +1069,9 @@ def test_the_rest_of_the_verb_reads_as_english_says_it():
     e, t = "?v0", "?v1"
 
     def meaning(act, *facts):
-        return Meaning(act, tuple(F(*f) for f in facts)).canonical()
+        return Meaning(act, tuple(F(*f) for f in facts))
     for sentence, wanted in (
-            ("Rex had opened the box.", meaning("tell", ("instance_of", e, "opening"), ("done_by", e, "rex"),
+            ("Rex had opened the box.", meaning("tell", ("instance_of", e, "to open"), ("done_by", e, "rex"),
                                                 ("done_to", e, "box"), ("precedes", e, t), ("precedes", t, "?now"))),
             ("The fish was swimming.", meaning("tell", ("instance_of", e, "swim"), ("done_by", e, "fish"),
                                                ("during", e, t), ("precedes", t, "?now"))),
@@ -996,7 +1087,7 @@ def test_the_rest_of_the_verb_reads_as_english_says_it():
                                            ("done_to", e, "?speaker"))),
             ("Don't kick the ball.", meaning("request", ("instance_of", e, "kick"), ("done_by", e, "?listener"),
                                              ("done_to", e, "ball"), ("has_property", e, "false")))):
-        assert [r.meaning.canonical() for r in read(sentence, view)][:1] == [wanted], sentence
+        assert [r.meaning.canonical() for r in read(sentence, view)][:1] == [_known(sentence, wanted)], sentence
     assert "would" in view.synonyms_of("could") and "a" not in view.synonyms_of("an")
 
 
@@ -1009,9 +1100,10 @@ def test_the_rest_of_the_noun_phrase_reads_as_english_says_it():
 
     def meaning(act, *facts, asked=()):
         return Meaning(act, tuple(F(f[0], f[1], f[2], f[3] if len(f) > 3 else True, False, f[4] if len(f) > 4 else False)
-                                  for f in facts), tuple(asked)).canonical()
+                                  for f in facts), tuple(asked))
     for sentence, wanted in (
-            ("The bike is mine.", meaning("tell", ("owned_by", "bike", "?speaker"))),
+            ("The bike is mine.", Meaning("tell", (F("instance_of", "?v0", "bicycle", given=True),
+                                                   F("owned_by", "?v0", "?speaker")))),
             ("Tom cut himself.", meaning("tell", ("instance_of", e, "cut"), ("done_by", e, "tom"), ("done_to", e, "tom"),
                                          ("precedes", e, "?now"))),
             ("Someone closed the door.", meaning("tell", ("instance_of", e, "close"), ("done_by", e, "?v1"),
@@ -1027,7 +1119,7 @@ def test_the_rest_of_the_noun_phrase_reads_as_english_says_it():
                                            asked=[e])),
             ("Either the cup or the box is blue.", meaning("tell", ("has_property", "cup", "blue", True, True),
                                                            ("has_property", "box", "blue", True, True)))):
-        assert [r.meaning.canonical() for r in read(sentence, view)][:1] == [wanted], sentence
+        assert [r.meaning.canonical() for r in read(sentence, view)][:1] == [_known(sentence, wanted)], sentence
 
 
 def test_where_events_go_and_how_clauses_join_read_as_english_says_them():
@@ -1043,8 +1135,13 @@ def test_where_events_go_and_how_clauses_join_read_as_english_says_them():
         return out + ([("precedes", e, "?now", True, cond)] if past else [])
 
     def meaning(act, facts, asked=()):
-        return Meaning(act, tuple(F(f[0], f[1], f[2], f[3] if len(f) > 3 else True, f[4] if len(f) > 4 else False)
-                                  for f in facts), tuple(asked)).canonical()
+        return Meaning(act, tuple(F(f[0], f[1], f[2], f[3] if len(f) > 3 else True, f[4] if len(f) > 4 else False,
+                                    unasserted=f[5] if len(f) > 5 else False)
+                                  for f in facts), tuple(asked))
+
+    def held(facts):
+        # What is liked, wanted or done for, not told as so (`MeaningFact.unasserted`).
+        return [(*f, True) for f in facts]
     for sentence, wanted in (
             ("The bird flew into the box.", meaning("tell", ev("?v0", "fly", "bird", past=True)
                                                     + [("moves_into", "?v0", "box")])),
@@ -1055,20 +1152,20 @@ def test_where_events_go_and_how_clauses_join_read_as_english_says_them():
                                                      + [("done_for", "?v0", "tom")])),
             ("Rex knows that the dog barked.", meaning("tell", ev("?v0", "know", "rex", "?v1")
                                                        + ev("?v1", "bark", "dog", past=True))),
-            ("Rex likes swimming.", meaning("tell", ev("?v0", "like", "rex", "?v1") + ev("?v1", "swim", "rex"))),
+            ("Rex likes swimming.", meaning("tell", ev("?v0", "like", "rex", "?v1") + held(ev("?v1", "swim", "rex")))),
             ("The box that Tom closed is red.", meaning("tell", [("has_property", "?v1", "red"),
                                                                  ("instance_of", "?v1", "box")]
                                                         + ev("?v0", "close", "tom", "?v1", past=True))),
-            ("If it rains, the cat runs.", meaning("tell", ev("?v1", "raining", cond=True) + ev("?v0", "run", "cat"))),
-            ("Rex opened the door to help Tom.", meaning("tell", ev("?v0", "opening", "rex", "door", past=True)
-                                                         + ev("?v1", "help", "rex", "tom")
+            ("If it rains, the cat runs.", meaning("tell", ev("?v1", "precipitate rain", cond=True) + ev("?v0", "run", "cat"))),
+            ("Rex opened the door to help Tom.", meaning("tell", ev("?v0", "to open", "rex", "door", past=True)
+                                                         + held(ev("?v1", "help", "rex", "tom"))
                                                          + [("has_purpose", "?v0", "?v1")])),
             ("How big is the cat?", meaning("ask", [("has_degree", "cat", "?v0"), ("instance_of", "?v0", "big")],
                                             ["?v0"])),
             ("It was Tom who kicked the ball.", meaning("tell", ev("?v0", "kick", "tom", "ball", past=True)))):
-        assert [r.meaning.canonical() for r in read(sentence, view)][:1] == [wanted], sentence
+        assert [r.meaning.canonical() for r in read(sentence, view)][:1] == [_known(sentence, wanted)], sentence
     (reading,) = read("The dog jumped.", view)[:1]
-    assert reading.meaning.canonical() == meaning("tell", ev("?v0", "jump", "dog", past=True)), \
+    assert reading.meaning.canonical() == _known("The dog jumped.", meaning("tell", ev("?v0", "jump", "dog", past=True))), \
         "'jumped', held only inside frames, is `jump` written in a shape, not a word that builds sentences"
 
 
@@ -1081,7 +1178,7 @@ def test_answers_exclamations_and_what_would_be_read_as_english_says_them():
 
     def meaning(act, facts, asked=()):
         return Meaning(act, tuple(F(f[0], f[1], f[2], f[3] if len(f) > 3 else True, f[4] if len(f) > 4 else False)
-                                  for f in facts), tuple(asked)).canonical()
+                                  for f in facts), tuple(asked))
     for sentence, wanted in (
             ("Yes, she did.", meaning("tell", [("has_property", "?previous", "true")])),
             ("What a cold room!", meaning("tell", [("has_degree", "room", "?v0"), ("instance_of", "?v0", "cold"),
@@ -1092,14 +1189,14 @@ def test_answers_exclamations_and_what_would_be_read_as_english_says_them():
             ("Rex can swim, but Tom cannot.", meaning("tell", [("capable_of", "rex", "swim"),
                                                                ("capable_of", "tom", "swim", False)])),
             ("If it had rained, the cat would have run.", meaning("tell", [
-                ("instance_of", "?v1", "raining", True, True), ("precedes", "?v1", "?now", True, True),
+                ("instance_of", "?v1", "precipitate rain", True, True), ("precedes", "?v1", "?now", True, True),
                 ("instance_of", "?v0", "run"), ("done_by", "?v0", "cat"), ("precedes", "?v0", "?now"),
                 ("has_property", "?v0", "hypothetical")])),
             ("The cat runs faster than the dog.", meaning("tell", [
                 ("instance_of", "?v0", "run"), ("done_by", "?v0", "cat"), ("instance_of", "?v1", "run"),
                 ("done_by", "?v1", "dog"), ("has_degree", "?v0", "?v2"), ("instance_of", "?v2", "fast"),
                 ("has_degree", "?v1", "?v3"), ("instance_of", "?v3", "fast"), ("exceeds", "?v2", "?v3")]))):
-        assert [r.meaning.canonical() for r in read(sentence, view)][:1] == [wanted], sentence
+        assert [r.meaning.canonical() for r in read(sentence, view)][:1] == [_known(sentence, wanted)], sentence
     assert view.variants_of("it") == frozenset() and "he" in view.synonyms_of("it"), \
         "'it' and 'he' are said in each other's place; the letter after them does not decide which"
 
@@ -1113,7 +1210,7 @@ def test_numbers_order_measures_and_times_read_as_english_says_them():
 
     def meaning(act, facts, asked=()):
         return Meaning(act, tuple(F(f[0], f[1], f[2], f[3] if len(f) > 3 else True) for f in facts),
-                       tuple(asked)).canonical()
+                       tuple(asked))
 
     def event(verb, who=None, *rest):
         return [("instance_of", "?v0", verb)] + ([("done_by", "?v0", who)] if who else []) + list(rest)
@@ -1130,7 +1227,7 @@ def test_numbers_order_measures_and_times_read_as_english_says_them():
             ("The fish swam three days ago.", meaning("tell", event("swim", "fish", past) + [
                 ("lasts_since", "?v1", "?v0"), ("lasts_until", "?v1", "?now"), ("instance_of", "?v1", "day"),
                 ("has_count", "?v1", "3")])),
-            ("It will snow soon.", meaning("tell", event("snowing", None, ("follows", "?v0", "?now"),
+            ("It will snow soon.", meaning("tell", event("precipitate snow", None, ("follows", "?v0", "?now"),
                                                            ("has_property", "?v0", "soon")))),
             ("The bird has just flown.", meaning("tell", event("fly", "bird", past, ("has_property", "?v0", "recent")))),
             ("The bird has not flown yet.", meaning("tell", event("fly", "bird", past, ("has_property", "?v0", "false"),
@@ -1145,7 +1242,7 @@ def test_numbers_order_measures_and_times_read_as_english_says_them():
                 ("instance_of", "?v1", "fish"), ("other_than", "?v1", "?previous")])),
             ("The cat ran three times.", meaning("tell", event("run", "cat", past, ("has_count", "?v0", "3")))),
             ("The bird flew there.", meaning("tell", event("fly", "bird", past, ("moves_to", "?v0", "?there"))))):
-        assert [r.meaning.canonical() for r in read(sentence, view)][:1] == [wanted], sentence
+        assert [r.meaning.canonical() for r in read(sentence, view)][:1] == [_known(sentence, wanted)], sentence
 
 
 def test_giving_saying_and_asking_read_as_english_says_them():
@@ -1156,32 +1253,36 @@ def test_giving_saying_and_asking_read_as_english_says_them():
     view = _lessons_view(18)
 
     def meaning(act, facts, asked=()):
-        return Meaning(act, tuple(F(*f) for f in facts), tuple(asked)).canonical()
+        return Meaning(act, tuple(F(*f) for f in facts), tuple(asked))
 
     def event(at, verb, who=None, what=None, to=None, past=True):
         return ([("instance_of", at, verb)] + ([("done_by", at, who)] if who else []) + ([("done_to", at, what)]
                 if what else []) + ([("received_by", at, to)] if to else []) + ([("precedes", at, "?now")] if past else []))
+
+    def held(facts):
+        # What was said or asked for, not told as so (`MeaningFact.unasserted`).
+        return [(*f, True, False, False, True) for f in facts]
     for sentence, wanted in (
             ("Rex sent Tom the cup.", meaning("tell", event("?v0", "send", "rex", "cup", "tom"))),
             ("Tom showed the book to Rex.", meaning("tell", event("?v0", "show", "tom", "book", "rex"))),
-            ("Tom said that the cat had run.", meaning("tell", event("?v0", "say", "tom", "?v1") + event(
-                "?v1", "run", "cat", past=False) + [("precedes", "?v1", "?v0")])),
-            ("Tom said that the bird would fly.", meaning("tell", event("?v0", "say", "tom", "?v1") + event(
-                "?v1", "fly", "bird", past=False) + [("follows", "?v1", "?v0")])),
-            ("Rex asked where the dog ran.", meaning("tell", event("?v0", "ask", "rex", "?v2") + event(
-                "?v1", "run", "dog") + [("moves_to", "?v1", "?v2")])),
-            ("Tom asked Rex to close the door.", meaning("tell", event("?v0", "ask", "tom", "?v1", "rex") + event(
-                "?v1", "close", "rex", "door", past=False))),
+            ("Tom said that the cat had run.", meaning("tell", event("?v0", "say", "tom", "?v1") + held(event(
+                "?v1", "run", "cat", past=False) + [("precedes", "?v1", "?v0")]))),
+            ("Tom said that the bird would fly.", meaning("tell", event("?v0", "say", "tom", "?v1") + held(event(
+                "?v1", "fly", "bird", past=False) + [("follows", "?v1", "?v0")]))),
+            ("Rex asked where the dog ran.", meaning("tell", event("?v0", "ask", "rex", "?v2") + held(event(
+                "?v1", "run", "dog") + [("moves_to", "?v1", "?v2")]))),
+            ("Tom asked Rex to close the door.", meaning("tell", event("?v0", "ask", "tom", "?v1", "rex") + held(event(
+                "?v1", "close", "rex", "door", past=False)))),
             ("Rex and Tom helped each other.", meaning("tell", event("?v0", "help", "rex", "tom")
                                                        + event("?v1", "help", "tom", "rex"))),
             ("Rex owns a red ball and Tom owns a blue one.", meaning("tell", [
                 ("owns", "rex", "?v0"), ("instance_of", "?v0", "ball"), ("has_property", "?v0", "red"),
                 ("owns", "tom", "?v1"), ("instance_of", "?v1", "ball"), ("has_property", "?v1", "blue")])),
             ("Rex used to swim.", meaning("tell", event("?v0", "swim", "rex") + [("has_property", "?v0", "usually")])),
-            ("Rex put the cup down.", meaning("tell", event("?v0", "put down", "rex", "cup"))),
+            ("Rex put the cup down.", meaning("tell", event("?v0", "put", "rex", "cup"))),
             ("Rex let the bird fly.", meaning("tell", event("?v0", "fly", "bird") + [("enables", "rex", "?v0")])),
-            ("Rex, open the door.", meaning("request", event("?v0", "opening", "rex", "door", past=False)))):
-        assert [r.meaning.canonical() for r in read(sentence, view)][:1] == [wanted], sentence
+            ("Rex, open the door.", meaning("request", event("?v0", "to open", "rex", "door", past=False)))):
+        assert [r.meaning.canonical() for r in read(sentence, view)][:1] == [_known(sentence, wanted)], sentence
 
 
 def test_words_ending_as_uncounted_words_do_are_said_without_a():
@@ -1202,13 +1303,13 @@ def test_concession_places_and_what_might_have_been_read_as_english_says_them():
     view = _lessons_view(20)
 
     def meaning(act, facts):
-        return Meaning(act, tuple(F(f[0], f[1], f[2], f[3] if len(f) > 3 else True) for f in facts)).canonical()
+        return Meaning(act, tuple(F(*f) for f in facts))
 
     def event(at, verb, who=None, *rest):
         return [("instance_of", at, verb)] + ([("done_by", at, who)] if who else []) + [("precedes", at, "?now")] \
             + list(rest)
     for sentence, wanted in (
-            ("Although it snowed, the bird flew.", meaning("tell", event("?v1", "snowing") + event(
+            ("Although it snowed, the bird flew.", meaning("tell", event("?v1", "precipitate snow") + event(
                 "?v0", "fly", "bird", ("has_property", "?v0", "unexpected")))),
             ("The ball is near the box.", meaning("tell", [("near", "ball", "box")])),
             ("The bird is outside the house.", meaning("tell", [("located_in", "bird", "house", False)])),
@@ -1217,10 +1318,11 @@ def test_concession_places_and_what_might_have_been_read_as_english_says_them():
                                                                ("capable_of", "rex", "swim", False)])),
             ("Rex is old enough to drive.", meaning("tell", [
                 ("has_degree", "rex", "?v0"), ("instance_of", "?v0", "old"), ("has_property", "?v0", "enough"),
-                ("enables", "?v0", "?v1"), ("instance_of", "?v1", "drive"), ("done_by", "?v1", "rex")])),
+                ("enables", "?v0", "?v1"), ("instance_of", "?v1", "drive", True, False, False, True),
+                ("done_by", "?v1", "rex", True, False, False, True)])),
             ("Rex might have gone.", meaning("tell", event("?v0", "go", "rex", ("has_property", "?v0", "possible")))),
             ("The cat ran in 1999.", meaning("tell", event("?v0", "run", "cat", ("during", "?v0", "1999"))))):
-        assert [r.meaning.canonical() for r in read(sentence, view)][:1] == [wanted], sentence
+        assert [r.meaning.canonical() for r in read(sentence, view)][:1] == [_known(sentence, wanted)], sentence
 
 
 def test_having_needing_leave_and_what_was_done_to_whom_read_as_english_says_them():
@@ -1231,23 +1333,23 @@ def test_having_needing_leave_and_what_was_done_to_whom_read_as_english_says_the
     view = _lessons_view(22)
 
     def meaning(act, facts, asked=()):
-        return Meaning(act, tuple(F(*f) for f in facts), tuple(asked)).canonical()
+        return Meaning(act, tuple(F(*f) for f in facts), tuple(asked))
 
     def event(at, verb, who=None, what=None, past=True):
         return ([("instance_of", at, verb)] + ([("done_by", at, who)] if who else [])
                 + ([("done_to", at, what)] if what else []) + ([("precedes", at, "?now")] if past else []))
     for sentence, wanted in (
-            ("Rex has a bike.", meaning("tell", [("owns", "rex", "bike")])),
+            ("Rex has a bike.", meaning("tell", [("owns", "rex", "bicycle")])),
             ("A spider has legs.", meaning("tell", [("has_part", "spider", "leg")])),
             ("There were three dogs.", meaning("tell", [("instance_of", "?v0", "dog"), ("has_count", "?v0", "3"),
                                                          ("precedes", "?v0", "?now")])),
             ("The bird stopped flying.", meaning("tell", event("?v0", "stop", "bird", "?v1")
                                                  + event("?v1", "fly", "bird", past=False))),
             ("Rex needs a cup.", meaning("tell", [("requires", "rex", "cup")])),
-            ("May I open the box?", meaning("ask", event("?v0", "opening", "?speaker", "box", past=False)
+            ("May I open the box?", meaning("ask", event("?v0", "to open", "?speaker", "box", past=False)
                                             + [("has_property", "?v0", "allowed")])),
             ("Who did the cat chase?", meaning("ask", event("?v0", "chase", "cat", "?v1"), ["?v1"])),
-            ("A girl opened the box.", meaning("tell", event("?v0", "opening", "?v1", "box")
+            ("A girl opened the box.", meaning("tell", event("?v0", "to open", "?v1", "box")
                                                + [("instance_of", "?v1", "girl")])),
             ("Birds swim.", meaning("tell", event("?v0", "swim", "bird", past=False))),
             ("Rex saw her.", meaning("tell", event("?v0", "see", "rex", "?previous"))),
@@ -1258,7 +1360,7 @@ def test_having_needing_leave_and_what_was_done_to_whom_read_as_english_says_the
             ("The boy whose cat ran is sad.", meaning("tell", [
                 ("instance_of", "?v1", "boy"), ("has_property", "?v1", "sad"), ("instance_of", "?v2", "cat"),
                 ("owned_by", "?v2", "?v1")] + event("?v0", "run", "?v2")))):
-        assert [r.meaning.canonical() for r in read(sentence, view)][:1] == [wanted], sentence
+        assert [r.meaning.canonical() for r in read(sentence, view)][:1] == [_known(sentence, wanted)], sentence
 
 
 def test_names_origins_and_how_events_follow_read_as_english_says_them():
@@ -1267,7 +1369,7 @@ def test_names_origins_and_how_events_follow_read_as_english_says_them():
     view = _lessons_view(23)
 
     def meaning(act, facts, asked=()):
-        return Meaning(act, tuple(F(*f) for f in facts), tuple(asked)).canonical()
+        return Meaning(act, tuple(F(*f) for f in facts), tuple(asked))
 
     def event(at, verb, who=None, past=True):
         return [("instance_of", at, verb)] + ([("done_by", at, who)] if who else []) + (
@@ -1286,7 +1388,7 @@ def test_names_origins_and_how_events_follow_read_as_english_says_them():
             ("The room where the cat slept is warm.", meaning("tell", [
                 ("instance_of", "?v1", "room"), ("has_property", "?v1", "warm")] + event("?v0", "sleep", "cat")
                 + [("located_in", "?v0", "?v1")]))):
-        assert [r.meaning.canonical() for r in read(sentence, view)][:1] == [wanted], sentence
+        assert [r.meaning.canonical() for r in read(sentence, view)][:1] == [_known(sentence, wanted)], sentence
 
 
 def test_numbers_to_the_trillions_read_as_english_builds_them():
@@ -1385,9 +1487,10 @@ def test_a_kind_is_said_of_a_kind_and_a_new_word_takes_the_plural_most_concepts_
     assert [r.meaning for r in read("a glintbsrtp heron is a glintbsrtp bird", view)][:1] == [kinds], \
         "a kind statement names a kind in each place: 'a glintbsrtp bird' is no bird that is glintbsrtp"
     assert [r.meaning.act for r in read("is a glintbsrtp heron a glintbsrtp bird", view)][:1] == ["ask"]
-    assert [r.meaning.canonical() for r in read("The red ball is big.", view)][:1] == [_tell(
-        ("instance_of", "?v0", "ball"), ("has_property", "?v0", "red"), ("has_property", "?v0", "big")).canonical()], \
-        "a phrase still describes a thing where a thing is said"
+    assert [r.meaning.canonical() for r in read("The red ball is big.", view)][:1] == [Meaning("tell", (
+        F("instance_of", "?v0", "ball", given=True), F("has_property", "?v0", "red"),
+        F("has_property", "?v0", "big"))).canonical()], \
+        "a phrase still describes a thing where a thing is said: the known ball (docs/TEACHING.md §12d)"
     counts, productive = view.said_shapes()
     assert ("s", "") in productive and ("es", "") not in productive, (counts[("s", "")], counts[("es", "")])
     assert view.word_shapes()[("s", "")][1] > counts[("s", "")][1], \
@@ -1417,37 +1520,43 @@ def _uses_from_scratch(view):
     """How the held words are used, found again from everything the view holds, as it once was every time a use was
     asked for: (slots, endings, words), as `_use_model` gives them."""
     import math
-    counted, bare, plural, taken = set(), set(), set(), {}
+    # A thing is counted under the word that stood counted for it (`counted`, thing and word); its kind is one of
+    # counted things when any of its words did (`counted_things`). Bare, a word written as its name (`_written_as`).
+    counted, counted_things, bare, plural, taken = set(), set(), set(), set(), {}
     for pattern, slot, key in view._links:
         filler = view.get(key)
         if not isinstance(filler, dr.Lexical) or len(dr._loose(filler.words)) != 1:
             continue
         if view.counted_slot(pattern, slot):
-            counted.add(filler.value)
+            counted.add((filler.value, dr._loose(filler.words)[0]))
+            counted_things.add(filler.value)
         if (pattern, slot) not in taken:
             taken[(pattern, slot)] = bool(view.shape_of_slot(pattern, slot))
         if taken[(pattern, slot)]:
             plural.add(key)
             continue
         frame = view.get(pattern)
+        written = view._written_as(filler)
         if isinstance(frame, Pattern) and isinstance(frame.form[0], dr.Slot) and frame.form[0].name == slot \
-                and dr._loose(filler.words)[0] == dr._fold(filler.value):
+                and written is not None and written[0] == written[1]:
             bare.add(filler.value)
-    nouns = {view._find(k) for k in view._parent
-             if isinstance(view.get(k), dr.Lexical) and view.get(k).value in counted}
+    # Counted and uncounted are what things are: a word's kind for them is its kind as a thing (`_taken_as`).
+    nouns = {view._find(node) for node in view._parent
+             if node[1] == "thing" and isinstance(view.get(node[0]), dr.Lexical)
+             and view.get(node[0]).value in counted_things}
     use = {}
-    for key in view._parent:
+    for key in view._parts_of:
         filler = view.get(key)
         if not isinstance(filler, dr.Lexical) or len(dr._loose(filler.words)) != 1:
             continue
         word = dr._loose(filler.words)[0]
-        if view.is_proper(word) and filler.value not in counted:
+        if view.is_proper(word) and (filler.value, word) not in counted:
             use[key] = "name"
         elif key in plural:
             use[key] = "plural"
-        elif filler.value in counted:
+        elif (filler.value, word) in counted:
             use[key] = "count"
-        elif filler.value in bare and view._find(key) in nouns:
+        elif filler.value in bare and (key, "thing") in view._parent and view._find((key, "thing")) in nouns:
             use[key] = "mass"
     slots = {where: frozenset(use[k] for k in keys if k in use) for where, keys in view._linked.items()}
     words = {}
@@ -1534,6 +1643,21 @@ def test_a_new_name_is_one_reading_could_take_and_a_word_s_shapes_share_out_the_
     assert "A peludo is an armadillo." in said and not any(s.startswith("An peludo") for s in said), said
 
 
+def _known_meaning(sentence, meaning):
+    """A meaning written before "the X" was written as a known thing (docs/TEACHING.md §12d, 2026-10-06), as the
+    lessons now write it: through the rule the lessons were rewritten by (`scripts/known_the.py`)."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("known_the", Path(__file__).resolve().parents[1] / "scripts" / "known_the.py")
+    known_the = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(known_the)
+    return known_the.known(sentence, meaning)
+
+
+def _known(sentence, meaning):
+    """`_known_meaning`, written one way (`Meaning.canonical`)."""
+    return _known_meaning(sentence, meaning).canonical()
+
+
 def _lessons_view(last):
     """The lessons english_01 to english_0<last>, learned in memory as the teaching path learns them."""
     import json
@@ -1583,3 +1707,582 @@ def test_a_word_never_held_is_said_as_the_words_used_like_it_are():
         "a kind is said of a kind: 'optical device' is a kind of its own, never some device that is optical"
     _learn(view, [("A lens is an optical device.", lens)])
     assert [r.meaning for r in read("A lens is an optical device.", view)] == [lens], "and so it stays once taught"
+
+
+def test_a_word_is_said_where_a_word_like_it_was_heard():
+    """A construction holds its slots' fillers each apart: "Tom might open the box." and "The cat often climbs." made
+    one phrase, "?slot0 ?slot1", and which second word goes with which first is not in it. What was heard after each
+    word is (`PatternInventory.hear`), and saying puts a word only where a word like it was heard (`_unheard`)."""
+    import json
+    view = _lessons_view(39)
+    before = len(view)
+    mine = Meaning.from_dict({"act": "tell", "facts": [["instance_of", "?v0", "to open", True],
+                                                       ["done_by", "?v0", "tom", True], ["done_to", "?v0", "box", True],
+                                                       ["has_property", "?v0", "possible", True]], "asked": []})
+    mine = _known_meaning("Tom might open the box.", mine)
+    said = dr.say(mine, view)
+    assert said[0] == "Tom might open the box.", "as taught, first"
+    assert not any("opens" in sentence for sentence in said), said
+    assert "open" in view.heard_after("might") and "opens" not in view.heard_after("might")
+    assert view.heard_like("might", "open", "to open") == 0
+    assert view.heard_like("might", "opens", "to open") == 2, "no word written so was heard after \"might\""
+    assert view.heard_like("did", "kick", "kick") < 2
+    kicked = [r for r in json.loads((Path(__file__).resolve().parents[1] / "data" / "lessons" / "english_12.json")
+                                    .read_text())["records"] if r["sentence"] == "Rex did not kick the ball."]
+    assert dr.say(Meaning.from_dict(kicked[0]["meaning"]), view) == ("Rex did not kick the ball.",), \
+        "not \"Rex kicked the ball not.\", \"not\" where only \"quietly\" and \"hard\" were heard"
+    assert len(view) == before, "saying writes nothing"
+
+
+def test_a_word_is_held_against_the_two_words_before_it():
+    """After "not", "opened" was heard ("Tom has not opened the door yet."), and "kick" ("Rex did not kick the
+    ball."): one word before cannot tell them apart. What was heard after the two before can (`hear`), and a word
+    right after a construction's own two words is held against them (`_unheard`).
+
+    UNASSERTED-01's fifth run, on the sandbox: "The fip did not chase the kelt." was read with "did not ?slot0"
+    holding a phrase whose own fillers say a doing before now ("chased", "kicked"), and "chase" was linked there.
+    Said back, the phrase's shape kept "chased": "The fip did not chased the kelt.". A word linked to a slot and heard
+    right after the words before it is said there (`_said_fillers`, `after`), and elsewhere the slot's shape holds.
+    Since "the X" is a known thing (docs/TEACHING.md §12d) the lessons no longer make that phrase, so it is built
+    here as the sandbox held it."""
+    view = _lessons_view(39)
+    assert "kick" in view.heard_after("not", earlier="did") and "opened" in view.heard_after("not", earlier="has")
+    assert view.heard_like("not", "opened", "to open") == 0, "heard after \"not\""
+    assert view.heard_like("not", "opened", "to open", earlier="has") == 0
+    assert view.heard_like("not", "opened", "to open", earlier="did") == 2, "never after \"did not\""
+    assert view.heard_like("not", "opened", "to open", earlier="tom") == 0, "nothing heard after \"tom not\": \"not\""
+    past = dr.Phrase((dr.Slot("?slot0", True), dr.Piece("the", True), dr.Slot("?slot1", False)), "?n",
+                     (F("instance_of", "?n", "?slot0"), F("done_to", "?n", "?t0"),
+                      F("instance_of", "?t0", "?slot1", given=True), F("precedes", "?n", "?now")))
+    view.add(past)
+    (chase,) = [lx for lx in view.lexicals_with_value("chase") if lx.words == ("chase",)]
+    for word, value in (("chased", "chase"), ("kicked", "kick"), ("opened", "to open")):
+        written = dr.Lexical(form_of(word), value)
+        view.add(written)
+        view.add(dr.link(past, "?slot0", written))
+    view.add(dr.link(past, "?slot0", chase))
+    view.hear(tuple(piece.text for piece in form_of("The fip did not chase the kelt.")))   # as UNASSERTED-01 taught it
+    after = [lx.surface for lx, _, _ in dr._said_fillers(view, past, "?slot0", "chase", after=("did", "not"))]
+    assert after == ["chase"], f"heard after \"did not\", not the slot's \"chased\": {after}"
+    alone = [lx.surface for lx, _, _ in dr._said_fillers(view, past, "?slot0", "chase")]
+    assert "chased" in alone, f"elsewhere, the slot's own shape stays: {alone}"
+
+def test_a_reading_put_back_as_its_words_is_written_never_refused():
+    """`_worded` writes a reading's meaning with each concept as the word that named it. Two facts of two things one
+    word names are one fact twice, and a thing named apart from a date is the date again: neither is a meaning anyone
+    could state, and building one raised, ending WordNet's teaching pass as it stored what its words are said of."""
+    from types import SimpleNamespace
+    piece = lambda text: dr.Piece(text, True)
+    view = PatternInventory(score=lambda item: (0.9, 1, True))
+    two = dr.Meaning("tell", (dr.MeaningFact("isa", "?a", "fish_animal"), dr.MeaningFact("isa", "?a", "fish_food")))
+    both = SimpleNamespace(constructions=(dr.Lexical((piece("fish"),), "fish_animal"),
+                                          dr.Lexical((piece("fish"),), "fish_food")), meaning=two)
+    assert dr._worded(both, view) == "tell: isa(?v0, fish)"
+    dated = SimpleNamespace(constructions=(dr.Lexical((piece("november"), piece("5")), "day november 5"),),
+                            meaning=dr.Meaning("tell", (dr.MeaningFact("isa", "guy_fawkes_day", "day november 5"),)))
+    assert dr._worded(dated, view) == "tell: isa(guy_fawkes_day, november 5)"
+    plain = dr.Meaning("tell", (dr.MeaningFact("isa", "?a", "dog"),))
+    assert dr._canonical_of(plain.act, plain.facts, plain.asked) == plain.canonical()
+
+
+def test_a_word_a_frame_writes_itself_names_its_thing_as_a_word_construction_does():
+    """A frame that writes "cows" and states a cow, and the general frame with the word "cows" naming cattle, say the
+    same word of two things: a sense choice the listener weighs, never two statements it cannot choose between. A
+    thing no word the frame writes is held to name stays itself: "A robin is a bird." taught to mean an animal is
+    another statement."""
+    view = _believed()
+    word = lambda text, value: dr.Lexical((dr.Piece(text, True),), value)
+    cats, mammals, cows, cattle = word("Cats", "cat"), word("mammals", "mammal"), word("cows", "cow"), word("cows", "cattle")
+    for lexical in (cats, mammals, cows, cattle):
+        view.add(lexical)
+    frame = Pattern((dr.Slot("?slot0", True), dr.Piece("and", True), dr.Piece("cows", True), dr.Piece("are", True),
+                     dr.Slot("?slot1", True), dr.Piece(".", False)),
+                    _tell(("isa", "?slot0", "?slot1"), ("isa", "cow", "?slot1")))
+    general = Pattern((dr.Slot("?slot0", True), dr.Piece("and", True), dr.Slot("?slot1", True), dr.Piece("are", True),
+                       dr.Slot("?slot2", True), dr.Piece(".", False)),
+                      _tell(("isa", "?slot0", "?slot2"), ("isa", "?slot1", "?slot2")))
+    written = dr.Reading((frame, cats, mammals), (), _tell(("isa", "cat", "mammal"), ("isa", "cow", "mammal")))
+    worded = dr.Reading((general, cats, cattle, mammals), (), _tell(("isa", "cat", "mammal"), ("isa", "cattle", "mammal")))
+    assert dr._worded(written, view) == dr._worded(worded, view) == "tell: isa(cats, mammals) & isa(cows, mammals)"
+    assert len(dr.sense_choices([written, worded], view)) == 2
+    holophrase = pattern_from("A robin is a bird.", _tell(("isa", "robin", "animal")))
+    animal = dr.Reading((holophrase,), (), holophrase.meaning)
+    bird = pattern_from("A robin is a bird.", _tell(("isa", "robin", "bird")))
+    assert dr.sense_choices([animal, dr.Reading((bird,), (), bird.meaning)], view) == ()
+
+
+def test_a_word_in_a_shape_is_met_as_often_as_the_word_naming_the_same_thing():
+    """The listener weighs a sense by how often its word was met naming the thing, the word in any shape: "places"
+    taught once a sense as a plural stands at one use each way, and is told apart by "place", met 46 times naming
+    place and 27 naming cognition place. Without it the two tied, and "Cities are places." was not heard."""
+    import json
+    scores = {}
+    view = PatternInventory(score=lambda item: scores.get(item.key, (0.9, 1, True)))
+    for n in range(1, 8):
+        path = Path(__file__).resolve().parents[1] / "data" / "lessons" / f"english_{n:02d}.json"
+        _learn(view, [(r["sentence"], Meaning.from_dict(r["meaning"]))
+                      for r in json.loads(path.read_text())["records"]])
+    assert ("s", "") in view.said_shapes()[1], "the plural is a shape in these lessons"
+    word = lambda text, value: dr.Lexical((dr.Piece(text, True),), value)
+    for lexical, uses in ((word("place", "place"), 46), (word("place", "cognition place"), 27),
+                          (word("places", "place"), 1), (word("places", "cognition place"), 1)):
+        view.add(lexical)
+        scores[lexical.key] = (0.99, uses, True)
+    assert dr._met(view, word("places", "place")) == 47 and dr._met(view, word("places", "cognition place")) == 28
+    frame = Pattern((dr.Slot("?slot0", True), dr.Piece("are", True), dr.Slot("?slot1", True), dr.Piece(".", False)),
+                    _tell(("isa", "?slot0", "?slot1")))
+    cities = word("Cities", "city")
+    readings = [dr.Reading((frame, cities, word("places", thing)), (), _tell(("isa", "city", thing)))
+                for thing in ("cognition place", "place")]
+    assert dr.meant(readings, view).meaning == _tell(("isa", "city", "place"))
+
+
+def test_a_word_held_in_a_shape_for_one_thing_reads_as_every_thing_its_word_names():
+    """"Bats", held for the animal ("Bats are not birds."), is also "bat" in the plural, and "bat" names a club too:
+    both reach the listener, who takes the one memory knows. Held for one sense alone, WordNet's "pirates" read only
+    as a ship, and "Are pirates a kind of plunderer?" was asked of the ship. A word held in another case reads so
+    too, strictly: "bats" inside a question is "bat" in the plural."""
+    import json
+    view = PatternInventory(score=lambda item: (0.9, 1, True), listened=lambda: _LISTENED)
+    for n in range(1, 8):
+        path = Path(__file__).resolve().parents[1] / "data" / "lessons" / f"english_{n:02d}.json"
+        _learn(view, [(r["sentence"], Meaning.from_dict(r["meaning"]))
+                      for r in json.loads(path.read_text())["records"]])
+    _learn(view, [("A bat is a club.", _tell(("isa", "bat club", "club")))])
+    assert {lexical.value for lexical in view.lexicals_with_words(("Bats",))} == {"bat"}
+    for sentence, act in (("Bats are clubs.", "tell"), ("Are bats clubs?", "ask")):
+        readings = read(sentence, view)
+        meanings = {r.meaning for r in readings}
+        assert {Meaning(act, (F("isa", thing, "club"),)) for thing in ("bat", "bat club")} <= meanings, sentence
+        assert not any(r.loose for r in readings), sentence
+        known = dr.Heard(held={("isa", "bat club", "club", True): 2})
+        assert dr.meant(readings, view, heard=known).meaning == Meaning(act, (F("isa", "bat club", "club"),))
+
+
+def test_what_memory_knows_is_weighed_beside_how_a_reading_fits_and_is_met_not_before_them():
+    """"A window is made of glass.": memory holds that a windowpane is made of glass, of a kind of what a window is,
+    and nothing of the window. Ranked first, what memory knew took the windowpane, "window" met naming it twice and
+    read only by supposing; weighed as the listener measured it on its lessons, the window, met 154 times and read as
+    taught, is meant. Where the readings fit and are met alike, what memory knows still tells them apart. A listener
+    that has counted nothing weighs what memory knows at nothing."""
+    scores = {}
+    view = PatternInventory(score=lambda item: scores.get(item.key, (0.9, 1, True)), listened=lambda: _LISTENED)
+    frame = Pattern((dr.Piece("A", True), dr.Slot("?slot0", True), dr.Piece("is", True), dr.Piece("made", True),
+                     dr.Piece("of", True), dr.Slot("?slot1", False), dr.Piece(".", False)),
+                    _tell(("made_of", "?slot0", "?slot1")))
+    word = lambda text, value: dr.Lexical((dr.Piece(text, True),), value)
+    glass = word("glass", "glass")
+    view.add(glass)
+    known = dr.Heard(held={("made_of", "windowpane", "glass", True): 1})
+
+    def readings(met_pane, met_window, misfits):
+        out = []
+        for thing, uses, apart in (("windowpane", met_pane, misfits), ("window", met_window, 0)):
+            lexical = word("window", thing)
+            view.add(lexical)
+            scores[lexical.key] = (0.99, uses, True)
+            out.append(dr.Reading((frame, lexical, glass), (), _tell(("made_of", thing, "glass")), misfits=apart))
+        return out
+    assert dr.meant(readings(2, 154, 2), view, heard=known).meaning == _tell(("made_of", "window", "glass"))
+    alike = readings(20, 20, 0)
+    assert dr.meant(alike, view, heard=known).meaning == _tell(("made_of", "windowpane", "glass"))
+    counted_nothing = PatternInventory(score=lambda item: scores.get(item.key, (0.9, 1, True)), listened=dict)
+    counted_nothing.add(glass)
+    for lexical in {c.key: c for r in alike for c in r.constructions if isinstance(c, dr.Lexical)}.values():
+        counted_nothing.add(lexical)
+    assert dr.meant(alike, counted_nothing, heard=known) is None, "nothing it measured tells them apart"
+    assert dr.meant((), view, heard=known) is None, "what read to nothing was meant as nothing"
+
+
+def test_what_a_change_says_more_of_a_happening_it_says_of_no_thing():
+    """What phrases written in a change say more of a happening, the change says of happenings only. "dwindles",
+    "curdles" and "wobbles", held as doings of something before ("It dwindles."), say nothing of the things plurals
+    name: "Bats" is still "bat" in the plural, and reads as everything "bat" names. "barked" and "walked" still make
+    `ed` say before now of a doing: "jumped" does."""
+    import json
+    view = PatternInventory(score=lambda item: (0.9, 1, True))
+    for n in range(1, 8):
+        path = Path(__file__).resolve().parents[1] / "data" / "lessons" / f"english_{n:02d}.json"
+        _learn(view, [(r["sentence"], Meaning.from_dict(r["meaning"]))
+                      for r in json.loads(path.read_text())["records"]])
+    one = lambda word, kind, more: dr.Phrase((dr.Piece(word, False),), "?x", (F("instance_of", "?x", kind), more))
+    for verb in ("dwindle", "curdle", "wobble"):
+        view.add(one(verb + "s", verb, F("done_by", "?x", "?previous")))
+    for word, verb in (("barked", "bark"), ("walked", "walk")):
+        view.add(one(word, verb, F("precedes", "?x", "?now")))
+    assert view.says_more("wiggles", "wiggle") and not view.says_more("bats", "bat", doing=False)
+    assert view.says_more("jumped", "jump")
+    _learn(view, [("A bat is a club.", _tell(("isa", "bat club", "club")))])
+    assert {Meaning("tell", (F("isa", thing, "club"),)) for thing in ("bat", "bat club")} <= {
+        r.meaning for r in read("Bats are clubs.", view)}
+
+
+def test_what_the_rest_is_connected_to_adds_to_how_often_a_sense_is_met_and_never_outranks_it():
+    """What the rest of what was said is connected to raises a sense by its associative strength, in nats, as how
+    often the sense is met does: one connection does not take a sense met once over one met 420 times ("The dog
+    jumped over the chair." was a dog that is an andiron, connected to the chair as furniture's supports are), and it
+    still tells apart senses met about as often (the bank a river has, after the river)."""
+    scores = {}
+    view = PatternInventory(score=lambda item: scores.get(item.key, (0.9, 1, True)))
+    word = lambda text, value: dr.Lexical((dr.Piece(text, True),), value)
+    frame = Pattern((dr.Slot("?slot0", True), dr.Piece("are", True), dr.Slot("?slot1", True), dr.Piece(".", False)),
+                    _tell(("isa", "?slot0", "?slot1")))
+    view.add(frame)
+
+    def heard(said, kind, senses, related):
+        kinds = word(kind[0], kind[1])
+        view.add(kinds)
+        readings = []
+        for thing, uses in senses:
+            lexical = word(said, thing)
+            view.add(lexical)
+            scores[lexical.key] = (0.99, uses, True)
+            readings.append(dr.Reading((frame, lexical, kinds), (), _tell(("isa", thing, kind[1]))))
+        return dr.meant(readings, view, heard=dr.Heard(related=related)).meaning
+
+    dogs = [("andiron", 1), ("dog", 420)]
+    assert heard("dogs", ("things", "thing"), dogs, {"andiron": 1.65}) == _tell(("isa", "dog", "thing"))
+    banks = [("bank", 5), ("slope bank", 4)]
+    assert heard("banks", ("places", "place"), banks, {}) == _tell(("isa", "bank", "place"))
+    assert heard("banks", ("places", "place"), banks, {"slope bank": 1.5}) == _tell(("isa", "slope bank", "place"))
+
+
+def _doing_rule(kind, then):
+    return Meaning("tell", (F("instance_of", "?e", kind, condition=True), F("done_by", "?e", "?x", condition=True),
+                            F("instance_of", "?e", then)))
+
+
+def _quality_rule(kind, then):
+    return Meaning("tell", (F("has_property", "?x", kind, condition=True), F("has_property", "?x", then)))
+
+
+def _rules_held():
+    """english_41's frames as main holds them, with a few of their pairs; WordNet's kinds and opposites, which put
+    a word where things stand ("A walk is a journey.", "Surprised is the opposite of unsurprised."); and the
+    lessons' doings now and before now, which make "-ed" a change words are said in."""
+    view = _believed()
+    word, slot = (lambda text: dr.Piece(text, True)), (lambda name, after=True: dr.Slot(name, after))
+    for form, meaning in (((word("To"), slot("?slot0"), word("is"), word("to"), slot("?slot1", False)),
+                           _doing_rule("?slot0", "?slot1")),
+                          ((word("To"), word("be"), slot("?slot0"), word("is"), word("to"), word("be"),
+                            slot("?slot1", False)), _quality_rule("?slot0", "?slot1")),
+                          ((word("A"), slot("?slot0"), word("is"), word("a"), slot("?slot1", False)),
+                           _tell(("isa", "?slot0", "?slot1"))),
+                          ((slot("?slot0"), word("is"), word("the"), word("opposite"), word("of"), slot("?slot1", False)),
+                           _tell(("antonym_of", "?slot0", "?slot1")))):
+        view.add(Pattern(form + (dr.Piece(".", False),), meaning))
+    did = lambda thing, doing, *when: _tell(("instance_of", "?t0", thing), ("instance_of", "?v0", doing),
+                                            ("done_by", "?v0", "?t0"), *when)
+    _learn(view, [("To gaze is to look.", _doing_rule("gaze", "look")), ("To buy is to get.", _doing_rule("buy", "get")),
+                  ("To be rapid is to be fast.", _quality_rule("rapid", "fast")),
+                  ("To be aged is to be old.", _quality_rule("aged", "old")),
+                  ("A walk is a journey.", _tell(("isa", "walk", "journey"))),
+                  ("A glimpse is a look.", _tell(("isa", "look glance", "look"))),
+                  ("A nudge is a push.", _tell(("isa", "push nudge", "push"))),
+                  ("Hot is the opposite of cold.", _tell(("antonym_of", "hot", "cold"))),
+                  ("Surprised is the opposite of unsurprised.", _tell(("antonym_of", "surprised", "unsurprised"))),
+                  ("The dog barks.", did("dog", "bark")), ("The cat walks.", did("cat", "walk")),
+                  ("The dog walks.", did("dog", "walk")), ("The dog barked.", did("dog", "bark", _PAST)),
+                  ("The cat walked.", did("cat", "walk", _PAST)), ("The cat climbed.", did("cat", "climb", _PAST)),
+                  ("The dog climbs.", did("dog", "climb")), ("The dog jumped.", did("dog", "jump", _PAST)),
+                  ("The cat jumps.", did("cat", "jump"))])
+    return view
+
+
+_PAST = ("precedes", "?v0", "?now")
+
+
+def test_a_word_is_said_where_doings_or_qualities_stand_by_its_class_however_it_stood_as_a_thing():
+    """How a word is counted is a thing's: "walk", held only where it is a counted thing ("A walk is a journey."), is
+    said where english_41's verbs stand, and "surprised", held only where "Surprised is the opposite of
+    unsurprised." put it, with things, where its adjectives do: each concept is named by a word of that class. A sense
+    named otherwise, the glance "glimpse" is held for (`look glance`), stays where it stood."""
+    view = _rules_held()
+    assert {lexical.words for lexical in view.lexicals_with_value("look glance")} == {("glimpse",)}
+    view.word_classes = {"walk": {"VERB": 3, "NOUN": 2}, "surprised": {"ADJECTIVE": 2},
+                         "glimpse": {"VERB": 1, "NOUN": 1}}
+    assert dr.say(_doing_rule("stroll", "walk"), view)[:1] == ("To stroll is to walk.",)
+    assert dr.say(_quality_rule("astonished", "surprised"), view)[:1] == ("To be astonished is to be surprised.",)
+    assert not any("glimpse" in said for said in dr.say(_doing_rule("peek", "look glance"), view))
+
+
+def test_a_word_reads_where_its_class_stands_however_it_is_written_and_whatever_else_it_names():
+    """A word never met, where qualities stand, ending as a shape the doings show ("astonished", as "barked"), is an
+    adjective where memory holds it one: its ending is its own. A word held only for a thing ("nudge", a push), where
+    doings stand, is a doing where memory holds it a verb, as English makes verbs of nouns. Neither, without its
+    class."""
+    view = _rules_held()
+    assert view.in_a_shape("astonished")
+    meanings = lambda sentence: {r.meaning.canonical() for r in read(sentence, view)}
+    assert not meanings("To be astonished is to be fast.")
+    assert not meanings("To nudge is to get.")
+    view.word_classes = {"astonished": {"ADJECTIVE": 1}, "nudge": {"VERB": 2, "NOUN": 1}}
+    assert _quality_rule("astonished", "fast").canonical() in meanings("To be astonished is to be fast.")
+    assert _doing_rule("nudge", "get").canonical() in meanings("To nudge is to get.")
+
+
+def test_the_changes_said_are_moved_by_each_filler_as_finding_them_whole_finds_them():
+    """`said_shapes` is found whole once and then moved by each filler counted: after every sentence learned, what it
+    holds is what finding it whole again finds, change by change, as changes become productive and stop being so
+    (plurals regular, "-es", "-ies" and irregular; verbs now and before now, doubled and irregular)."""
+    view = _believed()
+    plurals = [("dog", "dogs"), ("cat", "cats"), ("box", "boxes"), ("fly", "flies"), ("goose", "geese"),
+               ("bus", "buses"), ("church", "churches"), ("wolf", "wolves"), ("baby", "babies"), ("fish", "fish"),
+               ("horse", "horses"), ("fox", "foxes"), ("pony", "ponies"), ("mouse", "mice"), ("bird", "birds"),
+               ("duck", "ducks"), ("calf", "calves"), ("lily", "lilies"), ("ant", "ants"), ("bee", "bees")]
+    verbs = [("bark", "barks", "barked"), ("walk", "walks", "walked"), ("climb", "climbs", "climbed"),
+             ("jump", "jumps", "jumped"), ("stop", "stops", "stopped"), ("cry", "cries", "cried"),
+             ("fly", "flies", "flew"), ("run", "runs", "ran"), ("bake", "bakes", "baked"), ("hop", "hops", "hopped"),
+             ("hurry", "hurries", "hurried"), ("swim", "swims", "swam"), ("kick", "kicks", "kicked"),
+             ("play", "plays", "played"), ("wash", "washes", "washed"), ("fix", "fixes", "fixed")]
+    did = lambda doing, *when: _tell(("instance_of", "?t0", "dog"), ("instance_of", "?v0", doing),
+                                     ("done_by", "?v0", "?t0"), *when)
+    pairs = [(f"{many.capitalize()} are animals.", _tell(("isa", one, "animal"))) for one, many in plurals]
+    pairs += [pair for verb, now, past in verbs
+              for pair in ((f"The dog {now}.", did(verb)), (f"The dog {past}.", did(verb, _PAST)))]
+
+    def held():
+        counts, productive = view.said_shapes()
+        return dict(counts), set(productive), {least: sorted(made) for least, made in view._said_by_least.items()}
+    view.said_shapes()
+    for pair in pairs:
+        _learn(view, [pair])
+        moved = held()
+        view._said_found()
+        assert held() == moved, f"after {pair[0]!r}"
+    assert moved[1], "some change became productive on the way"
+
+
+def test_a_phrase_is_found_by_the_words_of_its_own_a_reading_has():
+    """A phrase reads words only where each word of its own is one of them, so the reader asks only for those
+    (`phrases_reading`): every one of them, in the order they were held, whatever the case it was written in. Tried
+    one by one, every phrase held was tried for every run of words read, and learning slowed with each one learned."""
+    word, slot = (lambda text, after=True: dr.Piece(text, after)), (lambda name: dr.Slot(name, True))
+    view = _believed()
+    kind = lambda thing: (F("instance_of", "?x", thing),)
+    for phrase in (dr.Phrase((word("parsed"), word("them", False)), "?x", kind("parse")),
+                   dr.Phrase((word("chased"), word("them", False)), "?x", kind("chase")),
+                   dr.Phrase((slot("?slot0"), word("slowly", False)), "?x", (F("instance_of", "?x", "?slot0"),
+                                                                            F("has_property", "?x", "slow"))),
+                   dr.Phrase((word("Them", False),), "?x", kind("group")),
+                   dr.Phrase((word("parsed", False),), "?x", kind("parse"))):
+        view.add(phrase)
+    held = view.phrases()
+    own = {phrase.key: {dr._fold(e.text) for e in phrase.form if isinstance(e, dr.Piece) and not dr._is_mark(e.text)}
+           for phrase in held}
+    for have in ({"parsed", "them"}, {"Them"}, {"walked", "slowly"}, {"chased"}, {"nothing"}):
+        found = view.phrases_reading(have)
+        assert [p.key for p in found] == [p.key for p in held if p in found], "in the order they were held"
+        assert {p.key for p in held if own[p.key] <= {dr._fold(w) for w in have}} <= {p.key for p in found}, have
+
+
+def test_a_phrase_is_offered_to_say_a_meaning_only_where_the_meaning_names_all_it_names():
+    """Of the phrases stating some kinds of fact, the sayer is offered those whose every concept the meaning names
+    (`phrases_stating`, `within`), in the order they were held: "strolled" says no walking, and composing every
+    phrase of the kinds with every frame took minutes once each verb had phrases of its own."""
+    word, slot = (lambda text, after=True: dr.Piece(text, after)), (lambda name: dr.Slot(name, True))
+    view = _believed()
+    doing = lambda name: (F("instance_of", "?x", name), F("precedes", "?x", "?now"))
+    for phrase in (dr.Phrase((word("strolled", False),), "?x", doing("stroll")),
+                   dr.Phrase((word("walked", False),), "?x", doing("walk")),
+                   dr.Phrase((slot("?slot0"), word("before", False)), "?x", (F("instance_of", "?x", "?slot0"),
+                                                                             F("precedes", "?x", "?now"))),
+                   dr.Phrase((word("walked", True), word("there", False)), "?x",
+                             doing("walk") + (F("located_at", "?x", "there"),))):
+        view.add(phrase)
+    kinds = Counter({("instance_of", True): 1, ("precedes", True): 1})
+    first = lambda phrase: getattr(phrase.form[0], "text", None) or phrase.form[0].name
+    every = view.phrases_stating(kinds)
+    assert [first(p) for p in every] == ["strolled", "walked", "?slot0"]
+    offered = view.phrases_stating(kinds, frozenset({"walk", "dog"}))
+    assert [first(p) for p in offered] == ["walked", "?slot0"], "none naming what the meaning does not"
+    assert view.phrases_stating(kinds, frozenset()) == (every[2],)
+
+
+def test_a_sense_is_weighed_by_how_often_it_was_met_not_by_the_sentence_around_it():
+    """"Tom saw her.", read as seeing through the word "saw" (met 11 times so) and as understanding through "saw" held
+    as a phrase of its own (a seeing-sense before now, met once), inside structure met 5,951 times: a choice of sense,
+    the phrase's word writing its kind back as a word does, and seeing taken, by how often each sense was met."""
+    scores = {}
+    view = PatternInventory(score=lambda item: scores.get(item.key, (0.9, 1, True)))
+    told = lambda sense: _tell(("instance_of", "?e", sense), ("done_by", "?e", "tom"), ("precedes", "?e", "?now"))
+    frame = Pattern((dr.Piece("Tom", True), dr.Slot("?slot0", False), dr.Piece(".", False)),
+                    _tell(("instance_of", "?e", "?slot0"), ("done_by", "?e", "tom"), ("precedes", "?e", "?now")))
+    word = dr.Lexical((dr.Piece("saw", False),), "see")
+    phrase = dr.Phrase((dr.Piece("saw", False),), "?x", (F("instance_of", "?x", "understand see"),
+                                                         F("precedes", "?x", "?now")))
+    around = dr.Phrase((dr.Slot("?slot0", True), dr.Piece("again", False)), "?x",
+                       (F("instance_of", "?x", "?slot0"), F("precedes", "?x", "?now")))
+    for item, uses in ((frame, 40), (word, 11), (phrase, 1), (around, 5951)):
+        view.add(item)
+        scores[item.key] = (0.99, uses, True)
+    readings = [dr.Reading((frame, word), (), told("see")),
+                dr.Reading((frame, phrase, around), (), told("understand see"))]
+    assert len(dr.sense_choices(readings, view)) == 2
+    assert dr.meant(readings, view, heard=dr.Heard()).meaning == told("see")
+    # Said of "it", where memory is asked nothing (`listening_facts`): the senses are still the meaning's own.
+    it = lambda sense: _tell(("has_property", "?previous", sense))
+    frame_it = Pattern((dr.Piece("It's", True), dr.Slot("?slot0", False), dr.Piece(".", False)), it("?slot0"))
+    hot, good = dr.Lexical((dr.Piece("hot", False),), "hot"), dr.Lexical((dr.Piece("hot", False),), "good hot")
+    for item, uses in ((frame_it, 3), (hot, 260), (good, 1)):
+        view.add(item)
+        scores[item.key] = (0.99, uses, True)
+    readings = [dr.Reading((frame_it, good), (), it("good hot")), dr.Reading((frame_it, hot), (), it("hot"))]
+    assert dr.meant(readings, view, heard=dr.Heard()).meaning == it("hot")
+
+
+def test_structures_that_suppose_alike_are_told_apart_by_what_memory_knows():
+    """"The dog found bones.", read as the dog finding bones or as founding something and boning up, each supposing as
+    little: taken as what memory knows (a finding is done to bones), and asked about where nothing tells them
+    apart."""
+    view = PatternInventory(score=lambda item: (0.9, 1, True), listened=lambda: _LISTENED)
+    finding = _tell(("instance_of", "?e", "find"), ("done_to", "?e", "bone"))
+    founding = _tell(("instance_of", "?e", "found"), ("instance_of", "?f", "study cram"))
+    readings = [dr.Reading((Pattern((dr.Piece("found", True), dr.Piece("bones", False)), finding),), (), finding),
+                dr.Reading((Pattern((dr.Piece("found", True), dr.Piece("bones", False)), founding),), (), founding)]
+    assert dr.meant(readings, view, heard=dr.Heard()) is None, "nothing tells them apart: asked about"
+    knows = dr.Heard(held={("done_to", "find", "bone", True): 2})
+    assert dr.meant(readings, view, heard=knows).meaning == finding
+
+
+def test_opposites_of_any_part_are_asked_about_each_word_as_its_class_is():
+    """"Is ?slot0 the opposite of ?slot1?" relates concepts of any part: held for day and night, it reads "Is outgoing
+    the opposite of incoming?" where those words are held only where qualities stand, as adjectives; their kinds are
+    left where they were, so "day" stands no nearer where qualities do."""
+    view = _rules_held()
+    word, slot = (lambda text: dr.Piece(text, True)), (lambda name, after=True: dr.Slot(name, after))
+    asked = lambda one, other: Meaning("ask", (F("antonym_of", one, other),))
+    view.add(Pattern((word("Is"), slot("?slot0"), word("the"), word("opposite"), word("of"), slot("?slot1", False),
+                      dr.Piece("?", False)), asked("?slot0", "?slot1")))
+    _learn(view, [("Is day the opposite of night?", asked("day", "night")),
+                  ("To be outgoing is to be friendly.", _quality_rule("outgoing", "friendly")),
+                  ("To be incoming is to be new.", _quality_rule("incoming", "new"))])
+    meanings = lambda sentence: {r.meaning.canonical() for r in read(sentence, view)}
+    assert asked("outgoing", "incoming").canonical() not in meanings("Is outgoing the opposite of incoming?")
+    view.word_classes = {"outgoing": {"ADJECTIVE": 1}, "incoming": {"ADJECTIVE": 1}}
+    assert asked("outgoing", "incoming").canonical() in meanings("Is outgoing the opposite of incoming?")
+    assert "quality" not in view._parts_of.get(view.lexicals_with_words(("day",))[0].key, set())
+
+
+def test_a_word_s_uses_land_on_the_phrases_saying_it_in_its_forms():
+    """A count of a verb's uses lands on what says the verb names the thing: the word, where it is held for it, and
+    the phrases naming a thing of the kind in one of its forms ("had them" for "have"), never one in another word's
+    ("received them"). So "Tom had them." is the having "have" names 1,202 times, not the receiving it names 7, which
+    "receive" names far more."""
+    scores = {}
+    view = PatternInventory(score=lambda item: scores.get(item.key, (0.9, 1, True)))
+    had = lambda kind: dr.Phrase((dr.Piece("had", True), dr.Piece("them", False)), "?x",
+                                 (F("instance_of", "?x", kind), F("done_to", "?x", "?previous")))
+    having, receiving = had("have got have"), had("receive")
+    received = dr.Phrase((dr.Piece("received", True), dr.Piece("them", False)), "?x",
+                         (F("instance_of", "?x", "receive"), F("done_to", "?x", "?previous")))
+    receive = dr.Lexical((dr.Piece("receive", False),), "receive")
+    for item in (having, receiving, received, receive):
+        view.add(item)
+    forms = ("had", "has", "having")
+    assert view.saying(("have",), "have got have", forms) == (having,)
+    assert view.saying(("have",), "receive", forms) == (receiving,)
+    assert view.saying(("receive",), "receive", ("received", "receives", "receiving")) == (receive, received)
+    # The word in one of its forms, held for the thing as the lessons hold it ("Tom ran."), says so too.
+    ran = dr.Lexical((dr.Piece("ran", False),), "run")
+    view.add(ran)
+    assert view.saying(("run",), "run", ("ran", "runs", "running")) == (ran,)
+    assert view.saying(("run",), "leave scat", ("ran", "runs", "running")) == ()
+    for item, uses in ((having, 1202), (receiving, 7), (received, 128), (receive, 128)):
+        scores[item.key] = (0.99, uses, True)
+    tom = dr.Lexical((dr.Piece("Tom", True),), "tom")
+    frame = Pattern((dr.Slot("?slot0", True), dr.Slot("?slot1", False), dr.Piece(".", False)),
+                    dr.Meaning("tell", (F("done_by", "?slot1", "?slot0"),)))
+    said = lambda kind: dr.Meaning("tell", (F("done_by", "?v0", "tom"), F("done_to", "?v0", "?previous"),
+                                            F("instance_of", "?v0", kind)))
+    readings = [dr.Reading((frame, tom, phrase), (), said(kind))
+                for phrase, kind in ((receiving, "receive"), (having, "have got have"))]
+    assert dr.meant(readings, view, heard=dr.Heard()).meaning == said("have got have")
+
+
+def test_a_rule_over_a_kind_is_weighed_as_what_that_kind_is():
+    """"To heighten is to increase." says that whatever heightening is done is an increasing: weighed by the listener
+    as `isa(heighten, increase)`, so the sense of "increase" memory holds heightening a kind of is taken over the one
+    met more often. Weighed as nothing, every sense was as known as another, and the one met most was taken."""
+    rule = lambda kind, then: dr.Meaning("tell", (dr.MeaningFact("instance_of", "?e", kind, condition=True),
+                                                 dr.MeaningFact("done_by", "?e", "?x", condition=True),
+                                                 dr.MeaningFact("instance_of", "?e", then)))
+    assert dr.listening_facts(rule("heighten", "change increase")) == (
+        dr.MeaningFact("isa", "heighten", "change increase"),)
+    scores = {}
+    view = PatternInventory(score=lambda item: scores.get(item.key, (0.9, 1, True)),
+                            listened=lambda: _LISTENED)
+    word = lambda text, value: dr.Lexical((dr.Piece(text, True),), value)
+    frame = Pattern((dr.Piece("To", True), dr.Slot("?slot0", True), dr.Piece("is", True), dr.Piece("to", True),
+                     dr.Slot("?slot1", True), dr.Piece(".", False)), rule("?slot0", "?slot1"))
+    view.add(frame)
+    heighten = word("heighten", "heighten")
+    view.add(heighten)
+    readings = []
+    for sense, uses in (("increase", 40), ("change increase", 3)):
+        lexical = word("increase", sense)
+        view.add(lexical)
+        scores[lexical.key] = (0.99, uses, True)
+        readings.append(dr.Reading((frame, heighten, lexical), (), rule("heighten", sense)))
+    met_most = dr.meant(readings, view, heard=dr.Heard()).meaning
+    assert met_most == rule("heighten", "increase")
+    known = dr.Heard(held={("isa", "heighten", "change increase", True): 1})
+    assert dr.meant(readings, view, heard=known).meaning == rule("heighten", "change increase")
+
+
+def test_a_held_word_stands_where_its_class_stands():
+    """A word held but never seen in a sentence of its part stands where its class's part does: observed an
+    ADJECTIVE, where a frame's slot takes qualities. WordNet says most of its adjectives in no sentence, so none but
+    the lessons' few stood where a quality does, and "Cars are fast." read as cars being a kind called fast. Without
+    its class, a word held and never linked there reads nowhere."""
+    view = _believed()
+    _learn(view, [("Snow is white.", _tell(("has_property", "snow", "white"))),
+                  ("Milk is white.", _tell(("has_property", "milk", "white"))),
+                  ("Snow is cold.", _tell(("has_property", "snow", "cold")))])
+    view.add(dr.Lexical((dr.Piece("gray", True),), "gray"))
+    said = lambda: {r.meaning.canonical() for r in read("Snow is gray.", view)}
+    assert "tell: has_property(snow, gray)" not in said()
+    view.word_classes = {"gray": {"ADJECTIVE": 1}}
+    assert "tell: has_property(snow, gray)" in said()
+    view.word_classes = {"gray": {"ADJECTIVE": -1, "NOUN": 2}}
+    assert "tell: has_property(snow, gray)" not in said(), "a class the evidence argued down is no class"
+
+
+def _facts(reading):
+    return {(f.relation, f.positive) for f in reading.meaning.facts}
+
+
+def test_adjuncts_found_in_held_frames_read_sentences_never_taught():
+    """A held frame that is another with words added after a slot shows what those words say of what stands there
+    (`Adjunct`): "The dog ran into the house." beside "The ?slot0 ?slot1.", "into the ?slot2" says where the running
+    went. Read after anything standing in any slot, and after all a sentence tells happened, they read what was never
+    taught, each said of what it follows. Supposed, as a link of a slot's kind is; nothing is written."""
+    import json
+    view = _lessons_view(14)
+    before = len(view)
+    taught = {r["sentence"] for n in range(1, 15) for r in json.loads(
+        (Path(__file__).resolve().parents[1] / "data" / "lessons" / f"english_{n:02d}.json").read_text())["records"]}
+    for sentence in ("The cat ran into the box in the morning.", "Tom kicked the ball into the box in the morning.",
+                     "Tom opened the box with a key in the morning."):
+        assert sentence not in taught, sentence
+        readings = read(sentence, view)
+        assert readings, sentence
+        best = readings[0].meaning
+        happening = {f.subject for f in best.facts if f.relation == "done_by"}
+        assert len(happening) == 1, best.canonical()
+        said_of = {f.relation for f in best.facts if f.subject in happening}
+        assert {"during", "precedes"} <= said_of, best.canonical()
+        assert said_of & {"moves_into", "done_with"}, best.canonical()
+        assert readings[0].proposed, "an adjunct stands where no taught pair put it: supposed"
+    (taught,) = read("The dog ran into the house.", view)
+    assert not taught.proposed, "a sentence a held frame reads is read through it, supposing nothing"
+    assert len(view) == before, "reading writes nothing"
+
+
+def test_what_only_a_happening_has_is_never_said_of_a_thing():
+    """An adjunct saying where something moved or when it was ("through the door") follows only what names a
+    happening: said after "the dog" it would make the dog a happening."""
+    view = _lessons_view(14)
+    assert any(f[0] == "moves_through" for r in read("The dog ran through the door.", view) for f in _facts(r))
+    for reading in read("The dog through the door is big.", view):
+        assert ("moves_through", True) not in _facts(reading), reading.meaning.canonical()

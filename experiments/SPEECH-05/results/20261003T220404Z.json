@@ -1,0 +1,202 @@
+{
+  "experiment": "SPEECH-05",
+  "claim": "With an ear that senses only which sounds were said, and its own pronunciations, word search and listener, the substrate hears words said by people it was never taught by well enough to follow a sentence; a word it names firmly is the word said.",
+  "hypothesis": "A pronunciation is not kept or read back as told; or a word named firmly is not the word said; or fewer than 70% of the words of whole sentences, or 40% of words said alone, are heard right in the likeliest way.",
+  "started_at": "2026-10-03T22:04:04.271826+00:00",
+  "duration_seconds": 1940.211,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/Lyric/venv_lyric/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/Lyric",
+    "shadow_mode": null,
+    "git_commit": "a3aad59e25603e309479c542053a1e733fb70ce7",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "lyric_dev",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "lyric_dev",
+        "model": "lyric_dev",
+        "user_context": "lyric_dev",
+        "learning": "lyric_dev"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "environment",
+        "database": "environment",
+        "user": "environment",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "pool_idle_seconds": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 29,
+    "database_verified": "lyric_dev",
+    "database_verified_reason": "asked the server"
+  },
+  "summary": {
+    "checks": 8,
+    "passed": 7,
+    "failed": 1,
+    "outcome": "FAIL"
+  },
+  "metrics": [
+    {
+      "name": "the ear",
+      "value": "vitouphy/wav2vec2-xls-r-300m-timit-phoneme",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "pronunciations taught",
+      "value": {
+        "told": 2257,
+        "already": 0,
+        "skipped": 0,
+        "total": 2257
+      },
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "MSWC words alone",
+      "value": {
+        "heard right in the likeliest way": 142,
+        "named firmly and right": 8,
+        "heard": 300
+      },
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "seconds to hear a word (the first loads the ear)",
+      "value": 0.28,
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "sentences: words in the likeliest way",
+      "value": {
+        "named": 2353,
+        "named firmly": 557,
+        "right": 2444,
+        "for another": 693,
+        "left out": 48,
+        "put in": 180
+      },
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "sentences: words right in the likeliest way",
+      "value": "2444/3185",
+      "unit": "",
+      "note": "76.7%"
+    },
+    {
+      "name": "sentences: the listener",
+      "value": {
+        "the listener could not choose": 131,
+        "the listener chose": 12,
+        "words right in what it chose": 70,
+        "words right in the likeliest, where it chose": 81,
+        "named every word clearly": 3
+      },
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "seconds to hear a sentence",
+      "value": 0.92,
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "sentences, said and heard",
+      "value": [
+        [
+          "the dull light fell more faintly upon the page whereon another equation began to",
+          "the dull light fell more faintly upon the page where on another equation began"
+        ],
+        [
+          "they knew no north no south no east no west they stood positively by",
+          "they knew know north know south nice no west stood positively by the constitution"
+        ],
+        [
+          "the uncouth faces passed him two by two stained yellow or red or livid",
+          "the uncouth faces passed him to by to stained yellow are red are livid"
+        ],
+        [
+          "jack had been standing in the far corner of the room talking to eva",
+          "jack head in standing in the for corner other room talk in to eva"
+        ]
+      ],
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "rows left after cleanup, by table",
+      "value": {},
+      "unit": "",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "the run is in the sandbox",
+      "passed": true,
+      "detail": "lyric_dev",
+      "at": "2026-10-03T22:04:55.691748+00:00"
+    },
+    {
+      "label": "every pronunciation the source states is kept, as told",
+      "passed": true,
+      "detail": "{'told': 2257, 'already': 0, 'skipped': 0, 'total': 2257}; 2257 held for 2257 stated",
+      "at": "2026-10-03T22:06:04.349545+00:00"
+    },
+    {
+      "label": "every pronunciation",
+      "passed": true,
+      "detail": "2257 ways of 1863 words",
+      "at": "2026-10-03T22:06:05.029278+00:00"
+    },
+    {
+      "label": "a word named firmly is the word said, or one said the same",
+      "passed": false,
+      "detail": "16 firm and wrong: [('8463-294825-0006', 'contain', 1.0), ('5105-28240-0024', 'handsome', 0.645), ('1580-141084-0029', 'within', 0.583), ('1221-135766-0010', 'accompany', 1.0)]",
+      "at": "2026-10-03T22:36:22.908714+00:00"
+    },
+    {
+      "label": "at least 70% of the words of whole sentences are right in the likeliest way",
+      "passed": true,
+      "detail": "2444 of 3185",
+      "at": "2026-10-03T22:36:22.908766+00:00"
+    },
+    {
+      "label": "at least 40% of words said alone are heard right in the likeliest way",
+      "passed": true,
+      "detail": "142 of 300",
+      "at": "2026-10-03T22:36:22.908779+00:00"
+    },
+    {
+      "label": "everything the run wrote to the sandbox is removed",
+      "passed": true,
+      "detail": "{}",
+      "at": "2026-10-03T22:36:23.870985+00:00"
+    },
+    {
+      "label": "the main model's store is untouched",
+      "passed": true,
+      "detail": "290096 rows before, 290096 after",
+      "at": "2026-10-03T22:36:24.418309+00:00"
+    }
+  ],
+  "notes": []
+}

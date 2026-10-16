@@ -175,6 +175,32 @@ def test_an_event_participant_stays_a_fact_about_that_event():
     assert answer("listener", R.DONE_BY, "tying_1", edges).verdict == UNKNOWN
 
 
+def test_a_told_happening_is_named_as_one_event_and_nothing_else_is():
+    """"The wug ate a fep.": one eating, done by the wug, named from its telling, the same name taught again and
+    another for another telling. "Some shoe is black." names no shoe: only a happening, an unknown something was done
+    by or done to, is named (decided 2026-10-04)."""
+    from core.learning.teaching import told_events
+    from core.semantics.derived_reader import Meaning, MeaningFact
+    ate = Meaning("tell", (MeaningFact("instance_of", "?v0", "eat"), MeaningFact("done_by", "?v0", "wug"),
+                           MeaningFact("done_to", "?v0", "fep"), MeaningFact("precedes", "?v0", "?now")))
+    named = told_events(ate, "The wug ate a fep.")
+    assert list(named) == ["?v0"] and named["?v0"].startswith("eat_")
+    assert told_events(ate, "The wug ate a fep.") == named, "the same telling names the same event"
+    assert told_events(ate, "A wug ate a fep.") != named, "another telling is another event"
+    shoe = Meaning("tell", (MeaningFact("instance_of", "?x", "shoe"), MeaningFact("has_property", "?x", "black")))
+    assert told_events(shoe, "Some shoe is black.") == {}
+    asked = Meaning("ask", (MeaningFact("instance_of", "?v0", "eat"), MeaningFact("done_by", "?v0", "wug"),
+                            MeaningFact("done_to", "?v0", "?v1")), ("?v1",))
+    assert set(told_events(asked, "What did the wug eat?")) == {"?v0"}, "the event a question asks of is not asked"
+    said = Meaning("tell", (MeaningFact("instance_of", "?v0", "say"), MeaningFact("done_by", "?v0", "tom"),
+                            MeaningFact("done_to", "?v0", "?v1"), MeaningFact("precedes", "?v0", "?now"),
+                            MeaningFact("instance_of", "?v1", "bark", unasserted=True),
+                            MeaningFact("done_by", "?v1", "dog", unasserted=True),
+                            MeaningFact("precedes", "?v1", "?now", unasserted=True)))
+    assert list(told_events(said, "Tom said that the dog barked.")) == ["?v0"], \
+        "the saying is held; what was said, not told as so, is not a happening held (decided 2026-10-05)"
+
+
 def test_the_graph_types_an_event_participant_row():
     """The graph decodes a stored row by the kind's name, so a participant link
     written to the store is walked as that kind, not skipped as untyped."""
@@ -256,3 +282,35 @@ def test_ontology_defined_relations_do_not_chain_by_default():
     licensed = answer("finger", SR.PART_OF, "arm", edges,
                       context_licenses=frozenset({SR.PART_OF}))
     assert licensed.verdict == TRUE
+
+
+def test_a_symmetric_relation_holds_both_ways_round():
+    """"incoming is the opposite of outgoing" answers "Is outgoing the opposite of incoming?": a symmetric relation is
+    its own inverse, derived (not observed), and no other relation is."""
+    from core.reasoning.relation_algebra import answer, inverse, TRUE, DERIVED, UNKNOWN
+    from core.semantics.relation_types import SemanticRelation as SR
+    assert inverse(SR.ANTONYM_OF) is SR.ANTONYM_OF and inverse(SR.ISA) is None
+    held = [Edge("incoming", SR.ANTONYM_OF, "outgoing")]
+    found = answer("outgoing", SR.ANTONYM_OF, "incoming", held)
+    assert found.verdict == TRUE and found.basis == DERIVED
+    assert answer("outgoing", SR.ISA, "incoming", [Edge("incoming", SR.ISA, "outgoing")]).verdict == UNKNOWN
+
+
+def test_no_closed_world_on_what_the_asker_said_and_was_not_taken_in():
+    """The strong disjointness assumption answers No only while memory holds all that was said of the two kinds.
+    Told "Python is a high-level, general-purpose programming language." and unable to read it, asked "Is Python a
+    programming language?": memory's python is a snake, and No would answer against what was just told. Declined
+    before memory is asked anything (the store here is None), judged by the words said, case and number aside."""
+    import asyncio
+    from core.reasoning.concept_graph_reasoning import _kinds_exclude, _named_in_any
+    from core.semantics.relation_types import SemanticRelation as SR
+    told = ["Python is a high-level, general-purpose programming language."]
+    held = [Edge("python", SR.ISA, "boa")]
+    assert asyncio.run(_kinds_exclude(None, "python", SR.ISA, "programming_language", held,
+                                      not_taken_in=told)) is None
+    assert asyncio.run(_kinds_exclude(None, "key", SR.ISA, "function", [Edge("key", SR.ISA, "device")],
+                                      not_taken_in=["The argument key is a function that is applied."])) is None
+    assert _named_in_any("whale", ["Whales feed their young with milk."])
+    assert _named_in_any("programming_language", told)
+    assert not _named_in_any("grandfather_clock", ["The grandfather of Tom is old."]), "every word of the name"
+    assert not _named_in_any("python", []) and not _named_in_any("python", ["The beer is cold."])

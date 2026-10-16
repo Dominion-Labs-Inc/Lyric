@@ -165,6 +165,63 @@ def _serve() -> None:
 #: table is the same until it is taught again.
 _TABLES: Dict[Tuple[int, Tuple[int, ...], int], Any] = {}
 
+#: The sounds taught, as this process holds them between hearings: whose library they are (`token`), how many lessons
+#: of it are here (`have`), the frames (`library`, a `speech.PhoneLibrary`), how words are said (`said`, made for
+#: the phones held, by `said_version`), and the same in the recogniser's phones (`marks`).
+_PHONES: Dict[str, Any] = {"token": None, "have": 0, "library": None, "said": None, "said_key": None,
+                           "marks": None, "marks_key": None}
+
+
+def _phones_in_hand(library: Dict[str, Any]) -> bool:
+    """Take in the lessons of sounds taught since the last hearing (`library["phones"]`: `token`, `have`, `new`).
+    False when this process does not hold what the faculty believes it does (it was started again), so the faculty
+    sends them all."""
+    from . import speech
+    sent = library.get("phones")
+    if not sent:
+        return True
+    if _PHONES["token"] != sent["token"] or _PHONES["have"] != sent["have"]:
+        if sent["have"]:
+            return False
+        _PHONES.update(token=sent["token"], have=0, library=speech.PhoneLibrary(), said=None, said_key=None)
+    for frames, labels in sent.get("new") or ():
+        _PHONES["library"].add(frames, labels)
+        _PHONES["have"] += 1
+    return True
+
+
+def _ear() -> Optional[Any]:
+    """The phone recogniser, loaded in this process on first use, or None when the ear may not use one."""
+    from . import phone_recogniser
+    return phone_recogniser.recogniser()
+
+
+def _said_in_marks(library: Dict[str, Any]) -> Optional[Any]:
+    """How the words taught are said, as the recogniser's phones, made once for each version taught."""
+    from . import speech
+    said = library.get("said_as")
+    if not said:
+        return None
+    key = ("marks", said.get("version"))
+    if _PHONES["marks_key"] != key:
+        _PHONES["marks"] = speech.SaidInMarks(said.get("words") or {}, said.get("used") or {})
+        _PHONES["marks_key"] = key
+    return _PHONES["marks"]
+
+
+def _said_as(library: Dict[str, Any]) -> Optional[Any]:
+    """How the words taught are said, made into the states hearing passes through, for the sounds held now."""
+    from . import speech
+    said = library.get("said_as")
+    held = _PHONES.get("library")
+    if not said or held is None or not held.size:
+        return None
+    key = (said.get("version"), len(held.phones))
+    if _PHONES["said_key"] != key:
+        _PHONES["said"] = speech.SaidAs(said.get("words") or {}, said.get("used") or {}, held)
+        _PHONES["said_key"] = key
+    return _PHONES["said"]
+
 
 def _table(rows):
     import zlib
@@ -194,16 +251,33 @@ def listen(path: str, library: Dict[str, Any], lesson: Optional[Tuple[str, str]]
     taught raises before anything is kept."""
     import numpy as np
     from . import hearing, music, speech
+    # THE SOUNDS TAUGHT stay in this process between hearings; what was taught since is all that is sent.
+    if not _phones_in_hand(library):
+        return {"need_phones": True}
     desc = hearing.describe(path)
     if soundtrack and not desc.get("has_audio"):
         return {"desc": desc}
     y = hearing.decode(path)
-    example = None
-    if lesson is not None:
+    example, example_phones = None, None
+    if lesson is not None and lesson[0] == "phones":
+        example, example_phones = speech.phones_example(y, lesson[1])
+    elif lesson is not None:
         example = (music.song_example(y, path) if lesson[0] == "song"
                    else speech.lesson_example(lesson[0], y, path))
     heard = speech.recognise(y, desc.get("sounds") or [], library.get("words") or {},
                         library.get("voices") or {}, library.get("reach"))
+    # A STRETCH IS HEARD AS THE WORDS WHOSE SOUNDS FIT IT, for any voice. A phone recogniser, where the ear may use
+    # one (`phone_recogniser`), reports the sounds (`speech.find_words_by_marks`); else the sounds taught are matched
+    # (`speech.find_words_by_phones`); else the words taught whole. Which words, and which was meant, are Lyric's.
+    ear = _ear() if speech.WORDS_HEARD else None
+    in_marks = _said_in_marks(library) if ear is not None else None
+    said = _said_as(library) if speech.WORDS_HEARD and ear is None else None
+    if in_marks is not None and in_marks.words:
+        heard = {k: v for k, v in heard.items() if k not in ("said", "heard_text", "heard_texts")}
+        heard.update(speech.heard_by_marks(y, ear, in_marks))
+    elif said is not None and _PHONES["library"].size and said.words:
+        heard = {k: v for k, v in heard.items() if k not in ("said", "heard_text", "heard_texts")}
+        heard.update(speech.heard_by_phones(y, _PHONES["library"], said))
     known: List[Tuple[str, int, Any]] = []
     songs: List[Tuple[str, int, Any]] = []
     # Every hearing's landmarks: matched against what was taught here, and kept
@@ -239,7 +313,7 @@ def listen(path: str, library: Dict[str, Any], lesson: Optional[Tuple[str, str]]
             "known": known, "songs": sorted(songs, key=lambda s: -s[3]),
             "tunes": ([] if from_mix else music.tunes_heard(tune, library.get("tunes") or {})),
             "tune": tune,
-            "trace": (hearing.trace_bytes(desc["trace"], example, marks, tune, from_mix)
+            "trace": (hearing.trace_bytes(desc["trace"], example, marks, tune, from_mix, example_phones)
                       if desc.get("trace") else None)}
 
 

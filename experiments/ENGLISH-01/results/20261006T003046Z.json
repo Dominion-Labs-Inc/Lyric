@@ -1,0 +1,763 @@
+{
+  "experiment": "ENGLISH-01",
+  "claim": "Taught Phase 1's lessons after english_01-31, Lyric reads the comma and the apostrophe in the uses web English makes of them most, in sentences it was taught and in ones it was not, and without losing what the earlier lessons taught.",
+  "hypothesis": "A Phase 1 sentence refused or read otherwise than taught, a never-taught sentence read otherwise than written here, an earlier lesson's sentence no longer read as taught, or a write to the main store shows here.",
+  "started_at": "2026-10-06T00:30:46.213911+00:00",
+  "duration_seconds": 1291.116,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/Lyric/venv_lyric/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/Lyric",
+    "shadow_mode": null,
+    "git_commit": "0a27c570eda188a24bb63d1968f8fd104a8f4cb6",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "lyric_dev",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "lyric_dev",
+        "model": "lyric_dev",
+        "user_context": "lyric_dev",
+        "learning": "lyric_dev"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "environment",
+        "database": "environment",
+        "user": "environment",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "pool_idle_seconds": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 82,
+    "database_verified": "lyric_dev",
+    "database_verified_reason": "asked the server"
+  },
+  "summary": {
+    "checks": 28,
+    "passed": 28,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [
+    {
+      "name": "never-taught sentences with the comma read as written before english_32",
+      "value": "0/18",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "never-taught readings, the comma",
+      "value": [
+        {
+          "sentence": "Ducks, robins and owls are birds.",
+          "written": "tell: isa(duck, bird) & isa(owl, bird) & isa(robin, bird)",
+          "read": "tell: isa(duck, bird) & isa(owl, bird) & isa(robin, bird)"
+        },
+        {
+          "sentence": "Horses, cows, and dogs are mammals.",
+          "written": "tell: isa(cow, mammal) & isa(dog, mammal) & isa(horse, mammal)",
+          "read": "tell: isa(cow, mammal) & isa(dog, mammal) & isa(horse, mammal)"
+        },
+        {
+          "sentence": "Milk, paper and snow are white.",
+          "written": "tell: has_property(milk, white) & has_property(paper, white) & has_property(snow, white)",
+          "read": "tell: has_property(milk, white) & has_property(paper, white) & has_property(snow, white)"
+        },
+        {
+          "sentence": "Rex has a cup, a book and a pen.",
+          "written": "tell: owns(rex, book) & owns(rex, cup) & owns(rex, pen)",
+          "read": "tell: owns(rex, book) & owns(rex, cup) & owns(rex, pen)"
+        },
+        {
+          "sentence": "Anna has a dog, a bird, and a cat.",
+          "written": "tell: owns(anna, bird) & owns(anna, cat) & owns(anna, dog)",
+          "read": "tell: owns(anna, bird) & owns(anna, cat) & owns(anna, dog)"
+        },
+        {
+          "sentence": "The cat is small, black and fast.",
+          "written": "tell: has_property(cat, black) & has_property(cat, fast) & has_property(cat, small)",
+          "read": "tell: has_property(cat, black) & has_property(cat, fast) & has_property(cat, small)"
+        },
+        {
+          "sentence": "Is the box red, green or blue?",
+          "written": "ask: either has_property(box, blue) & either has_property(box, green) & either has_property(box, red)",
+          "read": "ask: either has_property(box, blue) & either has_property(box, green) & either has_property(box, red)"
+        },
+        {
+          "sentence": "The door is closed, and the room is cold.",
+          "written": "tell: has_property(door, closed) & has_property(room, cold)",
+          "read": "tell: has_property(door, closed) & has_property(room, cold)"
+        },
+        {
+          "sentence": "The cat is small, but the dog is big.",
+          "written": "tell: has_property(cat, small) & has_property(dog, big)",
+          "read": "tell: has_property(cat, small) & has_property(dog, big)"
+        },
+        {
+          "sentence": "The cat ran, and the dog barked.",
+          "written": "tell: done_by(?v0, cat) & done_by(?v1, dog) & instance_of(?v0, run) & instance_of(?v1, bark) & precedes(?v0, ?now) & precedes(?v1, ?now)",
+          "read": "tell: done_by(?v0, cat) & done_by(?v1, dog) & instance_of(?v0, run) & instance_of(?v1, bark) & precedes(?v0, ?now) & precedes(?v1, ?now)"
+        },
+        {
+          "sentence": "The fish swam, the bird flew and the dog ran.",
+          "written": "tell: done_by(?v0, bird) & done_by(?v1, dog) & done_by(?v2, fish) & instance_of(?v0, fly) & instance_of(?v1, run) & instance_of(?v2, swim) & precedes(?v0, ?now) & precedes(?v1, ?now) & precedes(?v2, ?now)",
+          "read": "tell: done_by(?v0, bird) & done_by(?v1, dog) & done_by(?v2, fish) & instance_of(?v0, fly) & instance_of(?v1, run) & instance_of(?v2, swim) & precedes(?v0, ?now) & precedes(?v1, ?now) & precedes(?v2, ?now)"
+        },
+        {
+          "sentence": "At night, the dog barked.",
+          "written": "tell: done_by(?v0, dog) & during(?v0, night) & instance_of(?v0, bark) & precedes(?v0, ?now)",
+          "read": "tell: done_by(?v0, dog) & during(?v0, night) & instance_of(?v0, bark) & precedes(?v0, ?now)"
+        },
+        {
+          "sentence": "In the morning, the bird flew.",
+          "written": "tell: done_by(?v0, bird) & during(?v0, morning) & instance_of(?v0, fly) & precedes(?v0, ?now)",
+          "read": "tell: done_by(?v0, bird) & during(?v0, morning) & instance_of(?v0, fly) & precedes(?v0, ?now)"
+        },
+        {
+          "sentence": "When the bird flies, the cat runs.",
+          "written": "tell: done_by(?v0, bird) & done_by(?v1, cat) & during(?v1, ?v0) & instance_of(?v0, fly) & instance_of(?v1, run)",
+          "read": "tell: done_by(?v0, bird) & done_by(?v1, cat) & during(?v1, ?v0) & instance_of(?v0, fly) & instance_of(?v1, run)"
+        },
+        {
+          "sentence": "Because the bird flies, the cat runs.",
+          "written": "tell: causes(?v0, ?v1) & done_by(?v0, bird) & done_by(?v1, cat) & instance_of(?v0, fly) & instance_of(?v1, run)",
+          "read": "tell: causes(?v0, ?v1) & done_by(?v0, bird) & done_by(?v1, cat) & instance_of(?v0, fly) & instance_of(?v1, run)"
+        },
+        {
+          "sentence": "Anna, the teacher, is tall.",
+          "written": "tell: has_property(anna, tall) & isa(anna, teacher)",
+          "read": "tell: has_property(anna, tall) & isa(anna, teacher)"
+        },
+        {
+          "sentence": "Tom, the boy, is kind.",
+          "written": "tell: has_property(tom, kind) & isa(tom, boy)",
+          "read": "tell: has_property(tom, kind) & isa(tom, boy)"
+        },
+        {
+          "sentence": "Rex, my cat, is small.",
+          "written": "tell: has_property(rex, small) & isa(rex, cat) & owned_by(rex, ?speaker)",
+          "read": "tell: has_property(rex, small) & isa(rex, cat) & owned_by(rex, ?speaker)"
+        }
+      ],
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "never-taught sentences with the apostrophe read as written before english_33",
+      "value": "10/16",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "never-taught readings, the apostrophe",
+      "value": [
+        {
+          "sentence": "Dogs aren't fish.",
+          "written": "tell: not isa(dog, fish)",
+          "read": "tell: not isa(dog, fish)"
+        },
+        {
+          "sentence": "The box isn't hot.",
+          "written": "tell: not has_property(box, hot)",
+          "read": "tell: not has_property(box, hot)"
+        },
+        {
+          "sentence": "Cats can't swim.",
+          "written": "tell: not capable_of(cat, swim)",
+          "read": "tell: not capable_of(cat, swim)"
+        },
+        {
+          "sentence": "The bird doesn't bark.",
+          "written": "tell: done_by(?v0, bird) & has_property(?v0, false) & instance_of(?v0, bark)",
+          "read": "tell: done_by(?v0, bird) & has_property(?v0, false) & instance_of(?v0, bark)"
+        },
+        {
+          "sentence": "Horses don't swim.",
+          "written": "tell: done_by(?v0, horse) & has_property(?v0, false) & instance_of(?v0, swim)",
+          "read": "tell: done_by(?v0, horse) & has_property(?v0, false) & instance_of(?v0, swim)"
+        },
+        {
+          "sentence": "The fish didn't swim.",
+          "written": "tell: done_by(?v0, fish) & has_property(?v0, false) & instance_of(?v0, swim) & precedes(?v0, ?now)",
+          "read": "tell: done_by(?v0, fish) & has_property(?v0, false) & instance_of(?v0, swim) & precedes(?v0, ?now)"
+        },
+        {
+          "sentence": "The cat won't swim.",
+          "written": "tell: done_by(?v0, cat) & follows(?v0, ?now) & has_property(?v0, false) & instance_of(?v0, swim)",
+          "read": "tell: done_by(?v0, cat) & follows(?v0, ?now) & has_property(?v0, false) & instance_of(?v0, swim)"
+        },
+        {
+          "sentence": "It's cold.",
+          "written": "tell: has_property(?previous, cold)",
+          "read": "tell: has_property(?previous, cold)"
+        },
+        {
+          "sentence": "He's tall.",
+          "written": "tell: has_property(?previous, tall)",
+          "read": "tell: has_property(?previous, tall)"
+        },
+        {
+          "sentence": "That's my cup.",
+          "written": "tell: instance_of(?shown, cup) & owned_by(?shown, ?speaker)",
+          "read": "tell: instance_of(?shown, cup) & owned_by(?shown, ?speaker)"
+        },
+        {
+          "sentence": "You're small.",
+          "written": "tell: has_property(?listener, small)",
+          "read": "tell: has_property(?listener, small)"
+        },
+        {
+          "sentence": "We're big.",
+          "written": "tell: has_member(?v0, ?speaker) & has_property(?v0, big)",
+          "read": "tell: has_member(?v0, ?speaker) & has_property(?v0, big)"
+        },
+        {
+          "sentence": "I'll swim.",
+          "written": "tell: done_by(?v0, ?speaker) & follows(?v0, ?now) & instance_of(?v0, swim)",
+          "read": "tell: done_by(?v0, ?speaker) & follows(?v0, ?now) & instance_of(?v0, swim)"
+        },
+        {
+          "sentence": "You've run.",
+          "written": "tell: done_by(?v0, ?listener) & instance_of(?v0, run) & precedes(?v0, ?now)",
+          "read": "tell: done_by(?v0, ?listener) & instance_of(?v0, run) & precedes(?v0, ?now)"
+        },
+        {
+          "sentence": "Anna's hat is blue.",
+          "written": "tell: has_property(?v0, blue) & instance_of(?v0, hat) & owned_by(?v0, anna)",
+          "read": "tell: has_property(?v0, blue) & instance_of(?v0, hat) & owned_by(?v0, anna)"
+        },
+        {
+          "sentence": "The cats' ball is red.",
+          "written": "tell: has_property(?v0, red) & instance_of(?v0, ball) & owned_by(?v0, cat)",
+          "read": "tell: has_property(?v0, red) & instance_of(?v0, ball) & owned_by(?v0, cat)"
+        }
+      ],
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "never-taught sentences with the colon and the semicolon read as written before english_34",
+      "value": "6/8",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "never-taught readings, the colon and the semicolon",
+      "value": [
+        {
+          "sentence": "Rex has three animals: a dog, a bird and a cat.",
+          "written": "tell: has_count(?v0, 3) & has_member(?v0, bird) & has_member(?v0, cat) & has_member(?v0, dog) & instance_of(?v0, animal) & owns(rex, ?v0)",
+          "read": "tell: has_count(?v0, 3) & has_member(?v0, bird) & has_member(?v0, cat) & has_member(?v0, dog) & instance_of(?v0, animal) & owns(rex, ?v0)"
+        },
+        {
+          "sentence": "Anna has two toys: a hat and a ball.",
+          "written": "tell: has_count(?v0, 2) & has_member(?v0, ball) & has_member(?v0, hat) & instance_of(?v0, toy) & owns(anna, ?v0)",
+          "read": "tell: has_count(?v0, 2) & has_member(?v0, ball) & has_member(?v0, hat) & instance_of(?v0, toy) & owns(anna, ?v0)"
+        },
+        {
+          "sentence": "The cup is hot; the milk is cold.",
+          "written": "tell: has_property(cup, hot) & has_property(milk, cold)",
+          "read": "tell: has_property(cup, hot) & has_property(milk, cold)"
+        },
+        {
+          "sentence": "Rex is big; Anna is small.",
+          "written": "tell: has_property(anna, small) & has_property(rex, big)",
+          "read": "tell: has_property(anna, small) & has_property(rex, big)"
+        },
+        {
+          "sentence": "The fish swam; the bird flew.",
+          "written": "tell: done_by(?v0, bird) & done_by(?v1, fish) & instance_of(?v0, fly) & instance_of(?v1, swim) & precedes(?v0, ?now) & precedes(?v1, ?now)",
+          "read": "tell: done_by(?v0, bird) & done_by(?v1, fish) & instance_of(?v0, fly) & instance_of(?v1, swim) & precedes(?v0, ?now) & precedes(?v1, ?now)"
+        },
+        {
+          "sentence": "Tom ran; Rex walked.",
+          "written": "tell: done_by(?v0, rex) & done_by(?v1, tom) & instance_of(?v0, walk) & instance_of(?v1, run) & precedes(?v0, ?now) & precedes(?v1, ?now)",
+          "read": "tell: done_by(?v0, rex) & done_by(?v1, tom) & instance_of(?v0, walk) & instance_of(?v1, run) & precedes(?v0, ?now) & precedes(?v1, ?now)"
+        },
+        {
+          "sentence": "Dogs can swim; birds can fly.",
+          "written": "tell: capable_of(bird, fly) & capable_of(dog, swim)",
+          "read": "tell: capable_of(bird, fly) & capable_of(dog, swim)"
+        },
+        {
+          "sentence": "A whale is a mammal; an owl is a bird.",
+          "written": "tell: isa(owl, bird) & isa(whale, mammal)",
+          "read": "tell: isa(owl, bird) & isa(whale, mammal)"
+        }
+      ],
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "never-taught sentences with a title with a period read as written before english_35",
+      "value": "0/8",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "never-taught readings, a title with a period",
+      "value": [
+        {
+          "sentence": "Dr. Park is tall.",
+          "written": "tell: has_property(park, tall) & isa(park, doctor)",
+          "read": "tell: has_property(park, tall) & isa(park, doctor)"
+        },
+        {
+          "sentence": "Mr. Kim is kind.",
+          "written": "tell: has_property(kim, kind) & isa(kim, man)",
+          "read": "tell: has_property(kim, kind) & isa(kim, man)"
+        },
+        {
+          "sentence": "Mrs. Kim is here.",
+          "written": "tell: isa(kim, woman) & located_at(kim, ?here)",
+          "read": "tell: isa(kim, woman) & located_at(kim, ?here)"
+        },
+        {
+          "sentence": "Ms. Jones has a dog.",
+          "written": "tell: isa(jones, woman) & owns(jones, dog)",
+          "read": "tell: isa(jones, woman) & owns(jones, dog)"
+        },
+        {
+          "sentence": "Dr. Smith has a cat.",
+          "written": "tell: isa(smith, doctor) & owns(smith, cat)",
+          "read": "tell: isa(smith, doctor) & owns(smith, cat)"
+        },
+        {
+          "sentence": "Mr. Park is here.",
+          "written": "tell: isa(park, man) & located_at(park, ?here)",
+          "read": "tell: isa(park, man) & located_at(park, ?here)"
+        },
+        {
+          "sentence": "Mrs. Lee is tall.",
+          "written": "tell: has_property(lee, tall) & isa(lee, woman)",
+          "read": "tell: has_property(lee, tall) & isa(lee, woman)"
+        },
+        {
+          "sentence": "Ms. Smith is kind.",
+          "written": "tell: has_property(smith, kind) & isa(smith, woman)",
+          "read": "tell: has_property(smith, kind) & isa(smith, woman)"
+        }
+      ],
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "never-taught sentences with parentheses, dashes and '!' read as written before english_36",
+      "value": "4/9",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "never-taught readings, parentheses, dashes and '!'",
+      "value": [
+        {
+          "sentence": "Anna (the teacher) is small.",
+          "written": "tell: has_property(anna, small) & isa(anna, teacher)",
+          "read": "tell: has_property(anna, small) & isa(anna, teacher)"
+        },
+        {
+          "sentence": "Rex (the cat) is kind.",
+          "written": "tell: has_property(rex, kind) & isa(rex, cat)",
+          "read": "tell: has_property(rex, kind) & isa(rex, cat)"
+        },
+        {
+          "sentence": "Tom (my dog) is brown.",
+          "written": "tell: has_property(tom, brown) & isa(tom, dog) & owned_by(tom, ?speaker)",
+          "read": "tell: has_property(tom, brown) & isa(tom, dog) & owned_by(tom, ?speaker)"
+        },
+        {
+          "sentence": "Tom - the boy - is tall.",
+          "written": "tell: has_property(tom, tall) & isa(tom, boy)",
+          "read": "tell: has_property(tom, tall) & isa(tom, boy)"
+        },
+        {
+          "sentence": "Anna - the teacher - is kind.",
+          "written": "tell: has_property(anna, kind) & isa(anna, teacher)",
+          "read": "tell: has_property(anna, kind) & isa(anna, teacher)"
+        },
+        {
+          "sentence": "The cat is small!",
+          "written": "tell: has_property(cat, small)",
+          "read": "tell: has_property(cat, small)"
+        },
+        {
+          "sentence": "Rex is here!",
+          "written": "tell: located_at(rex, ?here)",
+          "read": "tell: located_at(rex, ?here)"
+        },
+        {
+          "sentence": "Tom has a dog!",
+          "written": "tell: owns(tom, dog)",
+          "read": "tell: owns(tom, dog)"
+        },
+        {
+          "sentence": "The fish swam!",
+          "written": "tell: done_by(?v0, fish) & instance_of(?v0, swim) & precedes(?v0, ?now)",
+          "read": "tell: done_by(?v0, fish) & instance_of(?v0, swim) & precedes(?v0, ?now)"
+        }
+      ],
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "never-taught sentences with money, measures and dates read as written before english_37",
+      "value": "7/12",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "never-taught readings, money, measures and dates",
+      "value": [
+        {
+          "sentence": "Anna has $7.",
+          "written": "tell: has_count(?v0, 7) & instance_of(?v0, dollar) & owns(anna, ?v0)",
+          "read": "tell: has_count(?v0, 7) & instance_of(?v0, dollar) & owns(anna, ?v0)"
+        },
+        {
+          "sentence": "Tom has $4.25.",
+          "written": "tell: has_count(?v0, 4.25) & instance_of(?v0, dollar) & owns(tom, ?v0)",
+          "read": "tell: has_count(?v0, 4.25) & instance_of(?v0, dollar) & owns(tom, ?v0)"
+        },
+        {
+          "sentence": "Rex has three dollars.",
+          "written": "tell: has_count(?v0, 3) & instance_of(?v0, dollar) & owns(rex, ?v0)",
+          "read": "tell: has_count(?v0, 3) & instance_of(?v0, dollar) & owns(rex, ?v0)"
+        },
+        {
+          "sentence": "The rope is 5 m long.",
+          "written": "tell: has_count(?v0, 5) & has_degree(rope, ?v1) & has_measure(?v1, ?v0) & instance_of(?v0, meter) & instance_of(?v1, long)",
+          "read": "tell: has_count(?v0, 5) & has_degree(rope, ?v1) & has_measure(?v1, ?v0) & instance_of(?v0, meter) & instance_of(?v1, long)"
+        },
+        {
+          "sentence": "The table is 1 m wide.",
+          "written": "tell: has_count(?v0, 1) & has_degree(table, ?v1) & has_measure(?v1, ?v0) & instance_of(?v0, meter) & instance_of(?v1, wide)",
+          "read": "tell: has_count(?v0, 1) & has_degree(table, ?v1) & has_measure(?v1, ?v0) & instance_of(?v0, meter) & instance_of(?v1, wide)"
+        },
+        {
+          "sentence": "Rex walked on May 1.",
+          "written": "tell: done_by(?v0, rex) & during(?v0, --05-01) & instance_of(?v0, walk) & precedes(?v0, ?now)",
+          "read": "tell: done_by(?v0, rex) & during(?v0, --05-01) & instance_of(?v0, walk) & precedes(?v0, ?now)"
+        },
+        {
+          "sentence": "The bird flew on October 5.",
+          "written": "tell: done_by(?v0, bird) & during(?v0, --10-05) & instance_of(?v0, fly) & precedes(?v0, ?now)",
+          "read": "tell: done_by(?v0, bird) & during(?v0, --10-05) & instance_of(?v0, fly) & precedes(?v0, ?now)"
+        },
+        {
+          "sentence": "Tom swam on June 10.",
+          "written": "tell: done_by(?v0, tom) & during(?v0, --06-10) & instance_of(?v0, swim) & precedes(?v0, ?now)",
+          "read": "tell: done_by(?v0, tom) & during(?v0, --06-10) & instance_of(?v0, swim) & precedes(?v0, ?now)"
+        },
+        {
+          "sentence": "Tom walked on October 6.",
+          "written": "tell: done_by(?v0, tom) & during(?v0, --10-06) & instance_of(?v0, walk) & precedes(?v0, ?now)",
+          "read": "tell: done_by(?v0, tom) & during(?v0, --10-06) & instance_of(?v0, walk) & precedes(?v0, ?now)"
+        },
+        {
+          "sentence": "The dog barked on December 25.",
+          "written": "tell: done_by(?v0, dog) & during(?v0, --12-25) & instance_of(?v0, bark) & precedes(?v0, ?now)",
+          "read": "tell: done_by(?v0, dog) & during(?v0, --12-25) & instance_of(?v0, bark) & precedes(?v0, ?now)"
+        },
+        {
+          "sentence": "Rex ran on May 2.",
+          "written": "tell: done_by(?v0, rex) & during(?v0, --05-02) & instance_of(?v0, run) & precedes(?v0, ?now)",
+          "read": "tell: done_by(?v0, rex) & during(?v0, --05-02) & instance_of(?v0, run) & precedes(?v0, ?now)"
+        },
+        {
+          "sentence": "Anna swam on March 3.",
+          "written": "tell: done_by(?v0, anna) & during(?v0, --03-03) & instance_of(?v0, swim) & precedes(?v0, ?now)",
+          "read": "tell: done_by(?v0, anna) & during(?v0, --03-03) & instance_of(?v0, swim) & precedes(?v0, ?now)"
+        }
+      ],
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "never-taught sentences with times of day, the ellipsis and the slash read as written before english_38",
+      "value": "3/7",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "never-taught readings, times of day, the ellipsis and the slash",
+      "value": [
+        {
+          "sentence": "Anna swam at 8 p.m.",
+          "written": "tell: done_by(?v0, anna) & during(?v0, 8:00 p.m.) & instance_of(?v0, swim) & precedes(?v0, ?now)",
+          "read": "tell: done_by(?v0, anna) & during(?v0, 8:00 p.m.) & instance_of(?v0, swim) & precedes(?v0, ?now)"
+        },
+        {
+          "sentence": "The cat ran at 6:45 a.m.",
+          "written": "tell: done_by(?v0, cat) & during(?v0, 6:45 a.m.) & instance_of(?v0, run) & precedes(?v0, ?now)",
+          "read": "tell: done_by(?v0, cat) & during(?v0, 6:45 a.m.) & instance_of(?v0, run) & precedes(?v0, ?now)"
+        },
+        {
+          "sentence": "Rex walked at 11:20.",
+          "written": "tell: done_by(?v0, rex) & during(?v0, 11:20) & instance_of(?v0, walk) & precedes(?v0, ?now)",
+          "read": "tell: done_by(?v0, rex) & during(?v0, 11:20) & instance_of(?v0, walk) & precedes(?v0, ?now)"
+        },
+        {
+          "sentence": "The cat ran...",
+          "written": "tell: done_by(?v0, cat) & instance_of(?v0, run) & precedes(?v0, ?now)",
+          "read": "tell: done_by(?v0, cat) & instance_of(?v0, run) & precedes(?v0, ?now)"
+        },
+        {
+          "sentence": "Rex is small...",
+          "written": "tell: has_property(rex, small)",
+          "read": "tell: has_property(rex, small)"
+        },
+        {
+          "sentence": "Is the box red/green?",
+          "written": "ask: either has_property(box, green) & either has_property(box, red)",
+          "read": "ask: either has_property(box, green) & either has_property(box, red)"
+        },
+        {
+          "sentence": "Is the milk hot/cold?",
+          "written": "ask: either has_property(milk, cold) & either has_property(milk, hot)",
+          "read": "ask: either has_property(milk, cold) & either has_property(milk, hot)"
+        }
+      ],
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "never-taught sentences with quotation marks read as written before english_39",
+      "value": "0/8",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "never-taught readings, quotation marks",
+      "value": [
+        {
+          "sentence": "Anna said, \"The dog barked.\"",
+          "written": "tell: done_by(?v0, anna) & instance_of(?v0, say) & precedes(?v0, ?now) & said done_by(?v1, dog) & said instance_of(?v1, bark) & said precedes(?v1, ?now)",
+          "read": "tell: done_by(?v0, anna) & instance_of(?v0, say) & precedes(?v0, ?now) & said done_by(?v1, dog) & said instance_of(?v1, bark) & said precedes(?v1, ?now)"
+        },
+        {
+          "sentence": "Rex said, \"The fish swam.\"",
+          "written": "tell: done_by(?v0, rex) & instance_of(?v0, say) & precedes(?v0, ?now) & said done_by(?v1, fish) & said instance_of(?v1, swim) & said precedes(?v1, ?now)",
+          "read": "tell: done_by(?v0, rex) & instance_of(?v0, say) & precedes(?v0, ?now) & said done_by(?v1, fish) & said instance_of(?v1, swim) & said precedes(?v1, ?now)"
+        },
+        {
+          "sentence": "\"The bird flew,\" Tom said.",
+          "written": "tell: done_by(?v0, tom) & instance_of(?v0, say) & precedes(?v0, ?now) & said done_by(?v1, bird) & said instance_of(?v1, fly) & said precedes(?v1, ?now)",
+          "read": "tell: done_by(?v0, tom) & instance_of(?v0, say) & precedes(?v0, ?now) & said done_by(?v1, bird) & said instance_of(?v1, fly) & said precedes(?v1, ?now)"
+        },
+        {
+          "sentence": "\"The cup is hot,\" Anna said.",
+          "written": "tell: done_by(?v0, anna) & instance_of(?v0, say) & precedes(?v0, ?now) & said has_property(cup, hot)",
+          "read": "tell: done_by(?v0, anna) & instance_of(?v0, say) & precedes(?v0, ?now) & said has_property(cup, hot)"
+        },
+        {
+          "sentence": "Rex said, \"Anna is kind.\"",
+          "written": "tell: done_by(?v0, rex) & instance_of(?v0, say) & precedes(?v0, ?now) & said has_property(anna, kind)",
+          "read": "tell: done_by(?v0, rex) & instance_of(?v0, say) & precedes(?v0, ?now) & said has_property(anna, kind)"
+        },
+        {
+          "sentence": "Tom said, \u201cThe door is closed.\u201d",
+          "written": "tell: done_by(?v0, tom) & instance_of(?v0, say) & precedes(?v0, ?now) & said has_property(door, closed)",
+          "read": "tell: done_by(?v0, tom) & instance_of(?v0, say) & precedes(?v0, ?now) & said has_property(door, closed)"
+        },
+        {
+          "sentence": "\u201cThe dog is big,\u201d Rex said.",
+          "written": "tell: done_by(?v0, rex) & instance_of(?v0, say) & precedes(?v0, ?now) & said has_property(dog, big)",
+          "read": "tell: done_by(?v0, rex) & instance_of(?v0, say) & precedes(?v0, ?now) & said has_property(dog, big)"
+        },
+        {
+          "sentence": "Anna said, \"The cat climbed.\"",
+          "written": "tell: done_by(?v0, anna) & instance_of(?v0, say) & precedes(?v0, ?now) & said done_by(?v1, cat) & said instance_of(?v1, climb) & said precedes(?v1, ?now)",
+          "read": "tell: done_by(?v0, anna) & instance_of(?v0, say) & precedes(?v0, ?now) & said done_by(?v1, cat) & said instance_of(?v1, climb) & said precedes(?v1, ?now)"
+        }
+      ],
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "earlier sentences read otherwise",
+      "value": [],
+      "unit": "",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "the run is in the sandbox, emptied first",
+      "passed": true,
+      "detail": "connected to lyric_dev; reset exit 0",
+      "at": "2026-10-06T00:31:04.723321+00:00"
+    },
+    {
+      "label": "the 31 earlier lessons are learned, none refused",
+      "passed": true,
+      "detail": "english_31.json the last",
+      "at": "2026-10-06T00:45:25.443304+00:00"
+    },
+    {
+      "label": "english_32 is learned, none refused",
+      "passed": true,
+      "detail": "{'learned': 26, 'linked': 164, 'already': 0, 'understood': 17, 'refused': 0, 'total': 44, 'repair_lexical_item_based': 20, 'repair_item_based_lexical': 2, 'repair_add_links': 17, 'repair_phrase_in_slot': 5, 'said': 75}",
+      "at": "2026-10-06T00:45:55.727356+00:00"
+    },
+    {
+      "label": "every sentence of english_32 reads as taught",
+      "passed": true,
+      "detail": "44 of 44",
+      "at": "2026-10-06T00:46:02.552407+00:00"
+    },
+    {
+      "label": "never-taught sentences with the comma read as written",
+      "passed": true,
+      "detail": "18 of 18",
+      "at": "2026-10-06T00:46:05.292823+00:00"
+    },
+    {
+      "label": "english_33 is learned, none refused",
+      "passed": true,
+      "detail": "{'learned': 11, 'linked': 55, 'already': 10, 'understood': 22, 'refused': 0, 'total': 48, 'repair_lexical_item_based': 5, 'repair_add_links': 12, 'repair_item_based_lexical': 1, 'repair_phrase_in_slot': 20, 'said': 41}",
+      "at": "2026-10-06T00:46:42.493437+00:00"
+    },
+    {
+      "label": "every sentence of english_33 reads as taught",
+      "passed": true,
+      "detail": "48 of 48",
+      "at": "2026-10-06T00:46:45.443099+00:00"
+    },
+    {
+      "label": "never-taught sentences with the apostrophe read as written",
+      "passed": true,
+      "detail": "16 of 16",
+      "at": "2026-10-06T00:46:46.356708+00:00"
+    },
+    {
+      "label": "english_34 is learned, none refused",
+      "passed": true,
+      "detail": "{'learned': 8, 'linked': 73, 'already': 0, 'understood': 9, 'refused': 0, 'total': 19, 'repair_phrase_in_slot': 4, 'repair_lexical_item_based': 5, 'repair_add_links': 9, 'repair_holophrase': 1, 'said': 60}",
+      "at": "2026-10-06T00:47:09.293447+00:00"
+    },
+    {
+      "label": "every sentence of english_34 reads as taught",
+      "passed": true,
+      "detail": "19 of 19",
+      "at": "2026-10-06T00:47:13.597615+00:00"
+    },
+    {
+      "label": "never-taught sentences with the colon and the semicolon read as written",
+      "passed": true,
+      "detail": "8 of 8",
+      "at": "2026-10-06T00:47:15.437247+00:00"
+    },
+    {
+      "label": "english_35 is learned, none refused",
+      "passed": true,
+      "detail": "{'learned': 14, 'linked': 26, 'already': 8, 'understood': 8, 'refused': 0, 'total': 28, 'repair_item_based_lexical': 8, 'repair_phrase_in_slot': 12, 'said': 14}",
+      "at": "2026-10-06T00:47:30.131149+00:00"
+    },
+    {
+      "label": "every sentence of english_35 reads as taught",
+      "passed": true,
+      "detail": "28 of 28",
+      "at": "2026-10-06T00:47:33.170988+00:00"
+    },
+    {
+      "label": "never-taught sentences with a title with a period read as written",
+      "passed": true,
+      "detail": "8 of 8",
+      "at": "2026-10-06T00:47:34.203810+00:00"
+    },
+    {
+      "label": "english_36 is learned, none refused",
+      "passed": true,
+      "detail": "{'learned': 8, 'linked': 42, 'already': 0, 'understood': 5, 'refused': 0, 'total': 21, 'repair_phrase_in_slot': 12, 'repair_lexical_item_based': 4, 'repair_add_links': 5, 'said': 23}",
+      "at": "2026-10-06T00:47:47.850725+00:00"
+    },
+    {
+      "label": "every sentence of english_36 reads as taught",
+      "passed": true,
+      "detail": "21 of 21",
+      "at": "2026-10-06T00:47:49.347011+00:00"
+    },
+    {
+      "label": "never-taught sentences with parentheses, dashes and '!' read as written",
+      "passed": true,
+      "detail": "9 of 9",
+      "at": "2026-10-06T00:47:49.975782+00:00"
+    },
+    {
+      "label": "english_37 is learned, none refused",
+      "passed": true,
+      "detail": "{'learned': 14, 'linked': 34, 'already': 1, 'understood': 4, 'refused': 0, 'total': 21, 'repair_item_based_lexical': 5, 'repair_phrase_in_slot': 12, 'repair_add_links': 3, 'said': 45}",
+      "at": "2026-10-06T00:48:04.730923+00:00"
+    },
+    {
+      "label": "every sentence of english_37 reads as taught",
+      "passed": true,
+      "detail": "21 of 21",
+      "at": "2026-10-06T00:48:06.761113+00:00"
+    },
+    {
+      "label": "never-taught sentences with money, measures and dates read as written",
+      "passed": true,
+      "detail": "12 of 12",
+      "at": "2026-10-06T00:48:08.077645+00:00"
+    },
+    {
+      "label": "english_38 is learned, none refused",
+      "passed": true,
+      "detail": "{'learned': 13, 'linked': 31, 'already': 0, 'understood': 3, 'refused': 0, 'total': 17, 'repair_phrase_in_slot': 10, 'repair_lexical_item_based': 4, 'repair_add_links': 3, 'said': 42}",
+      "at": "2026-10-06T00:48:23.319913+00:00"
+    },
+    {
+      "label": "every sentence of english_38 reads as taught",
+      "passed": true,
+      "detail": "17 of 17",
+      "at": "2026-10-06T00:48:26.242930+00:00"
+    },
+    {
+      "label": "never-taught sentences with times of day, the ellipsis and the slash read as written",
+      "passed": true,
+      "detail": "7 of 7",
+      "at": "2026-10-06T00:48:27.409366+00:00"
+    },
+    {
+      "label": "english_39 is learned, none refused",
+      "passed": true,
+      "detail": "{'learned': 2, 'linked': 8, 'already': 26, 'understood': 32, 'refused': 0, 'total': 17, 'repair_lexical_item_based': 2, 'repair_add_links': 6, 'said': 27}",
+      "at": "2026-10-06T00:48:39.777828+00:00"
+    },
+    {
+      "label": "every sentence of english_39 reads as taught",
+      "passed": true,
+      "detail": "17 of 17",
+      "at": "2026-10-06T00:48:41.219251+00:00"
+    },
+    {
+      "label": "never-taught sentences with quotation marks read as written",
+      "passed": true,
+      "detail": "8 of 8",
+      "at": "2026-10-06T00:48:42.191393+00:00"
+    },
+    {
+      "label": "every sentence english_01-31 teach still reads as taught",
+      "passed": true,
+      "detail": "2664 of 2664",
+      "at": "2026-10-06T00:52:16.495280+00:00"
+    },
+    {
+      "label": "the main model's store is untouched",
+      "passed": true,
+      "detail": "68187 rows before, 68187 after",
+      "at": "2026-10-06T00:52:17.380716+00:00"
+    }
+  ],
+  "notes": []
+}

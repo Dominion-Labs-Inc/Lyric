@@ -1,0 +1,181 @@
+{
+  "experiment": "ORG-01",
+  "claim": "A person's Shared World Context is composed of World Knowledge, their Personal Context and the Work Context of each organization they are authorized for; work belongs to the organization, coworkers share it and never each other's personal context, and unlinking removes it from the person while the organization keeps it.",
+  "hypothesis": "Work held under the person, a coworker not answered from it, an outsider answered from it, a personal fact reaching a coworker, an unlinked person still answered from it, the organization losing it on unlink, or an unverified work context accepted would each fail here.",
+  "started_at": "2026-10-07T16:12:35.654753+00:00",
+  "duration_seconds": 49.751,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/Lyric/venv_lyric/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/Lyric",
+    "shadow_mode": null,
+    "git_commit": "0a27c570eda188a24bb63d1968f8fd104a8f4cb6",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "lyric_dev",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "lyric_dev",
+        "model": "lyric_dev",
+        "user_context": "lyric_dev",
+        "learning": "lyric_dev"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "dotenv:.env.postgres",
+        "database": "environment",
+        "user": "dotenv:.env.postgres",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "pool_idle_seconds": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 263,
+    "database_verified": null,
+    "database_verified_reason": "not verified"
+  },
+  "summary": {
+    "checks": 20,
+    "passed": 20,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [
+    {
+      "name": "rows_removed",
+      "value": 6,
+      "unit": "count",
+      "note": "{'concepts': 0, 'beliefs': 0, 'knowledge_updates': 0, 'evidence_envelopes': 0, 'held_conditionals': 0, 'memory_hot': 2, 'experience_pool': 0, 'user_beliefs': 0, 'scoped_beliefs': 2, 'scoped_concept_relations': 2}"
+    }
+  ],
+  "checks": [
+    {
+      "label": "the run is in the sandbox",
+      "passed": true,
+      "detail": "lyric_dev",
+      "at": "2026-10-07T16:13:23.717314+00:00"
+    },
+    {
+      "label": "a verified request through her work context authorizes the organization's Work Context",
+      "passed": true,
+      "detail": "('__substrate__', 'org01-ana-kaqaiu', 'org:org01-northwind-kaqaiu')",
+      "at": "2026-10-07T16:13:24.166975+00:00"
+    },
+    {
+      "label": "another instance of hers, with no context said, resolves to the same composition",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-07T16:13:24.462467+00:00"
+    },
+    {
+      "label": "an outsider composes no Work Context, and Lyric's own work only its own",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-07T16:13:24.463937+00:00"
+    },
+    {
+      "label": "what she tells at work is held under the organization, not her",
+      "passed": true,
+      "detail": "{'context': 'work', 'organization': 'org01-northwind-kaqaiu'}",
+      "at": "2026-10-07T16:13:24.477279+00:00"
+    },
+    {
+      "label": "what she tells personally is held under her",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-07T16:13:24.477988+00:00"
+    },
+    {
+      "label": "she is answered from both",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-07T16:13:24.506149+00:00"
+    },
+    {
+      "label": "her coworker is answered from the Work Context",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-07T16:13:24.515115+00:00"
+    },
+    {
+      "label": "and never from her Personal Context",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-07T16:13:24.520724+00:00"
+    },
+    {
+      "label": "an outsider is answered from neither",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-07T16:13:24.532893+00:00"
+    },
+    {
+      "label": "a memory made at work is the organization's",
+      "passed": true,
+      "detail": "{'user_id': 'org:org01-northwind-kaqaiu'}",
+      "at": "2026-10-07T16:13:25.073062+00:00"
+    },
+    {
+      "label": "found by her and her coworker, not by the outsider",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-07T16:13:25.099223+00:00"
+    },
+    {
+      "label": "her personal memory is found by her alone",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-07T16:13:25.121161+00:00"
+    },
+    {
+      "label": "unlinking through the front door",
+      "passed": true,
+      "detail": "{'success': True, 'kind': 'unlinked', 'organization': 'org01-northwind-kaqaiu', 'was_authorized': True}",
+      "at": "2026-10-07T16:13:25.125208+00:00"
+    },
+    {
+      "label": "the Work Context is out of her composition",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-07T16:13:25.126060+00:00"
+    },
+    {
+      "label": "she is no longer answered from it, nor finds its memories",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-07T16:13:25.147822+00:00"
+    },
+    {
+      "label": "she keeps her Personal Context",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-07T16:13:25.209559+00:00"
+    },
+    {
+      "label": "the organization keeps everything: held under it, and her coworker still answered and finding it",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-07T16:13:25.241845+00:00"
+    },
+    {
+      "label": "a work context without a verified identity is refused",
+      "passed": true,
+      "detail": "{'success': False, 'kind': 'refused', 'error': 'a work context needs a verified identity and the organization it is for'}",
+      "at": "2026-10-07T16:13:25.243649+00:00"
+    },
+    {
+      "label": "an unlink without a verified identity is refused",
+      "passed": true,
+      "detail": "{'success': False, 'kind': 'refused', 'error': 'unlinking a work context needs a verified identity'}",
+      "at": "2026-10-07T16:13:25.244171+00:00"
+    }
+  ],
+  "notes": []
+}

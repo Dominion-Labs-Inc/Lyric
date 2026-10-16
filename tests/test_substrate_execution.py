@@ -111,6 +111,23 @@ TEACHING = [
 HELD_OUT = [move("f", "R11", "R12", "h1"), move("g", "R13", "R14", "h2")]
 
 
+async def purge_domain(store):
+    """Remove what a test's runs wrote under DOMAIN. Every test is its own world under one domain name, and what one
+    left must not judge the next one's rule: re-judgement holds a rule against every demonstration of its act in its
+    domain, so the demonstrations a test's acts kept go, with the pending marks, the rules and their evidence. The
+    induction passes those acts woke finish first: one still running writes a rule's evidence while it is deleted."""
+    drains = [task for task in asyncio.all_tasks() if task is not asyncio.current_task()
+              and getattr(task.get_coro(), "__name__", "") == "_coalesced_induction_drain"]
+    await asyncio.gather(*drains)
+    for table in ("unified.rule_authority_events", "unified.learned_rule_evidence"):
+        await store.db().execute_query(
+            f"DELETE FROM {table} WHERE rule_id IN"
+            " (SELECT rule_id FROM unified.learned_rules WHERE domain_id = $1)", (DOMAIN,))
+    await store.db().execute_query("DELETE FROM unified.learned_rules WHERE domain_id = $1", (DOMAIN,))
+    for table in ("unified.operator_demonstrations", "unified.operator_induction_pending"):
+        await store.db().execute_query(f"DELETE FROM {table} WHERE domain_id = $1", (DOMAIN,))
+
+
 @pytest_asyncio.fixture
 async def world_and_rule():
     root = Path(tempfile.mkdtemp(prefix="lyric_test_world_"))
@@ -120,6 +137,7 @@ async def world_and_rule():
 
     store = RuleStore()
     await store.ensure_schema()
+    await purge_domain(store)
     stored = (await store.record_induction(
         get_rule_inducer().induce(TEACHING), TEACHING,
         domain_id=DOMAIN, rule_kind="move"))[0]
@@ -129,14 +147,7 @@ async def world_and_rule():
 
     get_binding_registry().clear(DOMAIN)
     shutil.rmtree(root, ignore_errors=True)
-    await store.db().execute_query(
-        "DELETE FROM unified.rule_authority_events WHERE rule_id IN"
-        " (SELECT rule_id FROM unified.learned_rules WHERE domain_id = $1)", (DOMAIN,))
-    await store.db().execute_query(
-        "DELETE FROM unified.learned_rule_evidence WHERE rule_id IN"
-        " (SELECT rule_id FROM unified.learned_rules WHERE domain_id = $1)", (DOMAIN,))
-    await store.db().execute_query(
-        "DELETE FROM unified.learned_rules WHERE domain_id = $1", (DOMAIN,))
+    await purge_domain(store)
 
 
 async def task_for(rule_id, operator, domain=DOMAIN):
@@ -382,6 +393,7 @@ async def locked_world():
 
     store = RuleStore()
     await store.ensure_schema()
+    await purge_domain(store)
     stored = (await store.record_induction(
         get_rule_inducer().induce(TEACHING), TEACHING,
         domain_id=DOMAIN, rule_kind="move"))[0]
@@ -391,14 +403,7 @@ async def locked_world():
 
     get_binding_registry().clear(DOMAIN)
     shutil.rmtree(root, ignore_errors=True)
-    await store.db().execute_query(
-        "DELETE FROM unified.rule_authority_events WHERE rule_id IN"
-        " (SELECT rule_id FROM unified.learned_rules WHERE domain_id = $1)", (DOMAIN,))
-    await store.db().execute_query(
-        "DELETE FROM unified.learned_rule_evidence WHERE rule_id IN"
-        " (SELECT rule_id FROM unified.learned_rules WHERE domain_id = $1)", (DOMAIN,))
-    await store.db().execute_query(
-        "DELETE FROM unified.learned_rules WHERE domain_id = $1", (DOMAIN,))
+    await purge_domain(store)
 
 
 @pytest.mark.asyncio

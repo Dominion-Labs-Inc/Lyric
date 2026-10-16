@@ -1,0 +1,133 @@
+{
+  "experiment": "PATHS-02",
+  "claim": "Lyric (the coordinator and its Conversation) puts no claim into knowledge: it hands what it meets to memory, memory splits it, and the learning authority is the one door into the world. The conversation calls no learning at all, and there is one conversation path.",
+  "hypothesis": "A call from Lyric to a claim door (the learning authority's, the ingress's, the person's context store's, the belief store's, an evidence producer, or memory's own person writers), any learning named inside Conversation, a claim door called from outside the learning path and memory, or a second way into Conversation.understand would each fail here.",
+  "started_at": "2026-10-07T12:09:18.594820+00:00",
+  "duration_seconds": 42.963,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/Lyric/venv_lyric/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/Lyric",
+    "shadow_mode": null,
+    "git_commit": "0a27c570eda188a24bb63d1968f8fd104a8f4cb6",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "lyric_dev",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "lyric_dev",
+        "model": "lyric_dev",
+        "user_context": "lyric_dev",
+        "learning": "lyric_dev"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "dotenv:.env.postgres",
+        "database": "environment",
+        "user": "dotenv:.env.postgres",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "pool_idle_seconds": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 230,
+    "database_verified": null,
+    "database_verified_reason": "not verified"
+  },
+  "summary": {
+    "checks": 12,
+    "passed": 8,
+    "failed": 4,
+    "outcome": "FAIL"
+  },
+  "metrics": [
+    {
+      "name": "memory_intake_methods",
+      "value": 11,
+      "unit": "count",
+      "note": "take_in_demonstration, take_in_lesson, take_in_observed, take_in_percept, take_in_recognised, take_in_research, take_in_telling, take_in_transition, take_in_unread, take_in_verdict, take_outcome_to_learning"
+    }
+  ],
+  "checks": [
+    {
+      "label": "no call in Lyric reaches a claim door",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-07T12:09:18.759870+00:00"
+    },
+    {
+      "label": "what Lyric meets it hands to memory's intake",
+      "passed": true,
+      "detail": "take_in, take_in_demonstration, take_in_lesson, take_in_observed, take_in_percept, take_in_recognised, take_in_research, take_in_telling, take_in_transition, take_in_unread, take_in_verdict, take_outcome_to_learning",
+      "at": "2026-10-07T12:09:18.875469+00:00"
+    },
+    {
+      "label": "nothing inside Conversation names the learning authority",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-07T12:09:18.960288+00:00"
+    },
+    {
+      "label": "outside the learning path, only memory, its producers and Lyric's reasoning call a claim door",
+      "passed": false,
+      "detail": "core/integration/universal_domain_master.py:1206 learning authority .create_belief; core/reasoning/hierarchical_abstraction.py:1126 learning authority .create_belief; core/reasoning/abstract_reasoning_engine.py:2303 learning authority .learn_from_experience; core/quantum/quantum_learning_bridge.py:282 learning authority .learn_from_example",
+      "at": "2026-10-07T12:09:19.923778+00:00"
+    },
+    {
+      "label": "the ingress's writes are called only by the learning authority and memory",
+      "passed": true,
+      "detail": "['core/agents/memory_agent.py', 'core/learning/teaching.py', 'core/learning/unified_learning_system.py']",
+      "at": "2026-10-07T12:09:20.873871+00:00"
+    },
+    {
+      "label": "the evidence producers are called only by memory and the learning authority",
+      "passed": false,
+      "detail": "['core/agents/memory_agent.py', 'core/learning/unified_learning_system.py', 'core/tools/tool_registry.py']",
+      "at": "2026-10-07T12:09:21.807037+00:00"
+    },
+    {
+      "label": "a person's context is written only by memory (and the producers it hands percepts to)",
+      "passed": false,
+      "detail": "['core/agents/memory_agent.py', 'core/domain/evidence_producers.py', 'core/learning/demonstration_store.py', 'core/learning/scoped_context_store.py', 'core/learning/teaching.py', 'core/learning/unified_learning_system.py', 'core/reasoning/hypothesis_testing.py', 'core/semantics/cognitive_ingress.py']",
+      "at": "2026-10-07T12:09:22.806310+00:00"
+    },
+    {
+      "label": "there is one Conversation class",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-07T12:09:26.448376+00:00"
+    },
+    {
+      "label": "a person's turn reaches Conversation.understand only through _take_turn, and Lyric's own asking through the knowledge loop",
+      "passed": true,
+      "detail": "['_answer_from_what_is_held', '_answer_via_knowledge_loop', '_take_turn']",
+      "at": "2026-10-07T12:09:26.742484+00:00"
+    },
+    {
+      "label": "the answer from what is held is reached only from the turn",
+      "passed": true,
+      "detail": "['_take_turn']",
+      "at": "2026-10-07T12:09:26.879287+00:00"
+    },
+    {
+      "label": "memory's intake reaches the world only through the learning authority's gate, a person's context only through its own writers, and percepts through their producers",
+      "passed": true,
+      "detail": "{'take_in_telling': ['learning authority .consider', 'learning authority .consider_rule'], 'take_in_unread': ['ingress .remember_told'], 'take_in_percept': ['evidence producer submit_perception'], 'take_outcome_to_learning': ['learning authority .learn_with_domain_context'], 'take_in_transition': ['evidence producer submit_demonstration'], 'take_in_recognised': ['learning authority .consider'], 'take_in_observed': ['learning authority .consider'], 'take_in_research': ['learning authority .consider']}",
+      "at": "2026-10-07T12:09:26.988135+00:00"
+    },
+    {
+      "label": "the turn is in the pool, as the turn it was",
+      "passed": false,
+      "detail": "0 pool rows; reply \"Noted - I'll hold that about Plorvex419ff is a gadget..\"",
+      "at": "2026-10-07T12:10:01.478190+00:00"
+    }
+  ],
+  "notes": []
+}

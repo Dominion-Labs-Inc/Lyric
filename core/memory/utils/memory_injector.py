@@ -11,12 +11,14 @@ Purpose:
 """
 
 import logging
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Dict, Any, List, Optional
 
-from core.capability import raise_if_structural
+from core.structural_defects import raise_if_structural
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
+
+from core.memory.utils.interfaces import decayed_importance
 
 logger = logging.getLogger(__name__)
 
@@ -219,7 +221,6 @@ class MemoryInjector:
             InjectedMemories with formatted text
         """
         config = config or InjectionConfig()
-        start_time = datetime.now()
 
         logger.info(f"Injecting memories for query: {query[:100]}...")
 
@@ -407,7 +408,8 @@ class MemoryInjector:
             seen_content: set = set()
             for result in results:
                 # Filter out trivial memories - importance threshold
-                importance = getattr(result, 'importance_score', 1.0)
+                importance = decayed_importance(getattr(result, 'importance_score', 1.0),
+                                                getattr(result, 'created_at', None))
                 if importance < min_importance:
                     logger.debug(
                         f"Skipping low-importance memory {result.memory_id}: "
@@ -488,6 +490,7 @@ class MemoryInjector:
             pending = getattr(memory_agent, '_pending_memories', {})
             if pending and query:
                 from core.agents.autonomous.shared_types import visible_to
+                composed = await memory_agent.shared_world_context(actor)
                 query_words = set(query.lower().split())
                 pending_added = 0
                 for pid, entry in list(pending.items()):
@@ -495,7 +498,7 @@ class MemoryInjector:
                         continue
                     # Not yet in the store, so the store's actor rule has not
                     # been applied to it: apply the same rule here.
-                    if not visible_to((entry.get('kwargs') or {}).get('user_id'), actor):
+                    if not visible_to((entry.get('kwargs') or {}).get('user_id'), composed):
                         continue
                     # Simple keyword overlap as a fast relevance proxy
                     content_words = set(entry['content'].lower().split())

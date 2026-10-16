@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Teaching the substrate from a source. ONE pipeline, one owner of the policy.
 
-There were seven teaching scripts. `learn_facts()` underneath them was already
+There were seven teaching scripts. `consider_many()` underneath them was already
 the one authority, and that part was right -- what was duplicated was the
 POLICY: which source, what to harvest, which relations survive, how a term is
 normalised, what quality floor applies, whether the part of speech lives. Every
@@ -34,12 +34,16 @@ parsing.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import math
 import random
+import re
 from dataclasses import dataclass, field
-from typing import (Any, Dict, Iterable, Iterator, List, Optional, Protocol,
-                    Sequence, Tuple)
+from typing import (Any, Dict, FrozenSet, Iterable, Iterator, List, Optional,
+                    Protocol, Sequence, Tuple)
+
+from core.utils.give_way import GiveWay
 
 logger = logging.getLogger(__name__)
 
@@ -61,11 +65,11 @@ DEFAULT_QUALITY_FLOOR = 0.75
 
 #: Facts per call to the learning authority.
 #:
-#: `learn_facts` amortises its fan-out to the END of the batch -- that is what
+#: `consider_many` amortises its fan-out to the END of the batch -- that is what
 #: makes a reference-sized teach practical -- so ONE call with 83,024 facts
 #: admits everything and moves no belief until the last one lands. Two things
 #: follow, and the second is the serious one: the fan-out then runs over 83,024
-#: clauses at once (the documented failure "single giant `learn_facts` never
+#: clauses at once (the documented failure "single giant `consider_many` never
 #: returns"), and NOTHING is durable until the whole pass completes, so an hour
 #: of work is lost to any interruption. Observed on the first attempt at the
 #: full WordNet pass: relations climbing past 400 with beliefs still at zero.
@@ -133,6 +137,17 @@ class TaughtRecord:
     #: is so and its words, and English as the substrate holds it gives the
     #: sentence. No sentence is written from a template.
     words: Tuple[Tuple[str, str], ...] = ()
+    #: HOW THE SENTENCE WRITES A CONCEPT'S WORD IN A FORM OF ITS OWN: a plural ("mice" for "mouse", "hawks" for
+    #: "hawk"), a verb's past or the form it takes for a doing under way ("strolled", "strolling" for "stroll"):
+    #: `(concept, form)` pairs. The reader learns a change from the words it holds and reads every other word in a
+    #: form by it, so a form is learned from sentences that write it, and one no change makes ("mice", "ran") is a
+    #: word of its own.
+    forms: Tuple[Tuple[str, str], ...] = ()
+    #: HOW THE SOURCE'S WORDS ARE USED, as real English shows it: `(word, use)` pairs, `count` ("a table", "tables"),
+    #: `mass` ("furniture": never "a furniture") or `plural` ("cattle"). The reader learns a word's use from the
+    #: sentences it holds, and guesses one it holds none of by its ending, `count` when nothing decides; a word the
+    #: source states is said as stated (`TeachingPass._said`), and the sentence then teaches its use.
+    uses: Tuple[Tuple[str, str], ...] = ()
 
     def __post_init__(self):
         if self.meaning is None:
@@ -142,7 +157,7 @@ class TaughtRecord:
             if self.example:
                 raise ValueError("an example of English is a sentence with its "
                                  "meaning; this record gives no meaning")
-            if self.words:
+            if self.words or self.forms or self.uses:
                 raise ValueError("words say how a meaning's concepts are written; "
                                  "this record states no meaning")
             return
@@ -201,8 +216,17 @@ class Report:
     #: {observed, already, no_construction, refused, total} for how often the source met each word naming each thing
     #: (`learn_usage`).
     usage: Dict[str, int] = field(default_factory=dict)
+    #: {remembered, already, refused, total} for what the source found each word said of (`learn_said`).
+    said: Dict[str, int] = field(default_factory=dict)
+    #: {observed, withdrawn, refused, total} for what the listener counted its evidence worth on what it was taught
+    #: (`learn_listening`), and how many sentences it counted on.
+    listening: Dict[str, int] = field(default_factory=dict)
+    #: {told, already, skipped, total} for how the source says each word is said (`learn_pronunciations`).
+    pronunciations: Dict[str, int] = field(default_factory=dict)
     sampled: bool = False
     limit: Optional[int] = None
+    #: Whether what the source states about its whole vocabulary was cut to the sample's words (a small pass).
+    small: bool = False
     seconds: float = 0.0
 
     def lines(self) -> List[str]:
@@ -210,6 +234,8 @@ class Report:
                if self.sampled and self.limit
                else (f"the first {self.limit:,} records" if self.limit
                      else "the whole source"))
+        if self.small:
+            how += ", and what the source states about its vocabulary only for their words"
         return [
             f"source            : {self.source}",
             f"domain            : {self.domain}",
@@ -221,8 +247,40 @@ class Report:
             f"patterns          : {self.patterns or 'none taught'}",
             f"meaning facts     : {self.meanings or 'none given'}",
             f"word usage        : {self.usage or 'none counted'}",
+            f"listening counted : {self.listening or 'nothing'}",
+            f"said of           : {self.said or 'none counted'}",
+            f"pronunciations    : {self.pronunciations or 'none stated'}",
             f"seconds           : {self.seconds:.1f}",
         ]
+
+
+def told_events(meaning: Any, sentence: str) -> Dict[str, str]:
+    """`{unknown: name}` for each happening a told meaning tells of: an unknown that is one of a kind
+    (`instance_of(?v0, eat)`) and that the meaning says something was done by or done to. Its name is its kind and
+    the telling it came from (`eat_` and eight hex digits of the sentence and its meaning), so the same sentence taught
+    again names the same event, and two tellings name two. Any other unknown is not named."""
+    import hashlib
+    from core.semantics.derived_reader import EVENT_PARTICIPANTS, SITUATION_VARIABLES, is_variable
+    # A happening the telling does not tell as so -- what someone said, thought or wants, what a doing was for -- is
+    # not held as one.
+    told = [f for f in meaning.facts if not f.unasserted]
+    kinds = {f.subject: f.obj for f in told
+             if f.relation == "instance_of" and f.positive and is_variable(f.subject) and not is_variable(f.obj)}
+    done = {f.subject for f in told if f.relation in EVENT_PARTICIPANTS and is_variable(f.subject)}
+    named: Dict[str, str] = {}
+    for unknown in sorted(set(kinds) & done):
+        if unknown in SITUATION_VARIABLES or unknown in meaning.asked:
+            continue
+        digest = hashlib.sha1(f"{sentence}|{meaning.canonical()}|{unknown}".encode("utf-8")).hexdigest()[:8]
+        named[unknown] = f"{kinds[unknown]}_{digest}"
+    return named
+
+def known_in_lesson(meaning: Any) -> Dict[str, str]:
+    """`{unknown: name}` for each known thing a lesson tells of ("the kelt", `given instance_of(?t0, kelt)`): the one
+    of its kind Lyric's lessons know, `kelt_1`. A lesson is one telling, so "the kelt" across it is one kelt, and it is
+    the same kelt in every lesson that speaks of one (docs/research/SEPARATION_MAP.md §11.10)."""
+    from core.semantics.cognitive_ingress import normalize_term
+    return {unknown: normalize_term(f"{kind} 1") for unknown, kind in meaning.known_kinds().items()}
 
 
 class TeachingPass:
@@ -241,6 +299,7 @@ class TeachingPass:
     def __init__(self, source: Source, *, domain: str,
                  quality_floor: float = DEFAULT_QUALITY_FLOOR,
                  limit: Optional[int] = None, sample: bool = True,
+                 small: bool = False,
                  allow_uncurated_reasoning_edges: bool = False,
                  batch_size: int = DEFAULT_BATCH,
                  progress: Optional[Any] = None,
@@ -250,6 +309,13 @@ class TeachingPass:
         self.quality_floor = quality_floor
         self.limit = limit
         self.sample = sample
+        #: A SMALL PASS: the `limit` records (or all a source cut to some senses offers, `WordNetSource.senses`),
+        #: and of what the source states about its whole vocabulary (word classes,
+        #: usage, what words are said of, how they are said) only what concerns their words. Every phase a full pass
+        #: runs, each at the sample's size, so a check reaches the end in minutes: limited alone, a WordNet pass of
+        #: 3,000 records still wrote all 75,834 word classes, one memory each, which is hours on a fresh store.
+        self.small = small
+        self._sample_words: Optional[FrozenSet[str]] = None
         self.allow_uncurated_reasoning_edges = allow_uncurated_reasoning_edges
         self.batch_size = batch_size
         self.progress = progress
@@ -348,6 +414,9 @@ class TeachingPass:
         # for them.
         records = await asyncio.to_thread(self._harvest, report)
         self._guard_reasoning_edges(records)
+        if self.small and records:
+            self._sample_words = self._words_in(records)
+            report.small = True
 
         # A SOURCE'S POS TAGS ARE TAUGHT, INTO MEMORY, LIKE EVERYTHING ELSE.
         #
@@ -368,36 +437,65 @@ class TeachingPass:
         # THE CLASSES ARE TAUGHT BEFORE THE FACTS ARE READ, and the reading needs
         # them: typing a copula turns on whether its complement is an ADJECTIVE.
         # Warmed once here rather than per sentence — a cold index answers None
-        # for every word, which the relation authority reads as "keep ISA", so a
-        # missed warm would quietly reinstate the defect this ordering exists to
-        # fix rather than failing loudly.
-        try:
-            from core.memory import get_memory_agent
-            self._memory_for_classes = await get_memory_agent()
-            await self._memory_for_classes.warm_word_classes()
-        except Exception as error:
-            logger.warning(
-                "word classes could not be warmed (%s); copular predications "
-                "will be typed as ISA by default this pass", error)
-            self._memory_for_classes = None
+        # for every word, which the relation authority reads as "keep ISA". A
+        # warm that fails ends the pass: carried on, it typed every copula as ISA
+        # and the pass reported itself taught.
+        from core.memory import get_memory_agent
+        self._memory_for_classes = await get_memory_agent()
+        await self._memory_for_classes.warm_word_classes()
 
         if records:
             # ONE call, for the whole harvest, through the one authority --
             # which fans out to beliefs, the lexicon, the domain and memory.
-            # `quality` is PER PASS here because `learn_facts` takes one; where
+            # `quality` is PER PASS here because `consider_many` takes one; where
             # a source states support per record, records are grouped by it so
             # no fact inherits another's standing.
             report.taught = await self._teach(learning, records, report)
 
         # HOW OFTEN EACH WORD NAMES EACH THING, after the words are learned: a source that counted its words in real
         # use (`usage()`) says so, and the count lands on the construction that says the word names the thing.
-        if records and hasattr(self.source, "usage"):
+        # A source of nothing but what its words are like (`vocabulary_only`) has no records, and is counted all the
+        # same, as pronunciations are below.
+        if (records or getattr(self.source, "vocabulary_only", False)) and hasattr(self.source, "usage"):
             # Counted off the loop too, as the harvest is: all of WordNet's senses are walked for it.
-            usage = await asyncio.to_thread(list, self.source.usage())
+            usage = [use for use in await asyncio.to_thread(list, self.source.usage()) if self._of_sample(use[0])]
             report.usage = await learning.learn_usage(
                 usage, provenance=self.source.provenance(),
                 quality=float(self.source.quality))
             await self._flush()
+
+        # WHAT THE LISTENER'S EVIDENCE IS WORTH, from a source of sentences whose meaning it gives
+        # (`listening_pairs()`): each read, its meanings weighed as the listener weighs them, and counted by whether
+        # each was the one meant (`derived_reader.listening_counts`). Nothing else is taught by it.
+        if hasattr(self.source, "listening_pairs"):
+            from core.agents.memory_agent import get_memory_agent
+            from core.semantics import derived_reader as dr
+            pairs = list(self.source.listening_pairs())
+            view = await (await get_memory_agent()).language_view()
+            counts = await dr.listening_counts(pairs, view, give_way=GiveWay())
+            report.listening = await learning.learn_listening(
+                counts, provenance=self.source.provenance(), quality=float(self.source.quality))
+            report.listening["sentences"] = len(pairs)
+            await self._flush()
+
+        # WHAT EACH WORD IS SAID OF, from a source that counted it in real use (`said_of()`): how English uses a word,
+        # which the listener goes by where nothing it knows tells two things a word names apart.
+        if records and hasattr(self.source, "said_of"):
+            said = [use for use in await asyncio.to_thread(list, self.source.said_of()) if self._of_sample(use[1])]
+            report.said = await learning.learn_said(
+                said, provenance=self.source.provenance(),
+                quality=float(self.source.quality),
+                progress=(None if not self.progress else
+                          lambda done, of: self.progress(done, of, {"phase": "what words are said of"})))
+
+        # HOW EACH WORD IS SAID, from a source that states it (`pronunciations()`: a pronouncing dictionary), so a word
+        # is heard by the sounds it is made of, whoever says it. A source of nothing else has no records.
+        if hasattr(self.source, "pronunciations"):
+            pronounced = [said for said in await asyncio.to_thread(list, self.source.pronunciations())
+                          if self._of_sample(said[0])]
+            report.pronunciations = await learning.learn_pronunciations(
+                pronounced, provenance=self.source.provenance(),
+                quality=float(self.source.quality))
 
         report.seconds = time.time() - started
         return report
@@ -407,7 +505,7 @@ class TeachingPass:
         """Teach the harvest, grouped so each fact carries ITS OWN quality and
         polarity.
 
-        `learn_facts` takes one quality and one polarity for a batch, and a corpus
+        `consider_many` takes one quality and one polarity for a batch, and a corpus
         has neither: ConceptNet's weights run 0.5 to 4.47 on the same relation,
         and a sentence may deny as well as assert. Teaching a batch at a single
         number is exactly the unstated-0.9 problem in a new costume, so the
@@ -416,7 +514,8 @@ class TeachingPass:
 
         A record that carries its MEANING is not read. Its facts, bound to the
         situation it was said in, go into the buckets, and the sentence with its
-        meaning is taught as a pattern after the facts (`learn_patterns`); both
+        meaning is taught as a pattern before the facts (`learn_patterns`), so
+        what its meaning names is named when its facts reach the door; both
         counts land on `report`.
 
         A bucket is (quality, polarity, whose): None is the model's; a speaker's
@@ -425,13 +524,25 @@ class TeachingPass:
         buckets: Dict[Tuple[float, bool, Optional[str]], List[Tuple[str, ...]]] = {}
         patterns: Dict[float, List[Tuple[str, Any]]] = {}
         meanings = {"bound": 0, "speaker_context": 0, "no_speaker": 0, "open": 0, "not_told": 0,
-                    "rule": 0, "rule_not_held": 0, "alternative": 0, "example": 0, "said": 0, "not_said": 0}
+                    "rule": 0, "rule_not_held": 0, "alternative": 0, "example": 0, "said": 0, "not_said": 0,
+                    "unasserted": 0}
         rules: List[Tuple[float, Any, Any, str, Optional[str]]] = []
         read_claims = 0
         unread = 0
+        to_say = sum(1 for record in records if record.meaning is not None and not record.sentence)
+        said_so_far = 0
+        # SAYING EACH FACT IS THE SUBSTRATE'S WORK ON ITS OWN LOOP, and all of WordNet's 157,786 took over an hour with
+        # nothing else let run and nothing said of how far it was. It gives way by time (`GiveWay`), and says where it
+        # is every thousand.
+        give_way = GiveWay()
         for record in records:
+            await give_way()
             quality = round(float(record.quality), 3)
             if record.meaning is not None:
+                if not record.sentence:
+                    said_so_far += 1
+                    if self.progress and said_so_far % 1000 == 0:
+                        self.progress(said_so_far, to_say, {"phase": "saying the facts"})
                 sentence = record.sentence
                 if not sentence:
                     # SAID, NOT WRITTEN: through the frames taught, in the source's words. What nothing taught says
@@ -439,7 +550,19 @@ class TeachingPass:
                     sentence = self._said(record)
                     meanings["said" if sentence else "not_said"] += 1
                 if sentence:
-                    patterns.setdefault(quality, []).append((sentence, record.meaning))
+                    # How the source wrote its concepts in this sentence: a run so written is learned as the
+                    # concept's name ("electronic computer"), never split into a frame's word and a filler.
+                    names = {**dict(record.words), **dict(record.forms)}
+                    if not record.sentence:
+                        # A SENTENCE SAID HERE WRITES EACH THING BY THE SOURCE'S WORD, OR BY ITS OWN NAME where the
+                        # source gives no other. That name is the teacher's too. Left out, "A news report is news."
+                        # was taken apart at "report", a word already held for it, and "news" went into a frame:
+                        # "A ?slot0 ?slot1 is news.", which then said of anything that it is news.
+                        for fact in record.meaning.facts:
+                            for term in (fact.subject, fact.obj):
+                                if not str(term).startswith("?"):
+                                    names.setdefault(term, str(term).replace("_", " "))
+                    patterns.setdefault(quality, []).append((sentence, record.meaning, names))
                 if record.example:
                     meanings["example"] += 1
                 else:
@@ -524,15 +647,60 @@ class TeachingPass:
         totals: Dict[str, int] = {}
         provenance = self.source.provenance()
         done = 0
+
+        # THE PATTERNS, BEFORE THE FACTS THEY STATE. How English said each thing
+        # is language knowledge, taught through the same authority; English is
+        # its domain, whatever domain the lesson's facts belong to.
+        #
+        # First, because the door admits a fact only about what something
+        # taught names (`cognitive_ingress.admissible`): a word held only
+        # inside sentence forms names nothing until a taught meaning uses it
+        # as a concept's name. The lessons hold "power", "name" and "front"
+        # only so ("to the power of", "My name is", "in front of"). Taught
+        # after the facts, WordNet's "Power is a quality." named `power` too
+        # late: 37 facts of 13,800 were refused in the sandbox, "influence is
+        # power" among them, and `power` was left with no kind.
+        taught_patterns: Dict[str, int] = {}
+        whole = sum(len(pairs) for pairs in patterns.values())
+        before = 0
+        for quality, pairs in sorted(patterns.items()):
+            counts = await learning.learn_patterns(
+                pairs, provenance=provenance, quality=quality,
+                progress=(None if not self.progress else
+                          lambda done, of, phase=None, at=before: self.progress(
+                              done if phase else at + done, of if phase else whole,
+                              {"phase": phase or "learning the patterns"})))
+            before += len(pairs)
+            for key, value in (counts or {}).items():
+                taught_patterns[key] = taught_patterns.get(key, 0) + int(value)
+            await self._flush()
+
+        from core.agents.memory_agent import memory_agent
+        from core.learning.unified_learning_system import Evidence
+
+        def evidence(quality: float) -> Evidence:
+            # THE SOURCE IS ONE WITNESS: a lesson, a corpus, however many facts it states and however often it is
+            # taught (`consider_many`).
+            return Evidence.from_provenance(provenance, quality)
+
         for (quality, positive, speaker), facts in sorted(
                 buckets.items(), key=lambda item: (item[0][0], item[0][1], item[0][2] or "")):
             for start in range(0, len(facts), self.batch_size):
                 chunk = facts[start:start + self.batch_size]
-                # `actor` is whose these facts are: None, the model's; a speaker,
-                # their context (the learning authority's router keeps it there).
-                counts = await learning.learn_facts(
-                    chunk, provenance=provenance, domain=self.domain,
-                    quality=quality, positive=positive, actor=speaker)
+                if speaker:
+                    # WHAT A SOURCE SAYS OF ITS SPEAKER IS THEIRS ("My dog is brown.", said by them): held in their
+                    # context by the memory agent, never the world's (docs/research/SEPARATION_MAP.md §11.3).
+                    counts = {"admitted": 0, "refused": 0, "total": 0}
+                    for subject, relation, obj, said in chunk:
+                        counts["total"] += 1
+                        decision = await memory_agent().hold_for_person(
+                            speaker, subject, relation, obj, positive=positive, quality=quality,
+                            domain=self.domain, surface=said, source=f"lesson:{provenance.source_id}")
+                        counts["admitted" if decision.admitted else "refused"] += 1
+                else:
+                    # THE WORLD'S, judged as every claim is: the one door (`consider_many`).
+                    counts = await learning.consider_many(
+                        chunk, evidence=evidence(quality), domain=self.domain, positive=positive)
                 for key, value in (counts or {}).items():
                     totals[key] = totals.get(key, 0) + int(value)
                 # FLUSH PER BATCH. Belief writes are fire-and-forget; without
@@ -543,27 +711,21 @@ class TeachingPass:
                 if self.progress:
                     self.progress(done, len(records), totals)
 
-        # THE RULES, after the facts, through the same authority the conversation holds a told rule through.
+        # THE RULES, after the facts: a speaker's own held in their context, the world's through the one door.
         for quality, condition, then, sentence, whose in rules:
-            await learning.learn_rule(
-                {"subject": condition.subject, "relation": condition.relation, "obj": condition.obj,
-                 "positive": condition.positive},
-                {"subject": then.subject, "relation": then.relation, "obj": then.obj,
-                 "positive": then.positive},
-                surface=sentence, provenance=provenance, domain=self.domain, actor=whose, quality=quality)
+            antecedent = {"subject": condition.subject, "relation": condition.relation, "obj": condition.obj,
+                          "positive": condition.positive}
+            consequent = {"subject": then.subject, "relation": then.relation, "obj": then.obj,
+                          "positive": then.positive}
+            if whose:
+                await memory_agent().hold_rule_for_person(
+                    whose, antecedent, consequent, quality=quality, domain=self.domain, surface=sentence)
+            else:
+                await learning.consider_rule(antecedent, consequent, surface=sentence, evidence=evidence(quality),
+                                             domain=self.domain)
         if rules:
             await self._flush()
 
-        # THE PATTERNS, after the facts they state. How English said each thing
-        # is language knowledge, taught through the same authority; English is
-        # its domain, whatever domain the lesson's facts belong to.
-        taught_patterns: Dict[str, int] = {}
-        for quality, pairs in sorted(patterns.items()):
-            counts = await learning.learn_patterns(
-                pairs, provenance=provenance, quality=quality)
-            for key, value in (counts or {}).items():
-                taught_patterns[key] = taught_patterns.get(key, 0) + int(value)
-            await self._flush()
         report.patterns = taught_patterns
         report.meanings = meanings if patterns else {}
         return totals
@@ -580,16 +742,77 @@ class TeachingPass:
         words = dict(record.words)
         facts = tuple(replace(f, subject=words.get(f.subject, f.subject), obj=words.get(f.obj, f.obj))
                       for f in record.meaning.facts)
+        # A KIND OR A QUALITY THE SOURCE WRITES AS A DAY, A TIME OR A NUMBER CANNOT BE SAID AS ONE: "Guy Fawkes Day
+        # is a November 5" puts a date where a kind stands, which no meaning holds (`Meaning`). The fact is still the
+        # source's to state, as the fact; it is no example of English.
+        from core.semantics.derived_reader import _quantity, _temporal
+        if any(f.relation in ("isa", "instance_of", "has_property") and (_quantity(f.obj) or _temporal(f.obj))
+               for f in facts):
+            return ""
         written = Meaning(record.meaning.act, facts, record.meaning.asked)
         view = live_view()
         # The words this pair teaches are written as the source writes them; a concept already held is said as it
-        # is held ("tools" for `tool`).
+        # is held ("tools" for `tool`). The SUBJECT never is: the record is about the thing its word names, so that
+        # word is written as the source writes it, held or not. Held only as "Mice", `mouse` said as held taught
+        # "Mice" for the animal and then for the person a mouse also names ("Mice are one."), and no reading of "a
+        # mouse" reached either.
+        subjects = {f.subject for f in facts if not is_variable(f.subject)}
+        terms = {t for f in facts for t in (f.subject, f.obj)}
         wanted = [tuple(p.text.lower() for p in form_of(str(term).replace("_", " ")))
-                  for term in {t for f in facts for t in (f.subject, f.obj)}
-                  if not is_variable(term) and not view.lexicals_with_value(term)]
-        for sentence in say(written, view):
+                  for term in terms
+                  if not is_variable(term) and (term in subjects or not view.lexicals_with_value(term))]
+        # A LONGER NAME THAT HOLDS THE WORD IS NOT THE WORD. A thing is held under several names ("sedative",
+        # "sedative drug"; "wave to" beside "wave"), and a sentence that writes the longer one does not write the
+        # source's: "A sedative drug is a medicine." teaches nothing of "sedative".
+        longer = {tuple(p.text.lower() for p in lexical.form)
+                  for term in terms if not is_variable(term) for lexical in view.lexicals_with_value(term)}
+
+        def stands(name: Tuple[str, ...], pieces: Tuple[str, ...]) -> bool:
+            for at in range(len(pieces) - len(name) + 1):
+                if pieces[at:at + len(name)] != name:
+                    continue
+                if not any(len(run) > len(name) and pieces[start:start + len(run)] == run
+                           for run in longer for start in range(max(0, at + len(name) - len(run)), at + 1)):
+                    return True
+            return False
+        # A COUNTED THING NEVER STANDS BARE. What is said here is learned as English, so a sentence that writes a
+        # name the source states is counted with nothing before it, first ("Soul is an organism.") or as what
+        # something is ("A stock is security."), is not said: taught, it stays held and is said again. The source
+        # speaks for the record's own sense; the sayer, holding the word for another sense ("security", safety),
+        # would say it as that one is used.
+        stated = dict(record.uses)
+
+        def use_stated(term: str) -> Optional[str]:
+            name = str(term).replace("_", " ").lower()
+            words = name.split()
+            last = next((words[at - 1] for at in range(1, len(words)) if view.is_structure(words[at])),
+                        words[-1] if words else "")
+            return stated.get(name) or (stated.get(last) if last else None)
+
+        counted = [tuple(p.text.lower() for p in form_of(str(term).replace("_", " ")))
+                   for term in {t for f in facts for t in (f.subject, f.obj)}
+                   if not is_variable(term) and str(term).split() and use_stated(term) == "count"]
+        # THE SOURCE'S WORD FOR A THING IS NOT THE THING THAT WORD NAMES. "wave", the source's word for a hairdo, is
+        # held for a greeting ("wave to"); said as held, the hairdo was "A wave to is a hairdo.", and "matter", what
+        # things are made of, was counted as an affair is: "A substance is a matter.". A word the source wrote for
+        # one of its own things is written as it is (`say`, `apart`).
+        # So is a name nothing holds yet: it is the source's, whole, a word that builds sentences inside it and all
+        # ("body of water").
+        apart = {word for concept, word in words.items() if word != concept} \
+            | {term for fact in facts for term in (fact.subject, fact.obj)
+               if not is_variable(term) and not view.lexicals_with_value(term)}
+        # A thing held under several words is said with the one the source wrote here ("weather", not "weather
+        # condition", held for it too): `say`, `named`.
+        called = {term: str(term).replace("_", " ") for fact in facts for term in (fact.subject, fact.obj)
+                  if not is_variable(term)}
+        for sentence in say(written, view, uses=stated, named=called, apart=apart):
             pieces = tuple(p.text.lower() for p in form_of(sentence))
-            if all(any(pieces[i:i + len(w)] == w for i in range(len(pieces) - len(w) + 1)) for w in wanted):
+            if any(
+                    pieces[at:at + len(name)] == name and (at == 0 or pieces[at - 1] == "is")
+                    and pieces[at + len(name):at + len(name) + 1] in ((), (".",), ("is",))
+                    for name in counted for at in range(len(pieces) - len(name) + 1)):
+                continue
+            if all(stands(name, pieces) for name in wanted):
                 return sentence
         return ""
 
@@ -605,6 +828,12 @@ class TeachingPass:
         an unknown after binding -- "some shoe is black" introduces `?x`, which
         no situation names -- is not a fact the store can hold, and is counted
         as `open` rather than filed under an invented name.
+
+        A HAPPENING TOLD OF IS ONE EVENT, held under the name of its telling
+        (`told_events`, decided 2026-10-04): "The wug ate a fep." tells of one
+        eating, done by the wug, done to a fep, and those are facts about that
+        eating. Only a happening is named, an unknown the meaning says something
+        was done by or done to; "some shoe" stays open.
 
         WHOSE A FACT IS, THE MEANING SAYS.
         A fact about the situation it was said in -- one that names the speaker,
@@ -624,13 +853,22 @@ class TeachingPass:
             return
         situation = dict(record.situation)
         speaker = situation.get("?speaker")
+        # WHAT A KNOWN THING IS, IS SO WHATEVER ELSE IS SAID: "If the valve is closed, the tank is full." takes a
+        # valve and a tank as known, and holds that they are a valve and a tank outright; the rule is about them.
+        known = known_in_lesson(meaning)
         if meaning.condition:
             # A CONDITIONAL STATES NO FACT OUTRIGHT: what it says holds when its condition does. It is held as a
             # rule, one fact a side, as a told rule is held; a side of several facts, or one still naming an unknown,
             # is counted, not held.
-            bound = dict(zip(meaning.facts, meaning.bound(situation)))
-            condition = [bound[f] for f in meaning.condition]
-            then = [bound[f] for f in meaning.asserted]
+            bound = dict(zip(meaning.facts, meaning.bound(situation, known)))
+            for given in meaning.given:
+                fact = bound[given]
+                if not given.unasserted and not is_variable(fact.subject):
+                    buckets.setdefault((quality, True, None), []).append(
+                        (fact.subject, fact.relation, fact.obj, sentence))
+                    meanings["bound"] += 1
+            condition = [bound[f] for f in meaning.condition if not f.given]
+            then = [bound[f] for f in meaning.asserted if not f.given]
             if len(condition) != 1 or len(then) != 1 or any(
                     is_variable(t) for f in condition + then for t in f.terms()):
                 meanings["rule_not_held"] += 1
@@ -642,7 +880,15 @@ class TeachingPass:
             rules.append((quality, condition[0], then[0], sentence, speaker if situational else None))
             meanings["rule"] += 1
             return
-        for said, fact in zip(meaning.facts, meaning.bound(situation)):
+        events = told_events(meaning, sentence)
+        for said, fact in zip(meaning.facts, meaning.bound(situation, known)):
+            fact = fact.renamed(events) if events else fact
+            if said.unasserted:
+                # WHAT IS NOT TOLD AS SO IS NOT HELD AS HOLDING: `Tom said, "The dog barked."` and "Tom said that the
+                # dog barked." hold a saying, done by Tom; that the dog barked is his to have said (the teammate's
+                # decisions, 2026-10-05). So for what someone thinks, asks or wants, and what a doing was for.
+                meanings["unasserted"] += 1
+                continue
             if said.alternative:
                 # OF ALTERNATIVES, ONE HOLDS; none is stated, so none is held as a fact.
                 meanings["alternative"] += 1
@@ -658,6 +904,23 @@ class TeachingPass:
             buckets.setdefault((quality, fact.positive, whose), []).append(
                 (fact.subject, fact.relation, fact.obj, sentence))
             meanings["speaker_context" if situational else "bound"] += 1
+
+    @staticmethod
+    def _words_in(records: Sequence[TaughtRecord]) -> FrozenSet[str]:
+        """Every word the records say anything with: their terms and their sentences."""
+        words = set()
+        for record in records:
+            for text in (record.subject, record.obj, record.sentence or ""):
+                words.update(re.findall(r"[a-z0-9']+", str(text).lower().replace("_", " ")))
+        return frozenset(words)
+
+    def _of_sample(self, term: str) -> bool:
+        """Whether a term the source states about its whole vocabulary is one a small pass's records say anything
+        with, every word of it. Every term, in any other pass."""
+        if self._sample_words is None:
+            return True
+        words = re.findall(r"[a-z0-9']+", str(term).lower().replace("_", " "))
+        return bool(words) and all(word in self._sample_words for word in words)
 
     def _stated_classes(self, records: Sequence[TaughtRecord]) -> Dict[Tuple[str, str], float]:
         """Every `(word, CLASS)` the source states, deduplicated, with the
@@ -685,7 +948,8 @@ class TeachingPass:
         source_level = getattr(self.source, "word_classes", None)
         if callable(source_level):
             for word, word_class in source_level():
-                state(word, word_class, self.source.quality)
+                if self._of_sample(word):
+                    state(word, word_class, self.source.quality)
         for record in records:
             for word, word_class in record.word_classes or ():
                 state(word, word_class, record.quality)
@@ -694,15 +958,21 @@ class TeachingPass:
     async def _teach_word_classes(self, learning: Any,
                                   stated: Dict[Tuple[str, str], float]) -> Dict[str, int]:
         """Teach the stated classes grouped by standing, each group at ITS
-        quality (`learn_word_classes` takes one per call, as `learn_facts`
+        quality (`learn_word_classes` takes one per call, as `consider_many`
         does), and add up what each group did."""
         buckets: Dict[float, List[Tuple[str, str]]] = {}
         for pair, quality in stated.items():
             buckets.setdefault(round(quality, 3), []).append(pair)
         totals: Dict[str, int] = {}
+        whole = sum(len(pairs) for pairs in buckets.values())
+        before = 0
         for quality, pairs in sorted(buckets.items()):
             counts = await learning.learn_word_classes(
-                pairs, provenance=self.source.provenance(), quality=quality)
+                pairs, provenance=self.source.provenance(), quality=quality,
+                progress=(None if not self.progress else
+                          lambda done, _total, at=before: self.progress(
+                              at + done, whole, {"phase": "word classes"})))
+            before += len(pairs)
             for key, value in counts.items():
                 totals[key] = totals.get(key, 0) + int(value)
         return totals
@@ -729,11 +999,7 @@ class TeachingPass:
         agent = self._memory_for_classes
         if agent is None:
             return {}
-        try:
-            return agent.word_classes(word)
-        except Exception as error:
-            logger.debug("word classes for %r unreadable: %s", word, error)
-            return {}
+        return agent.word_classes(word)
 
     async def _note_unread(self, sentence: str, blamed) -> None:
         """Remember a corpus sentence the reader could not read, with the word
@@ -746,18 +1012,15 @@ class TeachingPass:
         """
         if not sentence:
             return
-        try:
-            from core.memory import Origin
-            from core.semantics.cognitive_ingress import (get_cognitive_ingress,
-                                                          Provenance)
-            await get_cognitive_ingress().remember_told(
-                sentence, Provenance(producer="teaching",
-                                     source_id=self.source.name,
-                                     source_type="USER_SUPPLIED"),
-                blamed=[list(b) for b in (blamed or [])],
-                origin=Origin.own("teaching"))
-        except Exception as error:
-            logger.debug("could not record an unread teaching sentence: %s", error)
+        from core.memory import Origin
+        from core.semantics.cognitive_ingress import (get_cognitive_ingress,
+                                                      Provenance)
+        await get_cognitive_ingress().remember_told(
+            sentence, Provenance(producer="teaching",
+                                 source_id=self.source.name,
+                                 source_type="USER_SUPPLIED"),
+            blamed=[list(b) for b in (blamed or [])],
+            origin=Origin.own("teaching"))
 
     #: Stripped before a read term is compared with a stated one. The reader
     #: renders an object with its article ("a device"); a source states the bare
@@ -836,11 +1099,11 @@ class TeachingPass:
                 for f in await heard_stated(sentence)], []
 
     async def _flush(self) -> None:
+        """Write what the pass believes. A flush that fails ends the pass: the
+        beliefs it moved would be gone at the next start, and the pass would
+        have reported them taught."""
         from core.reasoning.bayesian_uncertainty import get_uncertainty_system
-        try:
-            await get_uncertainty_system().flush_pending_writes()
-        except Exception as error:      # a flush failing must not lose the pass
-            logger.debug("teaching flush skipped: %s", error)
+        await get_uncertainty_system().flush_pending_writes()
 
 
 def quality_from_corroboration(weight: float, *, floor: float = 0.6,

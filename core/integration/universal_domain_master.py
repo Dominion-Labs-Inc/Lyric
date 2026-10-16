@@ -22,14 +22,16 @@ import logging
 import asyncio
 import heapq
 import time
-import uuid
 import json
 from dataclasses import dataclass, field
-from typing import Dict, Any, List, Optional, Sequence, Set, Tuple
+from typing import TYPE_CHECKING, Dict, Any, List, Optional, Sequence, Set, Tuple
 from datetime import datetime
 from enum import Enum
 
 import numpy as np
+
+if TYPE_CHECKING:
+    from core.learning.meta_learning import OutcomeClass
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +47,7 @@ logger = logging.getLogger(__name__)
 # domain_types owns it: Domain.domain_type is typed by it and the registry
 # builds its category/field membership graph from it.
 from core.domain.domain_types import DomainType  # noqa: E402
+from core.utils.give_way import GiveWay  # noqa: E402
 
 
 # THE 7 cross-domain reasoning strategies — imported, not redeclared.
@@ -1093,7 +1096,7 @@ class UniversalDomainMaster:
         try:
             await self.ensure_competence_belief(domain_id)
         except Exception as e:
-            from core.capability import raise_if_structural
+            from core.structural_defects import raise_if_structural
             raise_if_structural(e, "universal_domain_master.ensure_domain.belief")
             logger.info("competence belief for %s deferred: %s", domain_id, e)
         logger.info("UDM registered operational domain %s (type=%s)",
@@ -1112,7 +1115,7 @@ class UniversalDomainMaster:
         try:
             await self.ensure_domain(domain_id)
         except Exception as e:
-            from core.capability import raise_if_structural
+            from core.structural_defects import raise_if_structural
             raise_if_structural(e, "universal_domain_master._ensure_domain_for_capability")
             logger.info("domain registration for %s deferred: %s", domain_id, e)
 
@@ -1125,8 +1128,16 @@ class UniversalDomainMaster:
     # is the competence drive's inverted-U for free: explore where competence
     # is UNCERTAIN, not where it is mastered or hopeless.
 
+    #: WHAT A DOMAIN'S COMPETENCE BELIEF CLAIMS: what the substrate can DO there, shown by any outcome it earns in
+    #: it, an operator learned from what it did or a review of what it was taught answered right
+    #: (`UnifiedLearningSystem.review_learned`). It read "has learned the operators", and a domain taught by telling
+    #: never moved: English, taught all of WordNet, stayed at 0.5 with no update (2026-10-10). A belief held under
+    #: the old wording is the same belief, renamed when first met (`_competence_belief_of`), never replaced.
+    COMPETENCE_CLAIM = "the substrate is competent in domain "
+    _OLD_COMPETENCE_CLAIM = "the substrate has learned the operators of domain "
+
     def _competence_claim(self, domain_id: str) -> str:
-        return f"the substrate has learned the operators of domain {domain_id}"
+        return f"{self.COMPETENCE_CLAIM}{domain_id}"
 
     @staticmethod
     def _uncertainty():
@@ -1187,8 +1198,11 @@ class UniversalDomainMaster:
         """
         unc = self._uncertainty()
         claim = self._competence_claim(domain_id)
-        existing = next((b for b in unc.beliefs.values()
-                         if b.claim == claim and b.domain == domain_id), None)
+        renamed = self._competence_belief_of(domain_id, renaming=True)
+        if renamed is not None and renamed[1]:
+            # Held under the old wording: the same belief, its new claim written now.
+            await unc.flush_belief(renamed[0].belief_id)
+        existing = renamed[0] if renamed is not None else None
         if existing is None:
             from core.learning.unified_learning_system import get_unified_learning_system
             memory_id = await self._remember_domain(domain_id)
@@ -1223,14 +1237,16 @@ class UniversalDomainMaster:
 
     async def record_competence_evidence(
         self, domain_id: str, *, learned: bool,
-        quality: Optional[float] = None) -> None:
-        """Move a domain's competence belief toward learned / not-learned.
+        quality: Optional[float] = None, source: str = "operator_learning") -> None:
+        """Move a domain's competence belief toward competent / not.
 
         A newly learned operator is evidence the substrate is becoming competent
         (posterior up, entropy down → the domain eventually leaves exploration).
         A cycle that acted and learned nothing is weak evidence against, so a
         domain that yields nothing stops being chased -- but only after several
-        cycles, never after one (see COMPETENCE_EVIDENCE_QUALITY).
+        cycles, never after one (see COMPETENCE_EVIDENCE_QUALITY). A review of
+        what was taught answered right or wrong is the same kind of outcome
+        (`source="review"`).
         """
         if quality is None:
             quality = self.COMPETENCE_EVIDENCE_QUALITY
@@ -1245,7 +1261,7 @@ class UniversalDomainMaster:
         belief = await self.ensure_competence_belief(domain_id)
         from core.learning.unified_learning_system import get_unified_learning_system
         get_unified_learning_system().update_belief(
-            belief.belief_id, {"source": "operator_learning", "quality": quality},
+            belief.belief_id, {"source": source, "quality": quality},
             evidence_supports=learned)
         # Flush the update durably -- a competence change that only lives in
         # memory would be undone by the next restart, and the domain would be
@@ -1263,10 +1279,10 @@ class UniversalDomainMaster:
         competence beliefs were decayed.
         """
         unc = self._uncertainty()
-        prefix = "the substrate has learned the operators of domain "
         decayed = 0
         for belief in list(unc.beliefs.values()):
-            if isinstance(belief.claim, str) and belief.claim.startswith(prefix):
+            if isinstance(belief.claim, str) and belief.claim.startswith(
+                    (self.COMPETENCE_CLAIM, self._OLD_COMPETENCE_CLAIM)):
                 await unc.decay_belief(belief.belief_id)
                 decayed += 1
         return decayed
@@ -1284,15 +1300,27 @@ class UniversalDomainMaster:
     OPTIMISTIC_PROGRESS: float = 1.0
 
     def competence_belief(self, domain_id: str):
-        """This domain's operator-competence belief, or None if it has none --
-        what the substrate believes about whether it has learned to act here."""
+        """This domain's competence belief, or None if it has none -- what the
+        substrate believes about whether it can act here."""
         return self._competence_belief_of(domain_id)
 
-    def _competence_belief_of(self, domain_id: str):
+    def _competence_belief_of(self, domain_id: str, renaming: bool = False):
+        """The domain's competence belief; one held under the old wording is renamed to the claim it is now
+        (`rename_claim`; written at its next flush). With `renaming`, `(belief, renamed_now)` or None."""
         unc = self._uncertainty()
-        claim = self._competence_claim(domain_id)
-        return next((b for b in unc.beliefs.values()
-                     if b.claim == claim and b.domain == domain_id), None)
+        found, renamed = None, False
+        for claim in (self._competence_claim(domain_id), f"{self._OLD_COMPETENCE_CLAIM}{domain_id}"):
+            belief_id = unc._claim_belief_id(claim)
+            belief = unc.beliefs.get(belief_id) if belief_id else None
+            if belief is not None and belief.domain == domain_id:
+                found = belief
+                break
+        if found is not None and found.claim != self._competence_claim(domain_id):
+            unc.rename_claim(found.belief_id, self._competence_claim(domain_id))
+            renamed = True
+        if renaming:
+            return None if found is None else (found, renamed)
+        return found
 
     def learning_progress(self, domain_id: str) -> float:
         """Signed learning progress: how much competence has RISEN over the
@@ -1891,9 +1919,17 @@ class UniversalDomainMaster:
         targets out of everything intrinsic motivation surfaces."""
         claim = getattr(target, "claim", None) or (
             getattr(target, "metadata", {}) or {}).get("claim", "")
-        prefix = "the substrate has learned the operators of domain "
-        if isinstance(claim, str) and claim.startswith(prefix):
-            return getattr(target, "domain", None) or claim[len(prefix):]
+        domain = self.competence_domain(claim)
+        if domain is None:
+            return None
+        return getattr(target, "domain", None) or domain
+
+    @classmethod
+    def competence_domain(cls, claim) -> Optional[str]:
+        """The domain a claim says the substrate is competent in, in either wording; None for any other claim."""
+        for prefix in (cls.COMPETENCE_CLAIM, cls._OLD_COMPETENCE_CLAIM):
+            if isinstance(claim, str) and claim.startswith(prefix):
+                return claim[len(prefix):]
         return None
 
     async def learned_domains(self) -> List["Any"]:
@@ -2542,7 +2578,7 @@ class UniversalDomainMaster:
                 try:
                     outcome = await self.crystallize(domain_id)
                 except Exception as e:
-                    from core.capability import raise_if_structural
+                    from core.structural_defects import raise_if_structural
                     raise_if_structural(e, "universal_domain_master.discover_domains")
                     logger.error("crystallize(%s) failed: %s", domain_id, e)
                     continue
@@ -2570,7 +2606,7 @@ class UniversalDomainMaster:
                                 f"operators={outcome.get('operators')} "
                                 f"analogies={outcome.get('analogies')}")))
                 except Exception as e:
-                    from core.capability import raise_if_structural
+                    from core.structural_defects import raise_if_structural
                     raise_if_structural(
                         e, "universal_domain_master.discover_domains.ledger")
                     logger.warning("decision on %s not recorded: %s", domain_id, e)
@@ -2691,7 +2727,9 @@ class UniversalDomainMaster:
         edges = await self.db.execute_query(
             "SELECT source_concept_id, target_surface FROM unified.concept_relations "
             "WHERE relation = 'isa'", fetch_all=True) or []
+        give_way = GiveWay()
         for edge in edges:
+            await give_way()
             _link(str(edge["source_concept_id"] or "").split(":", 1)[-1],
                   _norm(edge["target_surface"]))
 
@@ -2703,10 +2741,9 @@ class UniversalDomainMaster:
         # yielding it would hold the event loop for the whole sweep and freeze
         # the reactive drain, the coordination loop and every other await in the
         # substrate. Yielding costs nothing and keeps the substrate alive while
-        # it thinks about its own subject map.
-        for _n, row in enumerate(held):
-            if _n % 2000 == 0:
-                await asyncio.sleep(0)
+        # it thinks about its own subject map. By time, not count (`GiveWay`).
+        for row in held:
+            await give_way()
             raw = row["relationships"]
             try:
                 links = _json.loads(raw) if isinstance(raw, str) else (raw or [])
@@ -2760,9 +2797,9 @@ class UniversalDomainMaster:
         placed: Dict[str, List[str]] = defaultdict(list)
         spans: Dict[str, List[str]] = defaultdict(list)   # concept -> its subjects
         unplaced = 0
-        for _n, row in enumerate(rows):
-            if _n % 500 == 0:
-                await asyncio.sleep(0)     # see the note on the parents build
+        give_way = GiveWay()
+        for row in rows:
+            await give_way()     # see the note on the parents build
             key = _norm(row["name"]) or str(row["concept_id"] or "").split(":", 1)[-1]
             found = roots_of(key) if key in parents else {}
             found = {r: d for r, d in found.items() if r and r != key}
@@ -2861,13 +2898,13 @@ class UniversalDomainMaster:
                             detail=(f"{len(concept_ids)} concept(s) split out of "
                                     f"{from_field} by isa root")))
                     except Exception as _e:
-                        from core.capability import raise_if_structural
+                        from core.structural_defects import raise_if_structural
                         raise_if_structural(
                             _e, "universal_domain_master.taxonomic_split.ledger")
                         logger.warning("taxonomic subject %s not recorded: %s",
                                        root, _e)
                 except Exception as e:
-                    from core.capability import raise_if_structural
+                    from core.structural_defects import raise_if_structural
                     raise_if_structural(e,
                         "universal_domain_master.crystallize_taxonomic_domains")
                     logger.error("could not crystallize %s: %s", root, e)
@@ -3209,7 +3246,7 @@ class UniversalDomainMaster:
                         "crystallized": component.get("crystallized"),
                     }
                 except Exception as e:
-                    from core.capability import raise_if_structural
+                    from core.structural_defects import raise_if_structural
                     raise_if_structural(e,
                         "universal_domain_master.discover_taught_domains")
                     logger.error("component split of %s failed: %s", channel, e)
@@ -3262,7 +3299,7 @@ class UniversalDomainMaster:
             for concept_id in ids:
                 await identity.add_membership(concept_id, field, source="refile")
         except Exception as error:
-            from core.capability import raise_if_structural
+            from core.structural_defects import raise_if_structural
             raise_if_structural(error, "universal_domain_master._refile_concepts")
             logger.warning("membership for the refile into %s not recorded: %s",
                            field, error)
@@ -3275,7 +3312,7 @@ class UniversalDomainMaster:
                     detail="refiled by declarative domain discovery")
                 for cid in ids])
         except Exception as error:
-            from core.capability import raise_if_structural
+            from core.structural_defects import raise_if_structural
             raise_if_structural(error, "universal_domain_master._refile_concepts.ledger")
             logger.warning("knowledge updates for the refile into %s not "
                            "recorded: %s", field, error)
@@ -3378,7 +3415,7 @@ class UniversalDomainMaster:
                 await ledger.mark_consumed(
                     self.db, [p["update_id"] for p in pending], "domain_coverage")
         except Exception as error:
-            from core.capability import raise_if_structural
+            from core.structural_defects import raise_if_structural
             raise_if_structural(
                 error, "universal_domain_master.update_knowledge_coverage.ledger")
             logger.debug("knowledge updates for %s not drained: %s", domain_id, error)

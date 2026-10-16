@@ -267,10 +267,10 @@ async def main() -> int:
         check("the lesson is read and held", report.read == len(LESSON)
               and taught.get("admitted", 0) + taught.get("already", 0) == len(LESSON),
               f"read={report.read} taught={taught}")
-        rule = await L.learn_rule(RULE[0], RULE[1], surface=RULE[2], domain=DOMAIN)
-        check("the rule is held", bool(getattr(rule, "admitted", False)
-                                       or getattr(rule, "already_present", False)),
-              f"{getattr(rule, 'refusals', None)}")
+        from core.learning.unified_learning_system import Evidence
+        rule = await L.consider_rule(RULE[0], RULE[1], surface=RULE[2], domain=DOMAIN,
+                                     evidence=Evidence.from_provenance(Lesson().provenance(), 0.9))
+        check("the rule is held", rule.admitted, f"{rule.standing}: {rule.reasons}")
         after_teach = await measure(d)
         observe("stores moved by the lesson",
                 f"{ {k: after_teach[k] - before[k] for k in before if after_teach[k] != before[k]} }")

@@ -630,9 +630,9 @@ class ThreatSense:
         self._events.append(event)
         what = attack.value if attack is not None else kind
         try:
-            from core.domain.evidence_producers import submit_perception
+            from core.agents.memory_agent import memory_agent
             from core.memory import Origin
-            await submit_perception(
+            await memory_agent().take_in_percept(
                 "threat_sense", "security_event",
                 {"component": f"{what}:{event.subject}"[:120],
                  "severity": self.level_name(),

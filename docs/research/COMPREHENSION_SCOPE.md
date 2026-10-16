@@ -7,6 +7,31 @@ estimated.
 
 ---
 
+## Status, 2026-10-02 (updated that night): item by item
+
+Checked against the code and the run records, not remembered.
+
+| Item | Status | Where |
+|---|---|---|
+| One teaching pipeline | **Closed.** One owner of the policy, sources that only read a format; the seven scripts are gone, and `scripts/teach.py` names a source | `core/learning/teaching.py` (`TeachingPass`), `core/learning/teaching_sources.py` |
+| Part of speech | **Closed.** Kept from ConceptNet's URI and WordNet, taught into memory | `ConceptNetSource._term`, `learn_word_classes` |
+| Number | **Closed for nouns WordNet holds.** The door asks WordNet for a plural's singular; plurals no ending makes ("mice") are taught; words only ever plural or one in both are stated | `lexical_normalization._wordnet_singular`, `WordNetSource._plurals`, `_uses` |
+| Countability | **Closed, by sense, measured.** Right 85.3% on held-out labelled senses against 76.8% for calling all counted; abstract nouns hold most of the errors | `WordNetSource.use_of`, COUNTABILITY-01 |
+| Proper nouns | **Open.** The reader holds a word written with a capital where no sentence begins as a name (`is_proper`, use `name`). But the source gives a capitalized WordNet word no use, though 134 of 137 labelled ones are kinds ("Albanian"); and nothing says which names take "the" ("the Bay of Bengal") | `PatternInventory.use_of`, COUNTABILITY-01 |
+| Quality gate | **Closed for ConceptNet.** Its weight is read as a quality, and a crowd source may not teach a transitive relation. The taxonomy now comes from WordNet | `quality_from_corroboration`, `TeachingPass` |
+| The alphabetical head | **Closed.** ConceptNet is streamed whole | `ConceptNetSource.records` |
+| Greetings | **Closed, measured.** "hello" is greeted ("Hello.") and thanks answered ("You are welcome."), by what memory holds follows each act (english_30) | COMPREHENSION-01 `20261003T012321Z`; `REPLYING_TO_WHAT_IS_MEANT.md` |
+| Yes/no with no answer | **Closed, measured.** "is a grandfather clock a beer?" is answered "No. A grandfather clock is not a beer." where the kinds exclude each other; where something is both, it says what is ("A dog is a canine. A dog is a domestic animal."); where nothing decides, "I do not know whether the dog is big." | COMPREHENSION-01 `20261003T012321Z`; `concept_graph_reasoning._kinds_exclude` |
+| "Where is" | **Closed, measured.** "where is a dog?" is "I do not know where the dog is."; told "The dog is in the kennel.", asked again, "The dog is in the kennel." | COMPREHENSION-01 `20261003T012321Z` |
+| Sense over-firing | **Closed, measured.** "what is a dog?" asks no question of which dog: "A dog is a canine. A dog is a domestic animal.". Which sense is asked only where the listener cannot decide (`_which_meant`); `_sense_groups` is gone | COMPREHENSION-01 `20261003T012321Z` |
+| Recall | **Closed for relevance and records, measured.** For "what is a bass?" recall hands up bass memories only, none holding "bass" inside another word; nothing recited is a record. A conversation's own record is not recited as knowledge | COMPREHENSION-01, `core/memory/live_recall.py` |
+
+The four question items shared one cause, traced in `REPLYING_TO_WHAT_IS_MEANT.md`: the reply was chosen by whether
+a sentence asks or tells, not by what it means. All four now pass, on a sandbox rebuilt from the 30 lessons and
+K's WordNet slice (SENSE-01 `20261002T234125Z`, 40/40, K 16/16).
+
+---
+
 ## Amendment, 2026-09-22 — half of this is now closed
 
 **Part of speech now exists.** It is taught into memory as ordinary semantic

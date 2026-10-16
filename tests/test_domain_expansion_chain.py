@@ -69,10 +69,20 @@ async def _field_is_held():
             return
     except UnresolvedDomainReference:
         pass
-    admission = await get_learning_authority().learn_fact(
+    decision = await get_learning_authority().consider(
         "pressure loss", "caused_by", "pipe friction", domain=FIELD,
-        description="the drop in pressure as a fluid flows through a pipe or a fitting")
-    assert admission.admitted, admission.refusals
+        description="the drop in pressure as a fluid flows through a pipe or a fitting", evidence=_TAUGHT)
+    assert decision.admitted, decision.reasons
+
+
+def _evidence():
+    from core.learning.unified_learning_system import Evidence
+    return Evidence(source="test:domain_expansion", key="test:domain_expansion", source_type="IMPORTED_KNOWLEDGE",
+                    quality=0.9, producer="test")
+
+
+#: What the tests teach the world is one source's word, through the one door (`consider`).
+_TAUGHT = _evidence()
 
 
 #: The analogy the transfer oracles run through. In both fields the concept is
@@ -104,9 +114,9 @@ async def _analogy_is_held():
              obj.replace(" ", "_")), fetch_all=True)
         if held:
             continue
-        admission = await get_learning_authority().learn_fact(
-            subject, relation, obj, domain=field)
-        assert admission.admitted, admission.refusals
+        decision = await get_learning_authority().consider(
+            subject, relation, obj, domain=field, evidence=_TAUGHT)
+        assert decision.admitted, decision.reasons
 
 
 async def _storage():
@@ -409,7 +419,11 @@ async def test_a_stored_outcome_wakes_its_reader():
             "a stored task outcome woke no reader; nothing expands what the "
             "producer writes into the domain layer")
         await asyncio.wait_for(drain, timeout=120)
-        assert coord._domain_expansion_status == "COMPLETED"
+        # THE READER EXPANDED IT. The drain runs passes until one expands nothing,
+        # so its last status is that empty pass's; the pass that did the work
+        # leaves its counts. A pass that only skipped the outcome expands nothing.
+        assert (coord._domain_expansion_counts or {}).get("expanded", 0) >= 1, (
+            f"the woken reader expanded nothing: {coord._domain_expansion_counts}")
     finally:
         await db.execute_query(
             "DELETE FROM memory_hot.memory_hot WHERE memory_id = $1",
@@ -812,7 +826,8 @@ async def test_chain_end_to_end():
 
         # 4. The reader the producer woke runs.
         await _reader_woken_by(coord)
-        assert coord._domain_expansion_status == "COMPLETED"
+        assert (coord._domain_expansion_counts or {}).get("expanded", 0) >= 1, (
+            f"the woken reader expanded nothing: {coord._domain_expansion_counts}")
 
         # 5-8. The outcome is consumed, and the marker is durably written.
         async def mark():

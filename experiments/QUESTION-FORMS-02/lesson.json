@@ -1,0 +1,478 @@
+{
+ "name": "question-forms-02",
+ "about": "Facts with new words, every happening written as an event of its verb's kind as english_14 and english_31 write one: in shapes english_31 asks about, in shapes no lesson asks about (hides in, grows in, rests in), and two things that happened (a chase, a kick). Frozen before the first run.",
+ "quality": 0.95,
+ "examples": false,
+ "records": [
+  {
+   "sentence": "A fip is an animal.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "isa",
+      "fip",
+      "animal",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "A fip lives in a kitchen.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "instance_of",
+      "?v0",
+      "live",
+      true
+     ],
+     [
+      "done_by",
+      "?v0",
+      "fip",
+      true
+     ],
+     [
+      "located_in",
+      "?v0",
+      "kitchen",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "A snell is a bird.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "isa",
+      "snell",
+      "bird",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "A snell comes from a city.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "instance_of",
+      "?v0",
+      "come",
+      true
+     ],
+     [
+      "done_by",
+      "?v0",
+      "snell",
+      true
+     ],
+     [
+      "moves_from",
+      "?v0",
+      "city",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "A plonk is a cup.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "isa",
+      "plonk",
+      "cup",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "The plonk belongs to Nella.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "instance_of",
+      "?t0",
+      "plonk",
+      true,
+      false,
+      false,
+      false,
+      true
+     ],
+     [
+      "owned_by",
+      "?t0",
+      "nella",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "A trel is a pen.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "isa",
+      "trel",
+      "pen",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "The trel is kept in a bag.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "instance_of",
+      "?t0",
+      "trel",
+      true,
+      false,
+      false,
+      false,
+      true
+     ],
+     [
+      "instance_of",
+      "?v0",
+      "keep",
+      true
+     ],
+     [
+      "done_to",
+      "?v0",
+      "?t0",
+      true
+     ],
+     [
+      "located_in",
+      "?v0",
+      "bag",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "A brab is an animal.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "isa",
+      "brab",
+      "animal",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "Brabs sleep in boxes.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "instance_of",
+      "?v0",
+      "sleep",
+      true
+     ],
+     [
+      "done_by",
+      "?v0",
+      "brab",
+      true
+     ],
+     [
+      "located_in",
+      "?v0",
+      "box",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "A kelt is an animal.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "isa",
+      "kelt",
+      "animal",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "A kelt hides in a box.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "instance_of",
+      "?v0",
+      "hide",
+      true
+     ],
+     [
+      "done_by",
+      "?v0",
+      "kelt",
+      true
+     ],
+     [
+      "located_in",
+      "?v0",
+      "box",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "A morp is a plant.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "isa",
+      "morp",
+      "plant",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "A morp grows in a city.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "instance_of",
+      "?v0",
+      "grow",
+      true
+     ],
+     [
+      "done_by",
+      "?v0",
+      "morp",
+      true
+     ],
+     [
+      "located_in",
+      "?v0",
+      "city",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "A blip is an animal.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "isa",
+      "blip",
+      "animal",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "The blip rests in the bag.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "instance_of",
+      "?t0",
+      "blip",
+      true,
+      false,
+      false,
+      false,
+      true
+     ],
+     [
+      "instance_of",
+      "?t1",
+      "bag",
+      true,
+      false,
+      false,
+      false,
+      true
+     ],
+     [
+      "instance_of",
+      "?v0",
+      "rest",
+      true
+     ],
+     [
+      "done_by",
+      "?v0",
+      "?t0",
+      true
+     ],
+     [
+      "located_in",
+      "?v0",
+      "?t1",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "The kelt chased the blip.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "instance_of",
+      "?t0",
+      "kelt",
+      true,
+      false,
+      false,
+      false,
+      true
+     ],
+     [
+      "instance_of",
+      "?t1",
+      "blip",
+      true,
+      false,
+      false,
+      false,
+      true
+     ],
+     [
+      "instance_of",
+      "?v0",
+      "chase",
+      true
+     ],
+     [
+      "done_by",
+      "?v0",
+      "?t0",
+      true
+     ],
+     [
+      "done_to",
+      "?v0",
+      "?t1",
+      true
+     ],
+     [
+      "precedes",
+      "?v0",
+      "?now",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  },
+  {
+   "sentence": "The fip kicked the trel.",
+   "meaning": {
+    "act": "tell",
+    "facts": [
+     [
+      "instance_of",
+      "?t0",
+      "fip",
+      true,
+      false,
+      false,
+      false,
+      true
+     ],
+     [
+      "instance_of",
+      "?t1",
+      "trel",
+      true,
+      false,
+      false,
+      false,
+      true
+     ],
+     [
+      "instance_of",
+      "?v0",
+      "kick",
+      true
+     ],
+     [
+      "done_by",
+      "?v0",
+      "?t0",
+      true
+     ],
+     [
+      "done_to",
+      "?v0",
+      "?t1",
+      true
+     ],
+     [
+      "precedes",
+      "?v0",
+      "?now",
+      true
+     ]
+    ],
+    "asked": []
+   }
+  }
+ ]
+}

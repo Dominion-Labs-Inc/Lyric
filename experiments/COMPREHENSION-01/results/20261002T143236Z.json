@@ -1,0 +1,319 @@
+{
+  "experiment": "COMPREHENSION-01",
+  "claim": "The questions that failed on 2026-09-19 are answered as an LLM answers them: a greeting greeted, a yes/no with no answer declined without reciting, a place asked for answered with a place or declined, a word one sense of which anyone means not asked about, and recall about what was asked.",
+  "hypothesis": "A greeting looked up, a recital after a yes/no, senses offered for a place or a definition, or a memory recalled for a word it only contains would each fail here.",
+  "started_at": "2026-10-02T14:32:36.941838+00:00",
+  "duration_seconds": 267.543,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/Lyric/venv_lyric/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/Lyric",
+    "shadow_mode": null,
+    "git_commit": "be6a8e89e3af2df0cd2d19e99f0406644f357c6d",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "lyric_dev",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "lyric_dev",
+        "model": "lyric_dev",
+        "user_context": "lyric_dev",
+        "learning": "lyric_dev"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "environment",
+        "database": "environment",
+        "user": "environment",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "pool_idle_seconds": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 14,
+    "database_verified": null,
+    "database_verified_reason": "not verified"
+  },
+  "summary": {
+    "checks": 23,
+    "passed": 23,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [
+    {
+      "name": "records taught",
+      "value": 2504,
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "E: memories recall handed up",
+      "value": 3,
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "E: of them naming a bass",
+      "value": 3,
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "F: recited as remembered",
+      "value": 0,
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "rows removed",
+      "value": {
+        "scoped_concept_relations": 1,
+        "scoped_beliefs": 1,
+        "memory_hot": 3,
+        "experience_pool": 17
+      },
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "turns",
+      "value": [
+        {
+          "said": "hello",
+          "reply": "Hello.",
+          "remembered": []
+        },
+        {
+          "said": "thank you",
+          "reply": "You are welcome.",
+          "remembered": []
+        },
+        {
+          "said": "is a grandfather clock a beer?",
+          "reply": "No. A grandfather clock is not a beer.",
+          "remembered": [
+            "A grandfather clock is a pendulum clock.",
+            "A beer is a brew.",
+            "A clock is a timepiece."
+          ]
+        },
+        {
+          "said": "is a grandfather clock a clock?",
+          "reply": "Yes. A grandfather clock is a clock.",
+          "remembered": [
+            "A grandfather clock is a pendulum clock.",
+            "A clock is a timepiece.",
+            "'clock' is used as a noun."
+          ]
+        },
+        {
+          "said": "is a canine a domestic animal?",
+          "reply": "A domestic dog is a canine. A domestic dog is a domestic animal.",
+          "remembered": [
+            "A canine is a carnivore.",
+            "A dog is a domestic animal.",
+            "Each domestic animal is an animal."
+          ]
+        },
+        {
+          "said": "where is a dog?",
+          "reply": "I do not know where domestic dog is.",
+          "remembered": [
+            "A dog is a canine.",
+            "'dog' is used as a noun.",
+            "'dogmatism' is used as a noun."
+          ]
+        },
+        {
+          "said": "The dog is in the kennel.",
+          "reply": "Noted \u2014 The dog is in the kennel.",
+          "remembered": [
+            "A kennel is an outbuilding.",
+            "A kennel is a shelter.",
+            "A dog is a canine."
+          ]
+        },
+        {
+          "said": "where is a dog?",
+          "reply": "The dog is in the kennel.",
+          "remembered": [
+            "A kennel is an outbuilding.",
+            "A kennel is a shelter.",
+            "A dog is a canine."
+          ]
+        },
+        {
+          "said": "what is a dog?",
+          "reply": "A domestic dog is a canine. A domestic dog is a domestic animal.",
+          "remembered": [
+            "'dog' is used as a noun.",
+            "A kennel is an outbuilding.",
+            "A kennel is a shelter."
+          ]
+        },
+        {
+          "said": "what is a bass?",
+          "reply": "A bass is a musical instrument.",
+          "remembered": [
+            "A bass is a musical instrument.",
+            "A bass guitar is a bass.",
+            "'bass' is used as a noun."
+          ]
+        }
+      ],
+      "unit": "",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "the run is in the sandbox",
+      "passed": true,
+      "detail": "connected to lyric_dev",
+      "at": "2026-10-02T14:33:27.043582+00:00"
+    },
+    {
+      "label": "the lessons are held already",
+      "passed": true,
+      "detail": "35182 constructions and links in the view",
+      "at": "2026-10-02T14:33:27.044524+00:00"
+    },
+    {
+      "label": "english_30 is learned, none refused",
+      "passed": true,
+      "detail": "{'learned': 0, 'linked': 0, 'already': 10, 'understood': 10, 'refused': 0, 'total': 10, 'said': 0}",
+      "at": "2026-10-02T14:33:49.357873+00:00"
+    },
+    {
+      "label": "nothing taught is refused",
+      "passed": true,
+      "detail": "{'learned': 355, 'linked': 650, 'already': 1732, 'understood': 1912, 'refused': 0, 'total': 2239, 'repair_add_links': 180, 'repair_item_based_lexical': 316, 'repair_substitution': 1, 'repair_lexical_item_based': 10, 'said': 0}",
+      "at": "2026-10-02T14:36:58.442305+00:00"
+    },
+    {
+      "label": "A: 'hello' is not looked up as a thing",
+      "passed": true,
+      "detail": "Hello.",
+      "at": "2026-10-02T14:36:58.476602+00:00"
+    },
+    {
+      "label": "A: 'hello' is greeted back",
+      "passed": true,
+      "detail": "Hello.",
+      "at": "2026-10-02T14:36:58.476689+00:00"
+    },
+    {
+      "label": "A: thanks are answered with a welcome, not with thanks",
+      "passed": true,
+      "detail": "You are welcome.",
+      "at": "2026-10-02T14:36:58.498888+00:00"
+    },
+    {
+      "label": "B: answered no, or declined",
+      "passed": true,
+      "detail": "No. A grandfather clock is not a beer.",
+      "at": "2026-10-02T14:36:59.554503+00:00"
+    },
+    {
+      "label": "B: nothing is recited about beer",
+      "passed": true,
+      "detail": "No. A grandfather clock is not a beer.",
+      "at": "2026-10-02T14:36:59.554607+00:00"
+    },
+    {
+      "label": "B: control, 'is a grandfather clock a clock?' answered yes",
+      "passed": true,
+      "detail": "Yes. A grandfather clock is a clock.",
+      "at": "2026-10-02T14:37:01.222987+00:00"
+    },
+    {
+      "label": "B: 'is a canine a domestic animal?' is not answered no: the dog is both",
+      "passed": true,
+      "detail": "A domestic dog is a canine. A domestic dog is a domestic animal.",
+      "at": "2026-10-02T14:37:02.023878+00:00"
+    },
+    {
+      "label": "B: it answers with what is both, the dog, and not with what a canine is",
+      "passed": true,
+      "detail": "A domestic dog is a canine. A domestic dog is a domestic animal.",
+      "at": "2026-10-02T14:37:02.023890+00:00"
+    },
+    {
+      "label": "C: 'where is a dog?' offers no senses",
+      "passed": true,
+      "detail": "I do not know where domestic dog is.",
+      "at": "2026-10-02T14:37:02.328200+00:00"
+    },
+    {
+      "label": "C: nothing told of where, it says it does not hold where",
+      "passed": true,
+      "detail": "I do not know where domestic dog is.",
+      "at": "2026-10-02T14:37:02.328217+00:00"
+    },
+    {
+      "label": "C: told 'The dog is in the kennel.', the speaker's context holds it",
+      "passed": true,
+      "detail": "[('dog', 'located in', 'kennel')]",
+      "at": "2026-10-02T14:37:02.616906+00:00"
+    },
+    {
+      "label": "C: asked again, the kennel",
+      "passed": true,
+      "detail": "The dog is in the kennel.",
+      "at": "2026-10-02T14:37:02.977983+00:00"
+    },
+    {
+      "label": "D: 'what is a dog?' asks no question of which dog",
+      "passed": true,
+      "detail": "A domestic dog is a canine. A domestic dog is a domestic animal.",
+      "at": "2026-10-02T14:37:03.419040+00:00"
+    },
+    {
+      "label": "D: says the dog an LLM means (a canine, a domestic animal)",
+      "passed": true,
+      "detail": "A domestic dog is a canine. A domestic dog is a domestic animal.",
+      "at": "2026-10-02T14:37:03.419051+00:00"
+    },
+    {
+      "label": "E: recall hands up nothing that holds 'bass' only inside another word (ambassador, embassy)",
+      "passed": true,
+      "detail": "0 of 3: ",
+      "at": "2026-10-02T14:37:03.918949+00:00"
+    },
+    {
+      "label": "E: what recall hands up names a bass",
+      "passed": true,
+      "detail": "3 of 3",
+      "at": "2026-10-02T14:37:03.918965+00:00"
+    },
+    {
+      "label": "F: every 'I remember:' names what was asked",
+      "passed": true,
+      "detail": "0 recited",
+      "at": "2026-10-02T14:37:03.919022+00:00"
+    },
+    {
+      "label": "G: everything the speaker's turns wrote is removed",
+      "passed": true,
+      "detail": "{'scoped_concept_relations': 0, 'scoped_beliefs': 0, 'memory_hot': 0, 'experience_pool': 0}",
+      "at": "2026-10-02T14:37:04.001863+00:00"
+    },
+    {
+      "label": "G: the main model's store is untouched",
+      "passed": true,
+      "detail": "290095 rows before, 290095 after",
+      "at": "2026-10-02T14:37:04.481411+00:00"
+    }
+  ],
+  "notes": [
+    "residue snapshot: data/snapshots/comprehension_01_wuypi_20261002T143703Z.json"
+  ]
+}

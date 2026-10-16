@@ -48,7 +48,7 @@ async def run() -> dict:
         UniversalDomainMaster, DeficitType, EpistemicDeficit, LearningOperation,
         get_universal_domain_master)
     from core.database import get_database_manager
-    from core.learning.unified_learning_system import get_learning_authority
+    from core.learning.unified_learning_system import Evidence, get_learning_authority
     from core.semantics.cognitive_ingress import Provenance
     from core.domain.domain_registry import get_domain_registry
     from core.reasoning.bayesian_uncertainty import get_uncertainty_system
@@ -122,9 +122,9 @@ async def run() -> dict:
                       source_type="USER_SUPPLIED")
 
     async def teach(subject, relation, obj, surface):
-        return await learning.learn_fact(
+        return await learning.consider(
             subject, relation, obj, surface=surface, domain="conversation",
-            provenance=prov, quality=0.95)
+            evidence=Evidence.from_provenance(prov, 0.95))
 
     for subj, obj in [("zephinx", "morphel"), ("morphel", "glindar"),
                       ("brythe", "glindar"), ("quennel", "glindar"),

@@ -1,5 +1,9 @@
 # ACTOR-IDENTITY-01 — conversations are scoped to the verified identity
 
+> **Changed 2026-10-07.** The teaching check tells a name the world does not hold ("Florble… is a gadget"):
+> since the gate (`docs/research/SEPARATION_MAP.md` §11), a kind told goes to the world's gate, and only what is
+> about the person's own things is kept under their identity.
+
 **What it tests.** A fact a person tells the substrate is kept under their World Auth identity, not
 under the session string.
 - `Conversation._actor` returns the bound identity (through `actor_for`). It falls back to the

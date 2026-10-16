@@ -152,7 +152,6 @@ MEMORY_AGENT = ("core/agents/memory_agent.py", "core/memory/")
 
 #: Writes outside the memory agent whose table is named only at run time, each read and found not to be memory.
 NOT_MEMORY = {
-    "core/learning/drift_monitoring/data_loaders.py": "drift samples: a table per source and data type",
 }
 
 #: Every table of the substrate's memory: the model's, each person's context, and the per-owner tables.

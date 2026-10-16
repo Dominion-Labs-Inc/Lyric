@@ -28,9 +28,7 @@ from typing import Any, Dict, Optional, List
 
 from .tool_registry import Tool, ToolParameter, ToolResult, ToolCategory, ToolSafety
 from core.execution import command_console
-from .capabilities import (
-    ToolCapabilityProfile, CapabilityMetadata, Capability, RiskLevel
-)
+from .tool_registry import PrimitiveProfile, PrimitiveUse, Primitive
 from core.security.secrets import get_secrets_authority
 
 
@@ -103,32 +101,21 @@ class RunPythonTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="run_python",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.EXECUTE_CODE,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.EXECUTE_CODE,
                     description="Execute Python code in isolated environment",
                     input_types=["python_code"],
-                    output_types=["stdout", "stderr", "exit_code"],
-                    latency="medium",
-                    cost="low",
-                    reliability="high",
-                    risk_level=RiskLevel.CRITICAL,
-                    priority=9,
-                    approval_level="team_lead"
+                    output_types=["stdout", "stderr", "exit_code"]
                 ),
-                CapabilityMetadata(
-                    capability=Capability.DEBUG_CODE,
+                PrimitiveUse(
+                    primitive=Primitive.DEBUG_CODE,
                     description="Execute and debug Python code",
                     input_types=["python_code"],
-                    output_types=["output", "errors"],
-                    latency="medium",
-                    cost="low",
-                    reliability="high",
-                    risk_level=RiskLevel.HIGH,
-                    priority=7
+                    output_types=["output", "errors"]
                 )
             ],
             requires_filesystem=True,
@@ -301,21 +288,15 @@ class RunShellCommandTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="run_shell_command",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.RUN_COMMAND,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.RUN_COMMAND,
                     description="Execute arbitrary shell commands with full system access",
                     input_types=["shell_command"],
-                    output_types=["stdout", "stderr", "exit_code"],
-                    latency="medium",
-                    cost="low",
-                    reliability="high",
-                    risk_level=RiskLevel.CRITICAL,
-                    priority=10,
-                    approval_level="team_lead"
+                    output_types=["stdout", "stderr", "exit_code"]
                 )
             ],
             requires_filesystem=True,
@@ -433,31 +414,21 @@ class ListProcessesTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="list_processes",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.TRACE_EXECUTION,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.TRACE_EXECUTION,
                     description="Monitor running processes and system resource usage",
                     input_types=["filter_name"],
-                    output_types=["process_list"],
-                    latency="low",
-                    cost="low",
-                    reliability="high",
-                    risk_level=RiskLevel.LOW,
-                    priority=6
+                    output_types=["process_list"]
                 ),
-                CapabilityMetadata(
-                    capability=Capability.GET_SYSTEM_INFO,
+                PrimitiveUse(
+                    primitive=Primitive.GET_SYSTEM_INFO,
                     description="Get information about system processes",
                     input_types=[],
-                    output_types=["process_info"],
-                    latency="low",
-                    cost="low",
-                    reliability="high",
-                    risk_level=RiskLevel.LOW,
-                    priority=5
+                    output_types=["process_info"]
                 )
             ],
             requires_filesystem=False,
@@ -528,21 +499,15 @@ class KillProcessTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="kill_process",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.MANAGE_PROCESS,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.MANAGE_PROCESS,
                     description="Terminate running processes (can cause data loss)",
                     input_types=["pid", "force"],
-                    output_types=["termination_result"],
-                    latency="low",
-                    cost="low",
-                    reliability="high",
-                    risk_level=RiskLevel.HIGH,
-                    priority=8,
-                    approval_level="team_lead"
+                    output_types=["termination_result"]
                 )
             ],
             requires_filesystem=False,
@@ -604,21 +569,15 @@ class StartServiceTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="start_service",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.RUN_COMMAND,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.RUN_COMMAND,
                     description="Start system services (requires elevated permissions)",
                     input_types=["service_name"],
-                    output_types=["service_status"],
-                    latency="medium",
-                    cost="low",
-                    reliability="high",
-                    risk_level=RiskLevel.HIGH,
-                    priority=7,
-                    approval_level="team_lead"
+                    output_types=["service_status"]
                 )
             ],
             requires_filesystem=False,
@@ -684,21 +643,15 @@ class StopServiceTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="stop_service",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.RUN_COMMAND,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.RUN_COMMAND,
                     description="Stop system services (can disrupt system operation)",
                     input_types=["service_name"],
-                    output_types=["service_status"],
-                    latency="medium",
-                    cost="low",
-                    reliability="high",
-                    risk_level=RiskLevel.HIGH,
-                    priority=7,
-                    approval_level="team_lead"
+                    output_types=["service_status"]
                 )
             ],
             requires_filesystem=False,
@@ -761,21 +714,15 @@ class RestartServiceTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="restart_service",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.RUN_COMMAND,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.RUN_COMMAND,
                     description="Restart system services (causes temporary service interruption)",
                     input_types=["service_name"],
-                    output_types=["service_status"],
-                    latency="medium",
-                    cost="low",
-                    reliability="high",
-                    risk_level=RiskLevel.HIGH,
-                    priority=7,
-                    approval_level="team_lead"
+                    output_types=["service_status"]
                 )
             ],
             requires_filesystem=False,
@@ -838,31 +785,21 @@ class GetProcessInfoTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="get_process_info",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.TRACE_EXECUTION,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.TRACE_EXECUTION,
                     description="Get detailed process information and resource usage",
                     input_types=["pid"],
-                    output_types=["process_details"],
-                    latency="low",
-                    cost="low",
-                    reliability="high",
-                    risk_level=RiskLevel.LOW,
-                    priority=6
+                    output_types=["process_details"]
                 ),
-                CapabilityMetadata(
-                    capability=Capability.GET_SYSTEM_INFO,
+                PrimitiveUse(
+                    primitive=Primitive.GET_SYSTEM_INFO,
                     description="Retrieve system process metadata",
                     input_types=["pid"],
-                    output_types=["process_metadata"],
-                    latency="low",
-                    cost="low",
-                    reliability="high",
-                    risk_level=RiskLevel.LOW,
-                    priority=5
+                    output_types=["process_metadata"]
                 )
             ],
             requires_filesystem=False,
@@ -923,32 +860,21 @@ class RunBackgroundTaskTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="run_background_task",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.RUN_COMMAND,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.RUN_COMMAND,
                     description="Execute long-running commands in background (harder to monitor)",
                     input_types=["command"],
-                    output_types=["pid"],
-                    latency="low",
-                    cost="low",
-                    reliability="medium",
-                    risk_level=RiskLevel.HIGH,
-                    priority=7,
-                    approval_level="team_lead"
+                    output_types=["pid"]
                 ),
-                CapabilityMetadata(
-                    capability=Capability.RUN_BACKGROUND_TASK,
+                PrimitiveUse(
+                    primitive=Primitive.RUN_BACKGROUND_TASK,
                     description="Run tasks asynchronously in background",
                     input_types=["task_config"],
-                    output_types=["task_id"],
-                    latency="low",
-                    cost="low",
-                    reliability="high",
-                    risk_level=RiskLevel.LOW,
-                    priority=8
+                    output_types=["task_id"]
                 )
             ],
             requires_filesystem=True,
@@ -1009,32 +935,21 @@ class ScheduleCronJobTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="schedule_cron_job",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.RUN_COMMAND,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.RUN_COMMAND,
                     description="Schedule recurring command execution (persists across reboots)",
                     input_types=["command", "schedule"],
-                    output_types=["scheduling_result"],
-                    latency="low",
-                    cost="low",
-                    reliability="high",
-                    risk_level=RiskLevel.HIGH,
-                    priority=7,
-                    approval_level="team_lead"
+                    output_types=["scheduling_result"]
                 ),
-                CapabilityMetadata(
-                    capability=Capability.SCHEDULE_TASK,
+                PrimitiveUse(
+                    primitive=Primitive.SCHEDULE_TASK,
                     description="Schedule recurring tasks via cron",
                     input_types=["cron_expression", "command"],
-                    output_types=["job_id"],
-                    latency="low",
-                    cost="low",
-                    reliability="high",
-                    risk_level=RiskLevel.MEDIUM,
-                    priority=8
+                    output_types=["job_id"]
                 )
             ],
             requires_filesystem=True,
@@ -1100,32 +1015,21 @@ class InstallPythonPackageTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="install_python_package",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.RUN_COMMAND,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.RUN_COMMAND,
                     description="Install Python packages (can introduce security vulnerabilities)",
                     input_types=["package_name"],
-                    output_types=["installation_result"],
-                    latency="high",
-                    cost="low",
-                    reliability="medium",
-                    risk_level=RiskLevel.HIGH,
-                    priority=7,
-                    approval_level="team_lead"
+                    output_types=["installation_result"]
                 ),
-                CapabilityMetadata(
-                    capability=Capability.EXECUTE_CODE,
+                PrimitiveUse(
+                    primitive=Primitive.EXECUTE_CODE,
                     description="Install dependencies for project builds",
                     input_types=["package_name"],
-                    output_types=["build_result"],
-                    latency="high",
-                    cost="low",
-                    reliability="medium",
-                    risk_level=RiskLevel.HIGH,
-                    priority=6
+                    output_types=["build_result"]
                 )
             ],
             requires_filesystem=True,
@@ -1206,32 +1110,21 @@ class ExecuteWithTimeoutTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="execute_with_timeout",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.EXECUTE_CODE,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.EXECUTE_CODE,
                     description="Execute code with strict timeout enforcement",
                     input_types=["command", "language"],
-                    output_types=["stdout", "stderr", "exit_code"],
-                    latency="medium",
-                    cost="low",
-                    reliability="high",
-                    risk_level=RiskLevel.HIGH,
-                    priority=8,
-                    approval_level="team_lead"
+                    output_types=["stdout", "stderr", "exit_code"]
                 ),
-                CapabilityMetadata(
-                    capability=Capability.MANAGE_PROCESS,
+                PrimitiveUse(
+                    primitive=Primitive.MANAGE_PROCESS,
                     description="Forcibly terminate processes that exceed timeout",
                     input_types=["timeout"],
-                    output_types=["termination_result"],
-                    latency="low",
-                    cost="low",
-                    reliability="high",
-                    risk_level=RiskLevel.HIGH,
-                    priority=7
+                    output_types=["termination_result"]
                 )
             ],
             requires_filesystem=True,
@@ -1430,43 +1323,27 @@ class ExecuteWithResourceLimitsTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="execute_with_resource_limits",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.EXECUTE_CODE,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.EXECUTE_CODE,
                     description="Execute code with CPU and memory constraints",
                     input_types=["command", "language"],
-                    output_types=["stdout", "stderr", "exit_code", "resource_usage"],
-                    latency="medium",
-                    cost="low",
-                    reliability="high",
-                    risk_level=RiskLevel.HIGH,
-                    priority=8,
-                    approval_level="team_lead"
+                    output_types=["stdout", "stderr", "exit_code", "resource_usage"]
                 ),
-                CapabilityMetadata(
-                    capability=Capability.RUN_EXPERIMENT,
+                PrimitiveUse(
+                    primitive=Primitive.RUN_EXPERIMENT,
                     description="Run controlled experiments with resource limits",
                     input_types=["command", "limits"],
-                    output_types=["result"],
-                    latency="medium",
-                    cost="medium",
-                    reliability="high",
-                    risk_level=RiskLevel.HIGH,
-                    priority=7
+                    output_types=["result"]
                 ),
-                CapabilityMetadata(
-                    capability=Capability.LIMIT_CAPABILITY,
+                PrimitiveUse(
+                    primitive=Primitive.LIMIT_CAPABILITY,
                     description="Execute code with CPU/memory constraints",
                     input_types=["code", "limits"],
-                    output_types=["result"],
-                    latency="medium",
-                    cost="low",
-                    reliability="high",
-                    risk_level=RiskLevel.MEDIUM,
-                    priority=8
+                    output_types=["result"]
                 )
             ],
             requires_filesystem=True,
@@ -1652,20 +1529,15 @@ class ExecuteNetworkIsolatedTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="execute_network_isolated",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.EXECUTE_CODE,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.EXECUTE_CODE,
                     description="Execute code in network-isolated sandbox (safer for untrusted code)",
                     input_types=["code", "language"],
-                    output_types=["stdout", "stderr", "exit_code"],
-                    latency="medium",
-                    cost="low",
-                    reliability="high",
-                    risk_level=RiskLevel.MEDIUM,
-                    priority=8
+                    output_types=["stdout", "stderr", "exit_code"]
                 )
             ],
             requires_filesystem=True,
@@ -1826,31 +1698,21 @@ class ExecuteDeterministicTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="execute_deterministic",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.RUN_EXPERIMENT,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.RUN_EXPERIMENT,
                     description="Execute experiments with reproducible random seeds",
                     input_types=["code", "seed"],
-                    output_types=["stdout", "stderr", "exit_code", "seed", "fingerprint"],
-                    latency="medium",
-                    cost="low",
-                    reliability="high",
-                    risk_level=RiskLevel.MEDIUM,
-                    priority=7
+                    output_types=["stdout", "stderr", "exit_code", "seed", "fingerprint"]
                 ),
-                CapabilityMetadata(
-                    capability=Capability.EXECUTE_CODE,
+                PrimitiveUse(
+                    primitive=Primitive.EXECUTE_CODE,
                     description="Execute code with deterministic behavior for testing",
                     input_types=["code"],
-                    output_types=["result"],
-                    latency="medium",
-                    cost="low",
-                    reliability="high",
-                    risk_level=RiskLevel.MEDIUM,
-                    priority=7
+                    output_types=["result"]
                 )
             ],
             requires_filesystem=True,
@@ -2022,31 +1884,21 @@ class ExecuteWithArtifactCaptureTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="execute_with_artifact_capture",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.EXECUTE_CODE,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.EXECUTE_CODE,
                     description="Execute code with comprehensive artifact and trace capture",
                     input_types=["command", "language"],
-                    output_types=["stdout", "stderr", "exit_code", "trace", "timing", "environment"],
-                    latency="medium",
-                    cost="low",
-                    reliability="high",
-                    risk_level=RiskLevel.MEDIUM,
-                    priority=7
+                    output_types=["stdout", "stderr", "exit_code", "trace", "timing", "environment"]
                 ),
-                CapabilityMetadata(
-                    capability=Capability.TRACE_EXECUTION,
+                PrimitiveUse(
+                    primitive=Primitive.TRACE_EXECUTION,
                     description="Monitor and capture execution artifacts for analysis",
                     input_types=["command"],
-                    output_types=["execution_artifacts"],
-                    latency="medium",
-                    cost="low",
-                    reliability="high",
-                    risk_level=RiskLevel.MEDIUM,
-                    priority=6
+                    output_types=["execution_artifacts"]
                 )
             ],
             requires_filesystem=True,

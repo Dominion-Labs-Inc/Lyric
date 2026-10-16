@@ -21,8 +21,7 @@ tokenizers>=0.14.0,<0.15.0  # Compatible with faster-whisper
 huggingface-hub>=0.17.0,<0.18.0  # Compatible with tokenizers
 
 # Sentence transformers for embeddings.
-# Required (not optional) by core/tools/tool_discovery.py — the tool-discovery
-# ranker's dense signal. Without it discovery degrades to lexical-only.
+# Required by core/memory/utils/embedding_service.py — memory's embeddings.
 # Upper bound was <3.0.0; the working venv runs 5.2.2, so the old cap resolved
 # to a version this codebase is not actually run against.
 sentence-transformers>=3.0.0,<6.0.0

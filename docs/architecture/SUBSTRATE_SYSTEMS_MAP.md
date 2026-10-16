@@ -69,7 +69,7 @@ All pipelines live here. Grouped by sub-pipeline.
 - **Governance / constitution / directives:** `_check_constitutional_alignment` (9410), `_check_constitutional_alignment_quick` (9547), `_refresh_directive_guidance` (3829), `_propose_directive_improvements` (7068), `handle_security_finding` (9079), `_on_security_remediation_complete` (10792)
 - **Health / recovery (event-driven):** `_receive_health_event` (10443), `_diagnose_health` (10664), `_health_action_risk` (10722), `_execute_recovery` (10735), `_verify_recovery` (10872), `_create_recovery_goal_from_health_event` (9560)
 - **Knowledge refresh (research cadence):** `_idle_knowledge_refresh_work` (5183), `_load_knowledge_cutoff_state` (5326), `_save_knowledge_cutoff_state` (5358), `_get_declared_model_cutoff_date` (5425), `_get_knowledge_cutoff_snapshot` (5449), `_on_knowledge_refresh_complete` (5475)
-- **Capability registry / agents-of-self:** `register_capability` (1471), `unregister_capability` (1555), `_execute_registered_capabilities` (9779), `_check_capability_conditions` (9942), `deploy_agent` (1385), `await_agent` (1409), `collect_agent_findings` (1417), `pending_agents` (1426), `_calculate_exploration_quota` (1457), `_record_exploration_decision` (1441)
+- **Agents-of-self:** `deploy_agent` (1385), `await_agent` (1409), `collect_agent_findings` (1417), `pending_agents` (1426), `_calculate_exploration_quota` (1457), `_record_exploration_decision` (1441)
 - **Handlers / status:** `handle_user_request` (8891), `process_input` (1946), `_request_kind` (8995), `_handle_error` (7144), `get_system_status` (3952), `_update_system_state` (10295), `model_available` (3237), `agent_allowance` (3243)
 
 ## 5. Conversation pipeline  [live ✓ via execution knowledge-loop]
@@ -148,7 +148,7 @@ health metrics") but not the *sole* one (seam 4).
 ### Honesty of failure — audit
 Design intent ("each system is honest about failures; no masking; honest metrics") is
 **substantially upheld and actively engineered.** The anti-masking primitive
-`raise_if_structural` (`core/capability.py`) re-raises wiring bugs
+`raise_if_structural` (`core/structural_defects.py`) re-raises wiring bugs
 (`AttributeError/NameError/ImportError/TypeError`) so a broken thing can't be logged as an
 ordinary "no" — used 14× in learning, 14× in the coordinator, 7× in the domain master. Confirmed
 honest: verdict-carrying transfer-learning; ingress declines surfaced as refusals; three-state

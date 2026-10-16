@@ -1,0 +1,169 @@
+{
+  "experiment": "TRUTH-01",
+  "claim": "A claim about the world is judged by its evidence, not its teller: one witness makes a candidate used for everyone, a second settles it, the same witness counts once, a revised word is withdrawn, a claim many sources hold is not overturned by fewer, a single witness is overturned by more, and one person's flood waits.",
+  "hypothesis": "A one-person claim that is settled or unused for others, a repeat that moves a belief, five people overturning what six sites hold, two people unable to overturn one, a page or site counted twice, a revised word counted twice, or a flood all admitted would each fail here.",
+  "started_at": "2026-10-07T17:57:54.024175+00:00",
+  "duration_seconds": 57.647,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/Lyric/venv_lyric/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/Lyric",
+    "shadow_mode": null,
+    "git_commit": "0a27c570eda188a24bb63d1968f8fd104a8f4cb6",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "lyric_dev",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "lyric_dev",
+        "model": "lyric_dev",
+        "user_context": "lyric_dev",
+        "learning": "lyric_dev"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "dotenv:.env.postgres",
+        "database": "environment",
+        "user": "dotenv:.env.postgres",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "pool_idle_seconds": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 277,
+    "database_verified": null,
+    "database_verified_reason": "not verified"
+  },
+  "summary": {
+    "checks": 18,
+    "passed": 18,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [
+    {
+      "name": "rows_removed",
+      "value": 655,
+      "unit": "count",
+      "note": "{'concepts': 125, 'beliefs': 125, 'knowledge_updates': 137, 'evidence_envelopes': 134, 'held_conditionals': 0, 'memory_hot': 134, 'experience_pool': 0, 'user_beliefs': 0, 'scoped_beliefs': 0, 'scoped_concept_relations': 0}"
+    }
+  ],
+  "checks": [
+    {
+      "label": "the run is in the sandbox",
+      "passed": true,
+      "detail": "lyric_dev",
+      "at": "2026-10-07T17:58:29.135339+00:00"
+    },
+    {
+      "label": "is a world candidate: held, used, not yet settled",
+      "passed": true,
+      "detail": "candidate 0.9370266439430035",
+      "at": "2026-10-07T17:58:29.338860+00:00"
+    },
+    {
+      "label": "and is used for another person",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-07T17:58:29.361896+00:00"
+    },
+    {
+      "label": "a second, independent witness settles it",
+      "passed": true,
+      "detail": "settled, 2 witnesses",
+      "at": "2026-10-07T17:58:29.507059+00:00"
+    },
+    {
+      "label": "the first person again adds nothing",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-07T17:58:29.520327+00:00"
+    },
+    {
+      "label": "six independent sites settle it",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-07T17:58:31.928552+00:00"
+    },
+    {
+      "label": "five people denying it are each refused",
+      "passed": true,
+      "detail": "[('refused', ['contradicts what is settled: krellhrgrnd isa fish is held']), ('refused', ['contradicts what is settled: krellhrgrnd isa fish is held']), ('refused', ['contradicts what is settled: krellhrgrnd isa fish is held']), ('refused', ['contradicts what is settled: krellhrgrnd isa fish is held']), ('refused', ['contradicts what is settled: krellhrgrnd isa fish is held'])]",
+      "at": "2026-10-07T17:58:31.941905+00:00"
+    },
+    {
+      "label": "each was counted against it",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-07T17:58:31.941941+00:00"
+    },
+    {
+      "label": "the denial is never held, and its witnesses still outweigh the denial's",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-07T17:58:31.944604+00:00"
+    },
+    {
+      "label": "another person is still answered from it",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-07T17:58:31.957698+00:00"
+    },
+    {
+      "label": "one person's claim, denied by a second: doubted, counted, not held",
+      "passed": true,
+      "detail": "doubted ['held otherwise (glibhrgrnd isa bird is held); counted against it']",
+      "at": "2026-10-07T17:58:32.117697+00:00"
+    },
+    {
+      "label": "denied by a third: the denial outweighs it and is held",
+      "passed": true,
+      "detail": "settled",
+      "at": "2026-10-07T17:58:32.259581+00:00"
+    },
+    {
+      "label": "and another person is now answered no",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-07T17:58:32.275021+00:00"
+    },
+    {
+      "label": "the same page twice, and another page of the same site, add nothing",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-07T17:58:32.442898+00:00"
+    },
+    {
+      "label": "a second site raises it, and settles it",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-07T17:58:32.558043+00:00"
+    },
+    {
+      "label": "a person who says it is not so withdraws their word: one for, one against",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-07T17:58:32.853723+00:00"
+    },
+    {
+      "label": "saying it again adds nothing",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-07T17:58:32.856839+00:00"
+    },
+    {
+      "label": "one person's new claims beyond 120 in the hour wait",
+      "passed": true,
+      "detail": "120 held, 3 waiting",
+      "at": "2026-10-07T17:58:51.227150+00:00"
+    }
+  ],
+  "notes": []
+}

@@ -1,0 +1,97 @@
+{
+  "experiment": "SENSE-COVERAGE-01",
+  "claim": "Every sense of a word reaches the listener: the reader reports each sense where the word stands, and how well a sense fits there is the listener's evidence, never a reason to leave it out.",
+  "hypothesis": "A sense not reported in a frame its own word was taught in, or one left out of a frame where its word stands for any reason but reading the words otherwise, would each show here.",
+  "started_at": "2026-10-02T02:01:35.406735+00:00",
+  "duration_seconds": 225.74,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/Lyric/venv_lyric/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/Lyric",
+    "shadow_mode": null,
+    "git_commit": "7ceeffce1dbcfe24b0a3b7853e64b1daeca8d362",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "lyric_dev",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "lyric_dev",
+        "model": "lyric_dev",
+        "user_context": "lyric_dev",
+        "learning": "lyric_dev"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "environment",
+        "database": "environment",
+        "user": "environment",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "pool_idle_seconds": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 10,
+    "database_verified": null,
+    "database_verified_reason": "not verified"
+  },
+  "summary": {
+    "checks": 3,
+    "passed": 2,
+    "failed": 1,
+    "outcome": "FAIL"
+  },
+  "metrics": [
+    {
+      "name": "senses reported in their own frames",
+      "value": "6810/6820",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "senses reported in their siblings' frames",
+      "value": "9017/12233",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "not reported in a sibling's frame: no reading of it",
+      "value": 3193,
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "not reported in a sibling's frame: another reading of the sentence was taken",
+      "value": 23,
+      "unit": "",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "the store is the sandbox",
+      "passed": true,
+      "detail": "connected to lyric_dev",
+      "at": "2026-10-02T02:01:35.465812+00:00"
+    },
+    {
+      "label": "every sense is reported where its own word was taught",
+      "passed": false,
+      "detail": "6810/6820",
+      "at": "2026-10-02T02:05:21.149586+00:00"
+    },
+    {
+      "label": "no sense is left out for how well it fits where its word stands",
+      "passed": true,
+      "detail": "0 left out so; 3216 not reported of 12233",
+      "at": "2026-10-02T02:05:21.149636+00:00"
+    }
+  ],
+  "notes": []
+}

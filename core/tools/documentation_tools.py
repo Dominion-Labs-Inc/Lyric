@@ -46,7 +46,7 @@ class DocumentationResult:
 # ============================================================================
 
 from core.tools.tool_registry import Tool, ToolCategory, ToolResult, ToolParameter
-from core.tools.capabilities import Capability, ToolCapabilityProfile, CapabilityMetadata, RiskLevel
+from core.tools.tool_registry import Primitive, PrimitiveProfile, PrimitiveUse
 
 
 class GenerateReadmeTool(Tool):
@@ -78,24 +78,19 @@ class GenerateReadmeTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="generate_readme",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.DOCUMENT_CODE,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.DOCUMENT_CODE,
                     description="GenerateReadme capability"
                 ),
-                CapabilityMetadata(
-                    capability=Capability.GENERATE_DOCS,
+                PrimitiveUse(
+                    primitive=Primitive.GENERATE_DOCS,
                     description="Generate comprehensive documentation",
                     input_types=["source_code", "config"],
-                    output_types=["docs"],
-                    latency="medium",
-                    cost="low",
-                    reliability="high",
-                    risk_level=RiskLevel.LOW,
-                    priority=8
+                    output_types=["docs"]
                 )
             ]
         )
@@ -240,12 +235,12 @@ class GenerateAPIDocsTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="generate_api_docs",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.DOCUMENT_CODE,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.DOCUMENT_CODE,
                     description="GenerateAPIDocs capability"
                 )
             ]
@@ -380,12 +375,12 @@ class AnalyzeCodeQualityTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="analyze_code_quality",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.DOCUMENT_CODE,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.DOCUMENT_CODE,
                     description="AnalyzeCodeQuality capability"
                 )
             ]
@@ -453,12 +448,12 @@ class ExtractDocstringsTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="extract_docstrings",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.DOCUMENT_CODE,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.DOCUMENT_CODE,
                     description="ExtractDocstrings capability"
                 )
             ]
@@ -520,24 +515,19 @@ class GenerateChangelogTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="generate_changelog",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.DOCUMENT_CODE,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.DOCUMENT_CODE,
                     description="GenerateChangelog capability"
                 ),
-                CapabilityMetadata(
-                    capability=Capability.GENERATE_REPORT,
+                PrimitiveUse(
+                    primitive=Primitive.GENERATE_REPORT,
                     description="Generate structured reports from data",
                     input_types=["data", "template"],
-                    output_types=["report"],
-                    latency="medium",
-                    cost="low",
-                    reliability="high",
-                    risk_level=RiskLevel.LOW,
-                    priority=8
+                    output_types=["report"]
                 )
             ]
         )
@@ -759,24 +749,19 @@ class CreateDiagramTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="create_diagram",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.DOCUMENT_CODE,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.DOCUMENT_CODE,
                     description="CreateDiagram capability"
                 ),
-                CapabilityMetadata(
-                    capability=Capability.CREATE_DIAGRAM,
+                PrimitiveUse(
+                    primitive=Primitive.CREATE_DIAGRAM,
                     description="Create diagrams from specifications",
                     input_types=["spec", "format"],
-                    output_types=["diagram"],
-                    latency="medium",
-                    cost="low",
-                    reliability="high",
-                    risk_level=RiskLevel.LOW,
-                    priority=8
+                    output_types=["diagram"]
                 )
             ]
         )
@@ -909,12 +894,12 @@ class UpdateDocsTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="update_docs",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.DOCUMENT_CODE,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.DOCUMENT_CODE,
                     description="UpdateDocs capability"
                 )
             ]
@@ -1014,12 +999,12 @@ class DocsBuildPreviewTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="docs_build_preview",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.DOCUMENT_CODE,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.DOCUMENT_CODE,
                     description="DocsBuildPreview capability"
                 )
             ]
@@ -1159,12 +1144,12 @@ class VersionedDocDeploymentTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="versioned_doc_deployment",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.DOCUMENT_CODE,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.DOCUMENT_CODE,
                     description="VersionedDocDeployment capability"
                 )
             ]
@@ -1273,12 +1258,12 @@ class ADRGeneratorTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="adr_generator",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.DOCUMENT_CODE,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.DOCUMENT_CODE,
                     description="ADRGenerator capability"
                 )
             ]
@@ -1367,12 +1352,12 @@ class GeneratePDFDocumentTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="generate_pdf_document",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.DOCUMENT_CODE,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.DOCUMENT_CODE,
                     description="GeneratePDFDocument capability"
                 )
             ]
@@ -1698,12 +1683,12 @@ class GenerateWordDocumentTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="generate_word_document",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.DOCUMENT_CODE,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.DOCUMENT_CODE,
                     description="GenerateWordDocument capability"
                 )
             ]
@@ -1805,12 +1790,12 @@ class GeneratePowerPointTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="generate_powerpoint",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.DOCUMENT_CODE,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.DOCUMENT_CODE,
                     description="GeneratePowerPoint capability"
                 )
             ]
@@ -1922,12 +1907,12 @@ class GenerateArchitectureDiagramTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="generate_architecture_diagram",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.DOCUMENT_CODE,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.DOCUMENT_CODE,
                     description="GenerateArchitectureDiagram capability"
                 )
             ]
@@ -2150,12 +2135,12 @@ class CreateFlowchartTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="create_flowchart",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.DOCUMENT_CODE,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.DOCUMENT_CODE,
                     description="CreateFlowchart capability"
                 )
             ]

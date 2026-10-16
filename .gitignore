@@ -253,3 +253,8 @@ test_data/vision/ukbench.zip
 test_data/music/giantsteps_audio.zip
 test_data/music/gtzan_genres.tar.gz
 test_data/speech/dev-clean.tar.gz
+# Datasets kept on disk, never pushed (batches 5 to 9).
+test_data/music/giantsteps/
+test_data/music/humtrans/
+test_data/speech/LibriSpeech/
+test_data/vision/ukbench/

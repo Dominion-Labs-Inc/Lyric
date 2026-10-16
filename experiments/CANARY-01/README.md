@@ -1,5 +1,13 @@
 # CANARY-01: what a person gives the substrate stays in that person's context
 
+> **Changed 2026-10-07 (the gate, `docs/research/SEPARATION_MAP.md` §11).** A person's telling of a kind ("A
+> <marker> is a robin.") is about the world now and goes to the gate, so the person's secret is a name the world
+> does not hold ("<Marker> is a robin."). Added: the sandbox, once emptied, is taught english_01-39 so the front
+> door reads (the 2026-10-05 run read nothing, 35/49); a second secret through the person's work context under an
+> organization, held in the organization's Work Context, not the person's (§11.13); K, another person asking about
+> both and told neither, with the control that what the person told of a kind is answered for them. The marker
+> search is case-insensitive: a name told is capitalized ("Zw…"), and the work secret's memories were missed.
+
 Part 1 of M2 (`docs/research/MEMORY_AGENT_MAP.md` §8.2, M2a), extended for M2b-1 and M2b-2 (§9). Unique markers are
 planted in what one person gives the substrate through its real doors, and in a note of the substrate's own. After the
 work, every table of the substrate's memory is searched for the markers. The harness never says whose work anything

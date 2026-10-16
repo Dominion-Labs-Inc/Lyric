@@ -27,9 +27,7 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 import numpy as np
 
 from .tool_registry import Tool, ToolParameter, ToolResult, ToolCategory, ToolSafety
-from .capabilities import (
-    ToolCapabilityProfile, CapabilityMetadata, Capability, RiskLevel
-)
+from .tool_registry import PrimitiveProfile, PrimitiveUse, Primitive
 
 from core.reasoning.advanced_proof_engine import (
     Theorem,
@@ -144,53 +142,33 @@ class ProveTheoremTool(Tool):
             ),
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="prove_theorem",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.DEDUCTIVE_REASONING,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.DEDUCTIVE_REASONING,
                     description="Prove logical theorems using deductive reasoning with SMT-backed verification",
                     input_types=["theorem_statement", "premises", "logic_type"],
-                    output_types=["proof_steps", "proof_result"],
-                    latency="medium",
-                    cost="medium",
-                    reliability="high",
-                    risk_level=RiskLevel.LOW,
-                    priority=9
+                    output_types=["proof_steps", "proof_result"]
                 ),
-                CapabilityMetadata(
-                    capability=Capability.EXPLAIN_REASONING,
+                PrimitiveUse(
+                    primitive=Primitive.EXPLAIN_REASONING,
                     description="Generate step-by-step proof explanations with justifications",
                     input_types=["theorem", "premises"],
-                    output_types=["proof_trace"],
-                    latency="medium",
-                    cost="medium",
-                    reliability="high",
-                    risk_level=RiskLevel.LOW,
-                    priority=8
+                    output_types=["proof_trace"]
                 ),
-                CapabilityMetadata(
-                    capability=Capability.VALIDATE_CLAIM,
+                PrimitiveUse(
+                    primitive=Primitive.VALIDATE_CLAIM,
                     description="Validate logical claims against premises using formal methods",
                     input_types=["statement", "premises"],
-                    output_types=["validity_result"],
-                    latency="medium",
-                    cost="medium",
-                    reliability="high",
-                    risk_level=RiskLevel.LOW,
-                    priority=8
+                    output_types=["validity_result"]
                 ),
-                CapabilityMetadata(
-                    capability=Capability.ABDUCTIVE_REASONING,
+                PrimitiveUse(
+                    primitive=Primitive.ABDUCTIVE_REASONING,
                     description="Reason backward from observations to best explanation",
                     input_types=["observations"],
-                    output_types=["explanation"],
-                    latency="medium",
-                    cost="medium",
-                    reliability="high",
-                    risk_level=RiskLevel.LOW,
-                    priority=8
+                    output_types=["explanation"]
                 )
             ],
             requires_filesystem=False,
@@ -404,53 +382,33 @@ class SolveConstraintsTool(Tool):
             ),
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="solve_constraints",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.CONSTRAINT_REASONING,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.CONSTRAINT_REASONING,
                     description="Solve constraint satisfaction problems using Z3 SMT solver",
                     input_types=["variables", "constraints"],
-                    output_types=["constraint_solution"],
-                    latency="medium",
-                    cost="medium",
-                    reliability="high",
-                    risk_level=RiskLevel.LOW,
-                    priority=9
+                    output_types=["constraint_solution"]
                 ),
-                CapabilityMetadata(
-                    capability=Capability.DEDUCTIVE_REASONING,
+                PrimitiveUse(
+                    primitive=Primitive.DEDUCTIVE_REASONING,
                     description="Find solutions satisfying logical and arithmetic constraints",
                     input_types=["constraint_specification"],
-                    output_types=["satisfying_assignment"],
-                    latency="medium",
-                    cost="medium",
-                    reliability="high",
-                    risk_level=RiskLevel.LOW,
-                    priority=8
+                    output_types=["satisfying_assignment"]
                 ),
-                CapabilityMetadata(
-                    capability=Capability.VALIDATE_CLAIM,
+                PrimitiveUse(
+                    primitive=Primitive.VALIDATE_CLAIM,
                     description="Verify if constraint solutions satisfy all requirements",
                     input_types=["variables", "constraints"],
-                    output_types=["validation_result"],
-                    latency="medium",
-                    cost="medium",
-                    reliability="high",
-                    risk_level=RiskLevel.LOW,
-                    priority=7
+                    output_types=["validation_result"]
                 ),
-                CapabilityMetadata(
-                    capability=Capability.RESOLVE_CONTRADICTION,
+                PrimitiveUse(
+                    primitive=Primitive.RESOLVE_CONTRADICTION,
                     description="Resolve contradictions through constraint solving",
                     input_types=["constraints", "contradiction"],
-                    output_types=["resolution"],
-                    latency="medium",
-                    cost="medium",
-                    reliability="high",
-                    risk_level=RiskLevel.MEDIUM,
-                    priority=7
+                    output_types=["resolution"]
                 )
             ],
             requires_filesystem=False,
@@ -585,42 +543,27 @@ class SolveLinearOptimizationTool(Tool):
             ),
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="solve_linear_optimization",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.CONSTRAINT_REASONING,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.CONSTRAINT_REASONING,
                     description="Optimize linear objectives subject to linear constraints using LP/MILP",
                     input_types=["objective", "constraints", "variable_bounds"],
-                    output_types=["optimal_solution"],
-                    latency="medium",
-                    cost="medium",
-                    reliability="high",
-                    risk_level=RiskLevel.LOW,
-                    priority=9
+                    output_types=["optimal_solution"]
                 ),
-                CapabilityMetadata(
-                    capability=Capability.DEDUCTIVE_REASONING,
+                PrimitiveUse(
+                    primitive=Primitive.DEDUCTIVE_REASONING,
                     description="Find optimal solutions satisfying all constraints",
                     input_types=["linear_problem"],
-                    output_types=["optimization_result"],
-                    latency="medium",
-                    cost="medium",
-                    reliability="high",
-                    risk_level=RiskLevel.LOW,
-                    priority=8
+                    output_types=["optimization_result"]
                 ),
-                CapabilityMetadata(
-                    capability=Capability.ALLOCATE_RESOURCES,
+                PrimitiveUse(
+                    primitive=Primitive.ALLOCATE_RESOURCES,
                     description="Optimize resource allocation given constraints and objectives",
                     input_types=["objective", "resource_constraints"],
-                    output_types=["allocation_plan"],
-                    latency="medium",
-                    cost="medium",
-                    reliability="high",
-                    risk_level=RiskLevel.MEDIUM,
-                    priority=8
+                    output_types=["allocation_plan"]
                 )
             ],
             requires_filesystem=False,
@@ -769,53 +712,33 @@ class SimulatePDE1DTool(Tool):
             ),
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="simulate_pde_1d",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.TEMPORAL_REASONING,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.TEMPORAL_REASONING,
                     description="Simulate time-evolution of 1D parabolic PDEs using finite differences",
                     input_types=["pde_config", "initial_conditions", "boundary_conditions"],
-                    output_types=["time_series_solution"],
-                    latency="high",
-                    cost="medium",
-                    reliability="high",
-                    risk_level=RiskLevel.LOW,
-                    priority=8
+                    output_types=["time_series_solution"]
                 ),
-                CapabilityMetadata(
-                    capability=Capability.SPATIAL_REASONING,
+                PrimitiveUse(
+                    primitive=Primitive.SPATIAL_REASONING,
                     description="Model spatial diffusion processes over finite domains",
                     input_types=["domain_config", "diffusion_coefficient"],
-                    output_types=["spatial_distribution"],
-                    latency="high",
-                    cost="medium",
-                    reliability="high",
-                    risk_level=RiskLevel.LOW,
-                    priority=7
+                    output_types=["spatial_distribution"]
                 ),
-                CapabilityMetadata(
-                    capability=Capability.CAUSAL_REASONING,
+                PrimitiveUse(
+                    primitive=Primitive.CAUSAL_REASONING,
                     description="Analyze cause-effect relationships in physical diffusion processes",
                     input_types=["pde_parameters"],
-                    output_types=["simulation_results"],
-                    latency="high",
-                    cost="medium",
-                    reliability="high",
-                    risk_level=RiskLevel.LOW,
-                    priority=7
+                    output_types=["simulation_results"]
                 ),
-                CapabilityMetadata(
-                    capability=Capability.RUN_EXPERIMENT,
+                PrimitiveUse(
+                    primitive=Primitive.RUN_EXPERIMENT,
                     description="Execute numerical experiments for PDE-based physical systems",
                     input_types=["experimental_config"],
-                    output_types=["experimental_data"],
-                    latency="high",
-                    cost="medium",
-                    reliability="high",
-                    risk_level=RiskLevel.LOW,
-                    priority=7
+                    output_types=["experimental_data"]
                 )
             ],
             requires_filesystem=False,
@@ -967,53 +890,33 @@ class SimulateStateSpaceTool(Tool):
             ),
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="simulate_state_space",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.TEMPORAL_REASONING,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.TEMPORAL_REASONING,
                     description="Simulate temporal evolution of linear state-space systems",
                     input_types=["state_matrices", "initial_conditions", "input_schedule"],
-                    output_types=["state_trajectory", "output_trajectory"],
-                    latency="high",
-                    cost="medium",
-                    reliability="high",
-                    risk_level=RiskLevel.LOW,
-                    priority=8
+                    output_types=["state_trajectory", "output_trajectory"]
                 ),
-                CapabilityMetadata(
-                    capability=Capability.CAUSAL_REASONING,
+                PrimitiveUse(
+                    primitive=Primitive.CAUSAL_REASONING,
                     description="Model cause-effect relationships in dynamical systems",
                     input_types=["system_matrices", "inputs"],
-                    output_types=["system_response"],
-                    latency="high",
-                    cost="medium",
-                    reliability="high",
-                    risk_level=RiskLevel.LOW,
-                    priority=8
+                    output_types=["system_response"]
                 ),
-                CapabilityMetadata(
-                    capability=Capability.PREDICT_CONSEQUENCES,
+                PrimitiveUse(
+                    primitive=Primitive.PREDICT_CONSEQUENCES,
                     description="Predict system behavior given initial conditions and inputs",
                     input_types=["system_model", "initial_state", "control_inputs"],
-                    output_types=["predicted_trajectory"],
-                    latency="high",
-                    cost="medium",
-                    reliability="high",
-                    risk_level=RiskLevel.LOW,
-                    priority=7
+                    output_types=["predicted_trajectory"]
                 ),
-                CapabilityMetadata(
-                    capability=Capability.RUN_EXPERIMENT,
+                PrimitiveUse(
+                    primitive=Primitive.RUN_EXPERIMENT,
                     description="Execute controlled experiments on linear dynamical systems",
                     input_types=["experimental_design"],
-                    output_types=["experimental_results"],
-                    latency="high",
-                    cost="medium",
-                    reliability="high",
-                    risk_level=RiskLevel.LOW,
-                    priority=7
+                    output_types=["experimental_results"]
                 )
             ],
             requires_filesystem=False,
@@ -1205,64 +1108,39 @@ class RunMonteCarloTool(Tool):
             ),
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="run_monte_carlo",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.INDUCTIVE_REASONING,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.INDUCTIVE_REASONING,
                     description="Generate statistical insights from random sampling distributions",
                     input_types=["distribution_spec", "sample_size"],
-                    output_types=["statistical_summary", "samples"],
-                    latency="medium",
-                    cost="low",
-                    reliability="high",
-                    risk_level=RiskLevel.LOW,
-                    priority=8
+                    output_types=["statistical_summary", "samples"]
                 ),
-                CapabilityMetadata(
-                    capability=Capability.RUN_EXPERIMENT,
+                PrimitiveUse(
+                    primitive=Primitive.RUN_EXPERIMENT,
                     description="Execute Monte Carlo simulations for probabilistic analysis",
                     input_types=["distribution", "parameters", "num_samples"],
-                    output_types=["simulation_results"],
-                    latency="medium",
-                    cost="low",
-                    reliability="high",
-                    risk_level=RiskLevel.LOW,
-                    priority=8
+                    output_types=["simulation_results"]
                 ),
-                CapabilityMetadata(
-                    capability=Capability.ASSESS_CONFIDENCE,
+                PrimitiveUse(
+                    primitive=Primitive.ASSESS_CONFIDENCE,
                     description="Quantify uncertainty through statistical sampling",
                     input_types=["stochastic_model"],
-                    output_types=["confidence_intervals", "statistics"],
-                    latency="medium",
-                    cost="low",
-                    reliability="high",
-                    risk_level=RiskLevel.LOW,
-                    priority=7
+                    output_types=["confidence_intervals", "statistics"]
                 ),
-                CapabilityMetadata(
-                    capability=Capability.CALIBRATE_UNCERTAINTY,
+                PrimitiveUse(
+                    primitive=Primitive.CALIBRATE_UNCERTAINTY,
                     description="Calibrate uncertainty estimates via repeated sampling",
                     input_types=["distribution_parameters"],
-                    output_types=["uncertainty_estimates"],
-                    latency="medium",
-                    cost="low",
-                    reliability="high",
-                    risk_level=RiskLevel.LOW,
-                    priority=7
+                    output_types=["uncertainty_estimates"]
                 ),
-                CapabilityMetadata(
-                    capability=Capability.COUNTERFACTUAL_REASONING,
+                PrimitiveUse(
+                    primitive=Primitive.COUNTERFACTUAL_REASONING,
                     description="Simulate counterfactual scenarios",
                     input_types=["scenario", "parameters"],
-                    output_types=["counterfactual_outcomes"],
-                    latency="medium",
-                    cost="medium",
-                    reliability="high",
-                    risk_level=RiskLevel.LOW,
-                    priority=8
+                    output_types=["counterfactual_outcomes"]
                 )
             ],
             requires_filesystem=False,

@@ -6,9 +6,9 @@ The coordinator called five methods on the motivation system that did not
 exist anywhere: calculate_competence_reward, calculate_curiosity_reward,
 calculate_novelty_reward, calculate_autonomy_reward, get_top_exploration_targets.
 
-Every call raised AttributeError. _learning_phase applied its priority boost
-and then died before its rewards and memory write; generate_curiosity_driven_goals
-returned [] on every call and read as a stable system.
+Every call raised AttributeError: generate_curiosity_driven_goals returned [] on
+every call and read as a stable system. (The idle learning tier that also called
+them was removed with the other idle-work tiers, 2026-10-08.)
 
 The unit tests could not catch this: they stub intrinsic_motivation with fake
 reward methods, so the real collaborator was never exercised. These tests use
@@ -227,129 +227,10 @@ def test_a_broken_epistemic_engine_is_not_reported_as_no_targets():
 # --------------------------------- the coordinator against the REAL system
 
 
-def _coordinator_with_real_motivation():
-    from core.agents.autonomous.autonomous_coordinator import AutonomousCoordinator
-    from core.learning.unified_learning_system import get_learning_authority
-
-    async def perception_stats(*a, **k):
-        return {"novel_patterns": 2}
-
-    coordinator = object.__new__(AutonomousCoordinator)
-    coordinator.learning = get_learning_authority()
-    coordinator.intrinsic_motivation = IntrinsicMotivationSystem()   # REAL
-    coordinator.stats = {"cycles_completed": 3}
-    coordinator.task_queue = SimpleNamespace(active_tasks=lambda: [])
-    coordinator.system_state = SimpleNamespace(
-        mode=SimpleNamespace(value="autonomous"),
-        active_goals=[], active_tasks=[], resource_usage=0.3, resources={},
-    )
-    coordinator.perception = SimpleNamespace(get_statistics=perception_stats)
-    return coordinator
 
 
-def test_learning_phase_completes_against_the_real_motivation_system():
-    """This is the test that would have caught the phantom methods: it runs
-    _learning_phase with the real IntrinsicMotivationSystem and requires the
-    phase to reach its terminal write."""
-    coordinator = _coordinator_with_real_motivation()
-
-    asyncio.run(coordinator._learning_phase())
-
-    assert coordinator._learning_phase_status == "COMPLETED", (
-        f"phase did not reach its terminal write "
-        f"(status={coordinator._learning_phase_status})"
-    )
 
 
-def test_learning_phase_reports_abort_rather_than_appearing_successful():
-    """A phase that dies partway must be distinguishable from one that ran."""
-    coordinator = _coordinator_with_real_motivation()
-
-    async def explode(*a, **k):
-        raise RuntimeError("motivation down")
-
-    coordinator.intrinsic_motivation.calculate_novelty_reward = explode
-
-    asyncio.run(coordinator._learning_phase())
-
-    assert coordinator._learning_phase_status == "ABORTED"
-
-
-def test_curiosity_goals_are_generated_from_real_targets():
-    """generate_curiosity_driven_goals returned [] on every call because its
-    first statement called a method that did not exist. With a controlled
-    non-empty target fixture it must now produce goals and report
-    TARGETS_AVAILABLE rather than the SYSTEM_FAILURE it was silently in."""
-    from core.agents.autonomous.autonomous_coordinator import AutonomousCoordinator
-    from core.reasoning.epistemic_engine import EpistemicTarget
-    import core.reasoning.epistemic_engine as ee
-
-    coordinator = object.__new__(AutonomousCoordinator)
-    coordinator.intrinsic_motivation = IntrinsicMotivationSystem()   # REAL
-    coordinator.coordinator_config = SimpleNamespace(
-        max_goals_curiosity=2, expected_competence_gain=0.5,
-        novelty_weight=0.4, uncertainty_weight=0.4, competence_weight=0.2,
-    )
-    created = []
-
-    async def set_goal(description, priority=None, intrinsic_values=None):
-        created.append((description, intrinsic_values))
-        return f"goal_{len(created)}"
-
-    coordinator.set_goal = set_goal
-
-    targets = [
-        EpistemicTarget(target_id=f"b{i}", target_type="belief", entropy=0.9,
-                        description=f"resolve claim {i}", domain="d")
-        for i in range(2)
-    ]
-
-    class Engine:
-        def get_unstable_regions(self):
-            return targets
-
-    original = ee.get_epistemic_engine
-    ee.get_epistemic_engine = lambda: Engine()
-    try:
-        goal_ids = asyncio.run(coordinator.generate_curiosity_driven_goals())
-    finally:
-        ee.get_epistemic_engine = original
-
-    assert goal_ids, "no goals generated from a non-empty target fixture"
-    assert coordinator._exploration_status == "TARGETS_AVAILABLE"
-    assert all(v["intrinsic_reward_potential"] > 0 for _, v in created)
-
-
-def test_zero_targets_is_distinguishable_from_a_broken_subsystem():
-    from core.agents.autonomous.autonomous_coordinator import AutonomousCoordinator
-    import core.reasoning.epistemic_engine as ee
-
-    coordinator = object.__new__(AutonomousCoordinator)
-    coordinator.intrinsic_motivation = IntrinsicMotivationSystem()
-    coordinator.coordinator_config = SimpleNamespace(max_goals_curiosity=2)
-
-    class Empty:
-        def get_unstable_regions(self):
-            return []
-
-    def boom():
-        raise RuntimeError("engine down")
-
-    original = ee.get_epistemic_engine
-    try:
-        ee.get_epistemic_engine = lambda: Empty()
-        assert asyncio.run(coordinator.generate_curiosity_driven_goals()) == []
-        empty_status = coordinator._exploration_status
-
-        ee.get_epistemic_engine = boom
-        assert asyncio.run(coordinator.generate_curiosity_driven_goals()) == []
-        broken_status = coordinator._exploration_status
-    finally:
-        ee.get_epistemic_engine = original
-
-    assert empty_status == "NO_EXPLORATION_TARGETS"
-    assert broken_status == "SYSTEM_FAILURE"
-    assert empty_status != broken_status
 
 
 def test_curiosity_goals_are_generated_from_real_targets():
@@ -525,7 +406,6 @@ def test_competence_goal_verified_only_when_operator_becomes_executable():
     """A competence goal's outcome is READ from induction, never fabricated:
     verified iff the operator actually became executable."""
     import core.learning.exploration as ex
-    from core.agents.autonomous.autonomous_coordinator import AutonomousCoordinator
 
     async def reinduce(*, domain_id, predicate, arity):
         return {"status": "operator_executable" if predicate == "MOVE" else "operator_candidate",

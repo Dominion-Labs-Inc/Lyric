@@ -237,12 +237,10 @@ async def main() -> int:
 async def _serve(db, coordinator, watch, main_before, development, development_after_cut) -> int:
     from core.memory import Origin
     from core.database import releases
-    from core.learning import get_learning_authority
     from core.memory import get_memory_agent
     from core.reasoning.concept_graph_reasoning import answer_over_graph
     from core.reasoning.relation_algebra import TRUE
     from core.semantics.relation_types import SemanticRelation
-    learning = get_learning_authority()
     agent = await get_memory_agent()
 
     say_line("\n== D. The model is the release ==")
@@ -263,9 +261,10 @@ async def _serve(db, coordinator, watch, main_before, development, development_a
 
     say_line("\n== E. Two people, and the substrate itself ==")
     for person, subject in ((ALICE, "quibnar"), (BOB, "vorplex")):
-        adm = await learning.learn_fact(subject, "isa", "gadget", domain="separation_01", quality=0.9,
-                                        actor=person)
-        say_line(f"    {person} told it: a {subject} is a gadget -> admitted={getattr(adm, 'admitted', adm)}")
+        decision = await agent.hold_for_person(person, subject, "isa", "gadget", positive=True, quality=0.9,
+                                               domain="separation_01", surface=f"a {subject} is a gadget",
+                                               source="told")
+        say_line(f"    {person} told it: a {subject} is a gadget -> {decision.standing}")
     stored = {}
     for owner, text in ((ALICE, f"Alice's note: the {MARK} pump in bay 4 is broken."),
                         (BOB, f"Bob's note: the {MARK} valve in bay 9 leaks."),

@@ -121,14 +121,7 @@ class EnvironmentState:
             'email-realtime': {'port': 8104, 'health': '/health'},
             'smtp-sender': {'port': 8105, 'health': '/health'},
             'user-settings': {'port': 8106, 'health': '/health'},
-            'agentso': {'port': 8107, 'health': '/health'},
-            'agentso-web': {'port': 3010, 'health': None},
-            'cloud-storage': {'port': 8401, 'health': '/health'},
             'payment-service': {'port': 8500, 'health': '/health'},
-            'torinai-chat': {'port': 9080, 'health': '/health'},
-            'torinai-api': {'port': 9001, 'health': '/health'},
-            'prometheus': {'port': 9090, 'health': '/-/healthy'},
-            'grafana': {'port': 3000, 'health': '/api/health'},
             # Lyric's instance, not the shared agentso one on 5432.
             'postgresql': {'port': 5433, 'health': None},
             'redis': {'port': 6379, 'health': None},
@@ -260,7 +253,7 @@ class EnvironmentState:
             return
 
         # Check critical services
-        critical_services = ['api-gateway', 'torinai-chat', 'postgresql']
+        critical_services = ['api-gateway', 'postgresql']
         for service in critical_services:
             if service not in self.running_services:
                 self.overall_health = HealthStatus.DEGRADED
@@ -287,15 +280,6 @@ class EnvironmentState:
             self.available_capabilities.add('database')
         else:
             self.degraded_capabilities.add('database')
-
-        # Security connector capabilities require AgentSO
-        if 'agentso' in self.running_services:
-            if self.running_services['agentso'].status == ServiceStatus.RUNNING:
-                self.available_capabilities.add('security_connectors')
-            else:
-                self.degraded_capabilities.add('security_connectors')
-        else:
-            self.degraded_capabilities.add('security_connectors')
 
         # Communication capabilities
         if 'api-gateway' in self.running_services:

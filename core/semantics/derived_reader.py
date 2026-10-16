@@ -74,13 +74,14 @@ import heapq
 import itertools
 import math
 import re
+from collections import Counter
 from dataclasses import dataclass
-from typing import (Any, Callable, Dict, FrozenSet, Iterable, Iterator, List, Mapping, Optional, Sequence, Set,
-                    Tuple, Union)
+from typing import (AbstractSet, Any, Awaitable, Callable, Collection, Dict, FrozenSet, Iterable, Iterator, List,
+                    Mapping, NamedTuple, Optional, Sequence, Set, Tuple, Union)
 
 from core.semantics.relation_types import SemanticRelation
 from core.semantics.literals import classify_literal
-from core.semantics.sentence_machine import Piece, form_of, surface_of
+from core.semantics.sentence_machine import QUOTED, Piece, form_of, surface_of
 
 #: English is a domain like any subject: its constructions are what the substrate knows of it, and its competence
 #: is measured the way any domain's is.
@@ -95,6 +96,10 @@ ACTS = ("tell", "ask", "request")
 #: Bound by the situation a sentence is said in, never by the sentence. `?now` is when it is said: "ran" is an event
 #: before it, "will run" one after it, "is running" one during it.
 SITUATION_VARIABLES = ("?speaker", "?listener", "?shown", "?previous", "?now", "?here", "?there")
+
+#: What a happening is said to have: what it was done by, or what it was done to. A thing one of a kind that is done
+#: by or to something is a happening (`teaching.told_events`), and the kind a doing (`_names_a_doing`).
+EVENT_PARTICIPANTS = ("done_by", "done_to")
 
 #: The kinds whose object is a place, where a thing is or where an event goes: the place "there" can point back to
 #: (`place_spoken_of`).
@@ -113,10 +118,6 @@ MAX_FREE_VARIABLES = 6
 
 #: The score of a construction nothing has observed yet: where the paper starts a new one.
 INITIAL_SCORE = 0.5
-
-#: A construction scoring below this is no longer believed, and takes no part in reading or speaking. It is the
-#: line the belief store itself treats as a reversal. The construction stays in memory and can come back.
-COUNTS_FROM = 0.5
 
 _VARIABLE = re.compile(r"^\?[a-z][a-z0-9_]*$")
 _SLOT = re.compile(r"^\?slot(0|[1-9][0-9]*)$")
@@ -176,6 +177,35 @@ def _quantity(concept: str) -> bool:
         or bool(_FRACTION.fullmatch(str(concept)))
 
 
+def _temporal(concept: str) -> bool:
+    """Whether a concept is a day or a time of day, as its writing says: `--10-06` is the sixth of October, `7:30
+    p.m.` half past seven in the evening (`literals`)."""
+    literal = classify_literal(concept)
+    return literal is not None and literal.kind in ("date", "time")
+
+
+#: The months as they are written, for a day said back.
+_MONTH_NAMES = ("January", "February", "March", "April", "May", "June", "July", "August", "September", "October",
+                "November", "December")
+
+
+def _temporal_written(concept: str) -> str:
+    """A day or a time of day as English writes it: `--10-06` is "October 6", `2010-10-06` "October 6, 2010", `7:00
+    p.m.` "7 p.m."; a time held as written ("7:30") is written so."""
+    literal = classify_literal(concept)
+    if literal is None:
+        return concept
+    if literal.kind == "date":
+        if literal.canonical.startswith("--"):
+            month, day = literal.value
+            return f"{_MONTH_NAMES[month - 1]} {day}"
+        return f"{_MONTH_NAMES[literal.value.month - 1]} {literal.value.day}, {literal.value.year}"
+    clock, _, half = literal.canonical.partition(" ")
+    if literal.kind == "time" and half and clock.endswith(":00"):
+        return f"{clock[:-3]} {half}"                       # "7:00 p.m." is written "7 p.m."
+    return literal.canonical
+
+
 def _size(digits: str) -> int:
     """How many groups of three digits a whole number is written in, less one: 312 is 0, 7000000000312 is 4."""
     return (len(digits.lstrip("0") or "0") - 1) // 3
@@ -212,14 +242,63 @@ def _valued(facts: Iterable["MeaningFact"]) -> Tuple[Dict[str, str], Tuple["Mean
 
 @functools.lru_cache(maxsize=1 << 16)
 def _canonical(meaning: "Meaning") -> str:
-    evaluated = _evaluated(meaning.facts)
+    return _canonical_of(meaning.act, meaning.facts, meaning.asked)
+
+
+def _least_namings(facts: Sequence["MeaningFact"], free: Collection[str],
+                   first: Sequence[str] = ()) -> List[Dict[str, str]]:
+    """Every naming of the unknowns `free` to `?v0, ?v1, ...` under which the facts, each written and all sorted, are
+    least: the namings the smallest writing is among, as trying every one finds it, without trying every one.
+
+    Every naming was tried, and a meaning of six unknowns is written 720 times: "The dog barked, the cat ran and the
+    bird flew." read for 46 seconds, nearly all of it in writing its 180 readings (2026-10-11). The least writing is
+    built a fact at a time instead. Its first fact is the least any fact can be written, its unknowns given the least
+    names not taken, in the order the fact writes them; no naming writes anything less first, and only that naming of
+    them writes that. Each next fact likewise, with the names already given kept. Where facts tie, each is followed.
+    `first` are named before any fact, in order (a phrase writes its anchor ahead of its facts)."""
+    pool = sorted(f"?v{i}" for i in range(len(free)))
+    unknown = set(free)
+    start: Dict[str, str] = {}
+    for variable in first:
+        if variable in unknown and variable not in start:
+            start[variable] = pool[len(start)]
+    found: List[Dict[str, str]] = []
+
+    def follow(names: Dict[str, str], left: List["MeaningFact"]) -> None:
+        if not left:
+            found.append(names)
+            return
+        least: Optional[str] = None
+        ties: List[Tuple[int, Dict[str, str]]] = []
+        for k, fact in enumerate(left):
+            trial = dict(names)
+            for term in fact.terms():
+                if term in unknown and term not in trial:
+                    trial[term] = pool[len(trial)]
+            written = fact.renamed(trial).render()
+            if least is None or written < least:
+                least, ties = written, [(k, trial)]
+            elif written == least:
+                ties.append((k, trial))
+        followed: List[Dict[str, str]] = []
+        for k, trial in ties:
+            if trial not in followed:   # facts written alike under one naming are one fact, whichever goes first
+                followed.append(trial)
+                follow(trial, left[:k] + left[k + 1:])
+
+    follow(start, list(facts))
+    return found
+
+
+def _canonical_of(act: str, facts: Sequence["MeaningFact"], asked: Sequence[str]) -> str:
+    """A meaning's parts written as `Meaning.canonical` writes it, without the meaning having to be one."""
+    evaluated = _evaluated(facts)
     free = sorted({t for f in evaluated for t in f.terms() if is_variable(t) and not _named(t)})
     best: Optional[str] = None
-    for order in itertools.permutations(free):
-        names = {variable: f"?v{i}" for i, variable in enumerate(order)}
-        facts = " & ".join(sorted(f.renamed(names).render() for f in evaluated))
-        asked = ", ".join(names.get(v, v) for v in meaning.asked)
-        text = f"{meaning.act}: {facts}" + (f" ? {asked}" if asked else "")
+    for names in _least_namings(evaluated, free):
+        rendered = " & ".join(sorted(f.renamed(names).render() for f in evaluated))
+        asking = ", ".join(names.get(v, v) for v in asked)
+        text = f"{act}: {rendered}" + (f" ? {asking}" if asking else "")
         if best is None or text < best:
             best = text
     return best  # type: ignore[return-value]
@@ -238,7 +317,15 @@ def _named(term: str) -> bool:
 class MeaningFact:
     """One fact a sentence states, in one of the domain system's link kinds; or, marked `condition`, one that must
     hold for the sentence's other facts to hold; or, marked `alternative`, one of the alternatives on its side of
-    an `if`, of which one holds: "Is the stove hot or cold?"."""
+    an `if`, of which one holds: "Is the stove hot or cold?"; or, marked `unasserted`, one the sentence does not
+    tell as so: what someone says, tells, thinks, believes, hopes or asks, what someone wants, likes or tries to do,
+    what a doing is for, and what something is or is not enough to do. `Tom said, "The dog barked."` and "Tom said
+    that the dog barked." state a saying, done by Tom; that the dog barked is what he said, not that it did. "Tom
+    knows that the dog barked." tells the barking as so.
+
+    Marked `given`, what a thing the speaker and listener both know is: "the dog" is `given instance_of(?a, dog)`, the
+    dog already known, where "a dog" is a dog not known before (`docs/TEACHING.md` §12d). It is true of the thing,
+    and not news."""
 
     relation: str
     subject: str
@@ -246,6 +333,8 @@ class MeaningFact:
     positive: bool = True
     condition: bool = False
     alternative: bool = False
+    unasserted: bool = False
+    given: bool = False
 
     def __post_init__(self):
         relation = str(self.relation).strip()
@@ -264,24 +353,39 @@ class MeaningFact:
         object.__setattr__(self, "positive", bool(self.positive))
         object.__setattr__(self, "condition", bool(self.condition))
         object.__setattr__(self, "alternative", bool(self.alternative))
+        object.__setattr__(self, "unasserted", bool(self.unasserted))
+        object.__setattr__(self, "given", bool(self.given))
+        if self.given and (self.relation != "instance_of" or not is_variable(self.subject) or not self.positive):
+            raise ValueError("only a particular thing is known: `given` says what a thing both know is "
+                             "(instance_of, of a variable)")
 
     def terms(self) -> Tuple[str, str]:
         return (self.subject, self.obj)
 
     def renamed(self, names: Mapping[str, str]) -> "MeaningFact":
-        return MeaningFact(self.relation, names.get(self.subject, self.subject),
-                           names.get(self.obj, self.obj), self.positive, self.condition, self.alternative)
+        """The fact with its terms renamed. A known thing named (`given instance_of(?t0, kelt)` as `kelt_1`) is no
+        longer one to find: what it is stays, unmarked."""
+        subject = names.get(self.subject, self.subject)
+        return MeaningFact(self.relation, subject, names.get(self.obj, self.obj), self.positive, self.condition,
+                           self.alternative, self.unasserted, self.given and is_variable(subject))
 
     def render(self) -> str:
         text = f"{self.relation}({self.subject}, {self.obj})"
         text = text if self.positive else f"not {text}"
         text = f"either {text}" if self.alternative else text
-        return f"if {text}" if self.condition else text
+        text = f"if {text}" if self.condition else text
+        text = f"given {text}" if self.given else text
+        return f"unasserted {text}" if self.unasserted else text
 
     def to_list(self) -> List[Any]:
-        """As memory holds it. A condition or an alternative is marked only where there is one, so a meaning
-        written before either existed is stored, and identified, exactly as it was."""
+        """As memory holds it. A condition, an alternative, a fact not told as so or one taken as known is marked only
+        where there is one, so a meaning written before any of them existed is stored, and identified, exactly as it
+        was."""
         out = [self.relation, self.subject, self.obj, self.positive]
+        if self.given:
+            return out + [self.condition, self.alternative, self.unasserted, True]
+        if self.unasserted:
+            return out + [self.condition, self.alternative, True]
         if self.alternative:
             return out + [self.condition, True]
         return out + [True] if self.condition else out
@@ -290,7 +394,8 @@ class MeaningFact:
     def from_list(cls, data: Iterable[Any]) -> "MeaningFact":
         relation, subject, obj, positive, *rest = list(data)
         return cls(relation, subject, obj, bool(positive), bool(rest[0]) if rest else False,
-                   bool(rest[1]) if len(rest) > 1 else False)
+                   bool(rest[1]) if len(rest) > 1 else False, bool(rest[2]) if len(rest) > 2 else False,
+                   bool(rest[3]) if len(rest) > 3 else False)
 
 
 @dataclass(frozen=True)
@@ -315,15 +420,18 @@ class Meaning:
             raise ValueError("a meaning states the same fact twice")
         if any(f.relation in ("isa", "instance_of", "has_property") and _quantity(f.obj) for f in facts):
             raise ValueError("a number is neither a kind nor a quality: nothing is a 7, or 7 as it is red")
+        if any(f.relation in ("isa", "instance_of", "has_property") and _temporal(f.obj) for f in facts):
+            raise ValueError("a day or a time is neither a kind nor a quality: nothing is a March 12, or 7 p.m. as "
+                             "it is red; a thing is during it")
         counted: Dict[Tuple[str, bool, bool], str] = {}
         for f in facts:
             if f.relation == "has_count" and f.positive and not f.alternative:
-                if counted.setdefault((f.subject, f.condition, f.alternative), f.obj) != f.obj:
+                if counted.setdefault((f.subject, f.condition, f.alternative, f.unasserted), f.obj) != f.obj:
                     raise ValueError("a group has one count: how many there are is one number")
         timed: Dict[Tuple[str, str, bool], str] = {}
         for f in facts:
             if f.relation in ("precedes", "during", "follows") and f.positive and not f.alternative:
-                if timed.setdefault((f.subject, f.obj, f.condition), f.relation) != f.relation:
+                if timed.setdefault((f.subject, f.obj, f.condition, f.unasserted), f.relation) != f.relation:
                     raise ValueError("a happening is at one time from where it is seen: over, going on or "
                                      "to come, never two of them")
         if all(f.condition for f in facts):
@@ -387,14 +495,35 @@ class Meaning:
 
     @property
     def asserted(self) -> Tuple[MeaningFact, ...]:
-        """The facts that hold, or that hold once the condition does."""
-        return tuple(f for f in self.facts if not f.condition)
+        """The facts that hold, or that hold once the condition does; never what the sentence does not tell as so."""
+        return tuple(f for f in self.facts if not f.condition and not f.unasserted)
 
-    def bound(self, situation: Mapping[str, str]) -> Tuple[MeaningFact, ...]:
+    @property
+    def unasserted(self) -> Tuple[MeaningFact, ...]:
+        """The facts the sentence does not tell as so (`MeaningFact.unasserted`): what someone said, thought or
+        wants, what a doing is for. Empty when it tells everything it states."""
+        return tuple(f for f in self.facts if f.unasserted)
+
+    @property
+    def given(self) -> Tuple[MeaningFact, ...]:
+        """What the things the sentence takes as known are (`MeaningFact.given`): "the dog", a dog both know."""
+        return tuple(f for f in self.facts if f.given)
+
+    def known_kinds(self) -> Dict[str, str]:
+        """`{variable: kind}` for each known thing ("the kelt": `?t0`, `kelt`), to be found (`bound`)."""
+        return {f.subject: f.obj for f in self.facts if f.given and not is_variable(f.obj)}
+
+    def bound(self, situation: Mapping[str, str],
+              known: Optional[Mapping[str, str]] = None) -> Tuple[MeaningFact, ...]:
         """The facts with the situation's variables replaced by what they stand
-        for here. A fact may still hold a variable afterwards: an unknown the
-        sentence introduced, which no situation names."""
+        for here, and each known thing (`given`) by the particular it was found
+        to be (`known`). A fact may still hold a variable afterwards: an unknown
+        the sentence introduced, which nothing names."""
         names = {}
+        for variable, value in dict(known or {}).items():
+            if not any(f.given and f.subject == variable for f in self.facts):
+                raise ValueError(f"{variable!r} is not a known thing of this meaning")
+            names[variable] = str(value).strip()
         for variable, value in dict(situation or {}).items():
             if variable not in SITUATION_VARIABLES:
                 raise ValueError(f"{variable!r} is not a situation variable; one of "
@@ -551,9 +680,6 @@ class Pattern:
         if set(slots) != set(self.meaning.slots()):
             raise ValueError("every slot of the form is a variable of the meaning, and every slot variable of "
                              "the meaning is a slot of the form")
-        if slots and not any(isinstance(e, Piece) and not _is_mark(e.text) for e in form):
-            raise ValueError("an item-based construction keeps at least one word of its own; a mark alone "
-                             "anchors nothing")
         object.__setattr__(self, "form", form)
 
     @property
@@ -705,8 +831,7 @@ def _phrase_written(anchor: str, facts: Tuple[MeaningFact, ...]) -> str:
     free = sorted({t for f in facts for t in f.terms()} | {anchor})
     free = [t for t in free if is_variable(t) and not _named(t)]
     best: Optional[str] = None
-    for order in itertools.permutations(free):
-        names = {variable: f"?v{i}" for i, variable in enumerate(order)}
+    for names in _least_namings(facts, free, first=(anchor,)):
         text = names.get(anchor, anchor) + " : " + " & ".join(sorted(f.renamed(names).render() for f in facts))
         if best is None or text < best:
             best = text
@@ -823,22 +948,108 @@ def pattern_from(sentence: str, meaning: Meaning) -> Pattern:
     return Pattern(form_of(sentence), meaning)
 
 
+#: What an adjunct says of what the words before it stand for: the thing, or the happening.
+ADJOINED = "?at"
+
+
+@dataclass(frozen=True)
+class Adjunct:
+    """Words that may follow what stands in a slot and say more of it: "on the ?slot1" after "The ?slot0" in "The
+    ?slot0 on the ?slot1 is ?slot2.", which says the thing is on something where "The ?slot0 is ?slot1." says nothing
+    of where it is. FOUND, NEVER TAUGHT: a held frame that is another held frame with these words added right after
+    one of its slots, and whose meaning is the other's with facts added of what that slot stands for. Read after
+    anything standing in any slot, the words say the same of it ("the largest animal on Earth"), as a phrase read in
+    one frame is read in every frame (`_adjoined`).
+
+    `form` is the added words as the longer frame holds them, its slots among them that frame's own (`frame`), so
+    what may stand in them is what may stand there; `facts` is what they add, of `ADJOINED` and of those slots; and
+    `shorter` is the frame without them. `happening`: they say what only a happening has (`_HAPPENING`: where it
+    moves, when it is, what it is done with or to), so they follow only what names one. `of_happening`: the frames
+    said them of a happening ("Tom lives in the city."), so they may be said of what a sentence tells happened, after
+    all of it (`_tails`), where "in the house" in "The dog ate the bone in the house." is where the eating was, or
+    where the bone was."""
+
+    form: Tuple[FormElement, ...]
+    facts: Tuple[MeaningFact, ...]
+    frame: str
+    shorter: str
+    happening: bool
+    of_happening: bool
+
+    @property
+    def phrase(self) -> Phrase:
+        """The adjunct as the phrase it reads as, its slots named in order: what a reading holds it by (`_adjoined`);
+        never a phrase memory holds."""
+        names = {e.name: slot_name(at) for at, e in enumerate(e for e in self.form if isinstance(e, Slot))}
+        return Phrase(tuple(Slot(names[e.name], e.space_after) if isinstance(e, Slot) else e for e in self.form),
+                      ADJOINED, tuple(f.renamed(names) for f in self.facts))
+
+    @property
+    def key(self) -> str:
+        return self.phrase.key
+
+
+def _adjunct_of(shorter: Pattern, longer: Pattern, start: int, end: int) -> Optional[Adjunct]:
+    """The adjunct a pair of held frames shows, when the longer is the shorter with `longer.form[start:end]` added
+    right after one of its slots (`Adjunct`); None when what the words add is not said of what that slot stands for.
+
+    The shorter frame's slots are the longer's outside the words, in order. Its meaning must be the longer's with
+    facts added (`_embedding`), and the facts added must meet the rest at one term: what the slot before the words
+    stands for (the thing it names a kind of, where the frame uses it only so; the slot itself otherwise). A fact
+    added of that term alone and the situation ("before now") is the frame's, said beside the words, not theirs: in
+    "The ?slot0 ?slot1 onto the ?slot2." the time is the frame's, where "The ?slot0 ?slot1." leaves it to the word
+    in its slot ("jumped")."""
+    before = longer.form[start - 1]
+    if not isinstance(before, Slot):
+        return None
+    inside = [e.name for e in longer.form[start:end] if isinstance(e, Slot)]
+    outside = [e.name for k, e in enumerate(longer.form) if isinstance(e, Slot) and not start <= k < end]
+    if len(outside) != len(shorter.slots):
+        return None
+    try:
+        small = Meaning(shorter.meaning.act, tuple(f.renamed(dict(zip(shorter.slots, outside)))
+                                                     for f in shorter.meaning.facts), shorter.meaning.asked)
+    except ValueError:
+        return None
+    names = _embedding(small, longer.meaning)
+    if names is None:
+        return None
+    image = {f.renamed(names) for f in small.facts}
+    added = [f for f in longer.meaning.facts if f not in image]
+    uses = [f for f in longer.meaning.facts if before.name in f.terms()]
+    kinds = {f.subject for f in uses if f.relation == "instance_of" and f.obj == before.name and f.positive}
+    at = next(iter(kinds)) if len(kinds) == 1 and len(uses) == 1 else before.name
+    held = {t for f in image for t in f.terms()}
+    added = [f for f in added if any(t != at and t not in held and t not in SITUATION_VARIABLES for t in f.terms())]
+    if not added or set(inside) - {t for f in added for t in f.terms()}:
+        return None
+    if {t for f in added for t in f.terms() if t in held and t not in SITUATION_VARIABLES} != {at}:
+        return None
+    facts = tuple(f.renamed({at: ADJOINED}) for f in added)
+    if any(f.condition or f.alternative for f in facts):
+        return None
+    happening = any(f.subject == ADJOINED and f.relation in _HAPPENING for f in facts)
+    return Adjunct(longer.form[start:end], facts, longer.key, shorter.key, happening,
+                   happening or any(f.subject == at and f.relation in _HAPPENING for f in image))
+
+
 # ── The view ─────────────────────────────────────────────────────────────────────────────────────────────────────
 
-Scorer = Callable[[Item], Tuple[float, int]]
+Scorer = Callable[[Item], Tuple[float, int, bool]]
 
 
-def _held_score(item: Item) -> Tuple[float, int]:
-    """A construction's score and use count, from its belief in this process: its posterior, and how many uses
-    the observations supporting it witnessed (one each, or as many as a corpus counted). One nothing has observed
-    stands at the initial score."""
+def _held_score(item: Item) -> Tuple[float, int, bool]:
+    """A construction's score, use count and standing, from its belief in this process: its posterior; how many uses
+    the observations supporting it witnessed (one each, or as many as a corpus counted); and whether a witness's
+    latest word on it is still a use, a taught pair still reading through it (`counts`). One nothing has observed
+    stands at the initial score, and in use, as the paper's new construction does."""
     from core.reasoning import bayesian_uncertainty as beliefs
     system = beliefs._uncertainty_system
     belief = system.belief_for_claim(item.claim()) if system is not None else None
     if belief is None:
-        return INITIAL_SCORE, 0
-    return float(belief.posterior_probability), sum(
-        int(e.get("uses", 1)) if isinstance(e, dict) else 1 for e in belief.evidence_for)
+        return INITIAL_SCORE, 0, True
+    held = beliefs.BayesianUncertaintySystem
+    return float(belief.posterior_probability), held.uses_for(belief), held.witnesses(belief, supports=True) > 0
 
 
 class PatternInventory:
@@ -849,13 +1060,32 @@ class PatternInventory:
     from the beliefs as they stand, never copied here.
     """
 
-    def __init__(self, items: Iterable[Item] = (), score: Optional[Scorer] = None):
+    def __init__(self, items: Iterable[Item] = (), score: Optional[Scorer] = None,
+                 listened: Optional[Callable[[], Mapping[Tuple[str, int, bool], int]]] = None):
         self._by_key: Dict[str, Item] = {}
         self._holophrase_words: Dict[Tuple[str, ...], List[str]] = {}
         self._holophrase_first: Dict[str, List[str]] = {}
         self._holophrase_meaning: Dict[str, List[str]] = {}
         self._item_based: List[str] = []
         self._phrases: List[str] = []
+        # EACH PHRASE UNDER ONE WORD OF ITS OWN (`phrases_reading`), and where it stands among them all.
+        self._phrase_at: Dict[str, int] = {}
+        self._phrases_by_word: Dict[str, List[str]] = {}
+        self._phrases_wordless: List[str] = []
+        # Each phrase under the kinds it names a thing of its own as (`phrases_of_kind`).
+        self._phrases_of_kind: Dict[str, List[str]] = {}
+        # Each phrase by the kinds of fact it states and one concept it names (`phrases_stating`, `within`).
+        self._phrases_naming: Dict[Tuple[FrozenSet[Tuple[Tuple[str, bool], int]], Optional[str]], List[str]] = {}
+        #: What composes a sentence (`_compositions`): each frame's slot under the kinds of fact the frame states
+        #: with a phrase there, and each phrase under the kinds it states.
+        self._frames_keeping: Dict[Tuple[str, FrozenSet[Tuple[Tuple[str, bool], int]]], List[Tuple[str, str]]] = {}
+        self._phrases_stating: Dict[FrozenSet[Tuple[Tuple[str, bool], int]], List[str]] = {}
+        #: The adjuncts the held frames show (`Adjunct`), under the first word of each, case aside; and what finds them
+        #: as frames arrive (`_note_adjuncts`): each frame under its act and its pieces as written, and under each way
+        #: of leaving out a run of its pieces that follows a slot.
+        self._adjuncts: Dict[str, List[Adjunct]] = {}
+        self._frames_written: Dict[Tuple[str, Tuple[str, ...]], List[str]] = {}
+        self._frames_cut: Dict[Tuple[str, Tuple[str, ...]], List[Tuple[str, int, int]]] = {}
         self._lexical_words: Dict[Tuple[str, ...], List[str]] = {}
         self._lexical_loose: Dict[Tuple[str, ...], List[str]] = {}
         self._lexical_value: Dict[str, List[str]] = {}
@@ -882,13 +1112,19 @@ class PatternInventory:
         # What reading derives from everything held is kept as each construction and link arrives, never rebuilt
         # from all of it: a vocabulary is taught one pair at a time, and a reading between two pairs must not cost
         # what everything held costs.
-        # The kinds: a union-find over the fillers linked to slots, with each kind's longest filler and the changes
-        # its words are written in (`_join`, `_register`).
-        self._parent: Dict[str, str] = {}
-        self._kind_size: Dict[str, int] = {}
-        self._kind_longest: Dict[str, int] = {}
-        self._kind_changes: Dict[str, set] = {}
-        self._same_word: Dict[Tuple[Tuple[str, ...], str], str] = {}
+        # The kinds: a union-find over the fillers linked to slots, each filler once for each part a slot takes it as
+        # (`_taken_as`), with each kind's longest filler and the changes its words are written in (`_join`,
+        # `_register`); the parts each filler is held in, and each held frame's slots' parts.
+        self._parent: Dict[Tuple[str, str], Tuple[str, str]] = {}
+        self._kind_size: Dict[Tuple[str, str], int] = {}
+        self._kind_longest: Dict[Tuple[str, str], int] = {}
+        self._kind_changes: Dict[Tuple[str, str], set] = {}
+        self._same_word: Dict[Tuple[Tuple[str, ...], str, str], Tuple[str, str]] = {}
+        self._parts_of: Dict[str, Set[str]] = {}
+        self._taken: Dict[Tuple[str, str], Tuple[str, ...]] = {}
+        # The classes each word was observed in, with their net evidence (`MemoryAgent.word_classes`): given by the
+        # memory that holds them, the same mapping it keeps current as it is taught; none in a view made without it.
+        self.word_classes: Mapping[str, Mapping[str, int]] = {}
         # The word shapes (`_shape_word`): each one-word filler's concepts, the changes that read it rightly, the
         # words ending as each written side, and each change's count and standing.
         self._fillers_by_word: Dict[str, set] = {}
@@ -899,6 +1135,14 @@ class PatternInventory:
         self._shape_counts: Dict[Tuple[str, str], List[int]] = {}
         self._productive_shapes: set = set()
         self._productive_by_written: Dict[str, set] = {}
+        # The words heard right after each word in the sentences taught, and after each two (`hear`), and, as of
+        # `_added`, how the words heard after each are written among their concepts' forms (`heard_like`).
+        self._heard: Dict[str, Set[str]] = {}
+        self._heard_two: Dict[Tuple[str, str], Set[str]] = {}
+        self._heard_forms: Dict[Tuple[str, ...], Tuple[Tuple[str, FrozenSet[str]], ...]] = {}
+        self._word_forms: Dict[Tuple[str, str], FrozenSet[str]] = {}
+        self._together: Dict[Tuple[str, str], bool] = {}
+        self._forms_at = -1
         # The letters after each word (`letters_after`), how often each, and the words written right before each slot.
         self._after: Dict[str, set] = {}
         self._after_count: Dict[str, Dict[str, int]] = {}
@@ -906,16 +1150,29 @@ class PatternInventory:
         # Each slot's fillers: [written as named, written otherwise, of one word or none], and the first words of
         # the longer ones.
         self._slot_tally: Dict[Tuple[str, str], List[int]] = {}
+        #: The counting words and every frame by its words and slots, as of `_beside_at` (`counted_beside`).
+        self._beside: Tuple[FrozenSet[str], Dict[Tuple[str, ...], List["Pattern"]]] = (frozenset(), {})
+        self._beside_at = -1
         self._slot_runs: Dict[Tuple[str, str], Dict[str, int]] = {}
         # The changes each slot's own one-word fillers are written in, without their context ("barked": `ed`):
         # "The dog ?slot1." holding "barks" and "The dog ?slot1." holding "barked" are told apart by them.
         self._slot_changes: Dict[Tuple[str, str], Dict[Tuple[str, str], int]] = {}
+        #: Places by the part they stand in in their frame's meaning (`_places_in_role`), as of `_added`.
+        self._roles: Dict[FrozenSet[Tuple[Any, ...]], List[Tuple[str, str]]] = {}
+        self._roles_at = -1
+        #: The shapes each slot takes to say a word in (`shape_of_slot`), as of `_added`.
+        self._slot_shapes: Dict[Tuple[str, str, bool], Tuple[Tuple[str, str], ...]] = {}
+        self._slot_shapes_at = -1
         # Each slot's concepts, with the changes their words there are written in: none for a word written as its
         # name ("cut", where "barked" stands), None for an irregular form ("flew"). What saying counts a change over.
         self._slot_stems: Dict[Tuple[str, str], Dict[str, set]] = {}
         # One-word phrases that are a word of their concept written in a shape and say more of it than its kind
         # ("barked": a barking, before now), grouped by what they say more (`_shape_says`): what a shape adds.
         self._shape_groups: Dict[FrozenSet[Tuple[Any, ...]], Dict[str, Tuple[str, str]]] = {}
+        # The changes (their context aside) the words of those groups are written in: what says more than a concept;
+        # and each group's own.
+        self._shapes_saying_more: set = set()
+        self._group_changes: Dict[FrozenSet[Tuple[Any, ...]], set] = {}
         # The words held as one-word phrases that say more than their kind, irregular ones too ("ran", "flew").
         self._saying_words: set = set()
         # Words that alternate in one place of frames otherwise the same and meaning the same (`variants_of`): each
@@ -935,6 +1192,12 @@ class PatternInventory:
         # slot changes what it is, as a view warmed from memory does once, when its first word is asked for.
         self._uses_built = False
         self._added = 0
+        # How each slot was filled (`slot_filled`) and how often each part's fillers were met (`parts_met`): what the
+        # listener weighs a structure by (`_derivation`), found again when anything is added.
+        self._slot_filled: Dict[Tuple[str, str], Tuple[float, int]] = {}
+        self._slot_filled_at = -1
+        self._parts_met: Dict[str, Tuple[float, int]] = {}
+        self._parts_met_at = -1
         self._uses_at = -1
         self._use_pending: List[Tuple[str, str, str]] = []
         self._use_done: set = set()
@@ -951,10 +1214,11 @@ class PatternInventory:
         self._use_shaped: set = set()
         self._use_letters_moved = False
         self._use_counted: Dict[str, int] = {}
+        self._use_counted_as: Dict[Tuple[str, str], int] = {}
         self._use_bare: Dict[str, int] = {}
         self._use_plural: Dict[str, int] = {}
-        self._use_noun: Dict[str, int] = {}
-        self._use_bare_keys: Dict[str, set] = {}
+        self._use_noun: Dict[Tuple[str, str], int] = {}
+        self._use_bare_keys: Dict[Tuple[str, str], set] = {}
         self._use_key: Dict[str, str] = {}
         self._use_slots: Dict[Tuple[str, str], Dict[str, int]] = {}
         self._use_words: Dict[str, Dict[str, int]] = {}
@@ -971,10 +1235,22 @@ class PatternInventory:
         self._end_decided: Dict[Tuple[bool, str], str] = {}
         self._end_contested: Dict[bool, set] = {False: set(), True: set()}
         # How each change fares in saying (`said_shapes`), and the productive ones by their change without context:
-        # found again after anything is added.
+        # found whole once, then moved by each filler counted (`_said_moved`), in the changes whose cells hold its
+        # concept. Found again after ANY addition, it was found again for nearly every sentence a teaching pass
+        # learns, each time over everything held: 152 ms at 53,716 held, and WordNet's patterns slowed from 0.18 s a
+        # sentence to 0.56 s and climbing (2026-10-08). Found again whole for every filler in a slot written in a
+        # change, it took 22 s each time on main, and WordNet's verb forms slowed from two minutes a thousand to
+        # half an hour and climbing (2026-10-12).
         self._said: Optional[Tuple[Dict[Tuple[str, str], Tuple[int, int]], FrozenSet[Tuple[str, str]]]] = None
         self._said_by_least: Dict[Tuple[str, str], List[Tuple[str, str]]] = {}
+        # What it is found from: the slots written in each change (its context aside), every change by the end it
+        # asks of a concept's name, and the concepts of the slots written as named.
+        self._said_slots_of: Dict[Tuple[str, str], List[Tuple[str, str]]] = {}
+        self._said_by_name: Dict[str, set] = {}
+        self._said_named: set = set()
         self._score = score or _held_score
+        # What the listener counted of its evidence on what it was taught (`listening_worths`): memory's, unless given.
+        self._listened = listened or _held_listening_counts
         for item in items:
             self.add(item)
 
@@ -985,7 +1261,6 @@ class PatternInventory:
             return False
         self._by_key[key] = item
         self._added += 1
-        self._said = None
         if isinstance(item, (Pattern, Lexical, Phrase)):
             self._words.update(_folded(p.text for p in item.form if isinstance(p, Piece)))
             if isinstance(item, Pattern):
@@ -995,9 +1270,12 @@ class PatternInventory:
             else:
                 concepts = tuple(t for t in {t for f in item.facts for t in f.terms()} | {item.anchor}
                                  if not is_variable(t))
-            # A number or a formula names itself, whole: "a + b" does not make "a" a word that names something.
-            self._named.update(_fold(w) for concept in concepts if not _quantity(str(concept))
-                               for w in str(concept).replace("_", " ").split())
+            # A number or a formula names itself, whole: "a + b" does not make "a" a word that names something. A
+            # concept names the word that is its whole name: `color` names "color"; `bill of rights` names no "of",
+            # as "A robin" is no filler "A" (`is_structure`). Taken word by word, WordNet's names made "of", "the",
+            # "to", "and" and "by" words that name things, and each stood as a new name in any slot.
+            self._named.update(name for concept in concepts if not _quantity(str(concept))
+                               for name in (_fold(str(concept).replace("_", " ").strip()),) if name and " " not in name)
             # A construction's own last piece meets only the last piece said; a phrase's or a lexical's may meet any.
             inner = item.form[:-1] if isinstance(item, Pattern) else item.form
             self._inner_marks.update(_fold(e.text) for e in inner if isinstance(e, Piece) and _is_mark(e.text))
@@ -1010,8 +1288,14 @@ class PatternInventory:
                     self._name_noted(_fold(e.text))
             if item.slots:
                 self._item_based.append(key)
+                self._note_adjuncts(item)
                 pieces = [e.text for e in item.form if isinstance(e, Piece)]
                 self._needs[key] = (frozenset(pieces), frozenset(_folded(pieces)))
+                own = _fact_kinds(item.meaning.facts)
+                for slot in item.slots:
+                    used = _fact_kinds(f for f in item.meaning.facts if slot in f.terms())
+                    for kept in {frozenset(own.items()), frozenset((own - used).items())}:
+                        self._frames_keeping.setdefault((item.meaning.act, kept), []).append((key, slot))
             else:
                 self._holophrase_keys.append(key)
                 self._holophrase_words.setdefault(item.words, []).append(key)
@@ -1025,12 +1309,27 @@ class PatternInventory:
             # Words said in each other's place with the same meaning show it in holophrases too ("Yes, it is." and
             # "Yes, she is.").
             self._note_alternation(item, item.meaning.canonical())
-            self._join_twins(key)
+            self._join_frame(key)
             if isinstance(item.form[-1], Piece):
                 self._ends.add(_fold(item.form[-1].text))
             self._letters_of(item)
         elif isinstance(item, Phrase):
+            self._phrase_at[key] = len(self._phrases)
             self._phrases.append(key)
+            own = _own_words(item)
+            if own:
+                # Under the word of its own fewest phrases are under yet ("parsed", not "them"), so a word a reading
+                # has finds few it cannot use.
+                word = min(own, key=lambda w: len(self._phrases_by_word.get(w, ())))
+                self._phrases_by_word.setdefault(word, []).append(key)
+            else:
+                self._phrases_wordless.append(key)
+            for kind in _kinds_named(item):
+                self._phrases_of_kind.setdefault(kind, []).append(key)
+            self._phrases_stating.setdefault(frozenset(_fact_kinds(item.facts).items()), []).append(key)
+            named = _named_in(item)
+            self._phrases_naming.setdefault((frozenset(_fact_kinds(item.facts).items()), min(named) if named else None),
+                                            []).append(key)
             self._note_shape_phrase(item)
             if self._written_as(item):
                 for pattern, slot in self._links_to.get(key, ()):
@@ -1043,6 +1342,7 @@ class PatternInventory:
                 for word in own:
                     self._shapes[word] = self._shapes.get(word, 0) + 1
                 self._note_alternation(item, item.canonical())
+            self._join_frame(key)
             self._letters_of(item)
         elif isinstance(item, Lexical):
             self._lexical_keys.append(key)
@@ -1057,9 +1357,10 @@ class PatternInventory:
                 self._filled(pattern, slot, item)
                 if self._uses_built:
                     self._use_pending.append((pattern, slot, key))
-            if key in self._parent:
+            if key in self._parts_of:
                 self._use_enter(key)
-                self._register(key, item)
+                for part in sorted(self._parts_of[key]):
+                    self._register((key, part), item)
         else:
             self._link_keys.append(key)
             self._links[(item.pattern, item.slot, item.lexical)] = key
@@ -1075,6 +1376,40 @@ class PatternInventory:
             if self._uses_built:
                 self._use_pending.append((item.pattern, item.slot, item.lexical))
         return True
+
+    def _note_adjuncts(self, frame: Pattern) -> None:
+        """The adjuncts a frame just held shows with the frames held before it, as the longer of a pair and as the
+        shorter (`_adjunct_of`): found as each frame arrives, never from everything held again. The words added follow
+        a slot, begin with a word, and end before the frame's last mark."""
+        act = frame.meaning.act
+        written = tuple("\x00" if isinstance(e, Slot) else e.text for e in frame.form)
+        last = len(written) - (1 if isinstance(frame.form[-1], Piece) and _is_mark(frame.form[-1].text) else 0)
+        for start in range(1, last):
+            here = frame.form[start]
+            if not isinstance(frame.form[start - 1], Slot) or not isinstance(here, Piece) or _is_mark(here.text):
+                continue
+            for end in range(start + 1, last + 1):
+                cut = written[:start] + written[end:]
+                self._frames_cut.setdefault((act, cut), []).append((frame.key, start, end))
+                for shorter in self._frames_written.get((act, cut), ()):
+                    self._adjoin(self._by_key[shorter], frame, start, end)  # type: ignore[arg-type]
+        for longer, start, end in self._frames_cut.get((act, written), ()):
+            self._adjoin(frame, self._by_key[longer], start, end)  # type: ignore[arg-type]
+        self._frames_written.setdefault((act, written), []).append(frame.key)
+
+    def _adjoin(self, shorter: Pattern, longer: Pattern, start: int, end: int) -> None:
+        adjunct = _adjunct_of(shorter, longer, start, end)
+        if adjunct is not None:
+            self._adjuncts.setdefault(_fold(adjunct.form[0].text), []).append(adjunct)  # type: ignore[union-attr]
+
+    def begins_adjunct(self, word: str) -> bool:
+        """Whether an adjunct the held frames show begins with this word, case aside."""
+        return _fold(word) in self._adjuncts
+
+    def adjuncts_after(self, word: str) -> Tuple[Adjunct, ...]:
+        """The adjuncts that begin with this word, case aside, whose frames are both still believed (`Adjunct`)."""
+        return tuple(a for a in self._adjuncts.get(_fold(word), ())
+                     if self.counts(self._by_key[a.frame]) and self.counts(self._by_key[a.shorter]))
 
     def _note_proper(self, pattern: str, slot: str, filler: Lexical) -> None:
         """A filler written with a capital in a slot where no sentence begins keeps its capital (`is_proper`): noted
@@ -1241,9 +1576,11 @@ class PatternInventory:
         self._note_proper(pattern, slot, filler)
         words = _loose(filler.words)
         if len(words) == 1:
-            self._count_writing(pattern, slot, words[0], _fold(filler.value))
+            # Against the word's own name, as every writing is judged (`_written_as`): "wall" for `object wall`, a
+            # sense named apart, is written as its name is.
+            self._count_writing(pattern, slot, *self._written_as(filler))
             return
-        tally = self._slot_tally.setdefault((pattern, slot), [0, 0, 0])
+        tally = self._slot_tally.setdefault((pattern, slot), [0, 0, 0, 0])
         if not words:
             tally[2] += 1
         else:
@@ -1273,23 +1610,71 @@ class PatternInventory:
     def _count_writing(self, pattern: str, slot: str, word: str, name: str) -> None:
         """One filler of one word in a slot: written as its concept's name or otherwise, in what change, and the
         concept it stands for there (`slot_writing`, `said_shapes`)."""
-        tally = self._slot_tally.setdefault((pattern, slot), [0, 0, 0])
-        tally[0 if word == name else 1] += 1
+        before = self.changed_writing(pattern, slot)
+        # What the concept gives each change's count before it moves (`_said_moved`).
+        given = self._said_stem(name) if self._said is not None else None
+        tally = self._slot_tally.setdefault((pattern, slot), [0, 0, 0, 0])
+        change = self.shape_between(word, name)
+        # A WORD OF ITS OWN, NO SHAPE OF THE NAME, that says no more than its thing is kept apart (`tally[3]`): it is
+        # another name ("soul" for `person`) or an irregular form ("Geese"), and its writing cannot tell which
+        # (`_written_otherwise` decides it by the slot's other words). One that says more than its thing ("third", a
+        # rank of 3; "flew") is written otherwise.
+        own = word != name and change is None and not self.says_more(word, name)
+        tally[3 if own else 0 if word == name else 1] += 1
         tally[2] += 1
         self._use_touched.add((pattern, slot))
-        if tally[1] * 2 > tally[0] + tally[1]:
-            self._use_shaped.add((pattern, slot))
-        else:
-            self._use_shaped.discard((pattern, slot))
-        change = self.shape_between(word, name)
         if change is not None:
             changes = self._slot_changes.setdefault((pattern, slot), {})
             least = self._least(change)
             changes[least] = changes.get(least, 0) + 1
+        if self._written_otherwise((pattern, slot)):
+            self._use_shaped.add((pattern, slot))
+        else:
+            self._use_shaped.discard((pattern, slot))
         made = self._slot_stems.setdefault((pattern, slot), {}).setdefault(name, set())
         made.update(self.changes_between(word, name))
         if word != name and change is None:
             made.add(None)      # an irregular form ("geese", "flew"): written otherwise, by no change
+        if given is not None:
+            after = self.changed_writing(pattern, slot)
+            if after == before:
+                self._said_moved(name, given, (pattern, slot) if after is not None else None)
+            elif before is not None and after is not None:
+                # Written in one change more ("stopped": `ped`, where "barked" and "walked" stood): its concepts join
+                # the cells of that change too.
+                (widened,) = after - before
+                self._said_moved(name, given, (pattern, slot), widened=widened)
+            else:
+                # The slot came to be written in a change, or stopped: every concept in it moves between the cells
+                # and the names. Found again whole, as it is when nothing has asked yet.
+                self._said = None
+
+    def _written_otherwise(self, where: Tuple[str, str]) -> bool:
+        """Whether a slot's one-word fillers are written otherwise than by their concepts' names: those written as
+        the name are few enough to be exceptions (Yang's Tolerance Principle, `_tolerated`: "Fish" beside "Dogs",
+        "Cats" and "Birds"), or none is written as its name ("Geese" alone; "third", "quarter" for 3 and 4).
+
+        A RULE, NOT A MAJORITY. This was once "most fillers are not written as their concept's name". A word that
+        is not its concept's name is not always a shape of it: it may be one more word the thing is called by
+        ("peril", "risk" and "jeopardy" for `hazard`). Once each sense was a concept of its own and every word a
+        sense is written with was taught, those outnumbered the names: in the sandbox 3,730 of the 4,842 words in
+        "A ?slot0 is a ?slot1." were not their concept's name, so the frame was taken to take a shape and every
+        noun standing in it to be a plural. "dog" was then never said as it is: "I do not know where the domestic
+        dog is." Words written as names in numbers no exception reaches say the slot writes names: 2,524 there,
+        against 570 tolerated; 9 of 20 where "red cup" and "usually runs" share a phrase, against 6. A slot that
+        takes plurals holds few ("?slot0 are ?slot1.": 16 of 115, against 24)."""
+        tally = self._slot_tally.get(where)
+        if not tally or not tally[1] + tally[3]:
+            return False
+        named, shaped, own = tally[0], tally[1], tally[3]
+        if not named:
+            return True        # none written as its name: "Geese" alone, "third" and "quarter" for 3 and 4
+        # A WORD OF ITS OWN GOES WITH THE SLOT'S OTHER WORDS. Where most of the words that show it are in a shape, it
+        # is an irregular form ("Geese" beside "Dogs" and "Foxes"); where most are written as named, it is one more
+        # name ("soul" beside "person"). Counted as a shape everywhere, the other words a source names a thing by
+        # made "Every ?slot0 is an ?slot1." a slot that takes plurals, and said "Every assets is a possession.".
+        otherwise = shaped + (own if shaped > named else 0)
+        return bool(otherwise) and _tolerated(otherwise, named + otherwise)
 
     def __len__(self) -> int:
         return len(self._by_key)
@@ -1299,6 +1684,128 @@ class PatternInventory:
         the "e" of "eagle", the "o" of "owl"; after "a", the "b" of "bird". How a word's form goes with the next
         word's, found from what was taught."""
         return frozenset(self._after.get(_fold(word), ()))
+
+    # ── what was heard after what ─────────────────────────────────────────────────────────────────────────────────
+    # A construction holds its slots' fillers each apart: "might open" and "often opens" made one phrase,
+    # "?slot0 ?slot1", and which of its second words goes with which first is not in it. Said from it, "Tom might
+    # open the box." came out "Tom may opens the box.". What the sentences taught had right after each word is kept
+    # here, as each sentence is learned, and saying puts a word only where a word written as it is was heard
+    # (`_unheard`).
+
+    def hear(self, words: Iterable[str]) -> List[Tuple[str, ...]]:
+        """Each word of a sentence taught heard right after the one before it ("open" after "might" in "Tom might
+        open the box."), and after the two before it ("chase" after "did not", where "has not" is followed by
+        "opened"); a mark ends a run. What was not heard before: each pair, and each word with the two before it."""
+        new: List[Tuple[str, ...]] = []
+        earlier: Optional[str] = None
+        before: Optional[str] = None
+        for word in words:
+            if _is_mark(word) or word == QUOTED:
+                earlier = before = None
+                continue
+            word = _fold(word)
+            if before is not None and word not in self._heard.get(before, ()):
+                self._heard.setdefault(before, set()).add(word)
+                new.append((before, word))
+            if earlier is not None and word not in self._heard_two.get((earlier, before), ()):
+                self._heard_two.setdefault((earlier, before), set()).add(word)
+                new.append((earlier, before, word))
+            earlier, before = before, word
+        if new:
+            self._heard_forms.clear()
+        return new
+
+    def heard_after(self, word: str, earlier: Optional[str] = None) -> FrozenSet[str]:
+        """The words heard right after this one in the sentences taught; with `earlier`, right after the two."""
+        if earlier is not None:
+            return frozenset(self._heard_two.get((_fold(earlier), _fold(word)), ()))
+        return frozenset(self._heard.get(_fold(word), ()))
+
+    def heard_two(self, word: str) -> Dict[str, FrozenSet[str]]:
+        """Of the words heard right before this one, each with the words heard right after the two."""
+        word = _fold(word)
+        return {earlier: frozenset(after) for (earlier, middle), after in self._heard_two.items() if middle == word}
+
+    def word_form(self, word: str, value: str) -> FrozenSet[str]:
+        """How a word is written among its concept's forms, the forms sharing its first two letters: `""` for the
+        one the others are made from, its stem ("open" of open, opens, opened and opening, whatever the concept is
+        named), `"+"` for a word of its own that says more than its concept ("ran", "swam"), else the change from
+        the stem, each way the stem's last letter may join it ("kicked" `ed`; "chased" `d` and `ed`; "swimming"
+        `ming` and `ing`; "goes" `es` and `s`). Two words are written alike where these meet."""
+        word = _fold(word)
+        self._forms_now()
+        held = self._word_forms.get((word, value))
+        if held is not None:
+            return held
+        family = {_fold(lx.words[0]) for lx in self.lexicals_with_value(value) if len(lx.words) == 1} | {word}
+        stem = min((f for f in family if f[:2] == word[:2]), key=lambda f: (len(f), f))
+        change = self.shape_between(word, stem) if word != stem else None
+        if change is None:
+            form = frozenset({"+"}) if self.says_more(word, value) else frozenset({""})
+        elif change[1]:
+            form = frozenset({f"{change[0]}/{change[1]}"})
+        else:
+            written = change[0]
+            form = frozenset({written, stem[-1] + written, written[1:]}) - {""}
+        self._word_forms[(word, value)] = form
+        return form
+
+    def heard_like(self, before: str, word: str, value: str, earlier: Optional[str] = None) -> int:
+        """How a word stands right after another, as heard: 0 heard there (or nothing was heard after the other, or
+        nothing is held of the word); 1 like what was heard, a word of its kind having been heard there, written as
+        it is among its concept's forms (`word_form`), its concept having stood in one slot with this one
+        (`stood_together`): "open" after "may", where "go" and "fly" were; 2 never: not "opens" there, not "chased"
+        where "kick" and "bark" stand after "did not", and not "October" after "the", where only things were.
+        With `earlier`, the word before the other, what was heard after the two is what the word is held against,
+        where anything was: "opened" is heard after "has not", never after "did not"."""
+        context = self._heard_context(before, earlier)
+        after = self._heard_two.get(context) if len(context) == 2 else self._heard.get(context[0])
+        if not after or _fold(word) in after or not self._lexical_value.get(value):
+            return 0
+        self._forms_now()
+        heard = self._heard_forms.get(context)
+        if heard is None:
+            heard = tuple({(lexical.value, self.word_form(other, lexical.value))
+                           for other in after for lexical in self.lexicals_with_words((other,), loose=True)
+                           if len(lexical.words) == 1})
+            self._heard_forms[context] = heard
+        form = self.word_form(word, value)
+        return 1 if any(form & written and self.stood_together(value, concept) for concept, written in heard) else 2
+
+    def heard_there(self, before: Sequence[str], word: str) -> bool:
+        """Whether a word was heard right after these words, the last two at most (`_heard_context`)."""
+        if not before:
+            return False
+        context = self._heard_context(before[-1], before[-2] if len(before) > 1 else None)
+        after = self._heard_two.get(context) if len(context) == 2 else self._heard.get(context[0])
+        return _fold(word) in (after or ())
+
+    def _heard_context(self, before: str, earlier: Optional[str]) -> Tuple[str, ...]:
+        """What a word right after `before` is held against: the two words, where anything was heard after them,
+        else the one."""
+        before = _fold(before)
+        if earlier is not None and (_fold(earlier), before) in self._heard_two:
+            return (_fold(earlier), before)
+        return (before,)
+
+    def stood_together(self, one: str, other: str) -> bool:
+        """Whether two concepts have stood in one slot, in any of their words (`_standing`): `opening` and `go`, both
+        after "might"; not `2` and `dog`."""
+        if one == other:
+            return True
+        self._forms_now()
+        pair = (one, other) if one <= other else (other, one)
+        held = self._together.get(pair)
+        if held is None:
+            held = any(("concept", other) in self._standing(place)
+                       for key in self._lexical_value.get(one, ()) for place in self._links_to.get(key, ()))
+            self._together[pair] = held
+        return held
+
+    def _forms_now(self) -> None:
+        """What `word_form`, `heard_like` and `stood_together` worked out, kept until anything more is held."""
+        if self._forms_at != self._added:
+            self._word_forms, self._heard_forms, self._together, self._forms_at = {}, {}, {}, self._added
 
     def __contains__(self, key: str) -> bool:
         return key in self._by_key
@@ -1324,6 +1831,39 @@ class PatternInventory:
     def phrases(self) -> Tuple[Phrase, ...]:
         return tuple(self._by_key[k] for k in self._phrases)
 
+    def phrases_reading(self, have: Iterable[str]) -> Tuple[Phrase, ...]:
+        """The phrases that may read words among `have` (what they are, and what they stand for written in another
+        shape), in the order they were held: those with a word of their own among them, case aside, and those with
+        none. A phrase reads words only where each word of its own is one of them (`_chunkings`). Every phrase was
+        tried for every run of words in every sentence read, and phrases are learned as fast as sentences: WordNet's
+        verb forms learned one each, and each sentence took longer than the last (2 minutes a thousand to 28, on
+        main, 2026-10-13)."""
+        keys = set(self._phrases_wordless)
+        for word in {_fold(w) for w in have}:
+            keys.update(self._phrases_by_word.get(word, ()))
+        return tuple(self._by_key[k] for k in sorted(keys, key=self._phrase_at.__getitem__))
+
+    def phrases_of_kind(self, kind: str) -> Tuple["Phrase", ...]:
+        """The phrases naming a thing of their own as of this kind ("compiled them", "is compiling them": a
+        compiling), in the order they were held."""
+        return tuple(self._by_key[k] for k in self._phrases_of_kind.get(kind, ()) if k in self._by_key)
+
+    def saying(self, words: Tuple[str, ...], concept: str, forms: Iterable[str] = ()) -> Tuple[Construction, ...]:
+        """The constructions that say a word names a thing: the word held for it, case aside; the word in one of
+        its forms held for it ("ran" for `run`, as the lessons hold it in "Tom ran."); and the phrases naming a thing
+        of that kind in one of the word's forms ("had them", "is having them", for "have" naming a having). Where a
+        count of the word's uses lands (`learn_usage`): landed on the phrases and not on "ran", "Tom ran." was the
+        fleeing "run" names 38 times in real use, counted through its phrase, not the running it names 106."""
+        wanted = str(concept).strip().lower()
+        lexical = next((lx for lx in self.lexicals_with_words(words)
+                        + self.lexicals_with_words(tuple(w.lower() for w in words), loose=True)
+                        if lx.value.lower() == wanted), None)
+        written = {_fold(form) for form in forms}
+        in_forms = [lx for form in sorted(written) for lx in self.lexicals_with_words((form,), loose=True)
+                    if lx.value.lower() == wanted]
+        phrases = [phrase for phrase in self.phrases_of_kind(str(concept)) if written & set(_own_words(phrase))]
+        return tuple({c.key: c for c in ([lexical] if lexical is not None else []) + in_forms + phrases}.values())
+
     def links(self) -> Tuple[Link, ...]:
         return tuple(self._by_key[k] for k in self._link_keys)
 
@@ -1333,6 +1873,26 @@ class PatternInventory:
         if loose:
             return tuple(self._by_key[k] for k in self._holophrase_first.get(_first_word(words), ()))
         return tuple(self._by_key[k] for k in self._holophrase_words.get(tuple(words), ()))
+
+    def frames_keeping(self, act: str, kinds: Counter) -> Tuple[Tuple[Pattern, str], ...]:
+        """The frames of this act, each with a slot, that state these kinds of fact with a phrase in that slot: all
+        their own, or all but those of the slot a phrase standing for a thing describes (`_composed`)."""
+        return tuple((self._by_key[k], slot) for k, slot in self._frames_keeping.get((act, frozenset(kinds.items())), ()))
+
+    def phrases_stating(self, kinds: Counter, within: Optional[AbstractSet[str]] = None) -> Tuple[Phrase, ...]:
+        """The phrases stating exactly these kinds of fact; `within`, of those only the ones every concept they name
+        is among (`_named_in`), in the order they were held. A phrase says part of a meaning only where the meaning
+        names what it names: "strolled" says no walking. Every phrase of the kinds was composed with every frame, and
+        once WordNet's verb forms were learned, saying "To stroll is to walk." tried tens of thousands ("strolls",
+        "parses", each a doing of its own) and took minutes (2026-10-13)."""
+        kinds_held = frozenset(kinds.items())
+        if within is None:
+            return tuple(self._by_key[k] for k in self._phrases_stating.get(kinds_held, ()))
+        keys = set(self._phrases_naming.get((kinds_held, None), ()))
+        for concept in within:
+            keys.update(k for k in self._phrases_naming.get((kinds_held, concept), ())
+                        if _named_in(self._by_key[k]) <= within)
+        return tuple(self._by_key[k] for k in sorted(keys, key=self._phrase_at.__getitem__))
 
     def with_meaning(self, canonical: str) -> Tuple[Pattern, ...]:
         """The holophrases with exactly this meaning."""
@@ -1348,6 +1908,14 @@ class PatternInventory:
         not a filler on its own."""
         word = _fold(word)
         return word in self._frame_words and word not in self._filler_words
+
+    def builds_more_than_it_names(self, word: str) -> bool:
+        """Whether held frames are written with this word more often than it is held naming things: "a", in 158
+        frames and naming seven things (the ampere, the angstrom, adenine ...), is English's article first. A
+        structure word (`is_structure`) names none; WordNet taught "a", "in", "at" and "I" each a sense, and they
+        stopped counting as structure, so "a lockstitch" stood as one new name."""
+        word = _fold(word)
+        return self._shapes.get(word, 0) > len(self._fillers_by_word.get(word, ()))
 
     def ends(self) -> FrozenSet[str]:
         """The pieces held constructions end on: where an utterance can end, as far as anything taught says."""
@@ -1376,16 +1944,18 @@ class PatternInventory:
         of forms (`is_structure`), in more than one shape of sentence, and never the name of a concept any taught
         meaning holds. "the" is such a word. "color", held only inside "What color is the ?slot0?", is not: that
         question's meaning names the concept `color`. Nor is "bats", held only in "Bats are not ?slot0.": one
-        shape is one sighting of a word, not evidence that it builds sentences. Nor is a word written in a change
-        two held words show, from the name of a concept a taught meaning holds: "jumped", held only inside "The
-        ?slot0 jumped onto the ?slot1." and "The ?slot0 jumped over the ?slot1.", names `jump`."""
+        shape is one sighting of a word, not evidence that it builds sentences. Nor is a word written in a productive
+        change (`written_in_shape`) from the name of a concept a taught meaning holds: "jumped", held only inside
+        "The ?slot0 jumped onto the ?slot1." and "The ?slot0 jumped over the ?slot1.", names `jump`. A change
+        merely shown by two words is a list of words, and applies to no other: taken so, "of" was "o" written with
+        "f", "is" was "i" with "s", and "with" was "wit" with "h"."""
         word = _fold(word)
         if not (self.is_structure(word) and word not in self._named and self._shapes.get(word, 0) > 1):
             return False
         for size in range(1, len(word)):
-            for written, names in self._by_written.get(word[len(word) - size:], ()):
-                if self._shape_counts[(written, names)][0] >= 2 \
-                        and word[:len(word) - len(written)] + names in self._named:
+            for written, names in self._productive_by_written.get(word[len(word) - size:], ()):
+                name = word[:len(word) - len(written)] + names
+                if name in self._named and self.written_in_shape(word, name):
                     return False
         return True
 
@@ -1395,18 +1965,19 @@ class PatternInventory:
         exact, folded = self._needs[pattern]
         return (folded if loose else exact) <= words
 
-    # ── kinds: fillers linked to a common slot are one kind, and a kind is everything reachable that way ─────────
+    # ── kinds: fillers linked to a common slot, as the slot takes them, are one kind, and a kind is everything ──────
+    #    reachable that way
 
-    def _find(self, key: str) -> str:
+    def _find(self, node: Tuple[str, str]) -> Tuple[str, str]:
         parent = self._parent
-        root = key
+        root = node
         while parent[root] != root:
             root = parent[root]
-        while parent[key] != root:
-            parent[key], key = root, parent[key]
+        while parent[node] != root:
+            parent[node], node = root, parent[node]
         return root
 
-    def _union(self, one: str, other: str) -> None:
+    def _union(self, one: Tuple[str, str], other: Tuple[str, str]) -> None:
         first, second = self._find(one), self._find(other)
         if first == second:
             return
@@ -1431,21 +2002,57 @@ class PatternInventory:
             if taken_in:
                 self._use_bare_keys.setdefault(first, set()).update(taken_in)
 
+    def _taken_at(self, pattern: str, slot: str) -> Tuple[str, ...]:
+        """What a held frame's slot takes its fillers as (`_taken_as`), kept: a frame never changes; nothing while
+        the frame is not held."""
+        place = (pattern, slot)
+        taken = self._taken.get(place)
+        if taken is None:
+            frame = self._by_key.get(pattern)
+            if not isinstance(frame, (Pattern, Phrase)):
+                return ()
+            taken = self._taken[place] = _taken_as(frame, slot)
+        return taken
+
     def _join(self, pattern: str, slot: str, lexical: str) -> None:
-        """A link puts its filler in the kind of its slot's first filler -- and of the same slot of every frame that
-        is this one with a word of its own written in another shape (`twins_of`): "Every ?slot0 is a ?slot1." and
-        "Every ?slot0 is an ?slot1." are one construction, so what fills one fills the other's kind."""
-        first = self._linked[(pattern, slot)][0]
-        for key in (first, lexical):
-            if key not in self._parent:
-                self._parent[key] = key
-                self._kind_size[key] = 1
-                item = self._by_key.get(key)
-                if isinstance(item, Lexical):
-                    self._use_enter(key)
-                    self._register(key, item)
-        self._union(first, lexical)
+        """A link puts its filler in the kind of its slot's first filler, in each part the slot takes it as
+        (`_taken_as`) -- and of the same slot of every frame that is this one with a word of its own written in another
+        shape (`twins_of`): "Every ?slot0 is a ?slot1." and "Every ?slot0 is an ?slot1." are one construction, so
+        what fills one fills the other's kind. What a slot takes its fillers as is its frame's to say: a link held
+        before its frame joins when the frame comes (`_join_frame`)."""
+        self._join_link(pattern, slot, lexical)
         self._join_twins(pattern)
+
+    def _join_link(self, pattern: str, slot: str, lexical: str) -> None:
+        first = self._linked[(pattern, slot)][0]
+        for part in self._taken_at(pattern, slot):
+            for node in ((first, part), (lexical, part)):
+                self._enter(node)
+            self._union((first, part), (lexical, part))
+
+    def _join_frame(self, frame: str) -> None:
+        """A frame now held: the fillers linked to its slots before it came join their kinds."""
+        item = self._by_key[frame]
+        for slot in item.slots:
+            for lexical in self._linked.get((frame, slot), ()):
+                self._join_link(frame, slot, lexical)
+        self._join_twins(frame)
+
+    def _enter(self, node: Tuple[str, str]) -> None:
+        """A filler in a kind of its own, in one part, until a link joins it to another."""
+        if node in self._parent:
+            return
+        self._parent[node] = node
+        self._kind_size[node] = 1
+        key, part = node
+        self._parts_of.setdefault(key, set()).add(part)
+        item = self._by_key.get(key)
+        if isinstance(item, Lexical):
+            if part == "thing" and key in self._use_entered:
+                self._use_thing(key)
+            else:
+                self._use_enter(key)
+            self._register(node, item)
 
     def _join_twins(self, pattern: str) -> None:
         """A frame's slots, one kind with the same slots of its twins, where both hold fillers."""
@@ -1455,16 +2062,20 @@ class PatternInventory:
         for twin in self.twins_of(pattern):
             for slot in item.slots:
                 mine, theirs = self._linked.get((pattern, slot)), self._linked.get((twin, slot))
-                if mine and theirs and mine[0] in self._parent and theirs[0] in self._parent:
-                    self._union(mine[0], theirs[0])
+                if not (mine and theirs):
+                    continue
+                for part in set(self._taken_at(pattern, slot)) & set(self._taken_at(twin, slot)):
+                    one, other = (mine[0], part), (theirs[0], part)
+                    if one in self._parent and other in self._parent:
+                        self._union(one, other)
 
-    def _register(self, key: str, lexical: Lexical) -> None:
+    def _register(self, node: Tuple[str, str], lexical: Lexical) -> None:
         """A held filler of some kind: its length and the change it is written in count for its kind, and it is one
         word with every filler that names the same concept written with the same letters, in any case ("Birds"
         opening a sentence, "birds" ending one), or written as that concept's name changed at its end ("Robins" and
-        "robin", "Children" and "child"). Whether the change is productive does not matter here: that says whether
-        it applies to words never seen, and both of these are held."""
-        root = self._find(key)
+        "robin", "Children" and "child"), taken as the same part. Whether the change is productive does not matter
+        here: that says whether it applies to words never seen, and both of these are held."""
+        root = self._find(node)
         words = _loose(lexical.words)
         self._kind_longest[root] = max(self._kind_longest.get(root, 0), len(words))
         if len(words) == 1:
@@ -1472,28 +2083,133 @@ class PatternInventory:
             if change is not None:
                 self._kind_changes.setdefault(root, set()).add(change)
                 words = (_fold(lexical.value),)
-        self._union(self._same_word.setdefault((words, lexical.value), key), key)
+        self._union(self._same_word.setdefault((words, lexical.value, node[1]), node), node)
 
-    def _kind_of_slot(self, pattern: str, slot: str) -> Optional[str]:
+    def _kinds_of_slot(self, pattern: str, slot: str) -> Tuple[Tuple[str, str], ...]:
+        """The kind of a slot's first filler in each part the slot takes it as."""
         linked = self._linked.get((pattern, slot))
-        return self._find(linked[0]) if linked else None
+        if not linked:
+            return ()
+        return tuple(self._find((linked[0], part)) for part in self._taken_at(pattern, slot)
+                     if (linked[0], part) in self._parent)
 
     def longest_filler(self, pattern: str, slot: str) -> int:
         """How many words the longest filler of this slot's kind has: the longest a name in that slot has been."""
-        kind = self._kind_of_slot(pattern, slot)
-        return self._kind_longest.get(kind, 0) if kind is not None else 0
+        return max((self._kind_longest.get(kind, 0) for kind in self._kinds_of_slot(pattern, slot)), default=0)
 
     def same_kind(self, pattern: str, slot: str, lexical: str) -> bool:
-        """Whether this filler is of the same learned kind as a filler linked to this slot -- or, written as a number
-        or a formula, stands where numbers or formulas stand: what a number is, its writing says (`_quantity`), and
-        12 is the kind of thing 7 is wherever 7 stood, whether or not the two ever filled one slot."""
-        kind = self._kind_of_slot(pattern, slot)
-        if kind is not None and lexical in self._parent and self._find(lexical) == kind:
+        """Whether this filler is of the same learned kind as a filler linked to this slot, taken as the slot takes
+        it (`_taken_as`) -- or, a number, stands where numbers or formulas stand: 12 is the kind of thing 7 is
+        wherever 7 stood, whether or not the two ever filled one slot.
+
+        A NUMBER IS ONE WHERE ITS WRITING SAYS SO (`_quantity`: "12", "2 + 3"), OR WHERE ITS WORD IS HELD ONLY AS THE
+        NUMBER'S NAME ("Fifteen is a number."): what it names is all it is, and "There are fifteen cats." counts
+        fifteen. A word held in a number's place of its own -- a rank ("first", for 1), a power ("cubed", for 3) --
+        is what it is there, and stands where its kind does: taken for the number it names, "first amendment" was
+        one amendment."""
+        linked = self._linked.get((pattern, slot), ())
+        if linked and any((lexical, part) in self._parent and (linked[0], part) in self._parent
+                          and self._find((lexical, part)) == self._find((linked[0], part))
+                          for part in self._taken_at(pattern, slot)):
             return True
         item = self._by_key.get(lexical)
-        return (isinstance(item, Lexical) and _quantity(item.value)
+        if not (isinstance(item, Lexical) and _quantity(item.value)
                 and any(isinstance(self._by_key.get(key), Lexical) and _quantity(self._by_key[key].value)
-                        for key in self._linked.get((pattern, slot), ())))
+                        for key in linked)):
+            return False
+        return _quantity(item.surface) or self._parts_of.get(lexical, set()) <= {"thing"}
+
+    #: The part of the meaning language each class of English word stands in: an adjective where qualities stand, a
+    #: verb where doings do. A noun needs none: WordNet's kinds, said ("A robin is a bird."), put its nouns where
+    #: things stand.
+    CLASS_PARTS = {"ADJECTIVE": "quality", "VERB": "doing"}
+
+    def of_its_class(self, pattern: str, slot: str, lexical: str) -> bool:
+        """Whether a held one-word filler stands where this slot's fillers do by its word's class: observed an
+        ADJECTIVE (net of what refuted it), where the slot takes qualities; a VERB, where it takes doings
+        (`CLASS_PARTS`, `_taken_at`).
+
+        A WORD NEVER SEEN IN A SENTENCE OF ITS PART HAS ITS CLASS TO GO BY. Kinds are learned from the slots fillers
+        stood in, and WordNet says most of its adjectives in no sentence (no frame says what one is like), or only
+        where kinds stand ("Hot is the opposite of cold."): no adjective but the lessons' few could stand where a
+        quality does, and "Cars are fast." read as cars being a kind called fast; of 120 never-taught sentences
+        saying a quality, 5 found the reading (2026-10-12). Its class is memory, from WordNet's tagged counts and the
+        sentences that were said."""
+        item = self._by_key.get(lexical)
+        if not isinstance(item, Lexical) or len(item.words) != 1:
+            return False
+        # WHERE THE FRAME RELATES CONCEPTS OF ANY PART ("Is ?slot0 the opposite of ?slot1?": hot and cold, buy and
+        # sell, day and night), a word stands as its class is, its kinds left where they are: the slot takes things
+        # as kinds join them, and an adjective given its words only where qualities stand ("outgoing") was read in
+        # no such question (66 of 100 opposites unread, UNDERSTANDS-WORDNET-01, 2026-10-13).
+        here = set(self._taken_at(pattern, slot))
+        if self.takes_any_part(pattern, slot):
+            here |= set(self.CLASS_PARTS.values())
+        taken = self.class_parts(item.words[0]) & here
+        # A SENSE STANDS BY ITS WORD'S CLASS ONLY IN A PART IT HAS STOOD IN, OR WHERE IT HAS STOOD NOWHERE, OR WHERE THE
+        # WORD THAT NAMES IT IS OF THAT CLASS. A class is the word's, not each sense's: "glimpse" is a verb and a noun,
+        # and its noun sense, a glance (`look glance`), stood only where things do; through its word's class the
+        # glance was a doing, and a telephone exchange ("workplace central") a quality ("Faith is central."). A sense
+        # that stood as a doing ("walk", in the lessons' events) is a doing where any slot takes doings, its kind there
+        # not yet joined to the slot's: kept out, "To stroll is to walk." could not be said, and no verb WordNet holds
+        # could stand where english_41's do. A sense named by an adjective (`surprised`) is that adjective's, wherever
+        # it first stood: held only where "Surprised is the opposite of unsurprised." put it, with things, it was kept
+        # out of every slot a quality stands in (80 of the 121 rules WordNet's adjectives could not say, 2026-10-12).
+        stood = self._parts_of.get(lexical)
+        return bool(taken) and (not stood or bool(taken & (stood | self.class_parts(str(item.value)))))
+
+    def slot_filled(self, pattern: str, slot: str) -> Tuple[float, int]:
+        """How a slot was filled, as held: the uses of its held links, all told, and how many fillers they put there."""
+        if self._slot_filled_at != self._added:
+            self._slot_filled, self._slot_filled_at = {}, self._added
+        place = (pattern, slot)
+        held = self._slot_filled.get(place)
+        if held is None:
+            uses, fillers = 0.0, 0
+            for filler in self._linked.get(place, ()):
+                link = self._by_key.get(self._links.get((pattern, slot, filler), ""))
+                if link is not None and self.counts(link):
+                    uses += self.uses(link)
+                    fillers += 1
+            held = self._slot_filled[place] = (uses, fillers)
+        return held
+
+    def parts_met(self) -> Dict[str, Tuple[float, int]]:
+        """For each part of the meaning language, how often its held fillers were met, all told, and how many there
+        are: each word in each part it stood in, or that its class stands in (`class_parts`)."""
+        if self._parts_met_at != self._added:
+            met: Dict[str, List[float]] = {}
+            for key in self._lexical_keys:
+                lexical = self._by_key.get(key)
+                if not isinstance(lexical, Lexical):
+                    continue
+                parts = set(self._parts_of.get(key, ()))
+                if len(lexical.words) == 1:
+                    parts |= self.class_parts(lexical.words[0])
+                if not parts:
+                    continue
+                uses = _met(self, lexical)
+                for part in parts:
+                    held = met.setdefault(part, [0.0, 0])
+                    held[0] += uses
+                    held[1] += 1
+            self._parts_met = {part: (held[0], held[1]) for part, held in met.items()}
+            self._parts_met_at = self._added
+        return self._parts_met
+
+    def takes_any_part(self, pattern: str, slot: str) -> bool:
+        """Whether every fact a frame states of this slot relates concepts of any part (`RelationSpec.of_any_part`:
+        opposites, synonyms)."""
+        frame = self._by_key.get(pattern)
+        facts = frame.meaning.facts if isinstance(frame, Pattern) else frame.facts if isinstance(frame, Phrase) else ()
+        uses = [f for f in facts if slot in f.terms()]
+        return bool(uses) and all(_of_any_part(f.relation) for f in uses)
+
+    def class_parts(self, word: str) -> Set[str]:
+        """The parts of the meaning language a word's class stands in (`CLASS_PARTS`): `quality` for a word observed
+        an ADJECTIVE, `doing` for a VERB, net of what refuted it; none for a word of several, or of no such class."""
+        classes = self.word_classes.get(_fold(word), {})
+        return {self.CLASS_PARTS[c] for c, n in classes.items() if n > 0 and c in self.CLASS_PARTS}
 
     def lexicals_with_value(self, value: str) -> Tuple[Lexical, ...]:
         return tuple(self._by_key[k] for k in self._lexical_value.get(value, ()))
@@ -1502,19 +2218,34 @@ class PatternInventory:
         key = self._links.get((pattern, slot, lexical))
         return self._by_key.get(key) if key else None  # type: ignore[return-value]
 
-    def fillers(self, pattern: str, slot: str) -> Tuple[Lexical, ...]:
-        """The lexical constructions linked to one slot."""
+    def fillers(self, pattern: str, slot: str) -> Tuple[Union[Lexical, "Phrase"], ...]:
+        """What is linked to one slot: words (`Lexical`) and phrases (`Phrase`) both. A reader of a word's own
+        parts (`value`, its one word) checks which it has."""
         return tuple(self._by_key[k] for k in self._linked.get((pattern, slot), ()) if k in self._by_key)
 
     def score(self, item: Item) -> float:
         return self._score(item)[0]
 
+    def listening_worths(self) -> Dict[Tuple[str, int], float]:
+        """What each piece of the listener's evidence is worth, in nats, as it counted it (`listening_worths`)."""
+        return listening_worths(self._listened())
+
     def uses(self, item: Item) -> int:
         return self._score(item)[1]
 
     def counts(self, item: Item) -> bool:
-        """Whether a construction takes part in reading and speaking: it is still believed."""
-        return self.score(item) >= COUNTS_FROM
+        """Whether a construction takes part in reading and speaking: while a taught pair still reads through it,
+        some witness's latest word on it a use. Its belief ranks it among the readings, a competitor's lower, and
+        nothing more.
+
+        The paper keeps a construction until its entrenchment reaches 0, a competition costing three uses, so one that
+        lost a little stays, ranked lower (Doumen, Beuls & Van Eecke 2024, §4.2.8). Taken out below even instead, one
+        lost competition took a construction out of reading: "squared" names 2, used twice and outcompeted twice,
+        read nothing, and "Five squared is twenty-five.", which only it reads, with it (english_01-39 taught again,
+        2026-10-11: six sentences taught and understood that no longer read). A holophrase whose every pair is now
+        read through a more general construction has no use standing, and drops out as the paper's do. It stays in
+        memory, and a pair that needs it again revives it."""
+        return self._score(item)[2]
 
     def reading(self, constructions: Tuple[Construction, ...], links: Tuple[Link, ...],
                 meaning: Meaning, *, proposed: Tuple[Link, ...] = (), new: Tuple[Lexical, ...] = (),
@@ -1523,24 +2254,52 @@ class PatternInventory:
         # A filler a taught pair linked stands where it was taught; one a link is only proposed for is judged by
         # how the slot's own fillers are written.
         fillers = {c.key: c for c in constructions if isinstance(c, (Lexical, Phrase))}
-        misfits = sum(1 for held in proposed if held.lexical in fillers
-                      and self.written_against(held.pattern, held.slot, fillers[held.lexical]))
+
+        def against(held: Link) -> bool:
+            filler = fillers[held.lexical]
+            if not isinstance(filler, Phrase) or len(filler.form) == 1:
+                return self.written_against(held.pattern, held.slot, filler)
+            # A PHRASE OF SEVERAL WORDS IS JUDGED BY THE WORD IT WRITES FIRST, as one word is, and as saying judges
+            # it: its own, as the kind of thing it names, or what stands in its first slot here. "kicked the ball",
+            # never linked to "?slot0 ?slot1." whose own are "bark" and "run", read "Tom kicked the ball." as a
+            # kicking at no time and tied with the reading taught.
+            head = filler.form[0]
+            if isinstance(head, Slot):
+                key = next((l.lexical for l in links + proposed if l.pattern == filler.key and l.slot == head.name),
+                           None)
+                return key in fillers and self.written_against(held.pattern, held.slot, fillers[key])
+            kinds = [f.obj for f in filler.facts if f.relation == "instance_of" and f.subject == filler.anchor
+                     and f.positive and not is_variable(f.obj)]
+            return len(kinds) == 1 and self.word_against(held.pattern, held.slot, _fold(head.text),
+                                                         _fold(kinds[0]).split()[-1])
+
+        misfits = sum(1 for held in proposed if held.lexical in fillers and against(held))
         apart = sized + sum(1 for held in proposed if held.lexical in self._by_key
                             and not self.stood_beside(held.pattern, held.slot, held.lexical))
         return Reading(constructions, links, meaning,
-                       sum(s for s, _ in scores) / len(scores), sum(u for _, u in scores) / len(scores),
+                       sum(s for s, _, _ in scores) / len(scores), sum(u for _, u, _ in scores) / len(scores),
                        proposed=proposed, new=new, loose=loose, misfits=misfits, said_for=said_for, apart=apart)
 
     def stood_beside(self, pattern: str, slot: str, filler: str) -> bool:
         """Whether a held filler has stood, in some other slot, beside one of this slot's own fillers, as the concept
         they stand for (`_standing`). A kind is everything any slot ever joined, so it grows wide; what has filled a
         place the slot's own fillers fill is like them where a kind alone cannot say: "snow" for `snowing` stood with "rain" in "It will ?slot0.", and
-        "snow" the stuff never stood where "rain", "bark" and "go" stand."""
+        "snow" the stuff never stood where "rain", "bark" and "go" stand.
+
+        IN A PLACE TAKING IT AS THIS SLOT DOES (`_taken_as`): standing beside a slot's fillers as something else is
+        no likeness to them. "amendment" stood beside "three" where things stand ("Three is a number."), and was
+        taken for a count where "three" counts ("amendment part": amendment-many parts)."""
         own = self._standing((pattern, slot))
         if not own:
             return False
-        return any(place != (pattern, slot) and not own.isdisjoint(self._standing(place))
-                   for place in self._links_to.get(filler, ()))
+        parts = set(self._taken_at(pattern, slot))
+        # Where the concept has stood, in any of its words: "sleep" stood where "sleeps" did, beside "barks" in
+        # "The ?slot0 ?slot1.". Only the bare word's own places looked at, "Cats sleep." did not read.
+        item = self._by_key.get(filler)
+        keys = {filler} | (set(self._lexical_value.get(item.value, ())) if isinstance(item, Lexical) else set())
+        return any(place != (pattern, slot) and not parts.isdisjoint(self._taken_at(*place))
+                   and not own.isdisjoint(self._standing(place))
+                   for key in keys for place in self._links_to.get(key, ()))
 
     def admits_there(self, pattern: str, slot: str, value: str) -> bool:
         """Whether a concept may stand in a slot for what the slot has held. A slot that has held two fillers or more,
@@ -1582,12 +2341,28 @@ class PatternInventory:
 
     def _standing(self, place: Tuple[str, str]) -> FrozenSet[Tuple[str, str]]:
         """What stands in a slot, as `stood_beside` compares it: a word by its concept, in whatever shape it is
-        written ("barked" and "bark" both stand for `bark`), a phrase as itself. Kept until anything more is held."""
+        written ("barked" and "bark" both stand for `bark`), a phrase as itself. Kept until anything more is held.
+
+        A SLOT OF A FRAME'S TWINS IS THE SAME PLACE ("A ?slot0 is an ?slot1." for "A ?slot0 is a ?slot1."): one
+        construction, its word written as the word after it asks. Kept apart, what stood there was split by the
+        first letter of the next word: "wing", taught in "A wing is an organ.", never stood where "ball" and "door"
+        stand, and its readings of "The wing is long." were set aside for supposing more."""
         kept = self._standing_at.get(place)
         if kept is not None and kept[0] == self._added:
             return kept[1]
+        pattern, slot = place
+        # Twins of twins too: "An ?slot0 is an ?slot1." is "A ?slot0 is a ?slot1." with two words in their other
+        # shape, and each twin differs in one.
+        frames, frontier = {pattern}, [pattern]
+        while frontier:
+            for twin in self.twins_of(frontier.pop()):
+                if twin not in frames:
+                    frames.add(twin)
+                    frontier.append(twin)
+        places = tuple((frame, slot) for frame in frames)
         standing = frozenset(("concept", item.value) if isinstance(item, Lexical) else ("phrase", key)
-                             for key in self._linked.get(place, ()) for item in (self._by_key.get(key),)
+                             for where in places
+                             for key in self._linked.get(where, ()) for item in (self._by_key.get(key),)
                              if item is not None)
         self._standing_at[place] = (self._added, standing)
         return standing
@@ -1772,62 +2547,310 @@ class PatternInventory:
         longer name side makes rightly, where this one would not, is that change's ("box" is `xes` after `x`'s and
         no exception to `s`)."""
         if self._said is None:
-            # The concepts in the slots written in each change (its context aside), with the changes their words
-            # there are written in.
-            cells: Dict[Tuple[str, str], Dict[str, set]] = {}
-            for where, changes in self._slot_changes.items():
-                # A slot whose fillers are mostly written as named ("red", "big", and "recently" among them) is not
-                # written in a change, whatever one filler there shows.
-                if self.changed_writing(*where) is None:
-                    continue
-                stems = self._slot_stems.get(where, {})
-                for least in changes:
-                    cell = cells.setdefault(least, {})
-                    for stem, made in stems.items():
-                        cell.setdefault(stem, set()).update(made)
-            named = {stem for where, stems in self._slot_stems.items() if self.changed_writing(*where) is None
-                     for stem in stems}
-            counts: Dict[Tuple[str, str], Tuple[int, int]] = {}
-            productive: set = set()
-            every = {change for cell in cells.values() for made in cell.values() for change in made
-                     if change is not None}
-            for change in sorted(every, key=lambda c: (-len(c[1]), -len(c[0]), c)):
-                cell = cells.get(self._least(change), {})
-                right = covered = 0
-                for stem, made in cell.items():
-                    if not (stem.endswith(change[1]) and len(stem) > len(change[1])):
-                        continue
-                    if change in made:
-                        right += 1
-                        covered += 1
-                    elif not made and stem not in named:
-                        continue
-                    elif not any(o is not None and len(o[1]) > len(change[1]) and o in productive for o in made):
-                        covered += 1
-                counts[change] = (right, covered)
-                if _tolerated(right, covered):
-                    productive.add(change)
-            self._said = (counts, frozenset(productive))
-            self._said_by_least = {}
-            for change in productive:
-                self._said_by_least.setdefault(self._least(change), []).append(change)
+            self._said_found()
         return self._said
 
-    def shape_of_slot(self, pattern: str, slot: str) -> Tuple[Tuple[str, str], ...]:
-        """The shapes a slot takes: when most of its one-word fillers are written otherwise than their concept's
-        name ("Dogs", "Cats", "Geese" in "?slot0 can ?slot1."), the changes productive in saying (`said_shapes`), in
-        any context, of the changes the words of its kind are written in, the most particular first (the longest
-        run of a name's letters it asks for, then the change more concepts show); none when most are written as the
-        name is. An irregular form ("Geese") counts as written otherwise, and a word the same both ways ("Fish") as
-        written as the name."""
-        tally = self._slot_tally.get((pattern, slot))
-        if not tally or tally[1] * 2 <= tally[0] + tally[1]:
+    def _said_found(self) -> None:
+        """`said_shapes`, found whole: from the slots written in a change, every change their words show there,
+        each scored over its cell, the more particular first."""
+        # The slots written in each change (its context aside), and every change their words there show.
+        slots_of: Dict[Tuple[str, str], List[Tuple[str, str]]] = {}
+        every: set = set()
+        for where, changes in self._slot_changes.items():
+            # A slot whose fillers are mostly written as named ("red", "big", and "recently" among them) is not
+            # written in a change, whatever one filler there shows.
+            if self.changed_writing(*where) is None:
+                continue
+            if changes:
+                for made in self._slot_stems.get(where, {}).values():
+                    every.update(made)
+            for least in changes:
+                slots_of.setdefault(least, []).append(where)
+        every.discard(None)
+        named = {stem for where, stems in self._slot_stems.items() if self.changed_writing(*where) is None
+                 for stem in stems}
+        counts: Dict[Tuple[str, str], Tuple[int, int]] = {}
+        productive: set = set()
+        # EACH CHANGE IS SCORED OVER THE STEMS OF THE SLOTS WRITTEN IN IT THAT END AS ITS NAME SIDE DOES, found in
+        # each slot by that ending, never copied. Every stem of those slots was copied into a cell for each change
+        # they are written in, and every change scanned its cell: "?slot0 are ?slot1." holds 20,525 plural words
+        # written in 2,734 changes, 56 million copies, and on main every word teaching linked there built this again
+        # for four minutes (2026-10-11).
+        asked: Dict[Tuple[str, str], set] = {}
+        for change in every:
+            for where in slots_of.get(self._least(change), ()):
+                asked.setdefault(where, set()).add(change[1])
+        ending: Dict[Tuple[str, str], Dict[str, List[str]]] = {}
+        for where, ends in asked.items():
+            by_end = ending[where] = {}
+            sizes = sorted({len(end) for end in ends})
+            for stem in self._slot_stems.get(where, {}):
+                for size in sizes:
+                    if size < len(stem) and stem[len(stem) - size:] in ends:
+                        by_end.setdefault(stem[len(stem) - size:], []).append(stem)
+        self._said_slots_of, self._said_named = slots_of, named
+        for change in sorted(every, key=self._said_order):
+            places = slots_of.get(self._least(change), ())
+            if len(places) == 1:
+                stems = self._slot_stems.get(places[0], {})
+                cell = {stem: stems[stem] for stem in ending.get(places[0], {}).get(change[1], ())}
+            else:
+                # A word standing in several slots written in the change shows there what it shows in any.
+                cell = {}
+                for where in places:
+                    stems = self._slot_stems.get(where, {})
+                    for stem in ending.get(where, {}).get(change[1], ()):
+                        cell.setdefault(stem, set()).update(stems[stem])
+            right = covered = 0
+            for stem, made in cell.items():
+                one, other = self._said_part(change, stem, made, productive)
+                right += one
+                covered += other
+            counts[change] = (right, covered)
+            if _tolerated(right, covered):
+                productive.add(change)
+        self._said_by_name = {}
+        for change in every:
+            self._said_by_name.setdefault(change[1], set()).add(change)
+        self._said = (counts, frozenset(productive))
+        self._said_by_least = {}
+        for change in productive:
+            self._said_by_least.setdefault(self._least(change), []).append(change)
+
+    @staticmethod
+    def _said_order(change: Tuple[str, str]) -> Tuple[int, int, Tuple[str, str]]:
+        """The order changes are decided in: the longer name side first, then the longer written side."""
+        return -len(change[1]), -len(change[0]), change
+
+    def _said_part(self, change: Tuple[str, str], stem: str, made: Iterable[Optional[Tuple[str, str]]],
+                   productive: Collection[Tuple[str, str]]) -> Tuple[int, int]:
+        """What one concept in a change's cell gives its count, `(right, applies)`, from the changes its words in the
+        cell's slots show (`made`): right where it is one of them; nothing where it shows none and is named in no
+        slot written as named ("scissors"); nothing where a productive change with a longer name side makes it
+        rightly instead (the elsewhere condition); else one it applies to and misses."""
+        made = tuple(made)
+        if change in made:
+            return 1, 1
+        if not made and stem not in self._said_named:
+            return 0, 0
+        if any(o is not None and len(o[1]) > len(change[1]) and o in productive for o in made):
+            return 0, 0
+        return 0, 1
+
+    def _said_made(self, change: Tuple[str, str], stem: str) -> Optional[set]:
+        """The changes a concept's words show in the slots written in a change (its context aside), or None when it
+        stands in none of them."""
+        made: Optional[set] = None
+        for where in self._said_slots_of.get(self._least(change), ()):
+            shown = self._slot_stems.get(where, {}).get(stem)
+            if shown is not None:
+                made = set(shown) if made is None else made | shown
+        return made
+
+    def _said_stem(self, stem: str, shorter: Optional[int] = None) -> Dict[Tuple[str, str], Tuple[int, int]]:
+        """What one concept gives the count of each change whose cell holds it (`_said_part`); `shorter`: of the
+        changes with a name side shorter than that only."""
+        productive = self._said[1] if self._said is not None else frozenset()
+        out: Dict[Tuple[str, str], Tuple[int, int]] = {}
+        for size in range(len(stem) if shorter is None else min(len(stem), shorter)):
+            for change in self._said_by_name.get(stem[len(stem) - size:], ()):
+                made = self._said_made(change, stem)
+                if made is not None:
+                    out[change] = self._said_part(change, stem, made, productive)
+        return out
+
+    def _said_cell(self, change: Tuple[str, str]) -> Dict[str, set]:
+        """Every concept in a change's cell, with the changes its words there show: those of the slots written in
+        it whose names end as its name side does and are longer."""
+        cell: Dict[str, set] = {}
+        side = change[1]
+        for where in self._said_slots_of.get(self._least(change), ()):
+            for stem, shown in self._slot_stems.get(where, {}).items():
+                if len(stem) > len(side) and stem.endswith(side):
+                    cell.setdefault(stem, set()).update(shown)
+        return cell
+
+    def _said_moved(self, stem: str, given: Dict[Tuple[str, str], Tuple[int, int]],
+                    where: Optional[Tuple[str, str]], *, widened: Optional[Tuple[str, str]] = None) -> None:
+        """What one filler counted moves in `said_shapes`: what its concept gives each change, before (`given`) and
+        now; a change its words show for the first time, scored over its cell; and each change whose being
+        productive that moves decided again (`_said_settle`). `where`: the slot, when it is written in a change;
+        None, when it is written as named, where the filler can only name a concept no such slot named before ("dog"
+        in "A ?slot0 is a ?slot1.", where "Dogs" stands in "?slot0 bark."). `widened`: a change (its context aside)
+        the slot is written in now and was not before; the slot's other concepts join its cells, and what each gives
+        the changes of it moves too."""
+        counts, productive = self._said
+        others: Dict[str, Dict[Tuple[str, str], Tuple[int, int]]] = {}
+        if widened is not None:
+            others = {other: {change: part for change, part in self._said_stem(other).items()
+                              if self._least(change) == widened}
+                      for other in self._slot_stems.get(where, {}) if other != stem}
+            self._said_slots_of.setdefault(widened, []).append(where)
+        fresh: set = set()
+        if where is None:
+            self._said_named.add(stem)
+        else:
+            for change in self._slot_stems.get(where, {}).get(stem, ()):
+                if change is None or change in counts:
+                    continue
+                self._said_by_name.setdefault(change[1], set()).add(change)
+                right = covered = 0
+                for other, made in self._said_cell(change).items():
+                    one, two = self._said_part(change, other, made, productive)
+                    right += one
+                    covered += two
+                counts[change] = (right, covered)
+                fresh.add(change)
+        touched = set(fresh)
+        for concept, before in [(stem, given)] + list(others.items()):
+            now = self._said_stem(concept)
+            if concept != stem:
+                now = {change: part for change, part in now.items() if self._least(change) == widened}
+            for change in set(before) | set(now):
+                if change in fresh:
+                    continue
+                was, then = before.get(change, (0, 0)), now.get(change, (0, 0))
+                if was != then:
+                    right, covered = counts[change]
+                    counts[change] = (right + then[0] - was[0], covered + then[1] - was[1])
+                    touched.add(change)
+        self._said_settle(touched)
+
+    def _said_settle(self, touched: Iterable[Tuple[str, str]]) -> None:
+        """Whether each touched change is productive, decided again in the order they are decided in, the longer
+        name side first (`_said_order`). A change that becomes productive, or stops being so, moves what each
+        concept in its cell showing it gives the changes with a shorter name side: the elsewhere condition gives
+        that concept to the longer change only while it is productive."""
+        counts, decided = self._said
+        productive = set(decided)
+        heap = [(self._said_order(change), change) for change in touched]
+        heapq.heapify(heap)
+        moved = False
+        while heap:
+            _, change = heapq.heappop(heap)
+            now = _tolerated(*counts[change])
+            if now == (change in productive):
+                continue
+            moved = True
+            before = {stem: self._said_stem(stem, shorter=len(change[1]))
+                      for stem, made in self._said_cell(change).items() if change in made}
+            if now:
+                productive.add(change)
+                self._said_by_least.setdefault(self._least(change), []).append(change)
+            else:
+                productive.discard(change)
+                held = self._said_by_least[self._least(change)]
+                held.remove(change)
+                if not held:
+                    del self._said_by_least[self._least(change)]
+            self._said = (counts, frozenset(productive))
+            for stem, gave in before.items():
+                for other, then in self._said_stem(stem, shorter=len(change[1])).items():
+                    was = gave.get(other, (0, 0))
+                    if was != then:
+                        right, covered = counts[other]
+                        counts[other] = (right + then[0] - was[0], covered + then[1] - was[1])
+                        heapq.heappush(heap, (self._said_order(other), other))
+        if moved:
+            self._said = (counts, frozenset(productive))
+
+    def shape_of_slot(self, pattern: str, slot: str, *, said: bool = False) -> Tuple[Tuple[str, str], ...]:
+        """The shapes a slot takes: when its one-word fillers are written otherwise than their concept's name
+        (`_written_otherwise`: "Dogs", "Cats", "Geese" in "?slot0 can ?slot1."), the changes productive in saying
+        (`said_shapes`), in any context, of the changes the words of its kind are written in, the most particular
+        first (the longest run of a name's letters it asks for, then the change more concepts show); none when they
+        are written as the name is. A word the same both ways ("Fish") is written as the name; a word of its own
+        ("Geese"; "peril" for `hazard`) says nothing either way beside names."""
+        if not self._written_otherwise((pattern, slot)):
             return ()
-        kind = self._kind_of_slot(pattern, slot)
-        written = self._kind_changes.get(kind, ()) if kind is not None else ()
+        if self._slot_shapes_at != self._added:
+            self._slot_shapes, self._slot_shapes_at = {}, self._added
+        held = self._slot_shapes.get((pattern, slot, said))
+        if held is None:
+            held = self._slot_shapes[(pattern, slot, said)] = self._shapes_of_slot(pattern, slot, said)
+        return held
+
+    def _shapes_of_slot(self, pattern: str, slot: str, said: bool) -> Tuple[Tuple[str, str], ...]:
+        """`shape_of_slot`, worked out."""
+        # THE PLACE'S OWN WRITING, NOT ITS KIND'S. A kind joins every word that ever shared a slot, and words that are
+        # a thing and a doing ("run", "walk") join the things with the doings: their kind is written "barked" and
+        # "barking" as well as "dogs", and "reasoning" said as a kind came out "reasoned". So: the changes this
+        # slot's fillers show (and its twins'), and those of the frame's other places, where they say nothing more
+        # of the thing than it is (not "-ed", a doing before now); to say a word (`said`), those of every place
+        # standing in the same part of a meaning too ("All ?slot0 are ?slot1." beside "?slot0 are ?slot1.", both
+        # what a kind is said of: "rubies", "ponies"). The kind's only for a slot showing no change at all (only
+        # irregular forms, "Geese").
+        # Kept as the groups are added to: found here for every slot whose state was asked, over every group, it was
+        # most of the time saying took once a pass had learned anything (2026-10-13).
+        saying = self._shapes_saying_more
+        frames = (pattern, *self.twins_of(pattern))
+        written = {c for frame in frames for c in self._slot_changes.get((frame, slot), {})}
+        item = self._by_key.get(pattern)
+        others = [(frame, other) for frame in frames for other in (item.slots if isinstance(item, Pattern) else ())
+                  if other != slot]
+        # To say a word, the places in the same part of a meaning as any place of the frame are added to the
+        # frame's own: taken instead, the second place of "?slot0 are ?slot1." had only the changes its own fillers
+        # showed, "-s", and said "Appendices are processs." beside "Bases are supports."; and "All ?slot0 are
+        # ?slot1.", "All chapeaux are headdresss.".
+        places = [place for each in ((slot,) + tuple(other for _, other in others))
+                  for place in self._places_in_role(pattern, each)] + others if said else others
+        # A PLACE IS IN THE SLOT'S SHAPE ONLY WHERE IT WRITES WHAT IT SHARES WITH THE SLOT AS THE SLOT DOES. One in the
+        # same part of a meaning writing a concept the slot holds otherwise is another shape: "runs" ("Tom says that
+        # the dog ?slot3.") beside "running" ("Tom likes ?slot2."), borrowed, said "Tom wants swims.". One in another
+        # part shares the slot's shape only where it shows one of the slot's own changes: the places of "?slot0 are
+        # ?slot1." are both plurals, and "likes" in "?slot0 ?slot1 ?slot2." is no shape of "running".
+        own = {}
+        for frame in frames:
+            for filler in self.fillers(frame, slot):
+                if isinstance(filler, Lexical) and len(filler.words) == 1:
+                    own.setdefault(filler.value, set()).add(_fold(filler.words[0]))
+        own_least = {self._least(c) for c in written}
+        in_role = set(self._places_in_role(pattern, slot))
+
+        def alike(place: Tuple[str, str]) -> bool:
+            if place in in_role:
+                return not any(isinstance(filler, Lexical) and len(filler.words) == 1 and filler.value in own
+                               and _fold(filler.words[0]) not in own[filler.value]
+                               for filler in self.fillers(*place))
+            return not own_least or any(self._least(c) in own_least for c in self._slot_changes.get(place, {}))
+        written |= {c for place in places if alike(place) for c in self._slot_changes.get(place, {}) if c not in saying}
+        if not written:
+            written = {c for kind in self._kinds_of_slot(pattern, slot) for c in self._kind_changes.get(kind, ())
+                       if self._least(c) not in saying}
         counts, _ = self.said_shapes()
         family = [change for least in written for change in self._said_by_least.get(least, ())]
         return tuple(sorted(family, key=lambda c: (-len(c[1]), -counts[c][0], -len(c[0]), c)))
+
+    def _places_in_role(self, pattern: str, slot: str) -> Tuple[Tuple[str, str], ...]:
+        """Every place, in any frame, standing in the same part of a meaning as this one (`_role`)."""
+        if self._roles_at != self._added:
+            roles: Dict[FrozenSet[Tuple[Any, ...]], List[Tuple[str, str]]] = {}
+            for item in self._by_key.values():
+                if isinstance(item, Pattern):
+                    for place in item.slots:
+                        roles.setdefault(self._role(item, place), []).append((item.key, place))
+            self._roles, self._roles_at = roles, self._added
+        item = self._by_key.get(pattern)
+        if not isinstance(item, Pattern):
+            return ()
+        return tuple(self._roles.get(self._role(item, slot), ()))
+
+    @staticmethod
+    def _role(pattern: "Pattern", slot: str) -> FrozenSet[Tuple[Any, ...]]:
+        """The part a slot stands in in its frame's meaning: the facts it is a side of, by relation and side; where it
+        is the kind of some thing, what is said of that thing too, so a doing's kind (`done_by`, `precedes`) and a
+        thing's kind (`has_property`) are told apart."""
+        facts = pattern.meaning.facts
+        role = set()
+        for fact in facts:
+            if slot == fact.subject:
+                role.add((fact.relation, "subject", fact.positive))
+            if slot == fact.obj:
+                role.add((fact.relation, "object", fact.positive))
+                if fact.relation == "instance_of":
+                    role.update(("of", f.relation, "subject" if f.subject == fact.subject else "object")
+                                for f in facts if f is not fact and fact.subject in (f.subject, f.obj))
+        return frozenset(role)
 
     def _note_shape_phrase(self, phrase: "Phrase") -> None:
         """A phrase of one word, its concept's word written in a shape, that says more of it than its kind: what it
@@ -1845,26 +2868,41 @@ class PatternInventory:
         if word == name or not says:
             return
         self._saying_words.add(word)
-        if self.shape_between(word, name) is not None:
+        change = self.shape_between(word, name)
+        if change is not None:
             self._shape_groups.setdefault(says, {})[phrase.key] = (word, name)
+            self._shapes_saying_more.add(self._least(change))
+            self._group_changes.setdefault(says, set()).add(self._least(change))
 
-    def says_more(self, word: str, name: str) -> bool:
+    def says_more(self, word: str, name: str, *, doing: bool = True) -> bool:
         """Whether a word, written from this name, is one that says more than its concept: held as a phrase that
         does ("ran": a running, before now), or written in a change that the phrases saying more are written in
         ("closed": `d`, as "chased" and "tied" are). Such a word stands for its bare concept only where it was
-        taught to."""
+        taught to.
+
+        `doing`: whether the concept is a happening. What a change says more of a happening ("before now", "done
+        by what was spoken of") it says of happenings only: of a thing (`doing` False) the change says more only
+        where phrases naming things say so. Asked of every word alike, WordNet's verbs said of something ("It
+        dwindles.", "It incurvates.", 21 of them on the sandbox) made `s` say that something before did it, of
+        "pirates" and "concepts" too, and no plural stood for the things its word names (2026-10-14)."""
         word, name = _fold(word), _fold(name)
         if word == name:
             return False
-        if word in self._saying_words:
+        if word in self._saying_words and doing:
             return True
         change = self.shape_between(word, name)
         if change is None:
             return False
         least = self._least(change)
-        return any(len(members) >= 2 and any(self._least(self.shape_between(w, n) or ("", "")) == least
-                                             for w, n in members.values())
-                   for members in self._shape_groups.values())
+        return any(len(members) >= 2 and least in self._group_changes.get(says, ()) and _says_of_happening(says) == doing
+                   for says, members in self._shape_groups.items())
+
+    def stands_as_doing(self, lexical: Lexical) -> bool:
+        """Whether a filler names a happening: it stood where doings do, or, standing nowhere yet, its one word's
+        class stands there (`class_parts`)."""
+        parts = self._parts_of.get(lexical.key) or (self.class_parts(lexical.words[0]) if len(lexical.words) == 1
+                                                    else set())
+        return "doing" in parts
 
     def said_by(self, word: str, name: str) -> List[FrozenSet[Tuple[Any, ...]]]:
         """What a word written from this name says more than its concept, each way it does (`@` for the thing
@@ -1901,12 +2939,11 @@ class PatternInventory:
         return out
 
     def slot_writing(self, pattern: str, slot: str) -> Optional[FrozenSet[Tuple[str, str]]]:
-        """How a slot's own one-word fillers are written: None when most are written as their concept's name
-        ("dog", "table"), or when it holds none; else the changes they are written in, without context ("barked":
+        """How a slot's own one-word fillers are written: None when they are written as their concept's name
+        (`_written_otherwise`: "dog", "table"), or when it holds none; else the changes they are written in, without context ("barked":
         `ed`; "Dogs": `s`), empty when none shows one (only irregular forms, "Geese"). A slot's own, not its kind's:
         "barks", "barked" and "barking" are one kind, and "The dog ?slot1." is two frames, one holding each."""
-        tally = self._slot_tally.get((pattern, slot))
-        if not tally or tally[1] * 2 <= tally[0] + tally[1]:
+        if not self._written_otherwise((pattern, slot)):
             return None
         return frozenset(self._slot_changes.get((pattern, slot), {}))
 
@@ -1919,7 +2956,7 @@ class PatternInventory:
         "25%" stands against them)."""
         writing = self.slot_writing(pattern, slot)
         tally = self._slot_tally.get((pattern, slot))
-        if writing is None or sum(self._slot_changes.get((pattern, slot), {}).values()) * 2 <= tally[1]:
+        if writing is None or sum(self._slot_changes.get((pattern, slot), {}).values()) * 2 <= tally[1] + tally[3]:
             return None
         return writing
 
@@ -1930,18 +2967,28 @@ class PatternInventory:
         shape; a filler of several words, or a slot holding no one-word filler, is not judged. A phrase of one word
         is judged as its word ("barking", where "barked" stands)."""
         written = self._written_as(filler)
+        return written is not None and self.word_against(pattern, slot, *written)
+
+    def word_against(self, pattern: str, slot: str, word: str, name: str) -> bool:
+        """`written_against`, for one word written and the name of what it names (both folded): the word a phrase
+        writes where a frame's slot stands ("chased", a chasing, of "chased the ?slot0")."""
         tally = self._slot_tally.get((pattern, slot))
-        if written is None or not tally or not tally[0] + tally[1]:
+        if not tally or not tally[0] + tally[1] + tally[3]:
             return False
-        word, name = written
         otherwise = word != name
         writing = self.slot_writing(pattern, slot)
         if writing is None:
             # Where most are written as named, one written in a change one of them is written in is written as they
             # are: "snow" for `snowing` where "rain" stands for `raining`.
             change = self.shape_between(word, name) if otherwise else None
-            return otherwise and (change is None
-                                  or self._least(change) not in self._slot_changes.get((pattern, slot), {}))
+            if otherwise and change is None:
+                # A WORD OF ITS OWN, NO SHAPE OF THE NAME: written otherwise only where it says more than its
+                # concept, as an irregular form does ("flew": a flying, before now). A word that only names the
+                # thing ("bank" for `depository financial institution`, "computer" for `calculator`) is written as
+                # the slot's words are; held against them, 31 of 70 words' senses in the sandbox never reached the
+                # listener, the bank where money is kept among them.
+                return self.says_more(word, name)
+            return otherwise and self._least(change) not in self._slot_changes.get((pattern, slot), {})
         if not otherwise:
             return True
         change = self.shape_between(word, name)
@@ -1953,6 +3000,20 @@ class PatternInventory:
         return least not in writing and not any(
             least[1] == names and least[0].endswith(written) and len(least[0]) - len(written) == 1
             and name.endswith(least[0][0]) for written, names in writing)
+
+    def takes_names(self, pattern: str, slot: str) -> bool:
+        """Whether a slot has held names only: two fillers or more, each written with a capital where no sentence
+        begins (`is_proper`). "Tom, the teacher," and "Rex, the dog,": the slot names one thing, as a name does."""
+        own = self.fillers(pattern, slot)
+        return len(own) >= 2 and all(isinstance(filler, Lexical) and self.is_proper(filler.words[0])
+                                     for filler in own)
+
+    def in_a_shape(self, word: str) -> bool:
+        """Whether a word ends in a change productive in saying (`said_shapes`) with a name of two letters or more
+        left when it is undone: written in a shape ("repeating", "warily"), whatever word it is a shape of."""
+        word = _fold(word)
+        return any(word.endswith(written) and len(word) - len(written) + len(names) >= 2
+                   for written, names in self.said_shapes()[1] if written)
 
     def unshaped_in(self, pattern: str, slot: str, word: str) -> Optional[str]:
         """The name a word never held has in a slot whose fillers are written in a shape: the word with the most
@@ -2037,21 +3098,29 @@ class PatternInventory:
         return counted
 
     def _use_enter(self, key: str) -> None:
-        """A filler held in a kind, and held as an item: its concept, counted or held bare, counts for its kind."""
+        """A filler held in a kind, and held as an item: as a thing (`_use_thing`), its concept counts for its kind."""
         if not self._uses_built or key in self._use_entered:
             return
         item = self._by_key.get(key)
-        if key not in self._parent or not isinstance(item, Lexical):
+        if key not in self._parts_of or not isinstance(item, Lexical):
             return
         self._use_entered.add(key)
-        root = self._find(key)
+        if (key, "thing") in self._parent:
+            self._use_thing(key)
+        self._use_dirty.add(key)
+
+    def _use_thing(self, key: str) -> None:
+        """A filler held as a thing (`_taken_as`): its concept, counted or held bare, counts for its kind of things.
+        Counted and uncounted are what things are; a count or a quality is neither."""
+        item = self._by_key[key]
+        root = self._find((key, "thing"))
         if self._use_counted.get(item.value):
             self._use_noun_more(root)
         if len(_loose(item.words)) == 1 and self._use_bare.get(item.value):
             self._use_bare_keys.setdefault(root, set()).add(key)
         self._use_dirty.add(key)
 
-    def _use_noun_more(self, root: str) -> None:
+    def _use_noun_more(self, root: Tuple[str, str]) -> None:
         self._use_noun[root] = self._use_noun.get(root, 0) + 1
         if self._use_noun[root] == 1:
             self._use_dirty |= self._use_bare_keys.get(root, set())
@@ -2067,22 +3136,38 @@ class PatternInventory:
         counted, taken, first = self._use_slot_state[(pattern, slot)]
         value = filler.value
         if counted:
+            written = (value, _loose(filler.words)[0])
+            self._use_counted_as[written] = self._use_counted_as.get(written, 0) + 1
+            if self._use_counted_as[written] == 1:
+                for other in self._lexical_value.get(value, ()):
+                    self._use_dirty.add(other)
             self._use_counted[value] = self._use_counted.get(value, 0) + 1
             if self._use_counted[value] == 1:
                 for other in self._lexical_value.get(value, ()):
-                    if other in self._use_entered:
-                        self._use_noun_more(self._find(other))
+                    if other in self._use_entered and (other, "thing") in self._parent:
+                        self._use_noun_more(self._find((other, "thing")))
                     self._use_dirty.add(other)
-        if taken:
+        # A WORDLESS PHRASE'S SLOT MIXES KINDS OF WORDS ("?slot0 ?slot1" holds "red cup" and "ran fast", whose
+        # "runs" and "climbed" make it take a shape: GENERALIZING_BY_KIND §4.4). A word written there exactly as its
+        # name ("fast") took no shape, and is no plural for standing there; in a sentence's frame it is ("Fish are
+        # animals.").
+        plain = isinstance(self._by_key.get(pattern), Phrase) and _loose(filler.words)[0] == _fold(str(value))
+        # A SLOT NAMING A KIND OF HAPPENING ("?slot0 the ?slot1", holding "kicked") takes the shapes doings are said
+        # in, "before now" among them; no word there is a plural for standing there. Held so, "chases" was in the
+        # shape of a slot saying a chasing before now ("The kelt chases the blip.").
+        if taken and not plain and not _names_a_doing(self._by_key.get(pattern), slot):
             self._use_plural[key] = self._use_plural.get(key, 0) + 1
             self._use_dirty.add(key)
-        elif first and _loose(filler.words)[0] == _fold(value):
+        elif first and self._written_as(filler) is not None and len(set(self._written_as(filler))) == 1:
+            # Written as its name, as every writing is judged (`_written_as`): "travel" for `motion travel`, a sense
+            # named apart, is its name, and "Travel is a motion." holds the act uncounted.
             self._use_bare[value] = self._use_bare.get(value, 0) + 1
             if self._use_bare[value] == 1:
                 for other in self._lexical_value.get(value, ()):
                     item = self._by_key.get(other)
-                    if other in self._use_entered and isinstance(item, Lexical) and len(_loose(item.words)) == 1:
-                        self._use_bare_keys.setdefault(self._find(other), set()).add(other)
+                    if other in self._use_entered and isinstance(item, Lexical) and len(_loose(item.words)) == 1 \
+                            and (other, "thing") in self._parent:
+                        self._use_bare_keys.setdefault(self._find((other, "thing")), set()).add(other)
                     self._use_dirty.add(other)
         # The slot holds the filler's use as it stands; a use that moves is moved in every slot it is linked to.
         how = self._use_key.get(key)
@@ -2097,13 +3182,18 @@ class PatternInventory:
         words = _loose(filler.words)
         if len(words) != 1:
             return None
-        if self.is_proper(words[0]) and not self._use_counted.get(filler.value):
+        # COUNTED AS THIS WORD IS: a thing is counted under a word where that word, case aside, stood counted for it
+        # ("robin", "Robin"). Its other words do not count it: "chance", counted, said nothing of "luck", which a
+        # source names the same thing by, and "Luck is a phenomenon." was held a counted word said bare.
+        counted = self._use_counted_as.get((filler.value, words[0]))
+        if self.is_proper(words[0]) and not counted:
             return "name"
         if self._use_plural.get(key):
             return "plural"
-        if self._use_counted.get(filler.value):
+        if counted:
             return "count"
-        if self._use_bare.get(filler.value) and self._use_noun.get(self._find(key)):
+        if self._use_bare.get(filler.value) and (key, "thing") in self._parent \
+                and self._use_noun.get(self._find((key, "thing"))):
             return "mass"
         return None
 
@@ -2144,7 +3234,8 @@ class PatternInventory:
         for store in (self._use_done, self._use_dirty, self._use_entered, self._use_new_names,
                       self._use_changed_words):
             store.clear()
-        for table in (self._use_slot_state, self._use_counted, self._use_bare, self._use_plural, self._use_noun,
+        for table in (self._use_slot_state, self._use_counted, self._use_counted_as, self._use_bare, self._use_plural,
+                      self._use_noun,
                       self._use_bare_keys, self._use_key, self._use_slots, self._use_words, self._end_word,
                       self._end_term, self._end_children, self._end_passed, self._end_decided):
             table.clear()
@@ -2153,7 +3244,7 @@ class PatternInventory:
         self._end_contested = {False: set(), True: set()}
         shapes: Dict[str, bool] = {}
         self._use_slot_state.update({where: self._slot_state(where, shapes) for where in self._linked})
-        for key in self._parent:
+        for key in self._parts_of:
             self._use_enter(key)
         for pattern, slot, key in self._links:
             self._use_link(pattern, slot, key)
@@ -2288,9 +3379,20 @@ class PatternInventory:
                     queued.add(parent)
                     heapq.heappush(heap, (-len(parent[1]), parent))
 
-    def used_as(self, word: str) -> Optional[str]:
-        """How a held one-word filler is used, the most of its uses (`_use_model`), or None when none is held."""
+    def used_as(self, word: str, value: Optional[str] = None) -> Optional[str]:
+        """How a held one-word filler is used, the most of its uses (`_use_model`), or None when none is held.
+
+        `value`: how the word is used for that thing alone. A word names several things, and is used as each is:
+        "travel" is counted for a trip and not for the act of travelling."""
         self._uses_now()
+        if value is not None:
+            mine: Dict[str, int] = {}
+            for key in self._lexical_loose.get((_fold(word),), ()):
+                how = self._use_key.get(key)
+                item = self._by_key.get(key)
+                if how is not None and isinstance(item, Lexical) and item.value == value:
+                    mine[how] = mine.get(how, 0) + 1
+            return max(mine.items(), key=lambda kv: (kv[1], kv[0] == "count", kv[0]))[0] if mine else None
         counts = self._use_words.get(_fold(word))
         if not counts:
             return None
@@ -2323,14 +3425,66 @@ class PatternInventory:
 
     def slot_admits(self, pattern: str, slot: str) -> FrozenSet[str]:
         """The uses of the words a slot holds (`_use_model`), and of those its frame's twins hold in it (`twins_of`),
-        and `count` where it is counted: what a word never held may be to stand there."""
+        and `count` where it is counted: what a word never held may be to stand there.
+
+        A COUNTED THING NEVER BEGINS A SENTENCE BARE (`_use_model`), so a slot where a sentence begins, with nothing
+        counting it and no shape taken, admits no counted word, whatever its words are used as elsewhere. A filler's
+        use is its concept's everywhere: one said bare here and with "a" in another sentence is `count`, and 179 such
+        among the 582 words of "?slot0 is ?slot1." let every counted word stand there ("Soul is organism.").
+
+        HOW A WORD IS COUNTED IS A THING'S. A slot that takes no things, only doings or qualities, admits by no use:
+        "walk", counted where it is a thing ("a walk"), was kept out of "To ?slot0 is to ?slot1.", where english_41's
+        verbs stood bare, and "bright" out of "To be ?slot0 is to be ?slot1.": 35 of the 121 rules WordNet's verbs and
+        adjectives could not say (2026-10-12)."""
+        if "thing" not in self._taken_at(pattern, slot):
+            return frozenset()
         self._uses_now()
         admits = {how for how, n in self._use_slots.get((pattern, slot), {}).items() if n}
         for twin in self.twins_of(pattern):
             admits |= {how for how, n in self._use_slots.get((twin, slot), {}).items() if n}
         if self.counted_slot(pattern, slot):
             admits.add("count")
+        else:
+            state = self._use_slot_state.get((pattern, slot))
+            if (state is not None and state[2] and not state[1]) or self.counted_beside(pattern, slot):
+                admits.discard("count")
+                admits.add("mass")
         return frozenset(admits)
+
+    def counted_beside(self, pattern: str, slot: str) -> bool:
+        """Whether a held frame says the same thing with this slot counted: this frame with a counting word, one
+        written in two shapes as the next letter asks ("a", "an"), right before the slot. "?slot0 is ?slot1." stands
+        beside "?slot0 is a ?slot1.", and "A ?slot0 is ?slot1." beside "A ?slot0 is a ?slot1.".
+
+        English says a counted thing with the word, an uncounted one without: where both frames are held, the bare
+        one is for what is not counted ("A table is furniture."), and a counted word goes in the other. "The ?slot0
+        is in the ?slot1." has no such frame beside it, and takes counted words. Nothing held said so before: a
+        slot's uses are its fillers', and the bare frame's fillers, held nowhere else, showed none, so every counted
+        word stood there ("A kennel is outbuilding.")."""
+        item = self._by_key.get(pattern)
+        if not isinstance(item, Pattern):
+            return False
+        if self._beside_at != self._added:
+            counting = frozenset(word for word in self._frame_words if self.variants_of(word))
+            skeletons: Dict[Tuple[str, ...], List[Pattern]] = {}
+            for held in self._by_key.values():
+                if isinstance(held, Pattern) and held.slots:
+                    skeletons.setdefault(self._skeleton(held), []).append(held)
+            self._beside, self._beside_at = (counting, skeletons), self._added
+        counting, skeletons = self._beside
+        skeleton = self._skeleton(item)
+        if slot not in skeleton:
+            return False
+        at = skeleton.index(slot)
+        meaning = item.meaning.canonical()
+        return any(other.meaning.canonical() == meaning
+                   for word in counting
+                   for other in skeletons.get(skeleton[:at] + (word,) + skeleton[at:], ()))
+
+    @staticmethod
+    def _skeleton(pattern: "Pattern") -> Tuple[str, ...]:
+        """A frame as its words, case aside, and its slots, in order."""
+        return tuple(e.name if isinstance(e, Slot) else _fold(e.text) for e in pattern.form)
 
     def filler_openings(self, pattern: str, slot: str) -> FrozenSet[bool]:
         """How this slot's fillers begin: True for a filler begun by a word that names nothing ("A dog"), False for
@@ -2342,12 +3496,13 @@ class PatternInventory:
         return frozenset(openings)
 
     def word_kinds(self) -> List[FrozenSet[Lexical]]:
-        """The lexical constructions grouped by the slots they fill. Two that fill a common slot are one kind, and
-        a kind is everything reachable that way. Nothing tells the substrate what the kinds are."""
-        groups: Dict[str, set] = {}
-        for key in list(self._parent):
-            if key in self._by_key:
-                groups.setdefault(self._find(key), set()).add(self._by_key[key])
+        """The lexical constructions grouped by the slots they fill. Two that fill a common slot, as the slot takes
+        them (`_taken_as`), are one kind, and a kind is everything reachable that way; a word taken as two things,
+        a count and a thing, is in a kind for each. Nothing tells the substrate what the kinds are."""
+        groups: Dict[Tuple[str, str], set] = {}
+        for node in list(self._parent):
+            if node[0] in self._by_key:
+                groups.setdefault(self._find(node), set()).add(self._by_key[node[0]])
         return sorted((frozenset(g) for g in groups.values()), key=lambda g: sorted(x.surface for x in g))
 
 
@@ -2441,6 +3596,7 @@ def _best_first(reading: Reading):
     return reading.supposed + (-reading.score, -reading.uses, reading.key)
 
 
+
 def _chunkings(form: Tuple[FormElement, ...], words: Tuple[str, ...],
                same: Callable[[str, str], bool] = str.__eq__,
                missing: Callable[[Piece], bool] = lambda piece: False,
@@ -2489,11 +3645,15 @@ def _written_shapes(view: "PatternInventory", words: Sequence[str], following: s
     return (lambda at, text: _fold(text) in standing[at] and text[:1].isupper() == words[at][:1].isupper()), stood
 
 
-def _as_written(pattern: Pattern, words: Sequence[str], spans: Sequence[Tuple[int, int]]) -> Pattern:
+def _as_written(pattern: Pattern, words: Sequence[str], spans: Sequence[Tuple[int, int]],
+                pieces: Optional[Sequence[Piece]] = None) -> Pattern:
     """The frame as these words write it, where they cover it with these slot spans: a word of its own matched in
     another of its shapes ("An" for the "A" of "A ?slot0 is a ?slot1.") is written as the words have it. The frame
     itself when every word of its own is written as it is. What the learner links, and what it creates, is the frame
-    as the sentence wrote it: the words held after a frame's word are the words written after it."""
+    as the sentence wrote it: the words held after a frame's word are the words written after it.
+
+    `pieces`: the sentence's own pieces. A frame written otherwise is then spaced as the sentence spaces it:
+    "What's an owl?", read through "What is a ?slot0?", is "What's an ?slot0?", not "What 's an ?slot0?"."""
     form: List[FormElement] = []
     slots = iter(spans)
     at, changed = 0, False
@@ -2503,7 +3663,8 @@ def _as_written(pattern: Pattern, words: Sequence[str], spans: Sequence[Tuple[in
             form.append(element)
         else:
             changed = changed or words[at] != element.text
-            form.append(Piece(words[at], element.space_after) if words[at] != element.text else element)
+            form.append(pieces[at] if pieces is not None
+                        else Piece(words[at], element.space_after) if words[at] != element.text else element)
             at += 1
     return Pattern(tuple(form), pattern.meaning) if changed else pattern
 
@@ -2512,11 +3673,15 @@ def _fill(meaning: Meaning, values: Mapping[str, str]) -> Optional[Meaning]:
     return _renamed(meaning, values)
 
 
-def _may_be_new(pieces: Tuple[Piece, ...], view: PatternInventory, longest: int) -> bool:
+def _may_be_new(pieces: Tuple[Piece, ...], view: PatternInventory, longest: int, *, given: bool = False) -> bool:
     """Whether these words can be taken as a new concept's name in a slot whose kind's longest filler has `longest`
     words: no more words than that, nor than the store takes in a term; none of them a mark; one word alone not a
     word that names nothing (`names_nothing`); and several, none of them a structure word -- a run of words that
-    holds one is structure the substrate has not learned to read, not a name."""
+    holds one is structure the substrate has not learned to read, not a name.
+
+    `given`: the run is a name its teacher gave whole ("body of water", "change of location"). Then a structure
+    word inside it is the name's own. Only the teacher knows that; taken as structure, "of" went into frames
+    ("Every ?slot0 is a body of ?slot1.")."""
     from core.semantics.cognitive_ingress import MAX_TERM_WORDS
     words = _written_words(pieces)
     if not pieces or len(words) > min(MAX_TERM_WORDS, max(longest, 1)) or _parted(pieces):
@@ -2525,15 +3690,17 @@ def _may_be_new(pieces: Tuple[Piece, ...], view: PatternInventory, longest: int)
         # One word is a name unless it is a word that names nothing ("a"); a word held so far only inside forms
         # ("cup" in "That is my cup.") may still name a thing, and a taught meaning names it.
         return not view.names_nothing(pieces[0].text)
-    # The words a hyphen joins are one word, whatever they are: "give-and-take" is a name.
-    return not any(len(word) == 1 and view.is_structure(word[0].text) for word in words)
+    # The words a hyphen joins are one word, whatever they are: "give-and-take" is a name. A word frames are built
+    # with more than it names things with is structure here too ("a", which WordNet gave the ampere).
+    return given or not any(len(word) == 1 and (view.is_structure(word[0].text)
+                                                or view.builds_more_than_it_names(word[0].text)) for word in words)
 
 
 def _fillers(view: PatternInventory, pattern: Pattern, slot: str, pieces: Tuple[Piece, ...], *,
-             extend: bool, loose: bool) -> List[Tuple[Lexical, Optional[Link], str]]:
+             extend: bool, loose: bool, first: bool = False) -> List[Tuple[Lexical, Optional[Link], str]]:
     """What may stand in one slot for these words: (filler, the link it stands through, how). A held link is
     `linked`; with `extend`, a filler of the slot's kind stands through a `kind` link proposed, and words nothing
-    held covers stand as a `new` filler through a link proposed."""
+    held covers stand as a `new` filler through a link proposed. `first`: the words begin the sentence."""
     words = tuple(p.text for p in pieces)
     if loose and _parted(pieces):
         return []          # a mark inside what was said separates; no filler spans it
@@ -2547,56 +3714,268 @@ def _fillers(view: PatternInventory, pattern: Pattern, slot: str, pieces: Tuple[
         if linked is not None:
             out.append((lexical, linked, "linked"))
         elif extend and alike(lexical.key) and view.admits_there(pattern.key, slot, lexical.value) \
-                and not (len(lexical.words) == 1 and view.says_more(lexical.words[0], lexical.value)
+                and not (len(lexical.words) == 1
+                         and view.says_more(lexical.words[0], lexical.value, doing=view.stands_as_doing(lexical))
                          and not _frame_says(pattern, slot, view.said_by(lexical.words[0], lexical.value))):
             # A word that says more than its concept ("walked": a walking before now) stands as its concept only
             # where the frame says the rest itself: "Only ?slot0 ?slot1." says its events were before now.
             out.append((lexical, link(pattern, slot, lexical), "kind"))
+    as_held = bool(out)
+    if extend and len(pieces) == 1:
+        # A WORD WRITTEN IN A SHAPE LEARNED FROM THE FILLERS ("tables", where "table" is held), or a held concept's
+        # own name, stands where that word would, as each thing that word names. Held itself or not: WordNet's
+        # kinds said of many held "pirates" for the ship alone, and "stilts" for the bird, and the pirate who
+        # plunders, the pole, never reached the listener, who took "Are pirates a kind of plunderer?" to ask about a
+        # ship (2026-10-14). Nor only the first thing the word names: "hawks" stood for the board a mason holds.
+        named_here = {lexical.value for lexical, _, _ in out}
+        for name in view.names_of_shape(words[0]):
+            for base in view.holding(name):
+                if view.says_more(words[0], name, doing=view.stands_as_doing(base)):
+                    continue               # "jumped" is a jumping before now (`shaped_phrases`), not `jump` alone
+                if base.value not in named_here and view.counts(base) and (
+                        view.link_between(pattern.key, slot, base.key) is not None or alike(base.key)):
+                    named_here.add(base.value)
+                    shaped = Lexical(pieces, base.value)
+                    out.append((shaped, link(pattern, slot, shaped), "kind"))
     # A word held in another case is not a new word: it is read as the word it is, loosely.
     if extend and not held and not view.lexicals_with_words(_loose(words), loose=True):
-        # Nor is a held word written in a shape learned from the fillers ("tables", where "table" is held), or a
-        # held concept's own name: it stands where that word would, as that word's concept.
-        if len(pieces) == 1:
-            for name in view.names_of_shape(words[0]):
-                if view.says_more(words[0], name):
-                    continue               # "jumped" is a jumping before now (`shaped_phrases`), not `jump` alone
-                for base in view.holding(name):
-                    if view.counts(base) and (view.link_between(pattern.key, slot, base.key) is not None
-                                              or alike(base.key)):
-                        shaped = Lexical(pieces, base.value)
-                        out.append((shaped, link(pattern, slot, shaped), "kind"))
-                        break
-        if _may_be_new(pieces, view, view.longest_filler(pattern.key, slot)) \
-                and view.admits_there(pattern.key, slot, _named_as(pieces)):
-            new = Lexical(pieces, _named_as(pieces))
-            out.append((new, link(pattern, slot, new), "new"))
+        named = _named_as(pieces)
+        if _temporal(named):
+            # A DAY OR A TIME OF DAY WRITTEN AS ONE is no new name: its writing says which ("October 6"). Counted as
+            # new words, a day of two words lost to any reading that took fewer ("October" plus 6, a number).
+            written = Lexical(pieces, named)
+            out.append((written, link(pattern, slot, written), "written"))
+        elif _may_be_new(pieces, view, view.longest_filler(pattern.key, slot)) \
+                and view.admits_there(pattern.key, slot, named):
+            # A WORD NEVER MET STANDS AS ITSELF, IN A ROLE ITS WRITING ALLOWS (`_may_stand_new`). Any role taken,
+            # "I am currently using Windows." read as a count of "currently using", and "Hunter is Peter's
+            # daughter." as a daughter-ness of a kind called Peter.
+            role = _role_of_slot(pattern, slot)
+            if view.takes_names(pattern.key, slot):
+                role = "name"
+            if not _may_stand_new(role, pieces, named, first):
+                return out
             # A word never held, where the slot's fillers are written in a shape, is also the word that shape makes
             # it from: "jumped", where "barked" and "walked" stand, is `jump`.
             name = view.unshaped_in(pattern.key, slot, words[0]) if len(pieces) == 1 else None
+            if name and view.is_structure(name):
+                # A word that undoes to one English builds frames from, and never puts in a slot, is no shape of it:
+                # undone, "only" stood as `on`. "carefully" undoes to `careful`, which stands in slots.
+                name = None
+            new = Lexical(pieces, named)
+            # A QUALITY OR A DOING NEVER MET IS WRITTEN AS THE SLOT'S OWN ARE: as itself where they are written as
+            # named ("try" where "open" stands), in their shape where they take one. Written otherwise, the role is
+            # a guess its writing denies: "column" where "chased" and "barked" stand, "Repeating" where "Open" does.
+            # Not where the word's class stands in the role: an adjective ends as it is written ("astonished",
+            # "glaring", "lonely"), in no shape of another word; taken for one, "To be astonished is to be
+            # surprised." read nothing, and of WordNet's adjectives said so, 70 in 76 (2026-10-12).
+            # Asked in this order, the costly last: whether a word is in a shape is found over every change the held
+            # fillers show (`said_shapes`), which each verb form learned changes. Asked of every new word in every
+            # slot, every form taught rebuilt it, and WordNet's examples slowed from two minutes a thousand to half
+            # an hour (2026-10-12).
+            if not (role in ("quality", "doing") and (view.written_against(pattern.key, slot, new) or (
+                    view.slot_writing(pattern.key, slot) is None and role not in view.class_parts(words[0])
+                    and view.in_a_shape(words[0])))):
+                out.append((new, link(pattern, slot, new), "new"))
             if name:
                 shaped = Lexical(pieces, name)
                 out.append((shaped, link(pattern, slot, shaped), "new"))
+    elif extend and held and not as_held and len(pieces) == 1:
+        # A WORD HELD ONLY FOR WHAT STANDS ELSEWHERE, OF A CLASS THAT STANDS HERE, is read here as a word never met
+        # in this part: "amble", held for a walk (`walk amble`), a thing, is a doing where "To ?slot0 is to ?slot1."
+        # takes one, as English makes a verb of a noun ("to fork", "to cache"). Held, it was no new word, and "To
+        # amble is to walk." read nothing (2026-10-12).
+        role = _role_of_slot(pattern, slot)
+        named = _named_as(pieces)
+        if role in ("quality", "doing") and role in view.class_parts(words[0]) \
+                and _may_be_new(pieces, view, view.longest_filler(pattern.key, slot)) \
+                and view.admits_there(pattern.key, slot, named) and _may_stand_new(role, pieces, named, first):
+            new = Lexical(pieces, named)
+            if not view.written_against(pattern.key, slot, new):
+                out.append((new, link(pattern, slot, new), "new"))
     return out
 
 
 def _named_as(pieces: Tuple[Piece, ...]) -> str:
     """What a word never met names where it stands: itself, as written -- or, written as a number or a formula,
-    the number or formula it writes, one thing however it is written: `1,000,000` is 1000000, `2+3` is `2 + 3`."""
+    the number or formula it writes, one thing however it is written: `1,000,000` is 1000000, `2+3` is `2 + 3`; or,
+    written as a day or a time of day, in one word or several, that day or time: "October 6" is `--10-06`, "19:30"
+    is `7:30 p.m.`."""
     surface = surface_of(pieces)
-    if len(pieces) == 1:
-        literal = classify_literal(surface)
-        if literal is not None and literal.kind in ("cardinal", "decimal", "expression"):
-            return literal.canonical
+    literal = classify_literal(surface)
+    if literal is not None and literal.kind in ("date", "time"):
+        return literal.canonical
+    if len(pieces) == 1 and literal is not None and literal.kind in ("cardinal", "decimal", "expression"):
+        return literal.canonical
     return surface
 
 
 def _alike(view: PatternInventory, frame: Union[Pattern, Phrase], slot: str) -> Callable[[str], bool]:
-    """Whether a held filler may stand in a slot it was never linked to: one of the slot's kind. In a construction
-    with no word of its own ("?slot0 ?slot1"), nothing but its fillers anchors it, so the filler must also have stood
-    beside the slot's own fillers somewhere (`stood_beside`): a kind alone reads any two words there ("walked
-    carefully" as a count)."""
+    """Whether a held filler may stand in a slot it was never linked to: one of the slot's kind, or one whose word's
+    class stands where the slot's fillers do (`of_its_class`). In a construction with no word of its own ("?slot0
+    ?slot1"), nothing but its fillers anchors it, so the filler must also have stood beside the slot's own fillers
+    somewhere (`stood_beside`): a kind alone reads any two words there ("walked carefully" as a count)."""
     wordless = not any(isinstance(e, Piece) and not _is_mark(e.text) for e in frame.form)
-    return lambda key: view.same_kind(frame.key, slot, key) and (not wordless or view.stood_beside(frame.key, slot, key))
+    return lambda key: (view.same_kind(frame.key, slot, key) or view.of_its_class(frame.key, slot, key)) \
+        and (not wordless or view.stood_beside(frame.key, slot, key))
+
+
+#: The relations whose subject is a happening: who does it, what it is done to or with, for whom, who receives
+#: what it passes, where it moves, how long it lasts, what it is for, and when it is (`relation_types`, "event
+#: participants" and the temporal links).
+_HAPPENING = frozenset(EVENT_PARTICIPANTS + (
+    "done_with", "done_for", "received_by", "has_purpose", "lasts_until", "lasts_since", "lasts_for",
+    "moves_to", "moves_into", "moves_onto", "moves_from", "moves_out_of", "moves_through", "moves_across",
+    "moves_over", "moves_around", "moves_toward", "moves_up", "moves_down", "during", "precedes", "follows"))
+
+def _says_of_happening(says: Iterable[Tuple[Any, ...]]) -> bool:
+    """Whether what a shape says more of its word's thing (`_note_shape_phrase`) is said of a happening: who does it,
+    when it is ("barked": before now; "dwindles": done by what was spoken of)."""
+    return any(fact[0] in _HAPPENING for fact in says)
+
+
+#: Of those, the ones saying only when something is and how long it lasts, which the meaning also says of a thing
+#: there was or will be: "There was a dog." places one dog before now, and "a year ago" a year that lasts until now.
+_WHEN = frozenset(("during", "precedes", "follows", "lasts_until", "lasts_since", "lasts_for"))
+
+
+#: The relations whose object is a number: how many, and what a number or an operation is made of
+#: (`relation_types`, arithmetic). Their objects are numbers, never a word for something else.
+_NUMBERED = frozenset(("has_count", "has_rank", "has_addend", "has_factor", "has_augend", "has_minuend",
+                       "has_subtrahend", "has_multiplicand", "has_dividend", "has_divisor", "has_base",
+                       "has_exponent", "has_radicand", "has_index"))
+
+
+def _role_of_term(facts: Iterable["MeaningFact"], term: str) -> str:
+    """What a meaning takes a term as, where it is not a thing:
+
+      closed    a count or a number (the object of `_NUMBERED`: "two", "most", the parts of "twenty-one") or a degree's
+                own word (what a degree `has_property`: "very"): words of a class English does not add to
+      quality   what a thing or a happening `has_property` ("red", "warily"), or the kind of a degree ("big")
+      doing     the kind of a happening (`_HAPPENING`)
+      kind      the kind of a thing (`instance_of`), or either side of `isa`
+      name      what something is `named` ("Tom" in "My name is Tom.", "I am Tom.")
+      thing     anything else: a thing, or a kind said of generally ("Tom" in `owns(Tom, ?x)`, "rain" in `causes`)"""
+    facts = tuple(facts)
+    degrees = {f.obj for f in facts if f.relation == "has_degree"}
+    if any(f.relation in _NUMBERED and f.obj == term for f in facts) or any(
+            f.relation == "has_property" and f.obj == term and f.subject in degrees for f in facts):
+        return "closed"
+    if any(f.relation == "has_property" and f.obj == term for f in facts) or any(
+            f.relation == "instance_of" and f.obj == term and f.subject in degrees for f in facts):
+        return "quality"
+    things = {f.subject for f in facts if f.relation == "instance_of" and f.obj == term}
+    if any(f.subject in things and f.relation in _HAPPENING for f in facts):
+        return "doing"
+    if things or any(f.relation == "isa" and term in (f.subject, f.obj) for f in facts):
+        return "kind"
+    if any(f.relation == "named" and f.obj == term for f in facts):
+        return "name"
+    return "thing"
+
+
+def _role_of_slot(construction: Any, slot: str) -> str:
+    """What a construction takes what stands in its slot as (`_role_of_term`)."""
+    if isinstance(construction, Pattern):
+        return _role_of_term(construction.meaning.facts, slot)
+    if isinstance(construction, Phrase):
+        return _role_of_term(construction.facts, slot)
+    return "thing"
+
+
+def _taken_as(construction: Any, slot: str) -> Tuple[str, ...]:
+    """What a construction's slot takes its fillers as, as kinds join them (`PatternInventory._join`): a count, a
+    quality, a doing, or a thing -- a kind, a name and a thing (`_role_of_slot`) each name what is, or what is of a
+    kind. These are the parts of the meaning language, never of English, and found from each frame's own meaning; the
+    kinds inside each are learned from the links alone, so a kind never taught before is a kind of its own.
+
+    A WORD IS IN A KIND FOR EACH PART IT STANDS IN, APART: "three" counts in "three dogs" and is a thing in "Three is
+    a number.", and "fly" is done where birds fly and is a thing where a fly is an insect. Joined as one filler,
+    every count was a thing and every thing a count: after WordNet's numbers one kind held 139,197 of 139,286 fillers,
+    any word stood in any slot, and "Is a first amendment part of a bill of Rights?" never finished reading, with
+    "amendment" and "part" read as counts (2026-10-11).
+
+    A KIND OF HAPPENING THE MEANING ONLY PLACES IN TIME (`_WHEN`) IS ALSO A KIND OF THING: the meaning says the same of
+    a dog there was ("There was a dog.": one, before now) as of a barking ("?slot0 twice": two, before now), and
+    English says the one as a thing and the other as a doing. The slot takes either, each as its fillers stand. A
+    happening someone does or something undergoes (`done_by`, `done_to`, ...) is a doing alone. A STATE IS A QUALITY
+    PLACED IN TIME (`state_of`, `relation_types`): "The box will be empty." is the box's being empty, after now, as
+    "The box is empty." says it holds (`has_property`); the slot takes what qualities are."""
+    if isinstance(construction, Pattern):
+        facts = construction.meaning.facts
+    elif isinstance(construction, Phrase):
+        facts = construction.facts
+    else:
+        return ("thing",)
+    role = _role_of_term(facts, slot)
+    if role == "doing":
+        things = {f.subject for f in facts if f.relation == "instance_of" and f.obj == slot}
+        if any(f.relation == "state_of" and f.subject in things for f in facts):
+            return ("quality",)
+        if all(f.relation in _WHEN for f in facts if f.subject in things and f.relation in _HAPPENING):
+            return ("doing", "thing")
+        return ("doing",)
+    return ("thing",) if role in ("kind", "name", "thing") else (role,)
+
+
+def _new_stands(meaning: "Meaning", new: Iterable["Lexical"], first_word: str) -> bool:
+    """Whether every word never met stands, in the meaning a reading composed, in a role its writing allows
+    (`_may_stand_new`). Checked in each slot too (`_fillers`); a phrase can carry what stands in its slot into another
+    role: "the word reversed", a kind in "the ?slot0", was made the kind of a happening."""
+    for lexical in new:
+        first = len(lexical.words) == 1 and _fold(lexical.words[0]) == _fold(first_word)
+        role = _role_of_term(meaning.facts, lexical.value)
+        if not _may_stand_new(role, lexical.form, lexical.value, first):
+            return False
+        # A HAPPENING SAID AS "THE X" IS ONE THE LISTENER ALREADY KNOWS OF; a word never met names nothing known:
+        # "the dust" stood as what another one did.
+        if role == "doing" and any(f.relation == "instance_of" and f.obj == lexical.value and f.given
+                                   for f in meaning.facts):
+            return False
+    return True
+
+
+def _may_stand_new(role: str, pieces: Tuple[Piece, ...], named: str, first: bool) -> bool:
+    """Whether words never met may stand, as themselves, in a place of this role (`_role_of_term`). A word never met
+    stands as itself: "ready" in "Are you ready?" is the quality called ready. What is guessed is its role, and its
+    writing must allow that role. How many words a run may have is the slot's kind's (`_may_be_new`).
+
+      - a number or a time written as one is a value, wherever it stands;
+      - closed: never; English does not add counts or degree words ("currently using" is no count);
+      - doing: one word, not written as a name ("Dear future", "called Family Day" are no doing);
+      - quality, kind: not written as a name: a name names one thing ("Peter" is no kind, "Annas" no quality);
+      - name: written as one, every word with a capital ("Family Day"): a run of common words is no one's name
+        ("I am currently using Windows.");
+      - thing: any word.
+
+    Written as a name is a capital on the run's last word, unless the run is one word that begins the sentence,
+    whose capital is the writing's and says nothing. How a quality or a doing must be written besides is the
+    slot's (`_fillers`)."""
+    if _quantity(named) or _temporal(named) or _mathematical(named):
+        return True
+    if role == "closed":
+        return False
+    capital = pieces[-1].text[:1].isupper() and not (first and len(pieces) == 1)
+    if role == "doing":
+        return len(pieces) == 1 and not capital
+    if role in ("quality", "kind"):
+        return not capital
+    if role == "name":
+        return all(piece.text[:1].isupper() for piece in pieces if not _is_mark(piece.text))
+    return True
+
+
+def _names_a_doing(construction: Any, slot: str) -> bool:
+    """Whether a construction's slot names a kind of happening: what is one of its kind is done by or to something
+    (`EVENT_PARTICIPANTS`), as "?slot0 the ?slot1" says of `instance_of(?n, ?slot0)`, done to `?slot1`."""
+    if isinstance(construction, Pattern):
+        facts = construction.meaning.facts
+    elif isinstance(construction, Phrase):
+        facts = construction.facts
+    else:
+        return False
+    things = {f.subject for f in facts if f.relation == "instance_of" and f.obj == slot and f.positive}
+    return any(f.subject in things and f.relation in EVENT_PARTICIPANTS for f in facts)
 
 
 def _frame_says(frame: Union[Pattern, Phrase], slot: str, said: Iterable[FrozenSet[Tuple[Any, ...]]]) -> bool:
@@ -2626,6 +4005,8 @@ class _Filling:
     like: Tuple[str, ...] = ()
     #: How many numbers it puts in a number phrase's slot that is taught numbers of other sizes (`sized_apart`).
     apart: int = 0
+    #: How many of its phrases' own words it read through another said in their place (`_said_for`), as a frame's are.
+    said_for: int = 0
 
 
 def _composed(facts: Iterable[MeaningFact], anchor: Optional[str],
@@ -2640,7 +4021,8 @@ def _composed(facts: Iterable[MeaningFact], anchor: Optional[str],
     that is glintbsrtp; nor does one the construction takes as the kind of several things ("Only ?slot0 ?slot1.":
     the event done and the one not done), since a thing describes one thing. These are rules of the meaning language, kinds and their instances, not of English. A
     filling's own unknowns are renamed apart from everything else's, and what it says of a thing named only in a
-    condition is said in the condition too."""
+    condition is said in the condition too; of one the construction does not tell as so (`MeaningFact.unasserted`:
+    "Tom says that the dog will bark.", "will bark" in a place held as Tom's), not told as so either."""
     out = list(facts)
     added: List[MeaningFact] = []
     names: Dict[str, str] = {}
@@ -2660,19 +4042,22 @@ def _composed(facts: Iterable[MeaningFact], anchor: Optional[str],
         described = (slot != anchor and uses and is_variable(thing_of) and not _named(thing_of)
                      and all(f.relation == "instance_of" and f.obj == slot and f.subject != slot and f.positive
                              and not f.alternative for f in uses)
-                     and len({(f.subject, f.condition) for f in uses}) == 1)
+                     and len({(f.subject, f.condition, f.unasserted) for f in uses}) == 1)
         if not described and is_variable(thing_of) and not _named(thing_of) and slot != anchor \
                 and any(f.relation == "instance_of" and f.obj == slot for f in uses):
             return None        # a thing is never a kind: one standing for a thing describes one thing, or none
         if described:
-            thing, condition = uses[0].subject, uses[0].condition
+            thing, condition, unasserted = uses[0].subject, uses[0].condition, uses[0].unasserted
             out = [f for f in out if f not in uses]
             added.extend(MeaningFact(f.relation, thing if f.subject == thing_of else f.subject,
-                                     thing if f.obj == thing_of else f.obj, f.positive, condition) for f in said)
+                                     thing if f.obj == thing_of else f.obj, f.positive, condition,
+                                     unasserted=unasserted or f.unasserted, given=f.given) for f in said)
         else:
             names[slot] = thing_of
             condition = bool(uses) and all(f.condition for f in uses)
-            added.extend(MeaningFact(f.relation, f.subject, f.obj, f.positive, condition) for f in said)
+            unasserted = bool(uses) and all(f.unasserted for f in uses)
+            added.extend(MeaningFact(f.relation, f.subject, f.obj, f.positive, condition,
+                                     unasserted=unasserted or f.unasserted, given=f.given) for f in said)
     own = [f.renamed(names) for f in out]
     if len(set(own)) != len(own):
         return None
@@ -2705,6 +4090,8 @@ class _Chart:
     def __init__(self):
         self.phrases: Dict[Tuple[int, int], List[_Filling]] = {}
         self.slots: Dict[Tuple[str, str, int, int], List[_Filling]] = {}
+        self.adjuncts: Dict[Tuple[int, int], List[Tuple[Adjunct, _Filling]]] = {}
+        self.tails: Dict[Tuple[int, int], List[Tuple[Tuple[Adjunct, _Filling], ...]]] = {}
         self.reading: set = set()
 
 
@@ -2721,7 +4108,8 @@ def _slot_fillings(view: PatternInventory, frame: Union[Pattern, Phrase], slot: 
 
     def sized(value: str) -> int:
         return 1 if view.sized_apart(frame.key, slot, value) else 0
-    for lexical, held, how in _fillers(view, frame, slot, pieces[start:end], extend=extend, loose=loose):
+    for lexical, held, how in _fillers(view, frame, slot, pieces[start:end], extend=extend, loose=loose,
+                                       first=not any(not _is_mark(p.text) for p in pieces[:start])):
         if how == "linked":
             out.append(_Filling(lexical.value, (), (lexical,), links=(held,), apart=sized(lexical.value)))
         else:
@@ -2734,16 +4122,116 @@ def _slot_fillings(view: PatternInventory, frame: Union[Pattern, Phrase], slot: 
                                       if filling.facts else filling.anchor)
         if held is not None:
             out.append(_Filling(filling.anchor, filling.facts, filling.constructions,
-                                filling.links + (held,), filling.proposed, filling.new, apart=apart))
+                                filling.links + (held,), filling.proposed, filling.new, apart=apart,
+                                said_for=filling.said_for))
         elif extend and (alike(top.key)
                          or any(view.link_between(frame.key, slot, held) is not None
                                 or alike(held) for held in filling.like)):
             out.append(_Filling(filling.anchor, filling.facts, filling.constructions,
                                 filling.links, filling.proposed + (link(frame, slot, top),), filling.new,
-                                apart=apart))
+                                apart=apart, said_for=filling.said_for))
+    # WHAT STANDS HERE, AND AN ADJUNCT AFTER IT, stand here as one: "the largest animal" and "on Earth", in a slot
+    # "the largest animal" may stand in. Only in reading, as a link of a slot's kind is.
+    if extend:
+        for middle in range(start + 1, end):
+            if not view.begins_adjunct(pieces[middle].text):
+                continue
+            after = _adjunct_fillings(view, pieces, middle, end, chart, loose=loose)
+            if not after:
+                continue
+            for head in _slot_fillings(view, frame, slot, pieces, start, middle, chart, extend=extend, loose=loose):
+                for adjunct, said in after:
+                    joined = _adjoined(frame, slot, head, adjunct, said)
+                    if joined is not None:
+                        out.append(joined)
     if (start, end) not in chart.reading:
         chart.slots[kept] = out
     return out
+
+
+def _adjunct_fillings(view: PatternInventory, pieces: Tuple[Piece, ...], start: int, end: int, chart: _Chart, *,
+                      loose: bool) -> List[Tuple[Adjunct, _Filling]]:
+    """Every adjunct that reads `pieces[start:end]`, with what it says there (of `ADJOINED`): its words matched as a
+    phrase's are, and each of its slots filled as that slot of the frame it was found in is (`_slot_fillings`), so
+    "in the ?slot1" takes what "The ?slot0 in the ?slot1 is ?slot2." takes there. The same words saying the same
+    through several pairs of frames are read once, as they suppose least. Read once per chart."""
+    key = (start, end)
+    if key in chart.adjuncts:
+        return chart.adjuncts[key]
+    chart.adjuncts[key] = []
+    span = pieces[start:end]
+    if loose and _parted(span):
+        return []
+    words = tuple(_fold(p.text) for p in span) if loose else tuple(p.text for p in span)
+    same = (lambda word, text: word == _fold(text)) if loose else str.__eq__
+    missing = (lambda piece: _is_mark(piece.text)) if loose else (lambda piece: False)
+    shaped, _ = _written_shapes(view, words, pieces[end].text if end < len(pieces) else "", loose=loose)
+    found: Dict[Tuple[bool, bool, str], Tuple[Adjunct, _Filling]] = {}
+    for adjunct in view.adjuncts_after(span[0].text):
+        frame = view.get(adjunct.frame)
+        slots = [e.name for e in adjunct.form if isinstance(e, Slot)]
+        anchors = sum(1 for e in adjunct.form if isinstance(e, Piece) and not _is_mark(e.text))
+        for spans in _chunkings(adjunct.form, words, same, missing, shaped):
+            said = _said_for(view, adjunct.form, words, spans, same)
+            options = []
+            for slot, (a, b) in zip(slots, spans):
+                fitting = _slot_fillings(view, frame, slot, pieces, start + a, start + b, chart,  # type: ignore[arg-type]
+                                         extend=True, loose=loose)
+                if not fitting:
+                    break
+                options.append(fitting)
+            else:
+                for combo in itertools.product(*options):
+                    here, held = _new_here(combo)
+                    if not _anchored(here, anchors + held):
+                        continue
+                    composed = _composed(adjunct.facts, ADJOINED, dict(zip(slots, combo)))
+                    if composed is None:
+                        continue
+                    filling = _Filling(ADJOINED, composed[1], tuple(x for c in combo for x in c.constructions),
+                                       tuple(x for c in combo for x in c.links),
+                                       tuple(x for c in combo for x in c.proposed),
+                                       tuple(x for c in combo for x in c.new), apart=sum(c.apart for c in combo),
+                                       said_for=said + sum(c.said_for for c in combo))
+                    kept = (adjunct.happening, adjunct.of_happening, _phrase_canonical(ADJOINED, filling.facts))
+                    if kept not in found or _supposes(filling, view) < _supposes(found[kept][1], view):
+                        found[kept] = (adjunct, filling)
+    chart.adjuncts[key] = list(found.values())
+    return chart.adjuncts[key]
+
+
+def _adjoined(frame: Union[Pattern, Phrase], slot: str, head: _Filling, adjunct: Adjunct,
+              said: _Filling) -> Optional[_Filling]:
+    """What stands in a slot, followed by an adjunct, standing there as one: what it stands for, with what the adjunct
+    says of it. Where the construction uses the slot only as a thing's kind ("The ?slot0 is red."), what stands there
+    names the kind and the adjunct is said of the thing: "the book on the table" is a book, and on the table. Where it
+    uses the slot otherwise, the adjunct is said of what stands there ("Tom in the house"). An adjunct saying what
+    only a happening has follows only what names one: a slot naming a kind of happening (`_names_a_doing`), or what
+    is said to be one ("walked", before now). It stands where what it follows stands, through a link proposed for
+    it, as a filling of the slot's kind does: supposed, never held."""
+    facts = frame.meaning.facts if isinstance(frame, Pattern) else frame.facts
+    uses = [f for f in facts if slot in f.terms()]
+    kind_of = bool(uses) and all(f.relation == "instance_of" and f.obj == slot and f.positive for f in uses)
+    taken = {t for f in head.facts for t in f.terms()} | {head.anchor}
+    fresh = (f"?j{n}" for n in itertools.count() if f"?j{n}" not in taken)
+    if kind_of and not is_variable(head.anchor):
+        # The thing is known to both, or not, as the construction says of what the slot is the kind of ("the").
+        thing = next(fresh)
+        own = (MeaningFact("instance_of", thing, head.anchor, given=all(f.given for f in uses)),) + head.facts
+    else:
+        thing, own = head.anchor, head.facts
+    happening = (kind_of and _names_a_doing(frame, slot)) \
+        or any(f.subject == thing and f.relation in _HAPPENING for f in own)
+    if adjunct.happening and not happening:
+        return None
+    names = {t: next(fresh) for t in sorted({t for f in said.facts for t in f.terms()})
+             if is_variable(t) and not _named(t) and t != ADJOINED}
+    names[ADJOINED] = thing
+    phrase = adjunct.phrase
+    return _Filling(thing, tuple(dict.fromkeys(own + tuple(f.renamed(names) for f in said.facts))),
+                    head.constructions + (phrase,) + said.constructions, head.links + said.links,
+                    head.proposed + said.proposed + (link(frame, slot, phrase),), head.new + said.new,
+                    like=head.like, apart=head.apart + said.apart, said_for=head.said_for + said.said_for)
 
 
 def _phrase_fillings(view: PatternInventory, pieces: Tuple[Piece, ...], start: int, end: int,
@@ -2780,13 +4268,17 @@ def _phrase_fillings(view: PatternInventory, pieces: Tuple[Piece, ...], start: i
             except ValueError:
                 continue
             out.append(_Filling(anchor, facts, (made,), new=(Lexical(span, name),), like=held))
-    for phrase in view.phrases():
+    for phrase in view.phrases_reading(have):
         if not view.counts(phrase) or (phrase.slots and not view.may_read(phrase.key, have, loose)):
             continue
         anchors = sum(1 for e in phrase.form if isinstance(e, Piece) and not _is_mark(e.text))
         for spans in _chunkings(phrase.form, words, same, missing, shaped):
+            # A PHRASE'S WORD READ THROUGH ANOTHER SAID IN ITS PLACE is supposed, as a frame's is: "chased the ?slot0"
+            # read "chased a cat" for nothing, "a" and "the" being said in each other's place where meanings do not
+            # tell them apart, and tied with "The ?slot0 chased a ?slot1.", taught for it.
+            said = _said_for(view, phrase.form, words, spans, same)
             if not phrase.slots:
-                out.append(_Filling(phrase.anchor, phrase.facts, (phrase,)))
+                out.append(_Filling(phrase.anchor, phrase.facts, (phrase,), said_for=said))
                 break
             options = []
             for slot, (a, b) in zip(phrase.slots, spans):
@@ -2808,7 +4300,8 @@ def _phrase_fillings(view: PatternInventory, pieces: Tuple[Piece, ...], start: i
                                         tuple(x for c in combo for x in c.links),
                                         tuple(x for c in combo for x in c.proposed),
                                         tuple(x for c in combo for x in c.new),
-                                        apart=sum(c.apart for c in combo)))
+                                        apart=sum(c.apart for c in combo),
+                                        said_for=said + sum(c.said_for for c in combo)))
     # THESE WORDS, READ THROUGH EACH PHRASE, AS THEY SUPPOSE LEAST. What a reading supposes is the sum of what its
     # parts suppose, and what a phrase reading them adds depends only on which phrase each part is -- so a reading of
     # these words through one phrase that supposes more than another through the same phrase can never be part of a
@@ -2834,10 +4327,12 @@ def _phrase_fillings(view: PatternInventory, pieces: Tuple[Piece, ...], start: i
 
 
 def _supposes(filling: _Filling, view: PatternInventory) -> Tuple[int, bool, int, int]:
-    """How much a reading of a phrase supposes, least first: new words, constructions not held, links proposed, and
-    numbers standing where numbers of their size never stood (`sized_apart`)."""
+    """How much a reading of a phrase supposes, least first: new words, constructions not held, links proposed and
+    words read through another said in their place, and numbers standing where numbers of their size never stood
+    (`sized_apart`)."""
     return (sum(len(_loose(lexical.words)) for lexical in filling.new),
-            any(c.key not in view for c in filling.constructions), len(filling.proposed), filling.apart)
+            any(c.key not in view for c in filling.constructions), len(filling.proposed) + filling.said_for,
+            filling.apart)
 
 
 def _analyses(words: Tuple[str, ...], view: PatternInventory, *, pieces: Optional[Tuple[Piece, ...]] = None,
@@ -2872,12 +4367,11 @@ def _analyses(words: Tuple[str, ...], view: PatternInventory, *, pieces: Optiona
                 for holophrase in view.with_words(words[:at] + (said,) + words[at + 1:], loose=False):
                     if view.counts(holophrase):
                         out.append(view.reading((holophrase,), (), holophrase.meaning, said_for=1))
-    shaped, stood = _written_shapes(view, words, loose=loose)
-    have = frozenset(words) | stood
     chart = _Chart()
-    for pattern in view.item_based():
-        if not view.may_read(pattern.key, have, loose) or not view.counts(pattern):
-            continue
+
+    def through(pattern: Pattern, words: Tuple[str, ...], shaped: Optional[Callable[[int, str], bool]],
+                tails: Sequence[Tuple[Tuple[Adjunct, _Filling], ...]] = ((),)) -> None:
+        """The readings of these words through one frame, and with each run of adjuncts after them (`tails`)."""
         form = pattern.form
         anchors = sum(1 for e in form if isinstance(e, Piece) and not _is_mark(e.text))
         for spans in _chunkings(form, words, same, missing, shaped):
@@ -2895,13 +4389,115 @@ def _analyses(words: Tuple[str, ...], view: PatternInventory, *, pieces: Optiona
                         continue
                     new = tuple(x for c in combo for x in c.new)
                     meaning = _composed_meaning(pattern.meaning, dict(zip(pattern.slots, combo)))
-                    if meaning is not None:
+                    if meaning is None or not _new_stands(meaning, new, words[0] if words else ""):
+                        continue
+                    for tail in tails:
+                        whole = _with_tail(pattern, meaning, tail) if tail else meaning
+                        if whole is None:
+                            continue
+                        constructions = (pattern,) + tuple(x for c in combo for x in c.constructions) + tuple(
+                            x for adjunct, said in tail for x in (adjunct.phrase,) + said.constructions)
+                        held = tuple(x for c in combo for x in c.links) + tuple(x for _, s in tail for x in s.links)
+                        offered = tuple(x for c in combo for x in c.proposed) + tuple(
+                            x for adjunct, said in tail
+                            for x in said.proposed + (link(pattern, pattern.slots[-1], adjunct.phrase),))
                         out.append(view.reading(
-                            (pattern,) + tuple(x for c in combo for x in c.constructions),
-                            tuple(x for c in combo for x in c.links), meaning,
-                            proposed=tuple(x for c in combo for x in c.proposed), new=new, loose=loose,
-                            said_for=said_for, sized=sum(c.apart for c in combo)))
+                            constructions, held, whole, proposed=offered,
+                            new=new + tuple(x for _, said in tail for x in said.new), loose=loose,
+                            said_for=said_for + sum(c.said_for for c in combo) + sum(s.said_for for _, s in tail)
+                            + _unsaid(view, constructions, held + offered, whole),
+                            sized=sum(c.apart for c in combo) + sum(s.apart for _, s in tail)))
+
+    shaped, stood = _written_shapes(view, words, loose=loose)
+    have = frozenset(words) | stood
+    for pattern in view.item_based():
+        if view.may_read(pattern.key, have, loose) and view.counts(pattern):
+            through(pattern, words, shaped)
+    # ADJUNCTS SAID OF WHAT A SENTENCE TELLS HAPPENED, after all its frame reads: "The company hired three engineers
+    # in May." is "The company hired three engineers." and, of the hiring, "in May". Only in reading, as a link of a
+    # slot's kind is.
+    if extend and len(pieces) > 2 and _is_mark(pieces[-1].text):
+        for middle in range(1, len(pieces) - 1):
+            if not view.begins_adjunct(pieces[middle].text):
+                continue
+            tails = _tails(view, pieces, middle, len(pieces) - 1, chart, loose=loose)
+            if not tails:
+                continue
+            short = words[:middle] + words[-1:]
+            shaped, stood = _written_shapes(view, short, loose=loose)
+            have = frozenset(short) | stood
+            for pattern in view.item_based():
+                if pattern.slots and view.may_read(pattern.key, have, loose) and view.counts(pattern):
+                    through(pattern, short, shaped, tails)
     return sorted(out, key=_best_first)
+
+
+def _tails(view: PatternInventory, pieces: Tuple[Piece, ...], start: int, end: int, chart: _Chart, *,
+           loose: bool) -> List[Tuple[Tuple[Adjunct, _Filling], ...]]:
+    """Every way `pieces[start:end]` reads as adjuncts said of a happening, one after another: "into the box in the
+    morning"."""
+    key = (start, end)
+    if key in chart.tails:
+        return chart.tails[key]
+    chart.tails[key] = []
+    out: List[Tuple[Tuple[Adjunct, _Filling], ...]] = []
+    for middle in range(start + 1, end + 1):
+        if middle < end and not view.begins_adjunct(pieces[middle].text):
+            continue
+        firsts = [read for read in _adjunct_fillings(view, pieces, start, middle, chart, loose=loose)
+                  if read[0].of_happening]
+        if not firsts:
+            continue
+        rests = [()] if middle == end else _tails(view, pieces, middle, end, chart, loose=loose)
+        out.extend((first,) + rest for first in firsts for rest in rests)
+    chart.tails[key] = out
+    return out
+
+
+def _with_tail(pattern: Pattern, meaning: Meaning, tail: Sequence[Tuple[Adjunct, _Filling]]) -> Optional[Meaning]:
+    """A frame's reading with adjuncts after it said of what it tells happened: the one unknown of its own that is a
+    happening in the reading (`_HAPPENING`). None when it tells of none, or of more than one."""
+    own = {t for f in pattern.meaning.facts for t in f.terms() if is_variable(t) and not _named(t)}
+    happenings = {f.subject for f in meaning.facts if f.relation in _HAPPENING and f.subject in own}
+    if len(happenings) != 1:
+        return None
+    facts = list(meaning.facts)
+    taken = {t for f in facts for t in f.terms()}
+    fresh = (f"?j{n}" for n in itertools.count() if f"?j{n}" not in taken)
+    for _, said in tail:
+        names = {t: next(fresh) for t in sorted({t for f in said.facts for t in f.terms()})
+                 if is_variable(t) and not _named(t) and t != ADJOINED}
+        names[ADJOINED] = next(iter(happenings))
+        facts.extend(f.renamed(names) for f in said.facts if f.renamed(names) not in facts)
+    try:
+        return Meaning(meaning.act, tuple(facts), meaning.asked)
+    except ValueError:
+        return None
+
+
+def _unsaid(view: PatternInventory, constructions: Iterable[Construction], links: Iterable[Link],
+            meaning: Meaning) -> int:
+    """How many words standing in a phrase's slots a reading takes as less than they say: a word that says more
+    than its concept ("kicked", a kicking before now; `says_more`) where the reading places what it names nowhere by
+    what the word says (`said_by`: before something). A phrase is read inside frames other than the one it was
+    learned in: "kicked" was linked in "?slot0 the ?slot1" where the frame around said "before now" ("Tom kicked the
+    ball into the box."), and read in "?slot0 ?slot1.", which says nothing of time, "Tom kicked the ball." was a
+    kicking at no time and tied with the reading taught. A word in a sentence frame's own slot was linked with that
+    frame ("If it rained, ..."), and is not judged here. Supposed, as a word read through another is."""
+    items = {c.key: c for c in constructions}
+    in_phrases = {l.lexical for l in links if isinstance(items.get(l.pattern), Phrase)}
+    placed = {(f.relation, f.subject, f.positive) for f in meaning.facts}
+    count = 0
+    for key in in_phrases:
+        item = items.get(key)
+        if not isinstance(item, Lexical) or len(item.words) != 1 or not view.says_more(item.words[0], item.value):
+            continue
+        things = {f.subject for f in meaning.facts if f.relation == "instance_of" and f.obj == item.value}
+        if not any(says and all((relation, thing, positive) in placed for relation, subject, _, positive in says
+                                if subject == "@")
+                   for thing in things for says in view.said_by(item.words[0], item.value)):
+            count += 1
+    return count
 
 
 def _said_for(view: PatternInventory, form: Tuple[FormElement, ...], words: Tuple[str, ...],
@@ -2926,7 +4522,10 @@ def _anchored(new: Tuple[Lexical, ...], anchors: int) -> bool:
     holding something held. A new name of one word stands where the construction puts it, so any number do ("Rain
     causes floods.", neither word ever met, through "?slot0 causes ?slot1."); a run of new words is also a guess at
     where a name begins and ends, so with one among them, no more new names than anchors. With no anchor, none: a
-    phrase of slots alone takes a new name only beside something held ("glorpy dogs")."""
+    phrase of slots alone takes a new name only beside something held ("glorpy dogs"). A number written as a number is
+    no guess at a name: its writing says what it is (`_quantity`), so it needs no anchor ("$4.25" through "$?slot0",
+    whose "$" is a mark)."""
+    new = tuple(lexical for lexical in new if not _quantity(str(lexical.value)) and not _temporal(str(lexical.value)))
     if not new:
         return True
     if not anchors:
@@ -2964,9 +4563,23 @@ def _read_pieces(pieces: Tuple[Piece, ...], view: PatternInventory) -> Tuple[Rea
     if not found:
         return ()
     least = found[0].supposed
+    # EVERY SENSE OF THE WORDS READ REACHES THE LISTENER. A reading saying the same words as a best one, of another
+    # thing, stays, however much more it supposed of the words' places: whether its word was linked in this frame,
+    # stood where the slot's words stand, is written as they are. That is how well the sense fits there, and it is the
+    # listener's evidence (`meant`), not a cut: cut, it set aside the computer's mouse ("A mouse is a device.", its
+    # word linked in the "an" twin), the bird's wing, and a synonym's every sense, before the listener heard of them.
+    # A reading that read loosely, or took more words as new names, is another reading of the words, not another
+    # sense, and is still set aside.
+    # Structures that supposed as little as each other all go to the listener, who weighs what memory knows of each
+    # and how probable each is (`meant`).
+    def settled(supposed: Tuple) -> Tuple:
+        return supposed[:2]
+
+    worded = {_worded(reading, view) for reading in found if reading.supposed == least}
     best: Dict[str, Reading] = {}
     for reading in found:
-        if reading.supposed == least:
+        if reading.supposed == least or (settled(reading.supposed) == settled(least)
+                                         and _worded(reading, view) in worded):
             best.setdefault(reading.meaning.canonical(), reading)
     return tuple(sorted(best.values(), key=_best_first))
 
@@ -3080,6 +4693,81 @@ def _partial(pieces: Tuple[Piece, ...], view: PatternInventory) -> Tuple[Tuple[S
     return parts, unknown
 
 
+#: The marks a quotation opens with, and the mark that closes each.
+_QUOTES = {'"': '"', "“": "”"}
+
+
+def set_apart(pieces: Tuple[Piece, ...]) -> Tuple[Tuple[Piece, ...], Tuple[Piece, ...]]:
+    """A sentence with its quotation set apart: the pieces around it, the quotation standing as one (`QUOTED`), and
+    the quoted words as a sentence of their own, ended as a sentence is: a comma where it ends is the end it stands
+    for (`"The dog barked," Tom said.`), and an end is written where none is. The first quotation; with none, the
+    pieces and nothing."""
+    for at, piece in enumerate(pieces):
+        closer = _QUOTES.get(piece.text)
+        if closer is None:
+            continue
+        end = next((k for k in range(at + 1, len(pieces)) if pieces[k].text == closer), None)
+        if end is None or end == at + 1:
+            return pieces, ()
+        quoted = pieces[at + 1:end]
+        if quoted[-1].text == ",":
+            quoted = quoted[:-1] + (Piece(".", False),)
+        elif quoted[-1].text not in (".", "?", "!"):
+            quoted = quoted[:-1] + (Piece(quoted[-1].text, False), Piece(".", False))
+        return pieces[:at] + (Piece(QUOTED, pieces[end].space_after),) + pieces[end + 1:], quoted
+    return pieces, ()
+
+
+def quoted_pairs(sentence: str, meaning: Meaning, *rest: Any) -> List[Tuple[Any, ...]]:
+    """A taught pair with a quotation, as the two pairs it is, each English to learn: the sentence around the
+    quotation, meaning what the meaning holds outright (`Tom said, “…”`: a saying, done by Tom), and the quoted
+    sentence, meaning what was said, here as that sentence's own ("The dog barked."). A pair without one, as it
+    is."""
+    around, quoted = set_apart(form_of(sentence))
+    if not quoted or not meaning.unasserted:
+        return [(sentence, meaning, *rest)]
+    outright = tuple(f for f in meaning.facts if not f.unasserted)
+    inner = tuple(MeaningFact(f.relation, f.subject, f.obj, f.positive, f.condition, f.alternative, given=f.given)
+                  for f in meaning.unasserted)
+    try:
+        return [(surface_of(around), Meaning(meaning.act, outright, meaning.asked), *rest),
+                (surface_of(quoted), Meaning("ask" if quoted[-1].text == "?" else "tell", inner), *rest)]
+    except ValueError:
+        return [(sentence, meaning, *rest)]
+
+
+def _with_quotation(utterance: "Utterance", quoted: Tuple["Utterance", ...],
+                    view: PatternInventory) -> "Utterance":
+    """An utterance whose quotation was read apart, read whole: each reading of the words around it, with what the
+    quotation was taken to mean (`meant`) as what was said (`MeaningFact.unasserted`), its unknowns its own. Not read
+    where the quotation is not."""
+    if not any(p.text == QUOTED for p in utterance.pieces):
+        return utterance
+    taken = [meant(u.readings, view) if u.understood else None for u in quoted]
+    if not utterance.readings or not taken or any(t is None for t in taken):
+        return Utterance(utterance.pieces, ())
+    readings = []
+    for reading in utterance.readings:
+        facts = list(reading.meaning.facts)
+        for at, said in enumerate(taken):
+            own = {t: f"?q{at}_{t[1:]}" for f in said.meaning.facts for t in f.terms()
+                   if is_variable(t) and not _named(t)}
+            facts.extend(MeaningFact(f.relation, own.get(f.subject, f.subject), own.get(f.obj, f.obj), f.positive,
+                                     f.condition, f.alternative, True, f.given) for f in said.meaning.facts)
+        try:
+            meaning = Meaning(reading.meaning.act, tuple(facts), reading.meaning.asked)
+        except ValueError:
+            continue
+        parts = (reading,) + tuple(taken)
+        readings.append(Reading(
+            tuple(c for r in parts for c in r.constructions), tuple(x for r in parts for x in r.links), meaning,
+            sum(r.score for r in parts) / len(parts), sum(r.uses for r in parts) / len(parts),
+            proposed=tuple(x for r in parts for x in r.proposed), new=tuple(x for r in parts for x in r.new),
+            loose=any(r.loose for r in parts), misfits=sum(r.misfits for r in parts),
+            said_for=sum(r.said_for for r in parts), apart=sum(r.apart for r in parts)))
+    return Utterance(utterance.pieces, tuple(readings))
+
+
 #: How many stretches between held ends one utterance may span. An end a construction ends on can also stand inside
 #: an utterance ("Dr. Smith is here."), so a reading may run past it; this bounds how far.
 _ENDS_SPANNED = 3
@@ -3101,6 +4789,9 @@ def read_text(text: str, inventory: Optional[PatternInventory] = None, *,
     pieces = form_of(text)
     if not pieces:
         return ()
+    # A QUOTATION IS A SENTENCE OF ITS OWN, read apart; what it says is what was said (`_with_quotation`).
+    pieces, quoted = set_apart(pieces)
+    quoted_read = read_text(surface_of(quoted), view, parts=parts) if quoted else ()
     ends = view.ends()
     cuts = [0] + [i + 1 for i, p in enumerate(pieces[:-1]) if _fold(p.text) in ends] + [len(pieces)]
     read_at: Dict[Tuple[int, int], Tuple[Reading, ...]] = {}
@@ -3143,7 +4834,7 @@ def read_text(text: str, inventory: Optional[PatternInventory] = None, *,
             continue
         partial, unknown = _partial(said, view) if parts else ((), ())
         out.append(Utterance(said, (), partial, unknown))
-    return tuple(out)
+    return tuple(_with_quotation(u, quoted_read, view) for u in out) if quoted else tuple(out)
 
 
 def _separated(said: Tuple[Piece, ...], view: PatternInventory) -> Tuple[Utterance, ...]:
@@ -3190,12 +4881,25 @@ def held_key(fact: MeaningFact) -> Tuple[str, str, str, bool]:
 def listening_facts(meaning: Meaning) -> Tuple[MeaningFact, ...]:
     """What a meaning says between named things, as a listener weighs it against what it knows. An event stands
     for its kind: "I ate fish." is an eating done to fish, weighed as `done_to(eat, fish)`; "Tom has a red ball."
-    a ball that is red, `has_property(ball, red)`. What still names an unknown or the situation is not weighed."""
+    a ball that is red, `has_property(ball, red)`. What still names an unknown or the situation is not weighed.
+
+    A RULE OVER WHAT IS OF ONE KIND SAYS WHAT THAT KIND IS. "To heighten is to increase." (whatever heightening is
+    done is an increasing) is weighed as `isa(heighten, increase)`: the event stands for the kind it is supposed to
+    be, and what it then is, that kind is. Weighed as nothing, every sense of "increase" was as known as another, and
+    the one met most was taken over the one memory holds heightening a kind of (36 of 437 of WordNet's verbs said so,
+    2026-10-12)."""
     kinds = {f.subject: f.obj for f in meaning.facts
              if f.relation == "instance_of" and f.positive and is_variable(f.subject) and not is_variable(f.obj)}
+    supposed = {f.subject: f.obj for f in meaning.facts
+                if f.relation == "instance_of" and f.positive and f.condition and is_variable(f.subject)
+                and not is_variable(f.obj)}
+    kinds.update(supposed)
     out: List[MeaningFact] = []
     for fact in meaning.facts:
         if fact.relation == "instance_of" and fact.subject in kinds:
+            kind = supposed.get(fact.subject)
+            if kind is not None and not fact.condition and not is_variable(fact.obj) and fact.obj != kind:
+                out.append(MeaningFact("isa", kind, fact.obj, fact.positive))
             continue
         subject, obj = kinds.get(fact.subject, fact.subject), kinds.get(fact.obj, fact.obj)
         if is_variable(subject) or is_variable(obj) or subject == obj:
@@ -3204,16 +4908,60 @@ def listening_facts(meaning: Meaning) -> Tuple[MeaningFact, ...]:
     return tuple(dict.fromkeys(out))
 
 
-def _worded(reading: Reading) -> str:
+def _worded(reading: Reading, view: PatternInventory) -> str:
     """A reading's meaning with each concept a word named put back as that word: what was said, whichever thing
     each word was taken to name. Two readings that differ only in which thing a word names ("fish", the animal or
-    the food) are the same here."""
+    the food) are the same here.
+
+    A WORD A FRAME WRITES ITSELF NAMES ITS THING TOO. "?slot0 , ?slot1 , ?slot2 and cows are ?slot3 ." writes "cows"
+    and states a cow; held, "cows" names cow, so the cow is put back as "cows", as the cattle the word "cows" names
+    through the general frame is. Put back only for word constructions, the two were two statements, and the
+    listener, offered both, chose neither (2026-10-11, once a construction that lost a competition kept reading). A
+    thing no word the frame writes is held to name stays as it is: "A robin is a bird." taught to mean an animal
+    writes no word for the animal, and is another statement; a number built from numbers is no word's.
+
+    WRITTEN, NOT MADE A MEANING. Put back as its words, a reading can say what no meaning states: two facts of two
+    things one word names are one fact twice, and a thing named apart from a date ("day november 5") is the date
+    again. Made a Meaning, either was refused, and the refusal ended a teaching pass: reading what WordNet's words
+    are said of, as each was stored, at the end of its patterns (2026-10-08). It is only how the reading is written,
+    each fact once."""
     names = {c.value: " ".join(_loose(c.words)) for c in reading.constructions if isinstance(c, Lexical)}
+    for construction in reading.constructions:
+        if isinstance(construction, Lexical):
+            continue
+        # The words the frame writes, each stretch between its slots apart: a word is never two stretches joined.
+        runs: List[Tuple[str, ...]] = []
+        run: List[str] = []
+        for element in construction.form:
+            if isinstance(element, Slot):
+                runs.append(_loose(run))
+                run = []
+            else:
+                run.append(element.text)
+        runs.append(_loose(run))
+        facts = construction.meaning.facts if isinstance(construction, Pattern) else construction.facts
+        # A PHRASE NAMES ITS KIND WITH ITS OWN WORDS, as a word does: "saw", held as a seeing before now, writes `see`,
+        # and "compiled them" `compile`. Held for each of a verb's senses, its readings were each a statement of their
+        # own, never a choice among senses, and the listener chose none: "Tom saw her." and 15 other taught sentences
+        # (2026-10-13).
+        if isinstance(construction, Phrase):
+            own = [e.text for e in construction.form if isinstance(e, Piece) and not _is_mark(e.text)]
+            for fact in facts:
+                if own and fact.relation == "instance_of" and fact.subject == construction.anchor and fact.positive \
+                        and not is_variable(fact.obj):
+                    names.setdefault(fact.obj, " ".join(_loose(tuple(own))))
+        for thing in {t for f in facts for t in f.terms() if not is_variable(t)} - names.keys():
+            for lexical in view.lexicals_with_value(thing):
+                words = _loose(lexical.words)
+                if any(run[k:k + len(words)] == words for run in runs for k in range(len(run) - len(words) + 1)):
+                    names[thing] = " ".join(words)
+                    break
     meaning = reading.meaning
-    return Meaning(meaning.act, tuple(f.renamed(names) for f in meaning.facts), meaning.asked).canonical()
+    facts = tuple(dict.fromkeys(f.renamed(names) for f in meaning.facts))
+    return _canonical_of(meaning.act, facts, meaning.asked)
 
 
-def sense_choices(readings: Sequence[Reading]) -> Tuple[Reading, ...]:
+def sense_choices(readings: Sequence[Reading], inventory: Optional[PatternInventory] = None) -> Tuple[Reading, ...]:
     """The readings a listener chooses among by which thing a word names: the best reading of each meaning, when
     the utterance read to more than one and they all say the same words of the same things but for that. Empty
     when it read to one meaning, or when its meanings differ otherwise (what is said of what), which is the
@@ -3221,7 +4969,10 @@ def sense_choices(readings: Sequence[Reading]) -> Tuple[Reading, ...]:
     best: Dict[str, Reading] = {}
     for reading in readings:
         best.setdefault(reading.meaning.canonical(), reading)
-    if len(best) < 2 or len({_worded(r) for r in best.values()}) != 1:
+    if len(best) < 2:
+        return ()
+    view = inventory if inventory is not None else _live_inventory()
+    if len({_worded(r, view) for r in best.values()}) != 1:
         return ()
     return tuple(best.values())
 
@@ -3235,76 +4986,306 @@ def _senses(choices: Sequence[Reading]) -> Tuple[Dict[str, FrozenSet[str]], Froz
     return {key: terms - shared for key, terms in named.items()}, shared
 
 
-def meant(readings: Sequence[Reading], inventory: Optional[PatternInventory] = None, *,
-          held: Mapping[Tuple[str, str, str, bool], int] = {},
-          related: Mapping[str, int] = {}) -> Optional[Reading]:
-    """Which reading of an utterance was meant, as a listener takes it; None when the listener cannot tell.
+class Heard(NamedTuple):
+    """What memory was found to hold about the ways an utterance can be taken (`listening`): how firmly it holds
+    each fact each way says (`held`), how much what each thing a way takes a word to name is connected to in the
+    rest of what was said and what was talked of before raises it (`related`, in nats), how much more likely each
+    thing is given what the fact's other word is said of (`selected`, in nats), which things are one coarse
+    sense (`together`), and for each fact whether one thing's definition is written with the other (`defined`: 2)
+    or with what the other is a kind of (1). Empty when nothing was asked."""
+    held: Mapping[Tuple[str, str, str, bool], int] = {}
+    related: Mapping[str, float] = {}
+    selected: Mapping[Tuple[str, str, str, bool], float] = {}
+    together: FrozenSet[FrozenSet[str]] = frozenset()
+    defined: Mapping[Tuple[str, str, str, bool], int] = {}
 
-    The reader reports every meaning the words can have (`read`); this is the listener's half. One meaning is
-    the one meant. Meanings that differ only in which thing a word names are told apart by evidence, as a listener
-    does it, in this order:
-      1. what the listener knows of what is said: the reading whose facts (`listening_facts`) memory holds more
-         firmly (`held`: 2 for a fact held of the things themselves, 1 for one held of what they are kinds of).
-         "A salmon is a fish." is about the fish memory knows a salmon to be; "I ate fish." about the fish that is
-         a food, when memory holds that food is eaten;
-      2. how what each takes the words to name bears on the rest of what is said and on what was said before
-         (`related`: for each thing, how many of those it is connected to in memory). After "We went to the
-         river.", "the bank" is the bank a river has;
-      3. how the words are used: the reading whose words have been met naming those things more often, from the
-         uses each word's construction has been observed in. "Fish" names the animal far more often than the food.
-    Evidence that does not tell them apart leaves the choice open, and so do meanings that differ in what is said
-    of what: those are the listener's to ask about, never to pick. With no memory at hand (`held` and `related`
-    empty) only the words' uses can tell them apart; `heard` asks memory first."""
+
+def _met(view: PatternInventory, construction: Construction) -> int:
+    """How often a construction's words have been met naming its thing, as the listener weighs a sense: its own uses,
+    and for one word the uses of that word in its other shapes naming the same thing. "places" names place as
+    "place" does, written in a shape (`written_in_shape`), and was met naming it as often: taught once a sense as a
+    plural, every sense of "places" stood at one use, and "Cities are places." could not be told from a city being a
+    cognition place (46 uses of "place" naming place, 27 naming that, 2026-10-11). Case aside, a word is itself.
+
+    A phrase naming a thing of its own in a word's form ("had them", a having before now) was met as often as that
+    word names that thing in real use: the count lands on it as on the word (`learn_usage`)."""
+    uses = view.uses(construction)
+    if not isinstance(construction, Lexical) or len(construction.words) != 1:
+        return uses
+    word = _fold(construction.words[0])
+    for other in view.lexicals_with_value(construction.value):
+        if other.key == construction.key or len(other.words) != 1:
+            continue
+        there = _fold(other.words[0])
+        if there == word or view.written_in_shape(word, there) or view.written_in_shape(there, word):
+            uses += view.uses(other)
+    return uses
+
+
+def _derivation(reading: Reading, view: PatternInventory) -> float:
+    """How probable a reading's structure is, as its parts were met (ln): for every slot of every frame and phrase it
+    reads through, the chance of its filler there, interpolated Witten-Bell (Witten and Bell 1991): `(k + T P(f)) /
+    (n + T)`, `k` the uses of the held link putting this filler there (0 where the link is only proposed), `n` the
+    uses of the slot's held links all told, `T` how many fillers they put there, and `P(f)` how often the filler was
+    met among everything met in the slot's part (`parts_met`). A slot that has taken many fillers gives a new one its
+    share; one that took few, little.
+
+    The frame itself is not weighed by how often it was met: that is how often a source said its facts so ("?slot0
+    is ?slot1.", 13,234 of WordNet's kinds), not how English says them, and weighed it took "Faith is central." for a
+    kind of telephone exchange. Weighed by its slots alone, a frame learned from one sentence, matching much of
+    another word for word, has few slots to fill and outweighs the general frames: "One hundred and twenty-three
+    trillion ..." read as another number. So it tells apart only structures that supposed as little as each other
+    (`meant`); which structures reach the listener is still the reader's least supposed (2026-10-13)."""
+    # EACH LINK IS ONE SLOT FILLED, the same phrase filled again where it is used again ("?slot0 ?slot1" in "three
+    # hundred and twelve billion five million"): looked up by its frame and slot, every use of a phrase took one
+    # filler, and two bracketings of a number scored alike.
+    parts = view.parts_met()
+    total = 0.0
+    for link, held in [(link, True) for link in reading.links] + [(link, False) for link in reading.proposed]:
+        filler = view._by_key.get(link.lexical)
+        uses, fillers = view.slot_filled(link.pattern, link.slot)
+        k = view.uses(link) if held else 0.0
+        met, count = parts.get((view._taken_at(link.pattern, link.slot) or ("thing",))[0], (0.0, 0))
+        share = ((_met(view, filler) if filler is not None else 0) + 1) / (met + count + 1)
+        total += math.log((k + fillers * share) / (uses + fillers)) if uses + fillers else math.log(share)
+    return total
+
+
+class Weighed(NamedTuple):
+    """One reading as the listener weighs it (`weighed`): what memory knows of its facts (`known`: 2 held of the things
+    themselves, 1 of what they are kinds of), what their definitions say (`defined`: 2 one written with the other, 1
+    with what it is a kind of), how much it supposed past its words (`fit`: its links proposed, words read through
+    another, misfits and fillers apart, `Reading.supposed`), its activation in nats (how often its own senses were
+    met, `ln(1 + uses)`, what the other words select of them and what the rest raises), and how probable its
+    structure is (`_derivation`, ln)."""
+    reading: Reading
+    known: int
+    defined: int
+    fit: int
+    activation: float
+    derivation: float
+
+
+#: The listener's evidence it weighs by what it was measured to be worth, with how many levels each has (the last
+#: holding all above it): what memory knows, what definitions say, and how much a reading supposed past its words.
+LISTENING_LEVELS = {"known": 3, "defined": 3, "fit": 4}
+
+
+def listening_levels(weighed_reading: Weighed) -> Dict[str, int]:
+    """The level of each of the listener's evidence a reading shows (`LISTENING_LEVELS`)."""
+    return {evidence: min(getattr(weighed_reading, evidence), levels - 1)
+            for evidence, levels in LISTENING_LEVELS.items()}
+
+
+def listening_claim(evidence: str, level: int, meant: bool) -> str:
+    """The belief counting the readings heard with this evidence at this level that were, or were not, the one meant."""
+    return f"a reading heard with {evidence} at {level} was {'' if meant else 'not '}the one meant"
+
+
+def listening_worths(counts: Mapping[Tuple[str, int, bool], int]) -> Dict[Tuple[str, int], float]:
+    """What each piece of the listener's evidence at each level is worth, in nats: how much more often the readings
+    meant showed it than the readings not meant, `ln(P(level | meant) / P(level | not meant))`, each count with one
+    added (Laplace). A listener that has counted nothing weighs every level at nothing."""
+    worths: Dict[Tuple[str, int], float] = {}
+    for evidence, levels in LISTENING_LEVELS.items():
+        meant_n = sum(counts.get((evidence, level, True), 0) for level in range(levels))
+        other_n = sum(counts.get((evidence, level, False), 0) for level in range(levels))
+        for level in range(levels):
+            worths[(evidence, level)] = math.log(
+                ((counts.get((evidence, level, True), 0) + 1) / (meant_n + levels))
+                / ((counts.get((evidence, level, False), 0) + 1) / (other_n + levels)))
+    return worths
+
+
+def _held_listening_counts() -> Dict[Tuple[str, int, bool], int]:
+    """The listener's counts as memory holds them: the uses each listening claim's observations witnessed."""
+    from core.reasoning import bayesian_uncertainty as beliefs
+    system = beliefs._uncertainty_system
+    counts: Dict[Tuple[str, int, bool], int] = {}
+    if system is None:
+        return counts
+    for evidence, levels in LISTENING_LEVELS.items():
+        for level in range(levels):
+            for was_meant in (True, False):
+                belief = system.belief_for_claim(listening_claim(evidence, level, was_meant))
+                if belief is not None:
+                    counts[(evidence, level, was_meant)] = beliefs.BayesianUncertaintySystem.uses_for(belief)
+    return counts
+
+
+def weighed(readings: Sequence[Reading], inventory: Optional[PatternInventory] = None, *,
+            heard: Optional[Heard] = None) -> List[Weighed]:
+    """Every meaning an utterance read to, its best reading weighed as the listener weighs it (`Weighed`), in the
+    order read. What the listener chooses by (`meant`), and what it counts to learn what its evidence is worth
+    (`listening_worths`): one function, so what is measured is what is weighed.
+
+    A reading's own senses are what it names that not every reading names: a word's thing where readings differ in
+    which thing it names, nothing where they differ only in how the words go together. Counted within its own
+    structure, a reading alone in one counted none, and lost to any that shared its structure with another."""
     best: Dict[str, Reading] = {}
     for reading in readings:
         best.setdefault(reading.meaning.canonical(), reading)
-    if len(best) == 1:
-        return next(iter(best.values()))
-    choices = sense_choices(readings)
-    if not choices:
-        return None
     view = inventory if inventory is not None else _live_inventory()
-    senses, _ = _senses(choices)
+    held, related, selected, _, defined = heard if heard is not None else Heard()
+    choices = list(best.values())
+    named = {key: frozenset(t for f in r.meaning.facts for t in f.terms() if not is_variable(t))
+             for key, r in best.items()}
+    common = frozenset.intersection(*named.values()) if named else frozenset()
+    senses, _ = _senses(choices) if len(choices) > 1 else ({}, frozenset())
 
-    def evidence(reading: Reading) -> Tuple[int, int, float]:
-        knows = sum(held.get(held_key(f), 0) for f in listening_facts(reading.meaning))
-        near = sum(related.get(term, 0) for term in senses[reading.meaning.canonical()])
-        used = sum(math.log1p(view.uses(c)) for c in reading.constructions if isinstance(c, (Lexical, Phrase)))
-        return knows, near, used
+    def naming(construction: Construction, mine: FrozenSet[str]) -> bool:
+        # A construction that names one of the reading's own senses: a word for it, a phrase stating it, or a frame
+        # that writes it itself ("It's hot.", taught whole: its "hot" was met there, and a sense of "hot" met once
+        # elsewhere took it).
+        if isinstance(construction, Lexical):
+            return construction.value in mine
+        if isinstance(construction, Phrase):
+            return bool(_named_in(construction) & mine)
+        return isinstance(construction, Pattern) and any(
+            not is_variable(term) and term in mine for f in construction.meaning.facts for term in f.terms())
 
-    ranked = sorted(choices, key=evidence, reverse=True)
-    return ranked[0] if evidence(ranked[0]) != evidence(ranked[1]) else None
+    out: List[Weighed] = []
+    for key, reading in best.items():
+        facts = listening_facts(reading.meaning)
+        own = named[key] - common
+        # HOW OFTEN EACH SENSE WAS MET, NOT THE SENTENCE AROUND IT: the words and phrases that name the reading's own
+        # senses. Counted over every construction, the frame a sense was read through weighed in: "?slot0 her", met
+        # 5,951 times holding a phrase, took "saw" for understanding (met once so) over seeing (met 11 times through
+        # another "?slot0 her", met 631 times). A construction every reading shares weighs alike in each.
+        base = sum(math.log1p(_met(view, c)) for c in reading.constructions if naming(c, own))
+        activation = base + sum(selected.get(held_key(f), 0.0) for f in facts) + \
+            sum(related.get(term, 0.0) for term in senses.get(key, ()))
+        out.append(Weighed(reading, sum(held.get(held_key(f), 0) for f in facts),
+                           sum(defined.get(held_key(f), 0) for f in facts), sum(reading.supposed[2:]),
+                           activation, _derivation(reading, view)))
+    return out
 
 
-async def listening(utterances: Iterable[Sequence[Reading]], context: Iterable[str] = ()
-                    ) -> Tuple[Dict[Tuple[str, str, str, bool], int], Dict[str, int]]:
+def meant(readings: Sequence[Reading], inventory: Optional[PatternInventory] = None, *,
+          heard: Optional[Heard] = None) -> Optional[Reading]:
+    """Which reading of an utterance was meant, as a listener takes it; None when the listener cannot tell.
+
+    The reader reports every meaning the words can have (`read`); this is the listener's half. Every reading is
+    weighed as one sum in nats (`weighed`), whether readings differ in which thing a word names or in how the words
+    go together:
+      - ONE ACTIVATION, ACT-R's: how often the reading's own senses were met (`ln(1 + uses)`, a word in any of its
+        shapes, `_met`: "fish" names the animal far more often than the food); how much more likely each thing is
+        given what the sentence's other words are said of (`selected`, `MemoryAgent.said_selection`: "The table is
+        red." is the table that is furniture); and how much the rest of what is said and what was said before raise
+        it (`related`, spreading activation: after "We went to the river.", "the bank" is the bank a river has);
+      - how probable its structure is, as its parts were met (`_derivation`);
+      - and, each worth what the listener measured it to be worth on what it was taught (`listening_worths`): what
+        memory knows of what it says, what one thing's definition says of the other, and how much it supposed past
+        its words. "A salmon is a fish." is about the fish memory knows a salmon to be; "It will snow soon." is the
+        snowing taught there, not the snow that never stood there.
+
+    EVIDENCE ADDED, NOT RANKED. What memory knew came first, outright, and memory knows things of some senses and
+    not others: "A bus is a vehicle." was the old car that is a bus (met 3 times, known a vehicle) over the bus (met
+    14 times, filed under public transport); "A window is made of glass." a windowpane. Measured on the taught
+    lessons, a reading memory holds of the things themselves was the one meant 4.7 nats more often than not, a
+    reading that fit its words 6.3 nats more, and the sum took 2,874 of 2,882 lessons as taught where ranking took
+    2,866 (on half of them, worths counted on the other half: 1,439 of 1,441 against 1,433), and 200 of 270
+    never-taught sentences' structures where ranking took 197 (2026-10-14).
+
+    Readings that weigh alike are asked about unless they differ only in things that are one coarse sense
+    (`together`: one a near kind of the other, or both of one thing), which a listener has understood without
+    telling them apart. With no memory at hand (`heard` None), nothing memory would say is weighed."""
+    best: Dict[str, Reading] = {}
+    for reading in readings:
+        best.setdefault(reading.meaning.canonical(), reading)
+    if len(best) < 2:
+        return next(iter(best.values()), None)
+    view = inventory if inventory is not None else _live_inventory()
+    worths = view.listening_worths()
+
+    def score(w: Weighed) -> float:
+        return round(w.activation + w.derivation + sum(worths.get((evidence, level), 0.0)
+                                                       for evidence, level in listening_levels(w).items()), 6)
+    ranked = sorted(weighed(list(best.values()), view, heard=heard), key=score, reverse=True)
+    if score(ranked[0]) != score(ranked[1]):
+        return ranked[0].reading
+    tied = [w.reading for w in ranked if score(w) == score(ranked[0])]
+    if len({_worded(r, view) for r in tied}) > 1:
+        return None
+    together = (heard if heard is not None else Heard()).together
+    senses, _ = _senses(tied)
+    things = [senses[r.meaning.canonical()] for r in tied]
+    one = all(frozenset((a, b)) in together for i, mine in enumerate(things) for theirs in things[i + 1:]
+              for a in mine for b in theirs if a != b)
+    return tied[0] if one else None
+
+
+async def listening(utterances: Iterable[Sequence[Reading]], context: Iterable[str] = ()) -> Heard:
     """What memory knows that bears on which thing each word was meant to name, for every utterance whose meanings
-    differ only in that: how firmly it holds each fact each meaning says (`held`), and how each thing a meaning
-    takes a word to name is connected to the rest of what was said and to `context`, the things talked of before
-    (`related`). Asked of the memory agent, the one reader of memory. Empty where nothing is to be chosen."""
+    differ only in that (`Heard`), against the rest of what was said and `context`, the things talked of before.
+    Asked of the memory agent, the one reader of memory. Empty where nothing is to be chosen."""
     facts, senses, around = set(), set(), set(context)
     for readings in utterances:
-        choices = sense_choices(readings)
-        if not choices:
+        # EVERY READING OF AN UTTERANCE THAT READ MORE THAN ONE WAY, as `weighed` weighs them all together: what
+        # memory holds of each, and the things each takes a word to name that the others do not.
+        best: Dict[str, Reading] = {}
+        for reading in readings:
+            best.setdefault(reading.meaning.canonical(), reading)
+        if len(best) < 2:
             continue
+        choices = list(best.values())
         own, shared = _senses(choices)
+        partners: Set[str] = set()
         for reading in choices:
-            facts.update(held_key(f) for f in listening_facts(reading.meaning))
+            mine = own[reading.meaning.canonical()]
+            for fact in listening_facts(reading.meaning):
+                facts.add(held_key(fact))
+                # THE WORD A THING'S OWN FACT PAIRS IT WITH ("long" in "The trunk is long.") is weighed by what that
+                # word is said of (`selected`), with counts; counted again here, a definition that happens to use
+                # it ("a long flexible snout") made the elephant's trunk as near as the tree's after "A tree is a
+                # plant.".
+                if fact.subject in mine:
+                    partners.add(fact.obj)
+                if fact.obj in mine:
+                    partners.add(fact.subject)
         for terms in own.values():
             senses.update(terms)
-        around.update(shared)
+        around.update(shared - partners)
     if not facts and not senses:
-        return {}, {}
+        return Heard()
     from core.agents.memory_agent import memory_agent
-    return await memory_agent().listening_evidence(facts, senses, around - senses)
+    agent = memory_agent()
+    # ONE SENSE PER DISCOURSE (Yarowsky 1995): a thing talked of before is in the context of the next word that names
+    # it, as the river's bank is when "the bank" comes again.
+    held, related, defined = await agent.listening_evidence(facts, senses, around)
+    return Heard(held, related, await agent.said_selection(facts, senses), await agent.coarse_senses(senses),
+                 defined)
+
+
+async def listening_counts(pairs: Iterable[Tuple[str, Meaning]], inventory: Optional[PatternInventory] = None, *,
+                           give_way: Optional[Callable[[], Awaitable[None]]] = None) -> Counter:
+    """What the listener's evidence was, on sentences whose meaning it was taught: for every sentence read one way
+    with more than one meaning, the taught one among them, each meaning's level of each piece of evidence
+    (`listening_levels`), counted by whether it was the one meant. What `listening_worths` makes worths of, as a
+    person learns what to listen for from being told what was meant. `give_way`: awaited after each sentence, so a
+    pass on a running substrate keeps its loop."""
+    view = inventory if inventory is not None else _live_inventory()
+    counts: Counter = Counter()
+    for sentence, meaning in pairs:
+        utterances = read_text(sentence, view)
+        if len(utterances) == 1 and utterances[0].understood:
+            readings = utterances[0].readings
+            found = weighed(readings, view, heard=await listening((readings,)))
+            taught = meaning.canonical()
+            if len(found) > 1 and any(w.reading.meaning.canonical() == taught for w in found):
+                for w in found:
+                    for evidence, level in listening_levels(w).items():
+                        counts[(evidence, level, w.reading.meaning.canonical() == taught)] += 1
+        if give_way is not None:
+            await give_way()
+    return counts
 
 
 async def heard(readings: Sequence[Reading], inventory: Optional[PatternInventory] = None, *,
                 context: Iterable[str] = ()) -> Optional[Reading]:
     """Which reading was meant, as a listener with memory at hand takes it: memory asked first (`listening`), then
     `meant`. Every place that reads where it can wait for memory listens this way."""
-    held, related = await listening((readings,), context)
-    return meant(readings, inventory, held=held, related=related)
+    return meant(readings, inventory, heard=await listening((readings,), context))
 
 
 async def heard_which(texts: Sequence[str], inventory: Optional[PatternInventory] = None, *,
@@ -3312,9 +5293,10 @@ async def heard_which(texts: Sequence[str], inventory: Optional[PatternInventory
     """Which of several ways of hearing what was said was said, as a listener takes it: when words in it sound
     alike ("to", "two", "too"), the ear hands on every way it can be heard, and a person takes the one that makes
     sense. In this order: the ways whose every utterance reads; of those, the one whose meaning memory holds more
-    firmly and connects more to the rest of what was said and to `context` (what was talked of before); then the
-    one whose words have been met meaning that more often. None when no way reads, or the evidence does not tell
-    two apart: then what was said is not all understood, and is asked about, never guessed."""
+    firmly; then the one with the higher activation, as `meant` adds it: how often its words have been met meaning
+    that, and how much what it says is connected to the rest of what was said and to `context` (what was talked of
+    before). None when no way reads, or the evidence does not tell two apart: then what was said is not all
+    understood, and is asked about, never guessed."""
     read: List[Tuple[str, Tuple[Reading, ...]]] = []
     for text in dict.fromkeys(texts):
         utterances = read_text(text, inventory)
@@ -3322,13 +5304,13 @@ async def heard_which(texts: Sequence[str], inventory: Optional[PatternInventory
             read.append((text, tuple(u.readings for u in utterances)))
     if len(read) < 2:
         return read[0][0] if read else None
-    held, related = await listening([r for _, ways in read for r in ways], context)
+    heard_all = await listening([r for _, ways in read for r in ways], context)
     view = inventory if inventory is not None else _live_inventory()
     facts: Set[Tuple[str, str, str, bool]] = set()
     terms: Set[str] = set()
     taken: List[Tuple[str, Tuple[Reading, ...]]] = []
     for text, ways in read:
-        chosen = tuple(meant(r, inventory, held=held, related=related) for r in ways)
+        chosen = tuple(meant(r, inventory, heard=heard_all) for r in ways)
         if any(c is None for c in chosen):
             continue
         taken.append((text, chosen))
@@ -3339,15 +5321,16 @@ async def heard_which(texts: Sequence[str], inventory: Optional[PatternInventory
     if len(taken) < 2:
         return taken[0][0] if taken else None
     from core.agents.memory_agent import memory_agent
-    known, near = await memory_agent().listening_evidence(facts, terms, list(context))
+    known, near, _ = await memory_agent().listening_evidence(facts, terms, list(context))
 
-    def evidence(item) -> Tuple[int, int, float]:
+    def evidence(item) -> Tuple[int, float]:
         _, chosen = item
         meant_facts = [f for c in chosen for f in listening_facts(c.meaning)]
+        # What the rest is connected to adds to how often the words were met, as in `meant`: one activation.
         return (sum(known.get(held_key(f), 0) for f in meant_facts),
-                sum(near.get(t, 0) for f in meant_facts for t in f.terms()),
-                sum(math.log1p(view.uses(k)) for c in chosen for k in c.constructions
-                    if isinstance(k, (Lexical, Phrase))))
+                round(sum(near.get(t, 0.0) for f in meant_facts for t in f.terms())
+                      + sum(math.log1p(view.uses(k)) for c in chosen for k in c.constructions
+                            if isinstance(k, (Lexical, Phrase))), 6))
 
     ranked = sorted(taken, key=evidence, reverse=True)
     return ranked[0][0] if evidence(ranked[0]) != evidence(ranked[1]) else None
@@ -3361,7 +5344,7 @@ def stated(text: str, inventory: Optional[PatternInventory] = None) -> Tuple[Mea
 
     Read with no memory at hand: where a word names several things, only how often each has been met tells them
     apart. Where the reading can wait for memory, `heard_stated` asks it first."""
-    return _stated_in(read_text(text, inventory), inventory, {}, {})
+    return _stated_in(read_text(text, inventory), inventory, None)
 
 
 async def heard_stated(text: str, inventory: Optional[PatternInventory] = None, *,
@@ -3370,14 +5353,13 @@ async def heard_stated(text: str, inventory: Optional[PatternInventory] = None, 
     names several things, memory is asked which each was meant to name (`listening`), against the rest of the text
     and `context`."""
     utterances = read_text(text, inventory)
-    held, related = await listening([u.readings for u in utterances], context)
-    return _stated_in(utterances, inventory, held, related)
+    return _stated_in(utterances, inventory, await listening([u.readings for u in utterances], context))
 
 
-def _stated_in(utterances, inventory, held, related) -> Tuple[MeaningFact, ...]:
+def _stated_in(utterances, inventory, heard: Optional[Heard]) -> Tuple[MeaningFact, ...]:
     out: List[MeaningFact] = []
     for utterance in utterances:
-        chosen = meant(utterance.readings, inventory, held=held, related=related)
+        chosen = meant(utterance.readings, inventory, heard=heard)
         if chosen is None:
             continue
         meaning = chosen.meaning
@@ -3403,33 +5385,196 @@ def _slot_values(pattern: Pattern, meaning: Meaning) -> List[Dict[str, str]]:
     return out
 
 
-def _rendered(pattern: Pattern, fillers: Mapping[str, Lexical],
+@dataclass(frozen=True)
+class _Placed:
+    """A phrase said in a frame's slot, with what stands in its own slots: the reader's composition (`_composed`),
+    said."""
+
+    phrase: Phrase
+    fillers: Mapping[str, Lexical]
+
+
+def _spelled_out(form: Tuple[FormElement, ...], fillers: Mapping[str, Union[Lexical, _Placed]],
+                 space_after: Optional[bool] = None) -> Iterator[Tuple[FormElement, bool, Optional[Lexical]]]:
+    """A form's pieces and slots in order, each slot with its filler, and how each is spaced; a slot a phrase fills
+    is the phrase's own pieces and slots, in its place, the last spaced as the slot was."""
+    for at, element in enumerate(form):
+        spaced = space_after if space_after is not None and at == len(form) - 1 else element.space_after
+        filler = fillers[element.name] if isinstance(element, Slot) else None
+        if isinstance(filler, _Placed):
+            yield from _spelled_out(filler.phrase.form, filler.fillers, spaced)
+        else:
+            yield element, spaced, filler
+
+
+def _compositions(view: PatternInventory, meaning: Meaning, *, nested: bool = False
+                  ) -> Iterator[Tuple[Pattern, List[Tuple[Union[Pattern, Phrase], str, Phrase]], List[Dict[str, str]]]]:
+    """Every way of saying this meaning with a frame and a phrase in one of its slots, composed as reading composes
+    them (`_composed`): the frame, where each phrase stands (the frame's slot, and with `nested` a slot of that
+    phrase holding another), and the concept for every other slot, the frame's first, then each phrase's. A phrase
+    standing for a thing, in a slot the frame uses as a thing's kind, describes that thing: "sleeps in the house" in
+    "The ?slot0 ?slot1." is a sleeping, and in the house. With `nested`, as reading reads one phrase inside another:
+    "The fip did not chase the kelt.", "chase the ?slot1" in "did not ?slot0", in "The ?slot0 ?slot1.". A phrase is
+    tried only where it states the kinds of fact the frame leaves unstated (`frames_keeping`, `phrases_stating`)."""
+    wanted = _fact_kinds(meaning.facts)
+    kinds = list(wanted.items())
+    # A phrase says part of this meaning only where the meaning names all it names (`phrases_stating`).
+    within = frozenset(t for f in meaning.facts for t in f.terms() if not is_variable(t))
+    for counts in itertools.product(*(range(n + 1) for _, n in kinds)):
+        kept = Counter({kind: n for (kind, _), n in zip(kinds, counts) if n})
+        chains = (_phrases_holding_phrases(view, wanted - kept, within) if nested
+                  else [(p, None, None) for p in view.phrases_stating(wanted - kept, within) if view.counts(p)])
+        if not chains:
+            continue
+        for frame, slot in view.frames_keeping(meaning.act, kept):
+            if not view.counts(frame):
+                continue
+            for phrase, inside, held in chains:
+                shift = {s: slot_name(len(frame.slots) + at) for at, s in enumerate(phrase.slots)}
+                filling = _Filling(shift.get(phrase.anchor, phrase.anchor),
+                                   tuple(f.renamed(shift) for f in phrase.facts), (phrase,))
+                deeper: Dict[str, str] = {}
+                if held is not None:
+                    deeper = {s: slot_name(len(frame.slots) + len(phrase.slots) + at) for at, s in enumerate(held.slots)}
+                    composed = _composed(filling.facts, filling.anchor, {shift[inside]: _Filling(
+                        deeper.get(held.anchor, held.anchor), tuple(f.renamed(deeper) for f in held.facts), (held,))})
+                    if composed is None:
+                        continue
+                    filling = _Filling(composed[0], composed[1], (phrase, held))
+                template = _composed_meaning(frame.meaning, {slot: filling})
+                if template is None:
+                    continue
+                for values in _template_values(template, meaning):
+                    found = [{s: values.get(s) for s in frame.slots if s != slot},
+                             {s: values.get(shift[s]) for s in phrase.slots if s != inside}]
+                    layers: List[Tuple[Union[Pattern, Phrase], str, Phrase]] = [(frame, slot, phrase)]
+                    if held is not None:
+                        found.append({s: values.get(deeper[s]) for s in held.slots})
+                        layers.append((phrase, inside, held))
+                    if all(None not in each.values() for each in found):
+                        yield frame, layers, found
+
+
+def _phrases_holding_phrases(view: PatternInventory, kinds: Counter,
+                             within: Optional[AbstractSet[str]] = None) -> List[Tuple[Phrase, str, Phrase]]:
+    """The phrases stating some of these kinds of fact, each with a slot it uses only as its thing's kind and a phrase
+    linked there, as it was read ("did not ?slot0", its slot, "?slot0 the ?slot1"; "?slot0 ?slot1", "might", the
+    same). Whether the two say the rest is the composed meaning's to tell: they may state one fact both, as reading
+    reads them ("did not" and "chase the", each a "before now"). Where their words meet is what was heard there
+    (`_unheard`): "did not chase", heard, before "did not chased", only like what was heard ("has not barked")."""
+    out: List[Tuple[Phrase, str, Phrase]] = []
+    seen: Set[str] = set()
+    kind = ("instance_of", True)
+    counted = list(kinds.items())
+    for counts in itertools.product(*(range(n + 1) for _, n in counted)):
+        outer = Counter({k: n for (k, _), n in zip(counted, counts) if n})
+        outer[kind] += 1
+        for phrase in view.phrases_stating(outer, within):
+            if phrase.key in seen or not view.counts(phrase):
+                continue
+            seen.add(phrase.key)
+            for slot in phrase.slots:
+                uses = [f for f in phrase.facts if slot in f.terms()]
+                if uses and all(f.relation == "instance_of" and f.obj == slot and f.subject == phrase.anchor
+                                and f.positive for f in uses):
+                    out.extend((phrase, slot, inside) for inside in view.fillers(phrase.key, slot)
+                               if isinstance(inside, Phrase) and (within is None or _named_in(inside) <= within)
+                               and view.counts(inside))
+    return out
+
+
+@functools.lru_cache(maxsize=None)
+def _of_any_part(relation: str) -> bool:
+    """Whether a relation relates concepts of any part, each as it is (`RelationSpec.of_any_part`)."""
+    from core.semantics.relation_types import get_spec
+    try:
+        return get_spec(SemanticRelation(relation)).of_any_part
+    except ValueError:
+        return False
+
+
+def _named_in(phrase: "Phrase") -> FrozenSet[str]:
+    """Every concept a phrase names itself: the terms of its facts, and its anchor, that are no variable or slot."""
+    named = {t for f in phrase.facts for t in f.terms() if not is_variable(t)}
+    if not is_variable(phrase.anchor):
+        named.add(phrase.anchor)
+    return frozenset(named)
+
+
+def _own_words(phrase: "Phrase") -> Tuple[str, ...]:
+    """A phrase's own words, folded, in order, its marks aside: "had them"."""
+    return tuple(_fold(e.text) for e in phrase.form if isinstance(e, Piece) and not _is_mark(e.text))
+
+
+def _kinds_named(phrase: "Phrase") -> FrozenSet[str]:
+    """The kinds a phrase names a thing of its own as ("compiled them", a compiling)."""
+    return frozenset(f.obj for f in phrase.facts if f.relation == "instance_of" and f.positive
+                     and f.subject == phrase.anchor and not is_variable(f.obj))
+
+
+def _fact_kinds(facts: Iterable[MeaningFact]) -> Counter:
+    """How many facts of each kind, denied or not, a construction states."""
+    return Counter((f.relation, f.positive) for f in facts)
+
+
+def _template_values(template: Meaning, meaning: Meaning) -> List[Dict[str, str]]:
+    """Every way of putting this meaning's concepts in a composed meaning's slots that gives exactly this meaning; a
+    slot takes only a concept the meaning holds where the template holds the slot."""
+    if len(template.facts) != len(meaning.facts):
+        return []
+    slots = sorted(template.slots())
+    choices = []
+    for slot in slots:
+        held: Optional[Set[str]] = None
+        for f in template.facts:
+            for at, term in enumerate((f.subject, f.obj)):
+                if term == slot:
+                    here = {(g.subject, g.obj)[at] for g in meaning.facts
+                            if g.relation == f.relation and g.positive == f.positive}
+                    held = here if held is None else held & here
+        held = {t for t in held or () if not is_variable(t)}
+        if not held:
+            return []
+        choices.append(sorted(held))
+    target = meaning.canonical()
+    out = []
+    for combo in itertools.product(*choices):
+        values = dict(zip(slots, combo))
+        filled = _fill(template, values)
+        if filled is not None and filled.canonical() == target:
+            out.append(values)
+    return out
+
+
+def _rendered(pattern: Pattern, fillers: Mapping[str, Union[Lexical, _Placed]],
               view: Optional[PatternInventory] = None) -> Tuple[Piece, ...]:
-    """The frame's pieces with its fillers in place, written as the writing asks: a capital begins the sentence, a
-    filler's capital that only ever began a sentence ("Milk") is not kept inside one, and a frame's word takes the
-    shape the word after it asks ("an" before "ocelot"). Properties of the writing, as the reader sets them aside."""
+    """The frame's pieces with its fillers in place, a phrase's with its own (`_Placed`), written as the writing
+    asks: a capital begins the sentence, a filler's capital that only ever began a sentence ("Milk") is not kept
+    inside one, and a frame's word takes the shape the word after it asks ("an" before "ocelot"). Properties of the
+    writing, as the reader sets them aside."""
     pieces: List[Piece] = []
     own: List[int] = []
     symbol_first = False
-    for element in pattern.form:
+    for element, spaced, lexical in _spelled_out(pattern.form, fillers):
         if isinstance(element, Slot):
-            filler = list(fillers[element.name].form)
+            filler = list(lexical.form)
             if not pieces:
                 # Mathematics writes its symbols in their own case, first in a sentence or not: "x is 4.".
-                value = str(fillers[element.name].value)
+                value = str(lexical.value)
                 symbol_first = _quantity(value) or (len(value) == 1 and value.isalpha() and value.islower())
             # A capital is kept where the word keeps one: a word held with one inside a sentence ("Monday"), a shape
-            # of such a word ("Americans"), or a concept's own name spelled with one ("Paris", "Bostonians").
+            # of such a word ("Americans"), a concept's own name spelled with one ("Paris", "Bostonians"), or a day
+            # written as English writes one ("October 6").
             if pieces and view is not None and filler[0].text[:1].isupper() \
                     and not view.is_proper(filler[0].text) \
                     and not any(view.is_proper(base) for base in view.names_of_shape(filler[0].text)) \
-                    and not str(fillers[element.name].value)[:1].isupper():
+                    and not str(lexical.value)[:1].isupper() and not _temporal(str(lexical.value)):
                 filler[0] = Piece(filler[0].text[:1].lower() + filler[0].text[1:], filler[0].space_after)
             pieces.extend(filler[:-1])
-            pieces.append(Piece(filler[-1].text, element.space_after))
+            pieces.append(Piece(filler[-1].text, spaced))
         else:
             own.append(len(pieces))
-            pieces.append(element)
+            pieces.append(element if spaced == element.space_after else Piece(element.text, spaced))
     # A frame's word is written in the shape the word after it asks: "An ocelot" through "A ?slot0 is a ?slot1.".
     for at in own if view is not None else ():
         if at + 1 < len(pieces) and pieces[at + 1].text[:1].isalpha() and view.variants_of(pieces[at].text):
@@ -3447,18 +5592,38 @@ def _begins_with_structure(view: PatternInventory, lexical: Lexical) -> bool:
     return bool(words) and len(words) > 1 and view.names_nothing(words[0])
 
 
-def _said_fillers(view: PatternInventory, pattern: Pattern, slot: str,
-                  value: str) -> List[Tuple[Lexical, Optional[Link], str]]:
+def _said_fillers(view: PatternInventory, pattern: Union[Pattern, Phrase], slot: str, value: str,
+                  uses: Optional[Mapping[str, str]] = None,
+                  named: Optional[Mapping[str, str]] = None,
+                  apart: Optional[Collection[str]] = None, *,
+                  first: Optional[bool] = None, after: Sequence[str] = ()) -> List[Tuple[Lexical, Optional[Link], str]]:
     """What may say one concept in one slot, as reading would take it there: a filler of that concept linked to the
     slot; with none linked, one of the slot's learned kind (the link proposed, never written); and when no filler
     names the concept at all, the concept's own name, as a word never seen is read as a new name.
 
+    A NAME GIVEN APART (`apart`) is written as it is, as a name no filler holds: what is held under that name is
+    another thing's (`say`).
+
     The writing is the slot's too. A filler begun by a word that names nothing ("A dog") does not go where the
     slot's own fillers never had one ("A ?slot0 eats ?slot1."), nor the other way round. Where a word is held both
     capitalized and not, the form written in the slot's place is preferred: a capital begins a sentence, and "Milk"
-    is "milk" inside one."""
-    first = pattern.form.index(next(e for e in pattern.form if isinstance(e, Slot) and e.name == slot)) == 0
+    is "milk" inside one. `first`: whether the slot begins the sentence, for a phrase's slot, which begins it only
+    where the phrase does. `after`: the construction's own words right before where the slot stands (`_own_before`);
+    a word linked to the slot and heard right after them is said there before any in the slot's shape: "chase", read
+    in "did not chase the kelt" in a phrase holding "chased the blip", not "chased"."""
+    if first is None:
+        first = pattern.form.index(next(e for e in pattern.form if isinstance(e, Slot) and e.name == slot)) == 0
     shapes = view.filler_openings(pattern.key, slot)
+
+    def stated(name: str) -> Optional[str]:
+        # HOW A WORD IS USED, AS THE SOURCE SAYS ("furniture" uncounted), under the name itself, else by the word it
+        # ends in: what the source read from real use outranks a guess from an ending, for a word no filler holds.
+        words = str(name).split()
+        if not words or not uses:
+            return None
+        # The word a name ends in, or the one before a word that builds frames inside it ("roll of tobacco", a roll).
+        last = next((words[at - 1] for at in range(1, len(words)) if view.is_structure(words[at])), words[-1])
+        return uses.get(_fold(" ".join(words))) or uses.get(_fold(last))
 
     def fits(lexical: Lexical) -> bool:
         return not shapes or _begins_with_structure(view, lexical) in shapes
@@ -3467,10 +5632,31 @@ def _said_fillers(view: PatternInventory, pattern: Pattern, slot: str,
         placed = [lx for lx in candidates if lx.words and lx.words[0][:1].isupper() == first]
         return placed or candidates
 
+    def as_named(candidates: List[Lexical]) -> List[Lexical]:
+        # THE WORD THE CONCEPT WAS JUST CALLED BY (`named`), where it is among the words that may stand here: a
+        # speaker says a thing with the word the other used for it. Asked about "the kennel", it is not answered
+        # about "the dog house". With none, the word most used for it, however written ("dog", "Dog"): "dog", met
+        # 350 times, not "domestic dog", met 5.
+        word = (named or {}).get(value)
+        same = [lx for lx in candidates if _loose(lx.words) == _loose(tuple(word.split()))] if word else []
+        if same or not candidates:
+            return same or candidates
+        used_as: Dict[Tuple[str, ...], int] = {}
+        for lx in candidates:
+            used_as[_loose(lx.words)] = max(used_as.get(_loose(lx.words), 0), view.uses(lx))
+        most = max(used_as.values())
+        return [lx for lx in candidates if used_as[_loose(lx.words)] == most]
+
+    def head(lexical: Lexical) -> str:
+        # The word a name of several words is used as: its last, the one the rest describe ("domestic dog", a dog),
+        # or the one before a word that builds frames inside it ("body of water", a body, not water).
+        words = _loose(lexical.words)
+        return next((words[at - 1] for at in range(1, len(words)) if view.is_structure(words[at])), words[-1])
+
     # THE SHAPE THE SLOT TAKES ("?slot0 are ?slot1." takes plurals): a concept goes there written in it -- a form
     # held for it ("Geese"), or its name changed as the learned shape changes names -- and a concept's own name
     # goes where the slot's fillers are names as they are.
-    taken = view.shape_of_slot(pattern.key, slot)
+    taken = view.shape_of_slot(pattern.key, slot, said=True)
 
     def one_word(lexical: Lexical) -> bool:
         return len(_loose(lexical.words)) == 1
@@ -3478,9 +5664,29 @@ def _said_fillers(view: PatternInventory, pattern: Pattern, slot: str,
     def in_shape(lexical: Lexical) -> bool:
         if not one_word(lexical):
             return True
-        # A word used only as a plural ("tongs") is written in the plural shape as it is.
-        other = _loose(lexical.words)[0] != _fold(lexical.value) or view.used_as(lexical.words[0]) == "plural"
-        return other if taken else not other
+        # A word used only as a plural ("tongs") is written in the plural shape as it is; not one that says more than
+        # its concept, wherever it stood ("swam", a swimming before now: "Tom wants swam.").
+        word = _loose(lexical.words)[0]
+        plural = view.used_as(lexical.words[0]) == "plural" and not view.says_more(
+            word, str(lexical.value), doing=view.stands_as_doing(lexical))
+        other = word != _fold(lexical.value) or plural
+        if not taken:
+            # Written as its name, where the slot's own are written so (`written_against`): not "kick" where only
+            # "drank" and "ate" stand, each saying a doing before now ("The fip kick trel.").
+            return not other and not view.written_against(pattern.key, slot, lexical)
+        # Written other than its name, a word is in the slot's shape when the change is one the slot takes ("dogs"),
+        # or it is held as a plural ("Geese", "Children"); not when it is another shape of the name ("reasoned" for
+        # `reasoning` is no plural of it), nor another word for the thing: "everyone", held for `person`, is not
+        # its plural ("Men are everyone.").
+        if stated(word) in ("plural", "invariant"):
+            return True        # one form for many as for one ("Alewives are fish."), as the source states
+        change = view.shape_between(word, lexical.value)
+        # A change of the slot's with the word's own last letter written again ("swimming": `ing`, the "m" of "swim"
+        # doubled) is the slot's, as it is held against no slot (`word_against`).
+        doubled = change is not None and any(
+            change[1] == names and change[0].endswith(written) and len(change[0]) - len(written) == 1
+            and _fold(lexical.value).endswith(change[0][0]) for written, names in taken)
+        return other and (plural or (change is not None and (change in set(taken) or doubled)))
 
     def as_taken(name: str) -> Optional[str]:
         name = str(name).replace("_", " ").strip()
@@ -3493,7 +5699,7 @@ def _said_fillers(view: PatternInventory, pattern: Pattern, slot: str,
                 return name[:len(name) - len(names)] + written
         return None
 
-    held = [lx for lx in view.lexicals_with_value(value) if view.counts(lx)]
+    held = [] if apart and value in apart else [lx for lx in view.lexicals_with_value(value) if view.counts(lx)]
     if _quantity(value):
         # A NUMBER OR A FORMULA IS WRITTEN AS ITS WRITING WRITES IT: never in a shape a slot's words take ("56s"),
         # and never as a word it was only taught to rank or name ("tenth" for 10). A word taught for it in this
@@ -3507,12 +5713,40 @@ def _said_fillers(view: PatternInventory, pattern: Pattern, slot: str,
             return [(lx, link(pattern, slot, lx), "kind") for lx in written]
         pieces = form_of(_number_written(value))
         return [(Lexical(pieces, value), link(pattern, slot, Lexical(pieces, value)), "new")] if pieces else []
+    if _temporal(value):
+        # A DAY OR A TIME OF DAY IS WRITTEN AS ENGLISH WRITES IT ("October 6", "7 p.m."), never as it is held
+        # ("--10-06"): a word taught for it in this slot, else its writing.
+        linked = [lx for lx in held if view.link_between(pattern.key, slot, lx.key) is not None and fits(lx)]
+        if linked:
+            return [(lx, view.link_between(pattern.key, slot, lx.key), "linked") for lx in written_here(linked)]
+        pieces = form_of(_temporal_written(value))
+        if not pieces:
+            return []
+        written = Lexical(pieces, value)
+        # In a slot that has held days, a day is one of its kind ("on October 5" says "on October 6"); elsewhere
+        # it stands as a word never held would.
+        kind = classify_literal(value).kind
+        alike = any(isinstance(lx, Lexical) and _temporal(str(lx.value))
+                    and classify_literal(str(lx.value)).kind == kind
+                    for lx in view.fillers(pattern.key, slot))
+        return [(written, link(pattern, slot, written), "kind" if alike else "new")]
     linked = [lx for lx in held if view.link_between(pattern.key, slot, lx.key) is not None and fits(lx)]
     if linked:
-        placed = [lx for lx in linked if in_shape(lx)] or linked
-        return [(lx, view.link_between(pattern.key, slot, lx.key), "linked") for lx in written_here(placed)]
+        placed = ([lx for lx in linked if view.heard_there(after, lx.words[0])]
+                  or [lx for lx in linked if in_shape(lx)] or linked)
+        return [(lx, view.link_between(pattern.key, slot, lx.key), "linked") for lx in written_here(as_named(placed))]
     if held:
-        kind = [lx for lx in held if fits(lx) and view.same_kind(pattern.key, slot, lx.key)]
+        # WHAT THE READER TAKES IN A SLOT, THE SAYER WRITES THERE (`_alike`): of the slot's kind, or of the class that
+        # stands where its fillers do. Kind alone, a verb the lessons taught ("walk") was written in no slot
+        # english_41's verbs filled, and WordNet's "To stroll is to walk." was not said, though it read.
+        alike = _alike(view, pattern, slot)
+        kind = [lx for lx in held if fits(lx) and alike(lx.key)]
+        if taken:
+            # A WORD NOT COUNTED TAKES NO SHAPE, as a name no filler holds takes none (below): "furniture" is not
+            # "furnitures". A word already written in a shape is no word to shape: "swimming", standing bare as an
+            # uncounted word does ("Tom likes swimming."), is the slot's own shape of `swim`.
+            kind = [lx for lx in kind if not one_word(lx) or _loose(lx.words)[0] != _fold(str(lx.value))
+                    or (stated(_loose(lx.words)[0]) or view.used_as(lx.words[0])) != "mass"]
         if not taken:
             # A held word stands, through a link proposed, only where words used as it is used stand: "smoke", used
             # without "a", not after one. One none of whose uses was counted ("plate", held only in "Plates are
@@ -3521,33 +5755,93 @@ def _said_fillers(view: PatternInventory, pattern: Pattern, slot: str,
             admits = view.slot_admits(pattern.key, slot)
 
             def used(word: str) -> str:
-                held_as = view.used_as(word)
-                return held_as if held_as is not None else view.use_of(word if view.is_proper(word) else _fold(word))
-            kind = [lx for lx in kind if not admits or not one_word(lx) or used(lx.words[0]) in admits]
+                # A WORD ONE IN BOTH ("fish", "deer"), as the source states, stands where one thing does or where
+                # many do: the lessons' "Fish are animals." holds it plural, and cannot show it is also one.
+                if stated(word) == "invariant":
+                    return "count" if "count" in admits or "plural" not in admits else "plural"
+                # WHAT THE SOURCE STATES OF THE THING SAID COMES BEFORE HOW THE WORD IS HELD; then how the word is
+                # held for this thing; then for anything it names. Held over everything written with it, "matter",
+                # counted for an affair, said "A substance is a matter." of what things are made of.
+                return stated(word) or view.used_as(word, value) or view.used_as(word) \
+                    or view.use_of(word if view.is_proper(word) else _fold(word))
+            # A name of several words is used as its head is (`head`): "domestic dog", a dog, stands bare no more
+            # than "dog" does ("I do not know where domestic dog is."). Where its source states the use of the
+            # whole name, that stands: "military action" is not counted because "action" is.
+            def used_whole(lexical: Lexical) -> str:
+                whole = (uses or {}).get(" ".join(_loose(lexical.words)))
+                return whole if whole and whole != "invariant" else used(head(lexical))
+            # A NAME ONLY EVER PLURAL ("spectacles") stands where a slot takes a shape, as a name no filler holds
+            # does (below): not after "every" ("Every spectacles is an optical instrument."). A plural of a name
+            # ("Lynxes", for `lynx`) is no such name: the name is said ("A lynx is an animal.").
+            def only_many(lexical: Lexical) -> bool:
+                return used_whole(lexical) == "plural" and (
+                    stated(head(lexical)) == "plural"
+                    or _loose(lexical.words) == _loose(tuple(str(value).replace("_", " ").split())))
+            kind = [lx for lx in kind if not _loose(lx.words)
+                    or ((not admits or used_whole(lx) in admits) and not only_many(lx))]
         placed = [lx for lx in kind if in_shape(lx)]
-        # Shaped as the concept's own name is written: "American" is "Americans".
+        # THE WORD THE THING WAS CALLED BY, in the slot's shape, before another word held for it: "person" said of
+        # many is "persons", not "everyone", which the lessons hold where plurals stand ("Everyone can swim.") and
+        # which says no more of it than "Men are everyone.".
+        called = (named or {}).get(value)
+
+        def of_called(lexical: Lexical) -> bool:
+            # The called word itself, or that word in a shape it was taught in ("Zanths" for "zanth"): not another
+            # word for the thing ("everyone" for "person").
+            words = _loose(lexical.words)
+            return len(words) == 1 and (words == _loose((called,))
+                                        or PatternInventory.shape_between(words[0], called) is not None)
+        if taken and called and len(called.split()) == 1 and as_taken(called) \
+                and not any(of_called(lx) for lx in placed):
+            placed = []
+        # Shaped as the concept's own name is written ("American" is "Americans"), or as it was called.
         written = next((lx.surface for lx in written_here(kind)
-                        if one_word(lx) and _loose(lx.words)[0] == _fold(value)), value)
+                        if one_word(lx) and _loose(lx.words)[0] == _fold(value)),
+                       called if called and len(called.split()) == 1 else value)
         if kind and not placed and as_taken(written):
             shaped = Lexical(form_of(as_taken(written)), value)
+            # THE WORD WRITTEN IS THE ONE THE SLOT MUST ADMIT. A filler admitted in its own shape ("Mice", a plural,
+            # standing bare as in "Mice are small.") does not admit the concept's name written in its place: "mouse"
+            # is counted, and a counted word does not stand where only names, mass words and plurals do ("Mouse is
+            # a rodent.").
+            if not taken and admits and one_word(shaped) and used(shaped.words[0]) not in admits:
+                return []
+            # Nor a name written as it is where the slot's own are written otherwise ("kick" beside "drank").
+            if not taken and view.written_against(pattern.key, slot, shaped):
+                return []
             return [(shaped, link(pattern, slot, shaped), "kind")]
-        return [(lx, link(pattern, slot, lx), "kind") for lx in written_here(placed or kind)]
+        # A SLOT THAT TAKES A SHAPE says a word of its kind only in that shape. Unwritable in it ("chase", where only
+        # "kicked" stands, for a chasing before now), the concept is said in another frame, never in another shape
+        # ("The kelt chases the blip.").
+        return [(lx, link(pattern, slot, lx), "kind")
+                for lx in written_here(as_named(placed or ([] if taken else kind)))]
     # A CONCEPT NO FILLER NAMES goes, under its own name, only where words used as it is used go (`use_of`): a
     # name ("Thiosulfil") where names are held, never after "a"; a word used without "a" ("paleoanthropology")
     # where such words are; a plural already ("fire tongs") as it is, where plurals go; a counted thing after "a",
     # or in the slot's shape.
     spelled = str(value).replace("_", " ").strip()
-    use = view.use_of(spelled)
+    use = stated(spelled) or view.use_of(spelled)
+    invariant = use == "invariant"
+    if invariant:
+        use = "count"          # one form for both, said of one
     admits = view.slot_admits(pattern.key, slot)
-    if taken:
-        name = spelled if use == "plural" else as_taken(value) if use == "count" else None
+    if "thing" not in view._taken_at(pattern.key, slot):
+        # HOW A WORD IS COUNTED IS A THING'S. Where the slot takes doings or qualities, the word's use as a noun
+        # elsewhere says nothing of it there: "strike", held only for a labour strike and an attack, counted, kept
+        # the verb out of "To peck is to strike.", and a verb held under no word could stand in no slot a verb
+        # does (2026-10-12).
+        use = None
+        name = (as_taken(value) if taken else spelled)
+    elif taken:
+        # Said of many, a word one in both is as it is ("fish", not "fishs").
+        name = spelled if use == "plural" or invariant else as_taken(value) if use == "count" else None
     elif use == "plural" or (admits and use not in admits):
         name = None
     else:
         name = spelled
     pieces = form_of(name) if name else ()
     from core.semantics.cognitive_ingress import MAX_TERM_WORDS
-    if not pieces or not _may_be_new(pieces, view, MAX_TERM_WORDS):
+    if not pieces or not _may_be_new(pieces, view, MAX_TERM_WORDS, given=bool(apart) and value in apart):
         return []
     new = Lexical(pieces, value)
     # Written as the slot's fillers are: no bare "shrub" where they all begin with "a" ("Every ?slot0 is ?slot1."
@@ -3566,16 +5860,69 @@ def _number_written(value: str) -> str:
     return value
 
 
-def say(meaning: Meaning, inventory: Optional[PatternInventory] = None) -> Tuple[str, ...]:
+def say(meaning: Meaning, inventory: Optional[PatternInventory] = None, *,
+        uses: Optional[Mapping[str, str]] = None, named: Optional[Mapping[str, str]] = None,
+        framed: Optional[Collection[str]] = None, apart: Optional[Collection[str]] = None,
+        heard: bool = False) -> Tuple[str, ...]:
     """Every sentence that means exactly this, best first; empty when nothing taught says it.
 
     Said the way it would be read: a holophrase of this meaning, or a frame of it with a filler for each concept --
     linked to the slot, else of the slot's kind, else the concept's own name. The sentences rank as readings do:
-    what they had to suppose, then score. Saying writes nothing."""
+    what they had to suppose, then score. Saying writes nothing. `uses`: how words no filler holds are used, where a
+    source says (`count`, `mass`, `plural`), by the word a name ends in.
+
+    A SPEAKER SAYS A THING AS THE OTHER DID (Brennan and Clark 1996; Pickering and Garrod 2004). `named`: the word
+    each concept was just called by, said again where it may stand; with none, the word most used for it
+    (`_said_fillers`). `framed`: the constructions the other's sentences were read with; of sentences supposing the
+    same, one in such a frame comes first ("The dog is in the kennel.", asked back after it was told so, before
+    "The dog is inside the kennel.").
+
+    A NAME IS NOT THE THING ANOTHER SENSE OF IT NAMES. `apart`: the names in this meaning that a source wrote for
+    a thing of its own (a hairdo it calls "wave"), where the view may hold that name for something else ("wave to",
+    the greeting). Such a name is written as it is, as a name no filler holds, in a place the use its source states
+    admits: not with the fillers, the links or the use of what is held under it. Said as held, the hairdo was "A
+    wave to is a hairdo.", and what things are made of was "A substance is a matter.", as an affair is counted.
+
+    SAID AS HEARD (`_unheard`). A sentence putting a word where nothing like it was heard is said only where no
+    sentence for the meaning puts none so. `heard`: not even then, for a speaker with more than one meaning for what
+    it says: an event held at no time, asked of at one, is said "The kelt might chase the fip.", at none, before "The
+    kelt did might chase the fip.", at the time asked."""
     view = inventory if inventory is not None else _live_inventory()
+    said = _said_whole(meaning, view, uses=uses, named=named, framed=framed, apart=apart, heard=heard)
+    if said or not meaning.unasserted:
+        return said
+    # WHAT SOMEONE SAID, WHERE NO SENTENCE SAYS IT WHOLE ("Tom said that the dog barked." does): the sentence around
+    # a quotation and the sentence quoted.
+    return _said_with_quotation(meaning, view, uses=uses, named=named, framed=framed, apart=apart, heard=heard)
+
+
+def as_known(facts: Iterable[MeaningFact], kinds: Mapping[str, str]) -> Tuple[MeaningFact, ...]:
+    """Facts naming particulars (`kelt_1`, `kinds`: each particular's kind), as a sentence says them: each one a known
+    thing, `given instance_of(?k0, kelt)`, so it is said "the kelt" (docs/TEACHING.md §12d)."""
+    facts = tuple(facts)
+    named = sorted({t for f in facts for t in f.terms() if t in kinds})
+    taken = {t for f in facts for t in f.terms() if is_variable(t)}
+    names: Dict[str, str] = {}
+    for particular in named:
+        index = 0
+        while f"?k{index}" in taken:
+            index += 1
+        names[particular] = f"?k{index}"
+        taken.add(names[particular])
+    out = [MeaningFact("instance_of", names[p], kinds[p], given=True) for p in named]
+    out += [f.renamed(names) for f in facts
+            if not (f.relation == "instance_of" and f.subject in names and f.obj == kinds.get(f.subject) and f.positive)]
+    return tuple(dict.fromkeys(out))
+
+
+def _said_whole(meaning: Meaning, view: PatternInventory, *, uses: Optional[Mapping[str, str]],
+                named: Optional[Mapping[str, str]], framed: Optional[Collection[str]],
+                apart: Optional[Collection[str]], heard: bool = False) -> Tuple[str, ...]:
+    """`say`: the sentences that say the meaning whole, best first."""
     target = meaning.canonical()
     best: Dict[str, Reading] = {}
     misfits: Dict[str, int] = {}
+    unheard: Dict[str, Tuple[int, int]] = {}
     for holophrase in view.with_meaning(target):
         if view.counts(holophrase):
             best.setdefault(holophrase.surface, view.reading((holophrase,), (), holophrase.meaning))
@@ -3586,7 +5933,8 @@ def say(meaning: Meaning, inventory: Optional[PatternInventory] = None) -> Tuple
         for values in _slot_values(pattern, meaning):
             options = []
             for slot in pattern.slots:
-                fitting = _said_fillers(view, pattern, slot, values[slot])
+                fitting = _said_fillers(view, pattern, slot, values[slot], uses, named, apart,
+                                        after=_own_before([pattern], {}, 0, slot))
                 if not fitting:
                     break
                 options.append(fitting)
@@ -3604,18 +5952,234 @@ def say(meaning: Meaning, inventory: Optional[PatternInventory] = None) -> Tuple
                     if surface not in best or _best_first(reading) < _best_first(best[surface]):
                         best[surface] = reading
                         misfits[surface] = _misfits(view, pattern, fillers)
+                        unheard[surface] = _unheard(view, pattern, fillers)
+    # A FRAME WITH A PHRASE IN ONE SLOT, as reading composes one (`_compositions`): "The dog sleeps in the house."
+    # through "The ?slot0 ?slot1." and "?slot0 in the ?slot1"; the phrase's slots filled as a frame's are, and its
+    # new names anchored by its own words, as reading anchors them (`_new_here`). The phrase stands where it was
+    # linked, or where it may be read (`_alike`) and stood beside the slot's own (`stood_beside`), as reading asks of
+    # a frame with no word of its own: a kind alone is wide. And the word it writes in the slot's place is written as
+    # the slot's own are (`written_against`). Reading supposes more, to read what it was never taught; said, "Some
+    # of the ?slot0" went where "lives" goes ("Tom Some of the lives in the city."), and "chased the ?slot0" where
+    # "live" goes ("The kelt does chased the blip.").
+    def worded(construction: Union[Pattern, Phrase]) -> int:
+        return sum(1 for e in construction.form if isinstance(e, Piece) and not _is_mark(e.text))
+
+    # A PHRASE INSIDE A PHRASE, as reading reads one, only where a frame with one phrase says nothing.
+    for nested in (False, True):
+        if nested and best:
+            break
+        for frame, layers, values in _compositions(view, meaning, nested=nested):
+            constructions: List[Union[Pattern, Phrase]] = [frame] + [phrase for _, _, phrase in layers]
+            holds = {at: slot for at, (_, slot, _) in enumerate(layers)}
+            joins: List[Optional[Link]] = []
+            for container, slot, phrase in layers:
+                joined = view.link_between(container.key, slot, phrase.key)
+                if joined is None and not (_alike(view, container, slot)(phrase.key)
+                                           and view.stood_beside(container.key, slot, phrase.key)):
+                    break
+                # The word the phrase writes first: its own, as the kind of thing it stands for ("chased", a
+                # chasing), or its first slot's filler.
+                head = phrase.form[0]
+                kinds = [f.obj for f in phrase.facts if f.relation == "instance_of" and f.subject == phrase.anchor
+                         and f.positive and not is_variable(f.obj)]
+                if joined is None and isinstance(head, Piece) and len(kinds) == 1 \
+                        and view.word_against(container.key, slot, _fold(head.text), _fold(kinds[0]).split()[-1]):
+                    break
+                joins.append(joined)
+            else:
+                # The place the sentence begins with: the first slot down the phrases the frame's first slot holds.
+                begins: Optional[Tuple[int, str]] = None
+                at = 0
+                while isinstance(constructions[at].form[0], Slot):
+                    name = constructions[at].form[0].name
+                    if holds.get(at) == name:
+                        at += 1
+                        continue
+                    begins = (at, name)
+                    break
+                places = [(at, construction, name, values[at][name]) for at, construction in enumerate(constructions)
+                          for name in construction.slots if holds.get(at) != name]
+                options = []
+                for at, construction, name, value in places:
+                    fitting = _said_fillers(view, construction, name, value, uses, named, apart,
+                                            first=None if at == 0 else (at, name) == begins,
+                                            after=_own_before(constructions, holds, at, name))
+                    if not fitting:
+                        break
+                    options.append(fitting)
+                else:
+                    for combo in itertools.product(*options):
+                        chosen = [(at, name, said) for (at, _, name, _), said in zip(places, combo)]
+                        if not all(_anchored(tuple(lx for a, _, (lx, _, how) in chosen if a == at and how == "new"),
+                                             worded(construction) + (1 if at == 0 else 0)
+                                             + sum(1 for a, _, (_, _, how) in chosen if a == at and how != "new"))
+                                   for at, construction in enumerate(constructions)):
+                            continue
+                        placed: Dict[int, _Placed] = {}
+                        for at in range(len(constructions) - 1, 0, -1):
+                            own: Dict[str, Union[Lexical, _Placed]] = {
+                                name: lx for a, name, (lx, _, _) in chosen if a == at}
+                            if at in holds:
+                                own[holds[at]] = placed[at + 1]
+                            placed[at] = _Placed(constructions[at], own)
+                        fillers: Dict[str, Union[Lexical, _Placed]] = {
+                            name: lx for a, name, (lx, _, _) in chosen if a == 0}
+                        fillers[holds[0]] = placed[1]
+                        written = False
+                        for at, ((container, slot, phrase), joined) in enumerate(zip(layers, joins)):
+                            head = phrase.form[0]
+                            first = placed[at + 1].fillers.get(head.name) if isinstance(head, Slot) else None
+                            if joined is None and isinstance(first, Lexical) \
+                                    and view.written_against(container.key, slot, first):
+                                written = True
+                        if written:
+                            continue
+                        order: List[Construction] = []
+
+                        def walk(at: int) -> None:
+                            order.append(constructions[at])
+                            given = fillers if at == 0 else placed[at].fillers
+                            for name in constructions[at].slots:
+                                if holds.get(at) == name:
+                                    walk(at + 1)
+                                else:
+                                    order.append(given[name])
+                        walk(0)
+                        held_links = (tuple(held for _, _, (_, held, how) in chosen if how == "linked")
+                                      + tuple(joined for joined in joins if joined))
+                        proposed = (tuple(held for _, _, (_, held, how) in chosen if how != "linked")
+                                    + tuple(link(container, slot, phrase)
+                                            for (container, slot, phrase), joined in zip(layers, joins) if not joined))
+                        # A WORD IN A PHRASE THAT SAYS MORE THAN THE MEANING HOLDS (`_unsaid`, as reading judges it)
+                        # says something not meant, and is not said: "Tom asked Rex to opened the door.", "opened" a
+                        # door opened before now, where the opening asked for is at no time. "The kelt chased the
+                        # blip." holds its "before now".
+                        if _unsaid(view, tuple(order), held_links + proposed, meaning):
+                            continue
+                        reading = view.reading(tuple(order), held_links, meaning, proposed=proposed,
+                                               new=tuple(lx for _, _, (lx, _, how) in chosen if how == "new"))
+                        surface = surface_of(_rendered(frame, fillers, view))
+                        if surface not in best or _best_first(reading) < _best_first(best[surface]):
+                            best[surface] = reading
+                            misfits[surface] = _misfits(view, frame, fillers)
+                            unheard[surface] = _unheard(view, frame, fillers)
     # A filler begun with a letter no word after the one before it has begun with ("an bird": only "eagle",
     # "owl", "ant" ... follow "an") is said last: how a word's form goes with the next word's, as taught.
-    return tuple(surface for surface, _ in sorted(best.items(),
-                                                  key=lambda kv: (misfits.get(kv[0], 0), _best_first(kv[1]))))
+    # Of sentences that suppose the same, one in a frame the speaker used comes first (`framed`).
+    def spoken(reading: Reading) -> int:
+        return 0 if framed and reading.constructions and reading.constructions[0].key in framed else 1
+
+    # SAID AS HEARD (`_unheard`). What was heard preempts what was not (statistical preemption: Goldberg 2006; Boyd
+    # and Goldberg 2011), word by word: where a sentence says the meaning with every word where words like it were
+    # heard, none putting a word where nothing like it was is said: "Tom may opens the box.", "Rex kicked the ball
+    # not.", "The fip does did not chase the kelt.". Of the rest, after what each supposes, the one with fewer words
+    # heard only by their likeness first: "Tom might open the box.", taught, before "Tom may open the box.". A word
+    # heard only by its likeness is how a learner says what it was never told ("A lynx is an animal.", where only
+    # "Lynxes are animals." was), and is not set aside: "Tom owns a two dollars." is said last, "a" having been heard
+    # before "million" and "thousand", of the kind "two" is, and nothing taught saying "two" is not their kind there.
+    kept = {surface: reading for surface, reading in best.items() if not unheard.get(surface, (0, 0))[0]}
+    if kept or heard:
+        best = kept
+    return tuple(surface for surface, _ in sorted(
+        best.items(), key=lambda kv: (misfits.get(kv[0], 0), kv[1].supposed, unheard.get(kv[0], (0, 0)),
+                                      spoken(kv[1]), -kv[1].score, -kv[1].uses, kv[1].key)))
 
 
-def _misfits(view: PatternInventory, pattern: Pattern, fillers: Mapping[str, Lexical]) -> int:
-    """How many fillers begin with a letter that no word held right after the frame's word before them begins with."""
+def _said_with_quotation(meaning: Meaning, view: PatternInventory, **how: Any) -> Tuple[str, ...]:
+    """A meaning holding what someone said, said as it is read: the sentence around a quotation, the quoted sentence
+    in it (`Tom said, "The dog barked."`), its end a comma where words follow it (`"The dog barked," Tom said.`)."""
+    try:
+        around = Meaning(meaning.act, tuple(f for f in meaning.facts if not f.unasserted), meaning.asked)
+        quoted = Meaning("tell", tuple(MeaningFact(f.relation, f.subject, f.obj, f.positive, f.condition, f.alternative,
+                                                   given=f.given)
+                                       for f in meaning.unasserted))
+    except ValueError:
+        return ()
+    arounds = [s for s in say(around, view, **how) if QUOTED in s]
+    quotes = say(quoted, view, **how)
+    if not arounds or not quotes:
+        return ()
+    out = []
+    for sentence in arounds:
+        before, _, after = sentence.partition(QUOTED)
+        said = quotes[0][:-1] + "," if after.strip()[:1].isalpha() and quotes[0].endswith(".") else quotes[0]
+        out.append(f'{before}"{said}"{after}')
+    return tuple(out)
+
+
+def _own_before(constructions: Sequence[Union[Pattern, Phrase]], holds: Mapping[int, str], at: int,
+                name: str) -> Tuple[str, ...]:
+    """The own words right before where a slot stands, the last two at most: those of its construction, or, for a
+    slot a phrase begins with, those before the place the phrase stands in (`holds`: of each construction, the slot
+    holding the next), "did not" before "?slot0 the ?slot1". None where a filler or nothing stands before it."""
+    while True:
+        form = constructions[at].form
+        index = next(i for i, e in enumerate(form) if isinstance(e, Slot) and e.name == name)
+        words: List[str] = []
+        for element in reversed(form[:index]):
+            if not isinstance(element, Piece) or _is_mark(element.text) or element.text == QUOTED:
+                break
+            words.insert(0, element.text)
+            if len(words) == 2:
+                break
+        if words or index or at == 0:
+            return tuple(words)
+        at, name = at - 1, holds[at - 1]
+
+
+def _words_said(construction: Union[Pattern, Phrase], fillers: Mapping[str, Union[Lexical, _Placed]]
+                ) -> Iterator[Tuple[Optional[str], Any, Optional[Lexical]]]:
+    """The words a sentence says, in order: each with what wrote it (a construction, for its own words; the filler,
+    for a filler's) and the filler, None for a construction's own word. A mark is `(None, None, None)`: it ends a
+    run of words."""
+    for element in construction.form:
+        if isinstance(element, Piece):
+            yield (None, None, None) if _is_mark(element.text) or element.text == QUOTED else (element.text,
+                                                                                             construction, None)
+            continue
+        filler = fillers[element.name]
+        if isinstance(filler, _Placed):
+            yield from _words_said(filler.phrase, filler.fillers)
+            continue
+        for piece in filler.form:
+            yield (None, None, None) if _is_mark(piece.text) else (piece.text, filler, filler)
+
+
+def _unheard(view: PatternInventory, pattern: Pattern, fillers: Mapping[str, Union[Lexical, _Placed]]
+             ) -> Tuple[int, int]:
+    """Where a sentence puts its words against what was heard (`heard_like`): how many it puts where none like them
+    was heard, and how many only where words like them were. Counted: a filler's first word right after another word
+    ("Tom may opens the box.", where "go" and "fly" were heard after "may"), held against the two words before it
+    where both are one construction's own ("The fip did not chased the kelt.", "chased" heard after "has not", never
+    after "did not"); and a construction's own word right after another construction's ("The fip does did not chase
+    the kelt."). A construction's own word after a filler is how a frame takes a word it never held ("Horses are
+    animals."), and is not counted."""
+    never = like = 0
+    earlier: Optional[Tuple[str, Any, Optional[Lexical]]] = None
+    before: Optional[Tuple[str, Any, Optional[Lexical]]] = None
+    for word, owner, filler in _words_said(pattern, fillers):
+        if word is None:
+            earlier = before = None
+            continue
+        if before is not None and before[1] is not owner:
+            if filler is not None:
+                own = earlier is not None and earlier[2] is None and before[2] is None and earlier[1] is before[1]
+                heard = view.heard_like(before[0], word, str(filler.value), earlier[0] if own else None)
+                never, like = never + (heard == 2), like + (heard == 1)
+            elif before[2] is None:
+                heard = view.heard_after(before[0])
+                never += bool(heard) and _fold(word) not in heard
+        earlier, before = before, (word, owner, filler)
+    return never, like
+
+
+def _misfits(view: PatternInventory, pattern: Pattern, fillers: Mapping[str, Union[Lexical, _Placed]]) -> int:
+    """How many fillers begin with a letter that no word held right after the frame's word before them begins with,
+    a phrase's words and fillers counted where they stand."""
     count = 0
-    for here, there in zip(pattern.form, pattern.form[1:]):
+    elements = list(_spelled_out(pattern.form, fillers))
+    for (here, _, _), (there, _, filler) in zip(elements, elements[1:]):
         if isinstance(here, Piece) and isinstance(there, Slot) and not _is_mark(here.text):
-            filler = fillers[there.name]
             letter = _fold(filler.words[0][:1]) if filler.words else ""
             seen = view.letters_after(here.text)
             if letter.isalpha() and seen and letter not in seen:
@@ -3658,11 +6222,24 @@ def _new(view: PatternInventory, items: Iterable[Item]) -> Tuple[Item, ...]:
     return tuple(out)
 
 
+def _keeps_a_word(construction: Construction) -> bool:
+    """Whether an item-based construction has a word of its own, not marks alone."""
+    return not isinstance(construction, Pattern) or not construction.slots \
+        or any(isinstance(e, Piece) and not _is_mark(e.text) for e in construction.form)
+
+
 def _repair(name: str, view: PatternInventory, constructions: Iterable[Construction],
-            links: Iterable[Link]) -> Repair:
+            links: Iterable[Link]) -> Optional[Repair]:
     """A repair's proposal: the constructions not held yet, the ones held but no longer believed (this pair
-    supports them again), and the links not held yet."""
+    supports them again), and the links not held yet.
+
+    A FRAME WITH NO WORD OF ITS OWN ("?slot0 ?slot1.") IS LEARNED ONLY BY SUBSTITUTION: from two that differ in
+    nothing but what stands there ("Dogs ?slot0." held, "Cats run." said), each place seen filled two ways. Read
+    off one sentence, a mark alone anchors nothing: "Dogs bark." is no evidence that any two words make a sentence,
+    and frames so learned took the place of the ones the lessons teach ("Cats sleep." stopped reading)."""
     constructions = tuple(constructions)
+    if name != "substitution" and any(c.key not in view and not _keeps_a_word(c) for c in constructions):
+        return None
     revived = tuple(c for c in constructions if c.key in view and not view.counts(view.get(c.key)))
     return Repair(name, _new(view, constructions), _new(view, links), revived)  # type: ignore[arg-type]
 
@@ -3672,7 +6249,8 @@ def _gives(pattern: Pattern, values: Mapping[str, str], meaning: Meaning) -> boo
     return filled is not None and filled.canonical() == meaning.canonical()
 
 
-def add_links(form: Tuple[Piece, ...], meaning: Meaning, view: PatternInventory) -> Optional[Repair]:
+def add_links(form: Tuple[Piece, ...], meaning: Meaning, view: PatternInventory, *,
+              names: Optional[Mapping[str, str]] = None) -> Optional[Repair]:
     """(i) The constructions that read the pair are held, and only their links are missing."""
     words = tuple(p.text for p in form)
     shaped = _written_shapes(view, words)[0]
@@ -3681,7 +6259,7 @@ def add_links(form: Tuple[Piece, ...], meaning: Meaning, view: PatternInventory)
         if not view.counts(pattern):
             continue
         for spans in _chunkings(pattern.form, words, shaped=shaped):
-            frame = _as_written(pattern, words, spans)
+            frame = _as_written(pattern, words, spans, form)
             if frame is not pattern:
                 # The frame as written is another construction: held, its links may be all that is missing; not
                 # held, it is not a matter of links.
@@ -3709,7 +6287,8 @@ def add_links(form: Tuple[Piece, ...], meaning: Meaning, view: PatternInventory)
     return Repair("add_links", links=best[1]) if best else None
 
 
-def item_based_lexical(form: Tuple[Piece, ...], meaning: Meaning, view: PatternInventory) -> Optional[Repair]:
+def item_based_lexical(form: Tuple[Piece, ...], meaning: Meaning, view: PatternInventory, *,
+                       names: Optional[Mapping[str, str]] = None) -> Optional[Repair]:
     """(ii) An item-based construction reads the pair but for what fills a slot: that filler is created, as a name
     reading could take as new (`_may_be_new`): "An ocelot" holds "an", a word that builds sentences, so "ocelot" is
     the name, in "A ?slot0 is a ?slot1." written as the sentence writes it."""
@@ -3722,37 +6301,65 @@ def item_based_lexical(form: Tuple[Piece, ...], meaning: Meaning, view: PatternI
             continue
         for spans in _chunkings(pattern.form, words, shaped=shaped):
             # Read through a frame whose word it writes in another shape, the sentence teaches that frame as written.
-            frame = _as_written(pattern, words, spans)
+            frame = _as_written(pattern, words, spans, form)
             frame = view.get(frame.key) or frame
             new_frame = () if frame.key in view else (frame,)
+            # A frame held and no longer believed is one this pair supports again: given to `_repair`, it is revived.
+            revives = frame.key in view and not view.counts(frame)
             for values in _slot_values(pattern, meaning):
                 fillers, created = [], []
                 for slot, (start, end) in zip(pattern.slots, spans):
                     held = [lx for lx in view.lexicals_with_words(words[start:end])
                             if lx.value == values[slot] and view.counts(lx)]
-                    if not held and (not _may_be_new(form[start:end], view, MAX_TERM_WORDS)
-                                     or _names_within(view, words[start:end], values[slot])):
+                    if not held and (not _may_be_new(form[start:end], view, MAX_TERM_WORDS,
+                                                     given=_given_whole(words[start:end], values[slot], names))
+                                     or _names_within(view, words[start:end], values[slot], names)):
+                        break
+                    # A NEW WORD FOR WHAT ANOTHER PLACE OF THE SENTENCE NAMES points back to it, and names nothing:
+                    # "himself" in "Tom helped himself." is Tom because Tom did the helping. Held as a name of Tom,
+                    # and of Rex after "Rex helped himself.", "Tom helped himself." also read as Tom helping Rex.
+                    if not held and any(values[other] == values[slot] for other in pattern.slots if other != slot):
                         break
                     filler = held[0] if held else Lexical(form[start:end], values[slot])
                     if not held:
                         created.append(filler)
                     fillers.append((slot, filler))
                 else:
-                    if not created:
+                    # With every filler held, the frame as written is what the pair teaches ("An adult male is a
+                    # kind of adult.", read through "A ?slot0 is a kind of ?slot1."). `add_links` leaves a frame
+                    # not held alone; left here too, the pair went on to a frame built of its own words ("An
+                    # ?slot0 ?slot1 is a kind of adult.").
+                    if not created and not new_frame and not revives:
                         continue
                     links = tuple(link(frame, s, lx) for s, lx in fillers
                                   if view.link_between(frame.key, s, lx.key) is None)
                     rank = (len(created) + len(new_frame), len(links), -view.score(pattern), frame.key)
                     if best is None or rank < best[0]:
-                        best = (rank, tuple(created) + new_frame, links)
+                        best = (rank, tuple(created) + (frame,), links)
     if best is None:
         return None
     return _repair("item_based_lexical", view, best[1], best[2])
 
 
-def _names_within(view: PatternInventory, words: Sequence[str], concept: str) -> bool:
+def _given_whole(words: Sequence[str], concept: str, names: Optional[Mapping[str, str]] = None) -> bool:
+    """Whether the teacher wrote this run of words as this concept's word (`names`, concept -> word). The word is
+    taken as a sentence writes it: "ship's company" is "ship", "'s", "company"."""
+    written = (names or {}).get(concept)
+    return bool(written) and _loose(tuple(p.text for p in form_of(str(written)))) == _loose(tuple(words))
+
+
+def _names_within(view: PatternInventory, words: Sequence[str], concept: str,
+                  names: Optional[Mapping[str, str]] = None) -> bool:
     """Whether a run of several words holds, as part of it, a word or run held as a name of this very concept ("All
-    birds", where "birds" names `bird`): the rest is not part of the name, and belongs to the frame."""
+    birds", where "birds" names `bird`): the rest is not part of the name, and belongs to the frame.
+
+    NOT WHERE THE TEACHER WROTE THE RUN AS THE CONCEPT'S WORD (`names`, concept -> word). WordNet writes `computer`
+    "electronic computer" as well as "computer"; taken apart, "electronic" went into the frame ("An electronic ?slot0
+    is a kind of ?slot1.": an electronic dog, a kind of animal), "electronic device" could then be no name, and "A
+    mouse is an electronic device." taught no word of the mouse. A new word beside a held name of the concept is
+    the same to the learner in "All birds" and in "electronic computer"; only the teacher knows which is a name."""
+    if _given_whole(words, concept, names):
+        return False
     for start in range(len(words)):
         for end in range(start + 1, len(words) + 1):
             if end - start == len(words):
@@ -3776,16 +6383,17 @@ def _common_ends(a: Tuple[str, ...], b: Tuple[str, ...]) -> Tuple[int, int]:
     return prefix, suffix
 
 
-def _shape(fact: MeaningFact) -> Tuple[str, bool, bool, bool, str, str]:
-    return (fact.relation, fact.positive, fact.condition, fact.alternative,
+def _shape(fact: MeaningFact) -> Tuple[str, bool, bool, bool, bool, bool, str, str]:
+    return (fact.relation, fact.positive, fact.condition, fact.alternative, fact.unasserted, fact.given,
             "?" if is_variable(fact.subject) and not _named(fact.subject) else fact.subject,
             "?" if is_variable(fact.obj) and not _named(fact.obj) else fact.obj)
 
 
-def _role(fact: MeaningFact) -> Tuple[str, bool, bool, bool]:
+def _role(fact: MeaningFact) -> Tuple[str, bool, bool, bool, bool, bool]:
     """What a fact can only be compared with: the same link kind, the same polarity, on the same side of an `if`,
-    and an alternative only with an alternative."""
-    return (fact.relation, fact.positive, fact.condition, fact.alternative)
+    an alternative only with an alternative, what is not told as so only with what is not, and what is taken as
+    known only with what is."""
+    return (fact.relation, fact.positive, fact.condition, fact.alternative, fact.unasserted, fact.given)
 
 
 def _similar_first(view: PatternInventory, words: Tuple[str, ...], meaning: Meaning) -> List[Pattern]:
@@ -3814,7 +6422,9 @@ def _encoded(fact: MeaningFact, tokens: Dict[str, str]):
 
     predicate = fact.relation if fact.positive else f"not_{fact.relation}"
     predicate = f"or_{predicate}" if fact.alternative else predicate
-    return Fact(f"if_{predicate}" if fact.condition else predicate, (term(fact.subject), term(fact.obj)))
+    predicate = f"if_{predicate}" if fact.condition else predicate
+    predicate = f"given_{predicate}" if fact.given else predicate
+    return Fact(f"unasserted_{predicate}" if fact.unasserted else predicate, (term(fact.subject), term(fact.obj)))
 
 
 def _pairings(left: Tuple[MeaningFact, ...], right: Tuple[MeaningFact, ...]) -> Iterator[Tuple[int, ...]]:
@@ -3862,7 +6472,7 @@ def _substitution(held: Meaning, observed: Meaning) -> Optional[Tuple[Meaning, s
         for fact, original in zip(generalized, held.facts):
             subject, obj = (names.get(t, concept.get(t, t)) for t in fact.args)
             facts.append(MeaningFact(original.relation, subject, obj, original.positive, original.condition,
-                                     original.alternative))
+                                     original.alternative, original.unasserted, original.given))
         try:
             shared = Meaning(held.act, tuple(facts), held.asked)
         except ValueError:
@@ -3965,7 +6575,9 @@ def _open_matches(partial: Tuple[MeaningFact, ...], slot: str, target: Tuple[Mea
 def _tied(about: str, facts: Sequence[MeaningFact], outside: FrozenSet[str]) -> bool:
     """Whether every one of these facts is about `about`, or about an unknown of their own the others tie to it:
     "two hundred and six" is a number whose addends are 6 and a number, that one's factors 2 and 100. A fact not
-    about `about` names nothing of `outside`, what the rest of the sentence names."""
+    about `about` names nothing of `outside`, what the rest of the sentence names; and none names an unknown the rest
+    of the sentence names, since a phrase's unknowns are its own: "helped herself" from "The girl helped herself.",
+    holding the girl as an unknown, would point "herself" at nobody."""
     reached, left = {about}, list(facts)
     while True:
         tied = [f for f in left if reached & set(f.terms())]
@@ -3973,6 +6585,8 @@ def _tied(about: str, facts: Sequence[MeaningFact], outside: FrozenSet[str]) -> 
             return not left
         for fact in tied:
             if about not in fact.terms() and outside & set(fact.terms()):
+                return False
+            if any(is_variable(t) and not _named(t) and t != about and t in outside for t in fact.terms()):
                 return False
             reached.update(t for t in fact.terms() if is_variable(t) and not _named(t) and t not in outside)
             left.remove(fact)
@@ -4006,7 +6620,7 @@ def _what_the_slot_adds(pattern: Pattern, values: Mapping[str, str], slot: str,
             if is_variable(kind) or not is_variable(thing):
                 continue
             about, anchor = thing, "?n"
-            facts = (MeaningFact("instance_of", "?n", kind),)
+            facts = (MeaningFact("instance_of", "?n", kind, given=uses[0].given),)
         else:
             about = names[slot]
             anchor = "?n" if is_variable(about) and not _named(about) else about
@@ -4020,7 +6634,8 @@ def _what_the_slot_adds(pattern: Pattern, values: Mapping[str, str], slot: str,
         if not _tied(about, extra, outside) or any(f.condition != extra[0].condition for f in extra):
             continue
         facts += tuple(MeaningFact(f.relation, anchor if f.subject == about else f.subject,
-                                   anchor if f.obj == about else f.obj, f.positive) for f in extra)
+                                   anchor if f.obj == about else f.obj, f.positive, f.condition, f.alternative,
+                                   f.unasserted, f.given) for f in extra)
         return anchor, facts, any(about not in f.terms() for f in extra)
     return None
 
@@ -4242,8 +6857,9 @@ def _phrase_substitution(general: Phrase, fillers: Mapping[str, Lexical], view: 
         return _fold(a.text) == _fold(b.text)
 
     for held in view.phrases():
-        if not view.counts(held) or held.key == general.key or len(held.form) != len(general.form) \
-                or held.anchor != general.anchor:
+        # Whether a phrase is held at all is asked of memory, the costliest test, so last.
+        if held.key == general.key or len(held.form) != len(general.form) or held.anchor != general.anchor \
+                or not view.counts(held):
             continue
         differ = [i for i, (a, b) in enumerate(zip(held.form, general.form)) if not same(a, b)]
         if len(differ) != 1 or not all(isinstance(x.form[differ[0]], Piece) for x in (held, general)):
@@ -4275,7 +6891,18 @@ def _phrase_substitution(general: Phrase, fillers: Mapping[str, Lexical], view: 
     return None
 
 
-def phrase_in_slot(form: Tuple[Piece, ...], meaning: Meaning, view: PatternInventory) -> Optional[Repair]:
+def _points_back(phrase: Phrase, pieces: Tuple[Piece, ...], named: Iterable[str]) -> bool:
+    """Whether a phrase holds, as its own, a concept another place of its sentence names (`named`) while none of its
+    own words names it: then its words point back to that place ("itself"), and say nothing of the concept."""
+    own = {t for f in phrase.facts for t in f.terms() if not is_variable(t)}
+    if not is_variable(phrase.anchor):
+        own.add(phrase.anchor)
+    written = " ".join(_loose(tuple(p.text for p in pieces)))
+    return any(concept in own and _fold(str(concept).replace("_", " ")) not in written for concept in set(named))
+
+
+def phrase_in_slot(form: Tuple[Piece, ...], meaning: Meaning, view: PatternInventory, *,
+                   names: Optional[Mapping[str, str]] = None) -> Optional[Repair]:
     """(ii b) An item-based construction reads the pair but for one slot, whose words say more than one concept: what
     the pair's meaning adds there is a phrase pair, learned as one (`_phrase_repair`) and linked to the slot. A
     sentence pair can yield a phrase pair, and a phrase is read inside the slots of every construction that takes
@@ -4309,18 +6936,26 @@ def phrase_in_slot(form: Tuple[Piece, ...], meaning: Meaning, view: PatternInven
                         if learned is None:
                             continue
                         phrase, created, links = learned
+                        # A PHRASE THAT HOLDS WHAT ANOTHER PLACE OF THE SENTENCE NAMES, with no word of its own for
+                        # it, points back to that place: "hurt itself", after "The cat", is a hurting done to the one
+                        # who did it, not to cats. Held as it was read once, "The dog hurt itself." read as the dog
+                        # hurting the cat.
+                        if _points_back(phrase, form[start:end], values.values()):
+                            continue
                         slot_links = tuple(link(frame, slot, lx) for (slot, _), lx in zip(others, combo)
                                            if view.link_between(frame.key, slot, lx.key) is None)
                         if view.link_between(frame.key, open_slot, phrase.key) is None:
                             slot_links += (link(frame, open_slot, phrase),)
-                        if not created and not slot_links and not links:
+                        # A frame held and no longer believed is one this pair supports again: given to `_repair`, it
+                        # is revived.
+                        if not created and not slot_links and not links and view.counts(frame):
                             continue
-                        new_frame = () if frame.key in view else (frame,)
-                        return _repair("phrase_in_slot", view, tuple(created) + new_frame, links + slot_links)
+                        return _repair("phrase_in_slot", view, tuple(created) + (frame,), links + slot_links)
     return None
 
 
-def substitution(form: Tuple[Piece, ...], meaning: Meaning, view: PatternInventory) -> Optional[Repair]:
+def substitution(form: Tuple[Piece, ...], meaning: Meaning, view: PatternInventory, *,
+                 names: Optional[Mapping[str, str]] = None) -> Optional[Repair]:
     """(iii) A held holophrase differs from the pair in one place of its form and one concept of its meaning: an
     item-based construction with a slot there, a filler for each side, and their two links."""
     words = tuple(p.text for p in form)
@@ -4336,7 +6971,7 @@ def substitution(form: Tuple[Piece, ...], meaning: Meaning, view: PatternInvento
         generalized, concept_held, concept_observed = shared
         # Neither filler is a held name of its concept with other words ("All birds", where "birds" names `bird`).
         if _names_within(view, tuple(p.text for p in mine), concept_held) \
-                or _names_within(view, tuple(p.text for p in theirs), concept_observed):
+                or _names_within(view, tuple(p.text for p in theirs), concept_observed, names):
             continue
         try:
             pattern = Pattern(held.form[:prefix] + (Slot(slot_name(0), mine[-1].space_after),)
@@ -4349,14 +6984,15 @@ def substitution(form: Tuple[Piece, ...], meaning: Meaning, view: PatternInvento
             continue
         return _repair("substitution", view, (pattern,) + fillers,
                        (link(pattern, slot_name(0), f) for f in fillers))
-    return _frame_substitution(form, meaning, view)
+    return _frame_substitution(form, meaning, view, names=names)
 
 
 #: The slot a frame substitution opens, before the frame's slots are named again by their place.
 _HERE = slot_name(99)
 
 
-def _frame_substitution(form: Tuple[Piece, ...], meaning: Meaning, view: PatternInventory) -> Optional[Repair]:
+def _frame_substitution(form: Tuple[Piece, ...], meaning: Meaning, view: PatternInventory, *,
+                        names: Optional[Mapping[str, str]] = None) -> Optional[Repair]:
     """Substitution from a held item-based construction: it differs from the pair in one word of its own, and its
     meaning, filled with the pair's other fillers, differs from the pair's in the one concept that word names ("The
     ?slot0 is bigger than the ?slot1." and "The bird is smaller than the dog."). The construction with a slot there
@@ -4372,7 +7008,7 @@ def _frame_substitution(form: Tuple[Piece, ...], meaning: Meaning, view: Pattern
     for held in view.item_based():
         own = own_words(held)
         shared = sum(1 for i in own if held.form[i].text in present)
-        if view.counts(held) and len(own) >= 2 and shared >= len(own) - 1:
+        if view.counts(held) and own and shared >= len(own) - 1:
             frames.append((-shared, -view.score(held), held.key, held))
     for _, _, _, held in sorted(frames):
         for i in own_words(held):
@@ -4399,19 +7035,20 @@ def _frame_substitution(form: Tuple[Piece, ...], meaning: Meaning, view: Pattern
                     _, concept_held, concept_observed = shared
                     if concept_held not in held.meaning.constants():
                         continue
-                    names = {name: slot_name(k) for k, name in enumerate(order)}
-                    generalized = _renamed(_renamed(held.meaning, {concept_held: _HERE}) or held.meaning, names) \
+                    slots = {name: slot_name(k) for k, name in enumerate(order)}
+                    generalized = _renamed(_renamed(held.meaning, {concept_held: _HERE}) or held.meaning, slots) \
                         if concept_held in held.meaning.constants() else None
                     if generalized is None:
                         continue
                     start, end = where[_HERE]
                     from core.semantics.cognitive_ingress import MAX_TERM_WORDS
                     if not view.lexicals_with_words(words[start:end]) \
-                            and (not _may_be_new(form[start:end], view, MAX_TERM_WORDS)
-                                 or _names_within(view, words[start:end], concept_observed)):
+                            and (not _may_be_new(form[start:end], view, MAX_TERM_WORDS,
+                                                 given=_given_whole(words[start:end], concept_observed, names))
+                                 or _names_within(view, words[start:end], concept_observed, names)):
                         continue               # a name reading could take as new, as `item_based_lexical` asks
                     try:
-                        pattern = Pattern(tuple(Slot(names[e.name], e.space_after) if isinstance(e, Slot) else e
+                        pattern = Pattern(tuple(Slot(slots[e.name], e.space_after) if isinstance(e, Slot) else e
                                                 for e in probe), generalized)
                         # A filler held for the word and its concept is the one linked; one is made where none is.
                         pair = tuple(
@@ -4421,12 +7058,16 @@ def _frame_substitution(form: Tuple[Piece, ...], meaning: Meaning, view: Pattern
                                                     (form[start:end], concept_observed)))
                     except ValueError:
                         continue
-                    given = {names[s]: v for s, v in values.items()}
-                    if not (_gives(pattern, {**given, names[_HERE]: concept_observed}, meaning)
-                            and _gives(pattern, {**given, names[_HERE]: concept_held}, bound)):
+                    given = {slots[s]: v for s, v in values.items()}
+                    if not (_gives(pattern, {**given, slots[_HERE]: concept_observed}, meaning)
+                            and _gives(pattern, {**given, slots[_HERE]: concept_held}, bound)):
                         continue
-                    links = [link(pattern, names[_HERE], f) for f in pair]
-                    links += [link(pattern, names[s], f) for s, f in fillers.items()]
+                    links = [link(pattern, slots[_HERE], f) for f in pair]
+                    links += [link(pattern, slots[s], f) for s, f in fillers.items()]
+                    # The held construction is this one with its word in place, so what stood in its slots stands in
+                    # the same slots here: "Dogs ?slot0." held "bark" and "swim", and "?slot0 ?slot1." holds them too.
+                    links += [link(pattern, slots[s], f) for s in held.slots for f in view.fillers(held.key, s)
+                              if f.key != fillers.get(s, f).key or s not in fillers]
                     return _repair("substitution", view, (pattern,) + pair, links)
     return None
 
@@ -4442,7 +7083,8 @@ def _insertion(short: Tuple[str, ...], long: Tuple[str, ...]) -> Optional[Tuple[
     return prefix, len(long) - suffix
 
 
-def addition(form: Tuple[Piece, ...], meaning: Meaning, view: PatternInventory) -> Optional[Repair]:
+def addition(form: Tuple[Piece, ...], meaning: Meaning, view: PatternInventory, *,
+             names: Optional[Mapping[str, str]] = None) -> Optional[Repair]:
     """(iv) The pair adds to a held holophrase one run of words and facts bringing one concept: an item-based
     construction with a slot there, a filler, and its link."""
     words = tuple(p.text for p in form)
@@ -4469,7 +7111,8 @@ def addition(form: Tuple[Piece, ...], meaning: Meaning, view: PatternInventory) 
     return None
 
 
-def deletion(form: Tuple[Piece, ...], meaning: Meaning, view: PatternInventory) -> Optional[Repair]:
+def deletion(form: Tuple[Piece, ...], meaning: Meaning, view: PatternInventory, *,
+             names: Optional[Mapping[str, str]] = None) -> Optional[Repair]:
     """(v) The pair lacks, of a held holophrase, one run of words and the facts bringing one concept: a holophrase
     for the pair, and from the held one an item-based construction with a slot there, a filler, and its link."""
     words = tuple(p.text for p in form)
@@ -4576,11 +7219,35 @@ def _covering_fillers(view: PatternInventory, form: Tuple[Piece, ...],
             chosen.append((at, at + 1, filler))
             created.append(filler)
             used.add(value)
+    # SO IS A DAY OR A TIME OF DAY, in one word or several ("October 5", "7:30 p.m."): what its writing names is a
+    # concept of the pair, and the construction has a slot where it stands ("?slot0 walked on ?slot1.", never
+    # "?slot0 walked on October 5."). The longest run that writes one is taken.
+    covered = {k for start, end, _ in chosen for k in range(start, end)}
+    at = 0
+    while at < len(form):
+        found = None
+        for end in range(min(len(form), at + 5), at, -1):
+            if any(k in covered for k in range(at, end)):
+                continue
+            value = _named_as(form[at:end])
+            if _temporal(value) and value in concepts and value not in used:
+                found = (end, Lexical(form[at:end], value))
+                break
+        if found is None:
+            at += 1
+            continue
+        end, filler = found
+        chosen.append((at, end, filler))
+        created.append(filler)
+        used.add(filler.value)
+        covered.update(range(at, end))
+        at = end
     chosen.sort(key=lambda item: item[0])
     return chosen, created
 
 
-def lexical_item_based(form: Tuple[Piece, ...], meaning: Meaning, view: PatternInventory) -> Optional[Repair]:
+def lexical_item_based(form: Tuple[Piece, ...], meaning: Meaning, view: PatternInventory, *,
+                       names: Optional[Mapping[str, str]] = None) -> Optional[Repair]:
     """(vi) Held fillers cover parts of the pair: an item-based construction with a slot for each, several at once,
     and their links."""
     chosen, created = _covering_fillers(view, form, meaning.constants())
@@ -4606,7 +7273,8 @@ def lexical_item_based(form: Tuple[Piece, ...], meaning: Meaning, view: PatternI
                    (link(pattern, slot_name(i), lx) for i, (_, _, lx) in enumerate(chosen)))
 
 
-def holophrase(form: Tuple[Piece, ...], meaning: Meaning, view: PatternInventory) -> Optional[Repair]:
+def holophrase(form: Tuple[Piece, ...], meaning: Meaning, view: PatternInventory, *,
+               names: Optional[Mapping[str, str]] = None) -> Optional[Repair]:
     """(vii) Nothing else applies: the whole pair, as it was said. If it is held already but no longer believed,
     this pair supports it again."""
     whole = Pattern(form, meaning)
@@ -4624,7 +7292,7 @@ REPAIRS = (add_links, item_based_lexical, phrase_in_slot, substitution, addition
 
 
 __all__ = ["ENGLISH_DOMAIN", "PATTERN_TAG", "ACTS", "SITUATION_VARIABLES", "VERDICTS", "MAX_FREE_VARIABLES",
-           "INITIAL_SCORE", "COUNTS_FROM", "MeaningFact", "Meaning", "Slot", "Pattern", "Lexical", "Link",
+           "INITIAL_SCORE", "MeaningFact", "Meaning", "Slot", "Pattern", "Lexical", "Link",
            "KIND_OF", "item_from", "link", "Phrase", "PatternInventory", "Reading", "Stretch", "Utterance", "Repair",
            "REPAIRS",
            "REPAIR_NAMES", "is_variable", "is_slot", "slot_name", "pattern_from", "live_view", "read", "read_text",

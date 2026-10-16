@@ -39,7 +39,7 @@ from datetime import datetime
 import xml.etree.ElementTree as ET
 
 from .tool_registry import Tool, ToolParameter, ToolResult, ToolCategory, ToolSafety
-from .capabilities import Capability, ToolCapabilityProfile, CapabilityMetadata, RiskLevel
+from .tool_registry import Primitive, PrimitiveProfile, PrimitiveUse
 
 logger = logging.getLogger(__name__)
 
@@ -70,24 +70,19 @@ class AnalyzeResearchPaperTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="analyze_research_paper",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.CONDUCT_RESEARCH,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.CONDUCT_RESEARCH,
                     description="AnalyzeResearchPaper capability"
                 ),
-                CapabilityMetadata(
-                    capability=Capability.ANALYZE_PAPER,
+                PrimitiveUse(
+                    primitive=Primitive.ANALYZE_PAPER,
                     description="Extract insights and methodology from research papers",
                     input_types=["paper_text"],
-                    output_types=["analysis"],
-                    latency="high",
-                    cost="medium",
-                    reliability="high",
-                    risk_level=RiskLevel.LOW,
-                    priority=9
+                    output_types=["analysis"]
                 )
             ]
         )
@@ -252,24 +247,19 @@ class GenerateCitationTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="generate_citation",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.CONDUCT_RESEARCH,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.CONDUCT_RESEARCH,
                     description="GenerateCitation capability"
                 ),
-                CapabilityMetadata(
-                    capability=Capability.GENERATE_CITATION,
+                PrimitiveUse(
+                    primitive=Primitive.GENERATE_CITATION,
                     description="Generate formatted citations in various styles",
                     input_types=["paper_metadata", "style"],
-                    output_types=["citation"],
-                    latency="low",
-                    cost="low",
-                    reliability="high",
-                    risk_level=RiskLevel.LOW,
-                    priority=8
+                    output_types=["citation"]
                 )
             ]
         )
@@ -396,12 +386,12 @@ class SynthesizeLiteratureTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="synthesize_literature",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.CONDUCT_RESEARCH,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.CONDUCT_RESEARCH,
                     description="SynthesizeLiterature capability"
                 )
             ]
@@ -527,12 +517,12 @@ class ExtractPaperMetadataTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="extract_paper_metadata",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.CONDUCT_RESEARCH,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.CONDUCT_RESEARCH,
                     description="ExtractPaperMetadata capability"
                 )
             ]
@@ -627,12 +617,12 @@ class AnalyzeResearchDataTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="analyze_research_data",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.CONDUCT_RESEARCH,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.CONDUCT_RESEARCH,
                     description="AnalyzeResearchData capability"
                 )
             ]
@@ -763,12 +753,12 @@ class GenerateLatexDocumentTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="generate_latex_document",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.CONDUCT_RESEARCH,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.CONDUCT_RESEARCH,
                     description="GenerateLatexDocument capability"
                 )
             ]
@@ -909,24 +899,19 @@ class CreateResearchGraphTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="create_research_graph",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.CONDUCT_RESEARCH,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.CONDUCT_RESEARCH,
                     description="CreateResearchGraph capability"
                 ),
-                CapabilityMetadata(
-                    capability=Capability.BUILD_KNOWLEDGE_GRAPH,
+                PrimitiveUse(
+                    primitive=Primitive.BUILD_KNOWLEDGE_GRAPH,
                     description="Build knowledge graphs from research data",
                     input_types=["entities", "relations"],
-                    output_types=["graph"],
-                    latency="medium",
-                    cost="medium",
-                    reliability="high",
-                    risk_level=RiskLevel.LOW,
-                    priority=8
+                    output_types=["graph"]
                 )
             ]
         )
@@ -1068,12 +1053,12 @@ class GenerateArchitectureDiagramTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="generate_architecture_diagram",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.CONDUCT_RESEARCH,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.CONDUCT_RESEARCH,
                     description="GenerateArchitectureDiagram capability"
                 )
             ]
@@ -1229,12 +1214,12 @@ class CreateFlowchartTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="create_flowchart",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.CONDUCT_RESEARCH,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.CONDUCT_RESEARCH,
                     description="CreateFlowchart capability"
                 )
             ]
@@ -1380,12 +1365,12 @@ class FetchPaperByDOITool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="fetch_paper_by_doi",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.CONDUCT_RESEARCH,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.CONDUCT_RESEARCH,
                     description="FetchPaperByDOI capability"
                 )
             ]
@@ -1481,12 +1466,12 @@ class FetchPaperByArxivTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="fetch_paper_by_arxiv",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.CONDUCT_RESEARCH,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.CONDUCT_RESEARCH,
                     description="FetchPaperByArxiv capability"
                 )
             ]
@@ -1568,24 +1553,19 @@ class ValidateBibliographyTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="validate_bibliography",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.CONDUCT_RESEARCH,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.CONDUCT_RESEARCH,
                     description="ValidateBibliography capability"
                 ),
-                CapabilityMetadata(
-                    capability=Capability.VALIDATE_KNOWLEDGE,
+                PrimitiveUse(
+                    primitive=Primitive.VALIDATE_KNOWLEDGE,
                     description="Validate bibliography and knowledge sources",
                     input_types=["bibliography"],
-                    output_types=["validation_report"],
-                    latency="medium",
-                    cost="low",
-                    reliability="high",
-                    risk_level=RiskLevel.LOW,
-                    priority=7
+                    output_types=["validation_report"]
                 )
             ]
         )
@@ -1712,12 +1692,12 @@ class ExportBibliographyCSLTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="export_bibliography_csl",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.CONDUCT_RESEARCH,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.CONDUCT_RESEARCH,
                     description="ExportBibliographyCSL capability"
                 )
             ]
@@ -1805,12 +1785,12 @@ class LinkClaimToEvidenceTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="link_claim_to_evidence",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.CONDUCT_RESEARCH,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.CONDUCT_RESEARCH,
                     description="LinkClaimToEvidence capability"
                 )
             ]
@@ -1883,12 +1863,12 @@ class GenerateArtifactManifestTool(Tool):
             )
         ]
 
-        # Capability profile
-        self.capability_profile = ToolCapabilityProfile(
+        # What this tool performs
+        self.primitive_profile = PrimitiveProfile(
             tool_name="generate_artifact_manifest",
-            capabilities=[
-                CapabilityMetadata(
-                    capability=Capability.CONDUCT_RESEARCH,
+            primitives=[
+                PrimitiveUse(
+                    primitive=Primitive.CONDUCT_RESEARCH,
                     description="GenerateArtifactManifest capability"
                 )
             ]

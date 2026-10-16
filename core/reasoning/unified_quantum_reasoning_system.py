@@ -14,6 +14,7 @@ Features:
 
 import logging
 import asyncio
+import math
 import warnings
 from dataclasses import dataclass, field
 from typing import Dict, Any, List, Optional, Tuple
@@ -514,7 +515,7 @@ class UnifiedQuantumReasoningSystem:
                     candidate_value = objective(candidate)
                     delta = candidate_value - best_value
 
-                    if delta > 0 or random.random() < np.exp(delta / temperature):
+                    if delta > 0 or random.random() < math.exp(delta / temperature):
                         best_solution = candidate
                         best_value = candidate_value
 

@@ -1,0 +1,314 @@
+{
+  "experiment": "FRESH-LESSON-03",
+  "claim": "Taught a third lesson no experiment has taught or tested, written after the first two lessons' fixes, Lyric holds every fact it states as a fact, a belief and a memory; reads sentences it was never taught, in shapes it had and in two it learned from three sentences each; answers questions from what was taught, including who holds a relation to a thing, writes a word's plural as it was taught, and says it does not know what was never stated; keeps it across a restart; does not grow surer from being told again; and answers a fact a weaker source denied as the belief in it stands, once.",
+  "hypothesis": "Any fact refused, missing from the graph or moving no belief; any sentence read otherwise than written here; a new shape read before it was taught or not read after; a wrong, made-up or crashed answer; a plural written otherwise than taught; a reading lost on restart; a belief moved by the same lesson again, or not moved by the contradiction; an answer turned, or contradicted, by the weaker source; or a write to the main store, each shows here.",
+  "started_at": "2026-10-04T19:56:18.781109+00:00",
+  "duration_seconds": 723.624,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/Lyric/venv_lyric/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/Lyric",
+    "shadow_mode": null,
+    "git_commit": "a3aad59e25603e309479c542053a1e733fb70ce7",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "lyric_dev",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "lyric_dev",
+        "model": "lyric_dev",
+        "user_context": "lyric_dev",
+        "learning": "lyric_dev"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "environment",
+        "database": "environment",
+        "user": "environment",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "pool_idle_seconds": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 45,
+    "database_verified": null,
+    "database_verified_reason": "no initialized connection in this process"
+  },
+  "summary": {
+    "checks": 32,
+    "passed": 31,
+    "failed": 1,
+    "outcome": "FAIL"
+  },
+  "metrics": [
+    {
+      "name": "beliefs in what the lesson denies",
+      "value": {
+        "fosk isa horse": 0.47640778702382314
+      },
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "answers",
+      "value": [
+        {
+          "asked": "What is a larth?",
+          "reply": "A larth is a horse."
+        },
+        {
+          "asked": "Is a larth a horse?",
+          "reply": "Yes. A larth is a horse."
+        },
+        {
+          "asked": "Is a fosk a horse?",
+          "reply": "No. A fosk is not a horse."
+        },
+        {
+          "asked": "Is a larth an animal?",
+          "reply": "Yes. Larths are animals."
+        },
+        {
+          "asked": "Can a larth run?",
+          "reply": "Yes. Larths can run."
+        },
+        {
+          "asked": "Is a brell a plant?",
+          "reply": "Yes. A brell is a plant."
+        },
+        {
+          "asked": "What is a jimp made of?",
+          "reply": "A jimp is made of glass."
+        },
+        {
+          "asked": "Is Talo a person?",
+          "reply": "Yes. Talo is a person."
+        },
+        {
+          "asked": "Who owns the larth?",
+          "reply": "Talo has a larth."
+        },
+        {
+          "asked": "Is the jimp behind the door?",
+          "reply": "Yes. The jimp is behind the door."
+        },
+        {
+          "asked": "Is a larth red?",
+          "reply": "I do not know whether the larth is red."
+        },
+        {
+          "asked": "Where is a quib kept?",
+          "reply": "I remember: A quib is kept in a room.\nA quib is an animal. A quib is kept in a room.\nI hold nothing for keep. Tell me what it is and I will keep it."
+        },
+        {
+          "asked": "Where does a voth sleep?",
+          "reply": "I remember: A voth sleeps in a room.\nA voth is an animal. A voth sleeps in a room.\nI hold nothing for sleep. Tell me what it is and I will keep it."
+        }
+      ],
+      "unit": "",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "the run is in the sandbox, emptied first",
+      "passed": true,
+      "detail": "connected to lyric_dev; reset exit 0",
+      "at": "2026-10-04T19:56:41.282800+00:00"
+    },
+    {
+      "label": "the 30 lessons are learned, none refused",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-04T20:07:00.887708+00:00"
+    },
+    {
+      "label": "the two new shapes are not read before the lesson",
+      "passed": true,
+      "detail": "['tell: done_to(?v0, larth) & instance_of(?v0, keep) & located_in(?v0, school)', 'tell: done_to(?v0, fosk) & instance_of(?v0, keep) & located_in(?v0, box)', 'tell: done_to(?v0, brell) & instance_of(?v0, keep) & located_in(?v0, room)', None, None, None]",
+      "at": "2026-10-04T20:07:01.052783+00:00"
+    },
+    {
+      "label": "every sentence of the lesson is learned, none refused",
+      "passed": true,
+      "detail": "{'learned': 16, 'linked': 44, 'already': 2, 'understood': 13, 'refused': 0, 'total': 29, 'repair_add_links': 11, 'repair_item_based_lexical': 13, 'repair_phrase_in_slot': 1, 'repair_lexical_item_based': 2, 'said': 23}",
+      "at": "2026-10-04T20:07:24.246814+00:00"
+    },
+    {
+      "label": "every fact the lesson states is in the concept graph",
+      "passed": true,
+      "detail": "28 of 28; missing: []",
+      "at": "2026-10-04T20:07:24.276032+00:00"
+    },
+    {
+      "label": "every fact it states as true moved a belief above even",
+      "passed": true,
+      "detail": "27 beliefs",
+      "at": "2026-10-04T20:07:24.276093+00:00"
+    },
+    {
+      "label": "each new word is a memory found by meaning",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-04T20:07:24.467342+00:00"
+    },
+    {
+      "label": "each new word is held in the lesson's domain",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-04T20:07:24.467367+00:00"
+    },
+    {
+      "label": "each new word has the class its use shows: a noun",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-04T20:07:24.467379+00:00"
+    },
+    {
+      "label": "never-taught sentences in shapes the lessons teach are read as written here",
+      "passed": true,
+      "detail": "8 of 8",
+      "at": "2026-10-04T20:07:25.342655+00:00"
+    },
+    {
+      "label": "the new shape 'is kept in', learned from three sentences, reads three it never had",
+      "passed": true,
+      "detail": "3 of 3",
+      "at": "2026-10-04T20:07:26.043194+00:00"
+    },
+    {
+      "label": "the new shape 'sleeps in', learned from three sentences, reads three it never had",
+      "passed": false,
+      "detail": "2 of 3",
+      "at": "2026-10-04T20:07:26.673703+00:00"
+    },
+    {
+      "label": "'What is a larth?': says a larth is a horse",
+      "passed": true,
+      "detail": "A larth is a horse.",
+      "at": "2026-10-04T20:07:27.818025+00:00"
+    },
+    {
+      "label": "'Is a larth a horse?': yes",
+      "passed": true,
+      "detail": "Yes. A larth is a horse.",
+      "at": "2026-10-04T20:07:28.950859+00:00"
+    },
+    {
+      "label": "'Is a fosk a horse?': no",
+      "passed": true,
+      "detail": "No. A fosk is not a horse.",
+      "at": "2026-10-04T20:07:29.981989+00:00"
+    },
+    {
+      "label": "'Is a larth an animal?': yes, and 'larth' in the plural is 'larths', as taught",
+      "passed": true,
+      "detail": "Yes. Larths are animals.",
+      "at": "2026-10-04T20:07:31.189815+00:00"
+    },
+    {
+      "label": "'Can a larth run?': yes: horses can run",
+      "passed": true,
+      "detail": "Yes. Larths can run.",
+      "at": "2026-10-04T20:07:34.516415+00:00"
+    },
+    {
+      "label": "'Is a brell a plant?': yes: a brell is a flower, a flower a plant",
+      "passed": true,
+      "detail": "Yes. A brell is a plant.",
+      "at": "2026-10-04T20:07:34.832590+00:00"
+    },
+    {
+      "label": "'What is a jimp made of?': glass",
+      "passed": true,
+      "detail": "A jimp is made of glass.",
+      "at": "2026-10-04T20:07:35.097542+00:00"
+    },
+    {
+      "label": "'Is Talo a person?': yes: Talo is a teacher, a teacher a person",
+      "passed": true,
+      "detail": "Yes. Talo is a person.",
+      "at": "2026-10-04T20:07:35.337893+00:00"
+    },
+    {
+      "label": "'Who owns the larth?': Talo",
+      "passed": true,
+      "detail": "Talo has a larth.",
+      "at": "2026-10-04T20:07:35.676199+00:00"
+    },
+    {
+      "label": "'Is the jimp behind the door?': yes",
+      "passed": true,
+      "detail": "Yes. The jimp is behind the door.",
+      "at": "2026-10-04T20:07:36.029551+00:00"
+    },
+    {
+      "label": "'Is a larth red?': not known: 'I do not know whether ...'",
+      "passed": true,
+      "detail": "I do not know whether the larth is red.",
+      "at": "2026-10-04T20:07:36.526967+00:00"
+    },
+    {
+      "label": "'Where is a quib kept?': in a room (a question shape never taught)",
+      "passed": true,
+      "detail": "I remember: A quib is kept in a room.\nA quib is an animal. A quib is kept in a room.\nI hold nothing for keep. Tell me what it is and I will keep it.",
+      "at": "2026-10-04T20:07:36.814708+00:00"
+    },
+    {
+      "label": "'Where does a voth sleep?': in a room (a question shape never taught)",
+      "passed": true,
+      "detail": "I remember: A voth sleeps in a room.\nA voth is an animal. A voth sleeps in a room.\nI hold nothing for sleep. Tell me what it is and I will keep it.",
+      "at": "2026-10-04T20:07:37.064206+00:00"
+    },
+    {
+      "label": "a new process reads every sentence it read right before, the same way",
+      "passed": true,
+      "detail": "exit 0; lost: []",
+      "at": "2026-10-04T20:07:49.381496+00:00"
+    },
+    {
+      "label": "taught again, no sentence is learned anew",
+      "passed": true,
+      "detail": "{'learned': 0, 'linked': 0, 'already': 29, 'understood': 29, 'refused': 0, 'total': 29, 'said': 0}",
+      "at": "2026-10-04T20:08:04.550150+00:00"
+    },
+    {
+      "label": "taught again, the belief does not move",
+      "passed": true,
+      "detail": "larth isa horse: 0.996964802528525 then 0.996964802528525",
+      "at": "2026-10-04T20:08:04.550167+00:00"
+    },
+    {
+      "label": "a weaker source saying the opposite moves the belief down",
+      "passed": true,
+      "detail": "larth isa horse: 0.996964802528525 then 0.9707786284003148",
+      "at": "2026-10-04T20:08:21.462132+00:00"
+    },
+    {
+      "label": "asked again after it, 'Is a larth a horse?': still yes: the weaker source dents the belief, not the answer",
+      "passed": true,
+      "detail": "Yes. A larth is a horse.",
+      "at": "2026-10-04T20:08:21.876434+00:00"
+    },
+    {
+      "label": "and the reply does not deny it as well",
+      "passed": true,
+      "detail": "Yes. A larth is a horse.",
+      "at": "2026-10-04T20:08:21.876449+00:00"
+    },
+    {
+      "label": "the main model's store is untouched",
+      "passed": true,
+      "detail": "290096 rows before, 290096 after",
+      "at": "2026-10-04T20:08:22.411605+00:00"
+    }
+  ],
+  "notes": []
+}
