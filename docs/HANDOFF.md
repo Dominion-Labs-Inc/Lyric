@@ -20,8 +20,8 @@ of the treebank's training part (counted read only, as `lyric_reader`). **`exper
 (2026-10-16, 9 of 9, nothing written; lab notebook 2026-10-16 (7)): dev classes 91.8%, UAS 73.2%, LAS 66.3%; test
 92.0%, 73.7%, 67.0%. The treebank's files read with the same code give the same to four places, so memory holds what
 was taught, and the structure reader can be measured in a cloud session from the files. A tie is now decided by the
-next situation, not by the class's name (2026-10-16 (8); from the files: dev 92.0% / 73.6% / 66.9%, test 92.3% /
-73.8% / 67.5%). Open: in 4 of the 33 prose sentences the main verb is read as a noun (a word the treebank never used
+next situation, not by the class's name (2026-10-16 (8); STRUCTURE-01 on main again, 9 of 9: dev 92.0% / 73.6% /
+66.9%, test 92.3% / 73.8% / 67.5%). Open: in 4 of the 33 prose sentences the main verb is read as a noun (a word the treebank never used
 is decided by its ending alone; a noun-or-verb word beside a noun reads as a compound). **Next:** constructions
 learned over phrases.
 

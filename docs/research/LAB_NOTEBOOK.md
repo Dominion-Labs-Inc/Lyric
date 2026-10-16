@@ -16047,4 +16047,8 @@ prime-number sentence; "after five failed attempts" an obj instead of an obl:unm
 `test_a_treebank_is_read_with_its_classes_named_as_lyric_names_them` could not run there (`core.learning` needs
 `sentence_transformers`); it reads CoNLL-U, which this change does not touch.
 
-Nothing is taught again: the view is worked out from memory when it is read. STRUCTURE-01 on main measures it.
+Nothing is taught again: the view is worked out from memory when it is read.
+
+**On main** (STRUCTURE-01, `results/20261016T212354Z.md`, the owner, 165 s, code 85e5d10): PASS, 9 of 9. Dev 0.9204 /
+0.7363 / 0.6687, test 0.9232 / 0.7383 / 0.6750, the files' numbers to four places, and all 33 prose sentences read as
+from the files. Nothing written: main's write counters moved in none of the 346 tables from 16:58 to 17:35.

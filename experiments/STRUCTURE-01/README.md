@@ -39,10 +39,8 @@ POSTGRES_DATABASE=lyric_db PYTHONPATH="$PWD" ./venv_lyric/bin/python3 experiment
 | Run | Code | dev: classes / UAS / LAS | test: classes / UAS / LAS | Checks | Written |
 |---|---|---|---|---|---|
 | `20261016T205339Z` | c203650 | 91.8% / 73.2% / 66.3% | 92.0% / 73.7% / 67.0% | 9/9 | nothing |
+| `20261016T212354Z` | 85e5d10: a tie is decided by the next situation | 92.0% / 73.6% / 66.9% | 92.3% / 73.8% / 67.5% | 9/9 | nothing |
 
-The same code reading the treebank's files gives the same to four places, and the same reading of every prose
-sentence: memory holds what was taught. The file numbers above (91.9%, 73.1%, 66.2%) were measured with an earlier
-state of `structure.py`; the bars stand as fixed. Lab notebook 2026-10-16 (7).
-
-Since 2026-10-16 (8) a tie is decided by the next situation, not by the names of the classes. From the files: dev
-92.0% / 73.6% / 66.9%, test 92.3% / 73.8% / 67.5%.
+For each run, the same code reading the treebank's files gives the same to four places, and the same reading of
+every prose sentence: memory holds what was taught. The file numbers above (91.9%, 73.1%, 66.2%) were measured with an
+earlier state of `structure.py`; the bars stand as fixed. Lab notebook 2026-10-16 (7) and (8).
