@@ -43,3 +43,6 @@ POSTGRES_DATABASE=lyric_db PYTHONPATH="$PWD" ./venv_lyric/bin/python3 experiment
 The same code reading the treebank's files gives the same to four places, and the same reading of every prose
 sentence: memory holds what was taught. The file numbers above (91.9%, 73.1%, 66.2%) were measured with an earlier
 state of `structure.py`; the bars stand as fixed. Lab notebook 2026-10-16 (7).
+
+Since 2026-10-16 (8) a tie is decided by the next situation, not by the names of the classes. From the files: dev
+92.0% / 73.6% / 66.9%, test 92.3% / 73.8% / 67.5%.

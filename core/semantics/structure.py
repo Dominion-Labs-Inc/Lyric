@@ -300,18 +300,29 @@ class StructureView:
     # ── reading ───────────────────────────────────────────────────────────────
 
     @staticmethod
-    def _decide(table: Mapping[Tuple, Counter], situations: Sequence[Tuple],
+    def _decide(met: Iterable[Tuple[Tuple, Optional[Counter]]],
                 allowed: Callable[[str], bool] = lambda _: True) -> Optional[Tuple[str, Tuple]]:
-        """What the sentences held did most in the most specific of these situations they met, of what is allowed
-        here, and the situation it went by."""
-        for situation in situations:
-            did = table.get(situation)
+        """What the sentences held did most in the most specific of these situations they met (each given with what
+        was done in it), of what is allowed here, and the situation it went by. Where they did two or more things
+        equally often, the next, less specific situation decides between those, never the order of their names
+        ("whale" after "a", a word never met: its ending split once a noun, once an adjective, once a verb). If no
+        situation tells them apart, the first tie stands."""
+        first, tied = None, None
+        for situation, did in met:
             if not did:
                 continue
-            options = [(times, choice) for choice, times in did.items() if allowed(choice)]
-            if options:
-                return max(options)[1], situation
-        return None
+            options = [(times, choice) for choice, times in did.items()
+                       if allowed(choice) and (tied is None or choice in tied)]
+            if not options:
+                continue
+            most = max(times for times, _ in options)
+            top = {choice for times, choice in options if times == most}
+            if len(top) == 1:
+                return top.pop(), situation
+            if first is None:
+                first = max(options)[1], situation
+            tied = top
+        return first
 
     def classes(self, words: Sequence[str]) -> Tuple[str, ...]:
         """The class each word is used as here, decided left to right."""
@@ -319,10 +330,11 @@ class StructureView:
         chosen: List[str] = []
         for i, word in enumerate(words):
             met = word in self._classes_of or word.lower() in self._classes_of
-            decided = self._decide(self._known if met else self._unknown,
-                                   self._class_situations(words, chosen, i, met=met))
+            table = self._known if met else self._unknown
+            decided = self._decide((s, table.get(s)) for s in self._class_situations(words, chosen, i, met=met))
             if decided is None and met:
-                decided = self._decide(self._unknown, self._class_situations(words, chosen, i, met=False))
+                decided = self._decide((s, self._unknown.get(s))
+                                       for s in self._class_situations(words, chosen, i, met=False))
             chosen.append(decided[0] if decided else _OPEN_CLASS)
         return tuple(chosen)
 
@@ -346,11 +358,7 @@ class StructureView:
             return stack[-2] != 0 or not waiting
         while waiting or len(stack) > 1:
             situations = self._step_situations(lowered, with_root, stack, waiting, under, relation)
-            decided = None
-            for level, situation in zip(self._steps, situations):
-                decided = self._decide(level, (situation,), allowed)
-                if decided is not None:
-                    break
+            decided = self._decide(((s, level.get(s)) for level, s in zip(self._steps, situations)), allowed)
             step = decided[0] if decided else ("S" if waiting else "R:dep")
             attached = self._take(step, stack, waiting, under, relation)
             if attached is not None:

@@ -16017,3 +16017,34 @@ France", "Two of them" and "1 and itself" read right. "of common passwords" goes
 "structured, object-oriented and functional programming" does not hold together; and prepositional phrases go to the
 nearest noun where they belong to the verb ("in May" on "engineers", "from unlabeled data" on "traffic", "in the late
 1980s" on "Python").
+
+
+## 2026-10-16 (8) — A tie is decided by the next situation, not by the names of the classes
+
+**Changed** (`core/semantics/structure.py`, `StructureView._decide`): where the sentences held did two or more things
+equally often in the most specific situation met, the next, less specific situation decides between those; if none
+tells them apart, the first tie stands. Before, `max((times, choice))` gave a tie to the choice whose name sorts last
+(VERB over NOUN over ADJECTIVE): "whale", never met, was a verb after "A" on a 1-1-1 split (7). `_decide` now takes
+each situation with what was done in it, so the class decisions (one table, situations from specific to general) and
+the steps (one table per level) go through the same rule.
+
+**Measured from the treebank's files** (cloud session; the same as main's own view, (7)):
+
+| | dev: classes / UAS / LAS | test: classes / UAS / LAS |
+|---|---|---|
+| as run on main (c203650) | 91.77 / 73.20 / 66.28 | 91.96 / 73.66 / 67.02 |
+| ties backed off, classes only | 92.04 / 73.44 / 66.60 | 92.32 / 73.71 / 67.28 |
+| ties backed off, classes and steps (kept) | 92.04 / 73.63 / 66.87 | 92.32 / 73.83 / 67.50 |
+
+**The prose** (UNDERSTANDS-PROSE-01's 33 sentences): 6 read differently, none worse. "whale" is a noun now, but
+"breathes" stays a noun after it, so "A whale breathes air through a blowhole." still loses its verb; "in the late
+1980s" goes to "working"; "The function sorted returns a new list." has "returns" as its root, with "function" an obl,
+not its subject. Three move between wrong readings: "high-level, general-purpose"; where "is" attaches in the
+prime-number sentence; "after five failed attempts" an obj instead of an obl:unmarked, its head right both times.
+
+**Tests:** `tests/test_structure.py`, 7 passed in a cloud session, among them
+`test_a_tie_is_decided_by_the_next_situation_never_by_the_names_of_the_classes` (on the code before, it reads NOUN).
+`test_a_treebank_is_read_with_its_classes_named_as_lyric_names_them` could not run there (`core.learning` needs
+`sentence_transformers`); it reads CoNLL-U, which this change does not touch.
+
+Nothing is taught again: the view is worked out from memory when it is read. STRUCTURE-01 on main measures it.

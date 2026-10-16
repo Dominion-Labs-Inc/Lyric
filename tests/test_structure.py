@@ -71,6 +71,20 @@ def test_a_sentence_never_held_is_read_by_the_situations_it_shares():
     assert read.heads == (2, 0, 2, 5, 3, 2)
 
 
+def test_a_tie_is_decided_by_the_next_situation_never_by_the_names_of_the_classes():
+    """"stale", never met, after "A": a word ending in "ale" there was once an adjective ("pale") and once a noun
+    ("gale"); one ending in "le", an adjective twice ("pale", "little"). The adjective, where the order of the
+    classes' names gave the tie to the noun."""
+    view = StructureView()
+    view.add(_analysed("A pale moon rose .", ["DETERMINER", "ADJECTIVE", "NOUN", "VERB", "PUNCTUATION"],
+                       [3, 3, 4, 0, 4], ["det", "amod", "nsubj", "root", "punct"], "t:1"))
+    view.add(_analysed("A gale blew .", ["DETERMINER", "NOUN", "VERB", "PUNCTUATION"], [2, 3, 0, 3],
+                       ["det", "nsubj", "root", "punct"], "t:2"))
+    view.add(_analysed("A little dog barked .", ["DETERMINER", "ADJECTIVE", "NOUN", "VERB", "PUNCTUATION"],
+                       [3, 3, 4, 0, 4], ["det", "amod", "nsubj", "root", "punct"], "t:3"))
+    assert view.classes(("A", "stale", "bun", "."))[:2] == ("DETERMINER", "ADJECTIVE")
+
+
 def test_pieces_are_written_as_a_treebank_writes_them():
     assert words_of(["It", "doesn", "'t", "change", "."]) == ("It", "does", "n't", "change", ".")
     assert words_of(["We", "can", "'t", "."]) == ("We", "ca", "n't", ".")

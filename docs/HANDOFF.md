@@ -1,7 +1,7 @@
 # Handoff: Lyric reading and understanding English (2026-10-14, updated 2026-10-16 evening)
 
 For an engineer, and their Claude Code session, picking this work up. Read this first, then the lab notebook entries
-2026-10-13 (4), 2026-10-14 (1), 2026-10-16 (1), 2026-10-16 (2), 2026-10-16 (6) and 2026-10-16 (7) in
+2026-10-13 (4), 2026-10-14 (1), 2026-10-16 (1), 2026-10-16 (2), 2026-10-16 (6), (7) and (8) in
 `docs/research/LAB_NOTEBOOK.md`.
 The previous handoff (2026-10-01) is in git history.
 
@@ -19,10 +19,11 @@ notebook 2026-10-16 (6)): memories 1,418,592 â†’ 1,431,010, beliefs 1,193,764 â†
 of the treebank's training part (counted read only, as `lyric_reader`). **`experiments/STRUCTURE-01` passed on main**
 (2026-10-16, 9 of 9, nothing written; lab notebook 2026-10-16 (7)): dev classes 91.8%, UAS 73.2%, LAS 66.3%; test
 92.0%, 73.7%, 67.0%. The treebank's files read with the same code give the same to four places, so memory holds what
-was taught, and the structure reader can be measured in a cloud session from the files. Open in it: ties go to the
-class's name (backing off on a tie, measured from the files: dev classes +0.3, LAS +0.3), and in 4 of the 33 prose
-sentences the main verb is read as a noun (a word the treebank never used is decided by its ending alone; a
-noun-or-verb word beside a noun reads as a compound). **Next:** constructions learned over phrases.
+was taught, and the structure reader can be measured in a cloud session from the files. A tie is now decided by the
+next situation, not by the class's name (2026-10-16 (8); from the files: dev 92.0% / 73.6% / 66.9%, test 92.3% /
+73.8% / 67.5%). Open: in 4 of the 33 prose sentences the main verb is read as a noun (a word the treebank never used
+is decided by its ending alone; a noun-or-verb word beside a noun reads as a compound). **Next:** constructions
+learned over phrases.
 
 ## 1. What Lyric is
 
