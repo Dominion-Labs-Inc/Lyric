@@ -1,7 +1,7 @@
 # Handoff: Lyric reading and understanding English (2026-10-14, updated 2026-10-16 evening)
 
 For an engineer, and their Claude Code session, picking this work up. Read this first, then the lab notebook entries
-2026-10-13 (4), 2026-10-14 (1), 2026-10-16 (1), 2026-10-16 (2), 2026-10-16 (6), (7) and (8) in
+2026-10-13 (4), 2026-10-14 (1), 2026-10-16 (1), 2026-10-16 (2), 2026-10-16 (6), (7), (8) and (9) in
 `docs/research/LAB_NOTEBOOK.md`.
 The previous handoff (2026-10-01) is in git history.
 
@@ -22,8 +22,12 @@ of the treebank's training part (counted read only, as `lyric_reader`). **`exper
 was taught, and the structure reader can be measured in a cloud session from the files. A tie is now decided by the
 next situation, not by the class's name (2026-10-16 (8); STRUCTURE-01 on main again, 9 of 9: dev 92.0% / 73.6% /
 66.9%, test 92.3% / 73.8% / 67.5%). Open: in 4 of the 33 prose sentences the main verb is read as a noun (a word the treebank never used
-is decided by its ending alone; a noun-or-verb word beside a noun reads as a compound). **Next:** constructions
-learned over phrases.
+is decided by its ending alone; a noun-or-verb word beside a noun reads as a compound). **Next:
+`experiments/STRUCTURE-02`**, the research's first measurement (§5): of the lesson sentences read through a frame
+with slots, how many have every slot on one phrase, attached to what the meaning ties it to; the ceiling for frames
+learned over phrases (read only; the owner runs it on the Mac, where the lessons are). Then constructions learned
+over phrases. Open for the owner: whether those learn from the lessons only or also from PropBank's annotations of the
+treebank (the research's decision 2; its licence is unchecked).
 
 ## 1. What Lyric is
 
@@ -202,7 +206,12 @@ nats (`weighed`, `listening_worths`, counts held as beliefs grounded on one memo
 arithmetic; `Conversation(remembers=False)` holds what it is told in working memory and writes nothing;
 `experiments/UNDERSTANDS-PROSE-01` built. Details in the lab notebook, 2026-10-14 (1).
 
-## 4. The plan to close the gap (agreed 2026-10-15)
+## 4. The plan to close the gap (agreed 2026-10-15; set aside 2026-10-16)
+
+**Set aside.** The owner judged this step-by-step plan, one piece of English per step, not the right fix (2026-10-16),
+and chose a phrase layer learned from a treebank instead (top of this handoff; `docs/research/READING_PROSE_AT_SCALE.md`).
+Steps 1 to 4 are done and stay; step 5 and the phase 2 lessons are not to be done as written. Kept for what was done
+and measured.
 
 Three phases. Mark each step when done, with its measurement.
 

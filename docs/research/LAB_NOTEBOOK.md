@@ -16052,3 +16052,31 @@ Nothing is taught again: the view is worked out from memory when it is read.
 **On main** (STRUCTURE-01, `results/20261016T212354Z.md`, the owner, 165 s, code 85e5d10): PASS, 9 of 9. Dev 0.9204 /
 0.7363 / 0.6687, test 0.9232 / 0.7383 / 0.6750, the files' numbers to four places, and all 33 prose sentences read as
 from the files. Nothing written: main's write counters moved in none of the 346 tables from 16:58 to 17:35.
+
+
+## 2026-10-16 (9) — STRUCTURE-02 built: do the lessons' meaning roles fall on phrases?
+
+**Where the plan stands.** The handoff's §4 plan (one piece of English per step) is set aside, as decided earlier
+today, and §4 now says so. The plan is the phrase layer (`docs/research/READING_PROSE_AT_SCALE.md`): the treebank
+taught (6), its structure measured (7, 8). The research's first measurement (§5) comes before frames are learned over
+phrases: how many sentences have every meaning role filled by one phrase, the ceiling a phrase layer gives the reader.
+The prose sentences have no meanings to test against (only questions), so it is measured on the lessons, which are on
+the Mac only (`data/` is not in git).
+
+**Built: `experiments/STRUCTURE-02`.** Each lesson sentence is read as the learner reads a taught pair
+(`readings_of`, strictly). Where it reads through a frame with slots, the words each slot holds are found with the
+reader's own steps (`_chunkings`, `_slot_fillings`, `_composed_meaning`, keeping the covering whose meaning is the
+one taught), and the sentence is read by `StructureView`. Each slot is tested:
+- **one phrase**: exactly one of its words depends on a word outside them. Alone this says little: a slot of one word
+  always passes, and most lesson slots are one word.
+- **attached as the meaning says**: going up from that word, the first other slot met, if any, is one the meaning
+  says something of together with it, in one fact (`tied`: the slot, or the thing it names the kind of). This is the
+  prose's failure: "in May" under "engineers" when May is when the hiring was.
+
+Only slots are tested, not what a frame writes itself. No bar: it measures.
+
+**Tried in a cloud session** on a view taught in memory (the derived-reading tests' pairs and five more) with the
+structure view from the treebank's files: 18 sentences, 15 through a frame with slots, 23 slots, all one phrase;
+"The ball near the box is red." attached as its meaning says (`near`), "Tom kicked the ball in the house." and "Tom
+kicked the hat in the garden." not ("house" and "garden" read under the thing kicked); a slot holding a phrase ("in
+the garden") found whole. The loading is STRUCTURE-01's, which ran on main.
