@@ -1,8 +1,13 @@
 # Handoff: Lyric reading and understanding English (2026-10-14, updated 2026-10-16)
 
 For an engineer, and their Claude Code session, picking this work up. Read this first, then the lab notebook entries
-2026-10-13 (4) and 2026-10-14 (1) in `docs/research/LAB_NOTEBOOK.md`. The previous handoff (2026-10-01) is in git
-history.
+2026-10-13 (4), 2026-10-14 (1) and 2026-10-16 (1) in `docs/research/LAB_NOTEBOOK.md`. The previous handoff
+(2026-10-01) is in git history.
+
+**Start here: phase 1, step 2** (§4): a rule told in a conversation reaches the reasoner with the facts told beside
+it ("If the valve is closed, the tank is full." and "The valve is closed." are both read, yet "Is the tank full?" is
+not answered). One step at a time: build it, run its targeted tests, then ask the owner to run UNDERSTANDS-PROSE-01
+on main (§5) and record the result here before the next step.
 
 ## 1. What Lyric is
 
@@ -52,6 +57,13 @@ evidence, and reasons over a concept graph. No neural model reads or writes for 
   Every session gets a lab notebook entry.
 - Commit only when the owner asks. No AI attribution. Never put the owner's name, or quotes of the owner, in the
   repo. Datasets are never pushed. Never copy the GitHub token in `Lyric/.env.production`.
+- **Before any push**, look at what it sends: `git rev-list --count origin/main..main`, and
+  `git log origin/main..main --format=%B | grep -ci co-authored-by` must be 0.
+- Git state (2026-10-16): GitHub's main holds everything as of commit 67f0faa4. Dataset batches 5 to 9
+  (`test_data/music/giantsteps`, `humtrans`, `test_data/speech/LibriSpeech`, `test_data/vision/ukbench`) stay on
+  disk, untracked and in `.gitignore`. The local branch `backup/main-before-one-commit-2026-10-16` still holds them:
+  never push it. GitHub's pull request #1 (2026-08-29 to 09-02) still carries old `Co-Authored-By: Claude` lines;
+  only GitHub Support can remove it.
 
 ## 3. Where it stands (2026-10-16)
 
@@ -100,9 +112,10 @@ from experience, not from reader code written one sentence shape at a time.
   chance: its recital began "I remember:" this time, which `scored` counts as unanswered. The scoring weakness stands.
 - **Constitution halt on main, still standing.** Since 2026-10-14 08:49 `lyric_db` holds a constitution halt
   (`integrity violation: source_modified in core.agents.autonomous.autonomous_coordinator`): a substrate was teaching
-  main when that file changed on disk. Every boot of main restores it. Only a human can lift it.
+  main when that file changed on disk. Every boot of main restores it. Only a human can lift it; a session never
+  does. The listening pass taught main with it standing.
 
-### Done 2026-10-14 (2) and 2026-10-15 (nothing committed)
+### Done 2026-10-14 (2) to 2026-10-16 (committed and pushed, 67f0faa4)
 
 1. **The listener's counts are on main.** `teach_and_watch.sh production --source listening --domain english`:
    `listening counted : {'observed': 19, 'withdrawn': 0, 'refused': 0, 'total': 20, 'sentences': 3054}`, +19 beliefs,
@@ -216,8 +229,8 @@ POSTGRES_DATABASE=lyric_db PYTHONPATH="$PWD" ./venv_lyric/bin/python3 <script>
 scripts/teach_and_watch.sh production --source <source> --domain english
 ```
 
-**Scripts from this session** are in `logs/handoff_2026_10_14/`. Run them from the `Lyric/` folder; they read and
-write `logs/`.
+**Scripts from these sessions** are in `logs/handoff_2026_10_14/`. `logs/` is ignored by git, so they exist only on
+this machine. Run them from the `Lyric/` folder; they read and write `logs/`.
 
 | Script | What it does |
 |---|---|
