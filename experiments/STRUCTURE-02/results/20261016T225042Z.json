@@ -1,0 +1,247 @@
+{
+  "experiment": "STRUCTURE-02",
+  "claim": "the meaning roles of the sentences the main model was taught fall on phrases of the structure it learned from a treebank",
+  "hypothesis": "read strictly as taught, each slot of a lesson sentence's frame holds words that stand together as one phrase of the structure read, placed nowhere against what the meaning says (no bar: the share is measured)",
+  "started_at": "2026-10-16T22:50:42.747663+00:00",
+  "duration_seconds": 239.412,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/Lyric/venv_lyric/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/Lyric",
+    "shadow_mode": null,
+    "git_commit": "f2e0f264d9111affcf482113a71434c5e953a13a",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "lyric_db",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "lyric_db",
+        "model": "lyric_db",
+        "user_context": "lyric_db",
+        "learning": "lyric_db"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "dotenv:.env.postgres",
+        "database": "environment",
+        "user": "dotenv:.env.postgres",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "pool_idle_seconds": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 3,
+    "database_verified": "lyric_db",
+    "database_verified_reason": "asked the server"
+  },
+  "summary": {
+    "checks": 5,
+    "passed": 5,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [
+    {
+      "name": "sentences",
+      "value": 3054,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "not read as taught",
+      "value": 19,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "read whole (no slots)",
+      "value": 47,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "slots not found",
+      "value": 0,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "read through a frame with slots",
+      "value": 2988,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "slots",
+      "value": 6288,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "slots on one phrase",
+      "value": 6171,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "slots placed: as meant",
+      "value": 2815,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "slots placed: top",
+      "value": 3188,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "slots placed: no place",
+      "value": 92,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "slots placed: against",
+      "value": 76,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "every slot on one phrase",
+      "value": 2871,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "every slot on one phrase, none against the meaning",
+      "value": 2806,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "sentences with every slot on one phrase",
+      "value": 0.9608,
+      "unit": "fraction",
+      "note": "of the 2,988 sentences read through a frame with slots"
+    },
+    {
+      "name": "sentences with every slot on one phrase, none against the meaning",
+      "value": 0.9391,
+      "unit": "fraction",
+      "note": "of the 2,988 sentences read through a frame with slots"
+    },
+    {
+      "name": "closed slots: one phrase",
+      "value": 0.9555,
+      "unit": "fraction",
+      "note": "of 427"
+    },
+    {
+      "name": "closed slots: not against the meaning",
+      "value": 0.9461,
+      "unit": "fraction",
+      "note": "of 427"
+    },
+    {
+      "name": "doing slots: one phrase",
+      "value": 0.9954,
+      "unit": "fraction",
+      "note": "of 1,096"
+    },
+    {
+      "name": "doing slots: not against the meaning",
+      "value": 0.9845,
+      "unit": "fraction",
+      "note": "of 1,096"
+    },
+    {
+      "name": "kind slots: one phrase",
+      "value": 0.985,
+      "unit": "fraction",
+      "note": "of 2,332"
+    },
+    {
+      "name": "kind slots: not against the meaning",
+      "value": 0.9726,
+      "unit": "fraction",
+      "note": "of 2,332"
+    },
+    {
+      "name": "name slots: one phrase",
+      "value": 1.0,
+      "unit": "fraction",
+      "note": "of 10"
+    },
+    {
+      "name": "name slots: not against the meaning",
+      "value": 1.0,
+      "unit": "fraction",
+      "note": "of 10"
+    },
+    {
+      "name": "quality slots: one phrase",
+      "value": 1.0,
+      "unit": "fraction",
+      "note": "of 652"
+    },
+    {
+      "name": "quality slots: not against the meaning",
+      "value": 0.9923,
+      "unit": "fraction",
+      "note": "of 652"
+    },
+    {
+      "name": "thing slots: one phrase",
+      "value": 0.9673,
+      "unit": "fraction",
+      "note": "of 1,771"
+    },
+    {
+      "name": "thing slots: not against the meaning",
+      "value": 0.9526,
+      "unit": "fraction",
+      "note": "of 1,771"
+    }
+  ],
+  "checks": [
+    {
+      "label": "the run is on the store it says",
+      "passed": true,
+      "detail": "connected to lyric_db",
+      "at": "2026-10-16T22:54:08.181913+00:00"
+    },
+    {
+      "label": "memory holds what was taught of English",
+      "passed": true,
+      "detail": "628,380 constructions and links",
+      "at": "2026-10-16T22:54:08.200495+00:00"
+    },
+    {
+      "label": "memory holds the treebank's sentences as analysed",
+      "passed": true,
+      "detail": "12,544 sentences held",
+      "at": "2026-10-16T22:54:08.200502+00:00"
+    },
+    {
+      "label": "the lessons are on disk",
+      "passed": true,
+      "detail": "41 lessons, 3,054 sentences",
+      "at": "2026-10-16T22:54:08.266682+00:00"
+    },
+    {
+      "label": "reading wrote nothing to the store",
+      "passed": true,
+      "detail": "no table written to",
+      "at": "2026-10-16T22:54:42.159813+00:00"
+    }
+  ],
+  "notes": []
+}
