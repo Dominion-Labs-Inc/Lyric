@@ -16103,3 +16103,18 @@ no word names; against the meaning when it ties the slot to something another wo
 phrase, and not to where it hangs; not judged when it ties it to nothing a word names. Tried on the view taught in
 memory: "house" under "ball" in "Tom kicked the ball in the house." is against the meaning ("kicked" names the
 kicking), "blue" in "The ball is red and blue." stands where "red" does, "in the garden" under "kicked" is as meant.
+
+**Second run on main** (`results/20261016T225042Z.md`, the owner, 239 s, code f2e0f26; nothing written: no table
+moved from 18:35 to 18:55): 2,988 sentences through a frame with slots, 6,288 slots. Placed as meant 2,815, at the
+top 3,188, not judged 92, against the meaning 76, not one phrase 117. **Every slot one phrase, none against the
+meaning: 93.9% of sentences** (2,806). By what a slot holds, not against the meaning: quality 99.2%, doing 98.4%,
+kind 97.3%, thing 95.3%, closed 94.6%.
+
+The 182 sentences that fail, each counted once: 47 numbers written in words parsed apart ("Thirty-five", "two hundred
+and six"); 24 "Rex" read as a verb (in no sentence of the treebank, so classed by its ending alone, as "whale" was in
+the prose); 16 "Dr." written as two pieces where the treebank keeps one word; 11 a verb read as a noun beside a noun
+("Did the bird fly?", "The dog barks now.", as "feed" and "release" in the prose); 6 formulas; 42 misreadings of
+attachment or clauses ("then the room" read as a place, relative clauses, "with a key" under "door"); 36 slots of the
+old frames that are no phrase ("It is true that the sky"), or several words parsed apart. About half (98) come from
+how words are classed and written before any structure: what main holds of a word (its classes from the lessons and
+WordNet) is not asked when the treebank never used it, and Lyric's pieces are not always the treebank's words.

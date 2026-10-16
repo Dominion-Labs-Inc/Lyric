@@ -43,8 +43,21 @@ POSTGRES_DATABASE=lyric_db PYTHONPATH="$PWD" ./venv_lyric/bin/python3 experiment
 | Run | Second test | Read through a frame with slots | Every slot one phrase | And the second test |
 |---|---|---|---|---|
 | `20261016T222833Z` | first form: the first other slot above must be tied to it in one fact | 2,988 of 3,054 | 96.1% | 84.8% |
+| `20261016T225042Z` | as above: none placed against the meaning | 2,988 of 3,054 | 96.1% | **93.9%** |
 
 The first form of the second test counted as wrong what the meaning cannot place: a conjunct under the first
 ("three" under "two" in "two plus three"), two slots tied to one thing no word names ("ten minus four", "between the
 cat and the bird", "To be quick is to be fast."), and clauses the meaning ties by no fact ("Although the dog barked,
 the cat climbed."). It was replaced by the form above (lab notebook 2026-10-16 (9)).
+
+**What fails in the second run** (182 sentences, each counted once, from `results/20261016T225441Z_missed.json`):
+
+| Sentences | Why |
+|---|---|
+| 47 | a number written in words, parsed apart ("Thirty-five", "two hundred and six"; the treebank seldom spells numbers) |
+| 24 | "Rex", in no sentence of the treebank, read as a verb: a word never met is classed by its ending alone |
+| 16 | "Dr." written as two pieces, where the treebank keeps it one word |
+| 11 | a verb read as a noun beside a noun ("Did the bird fly?", "The dog barks now.") |
+| 6 | formulas ("Solve 2y + 1 = 9 for y.") |
+| 42 | misreadings of attachment or clauses ("If the door is open then the room is cold.", "The cup that is on the table is hot.", "Tom opened the door with a key.") |
+| 36 | a slot of the old frames that is no phrase ("It is true that the sky" in "?slot0 is ?slot1."), or a slot of several words parsed apart |
