@@ -1,0 +1,151 @@
+{
+  "experiment": "STRUCTURE-01",
+  "claim": "the main model holds how the words of a sentence go together, learned from sentences analysed by hand, and reads sentences it never held by it",
+  "hypothesis": "read from the store's own view, held-out treebank sentences reach the bars measured for the method on the files (BARS)",
+  "started_at": "2026-10-16T20:53:39.139116+00:00",
+  "duration_seconds": 228.221,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/Lyric/venv_lyric/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/Lyric",
+    "shadow_mode": null,
+    "git_commit": "c20365044b03e60a427af75d929eadcd2505b412",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "lyric_db",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "lyric_db",
+        "model": "lyric_db",
+        "user_context": "lyric_db",
+        "learning": "lyric_db"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "dotenv:.env.postgres",
+        "database": "environment",
+        "user": "dotenv:.env.postgres",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "pool_idle_seconds": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 3,
+    "database_verified": "lyric_db",
+    "database_verified_reason": "asked the server"
+  },
+  "summary": {
+    "checks": 9,
+    "passed": 9,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [
+    {
+      "name": "sentences held",
+      "value": 12544,
+      "unit": "sentences",
+      "note": ""
+    },
+    {
+      "name": "dev classes right",
+      "value": 0.9177,
+      "unit": "fraction",
+      "note": ""
+    },
+    {
+      "name": "dev heads right (UAS)",
+      "value": 0.732,
+      "unit": "fraction",
+      "note": ""
+    },
+    {
+      "name": "dev heads and relations right (LAS)",
+      "value": 0.6628,
+      "unit": "fraction",
+      "note": ""
+    },
+    {
+      "name": "test classes right",
+      "value": 0.9196,
+      "unit": "fraction",
+      "note": ""
+    },
+    {
+      "name": "test heads right (UAS)",
+      "value": 0.7366,
+      "unit": "fraction",
+      "note": ""
+    },
+    {
+      "name": "test heads and relations right (LAS)",
+      "value": 0.6702,
+      "unit": "fraction",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "the run is on the store it says",
+      "passed": true,
+      "detail": "connected to lyric_db",
+      "at": "2026-10-16T20:57:14.488685+00:00"
+    },
+    {
+      "label": "memory holds the treebank's sentences as analysed",
+      "passed": true,
+      "detail": "12,544 sentences held",
+      "at": "2026-10-16T20:57:14.505026+00:00"
+    },
+    {
+      "label": "dev: classes right \u2265 91%",
+      "passed": true,
+      "detail": "91.8%",
+      "at": "2026-10-16T20:57:25.812041+00:00"
+    },
+    {
+      "label": "dev: heads right (UAS) \u2265 72%",
+      "passed": true,
+      "detail": "73.2%",
+      "at": "2026-10-16T20:57:25.812062+00:00"
+    },
+    {
+      "label": "dev: heads and relations right (LAS) \u2265 65%",
+      "passed": true,
+      "detail": "66.3%",
+      "at": "2026-10-16T20:57:25.812069+00:00"
+    },
+    {
+      "label": "test: classes right \u2265 91%",
+      "passed": true,
+      "detail": "92.0%",
+      "at": "2026-10-16T20:57:26.331144+00:00"
+    },
+    {
+      "label": "test: heads right (UAS) \u2265 72%",
+      "passed": true,
+      "detail": "73.7%",
+      "at": "2026-10-16T20:57:26.331161+00:00"
+    },
+    {
+      "label": "test: heads and relations right (LAS) \u2265 65%",
+      "passed": true,
+      "detail": "67.0%",
+      "at": "2026-10-16T20:57:26.331172+00:00"
+    },
+    {
+      "label": "reading wrote nothing to the store",
+      "passed": true,
+      "detail": "no table written to",
+      "at": "2026-10-16T20:57:27.346872+00:00"
+    }
+  ],
+  "notes": []
+}
