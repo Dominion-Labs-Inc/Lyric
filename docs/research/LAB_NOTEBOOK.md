@@ -15947,5 +15947,12 @@ the learning path's to judge (evidence, beliefs, revision).
   `test_what_was_taught_is_kept_because_it_was_taught`, `test_taught_knowledge_is_still_recalled`,
   `test_analysed_sentences_are_taught_language`).
 
-**Next.** The owner runs the treebank pass on main again; `remember_analysed` skips the sentences already held, so it
-goes on from where it stopped.
+**Run again on main** (the owner, finished 13:53, session report `docs/teaching_sessions/20261016T175345Z_treebank.md`):
+no memory declined, no error in the last 5,000 system log lines. Memories 1,418,592 → 1,431,010 (+12,418), beliefs
+1,193,764 → 1,206,181 (+12,417); word classes, patterns, concepts and links unchanged. The pass's review asked 200 of
+the 588,336 things held as learned in `english` and answered 179 right (unread 5, misread 16); competence in
+`english` 0.99606 → 0.99712. The one memory more than beliefs is not traced yet; STRUCTURE-01 reads how many
+sentences main holds as analysed.
+
+**Also built:** the gateway's read-only Lyric Store API (`dominion-labs`, `lyric_store_api.py`), so a cloud session
+can read both stores and the records runs leave (`docs/HANDOFF.md` §5).

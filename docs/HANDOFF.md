@@ -8,9 +8,11 @@ handoff (2026-10-01) is in git history.
 plan in §4 patches one piece of English per step, and the owner judged it not the right fix (2026-10-16). The
 research names the shared cause, a reader with no phrase layer between words and frames. **The owner chose that Lyric
 learns phrase structure itself from a treebank**, taught into the main model through the learning authority. Built:
-`core/semantics/structure.py`, `TreebankSource`, `learn_structure`, `MemoryAgent.remember_analysed`. Next: the owner
-teaches the treebank into main (`teach_and_watch.sh production --source treebank --domain english`), then
-`experiments/STRUCTURE-01` reads main's own view (read only). After that: constructions learned over phrases.
+`core/semantics/structure.py`, `TreebankSource`, `learn_structure`, `MemoryAgent.remember_analysed`. **The treebank is
+taught into main** (2026-10-16, finished 13:53, after the worthiness filter stopped declining what is taught: lab
+notebook 2026-10-16 (6)): memories 1,418,592 → 1,431,010, beliefs 1,193,764 → 1,206,181; the pass's review answered
+179 of 200 right. Next: `experiments/STRUCTURE-01` reads main's own view (read only, the owner runs it). After that:
+constructions learned over phrases.
 
 ## 1. What Lyric is
 
@@ -317,6 +319,15 @@ this machine. Run them from the `Lyric/` folder; they read and write `logs/`.
 | `listener_measure.py` with `listener_eval.py` | Each kept reading weighed with the listener's own code, the old rule replayed verbatim, worths counted, and scored on lessons, held-out lessons, never-taught probes and questions. Needs `structure_probes_after.json` and `questions_gold.json` beside it. `listener_main.json` is today's measurement |
 | `why_choice2.py`, `why_lessons.py` | Every reading and its evidence for chosen sentences |
 | `readiness_probe.py`, `working_probe.py` | Texts told to a no-memory conversation, then questions |
+
+**From a cloud session** (no Mac, no store): the API gateway (repository `dominion-labs`, `lyric_store_api.py`)
+reads both stores and the records runs leave, read only, under `$GATEWAY_BASE/api/admin/lyric-store/`, with the
+header `X-Lyric-Store-Token: $LYRIC_STORE_TOKEN` (both set in the cloud environment). Routes: `stores`;
+`{store}/tables`; `{store}/tables/{table}?schema=` (columns, indexes); `{store}/tables/{table}/rows` and `/count`
+(filters `eq.<column>=`, `like.<column>=`, `contains.<column>=<json>`, e.g. `contains.tags=["analysed_sentence"]` on
+`schema=memory_hot`, table `memory_hot`); `{store}/activity` (who is connected: a teach run shows here);
+`{store}/writes` (write counters: read before and after a run); `files?path=` (folders and text files under
+`experiments/`, `docs/`, `logs/`; `&tail=N` for a log's end). This is how a session checks what the owner ran.
 
 **UNDERSTANDS-PROSE-01 on main** takes about 26 minutes and is started by the owner: a session's attempt to start
 it on main was refused by the permission check. Read-only scripts that load the reader's view only
