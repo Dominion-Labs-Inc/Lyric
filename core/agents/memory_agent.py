@@ -744,9 +744,12 @@ class MemoryAgent(IMemoryConsolidation):
         # events, learning updates, mapping verdicts and
         # critical failures are records other subsystems read back, not
         # candidates to be judged for novelty.
+        # What was taught is kept because it was taught: the origin, which
+        # store_memory and enqueue_memory both keep in source_context, says so.
         from core.memory.utils.memory_filter import get_memory_filter as _get_filter
         _raw_event_early = (thinking_state or {}).get("raw_event")
-        _exemption = _get_filter().exemption_for(tags=tags, raw_event=_raw_event_early)
+        _exemption = _get_filter().exemption_for(
+            tags=tags, raw_event=_raw_event_early, origin=(source_context or {}).get("origin"))
         _is_observation_early = _exemption is not None
 
         if _is_observation_early:

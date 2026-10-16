@@ -15918,3 +15918,34 @@ memory-based learning); letting every situation vote changed nothing (73.9%). Cl
 Not yet: teaching main (the owner's run), then `experiments/STRUCTURE-01` from main's own view. Then constructions
 learned over phrases instead of word strings.
 
+
+## 2026-10-16 (6) — Teaching is not judged for keeping
+
+**What stopped.** The treebank pass on main (`teach_and_watch.sh production --source treebank --domain english`)
+stopped at 11:06 after 5 minutes 28 seconds: `remember_analysed` raised `"I 'm sorry to say Elena 's story has been
+revealed to be a fake ." as analysed was not kept: the memory was declined`. Main at the stop: word classes 75,833,
+language patterns 628,380, memories 1,418,592, concepts 115,445, links 578,317, beliefs 1,193,764.
+
+**Why.** `store_memory` puts every memory to the worthiness filter unless the filter exempts it
+(`MemoryFilter.exemption_for`). Taught language was exempt by tag (`language_pattern`, `said_of`, `heard_after`), but
+the treebank's tag, `analysed_sentence`, was never added, so each analysed sentence was judged by the soft complexity
+threshold like an episode, and this one was declined. Other teaching writers meet the same filter and say nothing of a
+decline: `learn_word_classes` and `learn_pronunciations` count it as skipped. How many of those were declined in
+earlier passes is not measured.
+
+**Decided.** Teaching decides what Lyric is taught; retention never judges a lesson. Whether what was taught is true is
+the learning path's to judge (evidence, beliefs, revision).
+
+**Changed.**
+- `MemoryFilter.EXEMPT_ORIGINS` (`{"teaching": "taught"}`): `exemption_for(origin=)` exempts what came through
+  teaching. `_store_memory` asks it with the origin `store_memory` and `enqueue_memory` keep in `source_context`.
+- Asked when storing only: recall holds back what `exemption_for` names with tags alone, so taught knowledge is still
+  recalled as before.
+- `analysed_sentence` is taught language in `EXEMPT_EVENT_TAGS`: a treebank's sentences are examples of English, held
+  out of recall as knowledge like the other taught language.
+- Tests: `tests/test_memory_worthiness_semantics.py`, 31 passed (3 new:
+  `test_what_was_taught_is_kept_because_it_was_taught`, `test_taught_knowledge_is_still_recalled`,
+  `test_analysed_sentences_are_taught_language`).
+
+**Next.** The owner runs the treebank pass on main again; `remember_analysed` skips the sentences already held, so it
+goes on from where it stopped.

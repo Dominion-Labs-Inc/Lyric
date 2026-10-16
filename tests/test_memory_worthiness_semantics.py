@@ -144,6 +144,32 @@ def test_observation_events_remain_exempt(f):
     assert f.exemption_for(tags=["x"], raw_event={"event": "health_measured"})
 
 
+def test_what_was_taught_is_kept_because_it_was_taught(f):
+    """Teaching decides what Lyric is taught, not the worthiness filter: the
+    complexity threshold declined a treebank sentence and stopped the structure
+    pass on main. Asked with the Origin or the dict a memory keeps of it."""
+    from core.memory.utils.interfaces import Origin
+    taught = Origin.own("teaching")
+    for origin in (taught, taught.to_dict()):
+        reason = f.exemption_for(tags=["language", "word_class"], origin=origin)
+        assert reason is not None and "taught" in reason
+    assert f.exemption_for(tags=["reasoning"], origin=Origin.own("task")) is None
+    assert f.exemption_for(tags=["reasoning"], origin=Origin.of("user_1", "conversation")) is None
+
+
+def test_taught_knowledge_is_still_recalled(f):
+    """The origin is asked at storing only. Recall holds back what exemption_for
+    names with tags alone, and taught knowledge is not an event record."""
+    assert f.exemption_for(tags=["language", "word_class"]) is None
+
+
+def test_analysed_sentences_are_taught_language():
+    """A treebank's sentences are examples of English, held out of recall as
+    knowledge like the other taught language."""
+    from core.agents.memory_agent import MemoryAgent
+    assert MemoryAgent.STRUCTURE_TAG in MemoryFilter.EXEMPT_EVENT_TAGS
+
+
 def test_ordinary_reasoning_is_still_evaluated(f):
     """Exemption must not swallow the episodes worthiness exists to judge."""
     assert f.exemption_for(tags=["reasoning", "neural", "multi_step"]) is None

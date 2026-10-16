@@ -128,20 +128,51 @@ class MemoryFilter:
         # took a place an answer to "Did the blip run?" needed.
         "said_of": "taught language",
         "heard_after": "taught language",
+        # AND SO ARE THE SENTENCES ANALYSED BY HAND (`MemoryAgent.STRUCTURE_TAG`):
+        # a treebank's sentences are examples of how English goes together, read
+        # back as the structure view, not things Lyric knows. Recalled as
+        # knowledge, "Elena 's story has been revealed to be a fake" would answer
+        # a question about Elena.
+        "analysed_sentence": "taught language",
+    }
+
+    #: What came through these doors is TAUGHT, and kept because it was taught.
+    #:
+    #: Teaching decides what Lyric is taught; this filter asks whether a thing
+    #: is novel or complex enough to keep, which is not a question to put to a
+    #: lesson. Asked of the treebank's sentences, the soft complexity threshold
+    #: declined "I 'm sorry to say Elena 's story has been revealed to be a
+    #: fake ." and the structure pass on main stopped there (2026-10-16); asked
+    #: of word classes and pronunciations, a decline was counted as skipped and
+    #: said nothing. Whether what was taught is TRUE is the learning path's to
+    #: judge (evidence, beliefs, revision), never retention's.
+    EXEMPT_ORIGINS = {
+        "teaching": "taught",
     }
 
     def exemption_for(
         self,
         tags: Optional[list] = None,
         raw_event: Optional[dict] = None,
+        origin: Optional[Any] = None,
     ) -> Optional[str]:
         """Why this memory is exempt from worthiness, or None if it is not.
 
         One place decides exemption, so the memory agent does not carry a second
         copy of the policy that can drift from this one.
+
+        `origin` (an `Origin`, or the dict the memory keeps of one) is asked when
+        a memory is STORED only. What was taught is not judged for keeping, but
+        it is not an event record either: recall, which asks with tags alone,
+        still finds it.
         """
         if isinstance(raw_event, dict) and raw_event.get("event"):
             return f"observation event '{raw_event.get('event')}'"
+        through = (origin.get("through") if isinstance(origin, dict)
+                   else getattr(origin, "through", None))
+        klass = self.EXEMPT_ORIGINS.get(str(through or ""))
+        if klass:
+            return f"{klass} (came through '{through}')"
         for tag in (tags or []):
             klass = self.EXEMPT_EVENT_TAGS.get(str(tag))
             if klass:
