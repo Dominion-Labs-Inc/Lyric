@@ -24,8 +24,9 @@ next situation, not by the class's name (2026-10-16 (8); STRUCTURE-01 on main ag
 66.9%, test 92.3% / 73.8% / 67.5%). Open: in 4 of the 33 prose sentences the main verb is read as a noun (a word the treebank never used
 is decided by its ending alone; a noun-or-verb word beside a noun reads as a compound). **Next:
 `experiments/STRUCTURE-02`**, the research's first measurement (§5): of the lesson sentences read through a frame
-with slots, how many have every slot on one phrase, attached to what the meaning ties it to; the ceiling for frames
-learned over phrases (read only; the owner runs it on the Mac, where the lessons are). Then constructions learned
+with slots, how many have every slot on one phrase, none placed against the meaning; the ceiling for frames learned
+over phrases (read only; the owner runs it on the Mac, where the lessons are). First run (2026-10-16 (9)): every slot
+one phrase in 96.1% of 2,988 sentences; its second test was replaced and is to be run again. Then constructions learned
 over phrases. Open for the owner: whether those learn from the lessons only or also from PropBank's annotations of the
 treebank (the research's decision 2; its licence is unchecked).
 

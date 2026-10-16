@@ -16080,3 +16080,26 @@ structure view from the treebank's files: 18 sentences, 15 through a frame with 
 "The ball near the box is red." attached as its meaning says (`near`), "Tom kicked the ball in the house." and "Tom
 kicked the hat in the garden." not ("house" and "garden" read under the thing kicked); a slot holding a phrase ("in
 the garden") found whole. The loading is STRUCTURE-01's, which ran on main.
+
+**First run on main** (`results/20261016T222833Z.md`, the owner, 252 s; nothing written: main's write counters moved
+in none of the 346 tables from 17:35 to 18:35): 3,054 lesson sentences (all 41 lessons' records), 19 not read
+strictly as taught, 47 read whole, 2,988 through a frame with slots, 6,288 slots. **Every slot one phrase: 96.1% of
+sentences** (slots: 6,171 of 6,288; the 117 that are not: thing 58, kind 35, closed 19, doing 5). With the second
+test in its first form (the first other slot met going up must be tied to it in one fact): 84.8%.
+
+**The first form of the second test was wrong.** Of the 404 slots it failed, about 112 hang by `conj`, as UD hangs
+every conjunct under the first ("three" under "two" in "What is two plus three?", "cold" under "hot" in "The sun is hot
+and the ice is cold."). Others are tied to the slot above only through a thing no word names: "four" under "ten" in
+"What is ten minus four?" (both of the difference), "dog" under "cat" in "The dog is between the cat and the bird."
+(the pair), "quick" under "fast" in "To be quick is to be fast." (whoever is). And clauses the meaning ties by no fact
+("Although the dog barked, the cat climbed.", "although" being `has_property(?v0, unexpected)`) could never pass. Real
+misreadings are among them too: "If the door is open then the room is cold." with "room" under "open", "Rex said
+that the cat ran." with "ran" under "Rex".
+
+**Replaced** (`placed`): going up from a slot's phrase (through `conj`), the first word that stands for anything in
+the meaning (a slot's words, or a frame's own word held to name a term, found as `_worded` finds them: "kicked" the
+kicking) is where it hangs. As meant when the meaning ties the slot to what that word stands for, or both to one thing
+no word names; against the meaning when it ties the slot to something another word names, outside the slot's own
+phrase, and not to where it hangs; not judged when it ties it to nothing a word names. Tried on the view taught in
+memory: "house" under "ball" in "Tom kicked the ball in the house." is against the meaning ("kicked" names the
+kicking), "blue" in "The ball is red and blue." stands where "red" does, "in the garden" under "kicked" is as meant.

@@ -7,9 +7,12 @@ how they go together (`StructureView`, the treebank taught to the store). Two te
 
 - ONE PHRASE: exactly one of its words depends on a word outside them; they stand together. A slot of one word
   always does.
-- ATTACHED AS THE MEANING SAYS: going up from that word through what each word depends on, the first other slot met,
-  if any, is one the meaning says something of together with it, in one fact. "Tom kicked the ball in the house."
-  with "house" under "ball" is not, when the house is where the kicking was; "The ball near the box" is.
+- NOT AGAINST THE MEANING: going up from that word (through `conj`: a conjunct stands where the first one does),
+  the first word that stands for anything in the meaning (a slot's words, or a frame's own word held to name a
+  term: "kicked" the kicking) is where the phrase hangs. Against the meaning when the meaning ties the slot to
+  something another word names, outside its own phrase, and not to where it hangs: "Tom kicked the ball in the
+  house." with "house" under "ball", when the house is where the kicking was. "The ball near the box" under "ball"
+  is as meant; so is "four" under "ten" in "ten minus four", both tied to the difference, which no word names.
 
 The share of sentences whose every slot passes both is the ceiling a phrase layer gives the reader
 (`docs/research/READING_PROSE_AT_SCALE.md` §5): frames learned over phrases can read those sentences as they were
@@ -71,35 +74,87 @@ def slot_spans(words, meaning, frame, view):
     return None
 
 
-def tied(frame, one, other):
-    """Whether the frame's meaning says something of what slot `one` stands for and what slot `other` stands for
-    together, in one fact: the thing a slot names the kind of (`instance_of(?t, ?slot1)`), or the slot itself."""
+def stands_for(term, facts):
+    """What a term of a frame's meaning stands for: itself, and each thing it names the kind of
+    (`instance_of(?t, ?slot1)`: the slot names the kind of `?t`)."""
+    return frozenset({term} | {f.subject for f in facts if f.relation == "instance_of" and f.obj == term})
+
+
+def tied_to(things, facts):
+    """What the meaning says something of together with these things, in one fact."""
+    return frozenset(other for f in facts for one, other in ((f.subject, f.obj), (f.obj, f.subject))
+                     if one in things and other not in things)
+
+
+def word_things(frame, words, spans, view):
+    """What each word stands for in the frame's meaning: a slot's words what the slot stands for; the frame's own
+    words what a term they are held to name stands for, as the reader puts a frame's words back (`_worded`); "the",
+    "in" and "is" nothing."""
+    from core.semantics import derived_reader as dr
     facts = frame.meaning.facts
+    things = [frozenset()] * len(words)
+    own, at, slot_spans_left = [], 0, iter(spans)
+    for element in frame.form:
+        if isinstance(element, dr.Slot):
+            at = next(slot_spans_left)[1]
+        else:
+            own.append(at)
+            at += 1
+    for slot, (start, end) in zip(frame.slots, spans):
+        for i in range(start, end):
+            things[i] = stands_for(slot, facts)
+    folded = [dr._fold(words[i]) for i in own]
+    for term in {t for f in facts for t in f.terms() if not dr.is_variable(t) and not dr.is_slot(t)}:
+        for lexical in view.lexicals_with_value(term):
+            named = dr._loose(lexical.words)
+            for k in range(len(own) - len(named) + 1):
+                if tuple(folded[k:k + len(named)]) == named and own[k + len(named) - 1] - own[k] == len(named) - 1:
+                    for i in own[k:k + len(named)]:
+                        things[i] = things[i] | stands_for(term, facts)
+    return things
 
-    def stands_for(slot):
-        return {slot} | {f.subject for f in facts if f.relation == "instance_of" and f.obj == slot}
-    ones, others = stands_for(one), stands_for(other)
-    return any((f.subject in ones and f.obj in others) or (f.subject in others and f.obj in ones) for f in facts)
 
-
-def attached_to(at, spans, heads):
-    """The slot whose words are the first met going up from word `at` (0-based) through what each word depends on;
-    None when only the frame's own words, then the root, are met."""
-    head = heads[at]
-    while head != 0:
-        for slot, (start, end) in spans.items():
-            if start <= head - 1 < end:
-                return slot
-        head = heads[head - 1]
-    return None
+def placed(slot, span, frame, read, things):
+    """Where the meaning puts a slot's phrase, against where the structure read puts it. Going up from the phrase's
+    head (through `conj`: a conjunct stands where the first one does), the first word that stands for anything is
+    where it hangs. 'as meant' when the meaning ties the slot to what that word stands for, or both to one thing no
+    word names ("ten minus four": both to the difference); 'top' when no such word is met; 'against' when the meaning
+    ties it to something another word names, outside its own phrase, and not to where it hangs ("the house" under
+    "ball" when the house is where the kicking was); 'no place' when the meaning ties it to nothing a word names."""
+    facts = frame.meaning.facts
+    heads, relations = read.heads, read.relations
+    (head,) = outside(span, heads)
+    below, grown = set(range(*span)) | {head}, True
+    while grown:
+        more = {i for i, h in enumerate(heads) if h - 1 in below} - below
+        below |= more
+        grown = bool(more)
+    at = head
+    while relations[at] == "conj" and heads[at] != 0:
+        at = heads[at] - 1
+    over, up = None, heads[at]
+    while up != 0:
+        if things[up - 1]:
+            over = up - 1
+            break
+        up = heads[up - 1]
+    mine = stands_for(slot, facts)
+    tied = tied_to(mine, facts)
+    named = frozenset(t for i, ts in enumerate(things) for t in ts)
+    if over is None:
+        return "top"
+    if things[over] & tied or any(t not in named and t in tied_to(things[over], facts) for t in tied):
+        return "as meant"
+    elsewhere = frozenset(t for i, ts in enumerate(things) if i not in below and i != over for t in ts)
+    return "against" if (tied & elsewhere) - things[over] else "no place"
 
 
 def roles_on_phrases(pairs, view, structure):
     """For each (sentence, meaning): read strictly as taught, its frame's slots found, and each slot's words checked
     against the structure read. A slot's words are ONE PHRASE when exactly one of them depends on a word outside
-    them (a slot of one word always is); the phrase is ATTACHED AS THE MEANING SAYS when the first other slot met
-    going up from it, if any, is one the meaning ties it to (`tied`): "in May" under "engineers" is not, when May is
-    when the hiring was. Returns the counts and every sentence with a slot that is either not."""
+    them (a slot of one word always is); the phrase is then PLACED (`placed`) as the meaning says, at the top, where
+    the meaning gives it no place, or against the meaning: "in May" under "engineers" when May is when the hiring
+    was. Returns the counts and every sentence with a slot not one phrase or placed against the meaning."""
     from core.semantics import derived_reader as dr
     from core.semantics.sentence_machine import form_of
     from core.semantics.structure import words_of
@@ -124,30 +179,28 @@ def roles_on_phrases(pairs, view, structure):
             continue
         counts["read through a frame with slots"] += 1
         read = structure.read(words_of(pieces))
-        placed = dict(zip(frame.slots, spans))
-        every_one = every_attached = True
+        things = word_things(frame, words, spans, view)
+        every_one = every_placed = True
         slots = []
-        for slot, span in placed.items():
+        for slot, span in zip(frame.slots, spans):
             role = dr._role_of_slot(frame, slot)
             heads_out = outside(span, read.heads)
             one = len(heads_out) == 1
-            under = attached_to(heads_out[0], {s: p for s, p in placed.items() if s != slot}, read.heads) \
-                if one else None
-            attached = one and (under is None or tied(frame, slot, under))
+            where = placed(slot, span, frame, read, things) if one else "not one phrase"
             counts["slots"] += 1
             counts["slots on one phrase"] += one
-            counts["slots on one phrase, attached as the meaning says"] += attached
+            counts[f"slots placed: {where}"] += 1
             by_role[(role, "one phrase", one)] += 1
-            by_role[(role, "attached", attached)] += 1
+            by_role[(role, "not against the meaning", where not in ("against", "not one phrase"))] += 1
             if one:
                 by_relation[(role, read.relations[heads_out[0]])] += 1
-            every_one, every_attached = every_one and one, every_attached and attached
+            every_one = every_one and one
+            every_placed = every_placed and where not in ("against", "not one phrase")
             slots.append({"slot": slot, "role": role, "words": " ".join(words[span[0]:span[1]]), "one": one,
-                          "under": under, "attached": attached,
-                          "depend outside": [f"{words[i]} {read.relations[i]}" for i in heads_out]})
+                          "placed": where, "depend outside": [f"{words[i]} {read.relations[i]}" for i in heads_out]})
         counts["every slot on one phrase"] += every_one
-        counts["every slot on one phrase, attached as the meaning says"] += every_attached
-        if not every_attached:
+        counts["every slot on one phrase, none against the meaning"] += every_placed
+        if not every_placed:
             missed.append({"sentence": sentence, "frame": frame.surface, "facts": [f.render() for f in
                                                                                    frame.meaning.facts],
                            "slots": slots, "words": list(read.words), "classes": list(read.classes),
@@ -163,7 +216,8 @@ async def main() -> int:
                    claim="the meaning roles of the sentences the main model was taught fall on phrases of the "
                          "structure it learned from a treebank",
                    hypothesis="read strictly as taught, each slot of a lesson sentence's frame holds words that "
-                              "stand together as one phrase of the structure read (no bar: the share is measured)")
+                              "stand together as one phrase of the structure read, placed nowhere against what the "
+                              "meaning says (no bar: the share is measured)")
     quiet = io.StringIO()
     say("loading memory and its views (no substrate is started)…")
     with contextlib.redirect_stdout(quiet), contextlib.redirect_stderr(quiet):
@@ -202,20 +256,19 @@ async def main() -> int:
     say(f"  read in {time.perf_counter() - started:.0f}s")
     framed = counts["read through a frame with slots"]
     for name in ("sentences", "not read as taught", "read whole (no slots)", "slots not found",
-                 "read through a frame with slots", "slots", "slots on one phrase",
-                 "slots on one phrase, attached as the meaning says", "every slot on one phrase",
-                 "every slot on one phrase, attached as the meaning says"):
+                 "read through a frame with slots", "slots", "slots on one phrase", "slots placed: as meant",
+                 "slots placed: top", "slots placed: no place", "slots placed: against", "every slot on one phrase",
+                 "every slot on one phrase, none against the meaning"):
         EV.metric(name, counts[name], unit="count")
-        say(f"    {name:55} {counts[name]:,}")
+        say(f"    {name:52} {counts[name]:,}")
     if framed:
-        for test in ("on one phrase", "on one phrase, attached as the meaning says"):
+        for test in ("on one phrase", "on one phrase, none against the meaning"):
             share = counts[f"every slot {test}"] / framed
             EV.metric(f"sentences with every slot {test}", round(share, 4), unit="fraction",
                       note=f"of the {framed:,} sentences read through a frame with slots")
-            EV.metric(f"slots {test} (share)", round(counts[f"slots {test}"] / counts["slots"], 4), unit="fraction")
             say(f"    sentences with every slot {test}: {share:.1%}")
     for role in sorted({role for role, _, _ in by_role}):
-        for test in ("one phrase", "attached"):
+        for test in ("one phrase", "not against the meaning"):
             on, off = by_role[(role, test, True)], by_role[(role, test, False)]
             EV.metric(f"{role} slots: {test}", round(on / (on + off), 4), unit="fraction", note=f"of {on + off:,}")
             say(f"    {role:10} {test:11} {on / (on + off):.1%} of {on + off:,}")
