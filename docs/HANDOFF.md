@@ -74,9 +74,12 @@ evidence, and reasons over a concept graph. No neural model reads or writes for 
   repo. Datasets are never pushed. Never copy the GitHub token in `Lyric/.env.production`.
 - **Before any push**, look at what it sends: `git rev-list --count origin/main..main`, and
   `git log origin/main..main --format=%B | grep -ci co-authored-by` must be 0.
-- Git state (2026-10-16 evening): GitHub's main holds everything, through the handoff's own update this evening; the
-  owner's Mac pulls it (`git pull --ff-only origin main` in the Lyric folder). Commits made from a cloud session carry
-  its git identity as author and no trailers.
+- Git state (2026-10-16 evening): GitHub's main holds everything, through STRUCTURE-01's records; the owner's Mac
+  pulls it. Commits made from a cloud session carry its git identity as author and no trailers.
+- **Every push reaches the Mac.** A cloud session pushes its branch and fast-forwards GitHub's main to it
+  (`git push origin HEAD:main`, after the checks above), then gives the owner the pull, run in the Lyric folder:
+  `git pull --ff-only origin main`. Before that, it checks through the gateway (`files?path=`) that the files the pull
+  changes are on the Mac as its last commit holds them, so the pull is not refused; after it, that the Mac has them.
 - **The API gateway is its own repository, `Dominion-Labs-Inc/dominion-labs`**: the folder `services/api-gateway` of
   the Dominion Labs folder, made a git repository of its own (2026-10-16), pushed to GitHub, pulled back into that
   folder. The Dominion Labs folder itself is not pushed: it holds Lyric (its own repository), a ClickHouse store,
