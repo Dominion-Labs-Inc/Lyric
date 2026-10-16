@@ -77,8 +77,8 @@ evidence, and reasons over a concept graph. No neural model reads or writes for 
 - Git state (2026-10-16 evening): GitHub's main holds everything, through STRUCTURE-01's records; the owner's Mac
   pulls it. Commits made from a cloud session carry its git identity as author and no trailers.
 - **Every push reaches the Mac.** A cloud session pushes its branch and fast-forwards GitHub's main to it
-  (`git push origin HEAD:main`, after the checks above), then gives the owner the pull, run in the Lyric folder:
-  `git pull --ff-only origin main`. Before that, it checks through the gateway (`files?path=`) that the files the pull
+  (`git push origin HEAD:main`, after the checks above), then gives the owner the pull with its `cd`:
+  `cd ~/"Dominion Labs/Lyric"` then `git pull --ff-only origin main`. Before that, it checks through the gateway (`files?path=`) that the files the pull
   changes are on the Mac as its last commit holds them, so the pull is not refused; after it, that the Mac has them.
 - **The API gateway is its own repository, `Dominion-Labs-Inc/dominion-labs`**: the folder `services/api-gateway` of
   the Dominion Labs folder, made a git repository of its own (2026-10-16), pushed to GitHub, pulled back into that
@@ -368,8 +368,11 @@ header `X-Lyric-Store-Token: $LYRIC_STORE_TOKEN` (both set in the cloud environm
 `schema=memory_hot`, table `memory_hot`); `{store}/activity` (who is connected: a teach run shows here);
 `{store}/writes` (write counters: read before and after a run); `files?path=` (folders and text files under
 `experiments/`, `docs/`, `logs/`; `&tail=N` for a log's end). This is how a session checks what the owner ran.
-A run command given to the owner starts with `cd` to the Lyric folder: a terminal left in `services/api-gateway`
-finds no `./venv_lyric` (`../../Lyric` from there).
+Every command given to the owner starts with `cd ~/"Dominion Labs/Lyric"`, which works from any folder; never assume
+where the owner's terminal is. Left in `services/api-gateway`, a run finds no `./venv_lyric`. Left in the Dominion Labs
+folder, a pull pulls the wrong repository: that folder is a git repository of its own whose `origin` is
+`dominion-labs` (the gateway's), and its history diverges from it, so `git pull --ff-only origin main` there is
+refused, and a push from there would try to send the whole folder (§2).
 
 ```
 curl -s -H "X-Lyric-Store-Token: $LYRIC_STORE_TOKEN" "$GATEWAY_BASE/api/admin/lyric-store/stores"
