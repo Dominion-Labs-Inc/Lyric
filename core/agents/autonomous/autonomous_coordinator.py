@@ -20359,6 +20359,18 @@ class Conversation:
                     positive = not (len(entry) > 2
                                     and str(entry[2]).lower() in NEGATIVE_POLARITIES)
                     facts.append((str(subject), str(relation), str(obj), positive))
+        # WHAT THIS SPEAKER TOLD that points at it, from their own context, as
+        # `_context_relations` reads it: "Tom kicked the ball." holds a kicking
+        # done by Tom there, and "What did Tom kick?" finds it pointing at Tom.
+        from .shared_types import is_substrate_actor
+        if not is_substrate_actor(self._actor):
+            from core.learning.scoped_context_store import get_scoped_context_store
+            from core.semantics.cognitive_ingress import normalize_term
+            for row in await get_scoped_context_store().edges_naming(
+                    self._actor, [normalize_term(name.replace("_", " "))]):
+                if str(row["obj"]).replace("_", " ").strip().lower() == target:
+                    facts.append((str(row["subj"]), str(row["rel"]), str(row["obj"]),
+                                  str(row["pol"]).lower() not in NEGATIVE_POLARITIES))
         return facts
 
     #: Words that end in -s and are not plural. English has a closed handful of
@@ -21251,11 +21263,20 @@ class Conversation:
         if meaning is None or meaning.act != "ask":
             return []
         bridge = get_neural_bridge()
-        reading = Meaning(meaning.act, tuple(meaning.bound(self._situation(), await self._known_of(meaning))),
-                          meaning.asked)
+        known = await self._known_of(meaning)
+        bound = dict(zip(meaning.facts, meaning.bound(self._situation(), known)))
+        reading = Meaning(meaning.act, tuple(bound.values()), meaning.asked)
         premises = await self._held_premises(sentence, resolved, harvest)
 
-        fact = goal_fact(reading)
+        # WHICH THING IS MEANT IS NOT WHAT IS ASKED. "Is the tank full?": once
+        # "the tank" is found (`tank_1`), what it is (tank_1 instance_of tank)
+        # only named it, and the one fact asked is tank_1 has_property full.
+        # Named, a known thing's fact is no longer marked given, so it is set
+        # aside here, where what was found is known; counted as asked, no yes/no
+        # question about a known thing ever reached the reasoner.
+        fact = goal_fact(Meaning(meaning.act, tuple(bound[f] for f in meaning.facts
+                                                    if not (f.given and f.subject in known)),
+                                 meaning.asked))
         if fact is not None:
             affirmative = Meaning("ask", (MeaningFact(fact.relation, fact.subject, fact.obj),))
             result = await bridge.reason(ReasoningRequest(
@@ -21536,10 +21557,27 @@ class Conversation:
                 # OF ALTERNATIVES, ONE HOLDS: none of them was said to, so none is held.
                 notes.append(Acquired(said, detail=(
                     "that says one of those holds but not which, so I held neither")))
+            # A HAPPENING TOLD OF IS ONE EVENT, named as teaching names one (`teaching.told_events`): "Tom kicked
+            # the ball." tells of one kicking, done by Tom, done to the ball, and those are facts about that kicking.
+            # Named from the telling with its known things found, so a kick of another ball is another kicking and
+            # the same telling again names the same one. It is the teller's, as a thing first told of is
+            # (`_known_of`). Unnamed, no telling of a happening was ever held: "The dog barked." was "about
+            # something I have no name for yet" (UNDERSTANDS-PROSE-01, 2026-10-16). Any other unknown ("a dog")
+            # still names nothing, and is not held.
+            from core.learning.teaching import told_events
+            from core.semantics.cognitive_ingress import normalize_term
+            from core.semantics.derived_reader import Meaning
+            told_of = Meaning(meaning.act, meaning.bound({}, known), meaning.asked)
+            events = {unknown: normalize_term(name) for unknown, name in told_events(told_of, said).items()}
+            for unknown, name in events.items():
+                kind = next(f.obj for f in told_of.facts if f.relation == "instance_of" and f.subject == unknown)
+                self._particulars.pop(name, None)
+                self._particulars[name] = (normalize_term(kind) or kind, "person")
+            theirs = theirs | frozenset(events.values())
             for fact_said in meaning.asserted:
                 if fact_said.alternative:
                     continue
-                fact = bound[fact_said]
+                fact = bound[fact_said].renamed(events)
                 if is_variable(fact.subject) or is_variable(fact.obj):
                     notes.append(Acquired(said, detail=(
                         "part of that is about something I have no name for yet, "

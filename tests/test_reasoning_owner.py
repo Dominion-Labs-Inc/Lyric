@@ -176,3 +176,63 @@ def test_a_persons_failed_work_is_recorded_as_theirs_and_not_read_back():
     kept, theirs, own, loaded = asyncio.run(run())
     assert kept == {theirs: "alice", own: None}, kept
     assert own in loaded and theirs not in loaded
+
+
+def test_a_persons_rule_is_reasoned_over_for_them_and_no_one_else():
+    """Told "If the valve is closed, the tank is full." and "The valve is closed.", the person who told it, asking
+    "Is the tank full?", is answered: the rule is held in their context with its two clauses, and the reasoner
+    chains it over the facts they told. Reasoning for anyone else, or for the substrate, it is not there. Told in a
+    conversation not remembered, both are held in working memory and nothing is written."""
+    async def run():
+        from core.agents.memory_agent import get_memory_agent
+        from core.memory.remembering import not_remembered
+        from core.reasoning.neural_bridge import ReasoningRequest, get_neural_bridge
+        from core.semantics.derived_reader import Meaning, MeaningFact
+        db = await _db()
+        agent = await get_memory_agent()
+        valve, tank = _token("zvalve"), _token("ztank")
+        heard, kept, other = _token("zheard"), _token("zkept"), _token("zother")
+
+        async def tell(person):
+            rule = await agent.hold_rule_for_person(
+                person, {"subject": valve, "relation": "has_property", "obj": "closed", "positive": True},
+                {"subject": tank, "relation": "has_property", "obj": "full", "positive": True},
+                quality=0.9, domain="conversation", surface="If the valve is closed, the tank is full.")
+            fact = await agent.hold_for_person(person, valve, "has_property", "closed", positive=True, quality=0.9,
+                                               domain="conversation", surface="The valve is closed.", source="told")
+            return rule.standing, fact.standing
+
+        async def answered(actor):
+            result = await get_neural_bridge()._answer_over_held_rules(ReasoningRequest(
+                query="Is the tank full?", reading=Meaning("ask", (MeaningFact("has_property", tank, "full"),)),
+                task_metadata={"actor": actor} if actor else {}))
+            return None if result is None else result.answer
+
+        async def rules_of(person):
+            rows = await db.execute_query("SELECT cons_subject FROM unified.scoped_conditionals "
+                                          "WHERE scope_actor = $1", (person,), fetch_all=True) or []
+            return [r["cons_subject"] for r in rows]
+
+        with not_remembered():
+            not_remembered_told = await tell(heard)
+            not_remembered_answers = (await answered(heard), await answered(other), await answered(None))
+        written_while_not_remembered = await rules_of(heard)
+        try:
+            remembered_told = await tell(kept)
+            stored = await rules_of(kept)
+            remembered_answers = (await answered(kept), await answered(other), await answered(None))
+        finally:
+            for table in ("scoped_conditionals", "scoped_beliefs", "scoped_concept_relations"):
+                await db.execute_query(f"DELETE FROM unified.{table} WHERE scope_actor = $1", (kept,),
+                                       commit=True, store="user_context")
+        return (not_remembered_told, not_remembered_answers, written_while_not_remembered,
+                remembered_told, stored, remembered_answers, tank)
+
+    (not_remembered_told, not_remembered_answers, written_while_not_remembered,
+     remembered_told, stored, remembered_answers, tank) = asyncio.run(run())
+    proved = f"Proved: {tank}_full"
+    assert not_remembered_told == remembered_told == ("theirs", "theirs"), (not_remembered_told, remembered_told)
+    assert not_remembered_answers == (proved, None, None), not_remembered_answers
+    assert written_while_not_remembered == [], "a conversation not remembered wrote the rule"
+    assert stored == [tank], stored
+    assert remembered_answers == (proved, None, None), remembered_answers

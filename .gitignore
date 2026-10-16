@@ -258,3 +258,6 @@ test_data/music/giantsteps/
 test_data/music/humtrans/
 test_data/speech/LibriSpeech/
 test_data/vision/ukbench/
+
+# Treebanks Lyric learns phrase structure from (datasets are never pushed)
+test_data/syntax/

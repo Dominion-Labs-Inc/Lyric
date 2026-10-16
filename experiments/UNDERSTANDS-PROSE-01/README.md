@@ -61,8 +61,19 @@ POSTGRES_DATABASE=lyric_db PYTHONPATH="$PWD" ./venv_lyric/bin/python3 experiment
 |---|---|---|---|---|---|
 | `20261014T190758Z` | composition (adjuncts) | 4/33 | 8/37 | 4/37 | nothing |
 | `20261016T002042Z` | + no closed world on what was not taken in | 4/33 | 8/37 | 0/37 | nothing |
+| `20261016T125637Z` | + a person's rule reaches the reasoner; a question about a known thing asks one fact | 4/33 | 9/37 | 1/37 | nothing |
+| `20261016T140446Z` | + a happening told in a conversation is held, and asked about | 7/33 | 9/37 | 0/37 | nothing |
 
 Of the four wrong answers in the first run, three were the strong disjointness assumption about a subject the
 conversation had been told of and could not read; the fourth was a recital `scored` counted as wrong, and counted
 unanswered in the second run only because its words came in another order.
 
+The third run answered "Is the tank full?" from the rule and the fact told beside it. Its one wrong answer is that
+same recital, "What is the largest animal on Earth?", without the "I remember:" line recall put first in the second
+run: it is counted wrong or unanswered by the order recall gives, not by what was answered.
+
+The fourth run read three sentences more, each held as main misreads it: the engineers taken for the hiring ("The
+company hired three engineers in May."), "animal" for a happening ("The blue whale is the largest animal on Earth."),
+the working done by the listener ("Guido van Rossum began working on Python in the late 1980s."). A telling of a
+happening was refused before, whatever its reading, so `understood_whole` counts a sentence held, not one read right.
+Its wrong count is 0 because the largest-animal recital began "I remember:" again.

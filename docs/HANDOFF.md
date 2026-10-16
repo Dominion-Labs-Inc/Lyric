@@ -1,13 +1,16 @@
 # Handoff: Lyric reading and understanding English (2026-10-14, updated 2026-10-16)
 
 For an engineer, and their Claude Code session, picking this work up. Read this first, then the lab notebook entries
-2026-10-13 (4), 2026-10-14 (1) and 2026-10-16 (1) in `docs/research/LAB_NOTEBOOK.md`. The previous handoff
-(2026-10-01) is in git history.
+2026-10-13 (4), 2026-10-14 (1), 2026-10-16 (1) and 2026-10-16 (2) in `docs/research/LAB_NOTEBOOK.md`. The previous
+handoff (2026-10-01) is in git history.
 
-**Start here: phase 1, step 2** (§4): a rule told in a conversation reaches the reasoner with the facts told beside
-it ("If the valve is closed, the tank is full." and "The valve is closed." are both read, yet "Is the tank full?" is
-not answered). One step at a time: build it, run its targeted tests, then ask the owner to run UNDERSTANDS-PROSE-01
-on main (§5) and record the result here before the next step.
+**Start here: `docs/research/READING_PROSE_AT_SCALE.md`, then the lab notebook 2026-10-16 (5).** The step-by-step
+plan in §4 patches one piece of English per step, and the owner judged it not the right fix (2026-10-16). The
+research names the shared cause, a reader with no phrase layer between words and frames. **The owner chose that Lyric
+learns phrase structure itself from a treebank**, taught into the main model through the learning authority. Built:
+`core/semantics/structure.py`, `TreebankSource`, `learn_structure`, `MemoryAgent.remember_analysed`. Next: the owner
+teaches the treebank into main (`teach_and_watch.sh production --source treebank --domain english`), then
+`experiments/STRUCTURE-01` reads main's own view (read only). After that: constructions learned over phrases.
 
 ## 1. What Lyric is
 
@@ -91,7 +94,7 @@ from experience, not from reader code written one sentence shape at a time.
   | A pronoun as the subject | 6 | "They live in the ocean." (understood all but "They") |
   | "of" between things | 6 | "the capital of France", "a list of common passwords" |
   | "and" joining things | 4 | "carbon dioxide and water", "typed and garbage-collected" |
-  | Hyphenated words | 3 | "high-level", "general-purpose", "object-oriented" |
+  | Hyphenated words (measured 2026-10-16: not the cause; the comma and "and" beside them are) | 3 | "high-level", "general-purpose", "object-oriented" |
   | Two readings it will not choose between | 4 | "The function sorted returns a new list." |
 
   The wrong answers:
@@ -110,6 +113,13 @@ from experience, not from reader code written one sentence shape at a time.
   by step 1: "Is Python a programming language?" and "Is key a function?" now answer "I do not know whether ...", and
   "Is chlorophyll green?" recites what it holds. The fourth, "What is the largest animal on Earth?", changed by
   chance: its recital began "I remember:" this time, which `scored` counts as unanswered. The scoring weakness stands.
+- **Prose, third run, after phase 1 step 2** (`results/20261016T125637Z.md`, 26 minutes, nothing written):
+  sentences 4 of 33, right **9** of 37, wrong 1 of 37. "Is the tank full?" is answered from the rule and the fact
+  told beside it. The one wrong is the `scored` weakness on "What is the largest animal on Earth?", the same recital
+  without its "I remember:" line.
+- **Prose, fourth run, after phase 1 step 4** (`results/20261016T140446Z.md`, 25 minutes, nothing written):
+  sentences **7** of 33, right 9 of 37, wrong 0 of 37. The three sentences newly read hold main's misreadings of them
+  (step 4).
 - **Constitution halt on main, still standing.** Since 2026-10-14 08:49 `lyric_db` holds a constitution halt
   (`integrity violation: source_modified in core.agents.autonomous.autonomous_coordinator`): a substrate was teaching
   main when that file changed on disk. Every boot of main restores it. Only a human can lift it; a session never
@@ -174,12 +184,81 @@ Three phases. Mark each step when done, with its measurement.
      sentences stayed 4.
    - Scope: only this conversation's own unread tellings. A remembered conversation also keeps them in memory
      (`take_in_unread`); a later conversation does not consult those yet.
-2. **A rule told in a conversation reaches the reasoner** with the facts told beside it ("Is the tank full?").
-3. **Hyphenated words read as one word in a strict reading** ("high-level", "general-purpose"), as they already do
-   in a loose one.
-4. **Trace why names main holds are refused** ("blowhole" and "Eiffel Tower" are in WordNet, yet the reply was
-   "something I have no name for yet"). Fix what the trace shows.
-5. **"and" joins things in one slot** ("carbon dioxide and water": both done the same thing).
+2. **[done 2026-10-16: right 8 → 9 on UNDERSTANDS-PROSE-01, "Is the tank full?"] A rule told in a conversation
+   reaches the reasoner** with the facts told beside it ("Is the tank full?"). Two defects, each enough to block it:
+   - A person's rule was held only as their belief in a claim string ("if valve_1 has_property closed then tank_1
+     has_property full"), and `_answer_over_held_rules` read only the world's rules (`held_conditionals`) and the
+     world's facts. Now the rule's two clauses are held in the person's context as the world holds a rule's
+     (`unified.scoped_conditionals`, in `user_context`; working memory when not remembered:
+     `MemoryAgent.hold_scoped_rule`, `working_rules`), through `ScopedContextStore.observe_rule`. Reasoning for a
+     person reads their rules too (`rules_for_actor`) and their facts (`load_subgraph(..., actor=)`).
+   - A yes/no question about a known thing never reached the reasoner: once "the tank" is found (`tank_1`),
+     `MeaningFact.renamed` drops `given` by design, so "Is the tank full?" counted as two facts and `goal_fact` gave
+     None. `Conversation._reasoned_answers` (protected module, edited with no substrate running) now sets aside
+     the fact naming each known thing it found, and asks the one fact left.
+   - Tests: `test_a_persons_rule_is_reasoned_over_for_them_and_no_one_else` (`tests/test_reasoning_owner.py`,
+     remembered and not, for the teller only; cleans up its rows) and
+     `test_a_question_about_a_known_thing_asks_the_reasoner_the_one_fact_asked` (`tests/test_conversation.py`).
+     `test_conversation.py`, `test_reasoning_owner.py`, `test_postgres_config_authority.py`: 34 passed on
+     `lyric_dev`.
+   - On the sandbox, all ten texts (a probe with the experiment's own scoring, nothing recorded): "Is the tank full?"
+     is "Yes. The tank is full.", "Is the tank empty?" stays unanswered, the other questions about "the X" (the
+     method, the account, the server, the company) stay unanswered. One wrong, "What absorbs the light?", is the
+     `scored` weakness below (a recital counted wrong), on a path this step does not touch.
+   - Measured on UNDERSTANDS-PROSE-01 on main (`results/20261016T125637Z.md`, 26 minutes, nothing written):
+     sentences 4 of 33, right **9** of 37 ("Is the tank full?": "Yes. The tank is full."), wrong 1 of 37. The wrong
+     one is "What is the largest animal on Earth?" again: the same recital as the run before, without the
+     "I remember:" line recall put first that time, so `scored` counts it wrong. It flips with recall's order from
+     run to run; the wrong-answer bar (≤ 2%) fails on it alone.
+3. **[not a defect, measured on main 2026-10-16] Hyphenated words read as one word in a strict reading.** They
+   already do. Read only on main (nothing written): "Python is high-level.", "... general-purpose.",
+   "... object-oriented.", "... garbage-collected." and "Tom is well-known." each read with the hyphenated word as one
+   word ("high-level" is held as `high` `-` `level`, the pieces a sentence makes); "Python is a high-level language."
+   reads `isa(python, high-level language)`. The three prose sentences fail on what joins words, and fail the same
+   with no hyphen: "Python is a popular, general programming language." (a comma between modifiers) and "Python is
+   typed and collected." ("and" between properties) are unread too. Both are step 5. Seen on the way, a misreading
+   left for the undecided-readings work: "Python is a general-purpose language." reads "Python is" as something
+   owned by python and "a" as the angstrom.
+4. **[done 2026-10-16: sentences 4 → 7 on UNDERSTANDS-PROSE-01, all three held as misread] Trace why names main
+   holds are refused** ("blowhole" and "Eiffel
+   Tower" are in WordNet, yet the reply was "something I have no name for yet"). Fix what the trace shows.
+   - Traced on main, read only (nothing written): no name was refused. The reply is `Conversation._telling`'s for a
+     fact that still holds a variable after binding, and every telling of a happening has one: the happening itself
+     (`instance_of(?v0, bark)`). "The dog barked." and "Tom kicked the ball." were refused the same way, so no
+     happening told in a conversation was ever held, and none could be asked about.
+   - Teaching already names a told happening (`teaching.told_events`, decided 2026-10-04: one event, named by its
+     kind and its telling; "some shoe" stays open). `_telling` (protected module, edited with no substrate running)
+     now names each happening the same way, from the meaning with its known things found (so a kick of another ball
+     is another kicking, and the same telling again names the same one), as a particular of the teller's context.
+     `_incoming_relations` also reads the speaker's own context (`edges_naming`), so "What did Tom kick?" finds the
+     kicking that points at Tom.
+   - Sandbox, remembered and not: "Tom kicked the ball." then "Did Tom kick the ball?" is "Yes. Tom kicked the
+     ball.", "What did Tom kick?" and "Who kicked the ball?" are "Tom kicked the ball.", "Did the dog bark?" is "Yes.
+     The dog barked."; "Did Tom kick the box?" is not answered. Remembered, the kicking is held in the teller's
+     context only (`scoped_concept_relations`); the world holds nothing of it.
+   - All ten texts on the sandbox (probe, nothing recorded): sentences 4 → 6 of 33, right 7, wrong 1 (the same
+     `scored` case).
+   - Tests: `test_a_happening_told_is_held_as_one_event_of_the_tellers`,
+     `test_what_a_speaker_told_points_at_a_thing_from_their_own_context` (`tests/test_conversation.py`);
+     `test_conversation.py`, `test_reasoning_owner.py`, `test_postgres_config_authority.py`: 36 passed on
+     `lyric_dev`.
+   - Still open, for the owner: an unknown that is not a happening stays unheld, as decided 2026-10-04 ("A dog
+     barked.", "a new method", "three engineers", "a blowhole"). Holding them means naming each as a new particular of
+     the teller's context. And a held happening is said back by its stored name ("Noted - I'll hold that about
+     kick_99d12979."), as a particular already is ("... about ball_1."): a held fact that cannot be said alone falls
+     back to its name.
+   - Measured on UNDERSTANDS-PROSE-01 on main (`results/20261016T140446Z.md`, 25 minutes, nothing written):
+     sentences 4 → **7** of 33, right 9 of 37, wrong **0** of 37. The three sentences now read are all held as main
+     misreads them, which the refusal had hidden: "The company hired three engineers in May." is held as engineers
+     that are hired, the engineers taken for the happening (said back "An engineer 2608b000 is hired."); "The blue
+     whale is the largest animal on Earth." with "animal" a happening; "Guido van Rossum began working on Python in
+     the late 1980s." with the working done by the listener. `told_events` names any unknown of a kind that something
+     is done by or to: right of a taught meaning, which is given; of a misreading it names what the misreading made a
+     happening. Wrong went 1 → 0 only because "What is the largest animal on Earth?" began "I remember:" again (the
+     `scored` weakness). The misreadings are the undecided and misread readings' work, not this step's.
+5. **"and" joins things in one slot** ("carbon dioxide and water": both done the same thing), and so does a comma
+   between modifiers ("a high-level, general-purpose programming language"; "structured, object-oriented and
+   functional programming").
 
 **Phase 2: lessons for the pieces prose uses (data; sandbox first, main on the owner's word).**
 
@@ -261,3 +340,9 @@ command works on your own processes; `py-spy` needs root.
   normalises first (`normalize_term`). Called with "programming language", they find nothing.
 - **The disjointness rule closes the world at the very top.** Kinds that meet only at "entity" are answered No, so a
   sense memory does not hold, or a misreading, becomes a confident wrong answer.
+- **A known thing loses its `given` mark once it is named** (`MeaningFact.renamed`, by design). After binding, the
+  fact saying what it is reads like any asked fact; whatever needs to tell them apart must do it where what was
+  found is known (`Conversation._reasoned_answers`).
+- **A person's tellings and the world's are read by different calls.** A reasoner that reads only the world's store
+  (`held_conditionals`, `load_subgraph` without `actor`) never sees what a person told; pass the `actor` it was asked
+  for.

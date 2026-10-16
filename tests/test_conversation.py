@@ -351,3 +351,99 @@ async def test_a_reply_is_written_with_one_dash(talk):
     understanding = await talk.understand("The door is open.", look_up=False)
     reply = Conversation.say(understanding)
     assert "—" not in reply and "–" not in reply and " -- " not in reply, reply
+
+
+@pytest.mark.asyncio
+async def test_a_question_about_a_known_thing_asks_the_reasoner_the_one_fact_asked(talk, monkeypatch):
+    """"Is the tank full?" reads as the tank both know (given instance_of(?t0, tank)) and what is asked of it
+    (has_property(?t0, full)). Once the tank is found (`tank_1`), what it is only named it: the reasoner is asked the
+    one fact, tank_1 has_property full, and its proof answers yes. Counted as two facts, no yes/no question about a
+    known thing reached the reasoner, so a rule told about the tank never answered one."""
+    from core.reasoning import neural_bridge
+    from core.reasoning.neural_bridge import ReasoningResult
+    from core.semantics.derived_reader import MeaningFact
+    asked = []
+
+    class Reasoner:
+        async def reason(self, request):
+            asked.append(request.reading.facts)
+            return ReasoningResult(answer="Proved: tank_1_full", confidence=1.0, metadata={
+                "verified": True, "route": ["substrate", "held_rules", "proved"],
+                "chain": ["valve_1 has property closed", "tank_1 has property full"]})
+
+    async def found(meaning, *, telling=False):
+        return {"?t0": "tank_1"}
+
+    async def held_premises(*_):
+        return []
+
+    meaning = Meaning("ask", (MeaningFact("instance_of", "?t0", "tank", given=True),
+                              MeaningFact("has_property", "?t0", "full")))
+    monkeypatch.setattr(neural_bridge, "get_neural_bridge", lambda: Reasoner())
+    monkeypatch.setattr(talk, "_meaning", lambda sentence: meaning)
+    monkeypatch.setattr(talk, "_known_of", found)
+    monkeypatch.setattr(talk, "_held_premises", held_premises)
+    answers = await talk._reasoned_answers("Is the tank full?", [], None)
+    assert asked == [(MeaningFact("has_property", "tank_1", "full"),)], asked
+    assert [(a.about, a.relation, a.others, a.verdict) for a in answers] == [
+        ("tank_1", "has_property", ("full",), True)], answers
+
+
+@pytest.mark.asyncio
+async def test_a_happening_told_is_held_as_one_event_of_the_tellers(talk, monkeypatch):
+    """"Tom kicked the ball." tells of one kicking, done by Tom, done to the ball: named as teaching names a happening
+    (`told_events`), from the telling with its known things found, and the teller's. Unnamed, every fact of it was
+    "about something I have no name for yet", and no telling of a happening was ever held. The same telling names the
+    same kicking; a kick of another ball is another."""
+    import re
+    from core.semantics.derived_reader import MeaningFact
+    from types import SimpleNamespace
+    meaning = Meaning("tell", (MeaningFact("instance_of", "?t0", "ball", given=True),
+                               MeaningFact("instance_of", "?e", "kick"), MeaningFact("done_by", "?e", "tom"),
+                               MeaningFact("done_to", "?e", "?t0"), MeaningFact("precedes", "?e", "?now")))
+    balls = iter(["ball_1", "ball_1", "ball_2"])
+
+    async def found(meaning, *, telling=False):
+        return {"?t0": next(balls)}
+
+    monkeypatch.setattr(talk, "_known_of", found)
+    told = []
+    for _ in range(3):
+        telling, notes = await talk._telling("Tom kicked the ball.", SimpleNamespace(meaning=meaning, constructions=()),
+                                             dict(talk._situation()))
+        assert not notes, [n.detail for n in notes]
+        told.append(telling)
+    kicking = next(f.subject for f in told[0].facts if f.relation == "instance_of" and f.obj == "kick")
+    assert re.fullmatch(r"kick_[0-9a-f]{8}", kicking), kicking
+    assert {(f.relation, f.subject, f.obj) for f in told[0].facts if f.relation != "precedes"} == {
+        ("instance_of", "ball_1", "ball"), ("instance_of", kicking, "kick"), ("done_by", kicking, "tom"),
+        ("done_to", kicking, "ball_1")}
+    assert any(f.relation == "precedes" and f.subject == kicking for f in told[0].facts)
+    assert kicking in told[0].theirs
+    again = next(f.subject for f in told[1].facts if f.relation == "instance_of" and f.obj == "kick")
+    other = next(f.subject for f in told[2].facts if f.relation == "instance_of" and f.obj == "kick")
+    assert again == kicking and other != kicking, (kicking, again, other)
+
+
+@pytest.mark.asyncio
+async def test_what_a_speaker_told_points_at_a_thing_from_their_own_context():
+    """"What did Tom kick?" is answered by what points at Tom (`_incoming_relations`). A kicking a speaker told of is
+    held in their context, and is found there for them, and for no one else. Held in working memory here: nothing is
+    written."""
+    import random
+    import string
+    from core.memory import get_memory_agent
+    from core.memory.remembering import not_remembered
+    token = "".join(random.choice(string.ascii_lowercase) for _ in range(8))
+    teller = Conversation(session=f"zteller{token}", remembers=False)
+    other = Conversation(session=f"zother{token}", remembers=False)
+    kicking, kicker = f"kick_{token}", f"ztom{token}"
+    agent = await get_memory_agent()
+    with not_remembered():
+        decision = await agent.hold_for_person(teller._actor, kicking, "done_by", kicker, positive=True, quality=0.9,
+                                               domain="conversation", surface="Tom kicked the ball.", source="told")
+        told = await teller._incoming_relations(kicker)
+        not_told = await other._incoming_relations(kicker)
+    assert decision.standing == "theirs", decision
+    assert (kicking, "done by", kicker, True) in told, told
+    assert not any(subject == kicking for subject, *_ in not_told), not_told

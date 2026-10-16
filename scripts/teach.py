@@ -30,7 +30,8 @@ So this starts the substrate and teaches it while it is running:
     returns while the drain queue is full has measured its own inserts and
     nothing else.
 
-  --source   conceptnet | wordnet | wordnet-examples | wordnet-usage | listening | wikidata | closed-classes | lesson
+  --source   conceptnet | wordnet | wordnet-examples | wordnet-usage | listening | treebank | wikidata | closed-classes
+             | lesson
              wordnet-examples: WordNet's examples of English and none of its facts, for a store WordNet was taught
              to before they were said: its nouns' plurals ("Hawks are raptors."), its verbs' forms ("Tom strolled.")
              and kinds ("To stroll is to walk."), its adjectives' likenesses ("To be lovely is to be beautiful.")
@@ -38,6 +39,9 @@ So this starts the substrate and teaches it while it is running:
              store that holds the words
              listening: what the listener's evidence is worth, counted on the English lessons (data/lessons), whose
              meanings say which reading was meant; nothing else is taught
+             treebank: how the words of a sentence go together, from sentences analysed by hand (the English Web
+             Treebank's training part, test_data/syntax/UD_English-EWT): each kept whole, its standing a belief;
+             --limit N takes the first N sentences
   --relations grammar | practical | taxonomy      (conceptnet only)
   --limit N  teach a uniform sample of N across the WHOLE source
   --small N  a uniform sample of N, and of what the source states about its whole vocabulary (word classes, usage,
@@ -80,7 +84,7 @@ DUMP = ROOT / "data" / "bulk" / "conceptnet-assertions-5.7.0.csv.gz"
 def build_source(args):
     from core.learning.teaching_sources import (ClosedClassSource,
                                                 ConceptNetSource, ListeningSource,
-                                                WikidataSource, WordNetExamplesSource,
+                                                TreebankSource, WikidataSource, WordNetExamplesSource,
                                                 WordNetSource, WordNetUsageSource)
     if args.source == "conceptnet":
         relations = ConceptNetSource.RELATION_SETS.get(args.relations)
@@ -97,6 +101,8 @@ def build_source(args):
         return WordNetUsageSource(parts=tuple(args.part or ()))
     if args.source == "listening":
         return ListeningSource()
+    if args.source == "treebank":
+        return TreebankSource()
     if args.source == "closed-classes":
         # The finite classes of English. No facts, only what class each word
         # has -- which is the half of language a taxonomy source cannot state.
@@ -220,7 +226,7 @@ async def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--source", required=True,
                         choices=("conceptnet", "wordnet", "wordnet-examples", "wordnet-usage", "listening",
-                                 "wikidata", "closed-classes", "lesson"))
+                                 "treebank", "wikidata", "closed-classes", "lesson"))
     parser.add_argument("--domain", default="general")
     parser.add_argument("--limit", type=int, default=None)
     parser.add_argument("--small", type=int, default=None)

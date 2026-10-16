@@ -14,7 +14,7 @@ multi-tenant / air-gapped targets.
 So a user-originated fact lands HERE instead, partitioned by `scope_actor` (the
 same actor key the memory store isolates on — see
 `core.agents.autonomous.shared_types.actor_for`). This layer mirrors the shared
-mind in the two representations that matter for reasoning:
+mind in the three representations that matter for reasoning:
 
   * `unified.scoped_concept_relations` — the EDGE (subject -rel-> object), so the
     reasoner can CHAIN over a user's context when it is acting FOR that user
@@ -24,6 +24,10 @@ mind in the two representations that matter for reasoning:
     moved with the IDENTICAL kernel the shared graph uses (`evidence_step`, no
     cap), the posterior read from it, so a scoped belief is a real revisable
     belief, not a lesser record.
+  * `unified.scoped_conditionals` — the RULE ("if the valve is closed, the tank
+    is full"), its two clauses kept as the shared mind keeps a held rule
+    (`held_conditionals`), so the reasoner can fire a user's rule on their facts
+    when it is acting FOR that user. Neither clause is asserted.
 
 Nothing here reaches the world: what is about the world is judged at the one door
 (docs/research/SEPARATION_MAP.md §11).
@@ -31,7 +35,7 @@ Nothing here reaches the world: what is about the world is judged at the one doo
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from core.database import LyricUnifiedDatabase
 from core.reasoning.bayesian_uncertainty import (evidence_step, log_odds_of,
@@ -49,14 +53,14 @@ def scoped_claim_key(claim: Any) -> str:
 
 
 class ScopedContextStore:
-    """Per-actor context: scoped edges + scoped beliefs. One owner, two tables."""
+    """Per-actor context: scoped edges, scoped beliefs and scoped rules. One owner, three tables."""
 
     def __init__(self) -> None:
         self.db = LyricUnifiedDatabase()
         self._schema_ready = False
 
     async def _ready(self) -> None:
-        """Ensure the pool is up and both tables exist. No silent degrade: if the
+        """Ensure the pool is up and the three tables exist. No silent degrade: if the
         database is not initialized we initialize it, we do not drop the write."""
         if not self.db.initialized:
             await self.db.initialize()
@@ -107,6 +111,30 @@ class ScopedContextStore:
         await self.db.execute_query(
             "CREATE INDEX IF NOT EXISTS scoped_relations_subj_idx "
             "ON unified.scoped_concept_relations (scope_actor, subj)",
+            commit=True)
+        # A RULE, ITS CLAUSES AS THE SHARED MIND KEEPS A HELD RULE'S (`held_conditionals`), one per belief in it.
+        await self.db.execute_query(
+            """
+            CREATE TABLE IF NOT EXISTS unified.scoped_conditionals (
+                scope_actor   TEXT NOT NULL,
+                claim_key     TEXT NOT NULL,
+                ant_subject   TEXT NOT NULL,
+                ant_relation  TEXT NOT NULL,
+                ant_object    TEXT,
+                ant_positive  BOOLEAN NOT NULL DEFAULT TRUE,
+                cons_subject  TEXT NOT NULL,
+                cons_relation TEXT NOT NULL,
+                cons_object   TEXT,
+                cons_positive BOOLEAN NOT NULL DEFAULT TRUE,
+                surface       TEXT,
+                domain        TEXT NOT NULL DEFAULT 'conversation',
+                context       TEXT NOT NULL DEFAULT 'personal',
+                organization  TEXT,
+                created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+                last_updated  TIMESTAMPTZ NOT NULL DEFAULT now(),
+                PRIMARY KEY (scope_actor, claim_key)
+            )
+            """,
             commit=True)
         # WHICH OF THE PERSON'S CONTEXTS each row came through: personal, or work and the organization's
         # (`Origin.context`, docs/research/SEPARATION_MAP.md §11.3).
@@ -169,8 +197,8 @@ class ScopedContextStore:
                             surface: Optional[str] = None, context: str = "personal",
                             organization: Optional[str] = None) -> Dict[str, Any]:
         """Move `actor`'s scoped BELIEF in `claim` with no edge — for a claim
-        that asserts no relation of its own, such as a told conditional, whose
-        clauses are hypotheses and must not be walked as facts."""
+        that asserts no relation of its own, such as a hypothesis they hold or
+        how a method goes in their work."""
         if not actor:
             raise ValueError("a scoped claim must name the actor it belongs to")
         await self._ready()
@@ -178,6 +206,30 @@ class ScopedContextStore:
                                           quality=quality, source=source,
                                           surface=surface or claim, context=context,
                                           organization=organization)
+
+    async def observe_rule(self, actor: str, antecedent: Tuple[str, str, Optional[str], bool],
+                           consequent: Tuple[str, str, Optional[str], bool], *, claim: str, domain: str,
+                           quality: float = 0.9, source: str = "taught",
+                           surface: Optional[str] = None, context: str = "personal",
+                           organization: Optional[str] = None) -> Dict[str, Any]:
+        """Record one telling of a rule within `actor`'s context: its two clauses (each `(subject, relation, obj,
+        positive)` in the ingress's canonical terms, `shape_proposition`), held for the reasoner to chain over and
+        never walked as facts, and the scoped BELIEF in `claim`, the rule as the shared side spells it. Returns the
+        scoped state of the belief."""
+        if not actor:
+            raise ValueError("a scoped rule must name the actor it belongs to")
+        if not claim:
+            raise ValueError("a scoped rule must name the claim its belief is in")
+        await self._ready()
+        surface = surface or claim
+        (a_s, a_r, a_o, a_p), (c_s, c_r, c_o, c_p) = antecedent, consequent
+        from core.agents.memory_agent import memory_agent
+        await memory_agent().hold_scoped_rule(
+            actor=actor, claim_key=scoped_claim_key(claim), ant_subject=a_s, ant_relation=a_r, ant_object=a_o,
+            ant_positive=a_p, cons_subject=c_s, cons_relation=c_r, cons_object=c_o, cons_positive=c_p,
+            surface=surface, domain=domain, context=context, organization=organization)
+        return await self._observe_belief(actor, claim, domain, supports=True, quality=quality, source=source,
+                                          surface=surface, context=context, organization=organization)
 
     async def _observe_belief(self, actor: str, claim: str, domain: str, *,
                               supports: bool, quality: float, source: str,
@@ -274,6 +326,22 @@ class ScopedContextStore:
         working = [r["subj"] for r in memory_agent().working_relations(await self._composed(actor))
                    if r["rel"] == "instance of" and r["obj"] == str(kind) and r["pol"] == "positive"]
         return list(dict.fromkeys(working[::-1] + [str(r["subj"]) for r in (rows or [])]))
+
+    async def rules_for_actor(self, actor: str) -> List[Dict[str, Any]]:
+        """The rules in this actor's Shared World Context (their own, and their organizations' Work Context) -- the
+        rules the reasoner chains over on THIS ACTOR'S BEHALF, beside the shared mind's. Shape matches the shared
+        `held_conditionals` (each clause's subject, relation, object and polarity, and the surface)."""
+        if not actor:
+            return []
+        await self._ready()
+        owners = await self._composed(actor)
+        rows = await self.db.execute_query(
+            "SELECT ant_subject, ant_relation, ant_object, ant_positive, cons_subject, cons_relation, "
+            "cons_object, cons_positive, surface FROM unified.scoped_conditionals "
+            "WHERE scope_actor = ANY($1::text[])",
+            (owners,), fetch_all=True)
+        from core.agents.memory_agent import memory_agent
+        return memory_agent().working_rules(owners) + [dict(r) for r in (rows or [])]
 
     async def beliefs_for_actor(self, actor: str, domain: Optional[str] = None,
                                 limit: int = 50) -> List[Dict[str, Any]]:

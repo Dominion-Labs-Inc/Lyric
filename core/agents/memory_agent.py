@@ -110,10 +110,11 @@ class MemoryAgent(IMemoryConsolidation):
         Sets up storage backends but does not connect (call initialize())
         """
         # WORKING MEMORY: what a conversation held not to remember was told, for as long as the process holds it,
-        # each person's apart (`not_remembered`). The links, the beliefs and what they said of themselves, as the
-        # store would hold them, read with what the store holds wherever their context is read.
+        # each person's apart (`not_remembered`). The links, the beliefs, the rules and what they said of themselves,
+        # as the store would hold them, read with what the store holds wherever their context is read.
         self._working_relations: Dict[str, Dict[Tuple[str, str, str], Dict[str, Any]]] = {}
         self._working_beliefs: Dict[str, Dict[str, Dict[str, Any]]] = {}
+        self._working_rules: Dict[str, Dict[str, Dict[str, Any]]] = {}
         self._working_speaker: Dict[str, Dict[Tuple[str, str], Dict[str, Any]]] = {}
         # PostgreSQL storage (handles both hot and cold tiers)
         self.postgres_storage: Optional[PostgresStorage] = None  # Hot+Cold tier (PostgreSQL both)
@@ -158,6 +159,8 @@ class MemoryAgent(IMemoryConsolidation):
         #: Rebuilt at every warm; the kinds each relation's words are said of (`_said_spread`) are worked out from it
         #: when first asked and kept until the view changes.
         self._said_view: Dict[Tuple[str, str, str], Dict[str, Any]] = {}
+        #: The sentences memory holds as analysed, read as memory-based learning reads them (`structure_view`).
+        self._structure_view = None
         self._said_spread: Dict[Tuple[str, str], Dict[str, float]] = {}
         #: How many things memory holds connected to each thing a listener has asked about (`_fans`), with how many
         #: things memory holds at all when they were counted: what each thing's associative strength is measured
@@ -2841,6 +2844,8 @@ class MemoryAgent(IMemoryConsolidation):
             await give_way()
         # WHAT WORDS ARE SAID OF, in the same pass: how English uses a word, read from memory at the same events.
         said = await self._said_memories()
+        # AND HOW THE WORDS OF A SENTENCE GO TOGETHER: the sentences held as analysed.
+        structure = await self._analysed_memories()
         # AND WHAT WAS HEARD AFTER WHAT, into the same view.
         heard, self._heard_memory = await self._heard_memories()
         for word, (after, two) in heard.items():
@@ -2858,6 +2863,7 @@ class MemoryAgent(IMemoryConsolidation):
         inventory.word_classes = index
         self._pattern_inventory = inventory
         self._said_view, self._said_spread = said, {}
+        self._structure_view = structure
         self._fan_view, self._things_held = {}, None
         logger.info(
             "word-class view warmed: %d word(s) from %d taught memory(ies) "
@@ -4650,6 +4656,36 @@ class MemoryAgent(IMemoryConsolidation):
              update_count, surface, source, context, organization, log_odds),
             commit=True)
 
+    async def hold_scoped_rule(self, *, actor: str, claim_key: str, ant_subject: str, ant_relation: str,
+                               ant_object: Optional[str], ant_positive: bool, cons_subject: str,
+                               cons_relation: str, cons_object: Optional[str], cons_positive: bool,
+                               surface: Any, domain: Any, context: str = "personal",
+                               organization: Optional[str] = None) -> None:
+        """A rule a person told the substrate, its two clauses kept as the world's held rules keep theirs
+        (`hold_conditional`), in that person's context: personal, or work and the organization's. `claim_key` is
+        the person's belief in it. Not remembered, held in working memory instead (`working_rules`)."""
+        from core.memory.remembering import remembered
+        row = {"ant_subject": ant_subject, "ant_relation": ant_relation, "ant_object": ant_object,
+               "ant_positive": ant_positive, "cons_subject": cons_subject, "cons_relation": cons_relation,
+               "cons_object": cons_object, "cons_positive": cons_positive, "surface": surface}
+        if not remembered():
+            self._working_rules.setdefault(actor, {})[claim_key] = {**row, "at": time.time()}
+            return
+        await self._memory_db().execute_query(
+            """
+            INSERT INTO unified.scoped_conditionals
+                (scope_actor, claim_key, ant_subject, ant_relation, ant_object, ant_positive,
+                 cons_subject, cons_relation, cons_object, cons_positive, surface, domain,
+                 context, organization, last_updated)
+            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14, now())
+            ON CONFLICT (scope_actor, claim_key) DO UPDATE SET
+                surface = EXCLUDED.surface, domain = EXCLUDED.domain, context = EXCLUDED.context,
+                organization = EXCLUDED.organization, last_updated = now()
+            """,
+            (actor, claim_key, ant_subject, ant_relation, ant_object, ant_positive, cons_subject, cons_relation,
+             cons_object, cons_positive, surface, domain, context, organization),
+            commit=True)
+
     def working_relations(self, owners: Sequence[str]) -> List[Dict[str, Any]]:
         """The links held in working memory for any of `owners`, in the store's row shape (subj, rel, obj, pol,
         surface): what a conversation not remembered was told."""
@@ -4660,6 +4696,12 @@ class MemoryAgent(IMemoryConsolidation):
         """The beliefs held in working memory for any of `owners`, most recently moved first."""
         rows = [row for owner in owners for row in self._working_beliefs.get(str(owner), {}).values()]
         return [{k: v for k, v in row.items() if k != "at"} for row in sorted(rows, key=lambda r: -r["at"])]
+
+    def working_rules(self, owners: Sequence[str]) -> List[Dict[str, Any]]:
+        """The rules held in working memory for any of `owners`, in the store's row shape (each clause's subject,
+        relation, object and polarity, and the surface): what a conversation not remembered was told."""
+        return [{k: v for k, v in row.items() if k != "at"}
+                for owner in owners for row in self._working_rules.get(str(owner), {}).values()]
 
     # ---- a person's Shared World Context: composed, never stored -------------------------------------------
     #
@@ -5048,9 +5090,10 @@ class MemoryAgent(IMemoryConsolidation):
     async def hold_rule_for_person(self, actor: str, antecedent: Dict[str, Any], consequent: Dict[str, Any], *,
                                    quality: float, domain: str, surface: str, context: str = "personal",
                                    organization: Optional[str] = None) -> Any:
-        """A rule about a person's own things, held in their context as their belief in it, asserting neither side
-        (`ScopedContextStore.observe_claim`). Returns the `Decision`, standing `theirs`. What the store cannot hold,
-        or what is too weakly supported, is refused here as at the world's door."""
+        """A rule about a person's own things, held in their context, asserting neither side: its two clauses, which
+        the reasoner chains over when it works for them, and their belief in it (`ScopedContextStore.observe_rule`).
+        Returns the `Decision`, standing `theirs`. What the store cannot hold, or what is too weakly supported, is
+        refused here as at the world's door."""
         from core.learning.scoped_context_store import get_scoped_context_store
         from core.learning.unified_learning_system import Decision
         from core.semantics.cognitive_ingress import MIN_ADMIT_QUALITY, shape_proposition
@@ -5059,16 +5102,19 @@ class MemoryAgent(IMemoryConsolidation):
             return ("" if clause.get("positive", True) else "not ") + " ".join(
                 str(clause.get(k) or "") for k in ("subject", "relation", "obj")).strip()
         claim = " ".join(f"if {said(antecedent)} then {said(consequent)}".split())
+        shaped = []
         for tag, side in (("antecedent", antecedent), ("consequent", consequent)):
-            *_, refusal = shape_proposition(side.get("subject"), side.get("relation"), side.get("obj"))
+            subject, relation, obj, refusal = shape_proposition(side.get("subject"), side.get("relation"),
+                                                                side.get("obj"))
             if refusal:
                 return Decision(claim, True, "refused", [f"{tag} {refusal}"])
+            shaped.append((subject, relation, obj, bool(side.get("positive", True))))
         if quality < MIN_ADMIT_QUALITY:
             return Decision(claim, True, "refused", [
                 f"insufficient support: quality {quality:.3f} < floor {MIN_ADMIT_QUALITY}"])
         owner, context, organization = self.held_where(actor, context, organization)
-        await get_scoped_context_store().observe_claim(
-            owner, claim, domain=domain, supports=True, quality=quality, source="told_rule", surface=surface,
+        await get_scoped_context_store().observe_rule(
+            owner, *shaped, claim=claim, domain=domain, quality=quality, source="told_rule", surface=surface,
             context=context, organization=organization)
         return Decision(claim, True, "theirs")
 
@@ -6202,6 +6248,62 @@ class MemoryAgent(IMemoryConsolidation):
             self._said_spread.pop((relation, side), None)
             counts["remembered"] += 1
         return counts
+
+    # HOW THE WORDS OF A SENTENCE GO TOGETHER. A sentence analysed by hand (a treebank's: each word's class, the
+    # word it depends on and as what) is kept whole, ONE MEMORY FOR EACH USE of a sentence, as it was analysed, and
+    # read as memory-based learning reads examples: each decision by what the sentences held did in the most
+    # specific situation like it they met (`structure.StructureView`). Nothing is reduced to rules when it is kept.
+
+    STRUCTURE_TAG = "analysed_sentence"
+
+    async def _analysed_memories(self):
+        """The sentences held as analysed, read back as the view (`structure_view`)."""
+        from core.semantics.structure import Analysed, StructureView
+        from core.utils.give_way import GiveWay
+        give_way = GiveWay()
+        view = StructureView()
+        for row in await self._rows_tagged(self.STRUCTURE_TAG):
+            await give_way()
+            analysed = (row.metadata or {}).get("analysed")
+            if analysed:
+                view.add(Analysed.from_dict(analysed))
+        return view
+
+    def structure_view(self):
+        """The sentences held as analysed, as the reader reads them. Synchronous; empty before the first warm."""
+        if self._structure_view is None:
+            from core.semantics.structure import StructureView
+            self._structure_view = StructureView()
+        return self._structure_view
+
+    async def remember_analysed(self, analysed, progress: Optional[Callable[[int, int], None]] = None
+                                ) -> Dict[str, Any]:
+        """Remember sentences as they were analysed (`structure.Analysed`), one memory each; a use of a sentence held
+        already is not held again. Returns `kept` (each analysis newly held, with its memory's id), and counts:
+        `remembered`, `already`, `total`. `progress(done, of)` is told every 1,000 sentences."""
+        from core.memory.utils.interfaces import Origin
+        if not self._word_classes_warm:
+            await self.warm_word_classes()
+        view = self.structure_view()
+        analysed = list(analysed)
+        kept: List[Tuple[Any, str]] = []
+        counts = {"remembered": 0, "already": 0, "total": len(analysed)}
+        for done, item in enumerate(analysed, 1):
+            if progress is not None and done % 1000 == 0:
+                progress(done, len(analysed))
+            if item.key() in view:
+                counts["already"] += 1
+                continue
+            stored, memory_id = await self.store_memory(
+                content=item.said(), memory_type=MemoryType.SEMANTIC, importance_score=0.6, confidence_score=0.9,
+                tags=["language", self.STRUCTURE_TAG], source_context={"analysed": item.to_dict()},
+                origin=Origin.own("teaching"))
+            if not stored or not memory_id:
+                raise RuntimeError(f"{item.text!r} as analysed was not kept: the memory was declined")
+            view.add(item)
+            kept.append((item, memory_id))
+            counts["remembered"] += 1
+        return {"kept": kept, **counts}
 
     # WHAT WAS HEARD AFTER WHAT. A construction holds its slots' fillers each apart, so which word went after which
     # is not in it ("might open" and "often opens", one phrase "?slot0 ?slot1"); the sentences taught had it, and it

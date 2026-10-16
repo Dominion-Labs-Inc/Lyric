@@ -1859,6 +1859,80 @@ class WordNetUsageSource:
         return WordNetSource(parts=self.parts).usage()
 
 
+# ── Treebanks ───────────────────────────────────────────────────────────────
+
+#: A Universal Dependencies treebank's parts of speech, by the names Lyric's classes go by. A proper noun is a NAME;
+#: a symbol and a word of no class (a foreign word, a typo) keep the treebank's sense of them.
+_UD_CLASS = {"NOUN": "NOUN", "PROPN": "NAME", "VERB": "VERB", "AUX": "AUXILIARY", "ADJ": "ADJECTIVE",
+             "ADV": "ADVERB", "PRON": "PRONOUN", "DET": "DETERMINER", "ADP": "PREPOSITION", "CCONJ": "CONJUNCTION",
+             "SCONJ": "SUBORDINATOR", "PART": "PARTICLE", "NUM": "NUMERAL", "PUNCT": "PUNCTUATION",
+             "INTJ": "INTERJECTION", "SYM": "SYMBOL", "X": "OTHER"}
+
+#: Where the English Web Treebank is kept on disk (datasets are not in the repository): its training part, the one
+#: taught. Its other two parts are held out, to measure what was learned (`experiments/STRUCTURE-01`).
+EWT_TRAIN = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+                         "test_data", "syntax", "UD_English-EWT", "en_ewt-ud-train.conllu")
+
+
+def read_conllu(path: str, said_in: str) -> Iterator[Any]:
+    """Each sentence of a CoNLL-U file as it was analysed (`structure.Analysed`): its words, their classes by Lyric's
+    names, the word each depends on and as what; `said_in` with the file's sentence id. A word written as several
+    ("don't": "do" and "n't") is the several; the enhanced graph's added nodes are not words."""
+    from core.semantics.structure import Analysed
+    words: List[Tuple[str, str, int, str]] = []
+    sent_id = ""
+    with open(path, "r", encoding="utf-8") as handle:
+        for line in handle:
+            line = line.rstrip("\n")
+            if not line:
+                if words:
+                    yield Analysed(tuple(w for w, _, _, _ in words), tuple(c for _, c, _, _ in words),
+                                   tuple(h for _, _, h, _ in words), tuple(r for _, _, _, r in words),
+                                   f"{said_in}:{sent_id}")
+                words, sent_id = [], ""
+                continue
+            if line.startswith("# sent_id"):
+                sent_id = line.split("=", 1)[1].strip()
+                continue
+            if line.startswith("#"):
+                continue
+            cols = line.split("\t")
+            if len(cols) != 10 or not cols[0].isdigit():
+                continue
+            if cols[3] not in _UD_CLASS:
+                raise ValueError(f"{path}: {cols[3]!r} is not a Universal Dependencies part of speech")
+            words.append((cols[1], _UD_CLASS[cols[3]], int(cols[6]), cols[7]))
+    if words:
+        yield Analysed(tuple(w for w, _, _, _ in words), tuple(c for _, c, _, _ in words),
+                       tuple(h for _, _, h, _ in words), tuple(r for _, _, _, r in words), f"{said_in}:{sent_id}")
+
+
+@dataclass
+class TreebankSource:
+    """Sentences analysed by hand, each word's class and the word it depends on and as what: a Universal Dependencies
+    treebank (CoNLL-U), the English Web Treebank by default (CC BY-SA 4.0). It teaches how the words of a sentence go
+    together (`analysed()`, `structure`), and states nothing else, so it has no records (`vocabulary_only`)."""
+
+    path: str = EWT_TRAIN
+    name: str = "ud_english_ewt"
+    quality: float = 0.9
+    curated: bool = True
+    vocabulary_only: bool = True
+
+    def provenance(self):
+        return _provenance("ud_english_ewt", "ud_english_ewt_2.18")
+
+    def records(self) -> Iterator[TaughtRecord]:
+        return iter(())
+
+    def analysed(self) -> Iterator[Any]:
+        if not os.path.exists(self.path):
+            raise FileNotFoundError(
+                f"the treebank is not at {self.path}; fetch it first (UniversalDependencies/UD_English-EWT). A "
+                f"teaching pass does not reach the network.")
+        return read_conllu(self.path, self.name)
+
+
 # ── Wikidata ────────────────────────────────────────────────────────────────
 
 @dataclass

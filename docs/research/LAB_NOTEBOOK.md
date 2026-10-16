@@ -15787,3 +15787,134 @@ wrong 0 of 37, three by this; the fourth changed only by the order of a recital'
 **Agreed plan** (in `docs/HANDOFF.md` §4): phase 1, five fixes no lesson can make; phase 2, lessons for the pieces
 prose uses, written as pairs with and without each piece; phase 3, unread sentences become learning in production.
 
+
+## 2026-10-16 (2) — A rule told in a conversation reaches the reasoner
+
+Told "If the valve is closed, the tank is full." and "The valve is closed.", both read, the conversation did not
+answer "Is the tank full?". Traced on the sandbox, two defects, each enough to block it.
+
+**The rule was held as a sentence, not as a rule.** A person's rule went to their context as their belief in a claim
+string ("if valve_1 has_property closed then tank_1 has_property full"); its clauses were kept nowhere. The rule
+reasoner (`_answer_over_held_rules`) reads the world's rules (`held_conditionals`) and the world's facts only, so it
+saw neither the rule nor "valve_1 has property closed", held in the person's working memory. The particulars were
+bound right: the rule made `valve_1` and `tank_1`, and the next sentence found `valve_1`.
+
+- The person's context now keeps a rule's clauses as the world keeps a held rule's: `unified.scoped_conditionals`
+  (registered in `user_context`), or working memory when the conversation is not remembered
+  (`MemoryAgent.hold_scoped_rule`, `working_rules`), written through `ScopedContextStore.observe_rule` beside the
+  belief, as an edge is beside a fact's.
+- Reasoning done for a person chains their rules with the world's (`rules_for_actor`) over their facts with the
+  world's (`load_subgraph(..., actor=)`). For anyone else, or for the substrate, the rule is not there.
+
+**A yes/no question about a known thing never reached the reasoner.** "Is the tank full?" reads as the tank both know
+(`given instance_of(?t0, tank)`) and what is asked of it. Once the tank is found, `MeaningFact.renamed` drops `given`,
+so the question counted as two facts and `goal_fact` returned None; with no premises held, `_reasoned_answers`
+returned nothing. "Is the valve closed?" was answered only by the direct lookup. `_reasoned_answers` now sets aside the
+fact naming each known thing it found and asks the reasoner the one fact left.
+
+**Measured.** Sandbox: "Is the tank full?" is "Yes. The tank is full.", remembered and not (the remembered rule is a
+row of `scoped_conditionals` under the person); "Is the tank empty?" stays unanswered. All ten texts of
+UNDERSTANDS-PROSE-01 on the sandbox, by a probe with the experiment's scoring and nothing recorded: sentences 4 of 33,
+right 7 of 37, wrong 1 ("What absorbs the light?", a recital `scored` counts wrong, on a path this change does not
+touch); the questions about the method, the account, the server and the company stay unanswered. Tests:
+`test_a_persons_rule_is_reasoned_over_for_them_and_no_one_else`,
+`test_a_question_about_a_known_thing_asks_the_reasoner_the_one_fact_asked`; `test_conversation.py`,
+`test_reasoning_owner.py`, `test_postgres_config_authority.py` 34 passed on `lyric_dev`.
+
+**On main** (UNDERSTANDS-PROSE-01, `20261016T125637Z`, 26 minutes, nothing written): sentences 4 of 33, right 9 of 37
+(8 before; "Is the tank full?" is "Yes. The tank is full."), wrong 1 of 37. The wrong one is "What is the largest
+animal on Earth?": the same recital as the run before, which began "I remember:" then and is counted unanswered, and
+began "I hold largest" now and is counted wrong. `scored` decides by the reply's first words, so this answer flips
+with the order recall gives; the wrong-answer bar fails on it alone.
+
+## 2026-10-16 (3) — Hyphenated words already read whole; the comma and "and" are what fail
+
+Phase 1 step 3 was to make hyphenated words read as one word in a strict reading. Measured first, read only on main
+(nothing written), it needs no change. "Python is high-level.", "Python is general-purpose.", "Python is
+object-oriented.", "Python is garbage-collected." and "Tom is well-known." each read with the hyphenated word as one;
+"Python is a high-level language." reads `isa(python, high-level language)`. WordNet's "high-level" is held as `high`
+`-` `level`, the same pieces a sentence makes, so the strict lookup finds it, and an unheld one is taken as one new
+word (`_written_words`).
+
+The three prose sentences that had hyphens fail on what joins the words, and fail the same with no hyphen: "Python is
+a popular, general programming language." (a comma between modifiers) and "Python is typed and collected." ("and"
+between properties) are unread. The read-in-part reply split at the hyphens only because it prefers a part read as a
+sentence ("Python is a high") over a lone filler (`_partial`). Step 5 now names the comma with "and".
+
+Seen on the way: "Python is a general-purpose language." reads "Python is" as something owned by python and "a" as
+the angstrom; "Python is dynamically typed." reads a writing of type by something called dynamically.
+
+## 2026-10-16 (4) — A happening told in a conversation is held, and asked about
+
+Phase 1 step 4 was to trace why names main holds ("blowhole", "Eiffel Tower") were refused. Traced on main, read
+only, through a conversation held not to remember (nothing written): no name was refused. "Part of that is about
+something I have no name for yet" is `Conversation._telling`'s reply for a fact still holding a variable after
+binding, and every telling of a happening has one, the happening itself. "The dog barked." (`instance_of(?v0, bark) &
+done_by(?v0, dog_1) & precedes(?v0, ?now)`) and "Tom kicked the ball." were refused exactly so. No happening told in a
+conversation had ever been held, and no question about one could be answered from what was told.
+
+Teaching already names a told happening (`teaching.told_events`, decided 2026-10-04): one event, named by its kind
+and its telling; any other unknown stays open. The conversation never used it. `_telling` now names each happening the
+same way, from the meaning with its known things found, so a kick of another ball is another kicking and the same
+telling again names the same one; the event is the teller's, as a thing first told of is. Event questions look for
+what points at the things they name (`_incoming_relations`), which read the world's concepts only; they now read the
+speaker's own context too.
+
+Sandbox, remembered and not: "Tom kicked the ball.", then "Did Tom kick the ball?" is "Yes. Tom kicked the ball.",
+"What did Tom kick?" and "Who kicked the ball?" are "Tom kicked the ball.", "Did the dog bark?" is "Yes. The dog
+barked."; "Did Tom kick the box?" is not answered. Remembered, the kicking is in the teller's context only. All ten
+prose texts on the sandbox: sentences 4 → 6 of 33, right 7, wrong 1, as before. Tests: two new in
+`test_conversation.py`; `test_conversation.py`, `test_reasoning_owner.py`, `test_postgres_config_authority.py` 36
+passed.
+
+Open: an unknown that is not a happening ("a dog", "a new method", "three engineers") still names nothing and is not
+held, as decided 2026-10-04; and a held happening is said back by its stored name ("I'll hold that about
+kick_99d12979"), as particulars are ("ball_1").
+
+**On main** (UNDERSTANDS-PROSE-01, `20261016T140446Z`, 25 minutes, nothing written): sentences 4 → 7 of 33, right 9 of
+37, wrong 0 of 37. All three sentences newly read are held as main misreads them, which the refusal of every
+happening had hidden: "The company hired three engineers in May." as engineers that are hired (said back "An engineer
+2608b000 is hired."), "The blue whale is the largest animal on Earth." with "animal" a happening, "Guido van Rossum
+began working on Python in the late 1980s." with the working done by the listener. `told_events` names whatever the
+reading made a happening; of a taught meaning that is right, of a misreading it is the misreading. The sentence
+measure counts a telling held, not one read right. Wrong 1 → 0 is the largest-animal recital beginning "I remember:"
+again.
+
+## 2026-10-16 (5) — Lyric learns phrase structure from a treebank
+
+The owner judged the step-by-step plan not the right fix. The research (`docs/research/READING_PROSE_AT_SCALE.md`):
+the reader has no phrase layer between words and frames, and the same family of method scales once constructions
+match phrases (Van Eecke & Beuls 2026: 154,391 annotated utterances, 40,688 constructions, frame F1 79.96 on held-out
+open-domain text). **The owner chose that Lyric learns phrase structure itself from a treebank**, taught into the main
+model through the learning authority so it touches memory and beliefs.
+
+**The treebank.** UD English EWT 2.18 (CC BY-SA 4.0) in `test_data/syntax/UD_English-EWT`, ignored by git: 12,544
+training sentences, 2,001 dev, 2,077 test.
+
+**The method, measured on the files first (dev), to choose it:**
+
+| Method | Classes | Heads (UAS) | Heads and relations (LAS) |
+|---|---|---|---|
+| Classes by counts of class order and word use (TnT-style); each attachment scored alone, best tree (Eisner) | 92.3% | 68.0% | 58.4% |
+| Same classes; structure step by step, each step by the most specific situation the treebank met (memory-based) | 92.3% | 73.8% | 67.4% |
+| Step by step, with the treebank's own classes (the ceiling the classes cost) | | 79.8% | 75.3% |
+| Classes memory-based too (word, classes before, what follows), one mechanism for both | 92.1% | | |
+
+Requiring more than one case for a situation measured worse at every setting (forgetting exceptions, as in
+memory-based learning); letting every situation vote changed nothing (73.9%). Classic non-neural taggers reach about
+93 to 94% on this treebank.
+
+**Built** (one mechanism for classes and structure):
+- `core/semantics/structure.py`: `Analysed` (a sentence as analysed, with where it was met), `StructureView` (decides
+  by the most specific situation the held sentences met), `Structure.phrase` (a word with all that depends on it),
+  `words_of` (pieces as a treebank writes them). Measured from the files: classes 91.9%, UAS 73.1%, LAS 66.2% (dev).
+- `TreebankSource` (`teaching_sources.py`): reads CoNLL-U, the classes named as Lyric names them (a proper noun is a
+  NAME); `teach.py --source treebank`.
+- `learn_structure` (learning authority): each sentence kept by memory whole (`MemoryAgent.remember_analysed`, one
+  memory per use, tag `analysed_sentence`), its standing a belief on that memory, recorded in the knowledge ledger;
+  the view warms with the word classes and the patterns.
+- Tests: `tests/test_structure.py`, 7 passed, among them a sentence never held read right by the situations it shares.
+
+Not yet: teaching main (the owner's run), then `experiments/STRUCTURE-01` from main's own view. Then constructions
+learned over phrases instead of word strings.
+

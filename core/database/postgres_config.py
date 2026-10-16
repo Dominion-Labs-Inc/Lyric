@@ -157,7 +157,7 @@ STORE_TABLES: Dict[str, frozenset] = {
         rule_supersessions schemas sense_taxonomy vision_instances sound_instances
         security_training_examples"""),
     "user_context": _qualified("unified", """
-        scoped_beliefs scoped_concept_relations user_beliefs work_authorizations"""),
+        scoped_beliefs scoped_concept_relations scoped_conditionals user_beliefs work_authorizations"""),
 }
 
 #: Tables whose rows belong to whoever they are about, and the store the SUBSTRATE's own rows are kept in. A

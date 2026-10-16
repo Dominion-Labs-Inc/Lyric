@@ -223,6 +223,8 @@ class Report:
     listening: Dict[str, int] = field(default_factory=dict)
     #: {told, already, skipped, total} for how the source says each word is said (`learn_pronunciations`).
     pronunciations: Dict[str, int] = field(default_factory=dict)
+    #: {remembered, already, refused, total} for the sentences the source gave as analysed (`learn_structure`).
+    structure: Dict[str, int] = field(default_factory=dict)
     sampled: bool = False
     limit: Optional[int] = None
     #: Whether what the source states about its whole vocabulary was cut to the sample's words (a small pass).
@@ -250,6 +252,7 @@ class Report:
             f"listening counted : {self.listening or 'nothing'}",
             f"said of           : {self.said or 'none counted'}",
             f"pronunciations    : {self.pronunciations or 'none stated'}",
+            f"sentences analysed: {self.structure or 'none given'}",
             f"seconds           : {self.seconds:.1f}",
         ]
 
@@ -476,6 +479,20 @@ class TeachingPass:
             report.listening = await learning.learn_listening(
                 counts, provenance=self.source.provenance(), quality=float(self.source.quality))
             report.listening["sentences"] = len(pairs)
+            await self._flush()
+
+        # HOW THE WORDS OF A SENTENCE GO TOGETHER, from a source of sentences analysed by hand (`analysed()`: a
+        # treebank): each kept by memory whole, as it was analysed, its standing a belief on that memory, and read as
+        # memory-based learning reads them (`structure.StructureView`). A limited pass takes the first `limit`.
+        if hasattr(self.source, "analysed"):
+            analysed = await asyncio.to_thread(list, self.source.analysed())
+            if self.limit is not None:
+                analysed = analysed[:self.limit]
+                report.limit, report.sampled = self.limit, False
+            report.structure = await learning.learn_structure(
+                analysed, provenance=self.source.provenance(), quality=float(self.source.quality),
+                progress=(None if not self.progress else
+                          lambda done, of: self.progress(done, of, {"phase": "sentences analysed"})))
             await self._flush()
 
         # WHAT EACH WORD IS SAID OF, from a source that counted it in real use (`said_of()`): how English uses a word,

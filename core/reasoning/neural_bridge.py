@@ -2702,6 +2702,13 @@ class NeuralSymbolicBridge:
         taught fact ("the valve is closed") answers "does the tank overflow?"
         with a real proof, model-free.
 
+        WHOSE RULES AND FACTS. Reasoning done for a person (`actor` in
+        task_metadata) also chains the rules that person told, held in their
+        context (`ScopedContextStore.rules_for_actor`), over the facts they told
+        (the overlay `load_subgraph` reads for them): "If the valve is closed,
+        the tank is full." and "The valve is closed.", told in one conversation,
+        answer "Is the tank full?". Without an actor, the shared mind's alone.
+
         Returns None (honest fall-through) when no taught rule bears on the
         query, when no held fact fires one, or when the rules do not decide it —
         never a guess, and it reaches each store through its own authority
@@ -2722,7 +2729,11 @@ class NeuralSymbolicBridge:
         if not goal_atom:
             return None
 
+        actor = (request.task_metadata or {}).get("actor")
         conds = await get_cognitive_ingress().held_conditionals()
+        if actor:
+            from core.learning.scoped_context_store import get_scoped_context_store
+            conds = conds + await get_scoped_context_store().rules_for_actor(str(actor))
         if not conds:
             return None  # the substrate was taught no rules
 
@@ -2763,7 +2774,7 @@ class NeuralSymbolicBridge:
             if not getattr(db, "initialized", False):
                 await db.initialize()
             edges = await load_subgraph(
-                db, sorted(s for s in subjects if s), max_hops=1)
+                db, sorted(s for s in subjects if s), max_hops=1, actor=actor)
         except Exception as e:
             logger.debug("held-rule fact load failed: %s", e)
             return None

@@ -3905,6 +3905,51 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
              for relation, word, side, other, times in said), progress=progress)
         return {**counts, "refused": 0}
 
+    async def learn_structure(self, analysed, *, provenance: Any = None, quality: float,
+                              progress: Optional[Callable[[int, int], None]] = None) -> Dict[str, int]:
+        """How the words of a sentence go together, from sentences analysed by hand (a treebank): `analysed` is an
+        iterable of `structure.Analysed`, each word's class and the word it depends on and as what. Each is held by
+        memory whole, as it was analysed (`MemoryAgent.remember_analysed`), and its standing is a belief on that
+        memory: one observation from the source, so the same source again moves nothing, and a reading that goes
+        wrong by it can argue it down. Read as memory-based learning reads them (`structure.StructureView`).
+
+        Returns counts: `remembered`, `already`, `refused`, `total`."""
+        from core.memory import knowledge_ledger as _ledger
+        from core.memory import get_memory_agent
+        from core.reasoning.bayesian_uncertainty import get_uncertainty_system
+        from core.semantics import derived_reader as dr
+        from core.semantics.cognitive_ingress import MIN_ADMIT_QUALITY
+        analysed = list(analysed)
+        if self._refused_while_frozen(f"learn_structure ({len(analysed)})"):
+            return {"remembered": 0, "already": 0, "refused": len(analysed), "total": len(analysed)}
+        if quality < MIN_ADMIT_QUALITY:
+            logger.info("sentences analysed REFUSED for %d sentence(s): evidence quality %.3f < floor %.2f",
+                        len(analysed), quality, MIN_ADMIT_QUALITY)
+            return {"remembered": 0, "already": 0, "refused": len(analysed), "total": len(analysed)}
+        producer = getattr(provenance, "producer", "learning")
+        source_id = getattr(provenance, "source_id", None) or "you"
+        agent = await get_memory_agent()
+        held = await agent.remember_analysed(analysed, progress=progress)
+        us = get_uncertainty_system()
+        cause = f"learning.structure.{producer}"
+        batch = _ledger.begin_batch(cause)
+        updates: List[Any] = []
+        try:
+            for item, memory_id in held["kept"]:
+                us.observe_claim(item.claim(), dr.ENGLISH_DOMAIN, supports=True, quality=quality, source="taught",
+                                 observation=f"{source_id}:structure", memory_id=memory_id)
+                updates.append(_ledger.KnowledgeUpdate(
+                    subject_kind="analysed_sentence", subject_id=item.key(), disposition=_ledger.Disposition.NEW,
+                    domain=dr.ENGLISH_DOMAIN, detail=f"{item.text!r} as analysed ({item.said_in})"[:500],
+                    cause=cause))
+            if updates:
+                from core.database import get_database_manager
+                await _ledger.record_many(get_database_manager(), updates)
+        finally:
+            _ledger.end_batch(batch)
+        return {"remembered": held["remembered"], "already": held["already"], "refused": 0,
+                "total": held["total"]}
+
     #: How many things taught a review asks itself about, by default.
     REVIEW_SAMPLE = 200
     #: How many facts a review looks at for each question it means to ask, at most.
