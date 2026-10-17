@@ -16499,3 +16499,12 @@ written form and the lessons barely align ("whales" never meets `whale`): 22 of 
 lexicon names them. Tests: `tests/test_composition.py` 8 passed, `tests/test_argument_structure.py` 5 (with memory's remember path, the store stood in for),
 `tests/test_structure.py` 11. The teaching paths that write to memory are not run here (no store in a cloud
 session): the sandbox first, then main, on the owner's word.
+
+**On the sandbox** (owner's runs, `lyric_dev`). The first `--source propbank --limit 50` stopped at its first memory:
+`read_text`'s fallback had been named `_composed`, the name of the function that composes a phrase's facts with its
+fillings, and replaced it, so every reading through a phrase failed (storing a memory reads its content first,
+`_readable_claim`); nothing was written. Renamed `_read_by_composing` (60bf03a); no other name in the modules changed
+is defined twice (checked over each module's definitions). Then both passes ran clean: `--source propbank --limit 50`
+kept 50 sentences with their arguments (43 s, beliefs +50), `--source composition --limit 50` 50 lesson sentences
+with their meanings (84 s, beliefs +50), no error, nothing else moved; the gateway counts 50 memories of each tag on
+`lyric_dev`, each holding its record whole where the warm reads it (`argued`, `taught`), and none on main.
