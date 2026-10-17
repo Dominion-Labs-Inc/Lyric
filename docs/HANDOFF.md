@@ -49,7 +49,8 @@ systems report where there are any.
    UD's structure and **65.8%** over Lyric's own, against 55.7% for the path alone (lab notebook 2026-10-17 (12)).
    Classic role labellers given gold structure reach about 90% on this kind of task.
 2. **The structure reader** (UAS 74%) cost the roles 15 points. **Raised to UAS 78.3% dev, 79.5% test** (from the
-   files; LAS 71.6%, 73.1%; classes 93.1%, 93.7%; main measured the same, 2026-10-17 (15)), and by as much on UD's
+   files; LAS 71.6%, 73.1%; classes 93.1%, 93.7%; main measured the same, and with memory's word classes 78.4% and
+   79.6%, the lessons 94.3%: 2026-10-17 (15)), and by as much on UD's
    other open English treebanks, never learned from (news and Wikipedia 71.5% to 75.5%, a novel 76.8% to 80.8%),
    counts only (2026-10-17 (13) to (15)): a beam over the steps; a
    word's class read beside the words around it, every situation weighed (classes 92.0% to 93.1%); the tree chosen

@@ -16375,3 +16375,11 @@ above): EWT dev classes 93.07% to 93.12%, test 93.41% to 93.71%. Kept. Tests: `t
 
 Seen in the lessons and left for now: "the handle" read as a verb (in EWT "handle" is mostly a verb, and a situation
 met once is trusted a fifth of the way, `CLASS_DOUBT`); numbers in words; lists of several nouns.
+
+**On main after it** (owner's run, code 59fed4c, the results of the run before committed; uncommitted only the
+runs' own results and the offerings note). STRUCTURE-01 `20261017T165548Z`, 15 of 15, nothing written: treebank
+only dev 93.12% / 78.27% / 71.55%, test 93.71% / 79.49% / 73.06%, the files' numbers to four places; with memory's
+word classes dev 93.24% / 78.39% / 71.78%, test 93.81% / 79.59% / 73.30%. STRUCTURE-02 `20261017T170320Z`: every
+slot on one phrase, none against the meaning, 94.24% treebank only (2,816) and 94.31% with memory's word classes
+(2,818), from 94.0% and 94.1% before the capital was read as met (the old reader's best, 94.4%, is within 3
+sentences). "If the valve is closed, the tank is full." still heads on "closed".
