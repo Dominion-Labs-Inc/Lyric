@@ -16293,3 +16293,46 @@ situations; published count-based dependency models that score whole trees (Eisn
 conditioned on its head, direction, the sibling before it and distance) reached about 85 to 90% on news text, and
 the curve above says more analysed text of the web's kind helps most. Lyric reading text and keeping each sentence
 whose reading its memory confirms as analysed would grow exactly that.
+
+## 2026-10-17 (14) — The structure reader: classes read beside their words, the tree chosen whole, learned over classes as read
+
+Step 2 continued. Where the 74.5% (dev UAS, (13)) goes: given the treebank's own classes, the same beam reads
+**81.3%**; with the classes it reads itself (92.0% right) 74.5%. A class read wrong costs about seven points of
+structure, more than anything else measured. Known words were 93.8% right (count-based taggers reach 96 to 97% on
+words they met, in news text), words never met 69%. The most specific situation decided a class however seldom it was met, and the
+situations held no word around it, only classes: "to use" and "the use" differ only by the word before.
+
+Each idea measured from the treebank's files (dev; test where kept), counts only:
+
+| Tried | classes | UAS | LAS |
+|---|---|---|---|
+| as kept in (13): the steps' beam | 92.04% | 74.52% | 67.97% |
+| every two words weighed whole: how often two words standing so were joined (9 situations, from both words, which way, how far, how many verbs and marks between, down to the two classes; Witten-Bell), the best tree with one word under the root found by Eisner's algorithm (1996) | | 72.78% | |
+| both: each dependency by its pair's chance times the share of the beam's 8 trees holding it (a twentieth for one none holds) | | 76.38% | 69.23% |
+| (the same, the treebank's own classes: beam 81.34%, pairs 78.18%, both **83.09%**) | | | |
+| classes: every situation weighed (Witten-Bell) and a beam of 4 over them | 92.27% | | |
+| classes: also the word before and the word after, the ending's last five letters, the first word of a sentence; a situation trusted n/(n + 4t) (1, 2, 8 in place of 4: 92.74%, 92.97%, 93.03%) | **93.06%** | beam 75.67% | 69.38% |
+| that, beam and pairs | 93.06% | 77.37% | 70.50% |
+| a situation of two words no pair joined in kept only if met 10 times (0.84M of 10.3M kept) | | 77.23% | 70.44% |
+| the steps and pairs also learned over the classes reading gives each sentence held (ten parts, each read by the other nine, the treebank alone deciding): read classes only | | 77.99% | 71.17% |
+| over the classes given and the classes read both | | 78.21% | 71.42% |
+| **kept, as written** (`core/semantics/structure.py`) | **93.07%** | **78.03%** | **71.21%** |
+| test, as written | 93.41% | 79.21% | 72.73% |
+
+**Kept.** `_Classes` reads a word's class beside the words around it, every situation weighed, a beam of 4
+(`CLASS_BEAM`, `CLASS_DOUBT`); `_Pairs` weighs every two words, each situation held by its hash (counted as words they
+took 1.2 GB, as hashes 0.4); `_best_tree` is Eisner's algorithm; `StructureView.structure` takes the tree likeliest by
+both readings, each dependency's relation as the beam's likeliest tree says where it holds it, else as the pairs
+joined in the most specific situation like it were; `StructureView._as_read` adds each sentence held as reading
+gives its classes, where it gives others, split into parts by its key (so memory and the files split alike). From
+dev 74.52% to 78.03% UAS (+3.5), test 75.03% to 79.21% (+4.2); LAS +3.2 dev, +4.0 test. Setting up from 12,544
+sentences takes 165 seconds here and 1.65 GB at the most. Tests: `tests/test_structure.py`, 11
+passed; the tie test now reads "A stale" alone (read before "bun .", the whole sentence is weighed, and in a world of
+three sentences it reads as "A gale blew ." does).
+
+Published for this treebank, the words given, roughly: 85% UAS for a parser with learned weights and no word vectors
+(UDPipe 1), 91 to 93% neural (UDPipe 2, Stanza). Lyric is at 79%, from counts alone. **Left** (step 2 stays open):
+words never met (71% of their classes right; main asks memory's word classes, +0.2 on (10)); a pair model that knows
+a word's other dependents (Eisner's siblings); and more analysed text of the web's kind (each doubling about +3). Where
+the two readings agree on a sentence is a check Lyric's own reading can give, a way to grow analysed text from text
+read.

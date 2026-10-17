@@ -13,17 +13,30 @@ by: requiring more measured worse at every level, as forgetting exceptions does 
 A word with all that depends on it is a phrase (`Structure.phrase`): "carbon dioxide and water" is "dioxide" with
 "carbon", "and" and "water" under it, whatever its length or shape.
 
-Measured on UD English EWT, learned from its 12,544 training sentences, on its 2,001 held-out ones (2026-10-16, from
-the files): classes 91.9% right; the word each depends on 73.1% right, and as what 66.2% (`experiments/STRUCTURE-01`
-measures the same from what the main model holds).
+Since 2026-10-17 (14) each decision weighs every situation met, the more specific counting for more as they were met
+more often (`_chances`), and keeps several readings while it reads (a beam), where it went by the most specific
+situation alone; a word's class is read beside the words around it as well as their classes (`_Classes`); the
+structure is chosen whole, of the trees the steps' beam kept and every two words weighed by how often two words
+standing so were joined (`_Pairs`, `_best_tree`); and the sentences held are also counted with the classes reading
+gives them, where it gives others (`StructureView._as_read`), so the structure is learned over classes as they are
+read. All counts, kept as met.
+
+Measured on UD English EWT, learned from its 12,544 training sentences, on its held-out ones (from the files): first
+(2026-10-16) dev classes 91.9% right, the word each depends on (UAS) 73.1%, and as what (LAS) 66.2%; since
+2026-10-17 (14) dev 93.1% / 78.0% / 71.2%, test 93.4% / 79.2% / 72.7% (`experiments/STRUCTURE-01` measures the same
+from what the main model holds). Published for this treebank, the words given, roughly: 85% UAS for a parser with
+learned weights and no word vectors (UDPipe 1), 91 to 93% for neural ones (UDPipe 2, Stanza).
 """
 from __future__ import annotations
 
+import dataclasses
 import hashlib
 import math
 from collections import Counter, defaultdict
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
+
+import numpy as np
 
 #: Where nothing in a sentence held says otherwise, a word is taken for the class most words are.
 _OPEN_CLASS = "NOUN"
@@ -36,6 +49,20 @@ ROOT = "<root>"
 #: step each time; eight let a later step outweigh an earlier one. Measured on the treebank's held-out parts
 #: (2026-10-17 (13)): UAS dev 73.6% to 74.5%, test 73.8% to 75.0%.
 BEAM = 8
+#: How many partial readings of a sentence's classes are kept as it is read (`StructureView.classes`).
+CLASS_BEAM = 4
+#: How far what was done in a situation is trusted over the less specific situations, as a word's class is read: met
+#: n times with t different classes, n/(n + 4t) of the way (`_chances`). Measured on the treebank's dev
+#: part (2026-10-17 (14)): with 1, 2, 4 and 8 in place of 4, 92.7%, 93.0%, 93.1% and 93.0% of classes right.
+CLASS_DOUBT = 4
+#: Into how many parts the sentences held are split to read each part's classes as the other parts read them, so
+#: that the structure is learned over classes as reading gives them, its mistakes with them, beside the classes given.
+FOLDS = 10
+#: A situation two words stood in, in which no two words standing so were joined, is kept only if met this often: all
+#: kept, eleven million situations; so, 1.2 million, and the same UAS on dev to a tenth (2026-10-17 (14)).
+KEPT_UNJOINED = 10
+#: What a dependency no tree the beam kept holds is still worth beside one every tree holds: a twentieth.
+UNHELD = 0.05
 
 
 @dataclass(frozen=True)
@@ -138,6 +165,278 @@ def _written(word: str) -> str:
             + ("-" if "-" in word else "") + ("." if not any(ch.isalnum() for ch in word) else ""))
 
 
+def _chances(met: Iterable[Tuple[Tuple, Optional[Counter]]], allowed: Callable[[str], bool],
+             doubt: float = 1.0) -> Dict[str, float]:
+    """How likely each allowed choice is here, from every situation met: the least specific first, each more specific
+    one counting as Witten-Bell weighs it (met n times with t different choices, n/(n + doubt·t) of the way, the rest
+    left to the less specific). Counts only."""
+    chances: Dict[str, float] = {}
+    for _, did in reversed(list(met)):
+        if not did:
+            continue
+        options = {choice: n for choice, n in did.items() if allowed(choice)}
+        if not options:
+            continue
+        n = sum(options.values())
+        weight = n / (n + doubt * len(options))
+        chances = {choice: weight * options.get(choice, 0) / n + (1 - weight) * chances.get(choice, 0.0)
+                   for choice in set(chances) | set(options)}
+    return chances
+
+
+class _Classes:
+    """What sentences analysed say of the class each word is used as: the situations each word was met in, from the
+    most specific to the least (the word, the words beside it, the classes before it, the classes the words after it
+    were used as), and the classes it was used as there; for a word met rarely, the same by its ending and how it is
+    written, which is how a word never met is read."""
+
+    def __init__(self, sentences: Iterable["Analysed"]) -> None:
+        held = list(sentences)
+        classes_of: Dict[str, set] = defaultdict(set)
+        met: Counter = Counter()
+        for analysed in held:
+            for word, cls in zip(analysed.words, analysed.classes):
+                classes_of[word].add(cls)
+                met[word] += 1
+        self._classes_of = {word: frozenset(cs) for word, cs in classes_of.items()}
+        known: Dict[Tuple, Counter] = defaultdict(Counter)
+        unknown: Dict[Tuple, Counter] = defaultdict(Counter)
+        for analysed in held:
+            words, classes = analysed.words, analysed.classes
+            for i, cls in enumerate(classes):
+                for situation in self.situations(words, classes, i, met=True):
+                    known[situation][cls] += 1
+                if met[words[i]] <= _RARE:
+                    for situation in self.situations(words, classes, i, met=False):
+                        unknown[situation][cls] += 1
+        self._known, self._unknown = dict(known), dict(unknown)
+
+    def met(self, word: str) -> bool:
+        return word in self._classes_of or word.lower() in self._classes_of
+
+    def _ambiguity(self, word: Optional[str]) -> str:
+        if word is None:
+            return "</s>"
+        classes = self._classes_of.get(word) or self._classes_of.get(word.lower())
+        return "|".join(sorted(classes)) if classes else "?"
+
+    def situations(self, words: Sequence[str], classes: Sequence[str], i: int, *, met: bool) -> List[Tuple]:
+        """The situations word `i` stands in, the most specific first, the words before it read as `classes`."""
+        word = words[i]
+        before = classes[i - 1] if i >= 1 else "<s>"
+        after = self._ambiguity(words[i + 1] if i + 1 < len(words) else None)
+        if met:
+            before_two = classes[i - 2] if i >= 2 else "<s>"
+            last = words[i - 1].lower() if i >= 1 else "<s>"
+            next_word = words[i + 1].lower() if i + 1 < len(words) else "</s>"
+            after_two = self._ambiguity(words[i + 2] if i + 2 < len(words) else None)
+            return [("beside", word, last, before, next_word), ("before, next", word, before_two, before, after,
+                                                                 next_word),
+                    ("last", word, last, before, after), ("next", word, before, next_word),
+                    ("before, after", word, before_two, before, after, after_two), ("around", word, before, after),
+                    ("last only", word, last, before), ("next only", word, next_word), ("before only", word, before),
+                    ("after only", word, after), ("word", word)]
+        lower, written = word.lower(), _written(word)
+        first = "first" if i == 0 else "later"
+        return [("ends 5", lower[-5:], written, first, before, after), ("ends 4", lower[-4:], written, first, before,
+                                                                         after),
+                ("ends 3", lower[-3:], written, first, before, after), ("ends 3 before", lower[-3:], written, before),
+                ("ends 2 before", lower[-2:], written, before), ("ends 1 before", lower[-1:], written, before),
+                ("written", written, first, before, after), ("written before", written, before),
+                ("written only", written)]
+
+    def read(self, words: Sequence[str],
+             held_classes: Optional[Callable[[str], Mapping[str, int]]] = None) -> Tuple[str, ...]:
+        """The class each word is used as here, read left to right, the likeliest `CLASS_BEAM` partial readings kept,
+        each by how likely its classes were (`_chances`). A word no sentence held used takes a class memory holds of
+        it, where it holds one (`held_classes`)."""
+        beam: List[Tuple[float, Tuple[str, ...]]] = [(0.0, ())]
+        for i, word in enumerate(words):
+            met = self.met(word)
+            held = held_classes(word) if not met and held_classes is not None else {}
+            allowed = (lambda c: c in held) if held else (lambda _: True)
+            grown = []
+            for score, chosen in beam:
+                chances = _chances(((s, self._known.get(s)) for s in self.situations(words, chosen, i, met=True)),
+                                   allowed, CLASS_DOUBT) if met else {}
+                if not chances:
+                    chances = _chances(((s, self._unknown.get(s))
+                                        for s in self.situations(words, chosen, i, met=False)), allowed, CLASS_DOUBT)
+                if not chances:
+                    chances = {max((n, c) for c, n in held.items())[1] if held else _OPEN_CLASS: 1.0}
+                for cls, chance in sorted(chances.items(), key=lambda kv: (-kv[1], kv[0]))[:CLASS_BEAM]:
+                    if chance > 0:
+                        grown.append((score + math.log(chance), chosen + (cls,)))
+            beam = sorted(grown, key=lambda kept: -kept[0])[:CLASS_BEAM]
+        return beam[0][1] if beam else ()
+
+
+def _apart(a: int, b: int) -> int:
+    d = abs(a - b)
+    return d if d <= 3 else 4 if d <= 5 else 6 if d <= 10 else 11
+
+
+#: The classes counted as a verb standing between two words.
+_VERBS = frozenset({"VERB", "AUXILIARY"})
+
+
+class _Pairs:
+    """How often two words standing so were joined, the first the head of the second: for every two words of the
+    sentences held, the situations they stood in, from the most specific to the least (both words and classes; one
+    word; the classes, which way and how far apart, how many verbs and marks stand between, the classes beside each),
+    how often two words standing so were met, and how often joined. And as what each pair joined was joined.
+
+    Each situation is held by its hash: eleven million are met in the English Web Treebank's training part, read both
+    ways; counted as words they took 1.2 gigabytes, as hashes 0.4, and the chance that any two of them share a hash
+    is about one in three million."""
+
+    LEVELS = 9
+
+    def __init__(self, sentences: Iterable["Analysed"]) -> None:
+        held = [(self.laid(a.words, a.classes), a.heads, a.relations) for a in sentences]
+        self._met: List[Dict[int, int]] = []
+        self._joined: List[Dict[int, int]] = []
+        for level in range(self.LEVELS):
+            met: Dict[int, int] = defaultdict(int)
+            joined: Dict[int, int] = defaultdict(int)
+            for laid, heads, _ in held:
+                for d in range(1, len(heads) + 1):
+                    head = heads[d - 1]
+                    for h in range(len(heads) + 1):
+                        if h != d:
+                            situation = hash(self._situation(laid, h, d, level))
+                            met[situation] += 1
+                            if h == head:
+                                joined[situation] += 1
+            self._met.append({s: n for s, n in met.items() if n >= KEPT_UNJOINED or s in joined})
+            self._joined.append(dict(joined))
+        said: List[Dict[Tuple, Counter]] = [defaultdict(Counter) for _ in range(6)]
+        for laid, heads, relations in held:
+            for d, head in enumerate(heads, 1):
+                for level, situation in zip(said, self._relation_situations(laid, head, d)):
+                    level[situation][relations[d - 1]] += 1
+        self._said = [dict(level) for level in said]
+
+    @staticmethod
+    def laid(words: Sequence[str], classes: Sequence[str]) -> Tuple:
+        """A sentence laid out for its pairs: its words (lowered) and classes from the root (0) to a mark past its
+        end, and how many verbs and how many marks stand before each word."""
+        w = (ROOT,) + tuple(word.lower() for word in words) + ("</s>",)
+        c = ("ROOT",) + tuple(classes) + ("</s>",)
+        verbs, marks = [0], [0]
+        for cls in c:
+            verbs.append(verbs[-1] + (cls in _VERBS))
+            marks.append(marks[-1] + (cls == "PUNCTUATION"))
+        return w, c, verbs, marks
+
+    @staticmethod
+    def _situation(laid: Tuple, h: int, d: int, level: int) -> Tuple:
+        """The situation at `level` (0 the most specific) of word `h` as the head of word `d`."""
+        w, c, verbs, marks = laid
+        side = "<" if h < d else ">"
+        if level == 8:
+            return c[h], c[d], side
+        far = _apart(h, d)
+        if level == 7:
+            return c[h], c[d], side, far
+        if level == 0:
+            return w[h], c[h], w[d], c[d], side, far
+        lo, hi = (h, d) if h < d else (d, h)
+        between = min(verbs[hi] - verbs[lo + 1], 2), min(marks[hi] - marks[lo + 1], 2)
+        if level == 1:
+            return w[h], c[h], c[d], side, far, between
+        if level == 2:
+            return c[h], w[d], c[d], side, far, between
+        if level == 6:
+            return c[h], c[d], side, far, between
+        around_d = c[d - 1], c[d + 1]
+        if level == 4:
+            return c[h], c[d], side, far, between, around_d
+        around_h = c[h - 1] if h > 0 else "<s>", c[h + 1]
+        if level == 5:
+            return c[h], c[d], side, far, between, around_h
+        return c[h], c[d], side, far, between, around_h, around_d
+
+    def chance(self, laid: Tuple, h: int, d: int) -> float:
+        """How likely word `h` is the head of word `d`: of the pairs met standing so, the share joined, each
+        situation from the least specific up counting as Witten-Bell weighs it (`_chances`)."""
+        chance = 0.0
+        for level in range(self.LEVELS - 1, -1, -1):
+            situation = hash(self._situation(laid, h, d, level))
+            n = self._met[level].get(situation, 0)
+            if not n:
+                continue
+            joined = self._joined[level].get(situation, 0)
+            weight = n / (n + (joined > 0) + (joined < n))
+            chance = weight * joined / n + (1 - weight) * chance
+        return chance
+
+    @staticmethod
+    def _relation_situations(laid: Tuple, h: int, d: int) -> List[Tuple]:
+        w, c, _, _ = laid
+        side, far = ("<" if h < d else ">"), _apart(h, d)
+        return [(w[h], c[h], w[d], c[d], side), (c[h], w[d], c[d], side, far), (w[h], c[h], c[d], side),
+                (c[h], c[d], side, far, c[d + 1]), (c[h], c[d], side), (c[d],)]
+
+    def relation(self, laid: Tuple, h: int, d: int) -> str:
+        """As what word `d` depends on word `h`, as the pairs joined in the most specific situation like it were."""
+        decided = StructureView._decide(((s, level.get(s)) for level, s in
+                                         zip(self._said, self._relation_situations(laid, h, d))),
+                                        lambda relation: relation != "root")
+        return decided[0] if decided else "dep"
+
+
+def _best_tree(scores: "np.ndarray") -> List[int]:
+    """The tree over words 1..n, one word under the root (0), whose dependencies' scores (`scores[h, d]`, word `h`
+    the head of word `d`) sum highest, of the trees no two of whose dependencies cross: Eisner's algorithm (1996),
+    built from the shortest spans up. The head of each word, 1-based."""
+    n = scores.shape[0] - 1
+    inner = scores[1:, 1:]
+    least = -1e18
+    # Spans s..t: open (`o`) with a dependency between s and t still to be completed, or complete (`c`); headed at
+    # the left end (`r`, its dependents to the right) or the right end (`l`).
+    o_l, o_r, c_l, c_r = (np.full((n, n), least) for _ in range(4))
+    at_o_l, at_o_r, at_c_l, at_c_r = (np.zeros((n, n), dtype=int) for _ in range(4))
+    for s in range(n):
+        c_l[s, s] = c_r[s, s] = 0.0
+    for k in range(1, n):
+        for s in range(0, n - k):
+            t = s + k
+            joined = c_r[s, s:t] + c_l[s + 1:t + 1, t]
+            r = int(np.argmax(joined))
+            o_l[s, t], at_o_l[s, t] = joined[r] + inner[t, s], s + r
+            o_r[s, t], at_o_r[s, t] = joined[r] + inner[s, t], s + r
+            left = c_l[s, s:t] + o_l[s:t, t]
+            r = int(np.argmax(left))
+            c_l[s, t], at_c_l[s, t] = left[r], s + r
+            right = o_r[s, s + 1:t + 1] + c_r[s + 1:t + 1, t]
+            r = int(np.argmax(right))
+            c_r[s, t], at_c_r[s, t] = right[r], s + 1 + r
+    root = int(np.argmax([scores[0, r + 1] + c_l[0, r] + c_r[r, n - 1] for r in range(n)]))
+    heads = [0] * n
+    spans = [("c", 0, root, False), ("c", root, n - 1, True)]
+    while spans:
+        kind, s, t, rightward = spans.pop()
+        if s == t:
+            continue
+        if kind == "c":
+            if rightward:
+                q = int(at_c_r[s, t])
+                spans += [("o", s, q, True), ("c", q, t, True)]
+            else:
+                q = int(at_c_l[s, t])
+                spans += [("c", s, q, False), ("o", q, t, False)]
+            continue
+        if rightward:
+            heads[t] = s + 1
+            q = int(at_o_r[s, t])
+        else:
+            heads[s] = t + 1
+            q = int(at_o_l[s, t])
+        spans += [("c", s, q, True), ("c", q + 1, t, False)]
+    return heads
+
+
 class StructureView:
     """The analysed sentences memory holds, read as memory-based learning reads them: for each decision, the
     situations the sentences met it in, from the most specific to the least, and what they did there.
@@ -148,10 +447,9 @@ class StructureView:
     def __init__(self) -> None:
         self._held: Dict[str, Analysed] = {}
         self._ready = False
-        self._known: Dict[Tuple, Counter] = {}
-        self._unknown: Dict[Tuple, Counter] = {}
+        self._classes = _Classes(())
         self._steps: List[Dict[Tuple, Counter]] = []
-        self._classes_of: Dict[str, frozenset] = {}
+        self._pairs: Optional[_Pairs] = None
         #: What memory holds of a word's class, from all it was taught (`held_classes`), asked only of a word no
         #: sentence held used: its class is then one of those, as the situations decide. None asks nothing, and a
         #: word never met is decided by its ending and how it is written alone.
@@ -171,31 +469,6 @@ class StructureView:
         self._held[key] = analysed
         self._ready = False
         return True
-
-    # ── what each word is used as ─────────────────────────────────────────────
-
-    def _ambiguity(self, word: Optional[str]) -> str:
-        if word is None:
-            return "</s>"
-        classes = self._classes_of.get(word) or self._classes_of.get(word.lower())
-        return "|".join(sorted(classes)) if classes else "?"
-
-    def _class_situations(self, words: Sequence[str], classes: Sequence[str], i: int, *, met: bool) -> List[Tuple]:
-        word = words[i]
-        before = classes[i - 1] if i >= 1 else "<s>"
-        before_two = classes[i - 2] if i >= 2 else "<s>"
-        after = self._ambiguity(words[i + 1] if i + 1 < len(words) else None)
-        after_two = self._ambiguity(words[i + 2] if i + 2 < len(words) else None)
-        next_word = words[i + 1].lower() if i + 1 < len(words) else "</s>"
-        if met:
-            return [("met", word, before_two, before, after, next_word), ("met", word, before_two, before, after,
-                                                                          after_two),
-                    ("met", word, before, after), ("met", word, before), ("met", word, after), ("met", word)]
-        lower, written = word.lower(), _written(word)
-        return [("new", lower[-4:], written, before, after), ("new", lower[-3:], written, before, after),
-                ("new", lower[-3:], written, before), ("new", lower[-2:], written, before),
-                ("new", lower[-1:], written, before), ("new", written, before, after), ("new", written, before),
-                ("new", written)]
 
     # ── what each step of the structure is ────────────────────────────────────
 
@@ -240,34 +513,42 @@ class StructureView:
         ]
 
     def _work_out(self) -> None:
-        """The situations of every held sentence, and what it did in each."""
+        """The situations of every held sentence, and what it did in each: of each word's class, of each step of
+        its structure and of each two of its words, over the classes given and the classes reading gives
+        (`_as_read`)."""
         if self._ready:
             return
-        classes_of: Dict[str, set] = defaultdict(set)
-        met: Counter = Counter()
-        for analysed in self._held.values():
-            for word, cls in zip(analysed.words, analysed.classes):
-                classes_of[word].add(cls)
-                met[word] += 1
-        self._classes_of = {word: frozenset(cs) for word, cs in classes_of.items()}
-        known: Dict[Tuple, Counter] = defaultdict(Counter)
-        unknown: Dict[Tuple, Counter] = defaultdict(Counter)
+        held = list(self._held.values())
+        self._classes = _Classes(held)
+        both = self._as_read(held)
         steps: List[Dict[Tuple, Counter]] = [defaultdict(Counter) for _ in range(self._LEVELS)]
-        for analysed in self._held.values():
-            words, classes = analysed.words, analysed.classes
-            for i, cls in enumerate(classes):
-                for situation in self._class_situations(words, classes, i, met=True):
-                    known[situation][cls] += 1
-                if met[words[i]] <= _RARE:
-                    for situation in self._class_situations(words, classes, i, met=False):
-                        unknown[situation][cls] += 1
+        for analysed in both:
             if not analysed.projective():
                 continue
             for situations, step in self._steps_of(analysed):
                 for level, situation in zip(steps, situations):
                     level[situation][step] += 1
-        self._known, self._unknown, self._steps = dict(known), dict(unknown), [dict(level) for level in steps]
+        self._steps = [dict(level) for level in steps]
+        self._pairs = _Pairs(both)
         self._ready = True
+
+    @staticmethod
+    def _as_read(held: Sequence[Analysed]) -> List[Analysed]:
+        """Each sentence held as it was analysed, and, where reading gives its words other classes, as read: split
+        into `FOLDS` parts by its key, each part's classes read by what the other parts say, as the treebank alone
+        decides, its structure as given. Learned over both, a step or a pair is known in the situations reading meets
+        it in, a class read wrong among them (2026-10-17 (14)): UAS on dev 77.4% to 78.0%."""
+        parts = min(FOLDS, len(held))
+        if parts < 2:
+            return list(held)
+        both = {analysed.key(): analysed for analysed in held}
+        for part in range(parts):
+            others = _Classes(a for a in held if int(a.key()[:8], 16) % parts != part)
+            for analysed in held:
+                if int(analysed.key()[:8], 16) % parts == part:
+                    read = dataclasses.replace(analysed, classes=others.read(analysed.words))
+                    both.setdefault(read.key(), read)
+        return list(both.values())
 
     def _steps_of(self, analysed: Analysed) -> Iterable[Tuple[List[Tuple], str]]:
         """The steps that build this sentence's structure, each with the situations it was taken in: SHIFT the next
@@ -334,47 +615,21 @@ class StructureView:
         return first
 
     def classes(self, words: Sequence[str]) -> Tuple[str, ...]:
-        """The class each word is used as here, decided left to right. A word no sentence held used takes a class
-        memory holds of it, where it holds one (`held_classes`): "whale" after "A" is a noun, not the verb its ending
-        gave it."""
+        """The class each word is used as here (`_Classes.read`). A word no sentence held used takes a class memory
+        holds of it, where it holds one (`held_classes`): "whale" after "A" is a noun, not the verb its ending gave
+        it."""
         self._work_out()
-        chosen: List[str] = []
-        for i, word in enumerate(words):
-            met = word in self._classes_of or word.lower() in self._classes_of
-            held = self.held_classes(word) if not met and self.held_classes is not None else {}
-            table = self._known if met else self._unknown
-            decided = self._decide(((s, table.get(s)) for s in self._class_situations(words, chosen, i, met=met)),
-                                   (lambda c: c in held) if held else (lambda _: True))
-            if decided is None and met:
-                decided = self._decide((s, self._unknown.get(s))
-                                       for s in self._class_situations(words, chosen, i, met=False))
-            if decided is None and held:
-                decided = max((n, c) for c, n in held.items())[1], ()
-            chosen.append(decided[0] if decided else _OPEN_CLASS)
-        return tuple(chosen)
-
-    @staticmethod
-    def _chances(met: Iterable[Tuple[Tuple, Optional[Counter]]], allowed: Callable[[str], bool]) -> Dict[str, float]:
-        """How likely each allowed step is here, from every situation met: the least specific first, each more
-        specific one counting as Witten-Bell weighs it (met n times with t different steps, n/(n+t) of the way, the
-        rest left to the less specific). Counts only."""
-        chances: Dict[str, float] = {}
-        for _, did in reversed(list(met)):
-            if not did:
-                continue
-            options = {step: n for step, n in did.items() if allowed(step)}
-            if not options:
-                continue
-            n = sum(options.values())
-            weight = n / (n + len(options))
-            chances = {step: weight * options.get(step, 0) / n + (1 - weight) * chances.get(step, 0.0)
-                       for step in set(chances) | set(options)}
-        return chances
+        return self._classes.read(words, self.held_classes)
 
     def structure(self, words: Sequence[str], classes: Sequence[str]) -> Structure:
-        """Which word each depends on, and as what: the steps that build it searched with a beam (`BEAM`), each
-        partial structure kept by how likely its steps were (`_chances`), so a later step can outweigh an earlier
-        one where taking the likeliest step each time could not."""
+        """Which word each depends on, and as what, decided by two readings of the sentence held together. The steps
+        that build it are searched with a beam (`BEAM`), each partial structure kept by how likely its steps were
+        (`_chances`), so a later step can outweigh an earlier one. And every two words are weighed whole, by how often
+        two words standing so were joined (`_Pairs`). The tree taken is the one whose dependencies are likeliest by
+        both (`_best_tree`): each by its pair's chance, times the share of the beam's trees that hold it (a dependency
+        none holds still worth `UNHELD`). Measured (2026-10-17 (14)): UAS on dev 74.5% by the beam alone, 78.2% so.
+        Each dependency is as the beam's likeliest tree says where that tree holds it, else as the pairs joined in
+        the most specific situation like it were."""
         self._work_out()
         lowered = (ROOT,) + tuple(word.lower() for word in words)
         with_root = ("ROOT",) + tuple(classes)
@@ -397,8 +652,8 @@ class StructureView:
                     grown.append((score, stack, waiting, heads, under, relation))
                     continue
                 situations = self._step_situations(lowered, with_root, stack, waiting, under, relation)
-                chances = self._chances(((s, level.get(s)) for level, s in zip(self._steps, situations)),
-                                        allowed(stack, waiting))
+                chances = _chances(((s, level.get(s)) for level, s in zip(self._steps, situations)),
+                                   allowed(stack, waiting))
                 if not chances:
                     chances = {("S" if waiting else "R:dep"): 1.0}
                 for step, chance in sorted(chances.items(), key=lambda kv: (-kv[1], kv[0]))[:BEAM]:
@@ -415,9 +670,25 @@ class StructureView:
                             relation2[dependent] = "root"
                     grown.append((score + math.log(chance), stack2, waiting2, heads2, under2, relation2))
             beam = sorted(grown, key=lambda kept: -kept[0])[:BEAM]
-        _, _, _, heads, _, relation = beam[0]
-        return Structure(tuple(words), tuple(classes), tuple(heads[1:]),
-                         tuple(relation.get(d, "dep") for d in range(1, len(lowered))))
+        n = len(words)
+        best = beam[0][0]
+        shares = [math.exp(score - best) for score, *_ in beam]
+        held = np.zeros((n + 1, n + 1))
+        for (_, _, _, heads, _, _), share in zip(beam, shares):
+            for d in range(1, n + 1):
+                held[heads[d], d] += share / sum(shares)
+        laid = _Pairs.laid(words, classes)
+        scores = np.full((n + 1, n + 1), -1e9)
+        for d in range(1, n + 1):
+            for h in range(n + 1):
+                if h != d:
+                    scores[h, d] = math.log(max(self._pairs.chance(laid, h, d), 1e-12)) + math.log(held[h, d] + UNHELD)
+        heads = _best_tree(scores)
+        _, _, _, beam_heads, _, beam_relation = beam[0]
+        relations = tuple("root" if heads[d - 1] == 0 else beam_relation.get(d, "dep")
+                          if heads[d - 1] == beam_heads[d] else self._pairs.relation(laid, heads[d - 1], d)
+                          for d in range(1, n + 1))
+        return Structure(tuple(words), tuple(classes), tuple(heads), relations)
 
     def read(self, words: Sequence[str]) -> Structure:
         """How these words go together: their classes, then their structure."""

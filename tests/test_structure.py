@@ -73,8 +73,11 @@ def test_a_sentence_never_held_is_read_by_the_situations_it_shares():
 
 def test_a_tie_is_decided_by_the_next_situation_never_by_the_names_of_the_classes():
     """"stale", never met, after "A": a word ending in "ale" there was once an adjective ("pale") and once a noun
-    ("gale"); one ending in "le", an adjective twice ("pale", "little"). The adjective, where the order of the
-    classes' names gave the tie to the noun."""
+    ("gale"); one ending in "le", an adjective twice ("pale", "little") and a noun once. The adjective, where the order
+    of the classes' names gave the tie to the noun: weighed, as a class is read (`_chances`), and decided, as an
+    argument's part is (`_decide`). (Read before "bun .", the whole sentence is weighed, and of these three it reads
+    as "A gale blew .".)"""
+    from collections import Counter
     view = StructureView()
     view.add(_analysed("A pale moon rose .", ["DETERMINER", "ADJECTIVE", "NOUN", "VERB", "PUNCTUATION"],
                        [3, 3, 4, 0, 4], ["det", "amod", "nsubj", "root", "punct"], "t:1"))
@@ -82,7 +85,9 @@ def test_a_tie_is_decided_by_the_next_situation_never_by_the_names_of_the_classe
                        ["det", "nsubj", "root", "punct"], "t:2"))
     view.add(_analysed("A little dog barked .", ["DETERMINER", "ADJECTIVE", "NOUN", "VERB", "PUNCTUATION"],
                        [3, 3, 4, 0, 4], ["det", "amod", "nsubj", "root", "punct"], "t:3"))
-    assert view.classes(("A", "stale", "bun", "."))[:2] == ("DETERMINER", "ADJECTIVE")
+    assert view.classes(("A", "stale")) == ("DETERMINER", "ADJECTIVE")
+    tie = [(("ale",), Counter({"NOUN": 1, "ADJECTIVE": 1})), (("le",), Counter({"ADJECTIVE": 2, "NOUN": 1}))]
+    assert StructureView._decide(tie) == ("ADJECTIVE", ("le",))
 
 
 def test_a_word_no_sentence_held_used_takes_a_class_memory_holds_of_it():

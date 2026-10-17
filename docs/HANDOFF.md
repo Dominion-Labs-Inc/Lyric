@@ -1,7 +1,7 @@
 # Handoff: Lyric reading and understanding English (2026-10-14, updated 2026-10-16 evening)
 
 For an engineer, and their Claude Code session, picking this work up. Read this first, then the lab notebook entries
-2026-10-13 (4), 2026-10-14 (1), 2026-10-16 (1), 2026-10-16 (2), 2026-10-16 (6) to (10) and 2026-10-17 (11) to (13) in
+2026-10-13 (4), 2026-10-14 (1), 2026-10-16 (1), 2026-10-16 (2), 2026-10-16 (6) to (10) and 2026-10-17 (11) to (14) in
 `docs/research/LAB_NOTEBOOK.md`.
 The previous handoff (2026-10-01) is in git history.
 
@@ -48,11 +48,16 @@ systems report where there are any.
    language (`propbank_roles`); held-out arguments given, the fact each is said in is right for **80.5%** (test) over
    UD's structure and **65.8%** over Lyric's own, against 55.7% for the path alone (lab notebook 2026-10-17 (12)).
    Classic role labellers given gold structure reach about 90% on this kind of task.
-2. **The structure reader** (UAS 74%) costs the roles 15 points. **Beam search kept** (2026-10-17 (13)): dev UAS
-   73.6% to 74.5%, test 73.8% to 75.0%; roles over Lyric's structure 66.5% (test). Measured and left: a richer
-   context ordered by gain (worse), the CC BY-SA English treebanks (+0.6; the rest of UD English is non-commercial).
-   Each doubling of analysed text of the web's kind adds about 3 points. Open: a model scoring whole trees (Eisner's,
-   about 85 to 90% on news text), and more analysed text, which Lyric reading and confirming would grow.
+2. **The structure reader** (UAS 74%) cost the roles 15 points. **Raised to UAS 78.0% dev, 79.2% test** (from the
+   files; LAS 71.2%, 72.7%; classes 93.1%, 93.4%), counts only (2026-10-17 (13), (14)): a beam over the steps; a
+   word's class read beside the words around it, every situation weighed (classes 92.0% to 93.1%); the tree chosen
+   whole, of the beam's trees and every two words weighed by how often two words standing so were joined (Eisner's
+   algorithm); the steps and pairs learned over the classes reading gives as well as those given. Setting up from
+   main's 12,544 sentences now takes about three minutes and 1.65 GB. Published for this treebank: about 85% UAS
+   with learned weights (UDPipe 1), 91 to 93% neural. Measured and left: a richer step context ordered by gain
+   (worse), the CC BY-SA English treebanks (+0.6). Open: words never met (71% of their classes right), a pair model
+   that knows a word's other dependents, and more analysed text (each doubling about +3), which Lyric's two readings
+   agreeing on a sentence could grow.
 3. **Which phrases are arguments, and what each phrase says** (its kind, `given`, its qualities, counts, owner),
    composed into a `Meaning`; measured on the lessons (taught meanings), the held-out prose (UNDERSTANDS-PROSE-01)
    and PropBank's held-out roles end to end.

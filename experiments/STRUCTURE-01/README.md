@@ -55,4 +55,6 @@ For each run, the same code reading the treebank's files gives the same to four 
 every prose sentence, treebank only (the other way needs main's word classes): memory holds what was taught. The file numbers above (91.9%, 73.1%, 66.2%) were measured with an
 earlier state of `structure.py`; the bars stand as fixed. Lab notebook 2026-10-16 (7) and (8). Since 2026-10-17
 (13) the structure is searched with a beam: from the files, treebank only, dev 92.0% / 74.5% / 68.0%, test 92.3% /
-75.0% / 68.8%.
+75.0% / 68.8%. Since 2026-10-17 (14) classes are read beside their words and the tree is chosen whole (beam and
+pairs, learned over the classes as read too): from the files, treebank only, dev 93.1% / 78.0% / 71.2%, test 93.4% /
+79.2% / 72.7%. The view now takes about three minutes and 1.65 GB to set up.
