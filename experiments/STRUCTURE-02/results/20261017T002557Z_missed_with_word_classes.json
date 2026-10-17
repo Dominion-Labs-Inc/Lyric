@@ -1,0 +1,12671 @@
+[
+ {
+  "sentence": "If the door is open then the room is cold.",
+  "frame": "If the ?slot0 is ?slot1 then the ?slot2 is ?slot3.",
+  "facts": [
+   "given if instance_of(?t0, ?slot0)",
+   "given instance_of(?t1, ?slot2)",
+   "if has_property(?t0, ?slot1)",
+   "has_property(?t1, ?slot3)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "kind",
+    "words": "door",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "door nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "quality",
+    "words": "open",
+    "one": true,
+    "placed": "no place",
+    "depend outside": [
+     "open csubj"
+    ]
+   },
+   {
+    "slot": "?slot2",
+    "role": "kind",
+    "words": "room",
+    "one": true,
+    "placed": "against",
+    "depend outside": [
+     "room obl"
+    ]
+   },
+   {
+    "slot": "?slot3",
+    "role": "quality",
+    "words": "cold",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "cold root"
+    ]
+   }
+  ],
+  "words": [
+   "If",
+   "the",
+   "door",
+   "is",
+   "open",
+   "then",
+   "the",
+   "room",
+   "is",
+   "cold",
+   "."
+  ],
+  "classes": [
+   "SUBORDINATOR",
+   "DETERMINER",
+   "NOUN",
+   "AUXILIARY",
+   "ADJECTIVE",
+   "PREPOSITION",
+   "DETERMINER",
+   "NOUN",
+   "AUXILIARY",
+   "ADJECTIVE",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   5,
+   3,
+   5,
+   5,
+   10,
+   8,
+   8,
+   5,
+   10,
+   0,
+   10
+  ],
+  "relations": [
+   "mark",
+   "det",
+   "nsubj",
+   "cop",
+   "csubj",
+   "case",
+   "det",
+   "obl",
+   "cop",
+   "root",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "If the stove is hot then the water is hot.",
+  "frame": "If the ?slot0 is ?slot1 then the ?slot2 is ?slot3.",
+  "facts": [
+   "given if instance_of(?t0, ?slot0)",
+   "given instance_of(?t1, ?slot2)",
+   "if has_property(?t0, ?slot1)",
+   "has_property(?t1, ?slot3)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "kind",
+    "words": "stove",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "stove nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "quality",
+    "words": "hot",
+    "one": true,
+    "placed": "no place",
+    "depend outside": [
+     "hot csubj"
+    ]
+   },
+   {
+    "slot": "?slot2",
+    "role": "kind",
+    "words": "water",
+    "one": true,
+    "placed": "against",
+    "depend outside": [
+     "water obl"
+    ]
+   },
+   {
+    "slot": "?slot3",
+    "role": "quality",
+    "words": "hot",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "hot root"
+    ]
+   }
+  ],
+  "words": [
+   "If",
+   "the",
+   "stove",
+   "is",
+   "hot",
+   "then",
+   "the",
+   "water",
+   "is",
+   "hot",
+   "."
+  ],
+  "classes": [
+   "SUBORDINATOR",
+   "DETERMINER",
+   "NOUN",
+   "AUXILIARY",
+   "ADJECTIVE",
+   "PREPOSITION",
+   "DETERMINER",
+   "NOUN",
+   "AUXILIARY",
+   "ADJECTIVE",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   5,
+   3,
+   5,
+   5,
+   10,
+   8,
+   8,
+   5,
+   10,
+   0,
+   10
+  ],
+  "relations": [
+   "mark",
+   "det",
+   "nsubj",
+   "cop",
+   "csubj",
+   "case",
+   "det",
+   "obl",
+   "cop",
+   "root",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "It is true that the sky is blue.",
+  "frame": "?slot0 is ?slot1.",
+  "facts": [
+   "has_property(?slot0, ?slot1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "thing",
+    "words": "It is true that the sky",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "true root",
+     "that mark",
+     "sky nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "quality",
+    "words": "blue",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "blue advcl"
+    ]
+   }
+  ],
+  "words": [
+   "It",
+   "is",
+   "true",
+   "that",
+   "the",
+   "sky",
+   "is",
+   "blue",
+   "."
+  ],
+  "classes": [
+   "PRONOUN",
+   "AUXILIARY",
+   "ADJECTIVE",
+   "SUBORDINATOR",
+   "DETERMINER",
+   "NOUN",
+   "AUXILIARY",
+   "ADJECTIVE",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   3,
+   3,
+   0,
+   8,
+   6,
+   8,
+   8,
+   3,
+   3
+  ],
+  "relations": [
+   "nsubj",
+   "cop",
+   "root",
+   "mark",
+   "det",
+   "nsubj",
+   "cop",
+   "advcl",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "It is true that the ice is cold.",
+  "frame": "?slot0 is ?slot1.",
+  "facts": [
+   "has_property(?slot0, ?slot1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "thing",
+    "words": "It is true that the ice",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "true root",
+     "that mark",
+     "ice nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "quality",
+    "words": "cold",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "cold advcl"
+    ]
+   }
+  ],
+  "words": [
+   "It",
+   "is",
+   "true",
+   "that",
+   "the",
+   "ice",
+   "is",
+   "cold",
+   "."
+  ],
+  "classes": [
+   "PRONOUN",
+   "AUXILIARY",
+   "ADJECTIVE",
+   "SUBORDINATOR",
+   "DETERMINER",
+   "NOUN",
+   "AUXILIARY",
+   "ADJECTIVE",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   3,
+   3,
+   0,
+   8,
+   6,
+   8,
+   8,
+   3,
+   3
+  ],
+  "relations": [
+   "nsubj",
+   "cop",
+   "root",
+   "mark",
+   "det",
+   "nsubj",
+   "cop",
+   "advcl",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "My small red cup is hot.",
+  "frame": "?slot0 is ?slot1.",
+  "facts": [
+   "has_property(?slot0, ?slot1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "thing",
+    "words": "My small red cup",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "red advmod",
+     "cup nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "quality",
+    "words": "hot",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "hot root"
+    ]
+   }
+  ],
+  "words": [
+   "My",
+   "small",
+   "red",
+   "cup",
+   "is",
+   "hot",
+   "."
+  ],
+  "classes": [
+   "PRONOUN",
+   "ADJECTIVE",
+   "ADVERB",
+   "NOUN",
+   "AUXILIARY",
+   "ADJECTIVE",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   3,
+   1,
+   6,
+   6,
+   6,
+   0,
+   6
+  ],
+  "relations": [
+   "nsubj",
+   "amod",
+   "advmod",
+   "nsubj",
+   "cop",
+   "root",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Wave to him.",
+  "frame": "?slot0 him.",
+  "facts": [
+   "instance_of(?e, ?slot0)",
+   "done_by(?e, ?listener)",
+   "done_to(?e, ?previous)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "doing",
+    "words": "Wave to",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "Wave root",
+     "to case"
+    ]
+   }
+  ],
+  "words": [
+   "Wave",
+   "to",
+   "him",
+   "."
+  ],
+  "classes": [
+   "VERB",
+   "PREPOSITION",
+   "PRONOUN",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   0,
+   3,
+   1,
+   1
+  ],
+  "relations": [
+   "root",
+   "case",
+   "obl",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "The girl who owns the car is kind.",
+  "frame": "?slot0 is ?slot1.",
+  "facts": [
+   "has_property(?slot0, ?slot1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "thing",
+    "words": "The girl who owns the car",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "girl root",
+     "car nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "quality",
+    "words": "kind",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "kind ccomp"
+    ]
+   }
+  ],
+  "words": [
+   "The",
+   "girl",
+   "who",
+   "owns",
+   "the",
+   "car",
+   "is",
+   "kind",
+   "."
+  ],
+  "classes": [
+   "DETERMINER",
+   "NOUN",
+   "PRONOUN",
+   "VERB",
+   "DETERMINER",
+   "NOUN",
+   "AUXILIARY",
+   "NOUN",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   2,
+   0,
+   4,
+   2,
+   6,
+   8,
+   8,
+   4,
+   2
+  ],
+  "relations": [
+   "det",
+   "root",
+   "nsubj",
+   "acl:relcl",
+   "det",
+   "nsubj",
+   "cop",
+   "ccomp",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "The cup that is on the table is hot.",
+  "frame": "The ?slot0 that is on the ?slot1 is ?slot2.",
+  "facts": [
+   "given instance_of(?t0, ?slot1)",
+   "given instance_of(?x, ?slot0)",
+   "located_at(?x, ?t0)",
+   "has_property(?x, ?slot2)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "kind",
+    "words": "cup",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "cup root"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "kind",
+    "words": "table",
+    "one": true,
+    "placed": "against",
+    "depend outside": [
+     "table nsubj"
+    ]
+   },
+   {
+    "slot": "?slot2",
+    "role": "quality",
+    "words": "hot",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "hot acl:relcl"
+    ]
+   }
+  ],
+  "words": [
+   "The",
+   "cup",
+   "that",
+   "is",
+   "on",
+   "the",
+   "table",
+   "is",
+   "hot",
+   "."
+  ],
+  "classes": [
+   "DETERMINER",
+   "NOUN",
+   "PRONOUN",
+   "AUXILIARY",
+   "PREPOSITION",
+   "DETERMINER",
+   "NOUN",
+   "AUXILIARY",
+   "ADJECTIVE",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   2,
+   0,
+   7,
+   7,
+   7,
+   7,
+   9,
+   9,
+   2,
+   2
+  ],
+  "relations": [
+   "det",
+   "root",
+   "nmod:poss",
+   "cop",
+   "case",
+   "det",
+   "nsubj",
+   "cop",
+   "acl:relcl",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "The book that is on the chair is red.",
+  "frame": "The ?slot0 that is on the ?slot1 is ?slot2.",
+  "facts": [
+   "given instance_of(?t0, ?slot1)",
+   "given instance_of(?x, ?slot0)",
+   "located_at(?x, ?t0)",
+   "has_property(?x, ?slot2)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "kind",
+    "words": "book",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "book root"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "kind",
+    "words": "chair",
+    "one": true,
+    "placed": "against",
+    "depend outside": [
+     "chair nsubj"
+    ]
+   },
+   {
+    "slot": "?slot2",
+    "role": "quality",
+    "words": "red",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "red acl:relcl"
+    ]
+   }
+  ],
+  "words": [
+   "The",
+   "book",
+   "that",
+   "is",
+   "on",
+   "the",
+   "chair",
+   "is",
+   "red",
+   "."
+  ],
+  "classes": [
+   "DETERMINER",
+   "NOUN",
+   "PRONOUN",
+   "AUXILIARY",
+   "PREPOSITION",
+   "DETERMINER",
+   "NOUN",
+   "AUXILIARY",
+   "ADJECTIVE",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   2,
+   0,
+   7,
+   7,
+   7,
+   7,
+   9,
+   9,
+   2,
+   2
+  ],
+  "relations": [
+   "det",
+   "root",
+   "nmod:poss",
+   "cop",
+   "case",
+   "det",
+   "nsubj",
+   "cop",
+   "acl:relcl",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Wave to us.",
+  "frame": "?slot0 us.",
+  "facts": [
+   "done_by(?v0, ?listener)",
+   "done_to(?v0, ?v1)",
+   "instance_of(?v0, ?slot0)",
+   "has_member(?v1, ?speaker)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "doing",
+    "words": "Wave to",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "Wave root",
+     "to case"
+    ]
+   }
+  ],
+  "words": [
+   "Wave",
+   "to",
+   "us",
+   "."
+  ],
+  "classes": [
+   "VERB",
+   "PREPOSITION",
+   "PRONOUN",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   0,
+   3,
+   1,
+   1
+  ],
+  "relations": [
+   "root",
+   "case",
+   "obl",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Did the bird fly?",
+  "frame": "Did ?slot0 ?slot1?",
+  "facts": [
+   "instance_of(?v0, ?slot1)",
+   "done_by(?v0, ?slot0)",
+   "precedes(?v0, ?now)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "thing",
+    "words": "the bird",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "the det",
+     "bird compound"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "doing",
+    "words": "fly",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "fly root"
+    ]
+   }
+  ],
+  "words": [
+   "Did",
+   "the",
+   "bird",
+   "fly",
+   "?"
+  ],
+  "classes": [
+   "AUXILIARY",
+   "DETERMINER",
+   "NOUN",
+   "NOUN",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   4,
+   4,
+   4,
+   0,
+   4
+  ],
+  "relations": [
+   "cop",
+   "det",
+   "compound",
+   "root",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "What did the dog chase?",
+  "frame": "What did ?slot0 ?slot1?",
+  "facts": [
+   "instance_of(?v0, ?slot1)",
+   "done_by(?v0, ?slot0)",
+   "done_to(?v0, ?v1)",
+   "precedes(?v0, ?now)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "thing",
+    "words": "the dog",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "the det",
+     "dog compound"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "doing",
+    "words": "chase",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "chase obj"
+    ]
+   }
+  ],
+  "words": [
+   "What",
+   "did",
+   "the",
+   "dog",
+   "chase",
+   "?"
+  ],
+  "classes": [
+   "PRONOUN",
+   "VERB",
+   "DETERMINER",
+   "NOUN",
+   "NOUN",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   2,
+   0,
+   5,
+   5,
+   2,
+   2
+  ],
+  "relations": [
+   "nsubj",
+   "root",
+   "det",
+   "compound",
+   "obj",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Tom opened the door with a key.",
+  "frame": "?slot0 ?slot1 the ?slot2 with a ?slot3.",
+  "facts": [
+   "given instance_of(?t0, ?slot2)",
+   "instance_of(?v0, ?slot1)",
+   "done_by(?v0, ?slot0)",
+   "done_to(?v0, ?t0)",
+   "done_with(?v0, ?slot3)",
+   "precedes(?v0, ?now)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "thing",
+    "words": "Tom",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "Tom nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "doing",
+    "words": "opened",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "opened root"
+    ]
+   },
+   {
+    "slot": "?slot2",
+    "role": "kind",
+    "words": "door",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "door obj"
+    ]
+   },
+   {
+    "slot": "?slot3",
+    "role": "thing",
+    "words": "key",
+    "one": true,
+    "placed": "against",
+    "depend outside": [
+     "key nmod"
+    ]
+   }
+  ],
+  "words": [
+   "Tom",
+   "opened",
+   "the",
+   "door",
+   "with",
+   "a",
+   "key",
+   "."
+  ],
+  "classes": [
+   "NAME",
+   "VERB",
+   "DETERMINER",
+   "NOUN",
+   "PREPOSITION",
+   "DETERMINER",
+   "NOUN",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   2,
+   0,
+   4,
+   2,
+   7,
+   7,
+   4,
+   2
+  ],
+  "relations": [
+   "nsubj",
+   "root",
+   "det",
+   "obj",
+   "case",
+   "det",
+   "nmod",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Rex opened the door with a key.",
+  "frame": "?slot0 ?slot1 the ?slot2 with a ?slot3.",
+  "facts": [
+   "given instance_of(?t0, ?slot2)",
+   "instance_of(?v0, ?slot1)",
+   "done_by(?v0, ?slot0)",
+   "done_to(?v0, ?t0)",
+   "done_with(?v0, ?slot3)",
+   "precedes(?v0, ?now)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "thing",
+    "words": "Rex",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "Rex nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "doing",
+    "words": "opened",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "opened root"
+    ]
+   },
+   {
+    "slot": "?slot2",
+    "role": "kind",
+    "words": "door",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "door obj"
+    ]
+   },
+   {
+    "slot": "?slot3",
+    "role": "thing",
+    "words": "key",
+    "one": true,
+    "placed": "against",
+    "depend outside": [
+     "key nmod"
+    ]
+   }
+  ],
+  "words": [
+   "Rex",
+   "opened",
+   "the",
+   "door",
+   "with",
+   "a",
+   "key",
+   "."
+  ],
+  "classes": [
+   "NAME",
+   "VERB",
+   "DETERMINER",
+   "NOUN",
+   "PREPOSITION",
+   "DETERMINER",
+   "NOUN",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   2,
+   0,
+   4,
+   2,
+   7,
+   7,
+   4,
+   2
+  ],
+  "relations": [
+   "nsubj",
+   "root",
+   "det",
+   "obj",
+   "case",
+   "det",
+   "nmod",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Tom cut the bread with a knife.",
+  "frame": "?slot0 ?slot1 the ?slot2 with a ?slot3.",
+  "facts": [
+   "given instance_of(?t0, ?slot2)",
+   "instance_of(?v0, ?slot1)",
+   "done_by(?v0, ?slot0)",
+   "done_to(?v0, ?t0)",
+   "done_with(?v0, ?slot3)",
+   "precedes(?v0, ?now)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "thing",
+    "words": "Tom",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "Tom nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "doing",
+    "words": "cut",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "cut root"
+    ]
+   },
+   {
+    "slot": "?slot2",
+    "role": "kind",
+    "words": "bread",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "bread obj"
+    ]
+   },
+   {
+    "slot": "?slot3",
+    "role": "thing",
+    "words": "knife",
+    "one": true,
+    "placed": "against",
+    "depend outside": [
+     "knife nmod"
+    ]
+   }
+  ],
+  "words": [
+   "Tom",
+   "cut",
+   "the",
+   "bread",
+   "with",
+   "a",
+   "knife",
+   "."
+  ],
+  "classes": [
+   "NAME",
+   "VERB",
+   "DETERMINER",
+   "NOUN",
+   "PREPOSITION",
+   "DETERMINER",
+   "NOUN",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   2,
+   0,
+   4,
+   2,
+   7,
+   7,
+   4,
+   2
+  ],
+  "relations": [
+   "nsubj",
+   "root",
+   "det",
+   "obj",
+   "case",
+   "det",
+   "nmod",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "The bird flies before the cat climbs.",
+  "frame": "The ?slot0 ?slot1 before the ?slot2 ?slot3.",
+  "facts": [
+   "given instance_of(?t0, ?slot0)",
+   "given instance_of(?t1, ?slot2)",
+   "instance_of(?v0, ?slot1)",
+   "done_by(?v0, ?t0)",
+   "instance_of(?v1, ?slot3)",
+   "done_by(?v1, ?t1)",
+   "precedes(?v0, ?v1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "kind",
+    "words": "bird",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "bird nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "doing",
+    "words": "flies",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "flies root"
+    ]
+   },
+   {
+    "slot": "?slot2",
+    "role": "kind",
+    "words": "cat",
+    "one": true,
+    "placed": "against",
+    "depend outside": [
+     "cat obl"
+    ]
+   },
+   {
+    "slot": "?slot3",
+    "role": "doing",
+    "words": "climbs",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "climbs advcl"
+    ]
+   }
+  ],
+  "words": [
+   "The",
+   "bird",
+   "flies",
+   "before",
+   "the",
+   "cat",
+   "climbs",
+   "."
+  ],
+  "classes": [
+   "DETERMINER",
+   "NOUN",
+   "VERB",
+   "PREPOSITION",
+   "DETERMINER",
+   "NOUN",
+   "VERB",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   2,
+   3,
+   0,
+   6,
+   6,
+   3,
+   3,
+   3
+  ],
+  "relations": [
+   "det",
+   "nsubj",
+   "root",
+   "case",
+   "det",
+   "obl",
+   "advcl",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "The dog barks after the cat runs.",
+  "frame": "The ?slot0 ?slot1 after the ?slot2 ?slot3.",
+  "facts": [
+   "given instance_of(?t0, ?slot0)",
+   "given instance_of(?t1, ?slot2)",
+   "instance_of(?v0, ?slot1)",
+   "done_by(?v0, ?t0)",
+   "instance_of(?v1, ?slot3)",
+   "done_by(?v1, ?t1)",
+   "follows(?v0, ?v1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "kind",
+    "words": "dog",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "dog compound"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "doing",
+    "words": "barks",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "barks root"
+    ]
+   },
+   {
+    "slot": "?slot2",
+    "role": "kind",
+    "words": "cat",
+    "one": true,
+    "placed": "against",
+    "depend outside": [
+     "cat nmod"
+    ]
+   },
+   {
+    "slot": "?slot3",
+    "role": "doing",
+    "words": "runs",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "runs acl"
+    ]
+   }
+  ],
+  "words": [
+   "The",
+   "dog",
+   "barks",
+   "after",
+   "the",
+   "cat",
+   "runs",
+   "."
+  ],
+  "classes": [
+   "DETERMINER",
+   "NOUN",
+   "NOUN",
+   "PREPOSITION",
+   "DETERMINER",
+   "NOUN",
+   "VERB",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   3,
+   3,
+   0,
+   6,
+   6,
+   3,
+   3,
+   3
+  ],
+  "relations": [
+   "det",
+   "compound",
+   "root",
+   "case",
+   "det",
+   "nmod",
+   "acl",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "The bird flies after the cat climbs.",
+  "frame": "The ?slot0 ?slot1 after the ?slot2 ?slot3.",
+  "facts": [
+   "given instance_of(?t0, ?slot0)",
+   "given instance_of(?t1, ?slot2)",
+   "instance_of(?v0, ?slot1)",
+   "done_by(?v0, ?t0)",
+   "instance_of(?v1, ?slot3)",
+   "done_by(?v1, ?t1)",
+   "follows(?v0, ?v1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "kind",
+    "words": "bird",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "bird nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "doing",
+    "words": "flies",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "flies root"
+    ]
+   },
+   {
+    "slot": "?slot2",
+    "role": "kind",
+    "words": "cat",
+    "one": true,
+    "placed": "against",
+    "depend outside": [
+     "cat obl"
+    ]
+   },
+   {
+    "slot": "?slot3",
+    "role": "doing",
+    "words": "climbs",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "climbs advcl"
+    ]
+   }
+  ],
+  "words": [
+   "The",
+   "bird",
+   "flies",
+   "after",
+   "the",
+   "cat",
+   "climbs",
+   "."
+  ],
+  "classes": [
+   "DETERMINER",
+   "NOUN",
+   "VERB",
+   "PREPOSITION",
+   "DETERMINER",
+   "NOUN",
+   "VERB",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   2,
+   3,
+   0,
+   6,
+   6,
+   3,
+   3,
+   3
+  ],
+  "relations": [
+   "det",
+   "nsubj",
+   "root",
+   "case",
+   "det",
+   "obl",
+   "advcl",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "The fish swims after the dog runs.",
+  "frame": "The ?slot0 ?slot1 after the ?slot2 ?slot3.",
+  "facts": [
+   "given instance_of(?t0, ?slot0)",
+   "given instance_of(?t1, ?slot2)",
+   "instance_of(?v0, ?slot1)",
+   "done_by(?v0, ?t0)",
+   "instance_of(?v1, ?slot3)",
+   "done_by(?v1, ?t1)",
+   "follows(?v0, ?v1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "kind",
+    "words": "fish",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "fish compound"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "doing",
+    "words": "swims",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "swims root"
+    ]
+   },
+   {
+    "slot": "?slot2",
+    "role": "kind",
+    "words": "dog",
+    "one": true,
+    "placed": "against",
+    "depend outside": [
+     "dog nmod"
+    ]
+   },
+   {
+    "slot": "?slot3",
+    "role": "doing",
+    "words": "runs",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "runs acl"
+    ]
+   }
+  ],
+  "words": [
+   "The",
+   "fish",
+   "swims",
+   "after",
+   "the",
+   "dog",
+   "runs",
+   "."
+  ],
+  "classes": [
+   "DETERMINER",
+   "NOUN",
+   "NOUN",
+   "PREPOSITION",
+   "DETERMINER",
+   "NOUN",
+   "VERB",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   3,
+   3,
+   0,
+   6,
+   6,
+   3,
+   3,
+   3
+  ],
+  "relations": [
+   "det",
+   "compound",
+   "root",
+   "case",
+   "det",
+   "nmod",
+   "acl",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "The dog barked before the cat ran.",
+  "frame": "The ?slot0 ?slot1 before the ?slot2 ?slot3.",
+  "facts": [
+   "given instance_of(?t0, ?slot0)",
+   "given instance_of(?t1, ?slot2)",
+   "instance_of(?v0, ?slot1)",
+   "done_by(?v0, ?t0)",
+   "precedes(?v0, ?now)",
+   "instance_of(?v1, ?slot3)",
+   "done_by(?v1, ?t1)",
+   "precedes(?v1, ?now)",
+   "precedes(?v0, ?v1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "kind",
+    "words": "dog",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "dog nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "doing",
+    "words": "barked",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "barked root"
+    ]
+   },
+   {
+    "slot": "?slot2",
+    "role": "kind",
+    "words": "cat",
+    "one": true,
+    "placed": "against",
+    "depend outside": [
+     "cat obl"
+    ]
+   },
+   {
+    "slot": "?slot3",
+    "role": "doing",
+    "words": "ran",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "ran advcl"
+    ]
+   }
+  ],
+  "words": [
+   "The",
+   "dog",
+   "barked",
+   "before",
+   "the",
+   "cat",
+   "ran",
+   "."
+  ],
+  "classes": [
+   "DETERMINER",
+   "NOUN",
+   "VERB",
+   "PREPOSITION",
+   "DETERMINER",
+   "NOUN",
+   "VERB",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   2,
+   3,
+   0,
+   6,
+   6,
+   3,
+   3,
+   3
+  ],
+  "relations": [
+   "det",
+   "nsubj",
+   "root",
+   "case",
+   "det",
+   "obl",
+   "advcl",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "The bird flew before the dog barked.",
+  "frame": "The ?slot0 ?slot1 before the ?slot2 ?slot3.",
+  "facts": [
+   "given instance_of(?t0, ?slot0)",
+   "given instance_of(?t1, ?slot2)",
+   "instance_of(?v0, ?slot1)",
+   "done_by(?v0, ?t0)",
+   "precedes(?v0, ?now)",
+   "instance_of(?v1, ?slot3)",
+   "done_by(?v1, ?t1)",
+   "precedes(?v1, ?now)",
+   "precedes(?v0, ?v1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "kind",
+    "words": "bird",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "bird nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "doing",
+    "words": "flew",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "flew root"
+    ]
+   },
+   {
+    "slot": "?slot2",
+    "role": "kind",
+    "words": "dog",
+    "one": true,
+    "placed": "against",
+    "depend outside": [
+     "dog obl"
+    ]
+   },
+   {
+    "slot": "?slot3",
+    "role": "doing",
+    "words": "barked",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "barked advcl"
+    ]
+   }
+  ],
+  "words": [
+   "The",
+   "bird",
+   "flew",
+   "before",
+   "the",
+   "dog",
+   "barked",
+   "."
+  ],
+  "classes": [
+   "DETERMINER",
+   "NOUN",
+   "VERB",
+   "PREPOSITION",
+   "DETERMINER",
+   "NOUN",
+   "VERB",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   2,
+   3,
+   0,
+   6,
+   6,
+   3,
+   3,
+   3
+  ],
+  "relations": [
+   "det",
+   "nsubj",
+   "root",
+   "case",
+   "det",
+   "obl",
+   "advcl",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "The cat ran before Tom opened the door.",
+  "frame": "The ?slot0 ?slot1.",
+  "facts": [
+   "given instance_of(?t0, ?slot0)",
+   "instance_of(?v0, ?slot1)",
+   "done_by(?v0, ?t0)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "kind",
+    "words": "cat",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "cat nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "doing",
+    "words": "ran before Tom opened the door",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "ran acl",
+     "opened root"
+    ]
+   }
+  ],
+  "words": [
+   "The",
+   "cat",
+   "ran",
+   "before",
+   "Tom",
+   "opened",
+   "the",
+   "door",
+   "."
+  ],
+  "classes": [
+   "DETERMINER",
+   "NOUN",
+   "VERB",
+   "PREPOSITION",
+   "NAME",
+   "VERB",
+   "DETERMINER",
+   "NOUN",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   2,
+   6,
+   2,
+   5,
+   3,
+   0,
+   8,
+   6,
+   6
+  ],
+  "relations": [
+   "det",
+   "nsubj",
+   "acl",
+   "case",
+   "obl",
+   "root",
+   "det",
+   "obj",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "The dog barked after the cat ran.",
+  "frame": "The ?slot0 ?slot1 after the ?slot2 ?slot3.",
+  "facts": [
+   "given instance_of(?t0, ?slot0)",
+   "given instance_of(?t1, ?slot2)",
+   "instance_of(?v0, ?slot1)",
+   "done_by(?v0, ?t0)",
+   "precedes(?v0, ?now)",
+   "instance_of(?v1, ?slot3)",
+   "done_by(?v1, ?t1)",
+   "precedes(?v1, ?now)",
+   "follows(?v0, ?v1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "kind",
+    "words": "dog",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "dog nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "doing",
+    "words": "barked",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "barked root"
+    ]
+   },
+   {
+    "slot": "?slot2",
+    "role": "kind",
+    "words": "cat",
+    "one": true,
+    "placed": "against",
+    "depend outside": [
+     "cat obl"
+    ]
+   },
+   {
+    "slot": "?slot3",
+    "role": "doing",
+    "words": "ran",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "ran advcl"
+    ]
+   }
+  ],
+  "words": [
+   "The",
+   "dog",
+   "barked",
+   "after",
+   "the",
+   "cat",
+   "ran",
+   "."
+  ],
+  "classes": [
+   "DETERMINER",
+   "NOUN",
+   "VERB",
+   "PREPOSITION",
+   "DETERMINER",
+   "NOUN",
+   "VERB",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   2,
+   3,
+   0,
+   6,
+   6,
+   3,
+   3,
+   3
+  ],
+  "relations": [
+   "det",
+   "nsubj",
+   "root",
+   "case",
+   "det",
+   "obl",
+   "advcl",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "The bird flew after the dog barked.",
+  "frame": "The ?slot0 ?slot1 after the ?slot2 ?slot3.",
+  "facts": [
+   "given instance_of(?t0, ?slot0)",
+   "given instance_of(?t1, ?slot2)",
+   "instance_of(?v0, ?slot1)",
+   "done_by(?v0, ?t0)",
+   "precedes(?v0, ?now)",
+   "instance_of(?v1, ?slot3)",
+   "done_by(?v1, ?t1)",
+   "precedes(?v1, ?now)",
+   "follows(?v0, ?v1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "kind",
+    "words": "bird",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "bird nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "doing",
+    "words": "flew",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "flew root"
+    ]
+   },
+   {
+    "slot": "?slot2",
+    "role": "kind",
+    "words": "dog",
+    "one": true,
+    "placed": "against",
+    "depend outside": [
+     "dog obl"
+    ]
+   },
+   {
+    "slot": "?slot3",
+    "role": "doing",
+    "words": "barked",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "barked advcl"
+    ]
+   }
+  ],
+  "words": [
+   "The",
+   "bird",
+   "flew",
+   "after",
+   "the",
+   "dog",
+   "barked",
+   "."
+  ],
+  "classes": [
+   "DETERMINER",
+   "NOUN",
+   "VERB",
+   "PREPOSITION",
+   "DETERMINER",
+   "NOUN",
+   "VERB",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   2,
+   3,
+   0,
+   6,
+   6,
+   3,
+   3,
+   3
+  ],
+  "relations": [
+   "det",
+   "nsubj",
+   "root",
+   "case",
+   "det",
+   "obl",
+   "advcl",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "The bike is slower than the car.",
+  "frame": "The ?slot0 is ?slot1 than the ?slot2.",
+  "facts": [
+   "given instance_of(?t0, ?slot0)",
+   "given instance_of(?t1, ?slot2)",
+   "has_degree(?t0, ?v0)",
+   "instance_of(?v0, ?slot1)",
+   "has_degree(?t1, ?v1)",
+   "instance_of(?v1, ?slot1)",
+   "exceeds(?v0, ?v1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "kind",
+    "words": "bike",
+    "one": true,
+    "placed": "against",
+    "depend outside": [
+     "bike nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "quality",
+    "words": "slower",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "slower advmod"
+    ]
+   },
+   {
+    "slot": "?slot2",
+    "role": "kind",
+    "words": "car",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "car root"
+    ]
+   }
+  ],
+  "words": [
+   "The",
+   "bike",
+   "is",
+   "slower",
+   "than",
+   "the",
+   "car",
+   "."
+  ],
+  "classes": [
+   "DETERMINER",
+   "NOUN",
+   "AUXILIARY",
+   "ADVERB",
+   "PREPOSITION",
+   "DETERMINER",
+   "NOUN",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   2,
+   7,
+   7,
+   7,
+   7,
+   7,
+   0,
+   7
+  ],
+  "relations": [
+   "det",
+   "nsubj",
+   "cop",
+   "advmod",
+   "case",
+   "det",
+   "root",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Is Tom taller than Rex?",
+  "frame": "Is ?slot0 ?slot1 than ?slot2?",
+  "facts": [
+   "has_degree(?slot0, ?v0)",
+   "instance_of(?v0, ?slot1)",
+   "has_degree(?slot2, ?v1)",
+   "instance_of(?v1, ?slot1)",
+   "exceeds(?v0, ?v1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "thing",
+    "words": "Tom",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "Tom root"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "quality",
+    "words": "taller",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "taller amod"
+    ]
+   },
+   {
+    "slot": "?slot2",
+    "role": "thing",
+    "words": "Rex",
+    "one": true,
+    "placed": "against",
+    "depend outside": [
+     "Rex nmod"
+    ]
+   }
+  ],
+  "words": [
+   "Is",
+   "Tom",
+   "taller",
+   "than",
+   "Rex",
+   "?"
+  ],
+  "classes": [
+   "AUXILIARY",
+   "NAME",
+   "ADJECTIVE",
+   "PREPOSITION",
+   "NAME",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   2,
+   0,
+   2,
+   5,
+   2,
+   2
+  ],
+  "relations": [
+   "cop",
+   "root",
+   "amod",
+   "case",
+   "nmod",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "The girl who swam is happy.",
+  "frame": "The ?slot0 who ?slot1 is ?slot2.",
+  "facts": [
+   "has_property(?v1, ?slot2)",
+   "given instance_of(?v1, ?slot0)",
+   "instance_of(?v0, ?slot1)",
+   "done_by(?v0, ?v1)",
+   "precedes(?v0, ?now)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "kind",
+    "words": "girl",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "girl root"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "doing",
+    "words": "swam",
+    "one": true,
+    "placed": "against",
+    "depend outside": [
+     "swam amod"
+    ]
+   },
+   {
+    "slot": "?slot2",
+    "role": "quality",
+    "words": "happy",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "happy acl:relcl"
+    ]
+   }
+  ],
+  "words": [
+   "The",
+   "girl",
+   "who",
+   "swam",
+   "is",
+   "happy",
+   "."
+  ],
+  "classes": [
+   "DETERMINER",
+   "NOUN",
+   "PRONOUN",
+   "ADJECTIVE",
+   "AUXILIARY",
+   "ADJECTIVE",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   2,
+   0,
+   6,
+   3,
+   6,
+   2,
+   2
+  ],
+  "relations": [
+   "det",
+   "root",
+   "nsubj",
+   "amod",
+   "cop",
+   "acl:relcl",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "The box that Rex opened is big.",
+  "frame": "The ?slot0 that ?slot1 ?slot2 is ?slot3.",
+  "facts": [
+   "has_property(?v1, ?slot3)",
+   "given instance_of(?v1, ?slot0)",
+   "instance_of(?v0, ?slot2)",
+   "done_by(?v0, ?slot1)",
+   "done_to(?v0, ?v1)",
+   "precedes(?v0, ?now)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "kind",
+    "words": "box",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "box root"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "thing",
+    "words": "Rex",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "Rex nsubj"
+    ]
+   },
+   {
+    "slot": "?slot2",
+    "role": "doing",
+    "words": "opened",
+    "one": true,
+    "placed": "against",
+    "depend outside": [
+     "opened acl:relcl"
+    ]
+   },
+   {
+    "slot": "?slot3",
+    "role": "quality",
+    "words": "big",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "big acl:relcl"
+    ]
+   }
+  ],
+  "words": [
+   "The",
+   "box",
+   "that",
+   "Rex",
+   "opened",
+   "is",
+   "big",
+   "."
+  ],
+  "classes": [
+   "DETERMINER",
+   "NOUN",
+   "PRONOUN",
+   "NAME",
+   "VERB",
+   "AUXILIARY",
+   "ADJECTIVE",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   2,
+   0,
+   7,
+   5,
+   3,
+   7,
+   2,
+   2
+  ],
+  "relations": [
+   "det",
+   "root",
+   "nsubj",
+   "nsubj",
+   "acl:relcl",
+   "cop",
+   "acl:relcl",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "The cat that the dog chased is small.",
+  "frame": "?slot0 is ?slot1.",
+  "facts": [
+   "has_property(?slot0, ?slot1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "thing",
+    "words": "The cat that the dog chased",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "cat root",
+     "that mark",
+     "dog nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "quality",
+    "words": "small",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "small acl"
+    ]
+   }
+  ],
+  "words": [
+   "The",
+   "cat",
+   "that",
+   "the",
+   "dog",
+   "chased",
+   "is",
+   "small",
+   "."
+  ],
+  "classes": [
+   "DETERMINER",
+   "NOUN",
+   "SUBORDINATOR",
+   "DETERMINER",
+   "NOUN",
+   "VERB",
+   "AUXILIARY",
+   "ADJECTIVE",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   2,
+   0,
+   8,
+   5,
+   8,
+   5,
+   8,
+   2,
+   2
+  ],
+  "relations": [
+   "det",
+   "root",
+   "mark",
+   "det",
+   "nsubj",
+   "acl",
+   "cop",
+   "acl",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "The dog barked, so the cat ran.",
+  "frame": "The ?slot0 ?slot1, so the ?slot2 ?slot3.",
+  "facts": [
+   "given instance_of(?t0, ?slot0)",
+   "given instance_of(?t1, ?slot2)",
+   "instance_of(?v1, ?slot1)",
+   "done_by(?v1, ?t0)",
+   "precedes(?v1, ?now)",
+   "instance_of(?v0, ?slot3)",
+   "done_by(?v0, ?t1)",
+   "precedes(?v0, ?now)",
+   "causes(?v1, ?v0)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "kind",
+    "words": "dog",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "dog root"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "doing",
+    "words": "barked",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "barked acl"
+    ]
+   },
+   {
+    "slot": "?slot2",
+    "role": "kind",
+    "words": "cat",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "cat nsubj"
+    ]
+   },
+   {
+    "slot": "?slot3",
+    "role": "doing",
+    "words": "ran",
+    "one": true,
+    "placed": "against",
+    "depend outside": [
+     "ran parataxis"
+    ]
+   }
+  ],
+  "words": [
+   "The",
+   "dog",
+   "barked",
+   ",",
+   "so",
+   "the",
+   "cat",
+   "ran",
+   "."
+  ],
+  "classes": [
+   "DETERMINER",
+   "NOUN",
+   "VERB",
+   "PUNCTUATION",
+   "ADVERB",
+   "DETERMINER",
+   "NOUN",
+   "VERB",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   2,
+   0,
+   2,
+   8,
+   8,
+   7,
+   8,
+   2,
+   8
+  ],
+  "relations": [
+   "det",
+   "root",
+   "acl",
+   "punct",
+   "advmod",
+   "det",
+   "nsubj",
+   "parataxis",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "The dog runs faster than the cat.",
+  "frame": "The ?slot0 ?slot1 ?slot2 than the ?slot3.",
+  "facts": [
+   "given instance_of(?t0, ?slot0)",
+   "given instance_of(?t1, ?slot3)",
+   "instance_of(?v0, ?slot1)",
+   "done_by(?v0, ?t0)",
+   "instance_of(?v1, ?slot1)",
+   "done_by(?v1, ?t1)",
+   "has_degree(?v0, ?v2)",
+   "instance_of(?v2, ?slot2)",
+   "has_degree(?v1, ?v3)",
+   "instance_of(?v3, ?slot2)",
+   "exceeds(?v2, ?v3)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "kind",
+    "words": "dog",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "dog nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "doing",
+    "words": "runs",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "runs root"
+    ]
+   },
+   {
+    "slot": "?slot2",
+    "role": "quality",
+    "words": "faster",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "faster xcomp"
+    ]
+   },
+   {
+    "slot": "?slot3",
+    "role": "kind",
+    "words": "cat",
+    "one": true,
+    "placed": "against",
+    "depend outside": [
+     "cat obl"
+    ]
+   }
+  ],
+  "words": [
+   "The",
+   "dog",
+   "runs",
+   "faster",
+   "than",
+   "the",
+   "cat",
+   "."
+  ],
+  "classes": [
+   "DETERMINER",
+   "NOUN",
+   "VERB",
+   "ADJECTIVE",
+   "PREPOSITION",
+   "DETERMINER",
+   "NOUN",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   2,
+   3,
+   0,
+   3,
+   7,
+   7,
+   4,
+   3
+  ],
+  "relations": [
+   "det",
+   "nsubj",
+   "root",
+   "xcomp",
+   "case",
+   "det",
+   "obl",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "The cat climbs faster than the dog.",
+  "frame": "The ?slot0 ?slot1 ?slot2 than the ?slot3.",
+  "facts": [
+   "given instance_of(?t0, ?slot0)",
+   "given instance_of(?t1, ?slot3)",
+   "instance_of(?v0, ?slot1)",
+   "done_by(?v0, ?t0)",
+   "instance_of(?v1, ?slot1)",
+   "done_by(?v1, ?t1)",
+   "has_degree(?v0, ?v2)",
+   "instance_of(?v2, ?slot2)",
+   "has_degree(?v1, ?v3)",
+   "instance_of(?v3, ?slot2)",
+   "exceeds(?v2, ?v3)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "kind",
+    "words": "cat",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "cat nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "doing",
+    "words": "climbs",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "climbs root"
+    ]
+   },
+   {
+    "slot": "?slot2",
+    "role": "quality",
+    "words": "faster",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "faster xcomp"
+    ]
+   },
+   {
+    "slot": "?slot3",
+    "role": "kind",
+    "words": "dog",
+    "one": true,
+    "placed": "against",
+    "depend outside": [
+     "dog obl"
+    ]
+   }
+  ],
+  "words": [
+   "The",
+   "cat",
+   "climbs",
+   "faster",
+   "than",
+   "the",
+   "dog",
+   "."
+  ],
+  "classes": [
+   "DETERMINER",
+   "NOUN",
+   "VERB",
+   "ADJECTIVE",
+   "PREPOSITION",
+   "DETERMINER",
+   "NOUN",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   2,
+   3,
+   0,
+   3,
+   7,
+   7,
+   4,
+   3
+  ],
+  "relations": [
+   "det",
+   "nsubj",
+   "root",
+   "xcomp",
+   "case",
+   "det",
+   "obl",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "The bird flies faster than the cat.",
+  "frame": "The ?slot0 ?slot1 ?slot2 than the ?slot3.",
+  "facts": [
+   "given instance_of(?t0, ?slot0)",
+   "given instance_of(?t1, ?slot3)",
+   "instance_of(?v0, ?slot1)",
+   "done_by(?v0, ?t0)",
+   "instance_of(?v1, ?slot1)",
+   "done_by(?v1, ?t1)",
+   "has_degree(?v0, ?v2)",
+   "instance_of(?v2, ?slot2)",
+   "has_degree(?v1, ?v3)",
+   "instance_of(?v3, ?slot2)",
+   "exceeds(?v2, ?v3)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "kind",
+    "words": "bird",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "bird nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "doing",
+    "words": "flies",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "flies root"
+    ]
+   },
+   {
+    "slot": "?slot2",
+    "role": "quality",
+    "words": "faster",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "faster xcomp"
+    ]
+   },
+   {
+    "slot": "?slot3",
+    "role": "kind",
+    "words": "cat",
+    "one": true,
+    "placed": "against",
+    "depend outside": [
+     "cat obl"
+    ]
+   }
+  ],
+  "words": [
+   "The",
+   "bird",
+   "flies",
+   "faster",
+   "than",
+   "the",
+   "cat",
+   "."
+  ],
+  "classes": [
+   "DETERMINER",
+   "NOUN",
+   "VERB",
+   "ADJECTIVE",
+   "PREPOSITION",
+   "DETERMINER",
+   "NOUN",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   2,
+   3,
+   0,
+   3,
+   7,
+   7,
+   4,
+   3
+  ],
+  "relations": [
+   "det",
+   "nsubj",
+   "root",
+   "xcomp",
+   "case",
+   "det",
+   "obl",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "The dog barks louder than the cat.",
+  "frame": "The ?slot0 ?slot1 ?slot2 than the ?slot3.",
+  "facts": [
+   "given instance_of(?t0, ?slot0)",
+   "given instance_of(?t1, ?slot3)",
+   "instance_of(?v0, ?slot1)",
+   "done_by(?v0, ?t0)",
+   "instance_of(?v1, ?slot1)",
+   "done_by(?v1, ?t1)",
+   "has_degree(?v0, ?v2)",
+   "instance_of(?v2, ?slot2)",
+   "has_degree(?v1, ?v3)",
+   "instance_of(?v3, ?slot2)",
+   "exceeds(?v2, ?v3)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "kind",
+    "words": "dog",
+    "one": true,
+    "placed": "against",
+    "depend outside": [
+     "dog compound"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "doing",
+    "words": "barks",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "barks compound"
+    ]
+   },
+   {
+    "slot": "?slot2",
+    "role": "quality",
+    "words": "louder",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "louder root"
+    ]
+   },
+   {
+    "slot": "?slot3",
+    "role": "kind",
+    "words": "cat",
+    "one": true,
+    "placed": "against",
+    "depend outside": [
+     "cat nmod"
+    ]
+   }
+  ],
+  "words": [
+   "The",
+   "dog",
+   "barks",
+   "louder",
+   "than",
+   "the",
+   "cat",
+   "."
+  ],
+  "classes": [
+   "DETERMINER",
+   "NOUN",
+   "NOUN",
+   "NOUN",
+   "PREPOSITION",
+   "DETERMINER",
+   "NOUN",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   4,
+   4,
+   4,
+   0,
+   7,
+   7,
+   4,
+   4
+  ],
+  "relations": [
+   "det",
+   "compound",
+   "compound",
+   "root",
+   "case",
+   "det",
+   "nmod",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Thirty-five is a number.",
+  "frame": "?slot0 is a ?slot1.",
+  "facts": [
+   "isa(?slot0, ?slot1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "kind",
+    "words": "Thirty - five",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "Thirty root",
+     "- punct",
+     "five nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "kind",
+    "words": "number",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "number appos"
+    ]
+   }
+  ],
+  "words": [
+   "Thirty",
+   "-",
+   "five",
+   "is",
+   "a",
+   "number",
+   "."
+  ],
+  "classes": [
+   "NAME",
+   "PUNCTUATION",
+   "NUMERAL",
+   "AUXILIARY",
+   "DETERMINER",
+   "NOUN",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   0,
+   6,
+   6,
+   6,
+   6,
+   1,
+   1
+  ],
+  "relations": [
+   "root",
+   "punct",
+   "nsubj",
+   "cop",
+   "det",
+   "appos",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Forty-four is a number.",
+  "frame": "?slot0 is a ?slot1.",
+  "facts": [
+   "isa(?slot0, ?slot1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "kind",
+    "words": "Forty - four",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "Forty root",
+     "- punct",
+     "four nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "kind",
+    "words": "number",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "number obl"
+    ]
+   }
+  ],
+  "words": [
+   "Forty",
+   "-",
+   "four",
+   "is",
+   "a",
+   "number",
+   "."
+  ],
+  "classes": [
+   "ADJECTIVE",
+   "PUNCTUATION",
+   "NUMERAL",
+   "AUXILIARY",
+   "DETERMINER",
+   "NOUN",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   0,
+   6,
+   6,
+   6,
+   6,
+   1,
+   1
+  ],
+  "relations": [
+   "root",
+   "punct",
+   "nsubj",
+   "cop",
+   "det",
+   "obl",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Ninety-nine is a number.",
+  "frame": "?slot0 is a ?slot1.",
+  "facts": [
+   "isa(?slot0, ?slot1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "kind",
+    "words": "Ninety - nine",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "Ninety root",
+     "- punct",
+     "nine nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "kind",
+    "words": "number",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "number obl"
+    ]
+   }
+  ],
+  "words": [
+   "Ninety",
+   "-",
+   "nine",
+   "is",
+   "a",
+   "number",
+   "."
+  ],
+  "classes": [
+   "ADJECTIVE",
+   "PUNCTUATION",
+   "NUMERAL",
+   "AUXILIARY",
+   "DETERMINER",
+   "NOUN",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   0,
+   6,
+   6,
+   6,
+   6,
+   1,
+   1
+  ],
+  "relations": [
+   "root",
+   "punct",
+   "nsubj",
+   "cop",
+   "det",
+   "obl",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "There are seventy-four books.",
+  "frame": "There are ?slot0 ?slot1.",
+  "facts": [
+   "instance_of(?v0, ?slot1)",
+   "has_count(?v0, ?slot0)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "closed",
+    "words": "seventy - four",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "seventy amod",
+     "four nummod"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "kind",
+    "words": "books",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "books root"
+    ]
+   }
+  ],
+  "words": [
+   "There",
+   "are",
+   "seventy",
+   "-",
+   "four",
+   "books",
+   "."
+  ],
+  "classes": [
+   "PRONOUN",
+   "AUXILIARY",
+   "ADJECTIVE",
+   "PUNCTUATION",
+   "NUMERAL",
+   "NOUN",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   3,
+   3,
+   6,
+   5,
+   6,
+   0,
+   6
+  ],
+  "relations": [
+   "nsubj",
+   "cop",
+   "amod",
+   "punct",
+   "nummod",
+   "root",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Tom owns forty-five books.",
+  "frame": "?slot0 owns ?slot1 ?slot2.",
+  "facts": [
+   "owns(?slot0, ?v0)",
+   "instance_of(?v0, ?slot2)",
+   "has_count(?v0, ?slot1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "thing",
+    "words": "Tom",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "Tom nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "closed",
+    "words": "forty - five",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "forty xcomp",
+     "five nummod"
+    ]
+   },
+   {
+    "slot": "?slot2",
+    "role": "kind",
+    "words": "books",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "books obj"
+    ]
+   }
+  ],
+  "words": [
+   "Tom",
+   "owns",
+   "forty",
+   "-",
+   "five",
+   "books",
+   "."
+  ],
+  "classes": [
+   "NAME",
+   "VERB",
+   "ADJECTIVE",
+   "PUNCTUATION",
+   "NUMERAL",
+   "NOUN",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   2,
+   0,
+   2,
+   5,
+   6,
+   2,
+   2
+  ],
+  "relations": [
+   "nsubj",
+   "root",
+   "xcomp",
+   "punct",
+   "nummod",
+   "obj",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Rex owns eighty-one balls.",
+  "frame": "?slot0 owns ?slot1 ?slot2.",
+  "facts": [
+   "owns(?slot0, ?v0)",
+   "instance_of(?v0, ?slot2)",
+   "has_count(?v0, ?slot1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "thing",
+    "words": "Rex",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "Rex nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "closed",
+    "words": "eighty - one",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "eighty xcomp",
+     "one nummod"
+    ]
+   },
+   {
+    "slot": "?slot2",
+    "role": "kind",
+    "words": "balls",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "balls obj"
+    ]
+   }
+  ],
+  "words": [
+   "Rex",
+   "owns",
+   "eighty",
+   "-",
+   "one",
+   "balls",
+   "."
+  ],
+  "classes": [
+   "NAME",
+   "VERB",
+   "ADJECTIVE",
+   "PUNCTUATION",
+   "NUMERAL",
+   "NOUN",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   2,
+   0,
+   2,
+   5,
+   6,
+   2,
+   2
+  ],
+  "relations": [
+   "nsubj",
+   "root",
+   "xcomp",
+   "punct",
+   "nummod",
+   "obj",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "A hundred and five is a number.",
+  "frame": "A ?slot0 is a ?slot1.",
+  "facts": [
+   "isa(?slot0, ?slot1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "kind",
+    "words": "hundred and five",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "hundred root",
+     "and cc",
+     "five nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "kind",
+    "words": "number",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "number conj"
+    ]
+   }
+  ],
+  "words": [
+   "A",
+   "hundred",
+   "and",
+   "five",
+   "is",
+   "a",
+   "number",
+   "."
+  ],
+  "classes": [
+   "DETERMINER",
+   "NUMERAL",
+   "CONJUNCTION",
+   "NUMERAL",
+   "AUXILIARY",
+   "DETERMINER",
+   "NOUN",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   2,
+   0,
+   7,
+   7,
+   7,
+   7,
+   2,
+   2
+  ],
+  "relations": [
+   "det",
+   "root",
+   "cc",
+   "nsubj",
+   "cop",
+   "det",
+   "conj",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "A hundred and ten is a number.",
+  "frame": "A ?slot0 is a ?slot1.",
+  "facts": [
+   "isa(?slot0, ?slot1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "kind",
+    "words": "hundred and ten",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "hundred root",
+     "and cc",
+     "ten nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "kind",
+    "words": "number",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "number conj"
+    ]
+   }
+  ],
+  "words": [
+   "A",
+   "hundred",
+   "and",
+   "ten",
+   "is",
+   "a",
+   "number",
+   "."
+  ],
+  "classes": [
+   "DETERMINER",
+   "NUMERAL",
+   "CONJUNCTION",
+   "NUMERAL",
+   "AUXILIARY",
+   "DETERMINER",
+   "NOUN",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   2,
+   0,
+   7,
+   7,
+   7,
+   7,
+   2,
+   2
+  ],
+  "relations": [
+   "det",
+   "root",
+   "cc",
+   "nsubj",
+   "cop",
+   "det",
+   "conj",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "A hundred and two is a number.",
+  "frame": "A ?slot0 is a ?slot1.",
+  "facts": [
+   "isa(?slot0, ?slot1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "kind",
+    "words": "hundred and two",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "hundred root",
+     "and cc",
+     "two nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "kind",
+    "words": "number",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "number conj"
+    ]
+   }
+  ],
+  "words": [
+   "A",
+   "hundred",
+   "and",
+   "two",
+   "is",
+   "a",
+   "number",
+   "."
+  ],
+  "classes": [
+   "DETERMINER",
+   "NUMERAL",
+   "CONJUNCTION",
+   "NUMERAL",
+   "AUXILIARY",
+   "DETERMINER",
+   "NOUN",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   2,
+   0,
+   7,
+   7,
+   7,
+   7,
+   2,
+   2
+  ],
+  "relations": [
+   "det",
+   "root",
+   "cc",
+   "nsubj",
+   "cop",
+   "det",
+   "conj",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "There are a hundred and ten dogs.",
+  "frame": "There are a ?slot0 ?slot1.",
+  "facts": [
+   "instance_of(?v0, ?slot1)",
+   "has_count(?v0, ?slot0)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "closed",
+    "words": "hundred and ten",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "hundred obj",
+     "and cc",
+     "ten nummod"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "kind",
+    "words": "dogs",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "dogs conj"
+    ]
+   }
+  ],
+  "words": [
+   "There",
+   "are",
+   "a",
+   "hundred",
+   "and",
+   "ten",
+   "dogs",
+   "."
+  ],
+  "classes": [
+   "PRONOUN",
+   "VERB",
+   "DETERMINER",
+   "NUMERAL",
+   "CONJUNCTION",
+   "NUMERAL",
+   "NOUN",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   2,
+   0,
+   4,
+   2,
+   7,
+   7,
+   4,
+   2
+  ],
+  "relations": [
+   "expl",
+   "root",
+   "det",
+   "obj",
+   "cc",
+   "nummod",
+   "conj",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "There are a hundred and six cats.",
+  "frame": "There are a ?slot0 ?slot1.",
+  "facts": [
+   "instance_of(?v0, ?slot1)",
+   "has_count(?v0, ?slot0)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "closed",
+    "words": "hundred and six",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "hundred obj",
+     "and cc",
+     "six nummod"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "kind",
+    "words": "cats",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "cats conj"
+    ]
+   }
+  ],
+  "words": [
+   "There",
+   "are",
+   "a",
+   "hundred",
+   "and",
+   "six",
+   "cats",
+   "."
+  ],
+  "classes": [
+   "PRONOUN",
+   "VERB",
+   "DETERMINER",
+   "NUMERAL",
+   "CONJUNCTION",
+   "NUMERAL",
+   "NOUN",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   2,
+   0,
+   4,
+   2,
+   7,
+   7,
+   4,
+   2
+  ],
+  "relations": [
+   "expl",
+   "root",
+   "det",
+   "obj",
+   "cc",
+   "nummod",
+   "conj",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "There are two hundred and six cats.",
+  "frame": "There are ?slot0 ?slot1.",
+  "facts": [
+   "instance_of(?v0, ?slot1)",
+   "has_count(?v0, ?slot0)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "closed",
+    "words": "two hundred and six",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "hundred obl",
+     "and cc",
+     "six nummod"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "kind",
+    "words": "cats",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "cats conj"
+    ]
+   }
+  ],
+  "words": [
+   "There",
+   "are",
+   "two",
+   "hundred",
+   "and",
+   "six",
+   "cats",
+   "."
+  ],
+  "classes": [
+   "PRONOUN",
+   "VERB",
+   "NUMERAL",
+   "NUMERAL",
+   "CONJUNCTION",
+   "NUMERAL",
+   "NOUN",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   2,
+   0,
+   4,
+   2,
+   7,
+   7,
+   4,
+   2
+  ],
+  "relations": [
+   "expl",
+   "root",
+   "compound",
+   "obl",
+   "cc",
+   "nummod",
+   "conj",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "There are three hundred and nine balls.",
+  "frame": "There are ?slot0 ?slot1.",
+  "facts": [
+   "instance_of(?v0, ?slot1)",
+   "has_count(?v0, ?slot0)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "closed",
+    "words": "three hundred and nine",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "hundred obl",
+     "and cc",
+     "nine nummod"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "kind",
+    "words": "balls",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "balls conj"
+    ]
+   }
+  ],
+  "words": [
+   "There",
+   "are",
+   "three",
+   "hundred",
+   "and",
+   "nine",
+   "balls",
+   "."
+  ],
+  "classes": [
+   "PRONOUN",
+   "VERB",
+   "NUMERAL",
+   "NUMERAL",
+   "CONJUNCTION",
+   "NUMERAL",
+   "NOUN",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   2,
+   0,
+   4,
+   2,
+   7,
+   7,
+   4,
+   2
+  ],
+  "relations": [
+   "expl",
+   "root",
+   "compound",
+   "obl",
+   "cc",
+   "nummod",
+   "conj",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "There are four hundred and two books.",
+  "frame": "There are ?slot0 ?slot1.",
+  "facts": [
+   "instance_of(?v0, ?slot1)",
+   "has_count(?v0, ?slot0)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "closed",
+    "words": "four hundred and two",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "hundred obl",
+     "and cc",
+     "two nummod"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "kind",
+    "words": "books",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "books conj"
+    ]
+   }
+  ],
+  "words": [
+   "There",
+   "are",
+   "four",
+   "hundred",
+   "and",
+   "two",
+   "books",
+   "."
+  ],
+  "classes": [
+   "PRONOUN",
+   "VERB",
+   "NUMERAL",
+   "NUMERAL",
+   "CONJUNCTION",
+   "NUMERAL",
+   "NOUN",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   2,
+   0,
+   4,
+   2,
+   7,
+   7,
+   4,
+   2
+  ],
+  "relations": [
+   "expl",
+   "root",
+   "compound",
+   "obl",
+   "cc",
+   "nummod",
+   "conj",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "The bird is one year old.",
+  "frame": "The ?slot0 is ?slot1 ?slot2 ?slot3.",
+  "facts": [
+   "given instance_of(?t0, ?slot0)",
+   "has_degree(?t0, ?v0)",
+   "instance_of(?v0, ?slot3)",
+   "has_measure(?v0, ?v1)",
+   "instance_of(?v1, ?slot2)",
+   "has_count(?v1, ?slot1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "kind",
+    "words": "bird",
+    "one": true,
+    "placed": "against",
+    "depend outside": [
+     "bird nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "closed",
+    "words": "one",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "one nummod"
+    ]
+   },
+   {
+    "slot": "?slot2",
+    "role": "kind",
+    "words": "year",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "year root"
+    ]
+   },
+   {
+    "slot": "?slot3",
+    "role": "quality",
+    "words": "old",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "old amod"
+    ]
+   }
+  ],
+  "words": [
+   "The",
+   "bird",
+   "is",
+   "one",
+   "year",
+   "old",
+   "."
+  ],
+  "classes": [
+   "DETERMINER",
+   "NOUN",
+   "AUXILIARY",
+   "NUMERAL",
+   "NOUN",
+   "ADJECTIVE",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   2,
+   5,
+   5,
+   5,
+   0,
+   5,
+   5
+  ],
+  "relations": [
+   "det",
+   "nsubj",
+   "cop",
+   "nummod",
+   "root",
+   "amod",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "The dog barks now.",
+  "frame": "?slot0 ?slot1 now.",
+  "facts": [
+   "instance_of(?v0, ?slot1)",
+   "done_by(?v0, ?slot0)",
+   "during(?v0, ?now)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "thing",
+    "words": "The dog",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "The det",
+     "dog compound"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "doing",
+    "words": "barks",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "barks root"
+    ]
+   }
+  ],
+  "words": [
+   "The",
+   "dog",
+   "barks",
+   "now",
+   "."
+  ],
+  "classes": [
+   "DETERMINER",
+   "NOUN",
+   "NOUN",
+   "ADVERB",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   3,
+   3,
+   0,
+   3,
+   3
+  ],
+  "relations": [
+   "det",
+   "compound",
+   "root",
+   "advmod",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "The dog is barking now.",
+  "frame": "?slot0 ?slot1 now.",
+  "facts": [
+   "instance_of(?v0, ?slot1)",
+   "done_by(?v0, ?slot0)",
+   "during(?v0, ?now)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "thing",
+    "words": "The dog is",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "dog nsubj",
+     "is aux"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "doing",
+    "words": "barking",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "barking root"
+    ]
+   }
+  ],
+  "words": [
+   "The",
+   "dog",
+   "is",
+   "barking",
+   "now",
+   "."
+  ],
+  "classes": [
+   "DETERMINER",
+   "NOUN",
+   "AUXILIARY",
+   "VERB",
+   "ADVERB",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   2,
+   4,
+   4,
+   0,
+   4,
+   4
+  ],
+  "relations": [
+   "det",
+   "nsubj",
+   "aux",
+   "root",
+   "advmod",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Has the dog ever barked?",
+  "frame": "Has ?slot0 ?slot1?",
+  "facts": [
+   "instance_of(?v0, ?slot1)",
+   "done_by(?v0, ?slot0)",
+   "precedes(?v0, ?now)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "thing",
+    "words": "the dog ever",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "dog nsubj",
+     "ever advmod"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "doing",
+    "words": "barked",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "barked root"
+    ]
+   }
+  ],
+  "words": [
+   "Has",
+   "the",
+   "dog",
+   "ever",
+   "barked",
+   "?"
+  ],
+  "classes": [
+   "AUXILIARY",
+   "DETERMINER",
+   "NOUN",
+   "ADVERB",
+   "VERB",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   5,
+   3,
+   5,
+   5,
+   0,
+   5
+  ],
+  "relations": [
+   "aux",
+   "det",
+   "nsubj",
+   "advmod",
+   "root",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Has the cat ever climbed?",
+  "frame": "Has ?slot0 ?slot1?",
+  "facts": [
+   "instance_of(?v0, ?slot1)",
+   "done_by(?v0, ?slot0)",
+   "precedes(?v0, ?now)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "thing",
+    "words": "the cat ever",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "cat nsubj",
+     "ever advmod"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "doing",
+    "words": "climbed",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "climbed root"
+    ]
+   }
+  ],
+  "words": [
+   "Has",
+   "the",
+   "cat",
+   "ever",
+   "climbed",
+   "?"
+  ],
+  "classes": [
+   "AUXILIARY",
+   "DETERMINER",
+   "NOUN",
+   "ADVERB",
+   "VERB",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   5,
+   3,
+   5,
+   5,
+   0,
+   5
+  ],
+  "relations": [
+   "aux",
+   "det",
+   "nsubj",
+   "advmod",
+   "root",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "The dog barked, then the cat ran.",
+  "frame": "The ?slot0 ?slot1, then the ?slot2 ?slot3.",
+  "facts": [
+   "given instance_of(?t0, ?slot0)",
+   "given instance_of(?t1, ?slot2)",
+   "instance_of(?v0, ?slot1)",
+   "done_by(?v0, ?t0)",
+   "precedes(?v0, ?now)",
+   "instance_of(?v1, ?slot3)",
+   "done_by(?v1, ?t1)",
+   "precedes(?v1, ?now)",
+   "follows(?v1, ?v0)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "kind",
+    "words": "dog",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "dog root"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "doing",
+    "words": "barked",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "barked acl"
+    ]
+   },
+   {
+    "slot": "?slot2",
+    "role": "kind",
+    "words": "cat",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "cat nsubj"
+    ]
+   },
+   {
+    "slot": "?slot3",
+    "role": "doing",
+    "words": "ran",
+    "one": true,
+    "placed": "against",
+    "depend outside": [
+     "ran parataxis"
+    ]
+   }
+  ],
+  "words": [
+   "The",
+   "dog",
+   "barked",
+   ",",
+   "then",
+   "the",
+   "cat",
+   "ran",
+   "."
+  ],
+  "classes": [
+   "DETERMINER",
+   "NOUN",
+   "VERB",
+   "PUNCTUATION",
+   "ADVERB",
+   "DETERMINER",
+   "NOUN",
+   "VERB",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   2,
+   0,
+   2,
+   8,
+   8,
+   7,
+   8,
+   2,
+   8
+  ],
+  "relations": [
+   "det",
+   "root",
+   "acl",
+   "punct",
+   "advmod",
+   "det",
+   "nsubj",
+   "parataxis",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "The dog barked and then the cat ran.",
+  "frame": "The ?slot0 ?slot1.",
+  "facts": [
+   "given instance_of(?t0, ?slot0)",
+   "instance_of(?v0, ?slot1)",
+   "done_by(?v0, ?t0)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "kind",
+    "words": "dog",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "dog root"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "doing",
+    "words": "barked and then the cat ran",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "barked acl",
+     "ran conj"
+    ]
+   }
+  ],
+  "words": [
+   "The",
+   "dog",
+   "barked",
+   "and",
+   "then",
+   "the",
+   "cat",
+   "ran",
+   "."
+  ],
+  "classes": [
+   "DETERMINER",
+   "NOUN",
+   "VERB",
+   "CONJUNCTION",
+   "ADVERB",
+   "DETERMINER",
+   "NOUN",
+   "VERB",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   2,
+   0,
+   2,
+   8,
+   8,
+   7,
+   8,
+   2,
+   2
+  ],
+  "relations": [
+   "det",
+   "root",
+   "acl",
+   "cc",
+   "advmod",
+   "det",
+   "nsubj",
+   "conj",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Even the dog swam.",
+  "frame": "Even ?slot0 ?slot1.",
+  "facts": [
+   "instance_of(?v0, ?slot1)",
+   "done_by(?v0, ?slot0)",
+   "precedes(?v0, ?now)",
+   "has_property(?v0, unexpected)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "thing",
+    "words": "the dog",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "the det",
+     "dog compound"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "doing",
+    "words": "swam",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "swam root"
+    ]
+   }
+  ],
+  "words": [
+   "Even",
+   "the",
+   "dog",
+   "swam",
+   "."
+  ],
+  "classes": [
+   "ADVERB",
+   "DETERMINER",
+   "NOUN",
+   "NOUN",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   4,
+   4,
+   4,
+   0,
+   4
+  ],
+  "relations": [
+   "advmod",
+   "det",
+   "compound",
+   "root",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Tom brought the cup to Rex.",
+  "frame": "?slot0 brought the ?slot1 to ?slot2.",
+  "facts": [
+   "given instance_of(?t0, ?slot1)",
+   "instance_of(?v0, bring)",
+   "done_by(?v0, ?slot0)",
+   "done_to(?v0, ?t0)",
+   "received_by(?v0, ?slot2)",
+   "precedes(?v0, ?now)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "thing",
+    "words": "Tom",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "Tom nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "kind",
+    "words": "cup",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "cup obj"
+    ]
+   },
+   {
+    "slot": "?slot2",
+    "role": "thing",
+    "words": "Rex",
+    "one": true,
+    "placed": "against",
+    "depend outside": [
+     "Rex nmod"
+    ]
+   }
+  ],
+  "words": [
+   "Tom",
+   "brought",
+   "the",
+   "cup",
+   "to",
+   "Rex",
+   "."
+  ],
+  "classes": [
+   "NAME",
+   "VERB",
+   "DETERMINER",
+   "NOUN",
+   "PARTICLE",
+   "NAME",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   2,
+   0,
+   4,
+   2,
+   6,
+   4,
+   2
+  ],
+  "relations": [
+   "nsubj",
+   "root",
+   "det",
+   "obj",
+   "advmod",
+   "nmod",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Give the cup to Rex.",
+  "frame": "?slot0 the ?slot1 to ?slot2.",
+  "facts": [
+   "given instance_of(?t0, ?slot1)",
+   "instance_of(?v0, ?slot0)",
+   "done_by(?v0, ?listener)",
+   "done_to(?v0, ?t0)",
+   "received_by(?v0, ?slot2)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "doing",
+    "words": "Give",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "Give root"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "kind",
+    "words": "cup",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "cup obj"
+    ]
+   },
+   {
+    "slot": "?slot2",
+    "role": "thing",
+    "words": "Rex",
+    "one": true,
+    "placed": "against",
+    "depend outside": [
+     "Rex nmod"
+    ]
+   }
+  ],
+  "words": [
+   "Give",
+   "the",
+   "cup",
+   "to",
+   "Rex",
+   "."
+  ],
+  "classes": [
+   "VERB",
+   "DETERMINER",
+   "NOUN",
+   "PARTICLE",
+   "NAME",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   0,
+   3,
+   1,
+   5,
+   3,
+   1
+  ],
+  "relations": [
+   "root",
+   "det",
+   "obj",
+   "advmod",
+   "nmod",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Rex asked Tom to close the box.",
+  "frame": "?slot0 ?slot1 ?slot2 to ?slot3 the ?slot4.",
+  "facts": [
+   "unasserted given instance_of(?t0, ?slot4)",
+   "instance_of(?v0, ?slot1)",
+   "done_by(?v0, ?slot0)",
+   "done_to(?v0, ?v1)",
+   "received_by(?v0, ?slot2)",
+   "precedes(?v0, ?now)",
+   "unasserted instance_of(?v1, ?slot3)",
+   "unasserted done_by(?v1, ?slot2)",
+   "unasserted done_to(?v1, ?t0)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "thing",
+    "words": "Rex",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "Rex nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "doing",
+    "words": "asked",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "asked root"
+    ]
+   },
+   {
+    "slot": "?slot2",
+    "role": "thing",
+    "words": "Tom",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "Tom obj"
+    ]
+   },
+   {
+    "slot": "?slot3",
+    "role": "doing",
+    "words": "close",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "close obl"
+    ]
+   },
+   {
+    "slot": "?slot4",
+    "role": "kind",
+    "words": "box",
+    "one": true,
+    "placed": "against",
+    "depend outside": [
+     "box obl:unmarked"
+    ]
+   }
+  ],
+  "words": [
+   "Rex",
+   "asked",
+   "Tom",
+   "to",
+   "close",
+   "the",
+   "box",
+   "."
+  ],
+  "classes": [
+   "NAME",
+   "VERB",
+   "NAME",
+   "PREPOSITION",
+   "NOUN",
+   "DETERMINER",
+   "NOUN",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   2,
+   0,
+   2,
+   5,
+   2,
+   7,
+   2,
+   2
+  ],
+  "relations": [
+   "nsubj",
+   "root",
+   "obj",
+   "case",
+   "obl",
+   "det",
+   "obl:unmarked",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Tom told Rex to close the door.",
+  "frame": "?slot0 ?slot1 ?slot2 to ?slot3 the ?slot4.",
+  "facts": [
+   "unasserted given instance_of(?t0, ?slot4)",
+   "instance_of(?v0, ?slot1)",
+   "done_by(?v0, ?slot0)",
+   "done_to(?v0, ?v1)",
+   "received_by(?v0, ?slot2)",
+   "precedes(?v0, ?now)",
+   "unasserted instance_of(?v1, ?slot3)",
+   "unasserted done_by(?v1, ?slot2)",
+   "unasserted done_to(?v1, ?t0)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "thing",
+    "words": "Tom",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "Tom nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "doing",
+    "words": "told",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "told root"
+    ]
+   },
+   {
+    "slot": "?slot2",
+    "role": "thing",
+    "words": "Rex",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "Rex obj"
+    ]
+   },
+   {
+    "slot": "?slot3",
+    "role": "doing",
+    "words": "close",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "close obl"
+    ]
+   },
+   {
+    "slot": "?slot4",
+    "role": "kind",
+    "words": "door",
+    "one": true,
+    "placed": "against",
+    "depend outside": [
+     "door obl:unmarked"
+    ]
+   }
+  ],
+  "words": [
+   "Tom",
+   "told",
+   "Rex",
+   "to",
+   "close",
+   "the",
+   "door",
+   "."
+  ],
+  "classes": [
+   "NAME",
+   "VERB",
+   "NAME",
+   "PREPOSITION",
+   "NOUN",
+   "DETERMINER",
+   "NOUN",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   2,
+   0,
+   2,
+   5,
+   2,
+   7,
+   2,
+   2
+  ],
+  "relations": [
+   "nsubj",
+   "root",
+   "obj",
+   "case",
+   "obl",
+   "det",
+   "obl:unmarked",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Rex and Tom kicked each other.",
+  "frame": "?slot0 and ?slot1 ?slot2 each other.",
+  "facts": [
+   "instance_of(?v0, ?slot2)",
+   "done_by(?v0, ?slot0)",
+   "done_to(?v0, ?slot1)",
+   "precedes(?v0, ?now)",
+   "instance_of(?v1, ?slot2)",
+   "done_by(?v1, ?slot1)",
+   "done_to(?v1, ?slot0)",
+   "precedes(?v1, ?now)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "thing",
+    "words": "Rex",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "Rex nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "thing",
+    "words": "Tom",
+    "one": true,
+    "placed": "against",
+    "depend outside": [
+     "Tom nmod"
+    ]
+   },
+   {
+    "slot": "?slot2",
+    "role": "doing",
+    "words": "kicked",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "kicked root"
+    ]
+   }
+  ],
+  "words": [
+   "Rex",
+   "and",
+   "Tom",
+   "kicked",
+   "each",
+   "other",
+   "."
+  ],
+  "classes": [
+   "NOUN",
+   "CONJUNCTION",
+   "NAME",
+   "VERB",
+   "DETERMINER",
+   "ADJECTIVE",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   4,
+   3,
+   1,
+   0,
+   4,
+   5,
+   4
+  ],
+  "relations": [
+   "nsubj",
+   "cc",
+   "nmod",
+   "root",
+   "obj",
+   "fixed",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "The dog does bark.",
+  "frame": "?slot0 ?slot1.",
+  "facts": [
+   "instance_of(?v0, ?slot1)",
+   "done_by(?v0, ?slot0)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "thing",
+    "words": "The dog does",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "dog nsubj:pass",
+     "does aux:pass"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "doing",
+    "words": "bark",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "bark root"
+    ]
+   }
+  ],
+  "words": [
+   "The",
+   "dog",
+   "does",
+   "bark",
+   "."
+  ],
+  "classes": [
+   "DETERMINER",
+   "NOUN",
+   "AUXILIARY",
+   "VERB",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   2,
+   4,
+   4,
+   0,
+   4
+  ],
+  "relations": [
+   "det",
+   "nsubj:pass",
+   "aux:pass",
+   "root",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "The cat does climb.",
+  "frame": "?slot0 ?slot1.",
+  "facts": [
+   "instance_of(?v0, ?slot1)",
+   "done_by(?v0, ?slot0)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "thing",
+    "words": "The cat does",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "cat nsubj:pass",
+     "does aux:pass"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "doing",
+    "words": "climb",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "climb root"
+    ]
+   }
+  ],
+  "words": [
+   "The",
+   "cat",
+   "does",
+   "climb",
+   "."
+  ],
+  "classes": [
+   "DETERMINER",
+   "NOUN",
+   "AUXILIARY",
+   "VERB",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   2,
+   4,
+   4,
+   0,
+   4
+  ],
+  "relations": [
+   "det",
+   "nsubj:pass",
+   "aux:pass",
+   "root",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "The bird does fly.",
+  "frame": "?slot0 ?slot1.",
+  "facts": [
+   "instance_of(?v0, ?slot1)",
+   "done_by(?v0, ?slot0)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "thing",
+    "words": "The bird does",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "bird nsubj:pass",
+     "does aux:pass"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "doing",
+    "words": "fly",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "fly root"
+    ]
+   }
+  ],
+  "words": [
+   "The",
+   "bird",
+   "does",
+   "fly",
+   "."
+  ],
+  "classes": [
+   "DETERMINER",
+   "NOUN",
+   "AUXILIARY",
+   "VERB",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   2,
+   4,
+   4,
+   0,
+   4
+  ],
+  "relations": [
+   "det",
+   "nsubj:pass",
+   "aux:pass",
+   "root",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Everyone except Tom can swim.",
+  "frame": "?slot0 except ?slot1 can ?slot2.",
+  "facts": [
+   "capable_of(?slot0, ?slot2)",
+   "not capable_of(?slot1, ?slot2)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "thing",
+    "words": "Everyone",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "Everyone nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "thing",
+    "words": "Tom",
+    "one": true,
+    "placed": "against",
+    "depend outside": [
+     "Tom nmod"
+    ]
+   },
+   {
+    "slot": "?slot2",
+    "role": "thing",
+    "words": "swim",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "swim root"
+    ]
+   }
+  ],
+  "words": [
+   "Everyone",
+   "except",
+   "Tom",
+   "can",
+   "swim",
+   "."
+  ],
+  "classes": [
+   "PRONOUN",
+   "PREPOSITION",
+   "NAME",
+   "AUXILIARY",
+   "VERB",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   5,
+   3,
+   1,
+   5,
+   0,
+   5
+  ],
+  "relations": [
+   "nsubj",
+   "case",
+   "nmod",
+   "aux",
+   "root",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Everyone except Rex can run.",
+  "frame": "?slot0 except ?slot1 can ?slot2.",
+  "facts": [
+   "capable_of(?slot0, ?slot2)",
+   "not capable_of(?slot1, ?slot2)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "thing",
+    "words": "Everyone",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "Everyone nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "thing",
+    "words": "Rex",
+    "one": true,
+    "placed": "against",
+    "depend outside": [
+     "Rex nmod"
+    ]
+   },
+   {
+    "slot": "?slot2",
+    "role": "thing",
+    "words": "run",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "run root"
+    ]
+   }
+  ],
+  "words": [
+   "Everyone",
+   "except",
+   "Rex",
+   "can",
+   "run",
+   "."
+  ],
+  "classes": [
+   "PRONOUN",
+   "PREPOSITION",
+   "NAME",
+   "AUXILIARY",
+   "VERB",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   5,
+   3,
+   1,
+   5,
+   0,
+   5
+  ],
+  "relations": [
+   "nsubj",
+   "case",
+   "nmod",
+   "aux",
+   "root",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Who did the dog chase?",
+  "frame": "Who did ?slot0 ?slot1?",
+  "facts": [
+   "instance_of(?v0, ?slot1)",
+   "done_by(?v0, ?slot0)",
+   "done_to(?v0, ?v1)",
+   "precedes(?v0, ?now)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "thing",
+    "words": "the dog",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "the det",
+     "dog compound"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "doing",
+    "words": "chase",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "chase obj"
+    ]
+   }
+  ],
+  "words": [
+   "Who",
+   "did",
+   "the",
+   "dog",
+   "chase",
+   "?"
+  ],
+  "classes": [
+   "PRONOUN",
+   "VERB",
+   "DETERMINER",
+   "NOUN",
+   "NOUN",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   2,
+   0,
+   5,
+   5,
+   2,
+   2
+  ],
+  "relations": [
+   "nsubj",
+   "root",
+   "det",
+   "compound",
+   "obj",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "What did the cat chase?",
+  "frame": "What did ?slot0 ?slot1?",
+  "facts": [
+   "instance_of(?v0, ?slot1)",
+   "done_by(?v0, ?slot0)",
+   "done_to(?v0, ?v1)",
+   "precedes(?v0, ?now)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "thing",
+    "words": "the cat",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "the det",
+     "cat compound"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "doing",
+    "words": "chase",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "chase obj"
+    ]
+   }
+  ],
+  "words": [
+   "What",
+   "did",
+   "the",
+   "cat",
+   "chase",
+   "?"
+  ],
+  "classes": [
+   "PRONOUN",
+   "VERB",
+   "DETERMINER",
+   "NOUN",
+   "NOUN",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   2,
+   0,
+   5,
+   5,
+   2,
+   2
+  ],
+  "relations": [
+   "nsubj",
+   "root",
+   "det",
+   "compound",
+   "obj",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "The box which Rex opened is big.",
+  "frame": "The ?slot0 that ?slot1 ?slot2 is ?slot3.",
+  "facts": [
+   "has_property(?v1, ?slot3)",
+   "given instance_of(?v1, ?slot0)",
+   "instance_of(?v0, ?slot2)",
+   "done_by(?v0, ?slot1)",
+   "done_to(?v0, ?v1)",
+   "precedes(?v0, ?now)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "kind",
+    "words": "box",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "box root"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "thing",
+    "words": "Rex",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "Rex nsubj"
+    ]
+   },
+   {
+    "slot": "?slot2",
+    "role": "doing",
+    "words": "opened",
+    "one": true,
+    "placed": "against",
+    "depend outside": [
+     "opened acl:relcl"
+    ]
+   },
+   {
+    "slot": "?slot3",
+    "role": "quality",
+    "words": "big",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "big acl:relcl"
+    ]
+   }
+  ],
+  "words": [
+   "The",
+   "box",
+   "which",
+   "Rex",
+   "opened",
+   "is",
+   "big",
+   "."
+  ],
+  "classes": [
+   "DETERMINER",
+   "NOUN",
+   "PRONOUN",
+   "NAME",
+   "VERB",
+   "AUXILIARY",
+   "ADJECTIVE",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   2,
+   0,
+   7,
+   5,
+   3,
+   7,
+   2,
+   2
+  ],
+  "relations": [
+   "det",
+   "root",
+   "nsubj",
+   "nsubj",
+   "acl:relcl",
+   "cop",
+   "acl:relcl",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Tom walked instead of running.",
+  "frame": "?slot0 ?slot1 instead of ?slot2.",
+  "facts": [
+   "instance_of(?v0, ?slot1)",
+   "done_by(?v0, ?slot0)",
+   "precedes(?v0, ?now)",
+   "instance_of(?v1, ?slot2)",
+   "done_by(?v1, ?slot0)",
+   "has_property(?v1, false)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "thing",
+    "words": "Tom",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "Tom nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "doing",
+    "words": "walked",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "walked root"
+    ]
+   },
+   {
+    "slot": "?slot2",
+    "role": "doing",
+    "words": "running",
+    "one": true,
+    "placed": "against",
+    "depend outside": [
+     "running advcl"
+    ]
+   }
+  ],
+  "words": [
+   "Tom",
+   "walked",
+   "instead",
+   "of",
+   "running",
+   "."
+  ],
+  "classes": [
+   "NAME",
+   "VERB",
+   "ADVERB",
+   "PREPOSITION",
+   "VERB",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   2,
+   0,
+   2,
+   5,
+   3,
+   2
+  ],
+  "relations": [
+   "nsubj",
+   "root",
+   "advmod",
+   "mark",
+   "advcl",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Rex ran instead of walking.",
+  "frame": "?slot0 ?slot1 instead of ?slot2.",
+  "facts": [
+   "instance_of(?v0, ?slot1)",
+   "done_by(?v0, ?slot0)",
+   "precedes(?v0, ?now)",
+   "instance_of(?v1, ?slot2)",
+   "done_by(?v1, ?slot0)",
+   "has_property(?v1, false)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "thing",
+    "words": "Rex",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "Rex nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "doing",
+    "words": "ran",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "ran root"
+    ]
+   },
+   {
+    "slot": "?slot2",
+    "role": "doing",
+    "words": "walking",
+    "one": true,
+    "placed": "against",
+    "depend outside": [
+     "walking obl"
+    ]
+   }
+  ],
+  "words": [
+   "Rex",
+   "ran",
+   "instead",
+   "of",
+   "walking",
+   "."
+  ],
+  "classes": [
+   "NAME",
+   "VERB",
+   "ADVERB",
+   "PREPOSITION",
+   "NOUN",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   2,
+   0,
+   2,
+   5,
+   2,
+   2
+  ],
+  "relations": [
+   "nsubj",
+   "root",
+   "advmod",
+   "case",
+   "obl",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "The dog swam instead of running.",
+  "frame": "?slot0 ?slot1 instead of ?slot2.",
+  "facts": [
+   "instance_of(?v0, ?slot1)",
+   "done_by(?v0, ?slot0)",
+   "precedes(?v0, ?now)",
+   "instance_of(?v1, ?slot2)",
+   "done_by(?v1, ?slot0)",
+   "has_property(?v1, false)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "thing",
+    "words": "The dog",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "The det",
+     "dog compound"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "doing",
+    "words": "swam",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "swam root"
+    ]
+   },
+   {
+    "slot": "?slot2",
+    "role": "doing",
+    "words": "running",
+    "one": true,
+    "placed": "against",
+    "depend outside": [
+     "running advcl"
+    ]
+   }
+  ],
+  "words": [
+   "The",
+   "dog",
+   "swam",
+   "instead",
+   "of",
+   "running",
+   "."
+  ],
+  "classes": [
+   "DETERMINER",
+   "NOUN",
+   "NOUN",
+   "ADVERB",
+   "PREPOSITION",
+   "VERB",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   3,
+   3,
+   0,
+   3,
+   6,
+   4,
+   3
+  ],
+  "relations": [
+   "det",
+   "compound",
+   "root",
+   "advmod",
+   "mark",
+   "advcl",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "The cat climbed instead of running.",
+  "frame": "?slot0 ?slot1 instead of ?slot2.",
+  "facts": [
+   "instance_of(?v0, ?slot1)",
+   "done_by(?v0, ?slot0)",
+   "precedes(?v0, ?now)",
+   "instance_of(?v1, ?slot2)",
+   "done_by(?v1, ?slot0)",
+   "has_property(?v1, false)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "thing",
+    "words": "The cat",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "cat nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "doing",
+    "words": "climbed",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "climbed root"
+    ]
+   },
+   {
+    "slot": "?slot2",
+    "role": "doing",
+    "words": "running",
+    "one": true,
+    "placed": "against",
+    "depend outside": [
+     "running advcl"
+    ]
+   }
+  ],
+  "words": [
+   "The",
+   "cat",
+   "climbed",
+   "instead",
+   "of",
+   "running",
+   "."
+  ],
+  "classes": [
+   "DETERMINER",
+   "NOUN",
+   "VERB",
+   "ADVERB",
+   "PREPOSITION",
+   "VERB",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   2,
+   3,
+   0,
+   3,
+   6,
+   4,
+   3
+  ],
+  "relations": [
+   "det",
+   "nsubj",
+   "root",
+   "advmod",
+   "mark",
+   "advcl",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "The room where the dog slept is cold.",
+  "frame": "?slot0 is ?slot1.",
+  "facts": [
+   "has_property(?slot0, ?slot1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "thing",
+    "words": "The room where the dog slept",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "room root",
+     "where advmod",
+     "dog nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "quality",
+    "words": "cold",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "cold acl:relcl"
+    ]
+   }
+  ],
+  "words": [
+   "The",
+   "room",
+   "where",
+   "the",
+   "dog",
+   "slept",
+   "is",
+   "cold",
+   "."
+  ],
+  "classes": [
+   "DETERMINER",
+   "NOUN",
+   "ADVERB",
+   "DETERMINER",
+   "NOUN",
+   "VERB",
+   "AUXILIARY",
+   "ADJECTIVE",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   2,
+   0,
+   8,
+   5,
+   8,
+   5,
+   8,
+   2,
+   2
+  ],
+  "relations": [
+   "det",
+   "root",
+   "advmod",
+   "det",
+   "nsubj",
+   "acl",
+   "cop",
+   "acl:relcl",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "The house where Tom lived is big.",
+  "frame": "The ?slot0 where ?slot1 ?slot2 is ?slot3.",
+  "facts": [
+   "given instance_of(?v1, ?slot0)",
+   "has_property(?v1, ?slot3)",
+   "instance_of(?v0, ?slot2)",
+   "done_by(?v0, ?slot1)",
+   "precedes(?v0, ?now)",
+   "located_in(?v0, ?v1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "kind",
+    "words": "house",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "house obl:unmarked"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "thing",
+    "words": "Tom",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "Tom nsubj"
+    ]
+   },
+   {
+    "slot": "?slot2",
+    "role": "doing",
+    "words": "lived",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "lived root"
+    ]
+   },
+   {
+    "slot": "?slot3",
+    "role": "quality",
+    "words": "big",
+    "one": true,
+    "placed": "against",
+    "depend outside": [
+     "big ccomp"
+    ]
+   }
+  ],
+  "words": [
+   "The",
+   "house",
+   "where",
+   "Tom",
+   "lived",
+   "is",
+   "big",
+   "."
+  ],
+  "classes": [
+   "DETERMINER",
+   "NOUN",
+   "ADVERB",
+   "NAME",
+   "VERB",
+   "AUXILIARY",
+   "ADJECTIVE",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   2,
+   3,
+   5,
+   5,
+   0,
+   7,
+   5,
+   5
+  ],
+  "relations": [
+   "det",
+   "obl:unmarked",
+   "advmod",
+   "nsubj",
+   "root",
+   "cop",
+   "ccomp",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "The box where the cat slept is small.",
+  "frame": "?slot0 is ?slot1.",
+  "facts": [
+   "has_property(?slot0, ?slot1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "thing",
+    "words": "The box where the cat slept",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "box root",
+     "where advmod",
+     "cat nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "quality",
+    "words": "small",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "small acl:relcl"
+    ]
+   }
+  ],
+  "words": [
+   "The",
+   "box",
+   "where",
+   "the",
+   "cat",
+   "slept",
+   "is",
+   "small",
+   "."
+  ],
+  "classes": [
+   "DETERMINER",
+   "NOUN",
+   "ADVERB",
+   "DETERMINER",
+   "NOUN",
+   "VERB",
+   "AUXILIARY",
+   "ADJECTIVE",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   2,
+   0,
+   8,
+   5,
+   8,
+   5,
+   8,
+   2,
+   2
+  ],
+  "relations": [
+   "det",
+   "root",
+   "advmod",
+   "det",
+   "nsubj",
+   "acl",
+   "cop",
+   "acl:relcl",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "The room where Rex ate is warm.",
+  "frame": "The ?slot0 where ?slot1 ?slot2 is ?slot3.",
+  "facts": [
+   "given instance_of(?v1, ?slot0)",
+   "has_property(?v1, ?slot3)",
+   "instance_of(?v0, ?slot2)",
+   "done_by(?v0, ?slot1)",
+   "precedes(?v0, ?now)",
+   "located_in(?v0, ?v1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "kind",
+    "words": "room",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "room obl:unmarked"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "thing",
+    "words": "Rex",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "Rex nsubj"
+    ]
+   },
+   {
+    "slot": "?slot2",
+    "role": "doing",
+    "words": "ate",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "ate root"
+    ]
+   },
+   {
+    "slot": "?slot3",
+    "role": "quality",
+    "words": "warm",
+    "one": true,
+    "placed": "against",
+    "depend outside": [
+     "warm advcl"
+    ]
+   }
+  ],
+  "words": [
+   "The",
+   "room",
+   "where",
+   "Rex",
+   "ate",
+   "is",
+   "warm",
+   "."
+  ],
+  "classes": [
+   "DETERMINER",
+   "NOUN",
+   "ADVERB",
+   "NAME",
+   "VERB",
+   "AUXILIARY",
+   "VERB",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   2,
+   3,
+   5,
+   5,
+   0,
+   7,
+   5,
+   7
+  ],
+  "relations": [
+   "det",
+   "obl:unmarked",
+   "advmod",
+   "nsubj",
+   "root",
+   "aux:pass",
+   "advcl",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Twelve million is a number.",
+  "frame": "?slot0 is a ?slot1.",
+  "facts": [
+   "isa(?slot0, ?slot1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "kind",
+    "words": "Twelve million",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "Twelve root",
+     "million nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "kind",
+    "words": "number",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "number ccomp"
+    ]
+   }
+  ],
+  "words": [
+   "Twelve",
+   "million",
+   "is",
+   "a",
+   "number",
+   "."
+  ],
+  "classes": [
+   "VERB",
+   "NUMERAL",
+   "AUXILIARY",
+   "DETERMINER",
+   "NOUN",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   0,
+   5,
+   5,
+   5,
+   1,
+   1
+  ],
+  "relations": [
+   "root",
+   "nsubj",
+   "cop",
+   "det",
+   "ccomp",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "There are twenty-five million dogs.",
+  "frame": "There are ?slot0 ?slot1.",
+  "facts": [
+   "instance_of(?v0, ?slot1)",
+   "has_count(?v0, ?slot0)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "closed",
+    "words": "twenty - five million",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "twenty nummod",
+     "million nummod"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "kind",
+    "words": "dogs",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "dogs nsubj"
+    ]
+   }
+  ],
+  "words": [
+   "There",
+   "are",
+   "twenty",
+   "-",
+   "five",
+   "million",
+   "dogs",
+   "."
+  ],
+  "classes": [
+   "PRONOUN",
+   "VERB",
+   "NUMERAL",
+   "SYMBOL",
+   "NUMERAL",
+   "NUMERAL",
+   "NOUN",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   2,
+   0,
+   7,
+   5,
+   3,
+   7,
+   2,
+   2
+  ],
+  "relations": [
+   "expl",
+   "root",
+   "nummod",
+   "case",
+   "nmod",
+   "nummod",
+   "nsubj",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Two thousand and five is a number.",
+  "frame": "?slot0 is a ?slot1.",
+  "facts": [
+   "isa(?slot0, ?slot1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "kind",
+    "words": "Two thousand and five",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "thousand root",
+     "and cc",
+     "five nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "kind",
+    "words": "number",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "number conj"
+    ]
+   }
+  ],
+  "words": [
+   "Two",
+   "thousand",
+   "and",
+   "five",
+   "is",
+   "a",
+   "number",
+   "."
+  ],
+  "classes": [
+   "NUMERAL",
+   "NUMERAL",
+   "CONJUNCTION",
+   "NUMERAL",
+   "AUXILIARY",
+   "DETERMINER",
+   "NOUN",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   2,
+   0,
+   7,
+   7,
+   7,
+   7,
+   2,
+   2
+  ],
+  "relations": [
+   "compound",
+   "root",
+   "cc",
+   "nsubj",
+   "cop",
+   "det",
+   "conj",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Three million and one is a number.",
+  "frame": "?slot0 is a ?slot1.",
+  "facts": [
+   "isa(?slot0, ?slot1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "kind",
+    "words": "Three million and one",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "million root",
+     "and cc",
+     "one nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "kind",
+    "words": "number",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "number conj"
+    ]
+   }
+  ],
+  "words": [
+   "Three",
+   "million",
+   "and",
+   "one",
+   "is",
+   "a",
+   "number",
+   "."
+  ],
+  "classes": [
+   "NUMERAL",
+   "NUMERAL",
+   "CONJUNCTION",
+   "NUMERAL",
+   "AUXILIARY",
+   "DETERMINER",
+   "NOUN",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   2,
+   0,
+   7,
+   7,
+   7,
+   7,
+   2,
+   2
+  ],
+  "relations": [
+   "compound",
+   "root",
+   "cc",
+   "nsubj",
+   "cop",
+   "det",
+   "conj",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Five billion and ten is a number.",
+  "frame": "?slot0 is a ?slot1.",
+  "facts": [
+   "isa(?slot0, ?slot1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "kind",
+    "words": "Five billion and ten",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "billion root",
+     "and cc",
+     "ten nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "kind",
+    "words": "number",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "number conj"
+    ]
+   }
+  ],
+  "words": [
+   "Five",
+   "billion",
+   "and",
+   "ten",
+   "is",
+   "a",
+   "number",
+   "."
+  ],
+  "classes": [
+   "NUMERAL",
+   "NUMERAL",
+   "CONJUNCTION",
+   "NUMERAL",
+   "AUXILIARY",
+   "DETERMINER",
+   "NOUN",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   2,
+   0,
+   7,
+   7,
+   7,
+   7,
+   2,
+   2
+  ],
+  "relations": [
+   "compound",
+   "root",
+   "cc",
+   "nsubj",
+   "cop",
+   "det",
+   "conj",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Four trillion and six is a number.",
+  "frame": "?slot0 is a ?slot1.",
+  "facts": [
+   "isa(?slot0, ?slot1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "kind",
+    "words": "Four trillion and six",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "trillion root",
+     "and cc",
+     "six nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "kind",
+    "words": "number",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "number conj"
+    ]
+   }
+  ],
+  "words": [
+   "Four",
+   "trillion",
+   "and",
+   "six",
+   "is",
+   "a",
+   "number",
+   "."
+  ],
+  "classes": [
+   "NUMERAL",
+   "NUMERAL",
+   "CONJUNCTION",
+   "NUMERAL",
+   "AUXILIARY",
+   "DETERMINER",
+   "NOUN",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   2,
+   0,
+   7,
+   7,
+   7,
+   7,
+   2,
+   2
+  ],
+  "relations": [
+   "compound",
+   "root",
+   "cc",
+   "nsubj",
+   "cop",
+   "det",
+   "conj",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Two thousand and twenty-six is a number.",
+  "frame": "?slot0 is a ?slot1.",
+  "facts": [
+   "isa(?slot0, ?slot1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "kind",
+    "words": "Two thousand and twenty - six",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "thousand root",
+     "and cc",
+     "twenty nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "kind",
+    "words": "number",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "number conj"
+    ]
+   }
+  ],
+  "words": [
+   "Two",
+   "thousand",
+   "and",
+   "twenty",
+   "-",
+   "six",
+   "is",
+   "a",
+   "number",
+   "."
+  ],
+  "classes": [
+   "NUMERAL",
+   "NUMERAL",
+   "CONJUNCTION",
+   "NUMERAL",
+   "SYMBOL",
+   "NUMERAL",
+   "AUXILIARY",
+   "DETERMINER",
+   "NOUN",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   2,
+   0,
+   9,
+   9,
+   6,
+   4,
+   9,
+   9,
+   2,
+   2
+  ],
+  "relations": [
+   "compound",
+   "root",
+   "cc",
+   "nsubj",
+   "case",
+   "nmod",
+   "cop",
+   "det",
+   "conj",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Five million and forty-two is a number.",
+  "frame": "?slot0 is a ?slot1.",
+  "facts": [
+   "isa(?slot0, ?slot1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "kind",
+    "words": "Five million and forty - two",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "million root",
+     "- punct",
+     "two nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "kind",
+    "words": "number",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "number conj"
+    ]
+   }
+  ],
+  "words": [
+   "Five",
+   "million",
+   "and",
+   "forty",
+   "-",
+   "two",
+   "is",
+   "a",
+   "number",
+   "."
+  ],
+  "classes": [
+   "NUMERAL",
+   "NUMERAL",
+   "CONJUNCTION",
+   "ADJECTIVE",
+   "PUNCTUATION",
+   "NUMERAL",
+   "AUXILIARY",
+   "DETERMINER",
+   "NOUN",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   2,
+   0,
+   4,
+   2,
+   9,
+   9,
+   9,
+   9,
+   2,
+   2
+  ],
+  "relations": [
+   "compound",
+   "root",
+   "cc",
+   "conj",
+   "punct",
+   "nsubj",
+   "cop",
+   "det",
+   "conj",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Three billion and sixty-one is a number.",
+  "frame": "?slot0 is a ?slot1.",
+  "facts": [
+   "isa(?slot0, ?slot1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "kind",
+    "words": "Three billion and sixty - one",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "billion root",
+     "- punct",
+     "one nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "kind",
+    "words": "number",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "number conj"
+    ]
+   }
+  ],
+  "words": [
+   "Three",
+   "billion",
+   "and",
+   "sixty",
+   "-",
+   "one",
+   "is",
+   "a",
+   "number",
+   "."
+  ],
+  "classes": [
+   "NUMERAL",
+   "NUMERAL",
+   "CONJUNCTION",
+   "NUMERAL",
+   "PUNCTUATION",
+   "NUMERAL",
+   "AUXILIARY",
+   "DETERMINER",
+   "NOUN",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   2,
+   0,
+   4,
+   2,
+   9,
+   9,
+   9,
+   9,
+   2,
+   2
+  ],
+  "relations": [
+   "compound",
+   "root",
+   "cc",
+   "conj",
+   "punct",
+   "nsubj",
+   "cop",
+   "det",
+   "conj",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "One half is a number.",
+  "frame": "?slot0 ?slot1 is a ?slot2.",
+  "facts": [
+   "instance_of(?v0, ?slot2)",
+   "has_dividend(?v0, ?slot0)",
+   "has_divisor(?v0, ?slot1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "closed",
+    "words": "One",
+    "one": true,
+    "placed": "against",
+    "depend outside": [
+     "One nummod"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "closed",
+    "words": "half",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "half nsubj"
+    ]
+   },
+   {
+    "slot": "?slot2",
+    "role": "kind",
+    "words": "number",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "number root"
+    ]
+   }
+  ],
+  "words": [
+   "One",
+   "half",
+   "is",
+   "a",
+   "number",
+   "."
+  ],
+  "classes": [
+   "NUMERAL",
+   "NOUN",
+   "AUXILIARY",
+   "DETERMINER",
+   "NOUN",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   2,
+   5,
+   5,
+   5,
+   0,
+   5
+  ],
+  "relations": [
+   "nummod",
+   "nsubj",
+   "cop",
+   "det",
+   "root",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Two thirds is a number.",
+  "frame": "?slot0 ?slot1 is a ?slot2.",
+  "facts": [
+   "instance_of(?v0, ?slot2)",
+   "has_dividend(?v0, ?slot0)",
+   "has_divisor(?v0, ?slot1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "closed",
+    "words": "Two",
+    "one": true,
+    "placed": "against",
+    "depend outside": [
+     "Two nummod"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "closed",
+    "words": "thirds",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "thirds nsubj"
+    ]
+   },
+   {
+    "slot": "?slot2",
+    "role": "kind",
+    "words": "number",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "number root"
+    ]
+   }
+  ],
+  "words": [
+   "Two",
+   "thirds",
+   "is",
+   "a",
+   "number",
+   "."
+  ],
+  "classes": [
+   "NUMERAL",
+   "NOUN",
+   "AUXILIARY",
+   "DETERMINER",
+   "NOUN",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   2,
+   5,
+   5,
+   5,
+   0,
+   5
+  ],
+  "relations": [
+   "nummod",
+   "nsubj",
+   "cop",
+   "det",
+   "root",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Three quarters is a number.",
+  "frame": "?slot0 ?slot1 is a ?slot2.",
+  "facts": [
+   "instance_of(?v0, ?slot2)",
+   "has_dividend(?v0, ?slot0)",
+   "has_divisor(?v0, ?slot1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "closed",
+    "words": "Three",
+    "one": true,
+    "placed": "against",
+    "depend outside": [
+     "Three nummod"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "closed",
+    "words": "quarters",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "quarters nsubj"
+    ]
+   },
+   {
+    "slot": "?slot2",
+    "role": "kind",
+    "words": "number",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "number root"
+    ]
+   }
+  ],
+  "words": [
+   "Three",
+   "quarters",
+   "is",
+   "a",
+   "number",
+   "."
+  ],
+  "classes": [
+   "NUMERAL",
+   "NOUN",
+   "AUXILIARY",
+   "DETERMINER",
+   "NOUN",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   2,
+   5,
+   5,
+   5,
+   0,
+   5
+  ],
+  "relations": [
+   "nummod",
+   "nsubj",
+   "cop",
+   "det",
+   "root",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Seven and a third is a number.",
+  "frame": "?slot0 and a ?slot1 is a ?slot2.",
+  "facts": [
+   "instance_of(?v0, ?slot2)",
+   "has_augend(?v0, ?slot0)",
+   "has_addend(?v0, ?v1)",
+   "has_dividend(?v1, 1)",
+   "has_divisor(?v1, ?slot1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "closed",
+    "words": "Seven",
+    "one": true,
+    "placed": "against",
+    "depend outside": [
+     "Seven nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "closed",
+    "words": "third",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "third root"
+    ]
+   },
+   {
+    "slot": "?slot2",
+    "role": "kind",
+    "words": "number",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "number advcl"
+    ]
+   }
+  ],
+  "words": [
+   "Seven",
+   "and",
+   "a",
+   "third",
+   "is",
+   "a",
+   "number",
+   "."
+  ],
+  "classes": [
+   "NAME",
+   "CONJUNCTION",
+   "DETERMINER",
+   "ADJECTIVE",
+   "AUXILIARY",
+   "DETERMINER",
+   "NOUN",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   4,
+   4,
+   4,
+   0,
+   7,
+   7,
+   4,
+   4
+  ],
+  "relations": [
+   "nsubj",
+   "cc",
+   "det",
+   "root",
+   "cop",
+   "det",
+   "advcl",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Twelve thousand is a number.",
+  "frame": "?slot0 is a ?slot1.",
+  "facts": [
+   "isa(?slot0, ?slot1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "kind",
+    "words": "Twelve thousand",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "Twelve root",
+     "thousand nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "kind",
+    "words": "number",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "number ccomp"
+    ]
+   }
+  ],
+  "words": [
+   "Twelve",
+   "thousand",
+   "is",
+   "a",
+   "number",
+   "."
+  ],
+  "classes": [
+   "VERB",
+   "NUMERAL",
+   "AUXILIARY",
+   "DETERMINER",
+   "NOUN",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   0,
+   5,
+   5,
+   5,
+   1,
+   1
+  ],
+  "relations": [
+   "root",
+   "nsubj",
+   "cop",
+   "det",
+   "ccomp",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Twelve million is a number.",
+  "frame": "?slot0 is a ?slot1.",
+  "facts": [
+   "isa(?slot0, ?slot1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "kind",
+    "words": "Twelve million",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "Twelve root",
+     "million nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "kind",
+    "words": "number",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "number ccomp"
+    ]
+   }
+  ],
+  "words": [
+   "Twelve",
+   "million",
+   "is",
+   "a",
+   "number",
+   "."
+  ],
+  "classes": [
+   "VERB",
+   "NUMERAL",
+   "AUXILIARY",
+   "DETERMINER",
+   "NOUN",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   0,
+   5,
+   5,
+   5,
+   1,
+   1
+  ],
+  "relations": [
+   "root",
+   "nsubj",
+   "cop",
+   "det",
+   "ccomp",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Eleven trillion is a number.",
+  "frame": "?slot0 is a ?slot1.",
+  "facts": [
+   "isa(?slot0, ?slot1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "kind",
+    "words": "Eleven trillion",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "Eleven root",
+     "trillion nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "kind",
+    "words": "number",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "number ccomp"
+    ]
+   }
+  ],
+  "words": [
+   "Eleven",
+   "trillion",
+   "is",
+   "a",
+   "number",
+   "."
+  ],
+  "classes": [
+   "VERB",
+   "NUMERAL",
+   "AUXILIARY",
+   "DETERMINER",
+   "NOUN",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   0,
+   5,
+   5,
+   5,
+   1,
+   1
+  ],
+  "relations": [
+   "root",
+   "nsubj",
+   "cop",
+   "det",
+   "ccomp",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Three hundred and five thousand is a number.",
+  "frame": "?slot0 is a ?slot1.",
+  "facts": [
+   "isa(?slot0, ?slot1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "kind",
+    "words": "Three hundred and five thousand",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "hundred root",
+     "and cc",
+     "thousand nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "kind",
+    "words": "number",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "number conj"
+    ]
+   }
+  ],
+  "words": [
+   "Three",
+   "hundred",
+   "and",
+   "five",
+   "thousand",
+   "is",
+   "a",
+   "number",
+   "."
+  ],
+  "classes": [
+   "NUMERAL",
+   "NUMERAL",
+   "CONJUNCTION",
+   "NUMERAL",
+   "NUMERAL",
+   "AUXILIARY",
+   "DETERMINER",
+   "NOUN",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   2,
+   0,
+   8,
+   5,
+   8,
+   8,
+   8,
+   2,
+   2
+  ],
+  "relations": [
+   "compound",
+   "root",
+   "cc",
+   "compound",
+   "nsubj",
+   "cop",
+   "det",
+   "conj",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Two hundred and twelve billion is a number.",
+  "frame": "?slot0 is a ?slot1.",
+  "facts": [
+   "isa(?slot0, ?slot1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "kind",
+    "words": "Two hundred and twelve billion",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "hundred root",
+     "and cc",
+     "billion nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "kind",
+    "words": "number",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "number conj"
+    ]
+   }
+  ],
+  "words": [
+   "Two",
+   "hundred",
+   "and",
+   "twelve",
+   "billion",
+   "is",
+   "a",
+   "number",
+   "."
+  ],
+  "classes": [
+   "NUMERAL",
+   "NUMERAL",
+   "CONJUNCTION",
+   "NUMERAL",
+   "NUMERAL",
+   "AUXILIARY",
+   "DETERMINER",
+   "NOUN",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   2,
+   0,
+   8,
+   5,
+   8,
+   8,
+   8,
+   2,
+   2
+  ],
+  "relations": [
+   "compound",
+   "root",
+   "cc",
+   "compound",
+   "nsubj",
+   "cop",
+   "det",
+   "conj",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "One hundred and eight trillion is a number.",
+  "frame": "?slot0 is a ?slot1.",
+  "facts": [
+   "isa(?slot0, ?slot1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "kind",
+    "words": "One hundred and eight trillion",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "hundred root",
+     "and cc",
+     "trillion nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "kind",
+    "words": "number",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "number conj"
+    ]
+   }
+  ],
+  "words": [
+   "One",
+   "hundred",
+   "and",
+   "eight",
+   "trillion",
+   "is",
+   "a",
+   "number",
+   "."
+  ],
+  "classes": [
+   "NUMERAL",
+   "NUMERAL",
+   "CONJUNCTION",
+   "NUMERAL",
+   "NUMERAL",
+   "AUXILIARY",
+   "DETERMINER",
+   "NOUN",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   2,
+   0,
+   8,
+   5,
+   8,
+   8,
+   8,
+   2,
+   2
+  ],
+  "relations": [
+   "compound",
+   "root",
+   "cc",
+   "compound",
+   "nsubj",
+   "cop",
+   "det",
+   "conj",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Twelve thousand three hundred and forty-five is a number.",
+  "frame": "?slot0 is a ?slot1.",
+  "facts": [
+   "isa(?slot0, ?slot1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "kind",
+    "words": "Twelve thousand three hundred and forty - five",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "Twelve root",
+     "- punct",
+     "five nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "kind",
+    "words": "number",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "number appos"
+    ]
+   }
+  ],
+  "words": [
+   "Twelve",
+   "thousand",
+   "three",
+   "hundred",
+   "and",
+   "forty",
+   "-",
+   "five",
+   "is",
+   "a",
+   "number",
+   "."
+  ],
+  "classes": [
+   "VERB",
+   "NUMERAL",
+   "NUMERAL",
+   "NUMERAL",
+   "CONJUNCTION",
+   "ADJECTIVE",
+   "PUNCTUATION",
+   "NUMERAL",
+   "AUXILIARY",
+   "DETERMINER",
+   "NOUN",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   0,
+   1,
+   2,
+   2,
+   6,
+   2,
+   11,
+   11,
+   11,
+   11,
+   2,
+   1
+  ],
+  "relations": [
+   "root",
+   "obj",
+   "flat",
+   "nmod:unmarked",
+   "cc",
+   "conj",
+   "punct",
+   "nsubj",
+   "cop",
+   "det",
+   "appos",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Four thousand two hundred and fifty is a number.",
+  "frame": "?slot0 is a ?slot1.",
+  "facts": [
+   "isa(?slot0, ?slot1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "kind",
+    "words": "Four thousand two hundred and fifty",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "Four root",
+     "and cc",
+     "fifty nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "kind",
+    "words": "number",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "number conj"
+    ]
+   }
+  ],
+  "words": [
+   "Four",
+   "thousand",
+   "two",
+   "hundred",
+   "and",
+   "fifty",
+   "is",
+   "a",
+   "number",
+   "."
+  ],
+  "classes": [
+   "NUMERAL",
+   "NUMERAL",
+   "NUMERAL",
+   "NUMERAL",
+   "CONJUNCTION",
+   "NUMERAL",
+   "AUXILIARY",
+   "DETERMINER",
+   "NOUN",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   0,
+   1,
+   1,
+   1,
+   9,
+   9,
+   9,
+   9,
+   1,
+   1
+  ],
+  "relations": [
+   "root",
+   "flat",
+   "nmod:unmarked",
+   "nmod",
+   "cc",
+   "nsubj",
+   "cop",
+   "det",
+   "conj",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Six thousand seven hundred and eighty-nine is a number.",
+  "frame": "?slot0 is a ?slot1.",
+  "facts": [
+   "isa(?slot0, ?slot1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "kind",
+    "words": "Six thousand seven hundred and eighty - nine",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "eighty root",
+     "- punct",
+     "nine nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "kind",
+    "words": "number",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "number conj"
+    ]
+   }
+  ],
+  "words": [
+   "Six",
+   "thousand",
+   "seven",
+   "hundred",
+   "and",
+   "eighty",
+   "-",
+   "nine",
+   "is",
+   "a",
+   "number",
+   "."
+  ],
+  "classes": [
+   "NUMERAL",
+   "NUMERAL",
+   "NUMERAL",
+   "NUMERAL",
+   "CONJUNCTION",
+   "ADJECTIVE",
+   "PUNCTUATION",
+   "NUMERAL",
+   "AUXILIARY",
+   "DETERMINER",
+   "NOUN",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   6,
+   1,
+   1,
+   1,
+   6,
+   0,
+   11,
+   11,
+   11,
+   11,
+   6,
+   6
+  ],
+  "relations": [
+   "nsubj",
+   "flat",
+   "nmod:unmarked",
+   "nmod",
+   "cc",
+   "root",
+   "punct",
+   "nsubj",
+   "cop",
+   "det",
+   "conj",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Ninety thousand two hundred and ten is a number.",
+  "frame": "?slot0 is a ?slot1.",
+  "facts": [
+   "isa(?slot0, ?slot1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "kind",
+    "words": "Ninety thousand two hundred and ten",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "thousand root",
+     "and cc",
+     "ten nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "kind",
+    "words": "number",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "number conj"
+    ]
+   }
+  ],
+  "words": [
+   "Ninety",
+   "thousand",
+   "two",
+   "hundred",
+   "and",
+   "ten",
+   "is",
+   "a",
+   "number",
+   "."
+  ],
+  "classes": [
+   "ADJECTIVE",
+   "NUMERAL",
+   "NUMERAL",
+   "NUMERAL",
+   "CONJUNCTION",
+   "NUMERAL",
+   "AUXILIARY",
+   "DETERMINER",
+   "NOUN",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   2,
+   0,
+   2,
+   2,
+   9,
+   9,
+   9,
+   9,
+   2,
+   2
+  ],
+  "relations": [
+   "amod",
+   "root",
+   "flat",
+   "nmod:unmarked",
+   "cc",
+   "nsubj",
+   "cop",
+   "det",
+   "conj",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Two million and thirty is a number.",
+  "frame": "?slot0 is a ?slot1.",
+  "facts": [
+   "isa(?slot0, ?slot1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "kind",
+    "words": "Two million and thirty",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "million root",
+     "and cc",
+     "thirty nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "kind",
+    "words": "number",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "number conj"
+    ]
+   }
+  ],
+  "words": [
+   "Two",
+   "million",
+   "and",
+   "thirty",
+   "is",
+   "a",
+   "number",
+   "."
+  ],
+  "classes": [
+   "NUMERAL",
+   "NUMERAL",
+   "CONJUNCTION",
+   "NUMERAL",
+   "AUXILIARY",
+   "DETERMINER",
+   "NOUN",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   2,
+   0,
+   7,
+   7,
+   7,
+   7,
+   2,
+   2
+  ],
+  "relations": [
+   "compound",
+   "root",
+   "cc",
+   "nsubj",
+   "cop",
+   "det",
+   "conj",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "One hundred and one is a number.",
+  "frame": "?slot0 is a ?slot1.",
+  "facts": [
+   "isa(?slot0, ?slot1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "kind",
+    "words": "One hundred and one",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "hundred root",
+     "and cc",
+     "one nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "kind",
+    "words": "number",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "number conj"
+    ]
+   }
+  ],
+  "words": [
+   "One",
+   "hundred",
+   "and",
+   "one",
+   "is",
+   "a",
+   "number",
+   "."
+  ],
+  "classes": [
+   "NUMERAL",
+   "NUMERAL",
+   "CONJUNCTION",
+   "NUMERAL",
+   "AUXILIARY",
+   "DETERMINER",
+   "NOUN",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   2,
+   0,
+   7,
+   7,
+   7,
+   7,
+   2,
+   2
+  ],
+  "relations": [
+   "compound",
+   "root",
+   "cc",
+   "nsubj",
+   "cop",
+   "det",
+   "conj",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Nine hundred and ninety-nine is a number.",
+  "frame": "?slot0 is a ?slot1.",
+  "facts": [
+   "isa(?slot0, ?slot1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "kind",
+    "words": "Nine hundred and ninety - nine",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "hundred root",
+     "- punct",
+     "nine nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "kind",
+    "words": "number",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "number conj"
+    ]
+   }
+  ],
+  "words": [
+   "Nine",
+   "hundred",
+   "and",
+   "ninety",
+   "-",
+   "nine",
+   "is",
+   "a",
+   "number",
+   "."
+  ],
+  "classes": [
+   "NAME",
+   "NUMERAL",
+   "CONJUNCTION",
+   "ADJECTIVE",
+   "PUNCTUATION",
+   "NUMERAL",
+   "AUXILIARY",
+   "DETERMINER",
+   "NOUN",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   2,
+   0,
+   4,
+   2,
+   9,
+   9,
+   9,
+   9,
+   2,
+   2
+  ],
+  "relations": [
+   "nmod:unmarked",
+   "root",
+   "cc",
+   "conj",
+   "punct",
+   "nsubj",
+   "cop",
+   "det",
+   "conj",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "One thousand and one is a number.",
+  "frame": "?slot0 is a ?slot1.",
+  "facts": [
+   "isa(?slot0, ?slot1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "kind",
+    "words": "One thousand and one",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "thousand root",
+     "and cc",
+     "one nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "kind",
+    "words": "number",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "number conj"
+    ]
+   }
+  ],
+  "words": [
+   "One",
+   "thousand",
+   "and",
+   "one",
+   "is",
+   "a",
+   "number",
+   "."
+  ],
+  "classes": [
+   "NUMERAL",
+   "NUMERAL",
+   "CONJUNCTION",
+   "NUMERAL",
+   "AUXILIARY",
+   "DETERMINER",
+   "NOUN",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   2,
+   0,
+   7,
+   7,
+   7,
+   7,
+   2,
+   2
+  ],
+  "relations": [
+   "compound",
+   "root",
+   "cc",
+   "nsubj",
+   "cop",
+   "det",
+   "conj",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Two thousand and nineteen is a number.",
+  "frame": "?slot0 is a ?slot1.",
+  "facts": [
+   "isa(?slot0, ?slot1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "kind",
+    "words": "Two thousand and nineteen",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "thousand root",
+     "and cc",
+     "nineteen nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "kind",
+    "words": "number",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "number conj"
+    ]
+   }
+  ],
+  "words": [
+   "Two",
+   "thousand",
+   "and",
+   "nineteen",
+   "is",
+   "a",
+   "number",
+   "."
+  ],
+  "classes": [
+   "NUMERAL",
+   "NUMERAL",
+   "CONJUNCTION",
+   "NUMERAL",
+   "AUXILIARY",
+   "DETERMINER",
+   "NOUN",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   2,
+   0,
+   7,
+   7,
+   7,
+   7,
+   2,
+   2
+  ],
+  "relations": [
+   "compound",
+   "root",
+   "cc",
+   "nsubj",
+   "cop",
+   "det",
+   "conj",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "One million and one is a number.",
+  "frame": "?slot0 is a ?slot1.",
+  "facts": [
+   "isa(?slot0, ?slot1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "kind",
+    "words": "One million and one",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "million root",
+     "and cc",
+     "one nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "kind",
+    "words": "number",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "number conj"
+    ]
+   }
+  ],
+  "words": [
+   "One",
+   "million",
+   "and",
+   "one",
+   "is",
+   "a",
+   "number",
+   "."
+  ],
+  "classes": [
+   "NUMERAL",
+   "NUMERAL",
+   "CONJUNCTION",
+   "NUMERAL",
+   "AUXILIARY",
+   "DETERMINER",
+   "NOUN",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   2,
+   0,
+   7,
+   7,
+   7,
+   7,
+   2,
+   2
+  ],
+  "relations": [
+   "compound",
+   "root",
+   "cc",
+   "nsubj",
+   "cop",
+   "det",
+   "conj",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Two million three thousand and four is a number.",
+  "frame": "?slot0 is a ?slot1.",
+  "facts": [
+   "isa(?slot0, ?slot1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "kind",
+    "words": "Two million three thousand and four",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "Two root",
+     "and cc",
+     "four nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "kind",
+    "words": "number",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "number conj"
+    ]
+   }
+  ],
+  "words": [
+   "Two",
+   "million",
+   "three",
+   "thousand",
+   "and",
+   "four",
+   "is",
+   "a",
+   "number",
+   "."
+  ],
+  "classes": [
+   "NUMERAL",
+   "NUMERAL",
+   "NUMERAL",
+   "NUMERAL",
+   "CONJUNCTION",
+   "NUMERAL",
+   "AUXILIARY",
+   "DETERMINER",
+   "NOUN",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   0,
+   1,
+   1,
+   1,
+   9,
+   9,
+   9,
+   9,
+   1,
+   1
+  ],
+  "relations": [
+   "root",
+   "flat",
+   "nmod:unmarked",
+   "nmod",
+   "cc",
+   "nsubj",
+   "cop",
+   "det",
+   "conj",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Seven trillion eight million and nine is a number.",
+  "frame": "?slot0 is a ?slot1.",
+  "facts": [
+   "isa(?slot0, ?slot1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "kind",
+    "words": "Seven trillion eight million and nine",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "million root",
+     "and cc",
+     "nine nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "kind",
+    "words": "number",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "number conj"
+    ]
+   }
+  ],
+  "words": [
+   "Seven",
+   "trillion",
+   "eight",
+   "million",
+   "and",
+   "nine",
+   "is",
+   "a",
+   "number",
+   "."
+  ],
+  "classes": [
+   "NAME",
+   "NUMERAL",
+   "NUMERAL",
+   "NUMERAL",
+   "CONJUNCTION",
+   "NUMERAL",
+   "AUXILIARY",
+   "DETERMINER",
+   "NOUN",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   4,
+   1,
+   4,
+   0,
+   9,
+   9,
+   9,
+   9,
+   4,
+   4
+  ],
+  "relations": [
+   "nmod:unmarked",
+   "flat",
+   "compound",
+   "root",
+   "cc",
+   "nsubj",
+   "cop",
+   "det",
+   "conj",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Three million twenty thousand and one is a number.",
+  "frame": "?slot0 is a ?slot1.",
+  "facts": [
+   "isa(?slot0, ?slot1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "kind",
+    "words": "Three million twenty thousand and one",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "Three root",
+     "and cc",
+     "one nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "kind",
+    "words": "number",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "number conj"
+    ]
+   }
+  ],
+  "words": [
+   "Three",
+   "million",
+   "twenty",
+   "thousand",
+   "and",
+   "one",
+   "is",
+   "a",
+   "number",
+   "."
+  ],
+  "classes": [
+   "NUMERAL",
+   "NUMERAL",
+   "NUMERAL",
+   "NUMERAL",
+   "CONJUNCTION",
+   "NUMERAL",
+   "AUXILIARY",
+   "DETERMINER",
+   "NOUN",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   0,
+   1,
+   1,
+   1,
+   9,
+   9,
+   9,
+   9,
+   1,
+   1
+  ],
+  "relations": [
+   "root",
+   "flat",
+   "nmod:unmarked",
+   "nmod",
+   "cc",
+   "nsubj",
+   "cop",
+   "det",
+   "conj",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Eight trillion nine million and ten is a number.",
+  "frame": "?slot0 is a ?slot1.",
+  "facts": [
+   "isa(?slot0, ?slot1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "kind",
+    "words": "Eight trillion nine million and ten",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "Eight root",
+     "and cc",
+     "ten nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "kind",
+    "words": "number",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "number conj"
+    ]
+   }
+  ],
+  "words": [
+   "Eight",
+   "trillion",
+   "nine",
+   "million",
+   "and",
+   "ten",
+   "is",
+   "a",
+   "number",
+   "."
+  ],
+  "classes": [
+   "NOUN",
+   "NUMERAL",
+   "NUMERAL",
+   "NUMERAL",
+   "CONJUNCTION",
+   "NUMERAL",
+   "AUXILIARY",
+   "DETERMINER",
+   "NOUN",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   0,
+   1,
+   2,
+   2,
+   9,
+   9,
+   9,
+   9,
+   1,
+   1
+  ],
+  "relations": [
+   "root",
+   "flat",
+   "flat",
+   "nmod:unmarked",
+   "cc",
+   "nsubj",
+   "cop",
+   "det",
+   "conj",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Nine billion four million and six is a number.",
+  "frame": "?slot0 is a ?slot1.",
+  "facts": [
+   "isa(?slot0, ?slot1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "kind",
+    "words": "Nine billion four million and six",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "million root",
+     "and cc",
+     "six nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "kind",
+    "words": "number",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "number conj"
+    ]
+   }
+  ],
+  "words": [
+   "Nine",
+   "billion",
+   "four",
+   "million",
+   "and",
+   "six",
+   "is",
+   "a",
+   "number",
+   "."
+  ],
+  "classes": [
+   "NAME",
+   "NUMERAL",
+   "NUMERAL",
+   "NUMERAL",
+   "CONJUNCTION",
+   "NUMERAL",
+   "AUXILIARY",
+   "DETERMINER",
+   "NOUN",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   4,
+   1,
+   4,
+   0,
+   9,
+   9,
+   9,
+   9,
+   4,
+   4
+  ],
+  "relations": [
+   "nmod:unmarked",
+   "flat",
+   "compound",
+   "root",
+   "cc",
+   "nsubj",
+   "cop",
+   "det",
+   "conj",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "There are twenty-five thousand dogs.",
+  "frame": "There are ?slot0 ?slot1.",
+  "facts": [
+   "instance_of(?v0, ?slot1)",
+   "has_count(?v0, ?slot0)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "closed",
+    "words": "twenty - five thousand",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "twenty nummod",
+     "thousand nummod"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "kind",
+    "words": "dogs",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "dogs nsubj"
+    ]
+   }
+  ],
+  "words": [
+   "There",
+   "are",
+   "twenty",
+   "-",
+   "five",
+   "thousand",
+   "dogs",
+   "."
+  ],
+  "classes": [
+   "PRONOUN",
+   "VERB",
+   "NUMERAL",
+   "SYMBOL",
+   "NUMERAL",
+   "NUMERAL",
+   "NOUN",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   2,
+   0,
+   7,
+   5,
+   3,
+   7,
+   2,
+   2
+  ],
+  "relations": [
+   "expl",
+   "root",
+   "nummod",
+   "case",
+   "nmod",
+   "nummod",
+   "nsubj",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "There are six hundred and ten million birds.",
+  "frame": "There are ?slot0 ?slot1.",
+  "facts": [
+   "instance_of(?v0, ?slot1)",
+   "has_count(?v0, ?slot0)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "closed",
+    "words": "six hundred and ten million",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "hundred obl",
+     "and cc",
+     "million nummod"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "kind",
+    "words": "birds",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "birds conj"
+    ]
+   }
+  ],
+  "words": [
+   "There",
+   "are",
+   "six",
+   "hundred",
+   "and",
+   "ten",
+   "million",
+   "birds",
+   "."
+  ],
+  "classes": [
+   "PRONOUN",
+   "VERB",
+   "NUMERAL",
+   "NUMERAL",
+   "CONJUNCTION",
+   "NUMERAL",
+   "NUMERAL",
+   "NOUN",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   2,
+   0,
+   4,
+   2,
+   8,
+   7,
+   8,
+   4,
+   2
+  ],
+  "relations": [
+   "expl",
+   "root",
+   "compound",
+   "obl",
+   "cc",
+   "compound",
+   "nummod",
+   "conj",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "There are eight hundred and eighty thousand balls.",
+  "frame": "There are ?slot0 ?slot1.",
+  "facts": [
+   "instance_of(?v0, ?slot1)",
+   "has_count(?v0, ?slot0)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "closed",
+    "words": "eight hundred and eighty thousand",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "hundred obl",
+     "and cc",
+     "eighty amod",
+     "thousand nummod"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "kind",
+    "words": "balls",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "balls conj"
+    ]
+   }
+  ],
+  "words": [
+   "There",
+   "are",
+   "eight",
+   "hundred",
+   "and",
+   "eighty",
+   "thousand",
+   "balls",
+   "."
+  ],
+  "classes": [
+   "PRONOUN",
+   "VERB",
+   "NUMERAL",
+   "NUMERAL",
+   "CONJUNCTION",
+   "ADJECTIVE",
+   "NUMERAL",
+   "NOUN",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   2,
+   0,
+   4,
+   2,
+   8,
+   8,
+   8,
+   4,
+   2
+  ],
+  "relations": [
+   "expl",
+   "root",
+   "compound",
+   "obl",
+   "cc",
+   "amod",
+   "nummod",
+   "conj",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "What is ten percent of fifty?",
+  "frame": "What is ?slot0 ?slot1?",
+  "facts": [
+   "equals(?v0, ?v1)",
+   "has_multiplicand(?v0, ?slot0)",
+   "has_factor(?v0, ?slot1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "closed",
+    "words": "ten percent of",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "percent root",
+     "of case"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "closed",
+    "words": "fifty",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "fifty nmod"
+    ]
+   }
+  ],
+  "words": [
+   "What",
+   "is",
+   "ten",
+   "percent",
+   "of",
+   "fifty",
+   "?"
+  ],
+  "classes": [
+   "PRONOUN",
+   "AUXILIARY",
+   "NUMERAL",
+   "NOUN",
+   "PREPOSITION",
+   "NUMERAL",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   3,
+   3,
+   4,
+   0,
+   6,
+   4,
+   4
+  ],
+  "relations": [
+   "nsubj",
+   "cop",
+   "nummod",
+   "root",
+   "case",
+   "nmod",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "What is twenty percent of forty?",
+  "frame": "What is ?slot0 ?slot1?",
+  "facts": [
+   "equals(?v0, ?v1)",
+   "has_multiplicand(?v0, ?slot0)",
+   "has_factor(?v0, ?slot1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "closed",
+    "words": "twenty percent of",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "percent root",
+     "of case"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "closed",
+    "words": "forty",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "forty nmod"
+    ]
+   }
+  ],
+  "words": [
+   "What",
+   "is",
+   "twenty",
+   "percent",
+   "of",
+   "forty",
+   "?"
+  ],
+  "classes": [
+   "PRONOUN",
+   "AUXILIARY",
+   "NUMERAL",
+   "NOUN",
+   "PREPOSITION",
+   "ADJECTIVE",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   3,
+   3,
+   4,
+   0,
+   6,
+   4,
+   4
+  ],
+  "relations": [
+   "nsubj",
+   "cop",
+   "nummod",
+   "root",
+   "case",
+   "nmod",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "What is fifty percent of ten?",
+  "frame": "What is ?slot0 ?slot1?",
+  "facts": [
+   "equals(?v0, ?v1)",
+   "has_multiplicand(?v0, ?slot0)",
+   "has_factor(?v0, ?slot1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "closed",
+    "words": "fifty percent of",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "fifty root",
+     "of case"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "closed",
+    "words": "ten",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "ten nmod"
+    ]
+   }
+  ],
+  "words": [
+   "What",
+   "is",
+   "fifty",
+   "percent",
+   "of",
+   "ten",
+   "?"
+  ],
+  "classes": [
+   "PRONOUN",
+   "AUXILIARY",
+   "NUMERAL",
+   "NOUN",
+   "PREPOSITION",
+   "NUMERAL",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   3,
+   3,
+   0,
+   3,
+   6,
+   3,
+   3
+  ],
+  "relations": [
+   "nsubj",
+   "cop",
+   "root",
+   "nmod:unmarked",
+   "case",
+   "nmod",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "What is five percent of twenty?",
+  "frame": "What is ?slot0 ?slot1?",
+  "facts": [
+   "equals(?v0, ?v1)",
+   "has_multiplicand(?v0, ?slot0)",
+   "has_factor(?v0, ?slot1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "closed",
+    "words": "five percent of",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "five root",
+     "of case"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "closed",
+    "words": "twenty",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "twenty nmod"
+    ]
+   }
+  ],
+  "words": [
+   "What",
+   "is",
+   "five",
+   "percent",
+   "of",
+   "twenty",
+   "?"
+  ],
+  "classes": [
+   "PRONOUN",
+   "AUXILIARY",
+   "NUMERAL",
+   "NOUN",
+   "PREPOSITION",
+   "NUMERAL",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   3,
+   3,
+   0,
+   3,
+   6,
+   3,
+   3
+  ],
+  "relations": [
+   "nsubj",
+   "cop",
+   "root",
+   "nmod:unmarked",
+   "case",
+   "nmod",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "What is three quarters of twenty?",
+  "frame": "What is ?slot0 ?slot1?",
+  "facts": [
+   "equals(?v0, ?v1)",
+   "has_multiplicand(?v0, ?slot0)",
+   "has_factor(?v0, ?slot1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "closed",
+    "words": "three quarters of",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "quarters root",
+     "of case"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "closed",
+    "words": "twenty",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "twenty nmod"
+    ]
+   }
+  ],
+  "words": [
+   "What",
+   "is",
+   "three",
+   "quarters",
+   "of",
+   "twenty",
+   "?"
+  ],
+  "classes": [
+   "PRONOUN",
+   "AUXILIARY",
+   "NUMERAL",
+   "NOUN",
+   "PREPOSITION",
+   "NUMERAL",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   4,
+   4,
+   4,
+   0,
+   6,
+   4,
+   4
+  ],
+  "relations": [
+   "nsubj",
+   "cop",
+   "nummod",
+   "root",
+   "case",
+   "nmod",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "What is two thirds of nine?",
+  "frame": "What is ?slot0 ?slot1?",
+  "facts": [
+   "equals(?v0, ?v1)",
+   "has_multiplicand(?v0, ?slot0)",
+   "has_factor(?v0, ?slot1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "closed",
+    "words": "two thirds of",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "thirds root",
+     "of case"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "closed",
+    "words": "nine",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "nine nmod"
+    ]
+   }
+  ],
+  "words": [
+   "What",
+   "is",
+   "two",
+   "thirds",
+   "of",
+   "nine",
+   "?"
+  ],
+  "classes": [
+   "PRONOUN",
+   "AUXILIARY",
+   "NUMERAL",
+   "NOUN",
+   "PREPOSITION",
+   "NUMERAL",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   4,
+   4,
+   4,
+   0,
+   6,
+   4,
+   4
+  ],
+  "relations": [
+   "nsubj",
+   "cop",
+   "nummod",
+   "root",
+   "case",
+   "nmod",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "What is two plus three times four?",
+  "frame": "What is ?slot0 plus ?slot1?",
+  "facts": [
+   "equals(?v0, ?v1)",
+   "has_augend(?v0, ?slot0)",
+   "has_addend(?v0, ?slot1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "closed",
+    "words": "two",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "two root"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "closed",
+    "words": "three times four",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "times appos",
+     "four nmod:unmarked"
+    ]
+   }
+  ],
+  "words": [
+   "What",
+   "is",
+   "two",
+   "plus",
+   "three",
+   "times",
+   "four",
+   "?"
+  ],
+  "classes": [
+   "PRONOUN",
+   "AUXILIARY",
+   "NUMERAL",
+   "CONJUNCTION",
+   "NUMERAL",
+   "NOUN",
+   "NUMERAL",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   3,
+   3,
+   0,
+   6,
+   6,
+   3,
+   3,
+   3
+  ],
+  "relations": [
+   "nsubj",
+   "cop",
+   "root",
+   "cc",
+   "nummod",
+   "appos",
+   "nmod:unmarked",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Solve 2y + 1 = 9 for y.",
+  "frame": "Solve ?slot0 = ?slot1 for ?slot2.",
+  "facts": [
+   "instance_of(?v0, solve)",
+   "done_by(?v0, ?listener)",
+   "done_to(?v0, ?slot2)",
+   "if equals(?slot0, ?slot1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "thing",
+    "words": "2y + 1",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "2y + 1 compound"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "thing",
+    "words": "9",
+    "one": true,
+    "placed": "no place",
+    "depend outside": [
+     "9 appos"
+    ]
+   },
+   {
+    "slot": "?slot2",
+    "role": "thing",
+    "words": "y",
+    "one": true,
+    "placed": "against",
+    "depend outside": [
+     "y goeswith"
+    ]
+   }
+  ],
+  "words": [
+   "Solve",
+   "2y + 1",
+   "=",
+   "9",
+   "for",
+   "y",
+   "."
+  ],
+  "classes": [
+   "VERB",
+   "NUMERAL",
+   "PUNCTUATION",
+   "NUMERAL",
+   "PREPOSITION",
+   "OTHER",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   0,
+   4,
+   2,
+   1,
+   4,
+   5,
+   6
+  ],
+  "relations": [
+   "root",
+   "compound",
+   "punct",
+   "appos",
+   "dep",
+   "goeswith",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Solve 3x - 4 = 11 for x.",
+  "frame": "Solve ?slot0 = ?slot1 for ?slot2.",
+  "facts": [
+   "instance_of(?v0, solve)",
+   "done_by(?v0, ?listener)",
+   "done_to(?v0, ?slot2)",
+   "if equals(?slot0, ?slot1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "thing",
+    "words": "3x - 4",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "3x - 4 compound"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "thing",
+    "words": "11",
+    "one": true,
+    "placed": "no place",
+    "depend outside": [
+     "11 obl"
+    ]
+   },
+   {
+    "slot": "?slot2",
+    "role": "thing",
+    "words": "x",
+    "one": true,
+    "placed": "against",
+    "depend outside": [
+     "x nmod"
+    ]
+   }
+  ],
+  "words": [
+   "Solve",
+   "3x - 4",
+   "=",
+   "11",
+   "for",
+   "x",
+   "."
+  ],
+  "classes": [
+   "VERB",
+   "NUMERAL",
+   "PUNCTUATION",
+   "NUMERAL",
+   "PREPOSITION",
+   "NOUN",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   0,
+   4,
+   2,
+   1,
+   6,
+   4,
+   1
+  ],
+  "relations": [
+   "root",
+   "compound",
+   "punct",
+   "obl",
+   "case",
+   "nmod",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Solve 4z = 20 for z.",
+  "frame": "Solve ?slot0 = ?slot1 for ?slot2.",
+  "facts": [
+   "instance_of(?v0, solve)",
+   "done_by(?v0, ?listener)",
+   "done_to(?v0, ?slot2)",
+   "if equals(?slot0, ?slot1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "thing",
+    "words": "4z",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "4z compound"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "thing",
+    "words": "20",
+    "one": true,
+    "placed": "no place",
+    "depend outside": [
+     "20 obl"
+    ]
+   },
+   {
+    "slot": "?slot2",
+    "role": "thing",
+    "words": "z",
+    "one": true,
+    "placed": "against",
+    "depend outside": [
+     "z nmod"
+    ]
+   }
+  ],
+  "words": [
+   "Solve",
+   "4z",
+   "=",
+   "20",
+   "for",
+   "z",
+   "."
+  ],
+  "classes": [
+   "VERB",
+   "NUMERAL",
+   "PUNCTUATION",
+   "NUMERAL",
+   "PREPOSITION",
+   "NOUN",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   0,
+   4,
+   2,
+   1,
+   6,
+   4,
+   1
+  ],
+  "relations": [
+   "root",
+   "compound",
+   "punct",
+   "obl",
+   "case",
+   "nmod",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Solve x + y = 10 and x - y = 2.",
+  "frame": "Solve ?slot0 = ?slot1 and ?slot2 = ?slot3.",
+  "facts": [
+   "instance_of(?v0, solve)",
+   "done_by(?v0, ?listener)",
+   "if equals(?slot0, ?slot1)",
+   "if equals(?slot2, ?slot3)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "thing",
+    "words": "x + y",
+    "one": true,
+    "placed": "against",
+    "depend outside": [
+     "x + y advmod"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "thing",
+    "words": "10",
+    "one": true,
+    "placed": "against",
+    "depend outside": [
+     "10 appos"
+    ]
+   },
+   {
+    "slot": "?slot2",
+    "role": "thing",
+    "words": "x - y",
+    "one": true,
+    "placed": "against",
+    "depend outside": [
+     "x - y conj"
+    ]
+   },
+   {
+    "slot": "?slot3",
+    "role": "thing",
+    "words": "2",
+    "one": true,
+    "placed": "against",
+    "depend outside": [
+     "2 appos"
+    ]
+   }
+  ],
+  "words": [
+   "Solve",
+   "x + y",
+   "=",
+   "10",
+   "and",
+   "x - y",
+   "=",
+   "2",
+   "."
+  ],
+  "classes": [
+   "VERB",
+   "ADVERB",
+   "PUNCTUATION",
+   "NUMERAL",
+   "CONJUNCTION",
+   "ADJECTIVE",
+   "PUNCTUATION",
+   "NUMERAL",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   0,
+   1,
+   4,
+   1,
+   6,
+   4,
+   8,
+   4,
+   4
+  ],
+  "relations": [
+   "root",
+   "advmod",
+   "punct",
+   "appos",
+   "cc",
+   "conj",
+   "punct",
+   "appos",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Solve 2x + y = 7 and x - y = 2.",
+  "frame": "Solve ?slot0 = ?slot1 and ?slot2 = ?slot3.",
+  "facts": [
+   "instance_of(?v0, solve)",
+   "done_by(?v0, ?listener)",
+   "if equals(?slot0, ?slot1)",
+   "if equals(?slot2, ?slot3)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "thing",
+    "words": "2x + y",
+    "one": true,
+    "placed": "no place",
+    "depend outside": [
+     "2x + y obj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "thing",
+    "words": "7",
+    "one": true,
+    "placed": "against",
+    "depend outside": [
+     "7 conj"
+    ]
+   },
+   {
+    "slot": "?slot2",
+    "role": "thing",
+    "words": "x - y",
+    "one": true,
+    "placed": "against",
+    "depend outside": [
+     "x - y conj"
+    ]
+   },
+   {
+    "slot": "?slot3",
+    "role": "thing",
+    "words": "2",
+    "one": true,
+    "placed": "against",
+    "depend outside": [
+     "2 conj"
+    ]
+   }
+  ],
+  "words": [
+   "Solve",
+   "2x + y",
+   "=",
+   "7",
+   "and",
+   "x - y",
+   "=",
+   "2",
+   "."
+  ],
+  "classes": [
+   "VERB",
+   "NUMERAL",
+   "PUNCTUATION",
+   "NUMERAL",
+   "CONJUNCTION",
+   "ADJECTIVE",
+   "PUNCTUATION",
+   "NUMERAL",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   0,
+   1,
+   4,
+   2,
+   6,
+   2,
+   8,
+   2,
+   1
+  ],
+  "relations": [
+   "root",
+   "obj",
+   "punct",
+   "conj",
+   "cc",
+   "conj",
+   "punct",
+   "conj",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Solve m + n = 5 and m - n = 1.",
+  "frame": "Solve ?slot0 = ?slot1 and ?slot2 = ?slot3.",
+  "facts": [
+   "instance_of(?v0, solve)",
+   "done_by(?v0, ?listener)",
+   "if equals(?slot0, ?slot1)",
+   "if equals(?slot2, ?slot3)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "thing",
+    "words": "m + n",
+    "one": true,
+    "placed": "against",
+    "depend outside": [
+     "m + n obj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "thing",
+    "words": "5",
+    "one": true,
+    "placed": "against",
+    "depend outside": [
+     "5 appos"
+    ]
+   },
+   {
+    "slot": "?slot2",
+    "role": "thing",
+    "words": "m - n",
+    "one": true,
+    "placed": "against",
+    "depend outside": [
+     "m - n conj"
+    ]
+   },
+   {
+    "slot": "?slot3",
+    "role": "thing",
+    "words": "1",
+    "one": true,
+    "placed": "against",
+    "depend outside": [
+     "1 appos"
+    ]
+   }
+  ],
+  "words": [
+   "Solve",
+   "m + n",
+   "=",
+   "5",
+   "and",
+   "m - n",
+   "=",
+   "1",
+   "."
+  ],
+  "classes": [
+   "VERB",
+   "NOUN",
+   "PUNCTUATION",
+   "NUMERAL",
+   "CONJUNCTION",
+   "ADJECTIVE",
+   "PUNCTUATION",
+   "NUMERAL",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   0,
+   1,
+   4,
+   1,
+   6,
+   4,
+   8,
+   4,
+   4
+  ],
+  "relations": [
+   "root",
+   "obj",
+   "punct",
+   "appos",
+   "cc",
+   "conj",
+   "punct",
+   "appos",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Is the cat still working?",
+  "frame": "Is ?slot0 working?",
+  "facts": [
+   "instance_of(?v0, work)",
+   "done_by(?v0, ?slot0)",
+   "during(?v0, ?now)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "thing",
+    "words": "the cat still",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "cat nsubj",
+     "still advmod"
+    ]
+   }
+  ],
+  "words": [
+   "Is",
+   "the",
+   "cat",
+   "still",
+   "working",
+   "?"
+  ],
+  "classes": [
+   "AUXILIARY",
+   "DETERMINER",
+   "NOUN",
+   "ADVERB",
+   "VERB",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   5,
+   3,
+   5,
+   5,
+   0,
+   5
+  ],
+  "relations": [
+   "aux",
+   "det",
+   "nsubj",
+   "advmod",
+   "root",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Where does the dog sleep?",
+  "frame": "Where does ?slot0 ?slot1?",
+  "facts": [
+   "instance_of(?v0, ?slot1)",
+   "done_by(?v0, ?slot0)",
+   "located_in(?v0, ?x)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "thing",
+    "words": "the dog",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "the det",
+     "dog compound"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "doing",
+    "words": "sleep",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "sleep nsubj"
+    ]
+   }
+  ],
+  "words": [
+   "Where",
+   "does",
+   "the",
+   "dog",
+   "sleep",
+   "?"
+  ],
+  "classes": [
+   "ADVERB",
+   "AUXILIARY",
+   "DETERMINER",
+   "NOUN",
+   "NOUN",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   0,
+   1,
+   5,
+   5,
+   1,
+   1
+  ],
+  "relations": [
+   "root",
+   "cop",
+   "det",
+   "compound",
+   "nsubj",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Snow, milk, and paper are white.",
+  "frame": "?slot0, ?slot1, and paper are ?slot2.",
+  "facts": [
+   "has_property(?slot0, ?slot2)",
+   "has_property(?slot1, ?slot2)",
+   "has_property(paper, ?slot2)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "thing",
+    "words": "Snow",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "Snow root"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "thing",
+    "words": "milk",
+    "one": true,
+    "placed": "against",
+    "depend outside": [
+     "milk obj"
+    ]
+   },
+   {
+    "slot": "?slot2",
+    "role": "quality",
+    "words": "white",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "white parataxis"
+    ]
+   }
+  ],
+  "words": [
+   "Snow",
+   ",",
+   "milk",
+   ",",
+   "and",
+   "paper",
+   "are",
+   "white",
+   "."
+  ],
+  "classes": [
+   "VERB",
+   "PUNCTUATION",
+   "NOUN",
+   "PUNCTUATION",
+   "CONJUNCTION",
+   "NOUN",
+   "AUXILIARY",
+   "ADJECTIVE",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   0,
+   3,
+   1,
+   6,
+   6,
+   8,
+   8,
+   1,
+   1
+  ],
+  "relations": [
+   "root",
+   "punct",
+   "obj",
+   "punct",
+   "cc",
+   "nsubj",
+   "cop",
+   "parataxis",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "The ice is cold, hard and white.",
+  "frame": "The ?slot0 is ?slot1, ?slot2 and ?slot3.",
+  "facts": [
+   "given instance_of(?t0, ?slot0)",
+   "has_property(?t0, ?slot1)",
+   "has_property(?t0, ?slot2)",
+   "has_property(?t0, ?slot3)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "kind",
+    "words": "ice",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "ice nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "quality",
+    "words": "cold",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "cold root"
+    ]
+   },
+   {
+    "slot": "?slot2",
+    "role": "quality",
+    "words": "hard",
+    "one": true,
+    "placed": "against",
+    "depend outside": [
+     "hard advmod"
+    ]
+   },
+   {
+    "slot": "?slot3",
+    "role": "quality",
+    "words": "white",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "white conj"
+    ]
+   }
+  ],
+  "words": [
+   "The",
+   "ice",
+   "is",
+   "cold",
+   ",",
+   "hard",
+   "and",
+   "white",
+   "."
+  ],
+  "classes": [
+   "DETERMINER",
+   "NOUN",
+   "AUXILIARY",
+   "ADJECTIVE",
+   "PUNCTUATION",
+   "ADVERB",
+   "CONJUNCTION",
+   "ADJECTIVE",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   2,
+   4,
+   4,
+   0,
+   6,
+   4,
+   8,
+   4,
+   4
+  ],
+  "relations": [
+   "det",
+   "nsubj",
+   "cop",
+   "root",
+   "punct",
+   "advmod",
+   "cc",
+   "conj",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "The dogs' ball is red.",
+  "frame": "The ?slot0' ?slot1 is ?slot2.",
+  "facts": [
+   "given instance_of(?t0, ?slot0)",
+   "instance_of(?x, ?slot1)",
+   "owned_by(?x, ?t0)",
+   "has_property(?x, ?slot2)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "kind",
+    "words": "dogs",
+    "one": true,
+    "placed": "against",
+    "depend outside": [
+     "dogs obl"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "kind",
+    "words": "ball",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "ball nsubj"
+    ]
+   },
+   {
+    "slot": "?slot2",
+    "role": "quality",
+    "words": "red",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "red root"
+    ]
+   }
+  ],
+  "words": [
+   "The",
+   "dogs",
+   "'",
+   "ball",
+   "is",
+   "red",
+   "."
+  ],
+  "classes": [
+   "DETERMINER",
+   "NOUN",
+   "PUNCTUATION",
+   "NOUN",
+   "AUXILIARY",
+   "ADJECTIVE",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   2,
+   6,
+   2,
+   6,
+   6,
+   0,
+   6
+  ],
+  "relations": [
+   "det",
+   "obl",
+   "punct",
+   "nsubj",
+   "cop",
+   "root",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "The cats' box is big.",
+  "frame": "The ?slot0' ?slot1 is ?slot2.",
+  "facts": [
+   "given instance_of(?t0, ?slot0)",
+   "instance_of(?x, ?slot1)",
+   "owned_by(?x, ?t0)",
+   "has_property(?x, ?slot2)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "kind",
+    "words": "cats",
+    "one": true,
+    "placed": "against",
+    "depend outside": [
+     "cats obl"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "kind",
+    "words": "box",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "box nsubj"
+    ]
+   },
+   {
+    "slot": "?slot2",
+    "role": "quality",
+    "words": "big",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "big root"
+    ]
+   }
+  ],
+  "words": [
+   "The",
+   "cats",
+   "'",
+   "box",
+   "is",
+   "big",
+   "."
+  ],
+  "classes": [
+   "DETERMINER",
+   "NOUN",
+   "PUNCTUATION",
+   "NOUN",
+   "AUXILIARY",
+   "ADJECTIVE",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   2,
+   6,
+   2,
+   6,
+   6,
+   0,
+   6
+  ],
+  "relations": [
+   "det",
+   "obl",
+   "punct",
+   "nsubj",
+   "cop",
+   "root",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "The birds' cup is small.",
+  "frame": "The ?slot0' ?slot1 is ?slot2.",
+  "facts": [
+   "given instance_of(?t0, ?slot0)",
+   "instance_of(?x, ?slot1)",
+   "owned_by(?x, ?t0)",
+   "has_property(?x, ?slot2)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "kind",
+    "words": "birds",
+    "one": true,
+    "placed": "against",
+    "depend outside": [
+     "birds obl"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "kind",
+    "words": "cup",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "cup nsubj"
+    ]
+   },
+   {
+    "slot": "?slot2",
+    "role": "quality",
+    "words": "small",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "small root"
+    ]
+   }
+  ],
+  "words": [
+   "The",
+   "birds",
+   "'",
+   "cup",
+   "is",
+   "small",
+   "."
+  ],
+  "classes": [
+   "DETERMINER",
+   "NOUN",
+   "PUNCTUATION",
+   "NOUN",
+   "AUXILIARY",
+   "ADJECTIVE",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   2,
+   6,
+   2,
+   6,
+   6,
+   0,
+   6
+  ],
+  "relations": [
+   "det",
+   "obl",
+   "punct",
+   "nsubj",
+   "cop",
+   "root",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Tom has three animals: a dog, a cat and a bird.",
+  "frame": "?slot0 has ?slot1.",
+  "facts": [
+   "owns(?slot0, ?slot1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "thing",
+    "words": "Tom",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "Tom nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "thing",
+    "words": "three animals : a dog , a cat and a bird",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "animals obj",
+     "bird conj"
+    ]
+   }
+  ],
+  "words": [
+   "Tom",
+   "has",
+   "three",
+   "animals",
+   ":",
+   "a",
+   "dog",
+   ",",
+   "a",
+   "cat",
+   "and",
+   "a",
+   "bird",
+   "."
+  ],
+  "classes": [
+   "NAME",
+   "VERB",
+   "NUMERAL",
+   "NOUN",
+   "PUNCTUATION",
+   "DETERMINER",
+   "NOUN",
+   "PUNCTUATION",
+   "DETERMINER",
+   "NOUN",
+   "CONJUNCTION",
+   "DETERMINER",
+   "NOUN",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   2,
+   0,
+   4,
+   2,
+   7,
+   7,
+   4,
+   10,
+   10,
+   4,
+   13,
+   13,
+   2,
+   2
+  ],
+  "relations": [
+   "nsubj",
+   "root",
+   "nummod",
+   "obj",
+   "punct",
+   "det",
+   "conj",
+   "punct",
+   "det",
+   "conj",
+   "cc",
+   "det",
+   "conj",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Anna has two animals: a cat and a bird.",
+  "frame": "?slot0 has ?slot1.",
+  "facts": [
+   "owns(?slot0, ?slot1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "thing",
+    "words": "Anna",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "Anna nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "thing",
+    "words": "two animals : a cat and a bird",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "animals obj",
+     "bird conj"
+    ]
+   }
+  ],
+  "words": [
+   "Anna",
+   "has",
+   "two",
+   "animals",
+   ":",
+   "a",
+   "cat",
+   "and",
+   "a",
+   "bird",
+   "."
+  ],
+  "classes": [
+   "NAME",
+   "VERB",
+   "NUMERAL",
+   "NOUN",
+   "PUNCTUATION",
+   "DETERMINER",
+   "NOUN",
+   "CONJUNCTION",
+   "DETERMINER",
+   "NOUN",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   2,
+   0,
+   4,
+   2,
+   7,
+   7,
+   4,
+   10,
+   10,
+   2,
+   2
+  ],
+  "relations": [
+   "nsubj",
+   "root",
+   "nummod",
+   "obj",
+   "punct",
+   "det",
+   "conj",
+   "cc",
+   "det",
+   "conj",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Tom has three toys: a ball, a hat and a box.",
+  "frame": "?slot0 has ?slot1.",
+  "facts": [
+   "owns(?slot0, ?slot1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "thing",
+    "words": "Tom",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "Tom nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "thing",
+    "words": "three toys : a ball , a hat and a box",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "toys obj",
+     "box conj"
+    ]
+   }
+  ],
+  "words": [
+   "Tom",
+   "has",
+   "three",
+   "toys",
+   ":",
+   "a",
+   "ball",
+   ",",
+   "a",
+   "hat",
+   "and",
+   "a",
+   "box",
+   "."
+  ],
+  "classes": [
+   "NAME",
+   "VERB",
+   "NUMERAL",
+   "NOUN",
+   "PUNCTUATION",
+   "DETERMINER",
+   "NOUN",
+   "PUNCTUATION",
+   "DETERMINER",
+   "NOUN",
+   "CONJUNCTION",
+   "DETERMINER",
+   "NOUN",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   2,
+   0,
+   4,
+   2,
+   7,
+   7,
+   4,
+   10,
+   10,
+   4,
+   13,
+   13,
+   2,
+   2
+  ],
+  "relations": [
+   "nsubj",
+   "root",
+   "nummod",
+   "obj",
+   "punct",
+   "det",
+   "conj",
+   "punct",
+   "det",
+   "conj",
+   "cc",
+   "det",
+   "conj",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Dr. Smith is tall.",
+  "frame": "?slot0 is ?slot1.",
+  "facts": [
+   "has_property(?slot0, ?slot1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "thing",
+    "words": "Dr . Smith",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "Dr root",
+     ". punct",
+     "Smith nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "quality",
+    "words": "tall",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "tall amod"
+    ]
+   }
+  ],
+  "words": [
+   "Dr",
+   ".",
+   "Smith",
+   "is",
+   "tall",
+   "."
+  ],
+  "classes": [
+   "NAME",
+   "PUNCTUATION",
+   "NAME",
+   "AUXILIARY",
+   "ADJECTIVE",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   0,
+   5,
+   5,
+   5,
+   1,
+   1
+  ],
+  "relations": [
+   "root",
+   "punct",
+   "nsubj",
+   "cop",
+   "amod",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Dr. Jones is tall.",
+  "frame": "?slot0 is ?slot1.",
+  "facts": [
+   "has_property(?slot0, ?slot1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "thing",
+    "words": "Dr . Jones",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "Dr root",
+     ". punct",
+     "Jones nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "quality",
+    "words": "tall",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "tall amod"
+    ]
+   }
+  ],
+  "words": [
+   "Dr",
+   ".",
+   "Jones",
+   "is",
+   "tall",
+   "."
+  ],
+  "classes": [
+   "NAME",
+   "PUNCTUATION",
+   "NAME",
+   "AUXILIARY",
+   "ADJECTIVE",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   0,
+   5,
+   5,
+   5,
+   1,
+   1
+  ],
+  "relations": [
+   "root",
+   "punct",
+   "nsubj",
+   "cop",
+   "amod",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Dr. Lee is tall.",
+  "frame": "?slot0 is ?slot1.",
+  "facts": [
+   "has_property(?slot0, ?slot1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "thing",
+    "words": "Dr . Lee",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "Dr root",
+     ". punct",
+     "Lee nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "quality",
+    "words": "tall",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "tall amod"
+    ]
+   }
+  ],
+  "words": [
+   "Dr",
+   ".",
+   "Lee",
+   "is",
+   "tall",
+   "."
+  ],
+  "classes": [
+   "NAME",
+   "PUNCTUATION",
+   "NAME",
+   "AUXILIARY",
+   "ADJECTIVE",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   0,
+   5,
+   5,
+   5,
+   1,
+   1
+  ],
+  "relations": [
+   "root",
+   "punct",
+   "nsubj",
+   "cop",
+   "amod",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Dr. Smith is kind.",
+  "frame": "?slot0 is ?slot1.",
+  "facts": [
+   "has_property(?slot0, ?slot1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "thing",
+    "words": "Dr . Smith",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "Dr root",
+     ". punct",
+     "Smith compound"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "quality",
+    "words": "kind",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "kind appos"
+    ]
+   }
+  ],
+  "words": [
+   "Dr",
+   ".",
+   "Smith",
+   "is",
+   "kind",
+   "."
+  ],
+  "classes": [
+   "NAME",
+   "PUNCTUATION",
+   "NAME",
+   "AUXILIARY",
+   "NOUN",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   0,
+   5,
+   5,
+   5,
+   1,
+   1
+  ],
+  "relations": [
+   "root",
+   "punct",
+   "compound",
+   "cop",
+   "appos",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Dr. Smith is here.",
+  "frame": "?slot0 is here.",
+  "facts": [
+   "located_at(?slot0, ?here)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "thing",
+    "words": "Dr . Smith",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "Dr root",
+     ". punct",
+     "Smith nsubj"
+    ]
+   }
+  ],
+  "words": [
+   "Dr",
+   ".",
+   "Smith",
+   "is",
+   "here",
+   "."
+  ],
+  "classes": [
+   "NAME",
+   "PUNCTUATION",
+   "NAME",
+   "AUXILIARY",
+   "ADVERB",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   0,
+   5,
+   4,
+   5,
+   1,
+   5
+  ],
+  "relations": [
+   "root",
+   "punct",
+   "nsubj",
+   "cop",
+   "advmod",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Dr. Smith has a dog.",
+  "frame": "?slot0 has a ?slot1.",
+  "facts": [
+   "owns(?slot0, ?slot1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "thing",
+    "words": "Dr . Smith",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "Dr root",
+     ". punct",
+     "Smith nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "thing",
+    "words": "dog",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "dog obj"
+    ]
+   }
+  ],
+  "words": [
+   "Dr",
+   ".",
+   "Smith",
+   "has",
+   "a",
+   "dog",
+   "."
+  ],
+  "classes": [
+   "NAME",
+   "PUNCTUATION",
+   "NAME",
+   "VERB",
+   "DETERMINER",
+   "NOUN",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   0,
+   4,
+   4,
+   1,
+   6,
+   4,
+   1
+  ],
+  "relations": [
+   "root",
+   "punct",
+   "nsubj",
+   "acl:relcl",
+   "det",
+   "obj",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Mr. Smith is tall.",
+  "frame": "?slot0 is ?slot1.",
+  "facts": [
+   "has_property(?slot0, ?slot1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "thing",
+    "words": "Mr . Smith",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "Mr root",
+     ". punct",
+     "Smith nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "quality",
+    "words": "tall",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "tall amod"
+    ]
+   }
+  ],
+  "words": [
+   "Mr",
+   ".",
+   "Smith",
+   "is",
+   "tall",
+   "."
+  ],
+  "classes": [
+   "NAME",
+   "PUNCTUATION",
+   "NAME",
+   "AUXILIARY",
+   "ADJECTIVE",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   0,
+   5,
+   5,
+   5,
+   1,
+   1
+  ],
+  "relations": [
+   "root",
+   "punct",
+   "nsubj",
+   "cop",
+   "amod",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Mrs. Smith is tall.",
+  "frame": "?slot0 is ?slot1.",
+  "facts": [
+   "has_property(?slot0, ?slot1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "thing",
+    "words": "Mrs . Smith",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "Mrs root",
+     ". punct",
+     "Smith nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "quality",
+    "words": "tall",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "tall amod"
+    ]
+   }
+  ],
+  "words": [
+   "Mrs",
+   ".",
+   "Smith",
+   "is",
+   "tall",
+   "."
+  ],
+  "classes": [
+   "NAME",
+   "PUNCTUATION",
+   "NAME",
+   "AUXILIARY",
+   "ADJECTIVE",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   0,
+   5,
+   5,
+   5,
+   1,
+   1
+  ],
+  "relations": [
+   "root",
+   "punct",
+   "nsubj",
+   "cop",
+   "amod",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Ms. Smith is tall.",
+  "frame": "?slot0 is ?slot1.",
+  "facts": [
+   "has_property(?slot0, ?slot1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "thing",
+    "words": "Ms . Smith",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "Ms obl",
+     "Smith nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "quality",
+    "words": "tall",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "tall root"
+    ]
+   }
+  ],
+  "words": [
+   "Ms",
+   ".",
+   "Smith",
+   "is",
+   "tall",
+   "."
+  ],
+  "classes": [
+   "NOUN",
+   "PUNCTUATION",
+   "NAME",
+   "AUXILIARY",
+   "ADJECTIVE",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   5,
+   1,
+   5,
+   5,
+   0,
+   5
+  ],
+  "relations": [
+   "obl",
+   "punct",
+   "nsubj",
+   "cop",
+   "root",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Mr. Jones is kind.",
+  "frame": "?slot0 is ?slot1.",
+  "facts": [
+   "has_property(?slot0, ?slot1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "thing",
+    "words": "Mr . Jones",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "Mr root",
+     ". punct",
+     "Jones compound"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "quality",
+    "words": "kind",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "kind appos"
+    ]
+   }
+  ],
+  "words": [
+   "Mr",
+   ".",
+   "Jones",
+   "is",
+   "kind",
+   "."
+  ],
+  "classes": [
+   "NAME",
+   "PUNCTUATION",
+   "NAME",
+   "AUXILIARY",
+   "NOUN",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   0,
+   5,
+   5,
+   5,
+   1,
+   1
+  ],
+  "relations": [
+   "root",
+   "punct",
+   "compound",
+   "cop",
+   "appos",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Mr. Lee is here.",
+  "frame": "?slot0 is here.",
+  "facts": [
+   "located_at(?slot0, ?here)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "thing",
+    "words": "Mr . Lee",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "Mr root",
+     ". punct",
+     "Lee nsubj"
+    ]
+   }
+  ],
+  "words": [
+   "Mr",
+   ".",
+   "Lee",
+   "is",
+   "here",
+   "."
+  ],
+  "classes": [
+   "NAME",
+   "PUNCTUATION",
+   "NAME",
+   "AUXILIARY",
+   "ADVERB",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   0,
+   5,
+   4,
+   5,
+   1,
+   5
+  ],
+  "relations": [
+   "root",
+   "punct",
+   "nsubj",
+   "cop",
+   "advmod",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Mr. Park has a dog.",
+  "frame": "?slot0 has a ?slot1.",
+  "facts": [
+   "owns(?slot0, ?slot1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "thing",
+    "words": "Mr . Park",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "Mr root",
+     ". punct",
+     "Park nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "thing",
+    "words": "dog",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "dog obj"
+    ]
+   }
+  ],
+  "words": [
+   "Mr",
+   ".",
+   "Park",
+   "has",
+   "a",
+   "dog",
+   "."
+  ],
+  "classes": [
+   "NAME",
+   "PUNCTUATION",
+   "NAME",
+   "VERB",
+   "DETERMINER",
+   "NOUN",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   0,
+   4,
+   4,
+   1,
+   6,
+   4,
+   1
+  ],
+  "relations": [
+   "root",
+   "punct",
+   "nsubj",
+   "acl:relcl",
+   "det",
+   "obj",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Mrs. Jones is here.",
+  "frame": "?slot0 is here.",
+  "facts": [
+   "located_at(?slot0, ?here)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "thing",
+    "words": "Mrs . Jones",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "Mrs root",
+     ". punct",
+     "Jones nsubj"
+    ]
+   }
+  ],
+  "words": [
+   "Mrs",
+   ".",
+   "Jones",
+   "is",
+   "here",
+   "."
+  ],
+  "classes": [
+   "NAME",
+   "PUNCTUATION",
+   "NAME",
+   "AUXILIARY",
+   "ADVERB",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   0,
+   5,
+   4,
+   5,
+   1,
+   5
+  ],
+  "relations": [
+   "root",
+   "punct",
+   "nsubj",
+   "cop",
+   "advmod",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Mrs. Park is kind.",
+  "frame": "?slot0 is ?slot1.",
+  "facts": [
+   "has_property(?slot0, ?slot1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "thing",
+    "words": "Mrs . Park",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "Mrs root",
+     ". punct",
+     "Park compound"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "quality",
+    "words": "kind",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "kind appos"
+    ]
+   }
+  ],
+  "words": [
+   "Mrs",
+   ".",
+   "Park",
+   "is",
+   "kind",
+   "."
+  ],
+  "classes": [
+   "NAME",
+   "PUNCTUATION",
+   "NAME",
+   "AUXILIARY",
+   "NOUN",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   0,
+   5,
+   5,
+   5,
+   1,
+   1
+  ],
+  "relations": [
+   "root",
+   "punct",
+   "compound",
+   "cop",
+   "appos",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Mrs. Kim has a cat.",
+  "frame": "?slot0 has a ?slot1.",
+  "facts": [
+   "owns(?slot0, ?slot1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "thing",
+    "words": "Mrs . Kim",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "Mrs root",
+     ". punct",
+     "Kim nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "thing",
+    "words": "cat",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "cat obj"
+    ]
+   }
+  ],
+  "words": [
+   "Mrs",
+   ".",
+   "Kim",
+   "has",
+   "a",
+   "cat",
+   "."
+  ],
+  "classes": [
+   "NAME",
+   "PUNCTUATION",
+   "NAME",
+   "VERB",
+   "DETERMINER",
+   "NOUN",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   0,
+   4,
+   4,
+   1,
+   6,
+   4,
+   1
+  ],
+  "relations": [
+   "root",
+   "punct",
+   "nsubj",
+   "acl:relcl",
+   "det",
+   "obj",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Ms. Kim is tall.",
+  "frame": "?slot0 is ?slot1.",
+  "facts": [
+   "has_property(?slot0, ?slot1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "thing",
+    "words": "Ms . Kim",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "Ms obl",
+     "Kim nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "quality",
+    "words": "tall",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "tall root"
+    ]
+   }
+  ],
+  "words": [
+   "Ms",
+   ".",
+   "Kim",
+   "is",
+   "tall",
+   "."
+  ],
+  "classes": [
+   "NOUN",
+   "PUNCTUATION",
+   "NAME",
+   "AUXILIARY",
+   "ADJECTIVE",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   5,
+   1,
+   5,
+   5,
+   0,
+   5
+  ],
+  "relations": [
+   "obl",
+   "punct",
+   "nsubj",
+   "cop",
+   "root",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Ms. Lee is small.",
+  "frame": "?slot0 is ?slot1.",
+  "facts": [
+   "has_property(?slot0, ?slot1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "thing",
+    "words": "Ms . Lee",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "Ms obl",
+     "Lee nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "quality",
+    "words": "small",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "small root"
+    ]
+   }
+  ],
+  "words": [
+   "Ms",
+   ".",
+   "Lee",
+   "is",
+   "small",
+   "."
+  ],
+  "classes": [
+   "NOUN",
+   "PUNCTUATION",
+   "NAME",
+   "AUXILIARY",
+   "ADJECTIVE",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   5,
+   1,
+   5,
+   5,
+   0,
+   5
+  ],
+  "relations": [
+   "obl",
+   "punct",
+   "nsubj",
+   "cop",
+   "root",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Ms. Park is here.",
+  "frame": "?slot0 is here.",
+  "facts": [
+   "located_at(?slot0, ?here)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "thing",
+    "words": "Ms . Park",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "Ms obl",
+     "Park nsubj"
+    ]
+   }
+  ],
+  "words": [
+   "Ms",
+   ".",
+   "Park",
+   "is",
+   "here",
+   "."
+  ],
+  "classes": [
+   "NOUN",
+   "PUNCTUATION",
+   "NAME",
+   "AUXILIARY",
+   "ADVERB",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   4,
+   1,
+   4,
+   5,
+   0,
+   5
+  ],
+  "relations": [
+   "obl",
+   "punct",
+   "nsubj",
+   "cop",
+   "root",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Dr. Kim is small.",
+  "frame": "?slot0 is ?slot1.",
+  "facts": [
+   "has_property(?slot0, ?slot1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "thing",
+    "words": "Dr . Kim",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "Dr root",
+     ". punct",
+     "Kim nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "quality",
+    "words": "small",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "small amod"
+    ]
+   }
+  ],
+  "words": [
+   "Dr",
+   ".",
+   "Kim",
+   "is",
+   "small",
+   "."
+  ],
+  "classes": [
+   "NAME",
+   "PUNCTUATION",
+   "NAME",
+   "AUXILIARY",
+   "ADJECTIVE",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   0,
+   5,
+   5,
+   5,
+   1,
+   1
+  ],
+  "relations": [
+   "root",
+   "punct",
+   "nsubj",
+   "cop",
+   "amod",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Dr. Lee has a cat.",
+  "frame": "?slot0 has a ?slot1.",
+  "facts": [
+   "owns(?slot0, ?slot1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "thing",
+    "words": "Dr . Lee",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "Dr root",
+     ". punct",
+     "Lee nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "thing",
+    "words": "cat",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "cat obj"
+    ]
+   }
+  ],
+  "words": [
+   "Dr",
+   ".",
+   "Lee",
+   "has",
+   "a",
+   "cat",
+   "."
+  ],
+  "classes": [
+   "NAME",
+   "PUNCTUATION",
+   "NAME",
+   "VERB",
+   "DETERMINER",
+   "NOUN",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   0,
+   4,
+   4,
+   1,
+   6,
+   4,
+   1
+  ],
+  "relations": [
+   "root",
+   "punct",
+   "nsubj",
+   "acl:relcl",
+   "det",
+   "obj",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Tom - the teacher - is kind.",
+  "frame": "?slot0 is ?slot1.",
+  "facts": [
+   "has_property(?slot0, ?slot1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "thing",
+    "words": "Tom - the teacher -",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "Tom vocative",
+     "teacher nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "quality",
+    "words": "kind",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "kind root"
+    ]
+   }
+  ],
+  "words": [
+   "Tom",
+   "-",
+   "the",
+   "teacher",
+   "-",
+   "is",
+   "kind",
+   "."
+  ],
+  "classes": [
+   "NAME",
+   "PUNCTUATION",
+   "DETERMINER",
+   "NOUN",
+   "PUNCTUATION",
+   "AUXILIARY",
+   "NOUN",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   7,
+   1,
+   4,
+   7,
+   4,
+   7,
+   0,
+   7
+  ],
+  "relations": [
+   "vocative",
+   "punct",
+   "det",
+   "nsubj",
+   "punct",
+   "cop",
+   "root",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Anna - the girl - is tall.",
+  "frame": "?slot0 is ?slot1.",
+  "facts": [
+   "has_property(?slot0, ?slot1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "thing",
+    "words": "Anna - the girl -",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "Anna vocative",
+     "girl nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "quality",
+    "words": "tall",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "tall root"
+    ]
+   }
+  ],
+  "words": [
+   "Anna",
+   "-",
+   "the",
+   "girl",
+   "-",
+   "is",
+   "tall",
+   "."
+  ],
+  "classes": [
+   "NAME",
+   "PUNCTUATION",
+   "DETERMINER",
+   "NOUN",
+   "PUNCTUATION",
+   "AUXILIARY",
+   "ADJECTIVE",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   7,
+   1,
+   4,
+   7,
+   4,
+   7,
+   0,
+   7
+  ],
+  "relations": [
+   "vocative",
+   "punct",
+   "det",
+   "nsubj",
+   "punct",
+   "cop",
+   "root",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "The table is 2 m long.",
+  "frame": "The ?slot0 is ?slot1 ?slot2 ?slot3.",
+  "facts": [
+   "given instance_of(?t0, ?slot0)",
+   "has_degree(?t0, ?v0)",
+   "instance_of(?v0, ?slot3)",
+   "has_measure(?v0, ?v1)",
+   "instance_of(?v1, ?slot2)",
+   "has_count(?v1, ?slot1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "kind",
+    "words": "table",
+    "one": true,
+    "placed": "against",
+    "depend outside": [
+     "table nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "closed",
+    "words": "2",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "2 compound"
+    ]
+   },
+   {
+    "slot": "?slot2",
+    "role": "kind",
+    "words": "m",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "m root"
+    ]
+   },
+   {
+    "slot": "?slot3",
+    "role": "quality",
+    "words": "long",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "long amod"
+    ]
+   }
+  ],
+  "words": [
+   "The",
+   "table",
+   "is",
+   "2",
+   "m",
+   "long",
+   "."
+  ],
+  "classes": [
+   "DETERMINER",
+   "NOUN",
+   "AUXILIARY",
+   "NUMERAL",
+   "NUMERAL",
+   "ADJECTIVE",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   2,
+   5,
+   5,
+   5,
+   0,
+   5,
+   5
+  ],
+  "relations": [
+   "det",
+   "nsubj",
+   "cop",
+   "compound",
+   "root",
+   "amod",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "The rope is 10 m long.",
+  "frame": "The ?slot0 is ?slot1 ?slot2 ?slot3.",
+  "facts": [
+   "given instance_of(?t0, ?slot0)",
+   "has_degree(?t0, ?v0)",
+   "instance_of(?v0, ?slot3)",
+   "has_measure(?v0, ?v1)",
+   "instance_of(?v1, ?slot2)",
+   "has_count(?v1, ?slot1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "kind",
+    "words": "rope",
+    "one": true,
+    "placed": "against",
+    "depend outside": [
+     "rope nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "closed",
+    "words": "10",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "10 compound"
+    ]
+   },
+   {
+    "slot": "?slot2",
+    "role": "kind",
+    "words": "m",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "m root"
+    ]
+   },
+   {
+    "slot": "?slot3",
+    "role": "quality",
+    "words": "long",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "long amod"
+    ]
+   }
+  ],
+  "words": [
+   "The",
+   "rope",
+   "is",
+   "10",
+   "m",
+   "long",
+   "."
+  ],
+  "classes": [
+   "DETERMINER",
+   "NOUN",
+   "AUXILIARY",
+   "NUMERAL",
+   "NUMERAL",
+   "ADJECTIVE",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   2,
+   5,
+   5,
+   5,
+   0,
+   5,
+   5
+  ],
+  "relations": [
+   "det",
+   "nsubj",
+   "cop",
+   "compound",
+   "root",
+   "amod",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "The door is 2 m tall.",
+  "frame": "The ?slot0 is ?slot1 ?slot2 ?slot3.",
+  "facts": [
+   "given instance_of(?t0, ?slot0)",
+   "has_degree(?t0, ?v0)",
+   "instance_of(?v0, ?slot3)",
+   "has_measure(?v0, ?v1)",
+   "instance_of(?v1, ?slot2)",
+   "has_count(?v1, ?slot1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "kind",
+    "words": "door",
+    "one": true,
+    "placed": "against",
+    "depend outside": [
+     "door nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "closed",
+    "words": "2",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "2 compound"
+    ]
+   },
+   {
+    "slot": "?slot2",
+    "role": "kind",
+    "words": "m",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "m root"
+    ]
+   },
+   {
+    "slot": "?slot3",
+    "role": "quality",
+    "words": "tall",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "tall amod"
+    ]
+   }
+  ],
+  "words": [
+   "The",
+   "door",
+   "is",
+   "2",
+   "m",
+   "tall",
+   "."
+  ],
+  "classes": [
+   "DETERMINER",
+   "NOUN",
+   "AUXILIARY",
+   "NUMERAL",
+   "NUMERAL",
+   "ADJECTIVE",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   2,
+   5,
+   5,
+   5,
+   0,
+   5,
+   5
+  ],
+  "relations": [
+   "det",
+   "nsubj",
+   "cop",
+   "compound",
+   "root",
+   "amod",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "The box is 3 m long.",
+  "frame": "The ?slot0 is ?slot1 ?slot2 ?slot3.",
+  "facts": [
+   "given instance_of(?t0, ?slot0)",
+   "has_degree(?t0, ?v0)",
+   "instance_of(?v0, ?slot3)",
+   "has_measure(?v0, ?v1)",
+   "instance_of(?v1, ?slot2)",
+   "has_count(?v1, ?slot1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "kind",
+    "words": "box",
+    "one": true,
+    "placed": "against",
+    "depend outside": [
+     "box nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "closed",
+    "words": "3",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "3 compound"
+    ]
+   },
+   {
+    "slot": "?slot2",
+    "role": "kind",
+    "words": "m",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "m root"
+    ]
+   },
+   {
+    "slot": "?slot3",
+    "role": "quality",
+    "words": "long",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "long amod"
+    ]
+   }
+  ],
+  "words": [
+   "The",
+   "box",
+   "is",
+   "3",
+   "m",
+   "long",
+   "."
+  ],
+  "classes": [
+   "DETERMINER",
+   "NOUN",
+   "AUXILIARY",
+   "NUMERAL",
+   "NUMERAL",
+   "ADJECTIVE",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   2,
+   5,
+   5,
+   5,
+   0,
+   5,
+   5
+  ],
+  "relations": [
+   "det",
+   "nsubj",
+   "cop",
+   "compound",
+   "root",
+   "amod",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Is the door open/closed?",
+  "frame": "Is the ?slot0 ?slot1/?slot2?",
+  "facts": [
+   "given instance_of(?t0, ?slot0)",
+   "either has_property(?t0, ?slot1)",
+   "either has_property(?t0, ?slot2)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "kind",
+    "words": "door",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "door nsubj"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "quality",
+    "words": "open",
+    "one": true,
+    "placed": "top",
+    "depend outside": [
+     "open root"
+    ]
+   },
+   {
+    "slot": "?slot2",
+    "role": "quality",
+    "words": "closed",
+    "one": true,
+    "placed": "against",
+    "depend outside": [
+     "closed csubj"
+    ]
+   }
+  ],
+  "words": [
+   "Is",
+   "the",
+   "door",
+   "open",
+   "/",
+   "closed",
+   "?"
+  ],
+  "classes": [
+   "AUXILIARY",
+   "DETERMINER",
+   "NOUN",
+   "ADJECTIVE",
+   "SYMBOL",
+   "VERB",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   4,
+   3,
+   4,
+   0,
+   4,
+   4,
+   4
+  ],
+  "relations": [
+   "cop",
+   "det",
+   "nsubj",
+   "root",
+   "discourse",
+   "csubj",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Is it true that the sky is blue?",
+  "frame": "Is ?slot0 ?slot1?",
+  "facts": [
+   "has_property(?slot0, ?slot1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "thing",
+    "words": "it true that the sky is",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "true root",
+     "that mark",
+     "sky nsubj",
+     "is cop"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "quality",
+    "words": "blue",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "blue advcl"
+    ]
+   }
+  ],
+  "words": [
+   "Is",
+   "it",
+   "true",
+   "that",
+   "the",
+   "sky",
+   "is",
+   "blue",
+   "?"
+  ],
+  "classes": [
+   "AUXILIARY",
+   "PRONOUN",
+   "ADJECTIVE",
+   "SUBORDINATOR",
+   "DETERMINER",
+   "NOUN",
+   "AUXILIARY",
+   "ADJECTIVE",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   3,
+   3,
+   0,
+   8,
+   6,
+   8,
+   8,
+   3,
+   3
+  ],
+  "relations": [
+   "cop",
+   "nsubj",
+   "root",
+   "mark",
+   "det",
+   "nsubj",
+   "cop",
+   "advcl",
+   "punct"
+  ]
+ },
+ {
+  "sentence": "Is it true that the ice is cold?",
+  "frame": "Is ?slot0 ?slot1?",
+  "facts": [
+   "has_property(?slot0, ?slot1)"
+  ],
+  "slots": [
+   {
+    "slot": "?slot0",
+    "role": "thing",
+    "words": "it true that the ice is",
+    "one": false,
+    "placed": "not one phrase",
+    "depend outside": [
+     "true root",
+     "that mark",
+     "ice nsubj",
+     "is cop"
+    ]
+   },
+   {
+    "slot": "?slot1",
+    "role": "quality",
+    "words": "cold",
+    "one": true,
+    "placed": "as meant",
+    "depend outside": [
+     "cold advcl"
+    ]
+   }
+  ],
+  "words": [
+   "Is",
+   "it",
+   "true",
+   "that",
+   "the",
+   "ice",
+   "is",
+   "cold",
+   "?"
+  ],
+  "classes": [
+   "AUXILIARY",
+   "PRONOUN",
+   "ADJECTIVE",
+   "SUBORDINATOR",
+   "DETERMINER",
+   "NOUN",
+   "AUXILIARY",
+   "ADJECTIVE",
+   "PUNCTUATION"
+  ],
+  "heads": [
+   3,
+   3,
+   0,
+   8,
+   6,
+   8,
+   8,
+   3,
+   3
+  ],
+  "relations": [
+   "cop",
+   "nsubj",
+   "root",
+   "mark",
+   "det",
+   "nsubj",
+   "cop",
+   "advcl",
+   "punct"
+  ]
+ }
+]
