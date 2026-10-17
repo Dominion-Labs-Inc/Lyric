@@ -384,8 +384,12 @@ class StructureView:
         return self.structure(words, self.classes(words))
 
 
-#: The word-class view's names for classes the treebank names otherwise.
-_HELD_AS = {"MODAL": "AUXILIARY", "COPULA": "AUXILIARY", "QUANTIFIER": "DETERMINER"}
+#: The word-class view's classes by the treebank's names. A NOUN is the treebank's noun or its name: the view holds no
+#: name apart from a noun (WordNet files "Boston" as a noun), and the situations tell the two apart, as they did
+#: before memory was asked. Held as a noun only, the proper names of the treebank's held-out text (40% of its words
+#: never met) were all read as nouns (2026-10-16 (10)).
+_HELD_AS = {"MODAL": ("AUXILIARY",), "COPULA": ("AUXILIARY",), "QUANTIFIER": ("DETERMINER",),
+            "NOUN": ("NOUN", "NAME")}
 
 
 def held_classes(inventory: Any) -> Callable[[str], Dict[str, int]]:
@@ -399,8 +403,8 @@ def held_classes(inventory: Any) -> Callable[[str], Dict[str, int]]:
             counts: Dict[str, int] = {}
             for cls, n in inventory.word_classes.get(name, {}).items():
                 if n > 0:
-                    named = _HELD_AS.get(cls, cls)
-                    counts[named] = counts.get(named, 0) + n
+                    for named in _HELD_AS.get(cls, (cls,)):
+                        counts[named] = counts.get(named, 0) + n
             if counts:
                 return counts
         return {}

@@ -48,6 +48,8 @@ POSTGRES_DATABASE=lyric_db PYTHONPATH="$PWD" ./venv_lyric/bin/python3 experiment
 |---|---|---|---|---|
 | `20261016T222833Z` | first form: the first other slot above must be tied to it in one fact | 2,988 of 3,054 | 96.1% | 84.8% |
 | `20261016T225042Z` | as above: none placed against the meaning | 2,988 of 3,054 | 96.1% | **93.9%** |
+| `20261016T231429Z` | as above, treebank only | 2,988 of 3,054 | 96.1% | 93.9% |
+| `20261016T231429Z` | as above, with memory's word classes (a noun held as a noun only) | 2,988 of 3,054 | 96.4% | 94.5% |
 
 The first form of the second test counted as wrong what the meaning cannot place: a conjunct under the first
 ("three" under "two" in "two plus three"), two slots tied to one thing no word names ("ten minus four", "between the

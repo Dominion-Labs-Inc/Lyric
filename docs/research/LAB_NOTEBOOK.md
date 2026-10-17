@@ -16142,3 +16142,33 @@ the lessons and WordNet), and the structure reader never asked.
 **Measured both ways in one run** (the owner's word: "test it both ways and see which one gives us better
 results"): STRUCTURE-01 (the treebank's held-out parts, bars on both ways, and which prose sentences read otherwise)
 and STRUCTURE-02 (the lessons' ceiling). The reader takes memory's classes only if they measure better.
+
+**First run both ways on main** (code 0c624fd; STRUCTURE-01 `results/20261016T231035Z.md`, 15 of 15 checks;
+STRUCTURE-02 `results/20261016T231429Z.md`, 5 of 5; nothing written: no table moved from 18:55 to 19:56):
+
+| | treebank only | with memory's word classes |
+|---|---|---|
+| lessons: every slot one phrase, none against the meaning | 93.9% | 94.5% (slots against 76 → 65) |
+| treebank dev: classes / UAS / LAS | 92.04 / 73.63 / 66.87 | 91.83 / 73.55 / 66.86 |
+| treebank test: classes / UAS / LAS | 92.32 / 73.83 / 67.50 | 92.11 / 74.03 / 67.71 |
+
+Better on the lessons and the prose ("A whale breathes air through a blowhole." reads whole: "breathes" the root,
+"whale" its subject, "air" its object, "through a blowhole" said of the breathing), worse on the treebank's classes.
+
+**Why the classes fell.** Of the words of the treebank's held-out text never met in its training part, 40% are proper
+names (dev: 685 of 1,708, 560 of them capitalized). The word-class view holds no name apart from a noun (WordNet files
+"Boston" as a noun), so a name memory held as a noun could no longer be read as a name: "Eiffel" in "The Eiffel Tower
+was built in 1889." became a noun and the root.
+
+**Fixed** (`structure._HELD_AS`): a NOUN memory holds is the treebank's noun or its name, and the situations tell them
+apart as before. Measured in a cloud session from the treebank's files with WordNet standing in for the word-class
+view (each lemma's parts of speech; its stemming for the learned shapes), a stand-in that showed the same fall:
+
+| from the files, WordNet standing in | dev: classes / UAS / LAS | test: classes / UAS / LAS |
+|---|---|---|
+| treebank only | 92.04 / 73.63 / 66.87 | 92.32 / 73.83 / 67.50 |
+| memory's classes, a noun held as a noun only | 91.94 / 73.78 / 67.18 | 92.14 / 74.08 / 67.79 |
+| memory's classes, a noun held as a noun or a name | **92.34 / 73.94 / 67.29** | **92.55 / 74.17 / 67.90** |
+
+The prose with it, from the files: "A whale breathes air through a blowhole." still reads whole, "absorbs" is a verb,
+"Eiffel" stays a name. Tests: `tests/test_structure.py`, 9 passed. To be measured both ways on main again.

@@ -44,6 +44,8 @@ POSTGRES_DATABASE=lyric_db PYTHONPATH="$PWD" ./venv_lyric/bin/python3 experiment
 |---|---|---|---|---|---|
 | `20261016T205339Z` | c203650 | 91.8% / 73.2% / 66.3% | 92.0% / 73.7% / 67.0% | 9/9 | nothing |
 | `20261016T212354Z` | 85e5d10: a tie is decided by the next situation | 92.0% / 73.6% / 66.9% | 92.3% / 73.8% / 67.5% | 9/9 | nothing |
+| `20261016T231035Z` | 0c624fd, treebank only | 92.0% / 73.6% / 66.9% | 92.3% / 73.8% / 67.5% | 15/15 | nothing |
+| `20261016T231035Z` | 0c624fd, with memory's word classes (a noun held as a noun only) | 91.8% / 73.6% / 66.9% | 92.1% / 74.0% / 67.7% | (same run) | nothing |
 
 For each run, the same code reading the treebank's files gives the same to four places, and the same reading of
 every prose sentence: memory holds what was taught. The file numbers above (91.9%, 73.1%, 66.2%) were measured with an

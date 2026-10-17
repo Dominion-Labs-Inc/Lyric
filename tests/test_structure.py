@@ -101,7 +101,8 @@ def test_a_word_no_sentence_held_used_takes_a_class_memory_holds_of_it():
 
 def test_what_memory_holds_of_a_word_is_read_through_the_shapes_it_learned():
     """A word memory holds no class of is read as the held word it is a shape of ("breathes" as `breathe`); classes
-    without net evidence are no classes, and the word-class view's MODAL is the treebank's AUXILIARY."""
+    without net evidence are no classes; the word-class view's MODAL is the treebank's AUXILIARY, and its NOUN the
+    treebank's noun or name ("Boston" is a noun in WordNet)."""
     from core.semantics.structure import held_classes
 
     class Inventory:
@@ -112,7 +113,7 @@ def test_what_memory_holds_of_a_word_is_read_through_the_shapes_it_learned():
             return ["breathe"] if word == "breathes" else []
     of = held_classes(Inventory())
     assert of("breathes") == {"VERB": 4}
-    assert of("Can") == {"AUXILIARY": 9, "NOUN": 2}
+    assert of("Can") == {"AUXILIARY": 9, "NOUN": 2, "NAME": 2}
     assert of("zorp") == {}
 
 
