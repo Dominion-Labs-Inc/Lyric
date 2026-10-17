@@ -16470,3 +16470,32 @@ verbs of two words; a superlative ("the largest animal"), which the lessons writ
 or a place after a happening ("in 1889", "in May"), which PropBank says and the lessons' tables overrule; and the
 composer reaching the conversation (step 4), so UNDERSTANDS-PROSE-01 measures it. A meaning of more than six unknowns
 is refused by `Meaning` (`MAX_FREE_VARIABLES`), which long prose sentences reach.
+
+## 2026-10-17 (18) — Step 4 built: the composer reaches the reader, taught into memory, off until measured
+
+The composer of (17) learned from files. On main what Lyric knows is in memory, taught through the learning
+authority, so both things it learns from are taught as the treebank was:
+
+- `--source propbank` (`PropBankSource`): each of the 10,495 annotated sentences of the treebank's training part
+  kept whole (`argument_structure.Argued`: UD's analysis with what each happening's arguments are said in), its
+  standing a belief on its memory (`learn_arguments`, `MemoryAgent.remember_argued`, tag `argued_sentence`);
+- `--source composition` (`CompositionSource`): each of the lessons' 3,054 sentences with the meaning it was taught
+  to have (`composition.TaughtSentence`), the same way (`learn_taught_sentences`, `remember_taught_sentences`, tag
+  `taught_sentence`).
+
+At warm, memory holds both (`argument_view`, `composition_view`); the lessons are read with memory's structure view
+and named as memory names words (`MemoryAgent.lay_out`, `name_of`: of the things a word's held fillers name, or the
+held word it is a shape of, "flies" `dipterous insect fly` as the lessons name it) when the composer is first asked,
+and the arguments learned from then too, so a process that composes nothing pays nothing (laying the lessons out
+took 228 s here). `derived_reader.read_text` reads an utterance no taught frame reads by composing its meaning (one
+reading, `Reading.composed`), only where `COMPOSING` is on (`LYRIC_COMPOSE=1`): a meaning told to a conversation that
+remembers is held as so, and the composer is right on about six of 33 prose sentences, so it stays off until
+UNDERSTANDS-PROSE-01 on main shows it right more often than it misleads. No protected module is touched.
+
+Checked here without a store: a `MemoryAgent` given the views a warm would build, from the files, read the prose
+through `read_text` with composing on: 29 of 33 composed, the meanings COMPOSE-01's (`isa(whale, mammal)`,
+`isa(7, prime number)`, the hiring by the company of three engineers). With no lexicon in memory, words keep their
+written form and the lessons barely align ("whales" never meets `whale`): 22 of 33, mostly wrong. On main, memory's
+lexicon names them. Tests: `tests/test_composition.py` 8 passed, `tests/test_argument_structure.py` 4,
+`tests/test_structure.py` 11. The teaching paths that write to memory are not run here (no store in a cloud
+session): the sandbox first, then main, on the owner's word.

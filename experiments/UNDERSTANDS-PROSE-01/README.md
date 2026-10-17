@@ -53,6 +53,10 @@ about without writing to the store.
 POSTGRES_DATABASE=lyric_db PYTHONPATH="$PWD" ./venv_lyric/bin/python3 experiments/UNDERSTANDS-PROSE-01/experiment.py
 ```
 
+With `LYRIC_COMPOSE=1` an utterance no taught frame reads is read by composing its meaning from how its words go
+together (`core/semantics/composition.py`; learned from the lessons' sentences and PropBank's arguments memory holds,
+taught by `--source composition` and `--source propbank`); the record notes whether it was on.
+
 **Results:** `results/<UTC timestamp>.json` and `.md`, the transcript beside them, and `results/run.log`.
 
 **Runs on main:**

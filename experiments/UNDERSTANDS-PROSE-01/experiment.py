@@ -87,6 +87,11 @@ async def main() -> int:
                          "wrongly what it did not understand",
                    hypothesis="each measure reaches its bar, fixed before the run (BARS)")
     texts = json.loads((HERE / "texts.json").read_text())
+    from core.semantics import derived_reader
+    composing = "on" if derived_reader.COMPOSING else "off"
+    EV.note(f"composing {composing}: an utterance no taught frame reads is "
+            f"{'read by composing its meaning (LYRIC_COMPOSE=1)' if composing == 'on' else 'left unread'}")
+    say(f"composing {composing} (LYRIC_COMPOSE=1 turns it on)")
     quiet = io.StringIO()
     say("loading memory, the beliefs and the language view (no substrate is started)…")
     with contextlib.redirect_stdout(quiet), contextlib.redirect_stderr(quiet):
