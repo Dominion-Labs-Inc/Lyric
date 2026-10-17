@@ -27,3 +27,9 @@ with `test_data/syntax/` holding `propbank-release`, `propbank-frames` and `UD_E
 from elsewhere).
 
 **Results:** `results/<UTC timestamp>.json` and `.md`.
+
+**Runs:**
+
+| Run | Where | dev: UD's structure / Lyric's / path alone | test: the same |
+|---|---|---|---|
+| `20261017T140216Z` | a cloud session, code 2b30ade | 80.2% / 65.5% / 56.5% | 80.5% / 65.8% / 55.7% |
