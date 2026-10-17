@@ -1,0 +1,229 @@
+{
+  "experiment": "STRUCTURE-01",
+  "claim": "the main model holds how the words of a sentence go together, learned from sentences analysed by hand, and reads sentences it never held by it",
+  "hypothesis": "read from the store's own view, held-out treebank sentences reach the bars measured for the method on the files (BARS)",
+  "started_at": "2026-10-17T16:18:56.578801+00:00",
+  "duration_seconds": 440.545,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/Lyric/venv_lyric/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/Lyric",
+    "shadow_mode": null,
+    "git_commit": "44259a9466bc4e3be64ba3475e1cc4747c30d2e7",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "lyric_db",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "lyric_db",
+        "model": "lyric_db",
+        "user_context": "lyric_db",
+        "learning": "lyric_db"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "dotenv:.env.postgres",
+        "database": "environment",
+        "user": "dotenv:.env.postgres",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "pool_idle_seconds": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 2,
+    "database_verified": "lyric_db",
+    "database_verified_reason": "asked the server"
+  },
+  "summary": {
+    "checks": 15,
+    "passed": 15,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [
+    {
+      "name": "sentences held",
+      "value": 12544,
+      "unit": "sentences",
+      "note": ""
+    },
+    {
+      "name": "dev classes right",
+      "value": 0.9307,
+      "unit": "fraction",
+      "note": ""
+    },
+    {
+      "name": "dev heads right (UAS)",
+      "value": 0.7803,
+      "unit": "fraction",
+      "note": ""
+    },
+    {
+      "name": "dev heads and relations right (LAS)",
+      "value": 0.7121,
+      "unit": "fraction",
+      "note": ""
+    },
+    {
+      "name": "test classes right",
+      "value": 0.9341,
+      "unit": "fraction",
+      "note": ""
+    },
+    {
+      "name": "test heads right (UAS)",
+      "value": 0.7921,
+      "unit": "fraction",
+      "note": ""
+    },
+    {
+      "name": "test heads and relations right (LAS)",
+      "value": 0.7273,
+      "unit": "fraction",
+      "note": ""
+    },
+    {
+      "name": "with memory's word classes: dev classes right",
+      "value": 0.9318,
+      "unit": "fraction",
+      "note": ""
+    },
+    {
+      "name": "with memory's word classes: dev heads right (UAS)",
+      "value": 0.7813,
+      "unit": "fraction",
+      "note": ""
+    },
+    {
+      "name": "with memory's word classes: dev heads and relations right (LAS)",
+      "value": 0.7141,
+      "unit": "fraction",
+      "note": ""
+    },
+    {
+      "name": "with memory's word classes: test classes right",
+      "value": 0.9352,
+      "unit": "fraction",
+      "note": ""
+    },
+    {
+      "name": "with memory's word classes: test heads right (UAS)",
+      "value": 0.7937,
+      "unit": "fraction",
+      "note": ""
+    },
+    {
+      "name": "with memory's word classes: test heads and relations right (LAS)",
+      "value": 0.7298,
+      "unit": "fraction",
+      "note": ""
+    },
+    {
+      "name": "prose sentences read otherwise with memory's word classes",
+      "value": 2,
+      "unit": "sentences",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "the run is on the store it says",
+      "passed": true,
+      "detail": "connected to lyric_db",
+      "at": "2026-10-17T16:22:36.221778+00:00"
+    },
+    {
+      "label": "memory holds the treebank's sentences as analysed",
+      "passed": true,
+      "detail": "12,544 sentences held",
+      "at": "2026-10-17T16:22:36.238847+00:00"
+    },
+    {
+      "label": "dev: classes right \u2265 91%",
+      "passed": true,
+      "detail": "93.1%",
+      "at": "2026-10-17T16:25:54.348747+00:00"
+    },
+    {
+      "label": "dev: heads right (UAS) \u2265 72%",
+      "passed": true,
+      "detail": "78.0%",
+      "at": "2026-10-17T16:25:54.348802+00:00"
+    },
+    {
+      "label": "dev: heads and relations right (LAS) \u2265 65%",
+      "passed": true,
+      "detail": "71.2%",
+      "at": "2026-10-17T16:25:54.348814+00:00"
+    },
+    {
+      "label": "test: classes right \u2265 91%",
+      "passed": true,
+      "detail": "93.4%",
+      "at": "2026-10-17T16:26:24.446632+00:00"
+    },
+    {
+      "label": "test: heads right (UAS) \u2265 72%",
+      "passed": true,
+      "detail": "79.2%",
+      "at": "2026-10-17T16:26:24.446652+00:00"
+    },
+    {
+      "label": "test: heads and relations right (LAS) \u2265 65%",
+      "passed": true,
+      "detail": "72.7%",
+      "at": "2026-10-17T16:26:24.446663+00:00"
+    },
+    {
+      "label": "with memory's word classes: dev: classes right \u2265 91%",
+      "passed": true,
+      "detail": "93.2%",
+      "at": "2026-10-17T16:26:47.790131+00:00"
+    },
+    {
+      "label": "with memory's word classes: dev: heads right (UAS) \u2265 72%",
+      "passed": true,
+      "detail": "78.1%",
+      "at": "2026-10-17T16:26:47.790149+00:00"
+    },
+    {
+      "label": "with memory's word classes: dev: heads and relations right (LAS) \u2265 65%",
+      "passed": true,
+      "detail": "71.4%",
+      "at": "2026-10-17T16:26:47.790157+00:00"
+    },
+    {
+      "label": "with memory's word classes: test: classes right \u2265 91%",
+      "passed": true,
+      "detail": "93.5%",
+      "at": "2026-10-17T16:27:10.511909+00:00"
+    },
+    {
+      "label": "with memory's word classes: test: heads right (UAS) \u2265 72%",
+      "passed": true,
+      "detail": "79.4%",
+      "at": "2026-10-17T16:27:10.511928+00:00"
+    },
+    {
+      "label": "with memory's word classes: test: heads and relations right (LAS) \u2265 65%",
+      "passed": true,
+      "detail": "73.0%",
+      "at": "2026-10-17T16:27:10.511935+00:00"
+    },
+    {
+      "label": "reading wrote nothing to the store",
+      "passed": true,
+      "detail": "no table written to",
+      "at": "2026-10-17T16:27:12.053305+00:00"
+    }
+  ],
+  "notes": []
+}
