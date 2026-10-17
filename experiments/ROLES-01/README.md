@@ -35,3 +35,4 @@ from elsewhere).
 | `20261017T140216Z` | a cloud session, code 2b30ade | 80.2% / 65.5% / 56.5% | 80.5% / 65.8% / 55.7% |
 | `20261017T141451Z` | a cloud session, code 2723dbb (the reader searches with a beam) | 80.2% / 66.3% / 56.5% | 80.5% / 66.5% / 55.7% |
 | `20261017T150353Z` | a cloud session, code 3e91b25 (classes beside their words, the tree chosen whole) | 80.2% / 67.4% / 56.5% | 80.5% / 68.0% / 55.7% |
+| `20261017T164625Z` | a cloud session, code 74dd45e (a capitalised word read as it was met) | 80.2% / 67.4% / 56.5% | 80.5% / 68.4% / 55.7% |
