@@ -390,6 +390,60 @@ async def test_a_question_about_a_known_thing_asks_the_reasoner_the_one_fact_ask
 
 
 @pytest.mark.asyncio
+async def test_a_question_that_only_names_what_was_found_is_not_answered(talk, monkeypatch):
+    """"Is the valve closed?" composed as the valve alone (given instance_of(?t0, valve)): once the valve is found,
+    nothing is left to ask. No answer is derived and the reasoner is not asked; taken as a question, it stopped the
+    conversation."""
+    from core.reasoning import neural_bridge
+    from core.semantics.derived_reader import MeaningFact
+    asked = []
+
+    class Reasoner:
+        async def reason(self, request):
+            asked.append(request)
+
+    async def found(meaning, *, telling=False):
+        return {"?t0": "valve_1"}
+
+    async def held_premises(*_):
+        return []
+
+    meaning = Meaning("ask", (MeaningFact("instance_of", "?t0", "valve", given=True),))
+    monkeypatch.setattr(neural_bridge, "get_neural_bridge", lambda: Reasoner())
+    monkeypatch.setattr(talk, "_meaning", lambda sentence: meaning)
+    monkeypatch.setattr(talk, "_known_of", found)
+    monkeypatch.setattr(talk, "_held_premises", held_premises)
+    assert await talk._reasoned_answers("Is the valve closed?", [], None) == [] and not asked
+
+
+@pytest.mark.asyncio
+async def test_a_telling_read_by_composing_is_not_taken_in_whole(talk, monkeypatch):
+    """A telling no taught frame read, read by composing its meaning, is held but not taken in whole
+    (`_not_taken_in`), so no answer closes the world on what it names; one a frame read is taken in whole."""
+    import core.memory
+    from core.semantics.derived_reader import MeaningFact, Reading, Utterance
+    meaning = Meaning("tell", (MeaningFact("has_property", "chlorophyll", "green"),))
+
+    async def nothing(*_, **__):
+        return None
+
+    async def agent():
+        return None
+
+    async def telling(*_, **__):
+        return None, []
+
+    monkeypatch.setattr(talk, "_listen", nothing)
+    monkeypatch.setattr(talk, "_telling", telling)
+    monkeypatch.setattr(core.memory, "get_memory_agent", agent)
+    for composed, sentence in ((False, "Chlorophyll is green."), (True, "Chlorophyll is the green pigment.")):
+        utterance = Utterance(form_of(sentence), (Reading((), (), meaning, composed=composed),))
+        monkeypatch.setattr(talk, "_read", lambda text, u=utterance: (u,))
+        await talk.teach(sentence)
+    assert list(talk._not_taken_in) == ["Chlorophyll is the green pigment."], talk._not_taken_in
+
+
+@pytest.mark.asyncio
 async def test_a_happening_told_is_held_as_one_event_of_the_tellers(talk, monkeypatch):
     """"Tom kicked the ball." tells of one kicking, done by Tom, done to the ball: named as teaching names a happening
     (`told_events`), from the telling with its known things found, and the teller's. Unnamed, every fact of it was

@@ -21274,9 +21274,13 @@ class Conversation:
         # Named, a known thing's fact is no longer marked given, so it is set
         # aside here, where what was found is known; counted as asked, no yes/no
         # question about a known thing ever reached the reasoner.
-        fact = goal_fact(Meaning(meaning.act, tuple(bound[f] for f in meaning.facts
-                                                    if not (f.given and f.subject in known)),
-                                 meaning.asked))
+        asked_of = tuple(bound[f] for f in meaning.facts if not (f.given and f.subject in known))
+        if not asked_of:
+            # NOTHING IS LEFT TO ASK once every fact only named a thing found: a reading that asks nothing of what it
+            # names is no question to derive an answer to. A composed reading can be one ("Is the valve closed?" as
+            # the valve alone); taken as one, it stopped the conversation (UNDERSTANDS-PROSE-01, 2026-10-17).
+            return []
+        fact = goal_fact(Meaning(meaning.act, asked_of, meaning.asked))
         if fact is not None:
             affirmative = Meaning("ask", (MeaningFact(fact.relation, fact.subject, fact.obj),))
             result = await bridge.reason(ReasoningRequest(
@@ -21472,6 +21476,12 @@ class Conversation:
                 continue
             if chosen.meaning.act != "tell":
                 continue
+            if getattr(chosen, "composed", False):
+                # A READING COMPOSED IS NOT ALL THE SENTENCE SAID: no taught frame read it, and what the composer made
+                # of how its words go together can miss some of it ("the green pigment" taken as a degree, not a
+                # colour). Held, it is still not taken in whole, so no answer closes the world on what it names:
+                # "Is chlorophyll green?" was answered No (UNDERSTANDS-PROSE-01, 2026-10-17).
+                self._not_taken_in.append(utterance.text)
             telling, notes = await self._telling(utterance.text, chosen, situation)
             acquired.extend(notes)
             if telling is None:
