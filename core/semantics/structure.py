@@ -64,6 +64,12 @@ FOLDS = 10
 KEPT_UNJOINED = 10
 #: What a dependency no tree the beam kept holds is still worth beside one every tree holds: a twentieth.
 UNHELD = 0.05
+#: The group of a word no grouping places.
+UNGROUPED = "?"
+
+#: Which group each word of a sentence stands in, coarse and fine, by the company it keeps
+#: (`StructureView.grouping`): one (coarse, fine) a word.
+Grouping = Callable[[Tuple[str, ...]], Sequence[Tuple[str, str]]]
 
 
 @dataclass(frozen=True)
@@ -189,9 +195,12 @@ class _Classes:
     """What sentences analysed say of the class each word is used as: the situations each word was met in, from the
     most specific to the least (the word, the words beside it, the classes before it, the classes the words after it
     were used as), and the classes it was used as there; for a word met rarely, the same by its ending and how it is
-    written, which is how a word never met is read."""
+    written, which is how a word never met is read. Where words are grouped (`StructureView.grouping`), a word's
+    group stands beside the word: under it for a word met, above its ending for a word never met."""
 
-    def __init__(self, sentences: Iterable["Analysed"]) -> None:
+    def __init__(self, sentences: Iterable["Analysed"], groups: Optional[Callable[[Sequence[str]], Sequence]] = None
+                 ) -> None:
+        self._groups = groups
         held = list(sentences)
         classes_of: Dict[str, set] = defaultdict(set)
         met: Counter = Counter()
@@ -227,6 +236,7 @@ class _Classes:
         word = words[i] if not met or words[i] in self._classes_of else words[i].lower()
         before = classes[i - 1] if i >= 1 else "<s>"
         after = self._ambiguity(words[i + 1] if i + 1 < len(words) else None)
+        coarse, fine = self._groups(words)[i] if self._groups is not None else (None, None)
         if met:
             before_two = classes[i - 2] if i >= 2 else "<s>"
             last = words[i - 1].lower() if i >= 1 else "<s>"
@@ -237,10 +247,14 @@ class _Classes:
                     ("last", word, last, before, after), ("next", word, before, next_word),
                     ("before, after", word, before_two, before, after, after_two), ("around", word, before, after),
                     ("last only", word, last, before), ("next only", word, next_word), ("before only", word, before),
-                    ("after only", word, after), ("word", word)]
+                    ("after only", word, after), ("word", word)] + (
+                [("group", fine, before, after), ("coarse group", coarse, before, after)] if fine is not None else [])
         lower, written = word.lower(), _written(word)
         first = "first" if i == 0 else "later"
-        return [("ends 5", lower[-5:], written, first, before, after), ("ends 4", lower[-4:], written, first, before,
+        grouped = ([("group", fine, written, first, before, after), ("coarse group", coarse, written, before, after)]
+                   if fine is not None else [])
+        return grouped + [
+                ("ends 5", lower[-5:], written, first, before, after), ("ends 4", lower[-4:], written, first, before,
                                                                          after),
                 ("ends 3", lower[-3:], written, first, before, after), ("ends 3 before", lower[-3:], written, before),
                 ("ends 2 before", lower[-2:], written, before), ("ends 1 before", lower[-1:], written, before),
@@ -292,13 +306,22 @@ class _Pairs:
     ways; counted as words they took 1.2 gigabytes, as hashes 0.4, and the chance that any two of them share a hash
     is about one in three million."""
 
-    LEVELS = 9
+    #: The situations two words stand in, the most specific first: both words; the head's word; the dependent's;
+    #: then by their classes alone, with the classes around each, around one, the verbs and marks between, how far
+    #: apart, which way. Where words are grouped, by their groups after their words (`GROUPED_LEVELS`).
+    LEVELS = ("words", "head word", "dependent word", "around both", "around dependent", "around head", "between",
+              "far", "side")
+    GROUPED_LEVELS = LEVELS[:3] + ("groups", "head group", "dependent group", "coarse groups") + LEVELS[3:]
 
-    def __init__(self, sentences: Iterable["Analysed"]) -> None:
-        held = [(self.laid(a.words, a.classes), a.heads, a.relations) for a in sentences]
+    def __init__(self, sentences: Iterable["Analysed"], groups: Optional[Callable[[Sequence[str]], Sequence]] = None
+                 ) -> None:
+        self._groups = groups
+        self.levels = self.GROUPED_LEVELS if groups is not None else self.LEVELS
+        held = [(self.laid(a.words, a.classes, groups(a.words) if groups is not None else None), a.heads,
+                 a.relations) for a in sentences]
         self._met: List[Dict[int, int]] = []
         self._joined: List[Dict[int, int]] = []
-        for level in range(self.LEVELS):
+        for level in self.levels:
             met: Dict[int, int] = defaultdict(int)
             joined: Dict[int, int] = defaultdict(int)
             for laid, heads, _ in held:
@@ -312,7 +335,8 @@ class _Pairs:
                                 joined[situation] += 1
             self._met.append({s: n for s, n in met.items() if n >= KEPT_UNJOINED or s in joined})
             self._joined.append(dict(joined))
-        said: List[Dict[Tuple, Counter]] = [defaultdict(Counter) for _ in range(6)]
+        said: List[Dict[Tuple, Counter]] = [defaultdict(Counter) for _ in self._relation_situations(held[0][0], 0, 1)
+                                            ] if held else []
         for laid, heads, relations in held:
             for d, head in enumerate(heads, 1):
                 for level, situation in zip(said, self._relation_situations(laid, head, d)):
@@ -320,42 +344,56 @@ class _Pairs:
         self._said = [dict(level) for level in said]
 
     @staticmethod
-    def laid(words: Sequence[str], classes: Sequence[str]) -> Tuple:
+    def laid(words: Sequence[str], classes: Sequence[str], groups: Optional[Sequence[Tuple[str, str]]] = None
+             ) -> Tuple:
         """A sentence laid out for its pairs: its words (lowered) and classes from the root (0) to a mark past its
-        end, and how many verbs and how many marks stand before each word."""
+        end, how many verbs and how many marks stand before each word, and each word's groups, fine and coarse, where
+        words are grouped."""
         w = (ROOT,) + tuple(word.lower() for word in words) + ("</s>",)
         c = ("ROOT",) + tuple(classes) + ("</s>",)
         verbs, marks = [0], [0]
         for cls in c:
             verbs.append(verbs[-1] + (cls in _VERBS))
             marks.append(marks[-1] + (cls == "PUNCTUATION"))
-        return w, c, verbs, marks
+        if groups is None:
+            return w, c, verbs, marks, None, None
+        fine = (ROOT,) + tuple(g for _, g in groups) + ("</s>",)
+        coarse = (ROOT,) + tuple(g for g, _ in groups) + ("</s>",)
+        return w, c, verbs, marks, fine, coarse
 
     @staticmethod
-    def _situation(laid: Tuple, h: int, d: int, level: int) -> Tuple:
-        """The situation at `level` (0 the most specific) of word `h` as the head of word `d`."""
-        w, c, verbs, marks = laid
+    def _situation(laid: Tuple, h: int, d: int, level: str) -> Tuple:
+        """The situation of word `h` as the head of word `d`, at `level` (`LEVELS`)."""
+        w, c, verbs, marks, g, coarse = laid
         side = "<" if h < d else ">"
-        if level == 8:
+        if level == "side":
             return c[h], c[d], side
         far = _apart(h, d)
-        if level == 7:
+        if level == "far":
             return c[h], c[d], side, far
-        if level == 0:
+        if level == "words":
             return w[h], c[h], w[d], c[d], side, far
         lo, hi = (h, d) if h < d else (d, h)
         between = min(verbs[hi] - verbs[lo + 1], 2), min(marks[hi] - marks[lo + 1], 2)
-        if level == 1:
+        if level == "head word":
             return w[h], c[h], c[d], side, far, between
-        if level == 2:
+        if level == "dependent word":
             return c[h], w[d], c[d], side, far, between
-        if level == 6:
+        if level == "groups":
+            return level, g[h], c[h], g[d], c[d], side, far, between
+        if level == "head group":
+            return level, g[h], c[h], c[d], side, far, between
+        if level == "dependent group":
+            return level, c[h], g[d], c[d], side, far, between
+        if level == "coarse groups":
+            return level, coarse[h], c[h], coarse[d], c[d], side, far, between
+        if level == "between":
             return c[h], c[d], side, far, between
         around_d = c[d - 1], c[d + 1]
-        if level == 4:
+        if level == "around dependent":
             return c[h], c[d], side, far, between, around_d
         around_h = c[h - 1] if h > 0 else "<s>", c[h + 1]
-        if level == 5:
+        if level == "around head":
             return c[h], c[d], side, far, between, around_h
         return c[h], c[d], side, far, between, around_h, around_d
 
@@ -363,22 +401,23 @@ class _Pairs:
         """How likely word `h` is the head of word `d`: of the pairs met standing so, the share joined, each
         situation from the least specific up counting as Witten-Bell weighs it (`_chances`)."""
         chance = 0.0
-        for level in range(self.LEVELS - 1, -1, -1):
-            situation = hash(self._situation(laid, h, d, level))
-            n = self._met[level].get(situation, 0)
+        for at in range(len(self.levels) - 1, -1, -1):
+            situation = hash(self._situation(laid, h, d, self.levels[at]))
+            n = self._met[at].get(situation, 0)
             if not n:
                 continue
-            joined = self._joined[level].get(situation, 0)
+            joined = self._joined[at].get(situation, 0)
             weight = n / (n + (joined > 0) + (joined < n))
             chance = weight * joined / n + (1 - weight) * chance
         return chance
 
     @staticmethod
     def _relation_situations(laid: Tuple, h: int, d: int) -> List[Tuple]:
-        w, c, _, _ = laid
+        w, c, _, _, g, _ = laid
         side, far = ("<" if h < d else ">"), _apart(h, d)
-        return [(w[h], c[h], w[d], c[d], side), (c[h], w[d], c[d], side, far), (w[h], c[h], c[d], side),
-                (c[h], c[d], side, far, c[d + 1]), (c[h], c[d], side), (c[d],)]
+        return [(w[h], c[h], w[d], c[d], side)] + ([("groups", g[h], c[h], g[d], c[d], side)] if g else []) + [
+            (c[h], w[d], c[d], side, far), (w[h], c[h], c[d], side), (c[h], c[d], side, far, c[d + 1]),
+            (c[h], c[d], side), (c[d],)]
 
     def relation(self, laid: Tuple, h: int, d: int) -> str:
         """As what word `d` depends on word `h`, as the pairs joined in the most specific situation like it were."""
@@ -456,12 +495,27 @@ class StructureView:
         #: sentence held used: its class is then one of those, as the situations decide. None asks nothing, and a
         #: word never met is decided by its ending and how it is written alone.
         self.held_classes: Optional[Callable[[str], Mapping[str, int]]] = None
+        #: Which group each word of a sentence stands in by the company it keeps, coarse and fine (`Grouping`);
+        #: weighed beside the word wherever a word is, and in its place where the word was met rarely or never. None
+        #: groups nothing, and the situations are as they were (`experiments/GROUPS-01`).
+        self.grouping: Optional[Grouping] = None
+        self._grouped: Dict[Tuple[str, ...], Tuple[Tuple[str, str], ...]] = {}
 
     def __len__(self) -> int:
         return len(self._held)
 
     def __contains__(self, key: str) -> bool:
         return key in self._held
+
+    def _groups(self, words: Sequence[str]) -> Optional[Tuple[Tuple[str, str], ...]]:
+        """Each word's groups, coarse and fine, as `grouping` places the sentence's words; None where nothing groups
+        them. Asked once a sentence."""
+        if self.grouping is None:
+            return None
+        key = tuple(words)
+        if key not in self._grouped:
+            self._grouped[key] = tuple((str(coarse), str(fine)) for coarse, fine in self.grouping(key))
+        return self._grouped[key]
 
     def add(self, analysed: Analysed) -> bool:
         """Hold one analysed sentence. False if it was held."""
@@ -478,9 +532,13 @@ class StructureView:
 
     @staticmethod
     def _step_situations(words: Sequence[str], classes: Sequence[str], stack: Sequence[int], waiting: Sequence[int],
-                         under: Mapping[int, List[int]], relation: Mapping[int, str]) -> List[Tuple]:
+                         under: Mapping[int, List[int]], relation: Mapping[int, str],
+                         groups: Optional[Sequence[str]] = None) -> List[Tuple]:
         def w(i):
             return words[i] if i is not None else "-"
+
+        def g(i):
+            return groups[i] if i is not None else "-"
 
         def c(i):
             return classes[i] if i is not None else "-"
@@ -502,11 +560,15 @@ class StructureView:
         b0 = waiting[0] if waiting else None
         b1 = waiting[1] if len(waiting) >= 2 else None
         far = _distance(s0, s1) if s0 is not None and s1 is not None else 0
+        grouped = [("groups", g(s1), g(s0), g(b0), c(s1), c(s0), c(b0), last_under(s1), first_under(s0)),
+                   ("group", g(s0), c(s1), c(s0), c(b0), c(b1), last_under(s1), first_under(s0), last_under(s0))
+                   ] if groups is not None else []
         return [
             (w(s1), w(s0), w(b0), c(s1), c(s0), c(b0), last_under(s1), first_under(s0)),
             (w(s1), w(s0), c(s1), c(s0), c(b0), last_under(s1), first_under(s0)),
             (w(s0), c(s1), c(s0), c(b0), c(b1), last_under(s1), first_under(s0), last_under(s0)),
             (w(s1), c(s1), c(s0), c(b0), c(b1), last_under(s1), first_under(s0), last_under(s0)),
+        ] + grouped + [
             (c(s2), c(s1), c(s0), c(b0), c(b1), last_under(s1), first_under(s0), last_under(s0), far),
             (c(s1), c(s0), c(b0), c(b1), last_under(s1), first_under(s0), far),
             (c(s1), c(s0), c(b0), first_under(s0), far),
@@ -521,9 +583,11 @@ class StructureView:
         if self._ready:
             return
         held = list(self._held.values())
-        self._classes = _Classes(held)
-        both = self._as_read(held)
-        steps: List[Dict[Tuple, Counter]] = [defaultdict(Counter) for _ in range(self._LEVELS)]
+        groups = self._groups if self.grouping is not None else None
+        self._classes = _Classes(held, groups)
+        both = self._as_read(held, groups)
+        steps: List[Dict[Tuple, Counter]] = [defaultdict(Counter)
+                                             for _ in range(self._LEVELS + (2 if groups is not None else 0))]
         for analysed in both:
             if not analysed.projective():
                 continue
@@ -531,11 +595,12 @@ class StructureView:
                 for level, situation in zip(steps, situations):
                     level[situation][step] += 1
         self._steps = [dict(level) for level in steps]
-        self._pairs = _Pairs(both)
+        self._pairs = _Pairs(both, groups)
         self._ready = True
 
     @staticmethod
-    def _as_read(held: Sequence[Analysed]) -> List[Analysed]:
+    def _as_read(held: Sequence[Analysed], groups: Optional[Callable[[Sequence[str]], Sequence]] = None
+                 ) -> List[Analysed]:
         """Each sentence held as it was analysed, and, where reading gives its words other classes, as read: split
         into `FOLDS` parts by its key, each part's classes read by what the other parts say, as the treebank alone
         decides, its structure as given. Learned over both, a step or a pair is known in the situations reading meets
@@ -545,7 +610,7 @@ class StructureView:
             return list(held)
         both = {analysed.key(): analysed for analysed in held}
         for part in range(parts):
-            others = _Classes(a for a in held if int(a.key()[:8], 16) % parts != part)
+            others = _Classes((a for a in held if int(a.key()[:8], 16) % parts != part), groups)
             for analysed in held:
                 if int(analysed.key()[:8], 16) % parts == part:
                     read = dataclasses.replace(analysed, classes=others.read(analysed.words))
@@ -558,6 +623,8 @@ class StructureView:
         (`R:relation`)."""
         words = (ROOT,) + tuple(word.lower() for word in analysed.words)
         classes = ("ROOT",) + analysed.classes
+        grouped = self._groups(analysed.words)
+        groups = (ROOT,) + tuple(fine for _, fine in grouped) if grouped is not None else None
         heads = (None,) + analysed.heads
         relations = (None,) + analysed.relations
         owed = Counter(analysed.heads)
@@ -572,7 +639,7 @@ class StructureView:
                 step = "R:" + relations[stack[-1]]
             else:
                 step = "S"
-            yield self._step_situations(words, classes, stack, waiting, under, relation), step
+            yield self._step_situations(words, classes, stack, waiting, under, relation, groups), step
             self._take(step, stack, waiting, under, relation)
             if step != "S":
                 owed[stack[-1]] -= 1
@@ -661,7 +728,7 @@ class StructureView:
     def _pair_chances(self, words: Sequence[str], classes: Sequence[str]) -> Tuple[Tuple, "np.ndarray"]:
         """The sentence laid out for its pairs, and the log chance that word h is the head of word d, `[h, d]`."""
         n = len(words)
-        laid = _Pairs.laid(words, classes)
+        laid = _Pairs.laid(words, classes, self._groups(words))
         chances = np.full((n + 1, n + 1), -1e9)
         for d in range(1, n + 1):
             for h in range(n + 1):
@@ -674,6 +741,8 @@ class StructureView:
         heads by word from 1, dependents, relations)."""
         lowered = (ROOT,) + tuple(word.lower() for word in words)
         with_root = ("ROOT",) + tuple(classes)
+        grouped = self._groups(words)
+        groups = (ROOT,) + tuple(fine for _, fine in grouped) if grouped is not None else None
 
         def allowed(stack: Sequence[int], waiting: Sequence[int]) -> Callable[[str], bool]:
             def ok(step: str) -> bool:
@@ -692,7 +761,7 @@ class StructureView:
                 if not waiting and len(stack) <= 1:
                     grown.append((score, stack, waiting, heads, under, relation))
                     continue
-                situations = self._step_situations(lowered, with_root, stack, waiting, under, relation)
+                situations = self._step_situations(lowered, with_root, stack, waiting, under, relation, groups)
                 chances = _chances(((s, level.get(s)) for level, s in zip(self._steps, situations)),
                                    allowed(stack, waiting))
                 if not chances:
