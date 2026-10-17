@@ -33,3 +33,4 @@ from elsewhere).
 | Run | Where | dev: UD's structure / Lyric's / path alone | test: the same |
 |---|---|---|---|
 | `20261017T140216Z` | a cloud session, code 2b30ade | 80.2% / 65.5% / 56.5% | 80.5% / 65.8% / 55.7% |
+| `20261017T141451Z` | a cloud session, code 2723dbb (the reader searches with a beam) | 80.2% / 66.3% / 56.5% | 80.5% / 66.5% / 55.7% |

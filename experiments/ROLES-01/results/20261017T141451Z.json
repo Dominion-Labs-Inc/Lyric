@@ -1,0 +1,127 @@
+{
+  "experiment": "ROLES-01",
+  "claim": "argument-structure constructions learned over phrases say each argument's part",
+  "hypothesis": "learned from PropBank's training part, they say the held-out arguments' parts in the meaning language better than the path alone does, over UD's structure and over Lyric's own (no bar: measured)",
+  "started_at": "2026-10-17T14:14:51.935987+00:00",
+  "duration_seconds": 59.021,
+  "environment": {
+    "python": "3.13.16",
+    "executable": "/usr/bin/python3",
+    "platform": "Linux-6.18.44-fc-v139-x86_64-with-glibc2.39",
+    "cwd": "/home/user/Lyric",
+    "shadow_mode": null,
+    "git_commit": "2723dbbb3b750fc61541c2b855b04c1ced4b3115",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "lyric_db",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "lyric_db",
+        "model": "lyric_db",
+        "user_context": "lyric_db",
+        "learning": "lyric_db"
+      },
+      "user": "postgres",
+      "configuration_source": {
+        "host": "default",
+        "port": "default",
+        "database": "default",
+        "user": "default",
+        "password": "default",
+        "pool_min_size": "default",
+        "pool_max_size": "default",
+        "pool_idle_seconds": "default",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 0,
+    "database_verified": null,
+    "database_verified_reason": "not verified"
+  },
+  "summary": {
+    "checks": 1,
+    "passed": 1,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [
+    {
+      "name": "arguments learned from",
+      "value": 73089,
+      "unit": "arguments",
+      "note": ""
+    },
+    {
+      "name": "dev arguments",
+      "value": 8526,
+      "unit": "arguments",
+      "note": ""
+    },
+    {
+      "name": "dev: said right over gold structure",
+      "value": 0.8025,
+      "unit": "fraction",
+      "note": ""
+    },
+    {
+      "name": "dev: said right over Lyric's structure",
+      "value": 0.6627,
+      "unit": "fraction",
+      "note": ""
+    },
+    {
+      "name": "dev: said right over path alone",
+      "value": 0.5652,
+      "unit": "fraction",
+      "note": ""
+    },
+    {
+      "name": "dev: most often said wrong over Lyric's structure",
+      "value": 0,
+      "unit": "",
+      "note": "fact:done_to as fact:done_by 197; fact:done_by as fact:done_to 193; fact:during as fact:has_property 91; rule:predicated as fact:done_to 67; fact:done_to as fact:has_property 65; fact:has_property as fact:done_to 65; fact:done_by as fact:has_property 57; fact:during as fact:done_to 44; rule:predicated as fact:has_property 43; rule:goal as fact:done_to 41; fact:has_property as fact:done_by 41; fact:done_to as fact:during 40"
+    },
+    {
+      "name": "test arguments",
+      "value": 8320,
+      "unit": "arguments",
+      "note": ""
+    },
+    {
+      "name": "test: said right over gold structure",
+      "value": 0.805,
+      "unit": "fraction",
+      "note": ""
+    },
+    {
+      "name": "test: said right over Lyric's structure",
+      "value": 0.665,
+      "unit": "fraction",
+      "note": ""
+    },
+    {
+      "name": "test: said right over path alone",
+      "value": 0.5572,
+      "unit": "fraction",
+      "note": ""
+    },
+    {
+      "name": "test: most often said wrong over Lyric's structure",
+      "value": 0,
+      "unit": "",
+      "note": "fact:done_by as fact:done_to 227; fact:done_to as fact:done_by 184; fact:done_to as fact:has_property 76; fact:has_property as fact:done_to 73; fact:during as fact:has_property 70; rule:predicated as fact:done_to 64; fact:done_by as fact:has_property 56; fact:done_to as rule:predicated 48; fact:has_property as fact:during 44; fact:during as fact:done_to 43; rule:goal as fact:done_to 42; rule:predicated as fact:has_property 40"
+    }
+  ],
+  "checks": [
+    {
+      "label": "the constructions learned from every training argument",
+      "passed": true,
+      "detail": "73,089",
+      "at": "2026-10-17T14:15:50.956675+00:00"
+    }
+  ],
+  "notes": []
+}
