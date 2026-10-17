@@ -416,6 +416,14 @@ async def test_a_question_that_only_names_what_was_found_is_not_answered(talk, m
     assert await talk._reasoned_answers("Is the valve closed?", [], None) == [] and not asked
 
 
+def test_what_is_not_known_of_a_question_naming_only_a_known_thing_is_not_said():
+    """A question of one fact that only names a known thing (given instance_of(?t0, light)) holds or not of nothing:
+    what is not known of it is not said, and saying the reply goes on (the reply stopped there, 2026-10-17)."""
+    from core.agents.autonomous.autonomous_coordinator import _not_known
+    from core.semantics.derived_reader import MeaningFact
+    assert _not_known(Meaning("ask", (MeaningFact("instance_of", "?t0", "light", given=True),))) is None
+
+
 @pytest.mark.asyncio
 async def test_a_telling_read_by_composing_is_not_taken_in_whole(talk, monkeypatch):
     """A telling no taught frame read, read by composing its meaning, is held but not taken in whole

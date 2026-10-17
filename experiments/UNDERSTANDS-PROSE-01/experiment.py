@@ -9,6 +9,10 @@ Scored as a reader is: how many sentences it understood whole; and of the questi
 how many it did not answer (it does not know, or did not read), and how many it answered WRONG -- a wrong answer is
 worse than none, and is counted apart.
 
+WHAT EACH WAS READ AS, AND WHY EACH ANSWER WAS GIVEN, is kept in the transcript: each reading (marked where it was
+composed, `LYRIC_COMPOSE=1`), and what the reasoner was asked and said for each question. A sentence or question that
+stops the conversation is kept with what stopped it, counted apart, and the run goes on.
+
 ASKED WITHOUT BEING REMEMBERED, SO IT RUNS ON MAIN: each conversation is held with `remembers=False`, keeps what it
 is told for as long as it lasts, and writes nothing to the store; the server's own counters before and after say so.
 
@@ -53,6 +57,16 @@ def say(*a):
 #: never met, more than one way to take it, or a part about nothing it can name.
 UNREAD = ("I understood '", "I know these words", "I don't know '", "I read that more than one way",
           "Part of that is about", "part of that is about")
+
+
+def readings_of(conversation, text):
+    """What `text` was read as, each utterance's readings written canonically, a composed one marked; what stopped
+    the reading, where something did."""
+    try:
+        return [[("composed: " if getattr(r, "composed", False) else "") + r.meaning.canonical() for r in u.readings]
+                for u in conversation._read(text)]
+    except Exception as e:
+        return f"STOPPED: {type(e).__name__}: {e}"
 
 
 def understood_whole(understanding) -> bool:
@@ -117,8 +131,33 @@ async def main() -> int:
         return {row["name"]: int(row["n"]) for row in rows or ()}
     before = await written()
 
-    sentences = read = 0
-    tally = {"right": 0, "not answered": 0, "wrong": 0}
+    # WHY EACH ANSWER WAS GIVEN: what the reasoner was asked, and what it said and by which route, watched, not changed.
+    from core.reasoning.neural_bridge import get_neural_bridge
+    bridge, reasoned = get_neural_bridge(), []
+    reason = bridge.reason
+
+    async def watched(request):
+        result = await reason(request)
+        reasoning = getattr(request, "reading", None)
+        reasoned.append({"asked": [f.render() for f in reasoning.facts] if reasoning is not None else None,
+                         "answer": result.answer, "route": (result.metadata or {}).get("route"),
+                         "steps": list(result.reasoning_steps or [])[:8]})
+        return result
+    bridge.reason = watched
+
+    async def understand(conversation, said):
+        """The conversation's understanding of what was said, or what stopped it."""
+        try:
+            with contextlib.redirect_stdout(quiet), contextlib.redirect_stderr(quiet):
+                return await conversation.understand(said, look_up=False), None
+        except Exception as e:
+            import traceback
+            frames = [f for f in traceback.extract_tb(e.__traceback__) if f.filename.endswith(".py")][-4:]
+            where = " < ".join(f"{Path(f.filename).name}:{f.lineno}" for f in reversed(frames))
+            return None, f"{type(e).__name__}: {e} ({where})"
+
+    sentences = read = stopped = 0
+    tally = {"right": 0, "not answered": 0, "wrong": 0, "stopped": 0}
     by_kind = {}
     transcript = []
     for n, text in enumerate(texts):
@@ -127,29 +166,36 @@ async def main() -> int:
         kind = by_kind.setdefault(text["kind"], {"read": 0, "of": 0, "right": 0, "asked": 0, "wrong": 0})
         for sentence in text["text"]:
             started = time.perf_counter()
-            with contextlib.redirect_stdout(quiet), contextlib.redirect_stderr(quiet):
-                u = await conversation.understand(sentence, look_up=False)
-            whole = understood_whole(u)
+            u, stop = await understand(conversation, sentence)
+            whole = u is not None and understood_whole(u)
             sentences += 1
             read += whole
+            stopped += stop is not None
             kind["of"] += 1
             kind["read"] += whole
+            reply = (u.reply or "") if u is not None else f"STOPPED: {stop}"
             line = f"  told  {'read  ' if whole else 'UNREAD'} {sentence!r} ({time.perf_counter() - started:.1f}s)"
-            say(line + (f"\n          -> {(u.reply or '').strip()[:160]!r}" if not whole else ""))
-            transcript.append({"text": text["name"], "told": sentence, "read": whole, "reply": u.reply})
+            say(line + (f"\n          -> {reply.strip()[:160]!r}" if not whole else ""))
+            transcript.append({"text": text["name"], "told": sentence, "read": whole, "reply": reply,
+                               "readings": readings_of(conversation, sentence)})
         for question in text["questions"]:
             started = time.perf_counter()
-            with contextlib.redirect_stdout(quiet), contextlib.redirect_stderr(quiet):
-                u = await conversation.understand(question["q"], look_up=False)
-            result = scored(question, u)
+            del reasoned[:]
+            u, stop = await understand(conversation, question["q"])
+            result = scored(question, u) if u is not None else "stopped"
             tally[result] += 1
             kind["asked"] += 1
             kind["right"] += result == "right"
             kind["wrong"] += result == "wrong"
+            reply = (u.reply or "") if u is not None else f"STOPPED: {stop}"
             say(f"  asked {question['q']!r} -> {result.upper() if result != 'right' else 'right'} "
-                f"({time.perf_counter() - started:.1f}s)\n          -> {(u.reply or '').strip()[:200]!r}")
+                f"({time.perf_counter() - started:.1f}s)\n          -> {reply.strip()[:200]!r}")
             transcript.append({"text": text["name"], "asked": question["q"], "gold": question["answer"],
-                               "result": result, "reply": u.reply})
+                               "result": result, "reply": reply, "readings": readings_of(conversation, question["q"]),
+                               "answers": [{"about": a.about, "relation": a.relation, "others": list(a.others),
+                                            "verdict": a.verdict, "support": list(a.support),
+                                            "conclusion": a.conclusion} for a in (u.answers if u else [])],
+                               "reasoned": list(reasoned)})
         await asyncio.sleep(0)
 
     asked = sum(tally.values())
@@ -164,6 +210,10 @@ async def main() -> int:
         EV.check(f"{label} {'≤' if must_be_low else '≥'} {bar:.0%}", ok, f"{k}/{n} = {value:.1%}")
         EV.metric(label, round(value, 4), unit="fraction", note=f"{k}/{n}")
         say(f"  {label:42} {k}/{n} = {value:.1%}  (bar {'≤' if must_be_low else '≥'} {bar:.0%})")
+    EV.check("nothing told or asked stopped the conversation", stopped + tally["stopped"] == 0,
+             f"{stopped} told, {tally['stopped']} asked")
+    EV.metric("told or asked and stopped", stopped + tally["stopped"], unit="sentences")
+    say(f"  {'stopped':42} {stopped} told, {tally['stopped']} asked")
     for kind, k in by_kind.items():
         line = (f"{kind}: sentences {k['read']}/{k['of']}, questions right {k['right']}/{k['asked']}, "
                 f"wrong {k['wrong']}")
@@ -171,7 +221,7 @@ async def main() -> int:
         EV.note(line)
     (HERE / "results").mkdir(exist_ok=True)
     stamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
-    (HERE / "results" / f"{stamp}_transcript.json").write_text(json.dumps(transcript, indent=1))
+    (HERE / "results" / f"{stamp}_transcript.json").write_text(json.dumps(transcript, indent=1, default=str))
 
     # NOTHING WRITTEN: the server's counters, a moment after the last question, against the ones before the first.
     await asyncio.sleep(1)

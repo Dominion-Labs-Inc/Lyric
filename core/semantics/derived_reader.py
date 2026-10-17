@@ -4792,7 +4792,8 @@ def _read_by_composing(utterance: "Utterance") -> "Utterance":
     if agent is None or not any(not _is_mark(p.text) for p in utterance.pieces):
         return utterance
     meaning = agent.composition_view().compose_sentence(surface_of(utterance.pieces))
-    if meaning is None:
+    if meaning is None or all(f.given for f in meaning.facts):
+        # A meaning of known things alone says nothing of them: told, nothing is told; asked, nothing is asked.
         return utterance
     return Utterance(utterance.pieces, (Reading((), (), meaning, composed=True),), utterance.partial,
                      utterance.unknown)

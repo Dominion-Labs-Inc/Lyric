@@ -19764,10 +19764,12 @@ def _not_known(meaning, named: Optional[Dict[str, str]] = None,
         if len(meaning.facts) != 1 or meaning.facts[0].condition or meaning.facts[0].alternative:
             return None
         fact = meaning.facts[0].renamed(turned)
-        facts += [replace(fact, positive=True, alternative=True), replace(fact, positive=False, alternative=True)]
     try:
+        if not meaning.asked:
+            facts += [replace(fact, positive=True, alternative=True), replace(fact, positive=False, alternative=True)]
         told = Meaning("tell", tuple(facts))
     except ValueError:
+        # Nothing taught says it either way: a fact only naming a known thing ("given") is not one that holds or not.
         return None
     sentences = say(told, named=named, framed=framed)
     return sentences[0] if sentences else None

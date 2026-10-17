@@ -57,7 +57,10 @@ With `LYRIC_COMPOSE=1` an utterance no taught frame reads is read by composing i
 together (`core/semantics/composition.py`; learned from the lessons' sentences and PropBank's arguments memory holds,
 taught by `--source composition` and `--source propbank`); the record notes whether it was on.
 
-**Results:** `results/<UTC timestamp>.json` and `.md`, the transcript beside them, and `results/run.log`.
+**Results:** `results/<UTC timestamp>.json` and `.md`, the transcript beside them, and `results/run.log`. The transcript
+keeps what each sentence and question was read as (a composed reading marked) and, for each question, the answers
+given and what the reasoner was asked and said, by which route. A sentence or question that stops the conversation is
+kept with what stopped it and counted apart; the run goes on, and its check fails.
 
 **Runs on main:**
 

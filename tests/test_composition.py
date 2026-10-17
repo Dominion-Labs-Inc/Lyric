@@ -104,6 +104,24 @@ def test_an_utterance_no_frame_reads_is_composed_only_where_composing_is_on(monk
     assert reading.meaning.canonical() == want.canonical()
 
 
+def test_a_composed_meaning_of_known_things_alone_is_no_reading(monkeypatch):
+    """"Is the valve closed?" composed as the valve alone (given instance_of(?x2, valve)) asks nothing: the utterance
+    is left unread, as it is where nothing is composed."""
+    from core.agents import memory_agent as memory
+    from core.semantics import derived_reader as dr
+
+    class View:
+        def compose_sentence(self, sentence):
+            return Meaning("ask", (F("instance_of", "?x2", "valve", given=True),))
+
+    class Agent:
+        def composition_view(self):
+            return View()
+    monkeypatch.setattr(memory, "_memory_agent", Agent())
+    monkeypatch.setattr(dr, "COMPOSING", True)
+    assert not dr.read_text("Is the valve closed?", dr.PatternInventory())[0].readings
+
+
 def test_a_word_is_named_as_memory_names_it():
     """"flies" names what the filler taught for it names (the lessons' `dipterous insect fly`); a word memory holds
     nothing of names itself."""
