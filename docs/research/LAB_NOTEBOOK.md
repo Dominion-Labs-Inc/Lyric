@@ -16521,3 +16521,35 @@ over several lines (`Argued.said`, `TaughtSentence.said`), which memory keeps an
 memory first and observes their beliefs after, so the 566 kept had no standing yet: a pass now observes again what
 memory held already (`held_already`), which moves nothing where it was observed (`observe_claim` is idempotent per
 witness) and gives the 566 theirs when the pass is run again.
+
+## 2026-10-17 (20) — Step 4 on main: both passes taught, and the prose read with composing on
+
+`--source propbank` run again on main took the 10,495 annotated sentences whole: 9,868 kept, the 627 kept before held
+already and given their standing (beliefs +10,495), in 524 s; the review after it answered 186 of 200 right.
+`--source composition` took the 3,054 lesson sentences with their meanings (3,052 kept, two given twice in the lessons)
+in 277 s; its review answered 177 of 200 right. Nothing was admitted that the substrate was not told of.
+
+UNDERSTANDS-PROSE-01 with `LYRIC_COMPOSE=1` stopped twice before it ran through. A composed question can name only a
+thing already found ("the light", given and found): set aside as naming, nothing was left to ask, and both the
+reasoning (`_reasoned_answers`) and the saying of what is not known (`_not_known`) were given an empty question.
+Neither takes one now, and a composed meaning of known things alone is no reading (`_read_by_composing`): told, it
+tells nothing; asked, it asks nothing. A telling read only by composing is held but not taken in whole
+(`_not_taken_in`), so no answer closes the world on what it names. The run now keeps, for each sentence and question,
+what it was read as (composed readings marked) and what the reasoner was asked and said by which route, and goes on
+past a stop, counted apart.
+
+`20261017T224849Z`: sentences understood 16/33 (7 without composing), right 10/37 (9), wrong 3/37 (0). The one right
+answer more is a question composed as its telling was ("Is Paris the capital of France?"). The wrong answers say where
+the reading is short:
+- "Is chlorophyll green?" No. The frames read it only as whether chlorophyll is the colour green (four nouns' senses,
+  no quality), which the strong disjointness assumption denies through chlorophyll → pigment. The told sentence was
+  read by the frames, not composed, and held whole this time because what "?previous" points at changed with the
+  sentence before it now read; before, part of it was not held and the world stayed open.
+- "How many engineers did the company hire?" and "How many failed attempts were there?" were composed without what
+  was asked (the engineers, the count), found no answer, and were replied to with what memory holds of their
+  subject ("Each company is an institution."), which the run counts wrong.
+
+The composer as it is reads more than the frames and asks worse than them: of the prose questions, composed in
+COMPOSE-01's terms, "Is the valve closed?" was the valve alone, "Is key a function?" something done to a function.
+Composing stays off by default; it is the composer's reading of questions, and the frames' reading of a quality, that
+the next steps have to raise.

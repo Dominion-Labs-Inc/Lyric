@@ -70,6 +70,7 @@ kept with what stopped it and counted apart; the run goes on, and its check fail
 | `20261016T002042Z` | + no closed world on what was not taken in | 4/33 | 8/37 | 0/37 | nothing |
 | `20261016T125637Z` | + a person's rule reaches the reasoner; a question about a known thing asks one fact | 4/33 | 9/37 | 1/37 | nothing |
 | `20261016T140446Z` | + a happening told in a conversation is held, and asked about | 7/33 | 9/37 | 0/37 | nothing |
+| `20261017T224849Z` | 29caa75, composing on (`LYRIC_COMPOSE=1`) | 16/33 | 10/37 | 3/37 | nothing |
 
 Of the four wrong answers in the first run, three were the strong disjointness assumption about a subject the
 conversation had been told of and could not read; the fourth was a recital `scored` counted as wrong, and counted
@@ -84,3 +85,14 @@ company hired three engineers in May."), "animal" for a happening ("The blue wha
 the working done by the listener ("Guido van Rossum began working on Python in the late 1980s."). A telling of a
 happening was refused before, whatever its reading, so `understood_whole` counts a sentence held, not one read right.
 Its wrong count is 0 because the largest-animal recital began "I remember:" again.
+
+The fifth run composed what no taught frame read. Nine sentences more were held (16 of 33), and one question more was
+answered right: "Is Paris the capital of France?", told and asked through the same composed reading. Two runs before
+it stopped: a composed question that named only a thing already found asked nothing, and the code that answers it
+and the code that says what is not known of it each took it for a question (fixed, with a composed meaning of known
+things alone no reading at all). Of its three wrong answers, one is a false No: "Is chlorophyll green?" read by the
+frames only as whether chlorophyll is the colour green (no reading has green as a quality), which the closed world
+denies; the told sentence was held whole this time, where it had been left in part, so the world was closed on it.
+The other two are composed questions answered with what memory holds of their subject ("Each company is an
+institution." for "How many engineers did the company hire?"): the composer lost what was asked, and a recital that
+does not begin "I remember:" is counted wrong. Composing stays off by default.
